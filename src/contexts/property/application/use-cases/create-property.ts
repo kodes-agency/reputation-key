@@ -2,7 +2,7 @@
 // Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
 
 import type { PropertyRepository } from '../ports/property.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { PropertyCommandStore } from '../ports/property-command-store.port'
 import type { Property, PropertyId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePropertyInput } from '../dto/create-property.dto'
@@ -12,15 +12,13 @@ import { normalizeSlug } from '../../domain/rules'
 import { buildProperty } from '../../domain/constructors'
 import { propertyError } from '../../domain/errors'
 import { propertyCreated } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type CreatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
-  events: EventBus
+  commandStore: PropertyCommandStore
   idGen: () => PropertyId
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const createProperty =
@@ -61,14 +59,11 @@ export const createProperty =
 
     const property = propertyResult.value
 
-    // 5. Persist
-    await deps.propertyRepo.insert(ctx.organizationId, property)
-
-    // 6. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      propertyCreated({
+    // 5. Persist + fact — atomic via the command store (BQC-3.5)
+    await deps.commandStore.createProperty({
+      organizationId: ctx.organizationId,
+      property,
+      event: propertyCreated({
         propertyId: property.id,
         organizationId: property.organizationId,
         name: property.name,
@@ -77,7 +72,7 @@ export const createProperty =
         googleConnectionId: property.googleConnectionId ?? undefined,
         occurredAt: property.createdAt,
       }),
-    )
+    })
 
     // 7. Return
     return property

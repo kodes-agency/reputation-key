@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
 import { createInMemoryGbpCacheRepo } from '#/shared/testing/in-memory-gbp-cache-repo'
@@ -28,7 +29,7 @@ const setup = () => {
     oauth,
     encryption,
     cacheRepo,
-    events,
+    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
   }
@@ -74,7 +75,7 @@ describe('disconnectGoogleAccount', () => {
       oauth: createInMemoryGoogleOAuthPort(),
       encryption: createInMemoryTokenEncryption(),
       cacheRepo,
-      events,
+      commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
       clock: () => FIXED_TIME,
       logger: createMockLogger(),
       sourceContentPurge: {
@@ -179,7 +180,7 @@ describe('disconnectGoogleAccount', () => {
       oauth,
       encryption,
       cacheRepo,
-      events,
+      commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
       clock: () => FIXED_TIME,
       logger: createMockLogger(),
       unsubscribeFromNotifications: async () => {

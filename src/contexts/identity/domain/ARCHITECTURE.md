@@ -48,14 +48,14 @@ Smart constructors (`constructors.ts`) are used in other contexts to:
 
 **This doesn't apply to identity because:**
 
-| Operation           | Where It Happens                       | Returns             |
-| ------------------- | -------------------------------------- | ------------------- |
-| Sign up user        | `better-auth.api.signUpEmail()`        | User object with ID |
-| Create organization | `better-auth.api.createOrganization()` | Organization ID     |
-| Create invitation   | `better-auth.api.createInvitation()`   | Invitation ID       |
-| Accept invitation   | `better-auth.api.acceptInvitation()`   | void                |
+| Operation           | Where It Happens                                    | Returns             |
+| ------------------- | --------------------------------------------------- | ------------------- |
+| Sign up user        | `better-auth.api.signUpEmail()`                     | User object with ID |
+| Create organization | IdentityCommandStore.registerOrganization (BQC-3.5) | Organization ID     |
+| Create invitation   | IdentityCommandStore.inviteMember (BQC-3.5)         | Invitation ID       |
+| Accept invitation   | IdentityCommandStore.acceptInvitation (BQC-3.5)     | void                |
 
-These are **I/O operations that directly persist to the database**, not pure functions that build in-memory entities. The identity context delegates these operations to better-auth rather than building entities itself.
+These are **I/O operations that directly persist to the database**, not pure functions that build in-memory entities. Sign-up stays delegated to better-auth (password hashing); the invitation/member/organization writes are app-owned and commit atomically with their outbox facts via the identity command store (BQC-3.5, expanding the precedent the app-owned acceptInvitation transaction set).
 
 ### 4. What Identity Context Does Provide
 

@@ -38,10 +38,11 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 metric/
   domain/              types.ts, constructors.ts, events.ts, errors.ts
   application/
-    ports/             metric.repository.ts
+    ports/             metric.repository.ts, metric-command-store.port.ts
     use-cases/         record-metric.ts
     public-api.ts      re-exports query types, MetricPublicApi, event types
   infrastructure/
+    metric-command-store.ts (atomic reading + outbox fact, BQC-3.5)
     repositories/      metric.repository.ts (Drizzle)
     event-handlers/    on-review-created.ts, on-scan-recorded.ts, on-rating-submitted.ts,
                        on-feedback-submitted.ts, on-review-link-clicked.ts, index.ts
@@ -51,7 +52,7 @@ metric/
 
 ## Use cases
 
-- **`recordMetric`** — Validates metric key, inserts raw reading, emits `metric.recorded` event.
+- **`recordMetric`** — Validates metric key, inserts raw reading + records the `metric.recorded` fact atomically via the metric command store (BQC-3.5: one transaction, post-commit bus emit).
 
 ## Public API
 

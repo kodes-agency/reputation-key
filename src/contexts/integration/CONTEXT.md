@@ -55,7 +55,7 @@ integration/
                        google-oauth.port.ts, token-encryption.port.ts,
                        property-lookup.port.ts, property-query.port.ts,
                        property-fk-cleanup.port.ts, property-import-repo.port.ts,
-                       property-event.port.ts
+                       integration-command-store.port.ts (BQC-3.5)
     dto/               connect-google.dto.ts, disconnect-google.dto.ts,
                        google-connection.dto.ts, import-properties.dto.ts,
                        import-status.dto.ts, list-locations.dto.ts,
@@ -70,9 +70,9 @@ integration/
   infrastructure/
     repositories/      google-connection.repository.ts, gbp-cache.repository.ts,
                        gbp-import.repository.ts, property-import.repository.ts
+    integration-command-store.ts  atomic state+fact store (BQC-3.5)
     adapters/          google-oauth.adapter.ts, token-encryption.adapter.ts,
-                       gbp-api.adapter.ts, google-review-api.adapter.ts,
-                       property-event.adapter.ts
+                       gbp-api.adapter.ts, google-review-api.adapter.ts
     mappers/           google-connection.mapper.ts, gbp-cache.mapper.ts, gbp-import.mapper.ts
     handlers/          gbp-notification-handler.ts
     jobs/              import-property.job.ts

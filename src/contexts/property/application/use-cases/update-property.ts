@@ -1,7 +1,7 @@
 // Property context — update property use case
 
 import type { PropertyRepository } from '../ports/property.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { PropertyCommandStore } from '../ports/property-command-store.port'
 import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePropertyInput } from '../dto/update-property.dto'
@@ -22,15 +22,13 @@ import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PropertyCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 function authorize(ctx: AuthContext): void {
@@ -52,14 +50,13 @@ async function resolveExisting(
   return { propertyId, existing }
 }
 
-async function validateUpdateFields(
+async function assertSlugAvailable(
   deps: UpdatePropertyDeps,
   input: UpdatePropertyInput,
   existing: Property,
   propertyId: ReturnType<typeof toPropertyId>,
   organizationId: AuthContext['organizationId'],
-  now: Date,
-) {
+): Promise<string> {
   const newSlug = input.slug ?? existing.slug
   if (input.slug && input.slug !== existing.slug) {
     const slugResult = validateSlug(input.slug)
@@ -68,6 +65,54 @@ async function validateUpdateFields(
       throw propertyError('slug_taken', 'a property with this slug already exists')
     }
   }
+  return newSlug
+}
+
+// BQR-3.5: optional country resolves region; no silent region change once resolved.
+function resolveRoutingUpdate(
+  existing: Property,
+  countryCodeInput: string | undefined,
+  now: Date,
+): ReturnType<typeof resolvePropertyRouting> | null {
+  if (countryCodeInput === undefined) return null
+  const countryResult = normalizeCountryCode(countryCodeInput)
+  if (countryResult.isErr()) throw countryResult.error
+  const countryCode = countryResult.value
+  if (wouldChangeResolvedRegion(existing.processingRegion, countryCode)) {
+    throw propertyError(
+      'region_locked',
+      'processing region cannot change after it has been resolved',
+      {
+        currentRegion: existing.processingRegion,
+        attemptedCountry: countryCode,
+      },
+    )
+  }
+  return resolvePropertyRouting({
+    countryCode,
+    countrySource: 'manual',
+    now,
+    sourceEpoch: existing.sourceEpoch,
+    timezoneSource: existing.timezoneSource,
+    timezoneResolvedAt: existing.timezoneResolvedAt,
+  })
+}
+
+async function validateUpdateFields(
+  deps: UpdatePropertyDeps,
+  input: UpdatePropertyInput,
+  existing: Property,
+  propertyId: ReturnType<typeof toPropertyId>,
+  organizationId: AuthContext['organizationId'],
+  now: Date,
+) {
+  const newSlug = await assertSlugAvailable(
+    deps,
+    input,
+    existing,
+    propertyId,
+    organizationId,
+  )
 
   const newName = input.name ?? existing.name
   if (input.name !== undefined) {
@@ -84,31 +129,7 @@ async function validateUpdateFields(
   const newGbpPlaceId =
     input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId
 
-  // BQR-3.5: optional country resolves region; no silent region change once resolved.
-  let routing: ReturnType<typeof resolvePropertyRouting> | null = null
-  if (input.countryCode !== undefined) {
-    const countryResult = normalizeCountryCode(input.countryCode)
-    if (countryResult.isErr()) throw countryResult.error
-    const countryCode = countryResult.value
-    if (wouldChangeResolvedRegion(existing.processingRegion, countryCode)) {
-      throw propertyError(
-        'region_locked',
-        'processing region cannot change after it has been resolved',
-        {
-          currentRegion: existing.processingRegion,
-          attemptedCountry: countryCode,
-        },
-      )
-    }
-    routing = resolvePropertyRouting({
-      countryCode,
-      countrySource: 'manual',
-      now,
-      sourceEpoch: existing.sourceEpoch,
-      timezoneSource: existing.timezoneSource,
-      timezoneResolvedAt: existing.timezoneResolvedAt,
-    })
-  }
+  const routing = resolveRoutingUpdate(existing, input.countryCode, now)
 
   return { newName, newSlug, newTimezone, newGbpPlaceId, routing }
 }
@@ -151,26 +172,25 @@ export const updateProperty =
 
     if (!hasChanges) return existing
 
-    await deps.propertyRepo.update(ctx.organizationId, propertyId, {
-      name: fields.newName,
-      slug: fields.newSlug,
-      timezone: fields.newTimezone,
-      gbpPlaceId: fields.newGbpPlaceId,
-      ...(fields.routing ?? {}),
-      updatedAt,
-    })
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      propertyUpdated({
+    await deps.commandStore.updateProperty({
+      organizationId: ctx.organizationId,
+      propertyId,
+      patch: {
+        name: fields.newName,
+        slug: fields.newSlug,
+        timezone: fields.newTimezone,
+        gbpPlaceId: fields.newGbpPlaceId,
+        ...(fields.routing ?? {}),
+        updatedAt,
+      },
+      event: propertyUpdated({
         propertyId,
         organizationId: ctx.organizationId,
         name: fields.newName,
         slug: fields.newSlug,
         occurredAt: updatedAt,
       }),
-    )
+    })
 
     return {
       ...existing,

@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { deleteProperty } from './soft-delete-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
+import { createSequentialPropertyCommandStore } from '#/shared/testing/sequential-property-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
@@ -12,7 +13,11 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const setup = () => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
-  const useCase = deleteProperty({ propertyRepo, events, clock: () => FIXED_TIME })
+  const useCase = deleteProperty({
+    propertyRepo,
+    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
+    clock: () => FIXED_TIME,
+  })
   return { useCase, propertyRepo, events }
 }
 
@@ -100,7 +105,7 @@ describe('deleteProperty', () => {
     }
     const useCase = deleteProperty({
       propertyRepo,
-      events,
+      commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
       clock: () => FIXED_TIME,
       sourceContentPurge,
     })

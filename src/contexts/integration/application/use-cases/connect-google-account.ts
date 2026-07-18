@@ -3,9 +3,9 @@
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import { isUniqueViolationError } from '../ports/google-connection.repository'
+import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { ConnectGoogleInput } from '../dto/connect-google.dto'
@@ -15,17 +15,15 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type ConnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   oauth: GoogleOAuthPort
   encryption: TokenEncryptionPort
-  events: EventBus
+  commandStore: IntegrationCommandStore
   clock: () => Date
   idGen: () => string
   callbackUrl: string
-  outboxRepo?: OutboxRepository
 }>
 
 export const connectGoogleAccount =
@@ -63,38 +61,22 @@ export const connectGoogleAccount =
           'This Google account is already connected in another organization',
         )
       }
-      // Same org → reactivate, update tokens, apply new visibility (atomic write).
-      await deps.connectionRepo.updateReconnection(
-        ctx.organizationId,
-        existingConnection.id,
+      // Same org → reactivate, update tokens, apply new visibility (+ fact,
+      // atomic via the command store).
+      const updatedConnection = await deps.commandStore.reconnectGoogleAccount({
+        organizationId: ctx.organizationId,
+        connectionId: existingConnection.id,
         encryptedAccessToken,
         encryptedRefreshToken,
         tokenExpiresAt,
-        input.visibility,
-      )
-
-      const updatedConnection = await deps.connectionRepo.findById(
-        ctx.organizationId,
-        existingConnection.id,
-      )
-      if (!updatedConnection) {
-        throw integrationError(
-          'connection_not_found',
-          'Connection not found after update',
-        )
-      }
-
-      // Emit event for reconnection
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        integrationGoogleAccountConnected({
-          connectionId: updatedConnection.id,
+        visibility: input.visibility,
+        event: integrationGoogleAccountConnected({
+          connectionId: existingConnection.id,
           organizationId: ctx.organizationId,
-          googleEmail: updatedConnection.googleEmail,
+          googleEmail: existingConnection.googleEmail,
           occurredAt: now,
         }),
-      )
+      })
 
       return updatedConnection
     }
@@ -122,10 +104,18 @@ export const connectGoogleAccount =
 
     const connection = buildResult.value
 
-    // 6. Persist — handle race condition where another request inserted
-    // the same connection between our check and this insert.
+    // 6. Persist + fact — atomic via the command store. The global unique
+    //    index still backstops a raced insert between our check and this write.
     try {
-      await deps.connectionRepo.insert(connection)
+      await deps.commandStore.connectGoogleAccount({
+        connection,
+        event: integrationGoogleAccountConnected({
+          connectionId: connection.id,
+          organizationId: ctx.organizationId,
+          googleEmail: connection.googleEmail,
+          occurredAt: now,
+        }),
+      })
     } catch (err) {
       if (!isUniqueViolationError(err)) throw err
 
@@ -143,18 +133,6 @@ export const connectGoogleAccount =
 
       return concurrentConnection
     }
-
-    // 7. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      integrationGoogleAccountConnected({
-        connectionId: connection.id,
-        organizationId: ctx.organizationId,
-        googleEmail: connection.googleEmail,
-        occurredAt: now,
-      }),
-    )
 
     return connection
   }

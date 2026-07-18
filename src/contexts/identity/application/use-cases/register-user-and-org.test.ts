@@ -1,11 +1,15 @@
 // Identity context — register user and org use case tests
 // Per architecture: "Every use case tested for happy path + every error path."
 // Use cases THROW tagged errors at the application boundary — never return { success: false }.
+// BQC-3.5: the organization + owner-member rows and the created fact go
+// through the sequential command-store fake.
 
 import { describe, it, expect, vi } from 'vitest'
 import { registerUserAndOrg } from './register-user-and-org'
+import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { isIdentityError } from '../../domain/errors'
+import { organizationId } from '#/shared/domain/ids'
 
 const FIXED_USER_ID = 'user-new-00000000-0000-0000-0000-000000000001'
 const FIXED_ORG_ID = 'org-new-00000000-0000-0000-0000-000000000001'
@@ -13,22 +17,21 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = () => {
   const events = createCapturingEventBus()
-  const headers = () => new Headers()
+  const commandStore = createSequentialIdentityCommandStore({ events })
 
   const deps = {
-    events,
     signUp: vi.fn().mockResolvedValue(FIXED_USER_ID),
-    createOrg: vi.fn().mockResolvedValue(FIXED_ORG_ID),
     setActiveOrg: vi.fn().mockResolvedValue(undefined),
-    headers,
     clock: () => FIXED_TIME,
+    idGen: () => organizationId(FIXED_ORG_ID),
+    commandStore,
     deleteUser: vi.fn().mockResolvedValue(undefined),
     logger: { error: vi.fn() },
   }
 
   const useCase = registerUserAndOrg(deps)
 
-  return { useCase, deps, events }
+  return { useCase, deps, events, commandStore }
 }
 
 describe('registerUserAndOrg', () => {
@@ -40,7 +43,7 @@ describe('registerUserAndOrg', () => {
   }
 
   it('registers a user and creates an organization', async () => {
-    const { useCase, deps } = setup()
+    const { useCase, deps, commandStore } = setup()
 
     const result = await useCase(validInput)
 
@@ -50,7 +53,14 @@ describe('registerUserAndOrg', () => {
       'test@example.com',
       'password123',
     )
-    expect(deps.createOrg).toHaveBeenCalledWith('Test Org', 'test-org', FIXED_USER_ID)
+    // Organization + owner member persisted atomically by the command store
+    const org = commandStore.organizationById(FIXED_ORG_ID)
+    expect(org).toMatchObject({ name: 'Test Org', slug: 'test-org' })
+    expect(
+      commandStore.allMembers.some(
+        (m) => m.organizationId === FIXED_ORG_ID && m.userId === FIXED_USER_ID,
+      ),
+    ).toBe(true)
     expect(deps.setActiveOrg).toHaveBeenCalledWith(FIXED_ORG_ID)
   })
 
@@ -67,15 +77,11 @@ describe('registerUserAndOrg', () => {
   })
 
   it('normalizes the org name into a slug', async () => {
-    const { useCase, deps } = setup()
+    const { useCase, commandStore } = setup()
 
     await useCase({ ...validInput, organizationName: 'My Awesome Org!!!' })
 
-    expect(deps.createOrg).toHaveBeenCalledWith(
-      'My Awesome Org!!!',
-      'my-awesome-org',
-      FIXED_USER_ID,
-    )
+    expect(commandStore.organizationById(FIXED_ORG_ID)?.slug).toBe('my-awesome-org')
   })
 
   it('validates organization name using domain rules', async () => {
@@ -87,7 +93,7 @@ describe('registerUserAndOrg', () => {
   })
 
   it('throws registration_failed when sign-up fails', async () => {
-    const { useCase, deps } = setup()
+    const { useCase, deps, commandStore } = setup()
     deps.signUp.mockRejectedValueOnce(new Error('Email already taken'))
 
     await expect(useCase(validInput)).rejects.toSatisfy(
@@ -97,21 +103,26 @@ describe('registerUserAndOrg', () => {
         e.message.includes('Email already taken'),
     )
     // Should not attempt org creation
-    expect(deps.createOrg).not.toHaveBeenCalled()
+    expect(commandStore.organizationById(FIXED_ORG_ID)).toBeNull()
   })
 
-  it('throws org_setup_failed when org creation fails', async () => {
-    const { useCase, deps } = setup()
-    deps.createOrg.mockRejectedValueOnce(new Error('Slug conflict'))
+  it('throws org_setup_failed and compensates when org creation fails', async () => {
+    const { useCase, deps, commandStore } = setup()
+    // Slug conflict inside the store's guarded write
+    commandStore.seedOrganization({
+      id: 'org-existing',
+      name: 'Existing Org',
+      slug: 'test-org',
+      createdAt: new Date('2026-01-01'),
+    })
 
     await expect(useCase(validInput)).rejects.toSatisfy(
       (e: unknown) =>
-        isIdentityError(e) &&
-        e.code === 'org_setup_failed' &&
-        e.message.includes('Slug conflict'),
+        isIdentityError(e) && e.code === 'org_setup_failed' && e.message.includes('slug'),
     )
-    // Sign-up should have succeeded
+    // Sign-up succeeded, so the compensating transaction removes the user
     expect(deps.signUp).toHaveBeenCalled()
+    expect(deps.deleteUser).toHaveBeenCalledWith(FIXED_USER_ID)
   })
 
   it('does not emit event when registration fails', async () => {

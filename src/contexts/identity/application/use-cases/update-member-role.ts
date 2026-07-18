@@ -6,16 +6,15 @@
 // actual current role is step 3 (check business invariants).
 
 import type { IdentityPort } from '../ports/identity.port'
+import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { EventBus } from '#/shared/events/event-bus'
 import { canForContext } from '#/shared/domain/permissions'
-import { ADMIN_ROLE, isOwnerToken } from '#/shared/domain/roles'
+import { ADMIN_ROLE, isOwnerToken, toBetterAuthRole } from '#/shared/domain/roles'
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 export type { UpdateMemberRoleInput }
 
 // fallow-ignore-next-line unused-type
@@ -24,9 +23,8 @@ export type UpdateMemberRoleOutput = Readonly<{
 }>
 export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
-  events: EventBus
+  commandStore: IdentityCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -36,10 +34,11 @@ export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
  * Steps:
  * 1. Authorize — check that the changer's role allows the target role assignment
  * 2. Validate referenced entities — load the target member to get their current role
- * 3. Check business invariants — role hierarchy with the actual current role
- * 4. Persist — delegate to the identity port
- * 5. Emit — member.role-changed event
- * 6. Return
+ * 3. Check business invariants — role hierarchy with the actual current role,
+ *    plus the last-owner UX guard (the command store re-enforces it under the
+ *    org advisory lock)
+ * 4. Persist + emit — command store: role update + role_changed fact, atomic
+ * 5. Return
  */
 export const updateMemberRole =
   (deps: UpdateMemberRoleDeps) =>
@@ -52,50 +51,47 @@ export const updateMemberRole =
       throw identityError('forbidden', 'Insufficient role to change member roles')
     }
 
-    return deps.identity.withOrgLock(ctx.organizationId, async () => {
-      // 2. Validate referenced entities — load the target member
-      const targetMember = await deps.identity.getMember(ctx, input.memberId)
-      if (!targetMember) {
-        throw identityError('member_not_found', 'Member not found in this organization')
+    // 2. Validate referenced entities — load the target member
+    const targetMember = await deps.identity.getMember(ctx, input.memberId)
+    if (!targetMember) {
+      throw identityError('member_not_found', 'Member not found in this organization')
+    }
+
+    // 3. Check business invariants — role hierarchy with actual current role
+    const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Staff', input.role)
+    if (authResult.isErr()) {
+      throw identityError(authResult.error.code, authResult.error.message)
+    }
+
+    // 3b. Last-owner UX guard — cannot demote the last owner. Detected via the raw
+    // role string so a multi-role owner ('owner,editor') still counts as an owner
+    // even though its built-in Role is null. The command store re-checks this
+    // under the advisory lock (TOCTOU backstop).
+    if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
+      const members = await deps.identity.listMembers(ctx)
+      const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
+      if (ownerCount <= 1) {
+        throw identityError(
+          'forbidden',
+          'Cannot demote the last admin of the organization',
+        )
       }
+    }
 
-      // 3. Check business invariants — role hierarchy with actual current role
-      const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Staff', input.role)
-      if (authResult.isErr()) {
-        throw identityError(authResult.error.code, authResult.error.message)
-      }
-
-      // 3b. Last-owner guard — cannot demote the last owner. Detected via the raw role
-      // string so a multi-role owner ('owner,editor') still counts as an owner even
-      // though its built-in Role is null.
-      if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
-        const members = await deps.identity.listMembers(ctx)
-        const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
-        if (ownerCount <= 1) {
-          throw identityError(
-            'forbidden',
-            'Cannot demote the last admin of the organization',
-          )
-        }
-      }
-
-      // 4. Persist
-      await deps.identity.updateMemberRole(ctx, input.memberId, input.role)
-
-      // 5. Emit event
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        identityMemberRoleChanged({
-          organizationId: ctx.organizationId,
-          memberUserId: toUserId(targetMember.userId),
-          previousRole: targetMember.role ?? 'Staff',
-          newRole: input.role,
-          userId: ctx.userId,
-          occurredAt: deps.clock(),
-        }),
-      )
-
-      return { success: true }
+    // 4. Persist + fact — atomic via the command store
+    await deps.commandStore.changeMemberRole({
+      organizationId: ctx.organizationId,
+      memberId: input.memberId,
+      newRole: toBetterAuthRole(input.role),
+      event: identityMemberRoleChanged({
+        organizationId: ctx.organizationId,
+        memberUserId: toUserId(targetMember.userId),
+        previousRole: targetMember.role ?? 'Staff',
+        newRole: input.role,
+        userId: ctx.userId,
+        occurredAt: deps.clock(),
+      }),
     })
+
+    return { success: true }
   }

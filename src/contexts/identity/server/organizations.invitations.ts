@@ -65,7 +65,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
 
           const { useCases } = getContainer()
           await useCases.cancelInvitation(
-            { invitationId: invitationId(data.invitationId), headers },
+            { invitationId: invitationId(data.invitationId) },
             ctx,
           )
         } catch (e) {

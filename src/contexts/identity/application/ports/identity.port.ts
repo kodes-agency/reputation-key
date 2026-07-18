@@ -5,7 +5,7 @@
 import type { Role } from '#/shared/domain/roles'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
-import type { OrganizationId, InvitationId } from '#/shared/domain/ids'
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 /** Organization member shape returned by the port. */
@@ -64,35 +64,11 @@ export type IdentityPort = Readonly<{
   /** Get a single member by ID within the active organization. */
   getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
 
-  /** Create an invitation to join the organization. Returns the invitation ID. */
-  createInvitation: (
-    ctx: AuthContext,
-    email: string,
-    role: Role,
-    propertyIds?: ReadonlyArray<string>,
-  ) => Promise<InvitationId>
-
-  /** Accept an invitation (may not require active org). Returns the joined org ID and invited property IDs. */
-  acceptInvitation: (
-    invitationId: InvitationId,
-    headers: Headers,
-  ) => Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }>
-
-  /** Reject an invitation. */
-  /** Cancel a sent invitation. */
-  cancelInvitation: (invitationId: InvitationId, headers: Headers) => Promise<void>
-
   /** List pending invitations for the active organization. */
   listInvitations: (ctx: AuthContext) => Promise<ReadonlyArray<InvitationRecord>>
 
   /** List invitations for the current user across all organizations. */
   listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>
-
-  /** Update a member's role. */
-  updateMemberRole: (ctx: AuthContext, memberId: string, role: Role) => Promise<void>
-
-  /** Remove a member from the organization. */
-  removeMember: (ctx: AuthContext, memberId: string) => Promise<void>
 
   /** List organizations the current user belongs to. */
   listUserOrganizations: (headers: Headers) => Promise<ReadonlyArray<OrganizationRecord>>
@@ -103,8 +79,25 @@ export type IdentityPort = Readonly<{
   /** Set the active organization for the current session. */
   setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>
 
-  /** Execute fn with an advisory lock for the given organization. Prevents concurrent last-admin mutations. */
-  withOrgLock: <T>(organizationId: OrganizationId, fn: () => Promise<T>) => Promise<T>
+  /**
+   * Resolve the session user (id + email) for invitation acceptance.
+   * Returns null when there is no active session.
+   */
+  getSessionUser: (
+    headers: Headers,
+  ) => Promise<Readonly<{ id: string; email: string }> | null>
+
+  /**
+   * Post-acceptance hook — auto-create staff assignments for the invited
+   * properties (replaces BA's afterAcceptInvitation hook, which the app-owned
+   * accept path bypasses). Failure-isolated inside the adapter.
+   */
+  runOnAcceptInvitation: (ctx: {
+    userId: string
+    organizationId: string
+    propertyIds: ReadonlyArray<string>
+  }) => Promise<void>
+
   /**
    * Create a custom role definition (organizationRole + organization_role_policy) in one
    * atomic transaction. App-owned write path — the raw BA create-role endpoint is blocked.

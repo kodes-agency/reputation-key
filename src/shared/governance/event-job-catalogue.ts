@@ -16,7 +16,9 @@
 //   ordering      — declared policy only; enforcement is BQC-3.7 and global
 //                   ordering is explicitly NOT promised
 //   region        — 'unscoped' today; BQC-4 owns re-scoping
-//   repairCommand — 'none' today; BQC-3.4/3.6 introduce repair commands
+//   repairCommand — 'none' where no repair exists; BQC-3.3/3.4 introduced
+//   reconcileReplyPublication (review family) and rebuildInboxProjection
+//   (inbox family)
 //
 // Delivery policy is derived, never hand-set: idempotencyKey follows the
 // durable-consumer/recording shape, retention follows recordedInOutbox, and
@@ -86,11 +88,11 @@ export type EventFamilyRow = Readonly<{
   region: 'unscoped'
   /** Retention class: 'outbox:7d,receipts:90d' when recorded, else 'none'. */
   retention: 'outbox:7d,receipts:90d' | 'none'
-  /** Operator repair command. BQC-3.4 introduced rebuildInboxProjection; 'none' elsewhere. */
-  repairCommand: 'none' | 'rebuildInboxProjection'
+  /** Operator repair command. BQC-3.3/3.4 introduced reconcileReplyPublication/rebuildInboxProjection; 'none' elsewhere. */
+  repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5'
+  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9'
   notes?: string
 }>
 
@@ -279,6 +281,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'atomic command-store outbox write (BQR-2.3); durable dispatch disabled (BQR-0 containment)',
     },
@@ -297,6 +300,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; durable dispatch disabled (BQR-0 containment)',
     },
@@ -318,6 +322,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'atomic review delete + outbox write via ReplyCommandStore.purgeExpiredReview (BQC-3.3); durable dispatch disabled (BQR-0 containment)',
     },
@@ -340,6 +345,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
       notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)',
     },
   ),
@@ -359,6 +365,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'atomic command-store outbox write (BQC-3.3); the committed approved fact is the publish recovery record until BQC-3.8',
     },
@@ -378,7 +385,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       ],
       disposition: 'enabled',
     },
-    { notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)' },
+    {
+      repairCommand: 'reconcileReplyPublication',
+      notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)',
+    },
   ),
   ev(
     'review.reply.published',
@@ -399,6 +409,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'atomic command-store outbox write (BQC-3.3 ReplyCommandStore); BQC-3.4 durable milestone/auto-close consumer co-commits state + receipt',
     },
@@ -416,6 +427,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
+      repairCommand: 'reconcileReplyPublication',
       notes:
         'atomic command-store outbox write (BQC-3.3); ambiguous outcomes reconcile via reconcileReplyPublication',
     },
@@ -587,31 +599,45 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'identity',
       capability: 'organization.create',
       action: 'system:identity.create_organization',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [],
       disposition: 'orphan',
     },
-    { ownerSlice: 'BQC-3.5', notes: 'emitted at registration; no consumers' },
+    {
+      ownerSlice: 'BQC-3.9',
+      notes:
+        'emitted at registration; no consumers. Records via the atomic identity command store (BQC-3.5) — the fact is the audit trail. Consume-or-retire is a durable-cutover decision (BQC-3.9)',
+    },
   ),
-  ev('identity.member.invited', IDENTITY_EVENTS, {
-    stateOwner: 'identity',
-    capability: 'identity.invite',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('identity.invitation.accepted', IDENTITY_EVENTS, {
-    stateOwner: 'identity',
-    capability: 'none',
-    action: 'system:identity.accept_invitation',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'identity.member.invited',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'identity.invite',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    { notes: 'atomic command-store outbox write (BQC-3.5)' },
+  ),
+  ev(
+    'identity.invitation.accepted',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'none',
+      action: 'system:identity.accept_invitation',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    { notes: 'atomic command-store outbox write (BQC-3.5)' },
+  ),
   ev(
     'identity.invitation.rejected',
     IDENTITY_EVENTS,
@@ -625,37 +651,55 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'orphan',
     },
     {
-      ownerSlice: 'BQC-3.5',
+      ownerSlice: 'BQC-3.9',
       notes: 'never emitted — constructor exported only',
     },
   ),
-  ev('identity.invitation.canceled', IDENTITY_EVENTS, {
-    stateOwner: 'identity',
-    capability: 'identity.invite',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('identity.member.removed', IDENTITY_EVENTS, {
-    stateOwner: 'identity',
-    capability: 'identity.invite',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('identity.member.role_changed', IDENTITY_EVENTS, {
-    stateOwner: 'identity',
-    capability: 'identity.invite',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'identity.invitation.canceled',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'identity.invite',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    { notes: 'atomic command-store outbox write (BQC-3.5)' },
+  ),
+  ev(
+    'identity.member.removed',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'identity.invite',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    { notes: 'atomic command-store outbox write (BQC-3.5)' },
+  ),
+  ev(
+    'identity.member.role_changed',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'identity.invite',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.5); schema gained memberUserId in place at v1 (target id was silently stripped; never recorded — zero historical rows)',
+    },
+  ),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -673,7 +717,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        'dual emission: build.ts emitAndRecord (recorded) + integration property-event adapter (plain bus emit); consumer enqueues initial GBP sync',
+        'atomic command-store outbox write (BQC-3.5); all producers (create-property, GBP import via propertyApi.importProperty, and the integration import job through the same api) route through the store — the plain-bus integration property-event adapter was removed; consumer enqueues initial GBP sync',
     },
   ),
   ev(
@@ -683,12 +727,16 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'property',
       capability: 'property.create',
       action: 'none',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [],
       disposition: 'orphan',
     },
-    { ownerSlice: 'BQC-3.5' },
+    {
+      ownerSlice: 'BQC-3.9',
+      notes:
+        'orphan audit fact — records via the atomic property command store (BQC-3.5); consume-or-retire is a durable-cutover decision (BQC-3.9)',
+    },
   ),
   ev(
     'property.deleted',
@@ -697,12 +745,16 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'property',
       capability: 'property.create',
       action: 'none',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [],
       disposition: 'orphan',
     },
-    { ownerSlice: 'BQC-3.5' },
+    {
+      ownerSlice: 'BQC-3.9',
+      notes:
+        'orphan audit fact — records via the atomic property command store (BQC-3.5); consume-or-retire is a durable-cutover decision (BQC-3.9)',
+    },
   ),
 ]
 
@@ -742,24 +794,40 @@ const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
 ]
 
 const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('staff.assigned', STAFF_EVENTS, {
-    stateOwner: 'staff',
-    capability: 'staff.use',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('staff.unassigned', STAFF_EVENTS, {
-    stateOwner: 'staff',
-    capability: 'staff.use',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'staff.assigned',
+    STAFF_EVENTS,
+    {
+      stateOwner: 'staff',
+      capability: 'staff.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (assignmentId/userId/propertyId shape — never recorded, zero historical rows)',
+    },
+  ),
+  ev(
+    'staff.unassigned',
+    STAFF_EVENTS,
+    {
+      stateOwner: 'staff',
+      capability: 'staff.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (never recorded, zero historical rows)',
+    },
+  ),
 ]
 
 const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -961,24 +1029,40 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
 ]
 
 const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('integration.google_account.connected', INTEGRATION_EVENTS, {
-    stateOwner: 'integration',
-    capability: 'integration.use',
-    action: 'system:integration.google_callback',
-    schemaRegistered: false,
-    recordedInOutbox: false,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
-  ev('integration.google_account.disconnected', INTEGRATION_EVENTS, {
-    stateOwner: 'integration',
-    capability: 'integration.use',
-    action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'integration.google_account.connected',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'integration.use',
+      action: 'system:integration.google_callback',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist (no googleEmail) — was unregistered/bus-only',
+    },
+  ),
+  ev(
+    'integration.google_account.disconnected',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'integration.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist — was unregistered/bus-only',
+    },
+  ),
   ev(
     'integration.property_import.completed',
     INTEGRATION_EVENTS,
@@ -987,14 +1071,14 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       capability: 'integration.use',
       action: 'system:property.import',
       schemaRegistered: true,
-      recordedInOutbox: false,
+      recordedInOutbox: true,
       consumers: [],
       disposition: 'orphan',
     },
     {
-      ownerSlice: 'BQC-3.5',
+      ownerSlice: 'BQC-3.9',
       notes:
-        'schema registered but the producer only eventBus.emit — never recorded in the outbox',
+        'records via the atomic integration command store (BQC-3.5) — the producer previously only eventBus.emit; consume-or-retire is a durable-cutover decision (BQC-3.9)',
     },
   ),
   ev(
@@ -1004,12 +1088,16 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'integration',
       capability: 'integration.use',
       action: 'none',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [],
       disposition: 'orphan',
     },
-    { ownerSlice: 'BQC-3.5' },
+    {
+      ownerSlice: 'BQC-3.9',
+      notes:
+        'records via the atomic integration command store (BQC-3.5); registered with identifier-only allowlist — was unregistered; consume-or-retire is a durable-cutover decision (BQC-3.9)',
+    },
   ),
 ]
 
@@ -1032,7 +1120,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        'consumers belong to the dark goal/badge/leaderboard contexts; the family itself is enabled',
+        "records via the atomic metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); consumers belong to the dark goal/badge/leaderboard contexts; the family itself is enabled",
     },
   ),
 ]

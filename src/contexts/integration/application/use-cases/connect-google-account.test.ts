@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { connectGoogleAccount } from './connect-google-account'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -24,7 +25,7 @@ const setup = () => {
     connectionRepo,
     oauth,
     encryption,
-    events,
+    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
     clock: () => FIXED_TIME,
     idGen: () => 'test-connection-id',
     callbackUrl: 'http://localhost:3000/api/auth/google/callback',

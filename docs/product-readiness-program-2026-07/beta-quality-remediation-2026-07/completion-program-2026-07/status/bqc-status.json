@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T03:15:55Z",
+  "updatedAt": "2026-07-18T06:06:06Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands) implementation_complete."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families) implementation_complete."
+    },
+    {
+      "id": "BQC-3.5",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Migrate remaining enabled families",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "family-command-stores-atomicity",
+        "emitandrecord-containment-guard",
+        "family-schema-corrections",
+        "family-migration-report"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "All 5 remaining enabled families migrated to atomic command stores (characterize \u2192 atomic command; durable-consumer registration + authoritative switch per family are BQC-3.9's cutover charter \u2014 recorded division). NEW stores: IdentityCommandStore (better-auth tables via app-owned drizzle writes \u2014 pre-existing precedent; invite/accept/cancel/remove/role-change/registerOrganization; org advisory lock + last-owner re-check inside the tx; invitation email now sent post-commit), StaffCommandStore (assign/unassign/updatePortals \u2014 whole portal diff + all facts in ONE tx), PropertyCommandStore (create/update/delete; all 3 property.created producers routed through it; the duplicate plain-emit integration adapter DELETED \u2014 also fixed a pre-existing double-emit), IntegrationCommandStore (connect/reconnect/disconnect/visibility/import-completed; disconnect: status+redaction+fact atomic, gbp_cache purge + retention executor stay outside with the cross-system comment), MetricCommandStore (recordMetric \u2014 the committed reading id now matches the fact). emitAndRecord now remains ONLY in dark contexts (21 sites, by design) \u2014 new atomic-family-outbox guard forbids it in the 5 migrated contexts (+review/inbox guards from 3.3/3.4). Schema corrections, each verified never-successfully-recorded (zero historical rows) and fixed in place at v1: metric.recorded recordedAt\u2192occurredAt; staff.assigned/unassigned staffId\u2192assignmentId/userId/portalId; member.role_changed gained memberUserId (the TARGET \u2014 activity reads it; the schema kept only the actor); NEW registrations: identity.organization.created, property.updated/deleted, integration connected/disconnected/visibility_changed (googleEmail deliberately excluded). Notification/activity verified consume-only (nothing to migrate); rollup refresh jobs characterized (idempotent recompute, no facts). Remaining orphans re-pointed to BQC-3.9 (consume-or-retire is a cutover decision). Real-PG proofs per context (forced outbox failure \u2192 no state row; happy path \u2192 both rows same eventId). Noted gaps with owners: invitation insert bypasses the drizzle mirror via raw SQL (mirror carries a speculative teamId column no real DB has \u2014 BQC-5 schema chain); every pre-existing err.code==='23505' check in the repo is broken by drizzle error wrapping (fixed only at the 2 touched sites \u2014 cross-cutting hardening finding); purge\u2194delete non-atomicity in deleteProperty + disconnect review-side purge command (retention machinery); notification row + email-queue row non-atomic (no fact \u2014 later); dark-context emitAndRecord (21 sites) + orphan consume-or-retire = BQC-3.9. Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.4",

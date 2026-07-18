@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { buildStaffContext } from './build'
+import type { Database } from '#/shared/db'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
@@ -12,6 +13,10 @@ import {
   staffAssignmentId,
 } from '#/shared/domain/ids'
 import type { StaffAssignment } from './domain/types'
+
+// The atomic command store is constructed at build time but never invoked
+// in these PublicApi tests — a bare stub satisfies the wiring.
+const mockDb = {} as unknown as Database
 
 const mockPortalLookup = {
   listPortalIdsByProperty: async () => [],
@@ -43,6 +48,7 @@ describe('StaffPublicApi', () => {
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
+      db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
       events,
@@ -75,6 +81,7 @@ describe('StaffPublicApi', () => {
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
+      db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
       events,
@@ -99,6 +106,7 @@ describe('StaffPublicApi', () => {
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
+      db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
       events,
@@ -122,6 +130,7 @@ describe('StaffPublicApi', () => {
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
+      db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
       events,

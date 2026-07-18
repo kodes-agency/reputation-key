@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { updateStaffPortals } from './update-staff-portals'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
+import { createSequentialStaffCommandStore } from '#/shared/testing/sequential-staff-command-store'
 import { buildTestAuthContext, buildTestStaffAssignment } from '#/shared/testing/fixtures'
 import { userId, propertyId, portalId } from '#/shared/domain/ids'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
@@ -32,7 +33,10 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       listPortalIdsByProperty: async () => [portalA, portalB, portalC],
       getPortalInfo: async () => null,
     },
-    events: mockEventBus,
+    commandStore: createSequentialStaffCommandStore({
+      repo: assignmentRepo,
+      events: mockEventBus,
+    }),
     staffPublicApi: {
       getAccessiblePropertyIds: async () => accessible,
       getAssignedPortals: async () => [],
