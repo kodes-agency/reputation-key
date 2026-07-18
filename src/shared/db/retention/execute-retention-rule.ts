@@ -10,9 +10,17 @@
 //
 // Loop until empty — each batch is atomic; re-running is safe. Identifiers
 // come only from the static rule registry (never user input).
+//
+// BQC-3.7: the per-run drain is bounded by a batch cap — one scheduled run
+// deletes at most DEFAULT_MAX_BATCHES_PER_RUN batches (100 × 500 = 50k rows),
+// so a huge backlog cannot stretch one run unboundedly. A capped run reports
+// `capped: true`; the next scheduled run continues where this one stopped.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+
+/** BQC-3.7: per-run drain bound (100 batches × 500 rows = 50k rows max). */
+export const DEFAULT_MAX_BATCHES_PER_RUN = 100
 
 export type RetentionRule = Readonly<{
   /** Evidence subject, e.g. 'outbox_events.published'. */
@@ -34,6 +42,8 @@ export type RetentionRule = Readonly<{
 export type RetentionExecution = Readonly<{
   batches: number
   rowsDeleted: number
+  /** True when the run stopped at the batch cap with rows (likely) remaining. */
+  capped: boolean
 }>
 
 export async function executeRetentionRule(
@@ -42,10 +52,13 @@ export async function executeRetentionRule(
   options: {
     cutoff: Date
     batchSize?: number
+    /** BQC-3.7: per-run batch cap (default DEFAULT_MAX_BATCHES_PER_RUN). */
+    maxBatches?: number
     onBatch?: (batch: number, rows: number) => void
   },
 ): Promise<RetentionExecution> {
   const batchSize = options.batchSize ?? 500
+  const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES_PER_RUN
   const keys = rule.keyColumns.map((k) => `"${k}"`).join(', ')
   const extra = rule.extraWhere ? `AND ${rule.extraWhere}` : ''
   // Lifecycle purge by equality (e.g. disconnect/property/org purge) or
@@ -56,6 +69,7 @@ export async function executeRetentionRule(
   const orderColumn = rule.equalsWhere ? rule.keyColumns[0] : rule.tsColumn
   let batches = 0
   let rowsDeleted = 0
+  let capped = false
 
   for (;;) {
     const result = await db.execute(
@@ -72,7 +86,13 @@ export async function executeRetentionRule(
     batches += 1
     rowsDeleted += count
     options.onBatch?.(batches, count)
+    if (batches >= maxBatches) {
+      // A full final batch implies more rows remain; a partial one means the
+      // drain happened to finish exactly at the cap.
+      capped = count === batchSize
+      break
+    }
   }
 
-  return { batches, rowsDeleted }
+  return { batches, rowsDeleted, capped }
 }

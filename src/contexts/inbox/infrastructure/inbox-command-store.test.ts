@@ -991,6 +991,7 @@ describe('createAtomicInboxCommandStore', () => {
       expect(outboxRows).toHaveLength(1)
       const payload = outboxRows[0]!.payload as Record<string, unknown>
       expect(Object.keys(payload).sort()).toEqual([
+        'correlationId',
         'inboxItemId',
         'noteId',
         'occurredAt',
@@ -1032,6 +1033,7 @@ describe('createAtomicInboxCommandStore', () => {
       expect(payload).not.toHaveProperty('staffId')
       expect(Object.keys(payload).sort()).toEqual([
         'assignedTo',
+        'correlationId',
         'inboxItemId',
         'occurredAt',
         'organizationId',
@@ -1066,6 +1068,7 @@ describe('createAtomicInboxCommandStore', () => {
       const payload = outboxRows[0]!.payload as Record<string, unknown>
       expect(Object.keys(payload).sort()).toEqual([
         'bulkId',
+        'correlationId',
         'inboxItemId',
         'newStatus',
         'occurredAt',

@@ -13,12 +13,26 @@
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
 //   action        — SystemAction of the producing path; 'none' for
 //                   user-permission producers
-//   ordering      — declared policy only; enforcement is BQC-3.7 and global
-//                   ordering is explicitly NOT promised
+//   ordering      — per-aggregate policy; the model is DEFINED below (BQC-3.7)
 //   region        — 'unscoped' today; BQC-4 owns re-scoping
 //   repairCommand — 'none' where no repair exists; BQC-3.3/3.4 introduced
 //   reconcileReplyPublication (review family) and rebuildInboxProjection
 //   (inbox family)
+//
+// ORDERING MODEL (BQC-3.7 — the definition; do not promise more than this):
+//   - Per-aggregate chronological enqueue: the relay claims outbox rows in
+//     created_at order, so events for one aggregate enter the domain-events
+//     queue in emission order.
+//   - NO global ordering: events across aggregates interleave arbitrarily.
+//   - NO execution-order guarantee: the dispatcher runs with concurrency 20,
+//     so per-aggregate events may execute out of order or in parallel.
+//     Correctness rests on state-idempotent consumers (projections converge
+//     to the same state) + receipt fencing (eventId+consumerName), not on
+//     order.
+//   - Aggregate-version fencing is NOT implemented: no event family versions
+//     its aggregate today (envelope.sourceAggregateVersion is always null).
+//     When a family needs strict per-aggregate sequencing, add version
+//     fencing at the consumer; do NOT rely on enqueue order.
 //
 // Delivery policy is derived, never hand-set: idempotencyKey follows the
 // durable-consumer/recording shape, retention follows recordedInOutbox, and
@@ -71,8 +85,10 @@ export type EventFamilyRow = Readonly<{
   /** Context owning the primary projection of this event, or 'none'. */
   projectionOwner: string
   /**
-   * Declared ordering policy. Enforcement is BQC-3.7; global ordering is
-   * explicitly NOT promised.
+   * Ordering policy: per-aggregate chronological enqueue (created_at claim
+   * order) + state-idempotent consumers + receipt fencing. BQC-3.7 defines
+   * the model in the header above — global ordering is explicitly NOT
+   * promised and dispatcher concurrency means NO execution-order guarantee.
    */
   ordering: 'per_aggregate'
   /**

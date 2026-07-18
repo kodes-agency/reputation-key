@@ -32,7 +32,12 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     subject: 'outbox_events.published',
     table: 'outbox_events',
     keyColumns: ['id'],
-    tsColumn: 'created_at',
+    // BQC-3.7: keyed on published_at (the rule already filters published rows)
+    // so an event unpublished 29d then published survives a full 30d window —
+    // created_at keying deleted it ~1d after publication. 30d is BQC-1.6's
+    // deliberate value; the applied migration file's comment says 7d/90d —
+    // that comment drift is NOT fixed here (applied migrations are immutable).
+    tsColumn: 'published_at',
     olderThanMs: 30 * DAY_MS,
     extraWhere: 'published_at IS NOT NULL',
   },
@@ -123,10 +128,20 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
             rowsDeleted: result.rowsDeleted,
             outcome: 'completed',
           })
-          logger.info(
-            { subject: rule.subject, ...result },
-            'retention sweep rule completed',
-          )
+          if (result.capped) {
+            // BQC-3.7: the drain stopped at the per-run batch cap with rows
+            // remaining — the next scheduled run continues where this one
+            // stopped. The evidence row still closes as 'completed'.
+            logger.info(
+              { subject: rule.subject, ...result },
+              'retention sweep rule reached the per-run batch cap — remaining rows continue next scheduled run',
+            )
+          } else {
+            logger.info(
+              { subject: rule.subject, ...result },
+              'retention sweep rule completed',
+            )
+          }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           failures.push({ subject: rule.subject, error: message })

@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-18T07:58:31Z  
+**Manifest updated:** 2026-07-18T10:00:38Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -65,6 +65,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-2.3 | slice | Wire PropertyAccessGrant | `implementation_complete` | engineering | — | — | — |
 | BQC-2.2 | slice | Persisted policy state | `implementation_complete` | engineering | — | — | — |
 | BQC-2.1 | slice | Canonical action/resource catalogue | `implementation_complete` | engineering | — | — | — |
+| BQC-3.7 | slice | Relay, lease, ordering, and retention hardening | `implementation_complete` | engineering | — | — | — |
 | BQC-3.6 | slice | Correct dispatcher and unknown-work behavior | `implementation_complete` | engineering | — | — | — |
 | BQC-3.5 | slice | Migrate remaining enabled families | `implementation_complete` | engineering | — | — | — |
 | BQC-3.4 | slice | Deepen inbox projections and commands | `implementation_complete` | engineering | — | — | — |

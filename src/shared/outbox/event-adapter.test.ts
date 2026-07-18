@@ -51,13 +51,21 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       externalId: 'ext-1',
       platform: 'google',
       occurredAt: NOW.toISOString(),
+      // BQC-3.7: correlationId is re-attached post-validation as
+      // envelope-grade trace metadata (an identifier, not content).
+      correlationId: null,
     })
     expect(row.payload).not.toHaveProperty('rating')
     expect(row.payload).not.toHaveProperty('reviewerName')
     expect(row.payload).not.toHaveProperty('reviewText')
     expect(row.payload).not.toHaveProperty('_tag')
     expect(row.payload).not.toHaveProperty('eventId')
-    expect(row.payload).not.toHaveProperty('correlationId')
+  })
+
+  it('preserves correlationId through toOutboxEvent (BQC-3.7)', () => {
+    const event = { ...makeReviewCreated(), correlationId: 'corr-123' } as DomainEvent
+    const row = toOutboxEvent(event)
+    expect(row.payload).toHaveProperty('correlationId', 'corr-123')
   })
 
   it('throws unregistered for unknown event types', () => {
@@ -120,7 +128,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     } as unknown as DomainEvent
 
     const row = toOutboxEvent(event)
-    expect(row.payload).toEqual({ resourceId: 'r-1' })
+    expect(row.payload).toEqual({ resourceId: 'r-1', correlationId: null })
     expect(row.payload).not.toHaveProperty('comment')
   })
 })
