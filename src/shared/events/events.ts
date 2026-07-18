@@ -17,8 +17,6 @@ export type {
   // fallow-ignore-next-line unused-type
   IdentityInvitationAccepted,
   // fallow-ignore-next-line unused-type
-  IdentityInvitationRejected,
-  // fallow-ignore-next-line unused-type
   IdentityMemberRemoved,
   // fallow-ignore-next-line unused-type
   IdentityMemberRoleChanged,

@@ -23,6 +23,10 @@ import {
   JOB_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
 import { listRegisteredConsumers } from '#/shared/outbox/dispatcher'
+import {
+  listActiveCutoverFamilies,
+  type ActiveCutoverFamily,
+} from '#/shared/outbox/cutover-flags'
 import type { JobRegistry } from './registry'
 
 export type JobReadinessOptions = Readonly<{
@@ -32,6 +36,11 @@ export type JobReadinessOptions = Readonly<{
   listConsumers?: () => ReadonlyArray<
     Readonly<{ eventType: string; consumerName: string }>
   >
+  /**
+   * BQC-3.9: families past record-only — defaults to the env resolution.
+   * Any active family (shadow/switch) requires the durable dispatcher.
+   */
+  activeCutoverFamilies?: () => ReadonlyArray<ActiveCutoverFamily>
 }>
 
 /** Minimal logging surface (pino satisfies this). */
@@ -78,6 +87,25 @@ function assertDurableConsumersRegistered(
 }
 
 /**
+ * BQC-3.9: a family in shadow/switch runs the durable path — the boot fails
+ * when the dispatcher is off, because the family would silently lose its
+ * primary (switch) or comparison (shadow) delivery.
+ */
+function assertCutoverDispatcher(
+  active: ReadonlyArray<ActiveCutoverFamily>,
+  dispatcherEnabled: boolean,
+): void {
+  if (active.length === 0 || dispatcherEnabled) return
+  const families = active.map((f) => `${f.family}=${f.state}`).join(', ')
+  throw new Error(
+    'durable cutover readiness failed (deployment/config mismatch): ' +
+      `cutover famil${active.length === 1 ? 'y' : 'ies'} [${families}] require ` +
+      'OUTBOX_DISPATCHER_ENABLED=true — shadow/switch families cannot run ' +
+      'record-only (BQC-3.9)',
+  )
+}
+
+/**
  * Fail the worker boot when registered work and the catalogue disagree.
  * Throws on the first mismatch class found; logs the passing posture at info.
  */
@@ -86,6 +114,10 @@ export function assertJobReadiness(
   logger: ReadinessLogger,
   options: JobReadinessOptions = {},
 ): void {
+  assertCutoverDispatcher(
+    (options.activeCutoverFamilies ?? listActiveCutoverFamilies)(),
+    options.dispatcherEnabled === true,
+  )
   assertHandlersRegistered(registry)
 
   if (options.dispatcherEnabled) {

@@ -30,6 +30,11 @@ import { onMemberRemoved } from './on-member-removed'
 import { onMemberRoleChanged } from './on-member-role-changed'
 import { onGoogleAccountConnected } from './on-google-account-connected'
 import { onGoogleAccountDisconnected } from './on-google-account-disconnected'
+import { onOrganizationCreated } from './on-organization-created'
+import { onPropertyUpdated } from './on-property-updated'
+import { onPropertyDeleted } from './on-property-deleted'
+import { onGoogleConnectionVisibilityChanged } from './on-google-connection-visibility-changed'
+import { onPropertyImportCompleted } from './on-property-import-completed'
 
 export type RegisterActivityHandlersDeps = Readonly<{
   events: EventBus
@@ -120,6 +125,12 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   })
 
   // ── Identity events (user-management audit) ──
+  deps.events.on(
+    'identity.organization.created',
+    onOrganizationCreated({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
+  )
   deps.events.on('identity.member.invited', onMemberInvited({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })
@@ -158,4 +169,24 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
 
     { consumer: 'activity.event-handlers' },
   )
+  deps.events.on(
+    'integration.google_connection.visibility_changed',
+    onGoogleConnectionVisibilityChanged({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
+  )
+  deps.events.on(
+    'integration.property_import.completed',
+    onPropertyImportCompleted({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
+  )
+
+  // ── Property events (BQC-3.9 orphan consume: audit) ──
+  deps.events.on('property.updated', onPropertyUpdated({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('property.deleted', onPropertyDeleted({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
 }

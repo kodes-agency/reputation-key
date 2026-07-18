@@ -61,6 +61,7 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set
   'team',
   'staff_assignment',
   'integration',
+  'organization',
 ])
 
 const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(['web', 'import'])

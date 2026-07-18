@@ -646,13 +646,12 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:identity.create_organization',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.9',
       notes:
-        'emitted at registration; no consumers. Records via the atomic identity command store (BQC-3.5) — the fact is the audit trail. Consume-or-retire is a durable-cutover decision (BQC-3.9)',
+        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
     },
   ),
   ev(
@@ -682,23 +681,6 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
-  ),
-  ev(
-    'identity.invitation.rejected',
-    IDENTITY_EVENTS,
-    {
-      stateOwner: 'identity',
-      capability: 'identity.invite',
-      action: 'none',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'orphan',
-    },
-    {
-      ownerSlice: 'BQC-3.9',
-      notes: 'never emitted — constructor exported only',
-    },
   ),
   ev(
     'identity.invitation.canceled',
@@ -774,13 +756,12 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.9',
       notes:
-        'orphan audit fact — records via the atomic property command store (BQC-3.5); consume-or-retire is a durable-cutover decision (BQC-3.9)',
+        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
     },
   ),
   ev(
@@ -792,13 +773,12 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.9',
       notes:
-        'orphan audit fact — records via the atomic property command store (BQC-3.5); consume-or-retire is a durable-cutover decision (BQC-3.9)',
+        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
     },
   ),
 ]
@@ -1120,13 +1100,12 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:property.import',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.9',
       notes:
-        'records via the atomic integration command store (BQC-3.5) — the producer previously only eventBus.emit; consume-or-retire is a durable-cutover decision (BQC-3.9)',
+        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer (content-free counts)',
     },
   ),
   ev(
@@ -1138,13 +1117,12 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'BQC-3.9',
       notes:
-        'records via the atomic integration command store (BQC-3.5); registered with identifier-only allowlist — was unregistered; consume-or-retire is a durable-cutover decision (BQC-3.9)',
+        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
     },
   ),
 ]
@@ -1301,7 +1279,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'none',
       registration: 'enabled',
     },
-    { notes: 'enqueued by 24 activity event handlers' },
+    { notes: 'enqueued by 29 activity event handlers' },
   ),
   job(
     'insert-notification',

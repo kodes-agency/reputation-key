@@ -36,6 +36,7 @@ export type ResourceType =
   | 'team'
   | 'staff_assignment'
   | 'integration'
+  | 'organization'
 
 export type ActivityPayload = Readonly<{
   subject: string
