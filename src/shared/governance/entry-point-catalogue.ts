@@ -682,6 +682,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       { notes: 'soft-delete; policy-wired in BQC-2.4 with target propertyId' },
     ),
+    sf(
+      'requestRegionMoveFn',
+      `${PROPERTY}/region-move.ts`,
+      'policy.admin',
+      'identity.invite',
+      'property',
+      {
+        notes:
+          'BQC-4.5: operator region move request; typed denial result (target_cell_not_approved/already_in_cell/property_missing/region_unresolved) + operator audit; no move row on denial',
+      },
+    ),
   ],
 
   // ── integration ───────────────────────────────────────────────────

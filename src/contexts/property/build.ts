@@ -20,9 +20,28 @@ import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
 import { deleteProperty } from './application/use-cases/soft-delete-property'
+import { requestRegionMove } from './application/use-cases/request-region-move'
+import {
+  advanceRegionMove,
+  type RegionMoveQueueBinding,
+} from './application/use-cases/advance-region-move'
+import type { RegionMoveAuditWriter } from './application/ports/region-move-store.port'
 import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
+import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
+
+/**
+ * BQC-4.5 region-move wiring. approvedCells defaults to the beta set — 'us'
+ * is the ONLY approved cell (ADR 0048); widening requires an explicit
+ * decision record. queues binds the cell's property-scoped queues for the
+ * stepper's pause/drain/resume (BQC-0.4 primitive + BQC-3.7 depth reader).
+ */
+export type RegionMoveContextDeps = Readonly<{
+  writeOperatorAudit: RegionMoveAuditWriter
+  queues: ReadonlyArray<RegionMoveQueueBinding>
+  approvedCells?: ReadonlySet<string>
+}>
 
 type PropertyContextDeps = Readonly<{
   db: Database
@@ -30,12 +49,16 @@ type PropertyContextDeps = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  regionMove: RegionMoveContextDeps
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   const idGen = () => propertyId(randomUUID())
   // BQC-3.5: every property state mutation + fact commits atomically here.
   const commandStore = createAtomicPropertyCommandStore(deps.db, deps.events)
+  // BQC-4.5: the region move store (region_moves, migration 0016) + the
+  // guarded authority swap on properties.
+  const regionMoveStore = createRegionMoveRepository(deps.db)
 
   const useCases = {
     createProperty: createProperty({
@@ -49,6 +72,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore,
       clock: deps.clock,
+      hasActiveRegionMove: async (orgId, pid) =>
+        (await regionMoveStore.findActiveMoveForProperty(orgId, pid)) !== null,
     }),
     listProperties: listProperties({
       propertyRepo: deps.repo,
@@ -57,6 +82,19 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getProperty: getProperty({
       propertyRepo: deps.repo,
       staffPublicApi: deps.staffPublicApi,
+    }),
+    requestRegionMove: requestRegionMove({
+      propertyRepo: deps.repo,
+      moveStore: regionMoveStore,
+      approvedCells: deps.regionMove.approvedCells ?? new Set(['us']),
+      writeOperatorAudit: deps.regionMove.writeOperatorAudit,
+      idGen: () => randomUUID(),
+      clock: deps.clock,
+    }),
+    advanceRegionMove: advanceRegionMove({
+      moveStore: regionMoveStore,
+      queues: deps.regionMove.queues,
+      clock: deps.clock,
     }),
     softDeleteProperty: deleteProperty({
       propertyRepo: deps.repo,

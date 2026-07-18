@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T21:22:40Z",
+  "updatedAt": "2026-07-18T22:36:45Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -614,7 +614,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
       "exceptions": [],
-      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map), BQC-4.4 (regional reads + operator diagnostic) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map), BQC-4.4 (regional reads + operator diagnostic), BQC-4.5 (region move workflow) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.5",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "Region move workflow",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "region-move-state-machine",
+        "region-move-rehearsal",
+        "move-denial-and-lock-proof",
+        "migration-0016"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The region move workflow exists as a deliberate state machine even though moves remain operator-only and DENIED for beta (one approved cell). Migration 0016 (hand-written + journal-only; applied to scratch): region_moves table (property FK ON DELETE RESTRICT — move history survives; state CHECK; org/property indexes). Domain machine (region-move-workflow.ts, 41 unit tests): requested → writes_paused → queues_drained → data_copied → verified → target_activated → source_erased → completed; failed → rolling_back → rolled_back; failed reachable from every PRE-erasure state and NEVER from source_erased (point of no return); terminal completed/rolled_back. authoritativeCellFor: exactly one authoritative cell per state — source before target_activated, target at/after it, source throughout rollback — never both, never neither. Beta denial semantics: requestRegionMove returns typed results (property_missing / region_unresolved / already_in_cell / target_cell_not_approved), writes NO move row, and writes a content-free policy.region.move.request deny audit (mirrors 4.4); approved-target path (stubbed in tests) creates the row in requested. Stepper (advance-region-move, operator-driven, idempotent per step): writes_paused = REAL queue pause via the BQC-0.4 quarantine primitive (jobs preserved); queues_drained = real depth check (waiting+active+delayed+paused must be 0; failed jobs are evidence not pending); data_copied/verified = policy gates recording confirmedBy (real copy/verify lands with the second cell — BQC-7); target_activated = ONE guarded UPDATE swapping properties.processing_region + routing_policy_version+1 (atomic authority swap; drift → region_move_conflict); source_erased = record-only with one cell; rollback = resume queues + guarded source restore. update-property: a country edit now also checks for an in-flight move (hasActiveRegionMove) and stays region_locked either way — a country edit can NEVER silently move content (proven: no move row written, cross- and same-region). REHEARSAL (7 real-PG+Redis proofs): full lifecycle us→europe with region swapping exactly once at target_activated and state_changed_at strictly advancing; queues really paused; crash/retry idempotent no-ops; rollback from queues_drained with authority=us throughout + queues resumed + error first-line only; country edit during an active move → region_locked, no row; real request with only-us approved → typed denial + 1 deny audit, zero rows. Deviations: audit written by the request use case via an injected port bound to identity's writePolicyDecision (boundaries rule — property server can't reach identity infra; mirrors 4.4); one new error code region_move_conflict (409); advanceRegionMove has no server fn (BQC-7 operator surface). Noted: no partial unique index enforcing one in-flight move per property (application-level guard via findActiveMoveForProperty — follow-up if concurrent requests become possible). Not claimed: second-cell copy/verify (BQC-7), automatic moves (out of scope per phase doc), Europe approval (evidence-gated). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-4.4",

@@ -4,6 +4,7 @@ import type { PropertyRepository } from '../ports/property.repository'
 import type { PropertyCommandStore } from '../ports/property-command-store.port'
 import type { Property } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { UpdatePropertyInput } from '../dto/update-property.dto'
 export type { UpdatePropertyInput } from '../dto/update-property.dto'
 import { canForContext } from '#/shared/domain/permissions'
@@ -29,6 +30,12 @@ export type UpdatePropertyDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   commandStore: PropertyCommandStore
   clock: () => Date
+  /**
+   * BQC-4.5: true while a region move is in flight for the property — the
+   * move owns the routing fields, so any country edit is region_locked for
+   * the duration (same lock as a cross-region edit).
+   */
+  hasActiveRegionMove: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
 }>
 
 function authorize(ctx: AuthContext): void {
@@ -128,6 +135,21 @@ async function validateUpdateFields(
 
   const newGbpPlaceId =
     input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId
+
+  // BQC-4.5: a region move in flight owns the routing fields — country edits
+  // are locked (region_locked) until the move completes or rolls back.
+  if (
+    input.countryCode !== undefined &&
+    (await deps.hasActiveRegionMove(organizationId, propertyId))
+  ) {
+    throw propertyError(
+      'region_locked',
+      'a region move is in progress for this property',
+      {
+        propertyId,
+      },
+    )
+  }
 
   const routing = resolveRoutingUpdate(existing, input.countryCode, now)
 
