@@ -4,10 +4,11 @@
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { InboxViewRepository } from './application/ports/inbox-view.repository'
+import type { InboxCommandStore } from './application/ports/inbox-command-store.port'
+import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { InboxContextApi } from './build'
 import { createInboxItem as createInboxItemUseCase } from './application/use-cases/create-inbox-item'
 import { updateInboxStatus } from './application/use-cases/update-inbox-status'
@@ -22,15 +23,17 @@ import { stampLastInboxView } from './application/use-cases/stamp-last-inbox-vie
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import { getInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
+import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
   inboxRepo: InboxRepository
   inboxNoteRepo: InboxNoteRepository
   inboxViewRepo: InboxViewRepository
-  events: EventBus
-  staffPublicApi: StaffPublicApi
+  commandStore: InboxCommandStore
+  reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
+  staffPublicApi: StaffPublicApi
   logger: LoggerPort
   clock: () => Date
 }>
@@ -39,38 +42,38 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
   return {
     createInboxItem: createInboxItemUseCase({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
     }),
     updateInboxStatus: updateInboxStatus({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
     }),
     bulkUpdateInboxStatus: bulkUpdateInboxStatus({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
       logger: input.logger,
     }),
     escalateInboxItem: escalateInboxItem({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
     }),
     resolveEscalation: resolveEscalation({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
     }),
     assignInboxItem: assignInboxItem({
       repo: input.inboxRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
     }),
@@ -80,8 +83,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
     }),
     addInboxNote: addInboxNote({
       repo: input.inboxRepo,
-      noteRepo: input.inboxNoteRepo,
-      events: input.events,
+      commandStore: input.commandStore,
       idGen: () => inboxNoteId(crypto.randomUUID()),
       clock: input.clock,
       staffPublicApi: input.staffPublicApi,
@@ -108,6 +110,15 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
     getInboxFolderCounts: getInboxFolderCounts({
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
+    }),
+    rebuildInboxProjection: rebuildInboxProjection({
+      repo: input.inboxRepo,
+      commandStore: input.commandStore,
+      reviewSourceLookup: input.reviewSourceLookup,
+      replyLookup: input.replyLookup,
+      idGen: () => inboxItemId(crypto.randomUUID()),
+      clock: input.clock,
+      logger: input.logger,
     }),
   }
 }

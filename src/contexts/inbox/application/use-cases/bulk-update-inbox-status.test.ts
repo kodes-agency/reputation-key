@@ -3,6 +3,7 @@ import { bulkUpdateInboxStatus } from './bulk-update-inbox-status'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createMockLogger } from '#/shared/testing/mock-logger'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import {
   inboxItemId,
   organizationId,
@@ -66,9 +67,10 @@ const defaultStaffApi: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
+  const commandStore = createSequentialInboxCommandStore({ repo, events })
   const deps = {
     repo,
-    events,
+    commandStore,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
     logger: createMockLogger(),

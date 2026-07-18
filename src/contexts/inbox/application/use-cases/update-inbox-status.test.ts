@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { updateInboxStatus } from './update-inbox-status'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
 import {
   inboxItemId,
@@ -62,9 +63,10 @@ const staffApiAllAccess: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
+  const commandStore = createSequentialInboxCommandStore({ repo, events })
   const deps = {
     repo,
-    events,
+    commandStore,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
   }

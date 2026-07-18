@@ -2020,10 +2020,10 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:inbox.update',
     'none',
     'organization',
-    ['review.created', 'review.expired'],
+    ['review.created', 'review.expired', 'review.updated', 'review.reply.published'],
     {
       notes:
-        'durable outbox consumers (receipt-idempotent); dispatch disabled — BQR-0 containment',
+        'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
     },
   ),
   consumer(

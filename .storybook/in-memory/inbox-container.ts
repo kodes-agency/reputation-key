@@ -20,6 +20,8 @@ import {
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
 import type { InboxViewRepository } from '#/contexts/inbox/application/ports/inbox-view.repository'
 import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
+import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
@@ -112,6 +114,12 @@ const noopLogger: LoggerPort = {
 
 const noopReplyLookup: ReplyLookupPort = {
   getReplyByReviewId: async () => null,
+  getReplyMilestonesByReviewIds: async () => new Map(),
+}
+
+const noopReviewSourceLookup: ReviewSourceLookupPort = {
+  getReviewSourceMetaById: async () => null,
+  listReviewSources: async () => [],
 }
 
 export function createInboxContainer() {
@@ -125,11 +133,16 @@ export function createInboxContainer() {
     inboxRepo,
     inboxNoteRepo,
     inboxViewRepo,
-    events,
+    commandStore: createSequentialInboxCommandStore({
+      repo: inboxRepo,
+      noteRepo: inboxNoteRepo,
+      events,
+    }),
+    reviewSourceLookup: noopReviewSourceLookup,
+    replyLookup: noopReplyLookup,
     staffPublicApi: noopStaffApi,
     logger: noopLogger,
     clock: () => clockNow,
-    replyLookup: noopReplyLookup,
   })
 
   return {

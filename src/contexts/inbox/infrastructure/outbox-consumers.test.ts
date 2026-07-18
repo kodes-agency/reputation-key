@@ -1,21 +1,29 @@
-// BQR-2.4 — durable inbox consumers perform real projection work.
-// BQC-1.2: review.updated has no consumer (denormalized copies are gone);
-// created is an existence check + metadata-only create; expired just closes.
+// BQC-3.4 — durable inbox consumers apply projections via applyOnce:
+// state change, emitted facts, and the receipt co-commit through the inbox
+// command store. Duplicate deliveries record receipts without second facts;
+// missing items/reviews are applied no-ops (rebuild heals).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   handleInboxReviewCreated,
   handleInboxReviewExpired,
+  handleInboxReviewUpdated,
+  handleInboxReplyPublished,
   type InboxConsumerDeps,
 } from './outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
-import type { InboxRepository } from '../application/ports/inbox.repository'
-import type { OutboxRepository } from '#/shared/outbox'
+import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type {
   ReviewLookupPort,
   ReviewSnippetResult,
 } from '../application/ports/review-lookup.port'
-import type { EventBus } from '#/shared/events/event-bus'
+import type {
+  ReviewSourceLookupPort,
+  ReviewSourceMeta,
+} from '../application/ports/review-source-lookup.port'
+import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
 
@@ -86,26 +94,37 @@ const AVAILABLE_SNIPPET: ReviewSnippetResult = {
   },
 }
 
+const SOURCE_META: ReviewSourceMeta = {
+  id: REV,
+  propertyId: PROP,
+  platform: 'google',
+  sourceDate: new Date('2026-06-10'),
+  contentExpiresAt: null,
+}
+
+type ReceiptRow = Readonly<{
+  eventId: string
+  consumerName: string
+  status: ApplyReceiptStatus
+}>
+
 function makeDeps(overrides: {
   item?: InboxItem | null
   snippetResult?: ReviewSnippetResult
-  createError?: unknown
-}): InboxConsumerDeps {
+  sourceMeta?: ReviewSourceMeta | null
+}) {
   const item = overrides.item === undefined ? makeItem() : overrides.item
-
-  const outboxRepo = {
-    insert: vi.fn(async () => {}),
-    claimUnpublished: vi.fn(async () => []),
-    markPublished: vi.fn(async () => {}),
-    hasReceipt: vi.fn(async () => false),
-    insertReceipt: vi.fn(async () => {}),
-    findExpiredLeases: vi.fn(async () => []),
-  } satisfies OutboxRepository
-
-  const inboxRepo = {
-    findBySource: vi.fn(async () => item),
-    updateStatus: vi.fn(async () => item ?? makeItem({ status: 'closed' })),
-  } as unknown as InboxRepository
+  const repo = createInMemoryInboxRepo()
+  if (item) repo.items.push(item)
+  const events = createCapturingEventBus()
+  const receipts: ReceiptRow[] = []
+  const commandStore = createSequentialInboxCommandStore({
+    repo,
+    events,
+    recordReceipt: async (eventId, consumerName, status) => {
+      receipts.push({ eventId, consumerName, status })
+    },
+  })
 
   const reviewLookup = {
     getReviewSnippetById: vi.fn(async () =>
@@ -115,34 +134,31 @@ function makeDeps(overrides: {
     findEligibleReviewIds: vi.fn(async () => []),
   } satisfies ReviewLookupPort
 
-  const events = {
-    on: vi.fn(),
-    emit: vi.fn(async () => {}),
-    clear: vi.fn(),
-  } satisfies EventBus
+  const reviewSourceLookup = {
+    getReviewSourceMetaById: vi.fn(async () =>
+      overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta,
+    ),
+    listReviewSources: vi.fn(async () => []),
+  } satisfies ReviewSourceLookupPort
 
-  const createInboxItem = vi.fn(async () => {
-    if (overrides.createError) throw overrides.createError
-    return makeItem()
-  })
-
-  return {
-    outboxRepo,
+  const deps: InboxConsumerDeps = {
+    commandStore,
     reviewLookup,
-    createInboxItem: createInboxItem as unknown as InboxConsumerDeps['createInboxItem'],
-    inboxRepo,
-    events,
+    reviewSourceLookup,
+    inboxRepo: repo,
+    idGen: () => INBOX,
     clock: () => NOW,
   }
+  return { deps, repo, events, receipts }
 }
 
-describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
+describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('marks obsolete when the review does not exist', async () => {
-    const deps = makeDeps({ snippetResult: { status: 'not_found' } })
+    const { deps, receipts } = makeDeps({ snippetResult: { status: 'not_found' } })
     const result = await handleInboxReviewCreated(
       deps,
       makeEvent('review.created', {
@@ -153,16 +169,16 @@ describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
     )
 
     expect(result).toEqual({ status: 'obsolete' })
-    expect(deps.createInboxItem).not.toHaveBeenCalled()
-    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
-      'evt-1',
-      'inbox.on-review-created',
-      'obsolete',
-    )
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'obsolete' },
+    ])
   })
 
-  it('creates a metadata-only inbox item when content is available', async () => {
-    const deps = makeDeps({ snippetResult: AVAILABLE_SNIPPET })
+  it('creates a metadata-only item + created fact + applied receipt in one apply', async () => {
+    const { deps, repo, events, receipts } = makeDeps({
+      item: null,
+      snippetResult: AVAILABLE_SNIPPET,
+    })
     const result = await handleInboxReviewCreated(
       deps,
       makeEvent('review.created', {
@@ -177,23 +193,19 @@ describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
     expect(result).toEqual({ status: 'applied' })
     expect(deps.reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REV, ORG)
     // BQC-1.2: metadata only — no rating/snippet/reviewerName copied.
-    expect(deps.createInboxItem).toHaveBeenCalledWith({
-      organizationId: ORG,
-      propertyId: PROP,
-      sourceType: 'review',
-      sourceId: REV,
-      sourceDate: NOW,
-      platform: 'google',
-    })
-    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
-      'evt-1',
-      'inbox.on-review-created',
-      'applied',
-    )
+    expect(repo.items).toHaveLength(1)
+    expect(repo.items[0]!.sourceDate).toEqual(NOW)
+    expect(repo.items[0]!.platform).toBe('google')
+    expect(repo.items[0]!.rating).toBeNull()
+    expect(repo.items[0]!.snippet).toBeNull()
+    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'applied' },
+    ])
   })
 
   it('still creates a metadata-only item when content is expired', async () => {
-    const deps = makeDeps({ snippetResult: { status: 'expired' } })
+    const { deps, repo } = makeDeps({ item: null, snippetResult: { status: 'expired' } })
     const result = await handleInboxReviewCreated(
       deps,
       makeEvent('review.created', {
@@ -204,22 +216,11 @@ describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.createInboxItem).toHaveBeenCalled()
-    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
-      'evt-1',
-      'inbox.on-review-created',
-      'applied',
-    )
+    expect(repo.items).toHaveLength(1)
   })
 
-  it('marks duplicate when the inbox item already exists', async () => {
-    const deps = makeDeps({
-      createError: {
-        _tag: 'InboxError',
-        code: 'already_exists',
-        message: 'duplicate',
-      },
-    })
+  it('duplicate delivery: duplicate receipt, no second item, no second fact', async () => {
+    const { deps, repo, events, receipts } = makeDeps({ item: makeItem() })
     const result = await handleInboxReviewCreated(
       deps,
       makeEvent('review.created', {
@@ -230,17 +231,17 @@ describe('handleInboxReviewCreated (BQR-2.4 / BQC-1.2)', () => {
     )
 
     expect(result).toEqual({ status: 'duplicate' })
-    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
-      'evt-1',
-      'inbox.on-review-created',
-      'duplicate',
-    )
+    expect(repo.items).toHaveLength(1)
+    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'duplicate' },
+    ])
   })
 })
 
-describe('handleInboxReviewExpired (BQR-2.4 / BQC-1.2)', () => {
-  it('closes the open inbox item and records applied', async () => {
-    const deps = makeDeps({})
+describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
+  it('closes the open item, emits the fact, and records the receipt atomically', async () => {
+    const { deps, repo, events, receipts } = makeDeps({})
     const result = await handleInboxReviewExpired(
       deps,
       makeEvent('review.expired', {
@@ -251,24 +252,16 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQC-1.2)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG)
-    expect(deps.inboxRepo.updateStatus).toHaveBeenCalledWith(
-      INBOX,
-      ORG,
-      'closed',
-      { closedAt: NOW },
-      NOW,
-    )
-    expect(deps.events.emit).toHaveBeenCalled()
-    expect(deps.outboxRepo.insertReceipt).toHaveBeenCalledWith(
-      'evt-1',
-      'inbox.on-review-expired',
-      'applied',
-    )
+    expect(repo.items[0]!.status).toBe('closed')
+    expect(repo.items[0]!.closedAt).toEqual(NOW)
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
+    ])
   })
 
-  it('applies without a status re-write when the item is already closed', async () => {
-    const deps = makeDeps({ item: makeItem({ status: 'closed' }) })
+  it('already closed: receipt recorded, no second status_changed fact', async () => {
+    const { deps, events, receipts } = makeDeps({ item: makeItem({ status: 'closed' }) })
     const result = await handleInboxReviewExpired(
       deps,
       makeEvent('review.expired', {
@@ -277,12 +270,16 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQC-1.2)', () => {
         propertyId: 'prop-1',
       }),
     )
+
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
+    ])
   })
 
   it('applies when no inbox item exists', async () => {
-    const deps = makeDeps({ item: null })
+    const { deps, receipts } = makeDeps({ item: null })
     const result = await handleInboxReviewExpired(
       deps,
       makeEvent('review.expired', {
@@ -291,7 +288,149 @@ describe('handleInboxReviewExpired (BQR-2.4 / BQC-1.2)', () => {
         propertyId: 'prop-1',
       }),
     )
+
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.inboxRepo.updateStatus).not.toHaveBeenCalled()
+    expect(receipts).toHaveLength(1)
+  })
+})
+
+describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () => {
+  it('refreshes sourceDate/platform metadata and records the receipt', async () => {
+    const { deps, repo, receipts } = makeDeps({})
+    const result = await handleInboxReviewUpdated(
+      deps,
+      makeEvent('review.updated', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.sourceDate).toEqual(SOURCE_META.sourceDate)
+    expect(repo.items[0]!.platform).toBe('google')
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-updated', status: 'applied' },
+    ])
+  })
+
+  it('missing item: applied no-op with a receipt (rebuild heals)', async () => {
+    const { deps, repo, receipts } = makeDeps({ item: null })
+    const result = await handleInboxReviewUpdated(
+      deps,
+      makeEvent('review.updated', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-review-updated', status: 'applied' },
+    ])
+  })
+
+  it('missing review row: applied no-op with a receipt', async () => {
+    const { deps, repo, receipts } = makeDeps({ sourceMeta: null })
+    const result = await handleInboxReviewUpdated(
+      deps,
+      makeEvent('review.updated', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.sourceDate).toEqual(new Date('2026-06-01'))
+    expect(receipts).toHaveLength(1)
+  })
+})
+
+describe('handleInboxReplyPublished (BQC-3.4 durable milestone/auto-close)', () => {
+  it('stamps firstReplyPublishedAt, closes the open item, emits the fact', async () => {
+    const { deps, repo, events, receipts } = makeDeps({})
+    const result = await handleInboxReplyPublished(
+      deps,
+      makeEvent('review.reply.published', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.status).toBe('closed')
+    expect(repo.items[0]!.closedAt).toEqual(NOW)
+    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(NOW)
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
+    ])
+  })
+
+  it('already closed but milestone missing: stamps only, no fact', async () => {
+    const { deps, repo, events, receipts } = makeDeps({
+      item: makeItem({ status: 'closed', closedAt: NOW }),
+    })
+    const result = await handleInboxReplyPublished(
+      deps,
+      makeEvent('review.reply.published', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(NOW)
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(receipts).toHaveLength(1)
+  })
+
+  it('already closed and stamped: receipt only', async () => {
+    const stamped = new Date('2026-06-12')
+    const { deps, repo, events, receipts } = makeDeps({
+      item: makeItem({
+        status: 'closed',
+        closedAt: stamped,
+        firstReplyPublishedAt: stamped,
+      }),
+    })
+    const result = await handleInboxReplyPublished(
+      deps,
+      makeEvent('review.reply.published', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(stamped)
+    expect(events.capturedEvents).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
+    ])
+  })
+
+  it('missing item: applied no-op with a receipt', async () => {
+    const { deps, receipts } = makeDeps({ item: null })
+    const result = await handleInboxReplyPublished(
+      deps,
+      makeEvent('review.reply.published', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
+    ])
   })
 })

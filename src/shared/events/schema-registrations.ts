@@ -72,48 +72,73 @@ const inboxItemStatusChangedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+// BQC-3.4: the six schemas below are corrected IN PLACE at version 1 — no
+// version bump. Justification: they never successfully recorded (every
+// insert would have thrown invalid_payload against the producer payloads)
+// and the inbox use-case wiring never passed outboxRepo, so zero historical
+// rows exist for these types. The two compatible inbox schemas
+// (inbox_item.created, inbox_item.status_changed) are unchanged.
+
 const inboxItemEscalatedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  escalatedBy: z.string(),
+  userId: z.string(),
+  propertyId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const inboxItemEscalationResolvedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  resolvedBy: z.string(),
+  userId: z.string(),
+  propertyId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const inboxNoteAddedSchema = z.object({
   inboxItemId: z.string(),
   noteId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  authorId: z.string(),
+  userId: z.string(),
+  propertyId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const inboxItemAssignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  staffId: z.string(),
+  assignedTo: z.string(),
+  propertyId: z.string().nullable().optional(),
+  userId: z.string().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 const inboxItemUnassignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  staffId: z.string(),
+  previousAssignee: z.string(),
+  propertyId: z.string().nullable().optional(),
+  userId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
+// Per-item shape — one event per affected item, linked by bulkId (the
+// activity log groups per-item entries via payload.bulkId).
 const inboxItemBulkStatusChangedSchema = z.object({
+  inboxItemId: z.string(),
   organizationId: z.string(),
-  propertyId: z.string(),
-  inboxItemIds: z.array(z.string()),
-  previousStatus: z.string(),
+  oldStatus: z.string(),
   newStatus: z.string(),
+  bulkId: z.string(),
+  userId: z.string().nullable().optional(),
+  propertyId: z.string().nullable().optional(),
+  source: z.string().optional(),
+  occurredAt: z.string().optional(),
 })
 
 // ── Metric event schemas ────────────────────────────────────────────

@@ -30,7 +30,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(compositionSrc).toContain('registerInboxConsumers')
   })
 
-  it('inbox outbox-consumers registers the two review→inbox consumers (BQC-1.2)', () => {
+  it('inbox outbox-consumers registers the four review→inbox consumers (BQC-3.4)', () => {
     const src = readFileSync(
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
       'utf-8',
@@ -39,8 +39,12 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).toContain("consumerName: 'inbox.on-review-created'")
     expect(src).toContain("eventType: 'review.expired'")
     expect(src).toContain("consumerName: 'inbox.on-review-expired'")
-    // BQC-1.2: review.updated has no consumer — denormalized copies are gone.
-    expect(src).not.toContain("consumerName: 'inbox.on-review-updated'")
+    // BQC-3.4: metadata-only refresh consumer (resolves the BQC-3.1 orphan).
+    expect(src).toContain("eventType: 'review.updated'")
+    expect(src).toContain("consumerName: 'inbox.on-review-updated'")
+    // BQC-3.4: durable milestone/auto-close consumer.
+    expect(src).toContain("eventType: 'review.reply.published'")
+    expect(src).toContain("consumerName: 'inbox.on-reply-published'")
   })
 
   it('listRegisteredConsumers is empty after clear', () => {
@@ -54,18 +58,21 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(listRegisteredConsumers()).toEqual([])
   })
 
-  it('BQR-2.4 / BQC-1.2: created/expired consumers perform real projection work', () => {
+  it('BQR-2.4 / BQC-3.4: consumers perform real projection work via applyOnce', () => {
     const src = readFileSync(
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
       'utf-8',
     )
-    expect(src).toContain('createInboxItem')
-    expect(src).toContain('updateStatus')
     expect(src).toContain('handleInboxReviewCreated')
     expect(src).toContain('handleInboxReviewExpired')
+    expect(src).toContain('handleInboxReviewUpdated')
+    expect(src).toContain('handleInboxReplyPublished')
+    expect(src).toContain('applyReviewCreatedOnce')
+    expect(src).toContain('applyReviewExpiredOnce')
+    expect(src).toContain('applyReviewUpdatedOnce')
+    expect(src).toContain('applyReplyPublishedOnce')
     // BQC-1.2: no denormalized-field syncing remains.
     expect(src).not.toContain('syncDenormalizedFields')
-    expect(src).not.toContain('handleInboxReviewUpdated')
     expect(src).not.toMatch(/TODO: Implement inbox item update/)
     expect(src).not.toMatch(/for now, mark as applied/i)
   })

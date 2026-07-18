@@ -46,22 +46,25 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 | `inbox.inbox_item.status_changed`      | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, occurredAt         | Status transition                          |
 | `inbox.inbox_item.assigned`            | inboxItemId, organizationId, propertyId, userId, assignedTo, occurredAt                   | Item assigned to user                      |
 | `inbox.inbox_item.unassigned`          | inboxItemId, organizationId, propertyId, userId, previousAssignee, occurredAt             | Item unassigned from user                  |
-| `inbox.inbox_item.escalated`           | inboxItemId, organizationId, propertyId, userId, oldStatus, occurredAt                    | Item escalated alongside status.changed    |
-| `inbox.inbox_note.added`               | inboxItemId, organizationId, propertyId, userId, noteId, text, occurredAt                 | Internal note added to item                |
+| `inbox.inbox_item.escalated`           | inboxItemId, organizationId, propertyId, userId, occurredAt                               | Escalation flag set                        |
+| `inbox.inbox_item.escalation_resolved` | inboxItemId, organizationId, propertyId, userId, occurredAt                               | Escalation flag resolved                   |
+| `inbox.inbox_note.added`               | inboxItemId, organizationId, propertyId, userId, noteId, occurredAt                       | Internal note added to item                |
 | `inbox.inbox_item.bulk_status_changed` | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation      |
 
 Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
 
+Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note text — notes remain context-owned content. Every fact above is committed atomically with its state change via the `InboxCommandStore` (one PostgreSQL transaction: state + outbox row; post-commit bus emit is best-effort). The projection repair command is `rebuildInboxProjection` (bounded, idempotent, report-first; review-sourced items only — guest/feedback is a dark context).
+
 ## Events consumed
 
-| Tag                        | Source context | Handler action                                        |
-| -------------------------- | -------------- | ----------------------------------------------------- |
-| `review.created`           | review         | Create inbox item for new review                      |
-| `review.updated`           | review         | Update denormalized fields on inbox item              |
-| `guest.feedback.submitted` | guest          | Create inbox item for new feedback                    |
-| `review.reply.published`   | review         | Auto-transition inbox item to `addressed`             |
-| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item |
-| `review.expired`           | review         | Archive orphaned inbox items (no reply by expiry)     |
+| Tag                        | Source context | Handler action                                                                                          |
+| -------------------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `review.created`           | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt) |
+| `review.updated`           | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)               |
+| `guest.feedback.submitted` | guest          | Create inbox item for new feedback (bus only — dark context)                                            |
+| `review.reply.published`   | review         | Stamp `firstReplyPublishedAt`; auto-transition open → closed (bus + durable `inbox.on-reply-published`) |
+| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                        |
+| `review.expired`           | review         | Close open inbox item when its source review is purged (bus + durable `inbox.on-review-expired`)        |
 
 ## Architecture layers
 
@@ -79,11 +82,16 @@ inbox/
     public-api.ts      re-exports domain types, error types, cursor type
   infrastructure/
     adapters/          review-lookup.adapter.ts, feedback-lookup.adapter.ts,
-                      property-lookup.adapter.ts, redis-new-counter.ts
+                      property-lookup.adapter.ts, reply-lookup.adapter.ts,
+                      review-source-lookup.adapter.ts
     mappers/           inbox.mapper.ts, inbox-note.mapper.ts
     repositories/      inbox.repository.ts, inbox-note.repository.ts (Drizzle)
-    event-handlers/    on-review-created.ts, on-review-updated.ts, on-feedback-submitted.ts,
-                      on-reply-published.ts, on-reply-submitted.ts
+    inbox-command-store.ts            atomic state+outbox+receipt commands (BQC-3.4)
+    outbox-consumers.ts  durable consumers (applyOnce): review.created/.updated/.expired,
+                      review.reply.published
+    event-handlers/    on-review-created.ts, on-review-expired.ts, on-feedback-submitted.ts,
+                      on-reply-published.ts, on-reply-submitted.ts (bus dual path)
+    (test fake: src/shared/testing/sequential-inbox-command-store.ts)
   server/              inbox.ts, inbox-item-queries.ts, inbox-status.ts, inbox-item-actions.ts,
                       inbox-queries.ts, inbox-shared.ts
   build.ts             composition root
@@ -102,6 +110,7 @@ inbox/
 | `getNewCount`           | organizationId                                                      | count                 | `inbox.read`  |
 | `createInboxItem`       | organizationId, propertyId, sourceType, sourceId, rating?, sourceDate, platform?, snippet? | `InboxItem`           | internal only |
 | `getFolderCounts`       | organizationId, userId, role                                        | `InboxFolderCounts`   | `inbox.read`  |
+| `rebuildInboxProjection` | organizationId, propertyId?, dryRun, batchSize?                    | repair report         | internal repair command (BQC-3.4; operator surface is BQC-7) |
 
 ## Public API
 

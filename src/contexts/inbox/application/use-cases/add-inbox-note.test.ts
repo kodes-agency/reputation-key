@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { addInboxNote } from './add-inbox-note'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import {
   inboxItemId,
   inboxNoteId,
@@ -75,16 +76,17 @@ const defaultStaffApi: StaffPublicApi = {
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const noteRepo = createInMemoryNoteRepo()
+  const events = createCapturingEventBus()
+  const commandStore = createSequentialInboxCommandStore({ repo, noteRepo, events })
   const deps = {
     repo,
-    noteRepo,
+    commandStore,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
-    events: createCapturingEventBus(),
   }
   const useCase = addInboxNote(deps)
-  return { useCase, repo, noteRepo, deps }
+  return { useCase, repo, noteRepo, events }
 }
 
 describe('addInboxNote', () => {
@@ -171,12 +173,13 @@ describe('addInboxNote', () => {
     expect(noteRepo.notes).toHaveLength(1)
   })
 
-  it('emits inbox.note.added event', async () => {
-    const { useCase, repo, deps } = setup()
+  it('emits inbox.note.added event (note ID, never text — BQC-3.4)', async () => {
+    const { useCase, repo, events } = setup()
     repo.items.push(seedItem())
 
     await useCase({ inboxItemId: ITEM_ID, text: 'hello' }, ctxFor('AccountAdmin'))
 
-    expect(deps.events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
+    expect(events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
+    expect(events.capturedEvents[0]).not.toHaveProperty('text')
   })
 })

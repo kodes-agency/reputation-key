@@ -100,4 +100,22 @@ export type InboxRepository = Readonly<{
     propertyIds?: ReadonlyArray<PropertyId>,
   ): Promise<number>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
+  /**
+   * BQC-3.4: metadata-only refresh of the projection-owned source fields
+   * (review.updated consumer / rebuild). Returns null when the row vanished.
+   */
+  updateSourceMeta(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    fields: Readonly<{ sourceDate: Date; platform: string | null }>,
+    now?: Date,
+  ): Promise<InboxItem | null>
+  /**
+   * BQC-3.4: lightweight keyset scan of review-sourced items for projection
+   * rebuild — no enrichment lookups, ordered by id, resuming AFTER `cursor`.
+   */
+  scanReviewItems(
+    orgId: OrganizationId,
+    opts: Readonly<{ propertyId?: PropertyId; cursor?: InboxItemId; limit: number }>,
+  ): Promise<ReadonlyArray<InboxItem>>
 }>

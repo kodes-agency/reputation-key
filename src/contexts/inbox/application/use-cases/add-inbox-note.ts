@@ -2,18 +2,16 @@
 // Adds a note to an inbox item.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { InboxNoteRepository } from '../ports/inbox-note.repository'
+import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, InboxNoteId } from '#/shared/domain/ids'
 import type { InboxNote } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
 import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxNoteAdded } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
@@ -23,12 +21,10 @@ export type AddInboxNoteInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type AddInboxNoteDeps = Readonly<{
   repo: InboxRepository
-  noteRepo: InboxNoteRepository
+  commandStore: InboxCommandStore
   idGen: () => InboxNoteId
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  events: EventBus
-  outboxRepo?: OutboxRepository
 }>
 
 export const addInboxNote =
@@ -66,27 +62,20 @@ export const addInboxNote =
 
     const note = result.value
 
-    // 3. Persist
-    await deps.noteRepo.create(note, ctx.organizationId)
-
-    // 4. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
+    // 3. Persist + record the fact atomically. Notes remain context-owned
+    //    content — the event carries the note ID, never the text (BQC-3.4).
+    return deps.commandStore.addNote(
+      note,
       inboxNoteAdded({
         inboxItemId: note.inboxItemId,
         organizationId: note.organizationId,
         propertyId: item.propertyId,
         userId: note.userId,
         noteId: note.id,
-        text: note.text,
         source: 'web',
         occurredAt: note.createdAt,
       }),
     )
-
-    // 5. Return
-    return note
   }
 
 // fallow-ignore-next-line unused-type
