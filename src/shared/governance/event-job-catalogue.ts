@@ -293,9 +293,9 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'orphan',
     },
     {
-      ownerSlice: 'BQC-3.3',
+      ownerSlice: 'BQC-3.4',
       notes:
-        'BQC-1.2 removed the inbox handler (denormalized copies gone); emitted but never consumed',
+        'BQC-1.2 removed the inbox handler (denormalized copies gone); the consumer is the BQC-3.4 inbox projection work — emitted but never consumed today',
     },
   ),
   ev(
@@ -316,7 +316,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'inbox',
       notes:
-        'emitted by the ungated purge-expired-reviews sweep; durable dispatch disabled (BQR-0 containment)',
+        'atomic review delete + outbox write via ReplyCommandStore.purgeExpiredReview (BQC-3.3); durable dispatch disabled (BQR-0 containment)',
     },
   ),
   ev(
@@ -335,32 +335,48 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       ],
       disposition: 'enabled',
     },
-    { projectionOwner: 'inbox' },
+    {
+      projectionOwner: 'inbox',
+      notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)',
+    },
   ),
-  ev('review.reply.approved', REVIEW_EVENTS, {
-    stateOwner: 'review',
-    capability: 'property.publish_reply',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
-  ev('review.reply.rejected', REVIEW_EVENTS, {
-    stateOwner: 'review',
-    capability: 'property.publish_reply',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [
-      bus('activity.event-handlers', ACTIVITY_HANDLERS),
-      bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-    ],
-    disposition: 'enabled',
-  }),
+  ev(
+    'review.reply.approved',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.3); the committed approved fact is the publish recovery record until BQC-3.8',
+    },
+  ),
+  ev(
+    'review.reply.rejected',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+      ],
+      disposition: 'enabled',
+    },
+    { notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)' },
+  ),
   ev(
     'review.reply.published',
     REVIEW_EVENTS,
@@ -377,17 +393,28 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       ],
       disposition: 'enabled',
     },
-    { projectionOwner: 'inbox' },
+    {
+      projectionOwner: 'inbox',
+      notes: 'atomic command-store outbox write (BQC-3.3 ReplyCommandStore)',
+    },
   ),
-  ev('review.reply.publish_failed', REVIEW_EVENTS, {
-    stateOwner: 'review',
-    capability: 'property.publish_reply',
-    action: 'system:reply.publish',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
-    disposition: 'enabled',
-  }),
+  ev(
+    'review.reply.publish_failed',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'system:reply.publish',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'atomic command-store outbox write (BQC-3.3); ambiguous outcomes reconcile via reconcileReplyPublication',
+    },
+  ),
 ]
 
 const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -1041,7 +1068,8 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     {
       retryBackoff: 'exponential:5000',
-      notes: 'GBP reply publish; in-handler gate; max 3 attempts → publish_failed',
+      notes:
+        'GBP reply publish; in-handler gate; BQC-3.3 outcome classification — terminal 4xx → publish_failed (no retry burn), 5xx/network retry, ambiguous final → publish_failed + reconcile',
     },
   ),
   job(
@@ -1123,7 +1151,10 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'every:86400000,offset:7200000',
       registration: 'enabled',
     },
-    { notes: 'DB delete + review.expired event; retention evidence rows' },
+    {
+      notes:
+        'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows',
+    },
   ),
   job(
     'refresh-daily-metrics',

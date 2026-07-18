@@ -406,7 +406,6 @@ export function createContainer(options?: {
   const review = buildReviewContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     googleReviewApi,
@@ -606,6 +605,7 @@ export function createContainer(options?: {
       deleteReply: review.internal.useCases.deleteReply,
       getReply: review.internal.useCases.getReply,
       retryPublish: review.internal.useCases.retryPublish,
+      reconcileReplyPublication: review.internal.useCases.reconcileReplyPublication,
       getStaffRecentActivity: review.internal.useCases.getStaffRecentActivity,
       ...inbox.internal.useCases,
       getDashboardData: dashboard.publicApi.getDashboardData,

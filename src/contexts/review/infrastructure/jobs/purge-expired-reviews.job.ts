@@ -4,20 +4,24 @@
 // BQR-3.2 / ADR 0031: no post-expiry grace period. Raw content must not be
 // served after the policy TTL from the last successful Google fetch.
 //
+// BQC-3.3: delete + review.expired outbox fact commit in ONE transaction per
+// review (ReplyCommandStore.purgeExpiredReview). A review whose purge tx
+// fails stays in place — neither deleted nor fact-recorded — and is retried
+// on the next sweep.
+//
 // ⚠️ CROSS-TENANT: This job intentionally scans ALL organizations in one pass.
 // It uses findAllExpiredBeforeAcrossTenants() which has no tenant filter.
 // This is safe because:
 //   1. The job is system-level, triggered by a scheduler, not by any user action.
-//   2. Each review's organizationId is used when calling deleteById (tenant-scoped delete).
+//   2. Each review's organizationId scopes the delete (tenant-scoped delete).
 //   3. No user-supplied input controls which orgs are processed.
 
 import type { Job } from 'bullmq'
 
 export const JOB_NAME = 'purge-expired-reviews' as const
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { Database } from '#/shared/db'
-import { emitAndRecord } from '#/shared/outbox'
 import { reviewExpired } from '../../domain/events'
 import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
 import { getLogger } from '#/shared/observability/logger'
@@ -25,11 +29,10 @@ import { trace } from '#/shared/observability/trace'
 
 type PurgeHandlerDeps = Readonly<{
   reviewRepo: ReviewRepository
-  events: EventBus
+  /** BQC-3.3: atomic review delete + review.expired outbox write per review. */
+  commandStore: ReplyCommandStore
   clock: () => Date
   db?: Database
-  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
 export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
@@ -52,12 +55,11 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
       let failed = 0
       for (const review of expired) {
         try {
-          // Emit event BEFORE delete so downstream handlers can still access review data.
-          // If the emit fails, the delete is SKIPPED for this review — canonical
-          // state is never deleted before its expiry is recorded (stop-before-canonical).
-          await emitAndRecord(
-            deps.events,
-            deps.outboxRepo,
+          // Atomic per-review purge: the review row and its review.expired
+          // outbox fact commit together. On failure the review is left in
+          // place (no partial state) and retried on the next sweep.
+          await deps.commandStore.purgeExpiredReview(
+            review.id,
             reviewExpired({
               reviewId: review.id,
               propertyId: review.propertyId,
@@ -65,8 +67,6 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
               occurredAt: now,
             }),
           )
-          // deleteById is tenant-scoped — uses review.organizationId
-          await deps.reviewRepo.deleteById(review.id, review.organizationId)
           purged++
         } catch (err) {
           failed++

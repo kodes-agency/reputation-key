@@ -10,6 +10,7 @@ import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
+import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { Review, GoogleReview, Reply } from '../../domain/types'
 import { computeReviewContentHash, MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
@@ -209,16 +210,53 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     },
   }
 
+  // In-process fake of ReplyCommandStore (application zone must not import
+  // infra). Only mirrorSyncedReply is exercised by syncReviews; the other
+  // commands throw to surface accidental use.
+  const replyCommandStore: ReplyCommandStore = {
+    submitReply: vi.fn(async () => {
+      throw new Error('submitReply is not used by syncReviews')
+    }),
+    approveReply: vi.fn(async () => {
+      throw new Error('approveReply is not used by syncReviews')
+    }),
+    rejectReply: vi.fn(async () => {
+      throw new Error('rejectReply is not used by syncReviews')
+    }),
+    markPublished: vi.fn(async () => {
+      throw new Error('markPublished is not used by syncReviews')
+    }),
+    markPublishFailed: vi.fn(async () => {
+      throw new Error('markPublishFailed is not used by syncReviews')
+    }),
+    mirrorSyncedReply: async (command) => {
+      if (!command.reply) {
+        await replyRepo.deleteByReviewIdAndSource(
+          command.reviewId,
+          'google_sync',
+          command.organizationId,
+        )
+        return null
+      }
+      const saved = await replyRepo.upsert(command.reply, command.now)
+      if (command.event) await events.emit(command.event)
+      return saved
+    },
+    purgeExpiredReview: vi.fn(async () => {
+      throw new Error('purgeExpiredReview is not used by syncReviews')
+    }),
+  }
+
   const deps: SyncReviewsDeps = {
     reviewRepo,
     replyRepo,
     googleReviewApi,
-    events,
     clock,
     idGen,
     replyIdGen,
     logger: createMockLogger(),
     commandStore,
+    replyCommandStore,
   }
 
   return {
@@ -227,6 +265,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     reviewStore,
     replyStore,
     emittedEvents,
+    events,
     seedReview(r: Review) {
       reviewStore.set(`${r.organizationId}:${r.externalId}`, r)
     },
@@ -699,7 +738,7 @@ describe('syncReviews', () => {
       ])
       let emitCount = 0
       const origEvents = env.emittedEvents
-      ;(env.deps.events.emit as ReturnType<typeof vi.fn>).mockImplementation(
+      ;(env.events.emit as ReturnType<typeof vi.fn>).mockImplementation(
         async (event: unknown) => {
           emitCount++
           if (emitCount === 2) throw new Error('Event bus down')

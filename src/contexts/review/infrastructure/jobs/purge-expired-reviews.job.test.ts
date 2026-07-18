@@ -1,9 +1,15 @@
 // Unit tests for purge expired reviews job handler
-// Asserts on state and call ordering, not just invocation counts.
+//
+// BQC-3.3: the handler no longer emits-then-deletes. Each expired review is
+// purged via ReplyCommandStore.purgeExpiredReview — review delete and the
+// review.expired outbox fact commit in ONE transaction (atomicity proven in
+// reply-command-store.test.ts unit + integration suites). A review whose
+// purge tx fails stays in place and is retried on the next sweep.
+
 import { describe, it, expect, vi } from 'vitest'
 import type { Review } from '../../domain/types'
 import type { ReviewRepository } from '../../application/ports/review.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import { reviewId, propertyId, organizationId } from '#/shared/domain/ids'
 import { createPurgeExpiredReviewsHandler } from './purge-expired-reviews.job'
 
@@ -14,6 +20,10 @@ vi.mock('#/shared/observability/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   })),
+}))
+
+vi.mock('#/shared/observability/trace', () => ({
+  trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
 
 function makeReview(overrides: Partial<Review> = {}): Review {
@@ -49,74 +59,71 @@ function makeReview(overrides: Partial<Review> = {}): Review {
   }
 }
 
-// Tracks the order of emit and deleteById calls to verify emit-before-delete
-function createCallTracker() {
-  const log: Array<{ action: 'emit' | 'delete'; id: string }> = []
-  return {
-    log,
-    emit: vi.fn(async (event: { reviewId: string }) => {
-      log.push({ action: 'emit', id: String(event.reviewId) })
-    }),
-    deleteById: vi.fn(async (_id: string, _orgId: string) => {
-      log.push({ action: 'delete', id: String(_id) })
+type PurgeCall = Readonly<{ reviewId: string; event: Record<string, unknown> }>
+
+/** Fake command store recording successful purges; can fail specific reviews. */
+function makeCommandStore(opts: { failFor?: ReadonlyArray<string> } = {}) {
+  const calls: PurgeCall[] = []
+  const store: ReplyCommandStore = {
+    submitReply: vi.fn(),
+    approveReply: vi.fn(),
+    rejectReply: vi.fn(),
+    markPublished: vi.fn(),
+    markPublishFailed: vi.fn(),
+    mirrorSyncedReply: vi.fn(),
+    purgeExpiredReview: vi.fn(async (id, event) => {
+      if (opts.failFor?.includes(String(id))) throw new Error('purge tx failed')
+      calls.push({ reviewId: String(id), event: event as Record<string, unknown> })
     }),
   }
+  return { store, calls }
 }
 
 describe('createPurgeExpiredReviewsHandler', () => {
   // ── Happy path ───────────────────────────────────────────────────
 
-  it('emits review.expired BEFORE deleting each review', async () => {
+  it('purges every expired review via the command store', async () => {
     const reviews = [
       makeReview({ id: reviewId('rev-1') }),
       makeReview({ id: reviewId('rev-2') }),
       makeReview({ id: reviewId('rev-3') }),
     ]
-    const tracker = createCallTracker()
+    const { store, calls } = makeCommandStore()
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
         findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
-        deleteById: tracker.deleteById,
       } as unknown as ReviewRepository,
-      events: { emit: tracker.emit } as unknown as EventBus,
+      commandStore: store,
       clock: vi.fn(() => new Date('2025-06-01T12:00:00Z')),
     })
 
     await handler({} as never)
 
-    // For each review: emit comes before delete
-    for (const id of ['rev-1', 'rev-2', 'rev-3']) {
-      const emitIdx = tracker.log.findIndex((e) => e.action === 'emit' && e.id === id)
-      const deleteIdx = tracker.log.findIndex((e) => e.action === 'delete' && e.id === id)
-      expect(emitIdx).toBeGreaterThan(-1)
-      expect(deleteIdx).toBeGreaterThan(-1)
-      expect(emitIdx).toBeLessThan(deleteIdx)
-    }
+    expect(calls.map((c) => c.reviewId)).toEqual(['rev-1', 'rev-2', 'rev-3'])
   })
 
-  it('emits correct payload including reviewId, propertyId, orgId, occurredAt', async () => {
+  it('passes a review.expired fact with reviewId, propertyId, orgId, occurredAt', async () => {
     const review = makeReview({
       id: reviewId('rev-42'),
       propertyId: propertyId('prop-99'),
       organizationId: organizationId('org-7'),
     })
     const fixedDate = new Date('2025-06-01T08:30:00Z')
-    const emit = vi.fn().mockResolvedValue(undefined)
+    const { store, calls } = makeCommandStore()
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
         findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue([review]),
-        deleteById: vi.fn().mockResolvedValue(undefined),
       } as unknown as ReviewRepository,
-      events: { emit } as unknown as EventBus,
+      commandStore: store,
       clock: vi.fn(() => fixedDate),
     })
 
     await handler({} as never)
 
-    expect(emit).toHaveBeenCalledOnce()
-    expect(emit.mock.calls[0][0]).toEqual(
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.event).toEqual(
       expect.objectContaining({
         _tag: 'review.expired',
         reviewId: reviewId('rev-42'),
@@ -136,9 +143,8 @@ describe('createPurgeExpiredReviewsHandler', () => {
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
         findAllExpiredBeforeAcrossTenants,
-        deleteById: vi.fn(),
       } as unknown as ReviewRepository,
-      events: { emit: vi.fn() } as unknown as EventBus,
+      commandStore: makeCommandStore().store,
       clock: vi.fn(() => now),
     })
 
@@ -151,15 +157,14 @@ describe('createPurgeExpiredReviewsHandler', () => {
   it('uses a single clock reading for threshold and occurredAt', async () => {
     const fixed = new Date('2025-01-10T00:00:00Z')
     const clock = vi.fn(() => fixed)
-    const emit = vi.fn().mockResolvedValue(undefined)
     const findAllExpiredBeforeAcrossTenants = vi.fn().mockResolvedValue([makeReview()])
+    const { store, calls } = makeCommandStore()
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
         findAllExpiredBeforeAcrossTenants,
-        deleteById: vi.fn(),
       } as unknown as ReviewRepository,
-      events: { emit } as unknown as EventBus,
+      commandStore: store,
       clock,
     })
 
@@ -167,94 +172,52 @@ describe('createPurgeExpiredReviewsHandler', () => {
 
     expect(clock).toHaveBeenCalledTimes(1)
     expect(findAllExpiredBeforeAcrossTenants.mock.calls[0][0]).toBe(fixed)
-    expect(emit.mock.calls[0][0].occurredAt).toBe(fixed)
+    expect(calls[0]!.event.occurredAt).toBe(fixed)
   })
 
   // ── Error resilience ─────────────────────────────────────────────
 
-  it('continues when deleteById throws for one review', async () => {
-    const review1 = makeReview({ id: reviewId('rev-ok') })
-    const review2 = makeReview({ id: reviewId('rev-fail') })
-    const review3 = makeReview({ id: reviewId('rev-ok-2') })
-    const tracker = createCallTracker()
-    tracker.deleteById.mockImplementation(async (id: string, _orgId: string) => {
-      if (String(id) === 'rev-fail') throw new Error('delete failed')
-      tracker.log.push({ action: 'delete', id: String(id) })
-    })
+  it('continues when a purge fails for one review — the failed review is left for the next sweep', async () => {
+    const reviews = [
+      makeReview({ id: reviewId('rev-ok') }),
+      makeReview({ id: reviewId('rev-fail') }),
+      makeReview({ id: reviewId('rev-ok-2') }),
+    ]
+    const { store, calls } = makeCommandStore({ failFor: ['rev-fail'] })
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
-        findAllExpiredBeforeAcrossTenants: vi
-          .fn()
-          .mockResolvedValue([review1, review2, review3]),
-        deleteById: tracker.deleteById,
+        findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue(reviews),
       } as unknown as ReviewRepository,
-      events: { emit: tracker.emit } as unknown as EventBus,
+      commandStore: store,
       clock: vi.fn(() => new Date()),
     })
 
     await handler({} as never)
 
-    // All 3 emitted
-    expect(tracker.emit).toHaveBeenCalledTimes(3)
-    // All 3 deleteById attempted
-    expect(tracker.deleteById).toHaveBeenCalledTimes(3)
-    // But only 2 actually deleted (rev-fail threw)
-    const deleteActions = tracker.log.filter((e) => e.action === 'delete')
-    expect(deleteActions).toHaveLength(2)
-  })
-
-  it('continues when events.emit throws for one review (review NOT deleted)', async () => {
-    const review1 = makeReview({ id: reviewId('rev-emit-ok') })
-    const review2 = makeReview({ id: reviewId('rev-emit-fail') })
-    const review3 = makeReview({ id: reviewId('rev-emit-ok-2') })
-
-    const emit = vi.fn().mockImplementation(async (event: { reviewId: string }) => {
-      if (String(event.reviewId) === 'rev-emit-fail') throw new Error('emit failed')
-    })
-    const deleteById = vi.fn().mockResolvedValue(undefined)
-
-    const handler = createPurgeExpiredReviewsHandler({
-      reviewRepo: {
-        findAllExpiredBeforeAcrossTenants: vi
-          .fn()
-          .mockResolvedValue([review1, review2, review3]),
-        deleteById,
-      } as unknown as ReviewRepository,
-      events: { emit } as unknown as EventBus,
-      clock: vi.fn(() => new Date()),
-    })
-
-    await handler({} as never)
-
-    // All 3 emit attempted
-    expect(emit).toHaveBeenCalledTimes(3)
-    // deleteById only called for reviews where emit succeeded
-    // (emit and delete are in same try block — if emit throws, delete is skipped)
-    const deletedIds = deleteById.mock.calls.map((c) => String(c[0]))
-    expect(deletedIds).not.toContain('rev-emit-fail')
-    expect(deletedIds).toContain('rev-emit-ok')
-    expect(deletedIds).toContain('rev-emit-ok-2')
+    // All 3 attempted (store called per review); only the two successful
+    // purges recorded. rev-fail's tx threw before commit, so its review row
+    // and its (absent) outbox row stay consistent — retried next sweep.
+    expect(store.purgeExpiredReview).toHaveBeenCalledTimes(3)
+    expect(calls.map((c) => c.reviewId)).toEqual(['rev-ok', 'rev-ok-2'])
   })
 
   // ── Edge cases ───────────────────────────────────────────────────
 
   it('does nothing when no expired reviews', async () => {
-    const emit = vi.fn().mockResolvedValue(undefined)
-    const deleteById = vi.fn().mockResolvedValue(undefined)
+    const { store, calls } = makeCommandStore()
 
     const handler = createPurgeExpiredReviewsHandler({
       reviewRepo: {
         findAllExpiredBeforeAcrossTenants: vi.fn().mockResolvedValue([]),
-        deleteById,
       } as unknown as ReviewRepository,
-      events: { emit } as unknown as EventBus,
+      commandStore: store,
       clock: vi.fn(() => new Date()),
     })
 
     await handler({} as never)
 
-    expect(emit).not.toHaveBeenCalled()
-    expect(deleteById).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(0)
+    expect(store.purgeExpiredReview).not.toHaveBeenCalled()
   })
 })

@@ -8,6 +8,7 @@ import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
 import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
+import { buildReplySetClause } from '../reply-set-clause'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 export const createReplyRepository = (db: Database): ReplyRepository => ({
@@ -106,21 +107,9 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
     return trace('reply.conditionalUpdate', async () => {
       const updatedAt = now ?? new Date()
 
-      // Build SET clause from the provided updates
-      const setClause: Record<string, unknown> = { updatedAt }
-      if (updates.status !== undefined) setClause.status = updates.status
-      if (updates.text !== undefined) setClause.text = updates.text
-      if (updates.submittedAt !== undefined) setClause.submittedAt = updates.submittedAt
-      if (updates.approvedBy !== undefined) setClause.approvedBy = updates.approvedBy
-      if (updates.approvedAt !== undefined) setClause.approvedAt = updates.approvedAt
-      if (updates.rejectedBy !== undefined) setClause.rejectedBy = updates.rejectedBy
-      if (updates.rejectionReason !== undefined)
-        setClause.rejectionReason = updates.rejectionReason
-      if (updates.publishedAt !== undefined) setClause.publishedAt = updates.publishedAt
-
       const result = await db
         .update(replies)
-        .set(setClause)
+        .set(buildReplySetClause(updates, updatedAt))
         .where(
           and(
             eq(replies.id, id),

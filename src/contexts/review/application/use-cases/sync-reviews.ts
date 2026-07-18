@@ -15,7 +15,6 @@
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import type {
   ReviewId,
   ReplyId,
@@ -38,14 +37,13 @@ import {
   MAX_REPLY_LENGTH,
 } from '../../domain/rules'
 import { ok, err, type Result } from '#/shared/domain'
-import { emitAndRecord } from '#/shared/outbox'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
+import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 
 export type SyncReviewsDeps = Readonly<{
   reviewRepo: ReviewRepository
   replyRepo: ReplyRepository
   googleReviewApi: GoogleReviewApiPort
-  events: EventBus
   clock: () => Date
   idGen: () => ReviewId
   replyIdGen: () => ReplyId
@@ -55,8 +53,11 @@ export type SyncReviewsDeps = Readonly<{
    * Required for review.created / review.updated durable recording.
    */
   commandStore: ReviewCommandStore
-  /** Outbox for non-atomic emitAndRecord paths (e.g. reply mirrored events). */
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
+  /**
+   * BQC-3.3: Atomic reply mirror upsert/delete + published-fact insert
+   * (+ post-commit bus emit) for the google_sync reply mirror path.
+   */
+  replyCommandStore: ReplyCommandStore
 }>
 
 export type SyncReviewsInput = Readonly<{
@@ -303,11 +304,13 @@ async function mirrorReply(
     // length invariant here so a Google reply longer than 4096 chars is truncated, not
     // persisted unvalidated.
     const mirroredText = gr.replyText.slice(0, MAX_REPLY_LENGTH)
-    // Google has a reply → upsert google_sync reply
+    // Google has a reply → upsert google_sync reply.
+    // BQC-3.3: the mirror write (and the published fact, when one is due)
+    // commits atomically via the reply command store.
     if (existingGoogleReply) {
-      // Update existing google_sync reply text
-      await deps.replyRepo.upsert(
-        {
+      // Update existing google_sync reply text — no fact for a refresh.
+      await deps.replyCommandStore.mirrorSyncedReply({
+        reply: {
           id: existingGoogleReply.id,
           reviewId,
           organizationId,
@@ -323,13 +326,17 @@ async function mirrorReply(
           submittedAt: existingGoogleReply.submittedAt,
           approvedAt: existingGoogleReply.approvedAt,
         },
+        reviewId,
+        organizationId,
+        event: null,
         now,
-      )
+      })
     } else {
-      // Create new google_sync reply
+      // Create new google_sync reply + R2-001 published fact so downstream
+      // handlers (inbox auto-transition, activity audit) fire.
       const replyId = deps.replyIdGen()
-      await deps.replyRepo.upsert(
-        {
+      await deps.replyCommandStore.mirrorSyncedReply({
+        reply: {
           id: replyId,
           reviewId,
           organizationId,
@@ -345,31 +352,33 @@ async function mirrorReply(
           approvedAt: null,
           publishedAt: gr.replyUpdatedAt ?? now,
         },
-        now,
-      )
-      // R2-001: emit reviewReplyPublished for Google-mirrored replies so
-      // downstream handlers (inbox auto-transition, activity audit) fire.
-      const replyEvent = reviewReplyPublished({
-        source: 'import',
-        authorId: null,
-        userId: null,
-        replyId,
         reviewId,
         organizationId,
-        propertyId,
-        occurredAt: now,
+        event: reviewReplyPublished({
+          source: 'import',
+          authorId: null,
+          userId: null,
+          replyId,
+          reviewId,
+          organizationId,
+          propertyId,
+          occurredAt: now,
+        }),
+        now,
       })
-      await emitAndRecord(deps.events, deps.outboxRepo, replyEvent)
     }
     return true
   } else {
-    // Google has no reply → delete google_sync reply if it exists
+    // Google has no reply → delete google_sync reply if it exists (no fact —
+    // the mirror delete path never emits).
     if (existingGoogleReply) {
-      await deps.replyRepo.deleteByReviewIdAndSource(
+      await deps.replyCommandStore.mirrorSyncedReply({
+        reply: null,
         reviewId,
-        'google_sync',
         organizationId,
-      )
+        event: null,
+        now,
+      })
       return true
     }
     return false

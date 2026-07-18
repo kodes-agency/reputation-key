@@ -122,6 +122,10 @@ describe('canTransitionReply', () => {
     expect(canTransitionReply('publish_failed', 'approved')).toBe(true)
   })
 
+  it('allows publish_failed → published (BQC-3.3 reconciliation heal)', () => {
+    expect(canTransitionReply('publish_failed', 'published')).toBe(true)
+  })
+
   it('blocks draft → approved (must go through pending_approval)', () => {
     expect(canTransitionReply('draft', 'approved')).toBe(false)
   })

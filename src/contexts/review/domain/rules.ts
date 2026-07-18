@@ -50,14 +50,17 @@ export function computeReviewContentHash(
 /** Valid reply status transitions. Keys are current status, values are allowed next statuses.
  *  `draft → draft` is an explicit self-transition covering in-place edits of an existing draft
  *  (text changes without a status change), so `transitionReply` is the single authority for
- *  every reply write — including edits. */
+ *  every reply write — including edits.
+ *  `publish_failed → published` exists ONLY for the BQC-3.3 reconciliation path
+ *  (reconcileReplyPublication): the provider confirms the reply already exists,
+ *  healing an ambiguous publish outcome. It never skips approval. */
 const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
   draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
   approved: ['published', 'publish_failed'],
   published: [],
   rejected: ['draft'],
-  publish_failed: ['approved'],
+  publish_failed: ['approved', 'published'],
 }
 
 export const canTransitionReply = (current: ReplyStatus, next: ReplyStatus): boolean =>

@@ -7,6 +7,7 @@ import {
   isPublished,
   requiresManualReview,
   buildIdempotencyKey,
+  classifyPublicationFailure,
 } from './reply-publication-workflow'
 
 describe('reply-publication-workflow (B1.10)', () => {
@@ -190,6 +191,80 @@ describe('reply-publication-workflow (B1.10)', () => {
       const key1 = buildIdempotencyKey('reply-123', 1)
       const key2 = buildIdempotencyKey('reply-456', 1)
       expect(key1).not.toBe(key2)
+    })
+  })
+
+  // BQC-3.3: provider outcome classification for the publish job.
+  describe('classifyPublicationFailure', () => {
+    const gbpError = (status: number) =>
+      Object.assign(new Error('Failed to reach Google review API'), {
+        _tag: 'IntegrationError',
+        code: 'gbp_api_error',
+        context: { operation: 'reply', status, bodyBytes: 42 },
+      })
+
+    it.each([400, 401, 403, 404, 409])(
+      'gbp_api_error with %i → terminal_rejection',
+      (status) => {
+        expect(classifyPublicationFailure(gbpError(status))).toBe('terminal_rejection')
+      },
+    )
+
+    it.each([500, 502, 503])('gbp_api_error with %i → retryable', (status) => {
+      expect(classifyPublicationFailure(gbpError(status))).toBe('retryable')
+    })
+
+    it('gbp_api_rate_limited (429) → retryable', () => {
+      const err = Object.assign(new Error('Failed to reach Google review API'), {
+        _tag: 'IntegrationError',
+        code: 'gbp_api_rate_limited',
+        context: { status: 429 },
+      })
+      expect(classifyPublicationFailure(err)).toBe('retryable')
+    })
+
+    it('gbp_api_error without a status → ambiguous', () => {
+      const err = Object.assign(new Error('Failed to reach Google review API'), {
+        _tag: 'IntegrationError',
+        code: 'gbp_api_error',
+        context: { operation: 'reply' },
+      })
+      expect(classifyPublicationFailure(err)).toBe('ambiguous')
+    })
+
+    it('token_refresh_failed → retryable (pre-request, transient)', () => {
+      const err = Object.assign(new Error('token refresh failed'), {
+        _tag: 'IntegrationError',
+        code: 'token_refresh_failed',
+      })
+      expect(classifyPublicationFailure(err)).toBe('retryable')
+    })
+
+    it.each(['connection_not_found', 'connection_inactive', 'connection_disconnected'])(
+      '%s → terminal_rejection (pre-request, permanent until reconnect)',
+      (code) => {
+        const err = Object.assign(new Error('connection problem'), {
+          _tag: 'IntegrationError',
+          code,
+        })
+        expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+      },
+    )
+
+    it('AbortError (timeout after the request may have landed) → ambiguous', () => {
+      const err = new Error('The operation was aborted')
+      err.name = 'AbortError'
+      expect(classifyPublicationFailure(err)).toBe('ambiguous')
+    })
+
+    it('TypeError (fetch network failure) → retryable', () => {
+      expect(classifyPublicationFailure(new TypeError('fetch failed'))).toBe('retryable')
+    })
+
+    it('unknown error → ambiguous', () => {
+      expect(classifyPublicationFailure(new Error('socket hangup'))).toBe('ambiguous')
+      expect(classifyPublicationFailure('weird string')).toBe('ambiguous')
+      expect(classifyPublicationFailure(null)).toBe('ambiguous')
     })
   })
 })

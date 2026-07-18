@@ -16,6 +16,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
+import { createAtomicReplyCommandStore } from './infrastructure/reply-command-store'
 import { syncReviews } from './application/use-cases/sync-reviews'
 import {
   draftReply,
@@ -26,6 +27,7 @@ import {
   getReply,
   retryPublish,
 } from './application/use-cases/reply-operations'
+import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import { getStaffRecentActivity } from './application/use-cases/get-staff-recent-activity'
 import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
@@ -34,7 +36,6 @@ import { registerReviewHandlers } from './infrastructure/event-handlers'
 export type ReviewContextBuildInput = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
@@ -61,6 +62,7 @@ export type ReviewContextApi = Readonly<{
       deleteReply: ReturnType<typeof deleteReply>
       getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
+      reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
     }>
   }>
@@ -89,8 +91,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }
 
   const replyQueue: ReplyQueuePort = {
-    addPublishJob: async (data) => {
+    addPublishJob: async (data, options) => {
       await jobQueue.add('publish-reply', data, {
+        // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
+        // of the same approval cycle is deduped by the queue.
+        jobId: options?.idempotencyKey,
         removeOnComplete: { count: 100 },
         removeOnFail: { count: 50 },
         attempts: 3,
@@ -99,11 +104,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
   }
 
+  // BQC-3.3: atomic reply state + outbox writes for the reply command family.
+  // This closes the replyDeps wiring gap — reply facts were previously
+  // bus-only in production because replyDeps never received outboxRepo.
+  const replyCommandStore = createAtomicReplyCommandStore(input.db, input.events)
+
   const replyDeps = {
     replyRepo,
     reviewRepo,
     queue: replyQueue,
-    events: input.events,
+    commandStore: replyCommandStore,
     clock: input.clock,
     idGen: () => replyId(crypto.randomUUID()),
     staffPublicApi: input.staffPublicApi,
@@ -122,13 +132,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       reviewRepo,
       replyRepo,
       googleReviewApi: input.googleReviewApi,
-      events: input.events,
       clock: input.clock,
       idGen: () => reviewId(crypto.randomUUID()),
       replyIdGen: () => replyId(crypto.randomUUID()),
       logger: input.logger,
       commandStore,
-      outboxRepo: input.outboxRepo,
+      replyCommandStore,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),
@@ -137,6 +146,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     deleteReply: deleteReply(replyDeps),
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
+    reconcileReplyPublication: reconcileReplyPublication({
+      replyRepo,
+      reviewRepo,
+      googleReviewApi: input.googleReviewApi,
+      commandStore: replyCommandStore,
+      clock: input.clock,
+    }),
     getStaffRecentActivity: getStaffRecentActivity({
       reviewRepo,
       staffPublicApi: input.staffPublicApi,

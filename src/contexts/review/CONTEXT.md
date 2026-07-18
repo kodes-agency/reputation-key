@@ -58,7 +58,8 @@ review/
     ports/             review.repository.ts, reply.repository.ts, review-queue.port.ts,
                        reply-queue.port.ts, google-review-api.port.ts
     dto/               sync-reviews.dto.ts
-    use-cases/         sync-reviews.ts, reply-operations.ts
+    use-cases/         sync-reviews.ts, reply-operations.ts, reconcile-reply-publication.ts
+    ports/             review-command-store.port.ts, reply-command-store.port.ts (BQC-3.3), ...
     public-api.ts      re-exports DTO types, port types, event types/constructors
     internal-ports.ts  internal-only port re-exports (ReviewQueuePort, GoogleReviewApiPort)
   infrastructure/
@@ -81,6 +82,7 @@ review/
 - **`deleteReply`** — Hard-delete an internal reply. Only drafts/rejected can be deleted.
 - **`getReply`** — Retrieve a single reply by ID.
 - **`retryPublish`** — Retry publishing a `publish_failed` reply.
+- **`reconcileReplyPublication`** — BQC-3.3 operator recovery for an ambiguous publish outcome: re-reads provider state via the GBP sync read path; heals to `published` (atomic, durable fact) when Google shows the reply, else stays `publish_failed` (`still_failed`). Never calls the publish endpoint.
 
 ## Public API
 
@@ -103,5 +105,5 @@ Exported from `application/public-api.ts`:
 
 - **sync-property-reviews** — Fetches reviews from Google for a specific property/location. Triggered by `property.created` event or `refresh-expiring-reviews` job.
 - **refresh-expiring-reviews** — Finds reviews expiring within 5 days, enqueues sync jobs to refresh them. Runs daily.
-- **purge-expired-reviews** — Hard-deletes reviews expired for more than 3 days. Emits `review.expired` events. Runs daily.
-- **publish-reply** — Publishes an approved reply to Google via API. Retries up to 3 times with exponential backoff.
+- **purge-expired-reviews** — Hard-deletes reviews whose content TTL has passed. Delete + `review.expired` outbox fact commit atomically per review (BQC-3.3 ReplyCommandStore). Runs daily.
+- **publish-reply** — Publishes an approved reply to Google via API. Retries up to 3 times with exponential backoff; provider outcomes classified via the publication saga (terminal 4xx → `publish_failed` without retry burn; ambiguous final → `publish_failed` + reconcile).
