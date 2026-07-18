@@ -9,14 +9,25 @@
 // (e.g., sending transactional emails, creating audit records), consider migrating
 // to BullMQ-backed event delivery for at-least-once processing guarantees.
 // Evaluate BullMQ-based event persistence for critical events in Phase 4+.
+//
+// BQC-3.2: registrations that carry a catalogue consumer identity (`{ consumer }`)
+// are authorized at emit time through the delayed execution gate — dark-context
+// handlers deny here instead of running ungated.
 
 import type { DomainEvent } from './events'
+import { gateBusConsumer } from '#/shared/jobs/delayed-execution-gate'
+
+export type EventBusOnOptions = Readonly<{
+  /** Catalogue consumer module name (e.g. 'activity.event-handlers'). */
+  consumer: string
+}>
 
 export type EventBus = Readonly<{
   /** Subscribe to events matching a specific _tag. */
   on<T extends DomainEvent['_tag']>(
     tag: T,
     handler: (event: Extract<DomainEvent, { _tag: T }>) => Promise<void>,
+    opts?: EventBusOnOptions,
   ): void
 
   /**
@@ -32,16 +43,50 @@ export type EventBus = Readonly<{
   clear(): void
 }>
 
+type BusRegistration = Readonly<{
+  handler: (event: DomainEvent) => Promise<void>
+  consumer?: string
+}>
+
+/**
+ * BQC-3.2: authorize a governed consumer against current policy.
+ * deny_terminal skips with a warning; deny_retry skips with an error — the
+ * bus is fire-and-forget with no retry semantics, so retries belong to the
+ * durable dispatcher path (BQC-3.3–3.5), not here.
+ */
+async function authorizeConsumer(consumer: string, event: DomainEvent): Promise<boolean> {
+  const outcome = await gateBusConsumer(consumer, event)
+  if (outcome.kind === 'allow') return true
+  // Lazy import avoids circular dep during bootstrap — same pattern as the
+  // handler-failure catch below.
+  const { getLogger } = await import('#/shared/observability/logger')
+  if (outcome.kind === 'deny_terminal') {
+    getLogger().warn(
+      { consumer, tag: event._tag, reason: outcome.decision.reason },
+      'delayed execution denied — terminal (event bus consumer skipped)',
+    )
+    return false
+  }
+  getLogger().error(
+    { consumer, tag: event._tag, reason: outcome.decision.reason },
+    'delayed execution denied — policy unavailable (event bus consumer skipped)',
+  )
+  return false
+}
+
 /** In-process event bus implementation. */
 export function createEventBus(): EventBus {
-  const handlers = new Map<string, Set<(event: DomainEvent) => Promise<void>>>()
+  const handlers = new Map<string, Set<BusRegistration>>()
 
   return {
-    on(tag, handler) {
+    on(tag, handler, opts) {
       if (!handlers.has(tag)) {
         handlers.set(tag, new Set())
       }
-      handlers.get(tag)!.add(handler as (event: DomainEvent) => Promise<void>)
+      handlers.get(tag)!.add({
+        handler: handler as (event: DomainEvent) => Promise<void>,
+        consumer: opts?.consumer,
+      })
     },
 
     async emit(event) {
@@ -51,9 +96,15 @@ export function createEventBus(): EventBus {
       // Run all handlers concurrently. Per architecture:
       // "Handlers should not throw. Failures are logged, not propagated to the emitter."
       await Promise.allSettled(
-        Array.from(tagHandlers).map(async (handler) => {
+        Array.from(tagHandlers).map(async (registration) => {
           try {
-            await handler(event)
+            if (
+              registration.consumer &&
+              !(await authorizeConsumer(registration.consumer, event))
+            ) {
+              return
+            }
+            await registration.handler(event)
           } catch (err) {
             // Per architecture: "Handlers should not throw. Failures are logged, not propagated to the emitter."
             // Lazy import avoids circular dep during bootstrap — getLogger() is safe at handler execution time.

@@ -132,10 +132,11 @@ export type EntryPointRow = Readonly<{
   /**
    * BQC-2.5: delayed-execution policy integration state. Required on
    * job/consumer/schedule rows: 'pending_bqc3' until BQC-3 integrates the
-   * BQC-2.5 contract into the runtime call site for this entry point.
+   * BQC-2.5 contract into the runtime call site for this entry point,
+   * 'integrated_bqc3' once the BQC-3.2 dispatch gate authorizes it.
    * This field IS the record of delayed entry points awaiting BQC-3.
    */
-  policyIntegration?: 'pending_bqc3'
+  policyIntegration?: 'pending_bqc3' | 'integrated_bqc3'
   /** True when code carries no mechanically checkable authz — BQC-2.4 must wire. */
   canonicalOnly?: boolean
   notes?: string
@@ -265,7 +266,7 @@ const job = (
     name,
     file,
     { action, capability, resourceScope, principals: ['system'] },
-    { policyIntegration: 'pending_bqc3', ...opts },
+    { policyIntegration: 'integrated_bqc3', ...opts },
   )
 
 /** Event consumer module (system principal); eventTags pinned by the guard. */
@@ -283,7 +284,7 @@ const consumer = (
     name,
     file,
     { action, capability, resourceScope, principals: ['system'] },
-    { policyIntegration: 'pending_bqc3', ...opts, eventTags },
+    { policyIntegration: 'integrated_bqc3', ...opts, eventTags },
   )
 
 /** Recurring schedule registered in the worker (system principal). */
@@ -299,7 +300,7 @@ const schedule = (
     name,
     'src/worker/index.ts',
     { action, capability, resourceScope, principals: ['system'] },
-    { policyIntegration: 'pending_bqc3', ...opts },
+    { policyIntegration: 'integrated_bqc3', ...opts },
   )
 
 /** Operator command (operator principal; DIRECT-DB bypasses flagged in notes). */
@@ -1830,7 +1831,7 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
       principals: ['system'],
       externalEffect: true,
       notes:
-        'Google Pub/Sub JWT verify (audience-bound); enqueues sync-property-reviews; capability not asserted in code — job handler gates',
+        'Google Pub/Sub JWT verify (audience-bound); enqueues sync-property-reviews (stamps webhook:gbp initiator); capability not asserted in code — BQC-3.2 dispatch gate authorizes',
     },
   ),
 ]
@@ -1860,8 +1861,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'src/contexts/integration/infrastructure/jobs/import-property.job.ts',
     'system:property.import',
     'property.connect_gbp',
-    'property',
-    { externalEffect: true, notes: 'GBP property import; in-handler capability gate' },
+    'organization',
+    {
+      externalEffect: true,
+      notes:
+        'GBP property import; BQC-3.2: org-scoped fan-out; per-property authorization happens in the per-property sync jobs; dispatch gate authorizes',
+    },
   ),
   job(
     'sync-property-reviews',
@@ -1871,7 +1876,8 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       externalEffect: true,
-      notes: 'GBP review sync; in-handler gate; enqueued manual/cron/webhook/sweep',
+      notes:
+        'GBP review sync; BQC-3.2 dispatch gate authorizes; enqueued manual/cron/webhook/sweep',
     },
   ),
   job(
@@ -1901,7 +1907,8 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       externalEffect: true,
-      notes: 'GBP reply publish; in-handler gate; max 3 attempts → publish_failed',
+      notes:
+        'GBP reply publish; BQC-3.2 dispatch gate authorizes; max 3 attempts → publish_failed',
     },
   ),
   job(
@@ -2057,28 +2064,28 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'badge.event-handlers',
     'src/contexts/badge/infrastructure/event-handlers/index.ts',
     'system:badge.evaluate',
-    'none',
+    'badge.use',
     'organization',
     ['metric.recorded'],
-    { notes: 'dark context; ungated in code — BQC-2.6 gates or removes' },
+    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
   ),
   consumer(
     'goal.event-handlers',
     'src/contexts/goal/infrastructure/event-handlers/index.ts',
     'system:goal.progress',
-    'none',
+    'goal.use',
     'organization',
     ['metric.recorded', 'portal.deleted', 'portal_group.deleted'],
-    { notes: 'dark context; ungated in code — BQC-2.6 gates or removes' },
+    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
   ),
   consumer(
     'leaderboard.event-handlers',
     'src/contexts/leaderboard/infrastructure/event-handlers/index.ts',
     'system:leaderboard.refresh',
-    'none',
+    'leaderboard.use',
     'organization',
     ['metric.recorded'],
-    { notes: 'dark context; ungated in code — BQC-2.6 gates or removes' },
+    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
   ),
   consumer(
     'metric.event-handlers',
@@ -2123,7 +2130,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'property',
     ['property.created'],
-    { notes: 'enqueues initial GBP sync (job handler gates capability)' },
+    { notes: 'enqueues initial GBP sync (BQC-3.2 dispatch gate authorizes)' },
   ),
   consumer(
     'inbox.event-handlers',

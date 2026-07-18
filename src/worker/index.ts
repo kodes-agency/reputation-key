@@ -9,6 +9,8 @@ import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
+import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
+import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -49,22 +51,19 @@ async function main() {
 
   const registry = container.jobRegistry
 
+  // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
+  // property id (publish-reply carries replyId only — resolved via reply →
+  // review → propertyId). Every other job name falls through to the payload.
+  const resolveScope = createPublishReplyScopeResolver({ db: container.db })
+
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Higher concurrency so a single long-running job doesn't block user actions.
   if (container.jobQueue) {
+    // BQC-3.2: every job authorizes through the delayed execution gate at
+    // dispatch (current policy — a stale allow never overrides a deny).
     worker = createJobWorker(
       'default',
-      async (job) => {
-        const handler = registry.getHandler(job.name)
-        if (!handler) {
-          logger.warn(
-            { jobName: job.name, jobId: job.id },
-            'no handler registered for job',
-          )
-          return
-        }
-        await handler(job)
-      },
+      createGatedJobHandler('default', registry, resolveScope),
       10,
     )
 
@@ -81,17 +80,7 @@ async function main() {
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',
-      async (job) => {
-        const handler = registry.getHandler(job.name)
-        if (!handler) {
-          logger.warn(
-            { jobName: job.name, jobId: job.id },
-            'no handler registered for job',
-          )
-          return
-        }
-        await handler(job)
-      },
+      createGatedJobHandler('background', registry, resolveScope),
       3,
     )
 

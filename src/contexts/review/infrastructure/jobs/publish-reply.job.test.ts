@@ -1,13 +1,10 @@
-// BQC-0.4 — publish job must honor the capability stop control.
-// An enqueued publish must not call Google after the capability is switched off.
+// publish-reply job handler behavior.
+// BQC-3.2: the BQC-0.4 in-handler capability stop control moved to the
+// dispatch gate (src/shared/jobs/delayed-execution-gate.ts) — see
+// gated-dispatch.test.ts and architecture/delayed-policy-delegation.test.ts.
 
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createPublishReplyHandler } from './publish-reply.job'
-import {
-  initCapabilityPolicyStore,
-  resetCapabilityPolicyStore,
-  type CapabilityPolicyStore,
-} from '#/shared/auth/beta-capabilities'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: vi.fn(() => ({
@@ -20,19 +17,6 @@ vi.mock('#/shared/observability/logger', () => ({
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
-
-function makeStore(
-  overrides: Partial<CapabilityPolicyStore> = {},
-): CapabilityPolicyStore {
-  return {
-    isCapabilityGloballyEnabled: () => true,
-    isOrgAllowlisted: () => false,
-    isPropertyAllowlisted: () => true,
-    isOrgSuspended: () => false,
-    isPropertySuspended: () => false,
-    ...overrides,
-  }
-}
 
 function makeDeps() {
   return {
@@ -48,34 +32,16 @@ function makeDeps() {
 
 const JOB_DATA = { replyId: 'reply-1', organizationId: 'org-1' }
 
-describe('publish-reply job capability gate (BQC-0.4)', () => {
-  afterEach(() => {
-    resetCapabilityPolicyStore()
-  })
-
-  it('does not touch repos or Google when property.publish_reply is switched off', async () => {
-    initCapabilityPolicyStore(
-      makeStore({
-        isCapabilityGloballyEnabled: (cap) => cap !== 'property.publish_reply',
-      }),
-    )
+describe('publish-reply job handler', () => {
+  it('runs without an in-handler capability gate (delegated to dispatch)', async () => {
     const deps = makeDeps()
     const handler = createPublishReplyHandler(deps as never)
 
     await handler({ id: 'job-1', data: JOB_DATA, attemptsMade: 0 } as never)
 
-    expect(deps.replyRepo.findById).not.toHaveBeenCalled()
-    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
-  })
-
-  it('proceeds past the gate when the capability is enabled', async () => {
-    initCapabilityPolicyStore(makeStore())
-    const deps = makeDeps()
-    const handler = createPublishReplyHandler(deps as never)
-
-    await handler({ id: 'job-1', data: JOB_DATA, attemptsMade: 0 } as never)
-
-    // Gate passed: the handler consulted the repository (reply not found → clean skip).
+    // No gate in the handler: the repository is consulted directly
+    // (reply not found → clean skip).
     expect(deps.replyRepo.findById).toHaveBeenCalledTimes(1)
+    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 })

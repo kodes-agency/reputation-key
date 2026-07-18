@@ -9,7 +9,6 @@ import type { syncReviews } from '../../application/use-cases/sync-reviews'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 
 type SyncHandlerDeps = Readonly<{
   /** Pre-wired use case from composition (includes BQR-2.3 command store). */
@@ -21,15 +20,8 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
     return trace('job.syncPropertyReviews', async () => {
       const logger = getLogger()
 
-      // BQC-0.4 stop control: already-enqueued work must not call Google after
-      // the capability is switched off (jobs are skipped, not deleted).
-      if (!isCapabilityJobEnabled('property.connect_gbp')) {
-        logger.info(
-          { jobId: job.id, propertyId: job.data.propertyId },
-          'BQC-0.4: sync skipped — property.connect_gbp is disabled',
-        )
-        return
-      }
+      // BQC-3.2: capability authorization happens at dispatch in the delayed
+      // execution gate — job handlers no longer re-check capabilities.
 
       logger.info(
         { jobId: job.id, propertyId: job.data.propertyId },

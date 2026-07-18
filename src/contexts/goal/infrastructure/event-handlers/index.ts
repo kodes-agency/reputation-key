@@ -46,7 +46,13 @@ export type RegisterGoalHandlersDeps = Readonly<{
 // ── Registration ──────────────────────────────────────────────────────
 
 export const registerGoalEventHandlers = (deps: RegisterGoalHandlersDeps): void => {
-  deps.eventBus.on('metric.recorded', onMetricRecorded(deps))
-  deps.eventBus.on('portal.deleted', onPortalDeleted(deps))
-  deps.eventBus.on('portal_group.deleted', onPortalGroupDeleted(deps))
+  deps.eventBus.on('metric.recorded', onMetricRecorded(deps), {
+    consumer: 'goal.event-handlers',
+  })
+  deps.eventBus.on('portal.deleted', onPortalDeleted(deps), {
+    consumer: 'goal.event-handlers',
+  })
+  deps.eventBus.on('portal_group.deleted', onPortalGroupDeleted(deps), {
+    consumer: 'goal.event-handlers',
+  })
 }

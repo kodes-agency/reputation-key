@@ -377,14 +377,14 @@ describe('BQC-2.1 entry-point catalogue', () => {
     expect(bad.map(rowKey), `malformed rows: ${bad.map(rowKey).join(', ')}`).toEqual([])
   })
 
-  it('records every delayed entry point as awaiting BQC-3 integration (BQC-2.5)', () => {
+  it('records every delayed entry point as BQC-3.2-integrated (BQC-2.5/3.2)', () => {
     const delayed = catalogue.filter((r) =>
       ['job', 'consumer', 'schedule'].includes(r.kind),
     )
-    const missing = delayed.filter((r) => r.policyIntegration !== 'pending_bqc3')
+    const missing = delayed.filter((r) => r.policyIntegration !== 'integrated_bqc3')
     expect(
       missing.map(rowKey),
-      `delayed rows without policyIntegration 'pending_bqc3': ${missing.map(rowKey).join(', ')}`,
+      `delayed rows without policyIntegration 'integrated_bqc3': ${missing.map(rowKey).join(', ')}`,
     ).toEqual([])
     expect(delayed.length).toBeGreaterThan(0)
   })
@@ -504,11 +504,22 @@ describe('BQC-2.1 entry-point catalogue', () => {
       const handlerGates = r.file.endsWith('.job.ts')
         ? (discovered.handlerGates.get(r.file) ?? [])
         : []
-      const effective = registrationGate ?? handlerGates[0] ?? 'none'
-      expect(
-        r.capability,
-        `${r.id}: capability gate drift (code has '${effective}')`,
-      ).toBe(effective)
+      const effective = registrationGate ?? handlerGates[0]
+      if (effective !== undefined) {
+        expect(
+          r.capability,
+          `${r.id}: capability gate drift (code has '${effective}')`,
+        ).toBe(effective)
+      } else if (r.policyIntegration !== 'integrated_bqc3') {
+        expect(
+          r.capability,
+          `${r.id}: no code gate and not BQC-3.2-integrated — capability must be 'none'`,
+        ).toBe('none')
+      }
+      // BQC-3.2-integrated rows carry no code-level gate: the capability is the
+      // canonical ASSIGNMENT consumed by the dispatch gate
+      // (src/shared/jobs/delayed-execution-gate.ts) — pinned by the gate tests
+      // and the BQC-2.5 contract fixtures instead.
     }
   })
 

@@ -2,6 +2,8 @@
 // Per architecture: "Ports are TypeScript types defining capability contracts."
 // Queue boundary for enqueuing async import jobs.
 
+import type { JobPolicyContext } from '#/shared/jobs/delayed-execution-gate'
+
 export type ImportPropertyJobData = Readonly<{
   jobId: string
   organizationId: string
@@ -15,6 +17,8 @@ export type ImportPropertyJobData = Readonly<{
     /** ISO country when known from GBP (BQR-3.5). */
     countryCode?: string | null
   }>
+  /** BQC-3.2: content-free policy context stamped at enqueue. */
+  policy?: JobPolicyContext
 }>
 
 export type GbpQueuePort = Readonly<{

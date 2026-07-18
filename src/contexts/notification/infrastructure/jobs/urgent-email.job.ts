@@ -3,6 +3,7 @@
 
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { JobPolicyContext } from '#/shared/jobs/delayed-execution-gate'
 import { notificationEmailId, notificationId } from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
@@ -15,6 +16,8 @@ export const URGENT_EMAIL_JOB_NAME = 'urgent-email' as const
 export type UrgentEmailJobData = {
   notificationEmailId: string
   organizationId: string
+  /** BQC-3.2: content-free policy context stamped at enqueue. */
+  policy?: JobPolicyContext
 }
 
 type UrgentEmailDeps = Readonly<{

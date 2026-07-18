@@ -38,68 +38,118 @@ export type RegisterActivityHandlersDeps = Readonly<{
 
 export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): void => {
   // ── Inbox events ──
-  deps.events.on('inbox.inbox_item.created', onInboxItemCreated({ queue: deps.queue }))
+  deps.events.on('inbox.inbox_item.created', onInboxItemCreated({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on(
     'inbox.inbox_item.status_changed',
     onInboxStatusChanged({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
   deps.events.on(
     'inbox.inbox_item.escalated',
     onInboxItemEscalated({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
   deps.events.on(
     'inbox.inbox_item.escalation_resolved',
     onInboxItemEscalationResolved({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
-  deps.events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue: deps.queue }))
+  deps.events.on(
+    'inbox.inbox_item.assigned',
+    onInboxItemAssigned({ queue: deps.queue }),
+    { consumer: 'activity.event-handlers' },
+  )
   deps.events.on(
     'inbox.inbox_item.unassigned',
     onInboxItemUnassigned({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
-  deps.events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue: deps.queue }))
+  deps.events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on(
     'inbox.inbox_item.bulk_status_changed',
     onInboxBulkStatusChanged({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
 
   // ── Review events ──
-  deps.events.on('review.reply.published', onReplyPublished(deps))
-  deps.events.on('review.reply.submitted', onReplySubmitted(deps))
-  deps.events.on('review.reply.approved', onReplyApproved(deps))
-  deps.events.on('review.reply.rejected', onReplyRejected(deps))
+  deps.events.on('review.reply.published', onReplyPublished(deps), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('review.reply.submitted', onReplySubmitted(deps), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('review.reply.approved', onReplyApproved(deps), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('review.reply.rejected', onReplyRejected(deps), {
+    consumer: 'activity.event-handlers',
+  })
 
   // ── Team events (user-management audit) ──
-  deps.events.on('team.created', onTeamCreated({ queue: deps.queue }))
-  deps.events.on('team.updated', onTeamUpdated({ queue: deps.queue }))
-  deps.events.on('team.deleted', onTeamDeleted({ queue: deps.queue }))
+  deps.events.on('team.created', onTeamCreated({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('team.updated', onTeamUpdated({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('team.deleted', onTeamDeleted({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
 
   // ── Staff events (user-management audit) ──
-  deps.events.on('staff.assigned', onStaffAssigned({ queue: deps.queue }))
-  deps.events.on('staff.unassigned', onStaffUnassigned({ queue: deps.queue }))
+  deps.events.on('staff.assigned', onStaffAssigned({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
+  deps.events.on('staff.unassigned', onStaffUnassigned({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
 
   // ── Identity events (user-management audit) ──
-  deps.events.on('identity.member.invited', onMemberInvited({ queue: deps.queue }))
+  deps.events.on('identity.member.invited', onMemberInvited({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on(
     'identity.invitation.accepted',
     onInvitationAccepted({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
   deps.events.on(
     'identity.invitation.canceled',
     onInvitationCanceled({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
-  deps.events.on('identity.member.removed', onMemberRemoved({ queue: deps.queue }))
+  deps.events.on('identity.member.removed', onMemberRemoved({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on(
     'identity.member.role_changed',
     onMemberRoleChanged({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
 
   // ── Integration events (user-management audit) ──
   deps.events.on(
     'integration.google_account.connected',
     onGoogleAccountConnected({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
   deps.events.on(
     'integration.google_account.disconnected',
     onGoogleAccountDisconnected({ queue: deps.queue }),
+
+    { consumer: 'activity.event-handlers' },
   )
 }

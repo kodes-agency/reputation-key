@@ -27,6 +27,8 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
       recordMetric: deps.recordMetric,
       findGroupForPortal: deps.findGroupForPortal,
     }),
+
+    { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
     'guest.rating.submitted',
@@ -34,6 +36,8 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
       recordMetric: deps.recordMetric,
       findGroupForPortal: deps.findGroupForPortal,
     }),
+
+    { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
     'guest.feedback.submitted',
@@ -41,6 +45,8 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
       recordMetric: deps.recordMetric,
       findGroupForPortal: deps.findGroupForPortal,
     }),
+
+    { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
     'guest.review_link.clicked',
@@ -48,6 +54,8 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
       recordMetric: deps.recordMetric,
       findGroupForPortal: deps.findGroupForPortal,
     }),
+
+    { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
     'review.created',
@@ -55,5 +63,7 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
       recordMetric: deps.recordMetric,
       reviewRatingLookup: deps.reviewRatingLookup,
     }),
+
+    { consumer: 'metric.event-handlers' },
   )
 }

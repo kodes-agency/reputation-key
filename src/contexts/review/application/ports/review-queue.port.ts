@@ -4,11 +4,15 @@
 // BullMQ serializes job data to JSON — branded types are just strings at runtime.
 // Consumer (sync-property-reviews.job) re-brands via id constructors.
 // Using string here avoids serialization overhead and keeps BullMQ dashboard readable.
+import type { JobPolicyContext } from '#/shared/jobs/delayed-execution-gate'
+
 export type SyncPropertyReviewsJobData = Readonly<{
   propertyId: string
   organizationId: string
   connectionId: string
   locationName: string
+  /** BQC-3.2: content-free policy context stamped at enqueue. */
+  policy?: JobPolicyContext
 }>
 
 export type AddSyncJobOptions = Readonly<{
