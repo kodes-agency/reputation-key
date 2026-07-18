@@ -21,6 +21,7 @@ import {
   rollupDailyInboxMetrics,
   rollupWatermarks,
 } from './rollup.schema'
+import { regionMoves } from './region-move.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
   return Object.values(getTableColumns(table)).map((c) => c.name)
@@ -137,6 +138,29 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
       expect(cols.has('name')).toBe(true)
       expect(cols.has('watermark')).toBe(true)
       expect(cols.has('updated_at')).toBe(true)
+    })
+  })
+
+  describe('migration 0016 — region move workflow (BQC-4.5)', () => {
+    it('registers region_moves with the machine columns', () => {
+      expect(getTableName(regionMoves)).toBe('region_moves')
+      const cols = new Set(columnNames(regionMoves))
+      for (const name of [
+        'id',
+        'property_id',
+        'organization_id',
+        'from_region',
+        'to_region',
+        'state',
+        'denial_reason',
+        'requested_by',
+        'requested_at',
+        'state_changed_at',
+        'completed_at',
+        'error',
+      ]) {
+        expect(cols.has(name), `region_moves missing column ${name}`).toBe(true)
+      }
     })
   })
 })

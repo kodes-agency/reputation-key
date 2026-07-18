@@ -14,6 +14,7 @@ export type PropertyErrorCode =
   | 'property_not_found'
   | 'invalid_transition'
   | 'property_not_active'
+  | 'region_move_conflict'
 
 export type PropertyError = Readonly<{
   _tag: 'PropertyError'

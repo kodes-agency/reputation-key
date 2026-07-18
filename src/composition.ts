@@ -383,6 +383,30 @@ export function createContainer(options?: {
     events: eventBus,
     clock,
     staffPublicApi: staff.publicApi,
+    // BQC-4.5: region move workflow. Approved cells stay {'us'} (ADR 0048) —
+    // every real request denies typed + audited today. The audit sink is the
+    // identity-owned policy_decision_audit (content-free, operator kind);
+    // the stepper pauses/drains the cell's property-scoped queues.
+    regionMove: {
+      writeOperatorAudit: (entry) =>
+        writePolicyDecision(db, {
+          actorType: 'operator',
+          actorId: entry.actorUserId,
+          organizationId: entry.organizationId,
+          propertyId: entry.propertyId,
+          action: entry.action,
+          capability: null,
+          executionKind: 'operator',
+          decision: entry.decision,
+          reason: entry.reason.slice(0, 200),
+          policyVersion: EXECUTION_POLICY_VERSION,
+          correlationId: null,
+        }),
+      queues: [
+        { name: 'default', queue: infra.jobQueue },
+        { name: 'background', queue: infra.backgroundQueue },
+      ],
+    },
   })
 
   const team = buildTeamContext({

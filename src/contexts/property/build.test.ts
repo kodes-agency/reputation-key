@@ -69,6 +69,7 @@ describe('PropertyPublicApi', () => {
       events,
       clock,
       staffPublicApi,
+      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     const exists = await publicApi.propertyExists(prop.organizationId, prop.id)
@@ -87,6 +88,7 @@ describe('PropertyPublicApi', () => {
       events,
       clock,
       staffPublicApi,
+      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     const exists = await publicApi.propertyExists(
@@ -114,6 +116,7 @@ describe('PropertyPublicApi.importProperty — initial-sync trigger gate', () =>
       events,
       clock: () => new Date('2026-07-18T12:00:00Z'),
       staffPublicApi: createStubStaffApi(),
+      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
     return { publicApi, events }
   }

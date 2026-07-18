@@ -18,7 +18,10 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   countAssignmentsByTeam: async () => 0,
 })
 
-const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+const setup = (
+  accessible: ReadonlyArray<PropertyId> | null = null,
+  hasActiveRegionMove = false,
+) => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
   const deps = {
@@ -26,6 +29,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
+    hasActiveRegionMove: async () => hasActiveRegionMove,
   }
   const useCase = updateProperty(deps)
   return { useCase, propertyRepo, events }
@@ -231,6 +235,40 @@ describe('updateProperty', () => {
 
     expect(updated.countryCode).toBe('PR')
     expect(updated.processingRegion).toBe('us')
+  })
+
+  it('locks even a same-region country edit while a region move is in flight (BQC-4.5)', async () => {
+    const { useCase, propertyRepo } = setup(null, true)
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      countryCode: 'US',
+      processingRegion: 'us',
+      processingRegionResolvedAt: FIXED_TIME,
+    })
+    propertyRepo.seed([prop])
+
+    await expect(
+      useCase({ propertyId: prop.id, countryCode: 'PR' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isPropertyError(e) && (e as { code: string }).code === 'region_locked',
+    )
+  })
+
+  it('allows non-country edits while a region move is in flight (BQC-4.5)', async () => {
+    const { useCase, propertyRepo } = setup(null, true)
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      name: 'Old Name',
+      countryCode: 'US',
+      processingRegion: 'us',
+      processingRegionResolvedAt: FIXED_TIME,
+    })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase({ propertyId: prop.id, name: 'New Name' }, ctx)
+
+    expect(updated.name).toBe('New Name')
   })
 
   it('allows setting gbpPlaceId to null (clearing it)', async () => {
