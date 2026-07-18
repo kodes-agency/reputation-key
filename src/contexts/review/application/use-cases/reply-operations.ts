@@ -4,14 +4,14 @@
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord } from '#/shared/outbox'
+import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
+import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import {
@@ -21,7 +21,6 @@ import {
   reviewReplyRejected,
   reviewReplyPublishFailed,
 } from '../../domain/events'
-import { getLogger } from '#/shared/observability/logger'
 
 // ── Shared ────────────────────────────────────────────────────────────
 
@@ -35,12 +34,14 @@ export type ReplyDeps = Readonly<{
   replyRepo: ReplyRepository
   reviewRepo: ReviewRepository
   queue: ReplyQueuePort
-  events: EventBus
+  /**
+   * BQC-3.3: atomic reply state mutation + outbox fact (+ post-commit bus
+   * emit). All fact-emitting reply transitions route through this store.
+   */
+  commandStore: ReplyCommandStore
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
-  /** Outbox repository for durable event recording (PRE17A A4 expand phase). */
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
 }>
 
 /** Enforce property-assignment scoping for reply mutations (D6-001).
@@ -178,29 +179,24 @@ export const submitReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'pending_approval', now)
     if (transitioned.isErr()) throw transitioned.error
-    const submitted = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      ctx.organizationId,
-      [reply.status],
+    // BQC-3.3: guarded status update + submitted fact commit in one tx;
+    // the store emits on the bus after commit. Null = lost TOCTOU race.
+    const submitted = await deps.commandStore.submitReply(
+      reply,
       { status: 'pending_approval', submittedAt: now },
+      reviewReplySubmitted({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        occurredAt: now,
+      }),
       now,
     )
     if (!submitted) {
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      reviewReplySubmitted({
-        replyId: submitted.id,
-        reviewId: submitted.reviewId,
-        propertyId: review.propertyId,
-        organizationId: submitted.organizationId,
-        userId: ctx.userId,
-        occurredAt: now,
-      }),
-    )
 
     return submitted
   }
@@ -234,36 +230,40 @@ export const approveReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'approved', now)
     if (transitioned.isErr()) throw transitioned.error
-    const approved = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      ctx.organizationId,
-      [reply.status],
+    // BQC-3.3: guarded status update + approved fact commit in one tx. The
+    // durable review.reply.approved outbox row is the recovery record if the
+    // process crashes before the enqueue below.
+    const approved = await deps.commandStore.approveReply(
+      reply,
       { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
+      reviewReplyApproved({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        authorId: reply.createdBy,
+        occurredAt: now,
+      }),
       now,
     )
     if (!approved) {
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
 
-    await deps.queue.addPublishJob({
-      replyId: approved.id,
-      organizationId: approved.organizationId,
-      // BQC-3.2: named initiator for operator/user-triggered delayed work.
-      policy: { initiator: { kind: 'user', id: ctx.userId } },
-    })
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      reviewReplyApproved({
+    // Post-commit enqueue: the BullMQ queue cannot join the pg transaction.
+    // The committed approved fact is the recovery record; BQC-3.8 makes
+    // publication fully durable (requested → … → published state machine).
+    // The saga idempotency key (sourceVersion = approval-cycle updatedAt)
+    // dedupes a double enqueue of THIS approval cycle as the BullMQ jobId.
+    await deps.queue.addPublishJob(
+      {
         replyId: approved.id,
-        reviewId: approved.reviewId,
-        propertyId: review.propertyId,
         organizationId: approved.organizationId,
-        userId: ctx.userId,
-        authorId: approved.createdBy,
-        occurredAt: now,
-      }),
+        // BQC-3.2: named initiator for operator/user-triggered delayed work.
+        policy: { initiator: { kind: 'user', id: ctx.userId } },
+      },
+      { idempotencyKey: buildIdempotencyKey(approved.id, approved.updatedAt.getTime()) },
     )
 
     return approved
@@ -299,35 +299,29 @@ export const rejectReply =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'rejected', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      ctx.organizationId,
-      [reply.status],
+    // BQC-3.3: guarded status update + rejected fact commit in one tx.
+    const updated = await deps.commandStore.rejectReply(
+      reply,
       {
         status: 'rejected',
         rejectedBy: ctx.userId,
         rejectionReason: input.reason ?? null,
       },
+      reviewReplyRejected({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        authorId: reply.createdBy,
+        reason: input.reason ?? null,
+        occurredAt: now,
+      }),
       now,
     )
     if (!updated) {
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      reviewReplyRejected({
-        replyId: updated.id,
-        reviewId: updated.reviewId,
-        propertyId: review.propertyId,
-        organizationId: updated.organizationId,
-        userId: ctx.userId,
-        authorId: updated.createdBy,
-        reason: input.reason ?? null,
-        occurredAt: now,
-      }),
-    )
 
     return updated
   }
@@ -409,32 +403,26 @@ export const markReplyPublished =
       throw reviewError('review_not_found', 'Review not found for published reply')
     }
 
-    const published = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      input.organizationId,
-      [reply.status],
+    // BQC-3.3: guarded status update + published fact commit in one tx.
+    // The publish runs from the publish-reply BullMQ job (no user actor); the
+    // fact carries userId: null (system) with authorId as the original author.
+    const published = await deps.commandStore.markPublished(
+      reply,
       { status: 'published', publishedAt: now },
+      reviewReplyPublished({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: null,
+        authorId: reply.createdBy,
+        occurredAt: now,
+      }),
       now,
     )
     if (!published) {
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
-
-    // The publish runs from the publish-reply BullMQ job (no user actor); emit
-    // userId: null (system) keeping authorId as the original reply author.
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      reviewReplyPublished({
-        replyId: published.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: null,
-        authorId: published.createdBy,
-        occurredAt: now,
-      }),
-    )
 
     return published
   }
@@ -457,39 +445,31 @@ export const markReplyPublishFailed =
     const now = deps.clock()
     const transitioned = transitionReply(reply, 'publish_failed', now)
     if (transitioned.isErr()) throw transitioned.error
-    const updated = await deps.replyRepo.conditionalUpdate(
-      reply.id,
-      input.organizationId,
-      [reply.status],
+
+    // The parent review supplies the fact's propertyId. A missing review
+    // (impossible under the replies→reviews FK) degrades to a fact-less
+    // update — the pre-BQC-3.3 tolerate-and-log path, preserved.
+    const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
+    const event = review
+      ? reviewReplyPublishFailed({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          authorId: reply.createdBy,
+          occurredAt: now,
+        })
+      : null
+
+    // BQC-3.3: guarded status update + publish_failed fact commit in one tx.
+    const updated = await deps.commandStore.markPublishFailed(
+      reply,
       { status: 'publish_failed' },
+      event,
       now,
     )
     if (!updated) {
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
-
-    // Emit event after status update — failure should not break the update
-    try {
-      const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
-      if (review) {
-        await emitAndRecord(
-          deps.events,
-          deps.outboxRepo,
-          reviewReplyPublishFailed({
-            replyId: updated.id,
-            reviewId: updated.reviewId,
-            propertyId: review.propertyId,
-            organizationId: updated.organizationId,
-            authorId: updated.createdBy,
-            occurredAt: now,
-          }),
-        )
-      }
-    } catch (e) {
-      // Status update succeeded; event emission failure is non-critical but logged
-      getLogger()
-        .child({ replyId: updated.id })
-        .error({ err: e }, 'Failed to emit reply publish failed event')
     }
 
     return updated
@@ -535,12 +515,23 @@ export const retryPublish =
       throw reviewError('invalid_transition', 'Reply status changed concurrently')
     }
 
-    await deps.queue.addPublishJob({
-      replyId: backToApproved.id,
-      organizationId: backToApproved.organizationId,
-      // BQC-3.2: named initiator for operator/user-triggered delayed work.
-      policy: { initiator: { kind: 'user', id: ctx.userId } },
-    })
+    // Post-commit enqueue (no new fact — re-approval reuses the approved
+    // state). The retry bumps updatedAt, so the saga idempotency key differs
+    // from the exhausted publish job's key and a fresh job is enqueued.
+    await deps.queue.addPublishJob(
+      {
+        replyId: backToApproved.id,
+        organizationId: backToApproved.organizationId,
+        // BQC-3.2: named initiator for operator/user-triggered delayed work.
+        policy: { initiator: { kind: 'user', id: ctx.userId } },
+      },
+      {
+        idempotencyKey: buildIdempotencyKey(
+          backToApproved.id,
+          backToApproved.updatedAt.getTime(),
+        ),
+      },
+    )
 
     return backToApproved
   }

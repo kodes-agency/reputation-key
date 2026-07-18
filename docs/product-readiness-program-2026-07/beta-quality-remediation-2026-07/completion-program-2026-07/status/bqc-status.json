@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T00:00:00Z",
+  "updatedAt": "2026-07-18T01:23:44Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration) implementation_complete."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands) implementation_complete."
+    },
+    {
+      "id": "BQC-3.3",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Deepen the review/reply command family",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "reply-command-store-atomicity",
+        "publication-outcome-classification",
+        "reconcile-reply-publication",
+        "atomic-review-outbox-guard"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Review/reply command family fully atomic via new ReplyCommandStore (src/contexts/review/infrastructure/reply-command-store.ts): every fact-emitting reply transition (submit/approve/reject/markPublished/markPublishFailed) + mirror-synced reply upsert/delete + expired-review purge now commit state mutation + outbox row in ONE PostgreSQL transaction (guarded TOCTOU update inside the tx via shared buildReplySetClause; zero-row race \u2192 null, no outbox row, no emit), post-commit bus emit failure-isolated. Crash contract proven on real PG (4 integration tests): forced outbox-insert failure \u2192 state row absent (no split); happy path \u2192 both rows same eventId; purge \u2192 delete + expired fact atomic. emitAndRecord REMOVED from all 7 review-family call sites (reply-operations \u00d75, sync-reviews mirror, purge job); the production wiring gap (replyDeps never received outboxRepo \u2014 review.reply.* + review.expired were bus-only despite the 3.1 catalogue) is closed by the store itself. Publication outcomes classified by activating the reply-publication saga: terminal 4xx \u2192 publish_failed WITHOUT retry burn; retryable (5xx/429/network) \u2192 BullMQ attempts; ambiguous (timeout after request may have landed) \u2192 rethrow until final attempt \u2192 publish_failed (honest unknown) + reconciliation hint; GBP upsert-safety encoded (retries never duplicate). New reconcileReplyPublication use case: publish_failed guard \u2192 provider re-read via the sync port \u2192 provider shows reply \u2192 atomic markPublished (heals divergence); absent \u2192 still_failed; never calls replyToReview. Publish enqueue idempotent (buildIdempotencyKey \u2192 BullMQ jobId). atomic-review-outbox guard extended: emitAndRecord forbidden across ALL review-context source files. Catalogue: review.reply.* + review.expired rows now truthfully recordedInOutbox; review.updated orphan re-pointed 3.3\u21923.4 (inbox projection). Not claimed: durable publication state machine + scheduled reconciliation (3.8), disconnect review-purge command (3.5), tombstone intermediate state (3.8 schema evolution), reconcile operator surface (3.8/BQC-7), other contexts' emitAndRecord removal (3.5). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.2",

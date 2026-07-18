@@ -39,6 +39,7 @@ import {
   createPublishReplyHandler,
   JOB_NAME as PUBLISH_REPLY_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { activityLogId, replyId } from '#/shared/domain/ids'
 
 export async function bootstrap(container: Container): Promise<void> {
@@ -153,9 +154,16 @@ export async function bootstrap(container: Container): Promise<void> {
     'registered refresh-expiring-reviews job handler',
   )
 
+  // BQC-3.3: atomic reply/review state + outbox writes for the purge and
+  // publish job handlers (one instance, shared — the store is stateless).
+  const replyCommandStore = createAtomicReplyCommandStore(
+    container.db,
+    container.eventBus,
+  )
+
   const purgeHandler = createPurgeExpiredReviewsHandler({
     reviewRepo: container.reviewRepo,
-    events: container.eventBus,
+    commandStore: replyCommandStore,
     clock: container.clock,
     db: container.db,
   })
@@ -172,7 +180,7 @@ export async function bootstrap(container: Container): Promise<void> {
     replyRepo: container.replyRepo,
     reviewRepo: container.reviewRepo,
     googleReviewApi: container.googleReviewApi,
-    events: container.eventBus,
+    replyCommandStore,
     clock: container.clock,
     idGen: () => replyId(crypto.randomUUID()),
     staffPublicApi: container.staffPublicApi,

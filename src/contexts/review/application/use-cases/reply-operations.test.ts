@@ -13,12 +13,15 @@ import {
   markReplyPublishFailed,
 } from './reply-operations'
 import type { ReplyDeps } from './reply-operations'
-import type { ReplyRepository } from '../ports/reply.repository'
+import type { ReplyRepository, ConditionalReplyUpdate } from '../ports/reply.repository'
+import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { DomainEvent } from '#/shared/events/events'
 import type { Reply, Review } from '../../domain/types'
 import { isReviewError } from '../../domain/errors'
+import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import {
@@ -101,8 +104,56 @@ const replyRepoWith = (reply: Reply | null): ReplyRepository => ({
   findInternalByReviewId: vi.fn(async () => reply),
 })
 
-function makeDeps(overrides: Partial<ReplyDeps> = {}): ReplyDeps {
+/**
+ * In-process fake of ReplyCommandStore (application zone must not import
+ * infra). Mirrors the production contract: guarded conditionalUpdate first,
+ * then post-commit bus emit; a lost race (conditionalUpdate → null) emits
+ * nothing. `getReplyRepo` resolves lazily so per-test replyRepo overrides
+ * take effect.
+ */
+function makeReplyCommandStoreFake(
+  getReplyRepo: () => ReplyRepository,
+  events: EventBus,
+): ReplyCommandStore {
+  const transition = async (
+    reply: Reply,
+    updates: ConditionalReplyUpdate,
+    event: DomainEvent | null,
+    now?: Date,
+  ): Promise<Reply | null> => {
+    const saved = await getReplyRepo().conditionalUpdate(
+      reply.id,
+      reply.organizationId,
+      [reply.status],
+      updates,
+      now,
+    )
+    if (saved && event) await events.emit(event)
+    return saved
+  }
   return {
+    submitReply: transition,
+    approveReply: transition,
+    rejectReply: transition,
+    markPublished: transition,
+    markPublishFailed: transition,
+    mirrorSyncedReply: vi.fn(async () => {
+      throw new Error('mirrorSyncedReply is not used by reply-operations')
+    }),
+    purgeExpiredReview: vi.fn(async () => {
+      throw new Error('purgeExpiredReview is not used by reply-operations')
+    }),
+  }
+}
+
+type TestReplyDeps = ReplyDeps & { events: EventBus }
+
+function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
+  const events = {
+    emit: vi.fn(async () => {}),
+    on: vi.fn(),
+  } as unknown as EventBus
+  const deps = {
     replyRepo: {
       upsert: vi.fn(async (r: Reply) => r),
       // Default conditionalUpdate applies the delta onto a base reply and returns it,
@@ -130,15 +181,14 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): ReplyDeps {
     queue: {
       addPublishJob: vi.fn(async () => {}),
     } as unknown as ReplyQueuePort,
-    events: {
-      emit: vi.fn(async () => {}),
-      on: vi.fn(),
-    } as unknown as EventBus,
+    commandStore: undefined as unknown as ReplyCommandStore,
     clock: () => NOW,
     idGen: () => REPLY_ID,
     staffPublicApi: makeStaffApi(null),
     ...overrides,
   }
+  deps.commandStore = makeReplyCommandStoreFake(() => deps.replyRepo, events)
+  return { ...deps, events }
 }
 
 const MANAGER_CTX = {
@@ -460,12 +510,19 @@ describe('approveReply', () => {
     const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(result.approvedBy).toBe(USER_ID)
-    expect(deps.queue.addPublishJob).toHaveBeenCalledWith({
-      replyId: REPLY_ID,
-      organizationId: ORG_ID,
-      // BQC-3.2: named initiator for user-triggered delayed work.
-      policy: { initiator: { kind: 'user', id: USER_ID } },
-    })
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
+      {
+        replyId: REPLY_ID,
+        organizationId: ORG_ID,
+        // BQC-3.2: named initiator for user-triggered delayed work.
+        policy: { initiator: { kind: 'user', id: USER_ID } },
+      },
+      {
+        // BQC-3.3: saga idempotency key dedupes enqueue for the same approval
+        // cycle (sourceVersion = the approved reply's updatedAt).
+        idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()),
+      },
+    )
   })
 
   it('sets approvedAt when approving', async () => {
