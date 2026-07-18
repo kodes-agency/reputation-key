@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T22:36:45Z",
+  "updatedAt": "2026-07-18T23:31:06Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -609,12 +609,24 @@
       "id": "BQC-4",
       "kind": "phase",
       "title": "Enforced regional execution",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-01"],
       "exceptions": [],
-      "notes": "BQC-4.1 (region reconciliation + fail-closed enforcement + ADR 0048), BQC-4.2 (regional job envelope + ProcessingRouter), BQC-4.3 (data/provider execution + data-flow map), BQC-4.4 (regional reads + operator diagnostic), BQC-4.5 (region move workflow) implementation_complete. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+      "notes": "All six slices (4.1–4.6) implementation_complete: region reconciliation + fail-closed enforcement + ADR 0048; ProcessingRouter + regional job envelope; target-selected provider adapters + data-flow map; regional reads + operator diagnostic; region move workflow (migration 0016) with denial semantics for beta; no-fallback fault proof (6/6 real-fault conditions green on unmodified machinery, zero defects). Phase at evidence_pending — US cell acceptance and Europe's separate evidence are the user's call. SPEC-P1-01 (region was metadata only) implementation evidence is in place; formal closure follows the independent review. Data context: the pre-existing imported properties are disposable test data — the user will wipe and start fresh; the reconciliation command is the ongoing zero-unresolved proof, not a legacy backfill."
+    },
+    {
+      "id": "BQC-4.6",
+      "kind": "slice",
+      "parentId": "BQC-4",
+      "title": "No-fallback fault proof",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": ["no-fallback-fault-suite", "bqc46-fault-report"],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Fault-injection proof against the UNMODIFIED 3.x/4.1–4.5 machinery (6/6 conditions green, deterministic across runs; ZERO defects found, zero production code changed). Real PG + real Redis/BullMQ (dead-port handles for unavailability — shared services never killed; direct poll/dispatch invocation, no wall-clock sleeps). Observed per condition: (a) queue down at relay publish — event claimed, NOT published, lease expired (backdated), healthy handle of the SAME queue re-claimed + published (1 job, jobId=eventId) — automatic resume on next poll; (b) DB down at dispatch — the routing gate PROPAGATES the throw (transient semantics, proven: quarantine callback invoked 0×), BullMQ retries, exhaustion → 3.6 dead-letter (policyReason absent — not a policy failure), handler ran 0×; the going-in UNKNOWN (propagate vs swallow) resolved by inspection + test: no error handling around loadPropertyRouting = correct transient behavior, matching the 3.2 deny_retry philosophy; (c) GBP down (503 ×2 then timeout) — retryable requeues to authorized ×2, final ambiguous → publish_failed + publication_state='ambiguous' + reconcile_due_at + 1 content-free fact; all 3 provider calls on the ONE cell binding (no alternate exists — 4.3 structural); (d) aging/visibility — unpublishedCount=1, oldestUnpublishedAgeMs ≥ 240s, quarantine.count=1, failedReason content-safe ≤200 chars (3.7 substrate); (e) resume after recovery — createRedriveJob moves the job back to its ORIGINAL queue (quarantine emptied, redriveMetadata present), handler ran exactly once across the whole saga; (f) DENIED EUROPE PROPERTY (real adapter + router): quarantined routing_blocked:region_denied, handler 0×, parked operator-visibly; redrive re-queued it and the SECOND dispatch blocked AGAIN with the region unchanged — no silent override. The no-fallback statement (evidence/bqc46-no-fallback-fault-report.md §3): at no point did any failure invoke a fallback adapter/queue/endpoint/region — structural via the 4.3 provider-target guard + the 4.2 wrong-cell quarantine. Rollback posture (§7) demonstrated: pause the workload in its approved cell and preserve jobs — never route elsewhere. Deviation: the brief's 'publish_failed at final attempt' holds only for an ambiguous final attempt (a pure retryable final attempt requeues to authorized — actual 3.3/3.8 semantics; the test injects 5xx ×2 then a timeout). Not claimed: integrated-fault re-execution at scale (BQC-8), Europe cell evidence (denied), alert dispatch (BQC-7). Slice not accepted — pending independent review."
     },
     {
       "id": "BQC-4.5",
