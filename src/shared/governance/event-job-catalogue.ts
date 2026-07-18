@@ -112,6 +112,14 @@ export type JobFamilyRow = Readonly<{
   retryAttempts: number
   /** Backoff class, e.g. 'exponential:30000'. */
   retryBackoff: string
+  /**
+   * BQC-3.6: per-job execution timeout (BullMQ JobsOptions.timeout). Honest
+   * values from the workload: quick heartbeats 30s, GBP sync/sweeps/rollups
+   * 300s, bulk import 600s, the 9-rule retention sweep 900s, everything else
+   * the 120s default. jobEnqueueOptions (shared/jobs/job-policy.ts) derives
+   * the BullMQ opts from these fields.
+   */
+  timeoutMs: number
   /** Cadence: 'none', 'every:<ms>[,offset:<ms>]', or 'cron:<pattern>'. */
   schedule: string
   /** Capability gate (registration gate, else in-handler gate); 'none' when ungated. */
@@ -207,7 +215,9 @@ type JobBase = Readonly<{
   registration: JobRegistration
 }>
 
-type JobOpts = Partial<Pick<JobFamilyRow, 'retryAttempts' | 'retryBackoff' | 'notes'>>
+type JobOpts = Partial<
+  Pick<JobFamilyRow, 'retryAttempts' | 'retryBackoff' | 'timeoutMs' | 'notes'>
+>
 
 /** Job family row; retry/retention defaults baked from the queue factory. */
 function job(
@@ -222,6 +232,7 @@ function job(
     processor,
     retryAttempts: 3,
     retryBackoff: 'exponential:30000',
+    timeoutMs: 120_000,
     schedule: base.schedule,
     capability: base.capability,
     action: base.action,
@@ -1205,7 +1216,11 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'none',
       registration: 'enabled',
     },
-    { notes: 'GBP property import; in-handler capability gate' },
+    {
+      timeoutMs: 600_000,
+      notes:
+        'GBP property import; in-handler capability gate; bulk fetch+upsert warrants 10m',
+    },
   ),
   job(
     'sync-property-reviews',
@@ -1217,7 +1232,11 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'none',
       registration: 'enabled',
     },
-    { notes: 'GBP review sync; in-handler gate; enqueued manual/cron/webhook/sweep' },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'GBP review sync; in-handler gate; enqueued manual/cron/webhook/sweep; paged GBP fetch warrants 5m',
+    },
   ),
   job(
     'publish-reply',
@@ -1287,7 +1306,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'every:300000',
       registration: 'enabled',
     },
-    { notes: 'Redis heartbeat stamp for /api/health/metrics' },
+    {
+      timeoutMs: 30_000,
+      notes:
+        'Redis heartbeat stamp for /api/health/metrics; two probes + one write — 30s is generous',
+    },
   ),
   job(
     'refresh-expiring-reviews',
@@ -1300,8 +1323,9 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     {
+      timeoutMs: 300_000,
       notes:
-        'BQC-1.5 bounded sweep (500×10, cursor in review_refresh_runs); enqueues gated sync jobs',
+        'BQC-1.5 bounded sweep (500×10, cursor in review_refresh_runs); enqueues gated sync jobs; 5m bounds a stalled batch',
     },
   ),
   job(
@@ -1315,8 +1339,9 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     {
+      timeoutMs: 300_000,
       notes:
-        'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows',
+        'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows; 5m bounds the daily batch',
     },
   ),
   job(
@@ -1329,7 +1354,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'cron:0 * * * *',
       registration: 'enabled',
     },
-    { notes: 'incremental rollup' },
+    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
   ),
   job(
     'refresh-weekly-metrics',
@@ -1341,7 +1366,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'every:86400000',
       registration: 'enabled',
     },
-    { notes: 'incremental rollup' },
+    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
   ),
   job(
     'refresh-daily-inbox-metrics',
@@ -1353,7 +1378,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'cron:5 * * * *',
       registration: 'enabled',
     },
-    { notes: 'incremental rollup' },
+    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
   ),
   job(
     'retention-sweep',
@@ -1366,7 +1391,9 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     {
-      notes: 'BQC-1.6: 9 rules; evidence in retention_runs; throws on any rule failure',
+      timeoutMs: 900_000,
+      notes:
+        'BQC-1.6: 9 rules; evidence in retention_runs; throws on any rule failure; 15m bounds the full daily sweep',
     },
   ),
   job(
@@ -1447,3 +1474,16 @@ export const JOB_FAMILY_ROWS: ReadonlyArray<JobFamilyRow> = [
   ...DEFAULT_QUEUE_ROWS,
   ...BACKGROUND_QUEUE_ROWS,
 ]
+
+// ── Derived lookups ─────────────────────────────────────────────────
+
+/**
+ * BQC-3.6: durable consumer refs declared for an event type. The dispatcher
+ * uses this to tell a misconfigured deployment (catalogue expects a durable
+ * consumer that was never registered → fail + retry) from a genuinely
+ * bus-only family (no durable dispatch expected → complete).
+ */
+export function durableConsumersFor(eventType: string): ReadonlyArray<EventConsumerRef> {
+  const row = EVENT_FAMILY_ROWS.find((r) => r.eventType === eventType)
+  return row?.consumers.filter((c) => c.kind === 'durable') ?? []
+}

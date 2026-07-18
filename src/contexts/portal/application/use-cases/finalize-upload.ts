@@ -10,6 +10,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import type { Queue } from 'bullmq'
 import { PROCESS_IMAGE_JOB_NAME as JOB_NAME } from '../job-names'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 
 // fallow-ignore-next-line unused-type
 export type FinalizeUploadInput = Readonly<{
@@ -64,12 +65,17 @@ export const finalizeUpload =
 
     // Enqueue the image processing job so the resize/WebP pipeline runs
     // (PORTAL-B-04). The job updates heroImageUrl with the optimized variant.
+    // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
     if (deps.queue) {
-      await deps.queue.add(JOB_NAME, {
-        key: input.key,
-        portalId: input.portalId,
-        organizationId: unbrand(ctx.organizationId),
-      })
+      await deps.queue.add(
+        JOB_NAME,
+        {
+          key: input.key,
+          portalId: input.portalId,
+          organizationId: unbrand(ctx.organizationId),
+        },
+        jobEnqueueOptions(JOB_NAME),
+      )
     }
 
     return { heroImageUrl: publicUrl }

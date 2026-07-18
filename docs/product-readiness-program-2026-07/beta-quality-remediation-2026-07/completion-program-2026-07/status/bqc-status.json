@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T06:06:06Z",
+  "updatedAt": "2026-07-18T07:58:31Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families) implementation_complete."
+      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families), BQC-3.6 (dispatcher/unknown-work correction) implementation_complete."
+    },
+    {
+      "id": "BQC-3.6",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "Correct dispatcher and unknown-work behavior",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "unknown-work-behavior-table",
+        "boot-readiness-check",
+        "failure-quarantine-redrive",
+        "explicit-retry-policy"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Unknown-work and dispatcher behavior corrected per the \u00a74 failure taxonomy. Unknown job at dispatch: warn+return (silent BullMQ COMPLETED) \u2192 error log + UnknownJobError thrown \u2014 burns attempts into the failure quarantine. Boot readiness (NEW src/shared/jobs/readiness.ts): worker boot FAILS when an enabled catalogue job lacks a handler, when a registered handler is uncatalogued, or \u2014 only when OUTBOX_DISPATCHER_ENABLED \u2014 when a catalogued durable consumer is unregistered (flag off = consumers intentionally inert, info log). Dispatcher: malformed envelope / schema failure \u2192 BullMQ UnrecoverableError (no retry; content-free reason \u2014 type:version fingerprint only); zero consumers for a catalogue-durable type \u2192 throw (deployment/config failure, redeploy fixes), zero for bus-only \u2192 debug+complete (lying 'will be retried' message gone); consumer exceptions now AGGREGATE and rethrow after the loop (all consumers still invoked; receipts protect succeeded consumers on redelivery \u2014 the failed consumer is actually retried now); terminal policy deny writes an 'obsolete' receipt (processed without effect \u2014 no migration, existing CHECK constraint) instead of re-evaluating forever. Failure quarantine (NEW failure-quarantine.ts): max-attempt jobs move to a dedicated 'quarantine' BullMQ queue (never processed = dead letter) with a content-safe envelope \u2014 data passes through ONLY for catalogue-known work (identifier-only by construction), else {redacted:true}; failedReason = error name + first message line \u2264200 chars, no stack; policyReason carries gate deny reasons. Redrive (NEW scripts/ops/quarantine-redrive.ts, pnpm ops:quarantine list|redrive --apply; catalogue OPERATOR_ROWS row): moves the job back to its original queue with a fresh catalogue-policy attempt budget + redriveMetadata; redacted envelopes refused. Explicit per-job retry policy: JOB_FAMILY_ROWS gained timeoutMs; NEW job-policy.ts jobEnqueueOptions(jobName) = {attempts, backoff{type,delay,jitter:0.5} (BullMQ v5 BackoffOptions.jitter verified), } applied at ALL enqueue sites (review/integration/notification/portal/activity adapters + every worker schedule registration); catalogue-declared timeout enforced by a race in the gated dispatch (JobTimeoutError) \u2014 BullMQ v5 removed the job-level timeout opt (documented deviation; handlers NOT cancelled \u2014 zombie-vs-retry race, handlers stay idempotent; Abort threading is 3.7 follow-up); the worker-level custom backoffStrategy was REMOVED (it overrode job-level jitter). Not claimed: relay-enqueue retry opts + removeOnFail cap + unrecoverable-failure alerting (3.7), abort-based cancellation (3.7), dormant JobRuntime migration (stays dormant). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.5",

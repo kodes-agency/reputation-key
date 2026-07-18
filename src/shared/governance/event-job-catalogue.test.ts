@@ -564,6 +564,21 @@ describe('BQC-3.1 event/job family catalogue', () => {
     ).toEqual([])
   })
 
+  it('declares an explicit retry policy (attempts/backoff/timeout) per job family (BQC-3.6)', () => {
+    const bad = JOB_FAMILY_ROWS.filter(
+      (r) =>
+        !Number.isInteger(r.retryAttempts) ||
+        r.retryAttempts < 1 ||
+        !/^(exponential|fixed):\d+$/.test(r.retryBackoff) ||
+        !Number.isInteger(r.timeoutMs) ||
+        r.timeoutMs < 1_000,
+    )
+    expect(
+      bad.map((r) => r.jobName),
+      `job families without a well-formed explicit retry policy: ${bad.map((r) => r.jobName).join(', ')}`,
+    ).toEqual([])
+  })
+
   it('has unique names, existing referenced files, and version ≥ 1', () => {
     const tags = EVENT_FAMILY_ROWS.map((r) => r.eventType)
     const dupeTags = tags.filter((t, i) => tags.indexOf(t) !== i)

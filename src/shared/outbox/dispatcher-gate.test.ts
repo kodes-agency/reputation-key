@@ -1,14 +1,23 @@
 // BQC-3.2 — durable dispatcher gate tests.
 //
 // The dispatcher authorizes each consumer through gateDispatcherConsumer
-// after the receipt check and before invoking the handler. Terminal denies
-// skip the consumer WITHOUT writing a receipt (a typed 'denied' receipt
-// status is BQC-3.6 dispatcher correction; the dispatcher is off in
-// production under OUTBOX_DISPATCHER_ENABLED). Retry denies rethrow so the
-// BullMQ job fails and retries.
+// after the receipt check and before invoking the handler. Retry denies
+// rethrow so the BullMQ job fails and retries.
+//
+// BQC-3.6 dispatcher corrections:
+//   - terminal denies write an 'obsolete' receipt (processed without effect)
+//     so the denial doesn't re-evaluate forever;
+//   - consumer exceptions PROPAGATE after the loop (per-consumer isolation is
+//     kept — every consumer is invoked — but the job fails so configured
+//     attempts apply; receipts protect already-applied consumers);
+//   - malformed envelopes / schema failures are UnrecoverableError (no retry);
+//   - an event type with zero registered consumers but a catalogued durable
+//     consumer ref is a deployment/config failure (throw → retry); genuinely
+//     bus-only types complete with a debug log.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
+import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod'
 import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
 import {
@@ -77,6 +86,7 @@ function makeEnvelope(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
 function makeRepo() {
   return {
     hasReceipt: vi.fn(async () => false),
+    insertReceipt: vi.fn(async () => undefined),
   } as unknown as OutboxRepository
 }
 
@@ -124,7 +134,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
     })
   })
 
-  it('terminal deny skips the consumer without a receipt and without throwing', async () => {
+  it('terminal deny skips the consumer and writes an obsolete receipt (BQC-3.6)', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
     registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-deny', handler })
@@ -136,14 +146,33 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
     expect(repo.hasReceipt).toHaveBeenCalledWith('evt-gate-1', 'c-deny')
     expect(handler).not.toHaveBeenCalled()
+    // BQC-3.6: 'obsolete' = "processed without effect" — the terminal denial
+    // is recorded so it does not re-evaluate forever on redelivery.
+    expect(repo.insertReceipt).toHaveBeenCalledWith('evt-gate-1', 'c-deny', 'obsolete')
     expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         eventId: 'evt-gate-1',
         consumerName: 'c-deny',
         reason: 'org_suspended',
       }),
-      'delayed execution denied — terminal (consumer skipped, no receipt)',
+      expect.stringMatching(/denied — terminal/),
     )
+  })
+
+  it('terminal-deny receipt short-circuits re-delivery (no re-evaluation)', async () => {
+    const handler = vi.fn(async () => ({ status: 'applied' as const }))
+    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-deny', handler })
+    // Receipt exists (written by the terminal-deny path on the first pass) —
+    // the gate must NOT be consulted again.
+    const repo = {
+      hasReceipt: vi.fn(async () => true),
+      insertReceipt: vi.fn(async () => undefined),
+    } as unknown as OutboxRepository
+
+    await createDispatcherHandler(repo)(fakeJob(makeEnvelope()))
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(decideMock).not.toHaveBeenCalled()
   })
 
   it('retry deny rethrows so the BullMQ job fails and retries', async () => {
@@ -172,5 +201,107 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('dispatcher corrections (BQC-3.6)', () => {
+  it('fails the job after the loop when a consumer throws — other consumers still invoked', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    const failing = vi.fn(async () => {
+      throw new Error('projection boom')
+    })
+    const succeeding = vi.fn(async () => ({ status: 'applied' as const }))
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-fails',
+      handler: failing,
+    })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-succeeds',
+      handler: succeeding,
+    })
+    const repo = makeRepo()
+
+    await expect(createDispatcherHandler(repo)(fakeJob(makeEnvelope()))).rejects.toThrow(
+      /c-fails/,
+    )
+
+    // Per-consumer isolation kept: every consumer was invoked this attempt.
+    expect(failing).toHaveBeenCalledOnce()
+    expect(succeeding).toHaveBeenCalledOnce()
+  })
+
+  it('catalogued durable event type with zero registered consumers throws (config failure)', async () => {
+    // 'review.created' is catalogued with a durable consumer ref — zero
+    // registered consumers means the deployment is misconfigured, so the job
+    // must fail and retry (a redeploy fixes it), never silently complete.
+    const DURABLE_TYPE = 'review.created'
+    registerEventSchema({
+      type: DURABLE_TYPE,
+      version: 1,
+      schema: z.object({ resourceId: z.string() }),
+    })
+    const repo = makeRepo()
+
+    await expect(
+      createDispatcherHandler(repo)(fakeJob(makeEnvelope({ eventType: DURABLE_TYPE }))),
+    ).rejects.toThrow(new RegExp(DURABLE_TYPE))
+
+    expect(loggerMocks.error).toHaveBeenCalled()
+  })
+
+  it('genuinely bus-only event type completes with a debug log', async () => {
+    // 'identity.member.invited' is catalogued with bus consumers only — no
+    // durable dispatch is expected, so the job completes (and the old
+    // "will be retried" lie is gone).
+    const BUS_ONLY_TYPE = 'identity.member.invited'
+    registerEventSchema({
+      type: BUS_ONLY_TYPE,
+      version: 1,
+      schema: z.object({ resourceId: z.string() }),
+    })
+    const repo = makeRepo()
+
+    await expect(
+      createDispatcherHandler(repo)(fakeJob(makeEnvelope({ eventType: BUS_ONLY_TYPE }))),
+    ).resolves.toBeUndefined()
+
+    expect(loggerMocks.debug).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: BUS_ONLY_TYPE }),
+      expect.stringMatching(/no durable consumers/i),
+    )
+  })
+
+  it('malformed envelope throws UnrecoverableError (no retry, content-free reason)', async () => {
+    const repo = makeRepo()
+    const job = {
+      id: 'evt-bad-1',
+      name: 'whatever',
+      data: { bare: 'payload' },
+    } as unknown as Job
+
+    await expect(createDispatcherHandler(repo)(job)).rejects.toThrow(UnrecoverableError)
+  })
+
+  it('schema validation failure throws UnrecoverableError with a content-free reason', async () => {
+    const repo = makeRepo()
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-any',
+      handler: vi.fn(async () => ({ status: 'applied' as const })),
+    })
+
+    await expect(
+      createDispatcherHandler(repo)(
+        fakeJob(makeEnvelope({ payload: { wrong: 'shape' } })),
+      ),
+    ).rejects.toThrow(UnrecoverableError)
+
+    // Content-free: the reason carries the type/version fingerprint only.
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: TEST_EVENT_TYPE }),
+      expect.stringMatching(/schema validation/i),
+    )
   })
 })

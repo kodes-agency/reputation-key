@@ -34,6 +34,8 @@ import {
 import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
+import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
+import { jobTimeoutMs } from './job-policy'
 import type { JobRegistry } from './registry'
 
 /**
@@ -238,6 +240,33 @@ function isScheduleFiring(job: Job): boolean {
 }
 
 /**
+ * BQC-3.6: enforce the catalogue-declared job timeout. BullMQ v5 removed the
+ * job-level `timeout` option, so the race lives here. The handler promise is
+ * NOT cancelled on timeout (no AbortController threading) — handlers must
+ * stay idempotent under a retry that races a zombie execution.
+ */
+async function withJobTimeout(
+  jobName: string,
+  timeoutMs: number,
+  work: Promise<void>,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new JobTimeoutError(jobName, timeoutMs)),
+          timeoutMs,
+        )
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * The dispatch closure shared by the default/background BullMQ workers.
  * Replaces the duplicated inline closures in src/worker/index.ts.
  */
@@ -245,14 +274,20 @@ export function createGatedJobHandler(
   queueLabel: string,
   registry: JobRegistry,
   resolveScope?: ScopeResolver,
+  timeoutForJob: (jobName: string) => number = jobTimeoutMs,
 ): (job: Job) => Promise<void> {
   const logger = getLogger()
   return async (job: Job) => {
     const handler = registry.getHandler(job.name)
     if (!handler) {
-      // Unknown-job quarantine is BQC-3.6 — keep today's warn-and-drain.
-      logger.warn({ jobName: job.name, jobId: job.id }, 'no handler registered for job')
-      return
+      // BQC-3.6: an unknown job name is a deployment/config failure, never a
+      // silent ack — throw so the job fails, burns attempts, and lands in the
+      // failure quarantine (§4). Boot-time readiness catches the static form.
+      logger.error(
+        { jobName: job.name, jobId: job.id },
+        'no handler registered for job — failing as deployment/config error',
+      )
+      throw new UnknownJobError(job.name, job.id)
     }
     const schedule = isScheduleFiring(job)
     const outcome = await gateJob(
@@ -263,7 +298,7 @@ export function createGatedJobHandler(
       resolveScope,
     )
     if (outcome.kind === 'allow') {
-      await handler(job)
+      await withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
       return
     }
     if (outcome.kind === 'deny_terminal') {
@@ -279,8 +314,6 @@ export function createGatedJobHandler(
     }
     // deny_retry: an unavailable policy is transient — throw so BullMQ
     // retries with backoff instead of running protected work undecided.
-    throw new Error(
-      `delayed execution denied — retry (${outcome.decision.reason}) for job '${job.name}'`,
-    )
+    throw new GateDenyRetryError(job.name, outcome.decision.reason)
   }
 }

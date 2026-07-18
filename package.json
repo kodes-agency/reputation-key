@@ -50,6 +50,7 @@
     "bqc:generate-status": "tsx scripts/bqc/generate-status.ts",
     "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
+    "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",
     "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts"
   },
   "dependencies": {

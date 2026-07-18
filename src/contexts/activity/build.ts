@@ -6,6 +6,7 @@ import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createActivityRepository } from './infrastructure/activity-repository.drizzle'
 import { registerActivityHandlers } from './infrastructure/event-handlers'
+import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import { getActivityTimeline } from './queries/get-activity-timeline'
 import { getOrgActivity } from './queries/get-org-activity'
 import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inbox-item-lookup.adapter'
@@ -33,11 +34,13 @@ export const buildActivityContext = (input: BuildInput) => {
     staffPublicApi: input.staffPublicApi,
   })
 
-  // Register per-tag handlers that enqueue BullMQ jobs
+  // Register per-tag handlers that enqueue BullMQ jobs.
+  // BQC-3.6: the queue is wrapped so every insert-activity-log enqueue
+  // inherits the catalogue retry policy (attempts/backoff+jitter/timeout).
   if (input.queue) {
     registerActivityHandlers({
       events: input.events,
-      queue: input.queue,
+      queue: withCatalogueJobOptions(input.queue),
       inboxItemLookup,
     })
   }

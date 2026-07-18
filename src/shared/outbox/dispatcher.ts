@@ -10,16 +10,29 @@
 //   5. The handler commits its state change + receipt atomically
 //   6. If the source no longer exists, commits an 'obsolete' receipt
 //
-// One consumer's terminal failure does NOT prevent other consumers from
-// receiving the event. Each consumer is invoked independently.
+// One consumer's failure does NOT prevent other consumers from receiving the
+// event in this attempt — every consumer is invoked. BQC-3.6: after the loop
+// the job FAILS if any consumer threw, so configured BullMQ attempts apply;
+// receipts protect already-applied consumers on redelivery (they short-circuit).
+//
+// BQC-3.6 outcome mapping (phase BQC-3 §4 failure taxonomy):
+//   malformed envelope / schema failure → UnrecoverableError (no retry — the
+//     job lands in BullMQ failed state immediately, content-free reason)
+//   zero consumers for a type the catalogue marks durably consumed → throw
+//     (deployment/config failure — BullMQ retries; a redeploy fixes it)
+//   zero consumers for a bus-only type → complete (debug log)
+//   terminal policy deny → 'obsolete' receipt (processed without effect) so
+//     the denial is not re-evaluated forever
 
 import type { Job } from 'bullmq'
+import { UnrecoverableError } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import { parseConsumerEvent, type ConsumerEvent } from './envelope'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
+import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
 
 // ── Consumer registration ───────────────────────────────────────────
 
@@ -91,10 +104,15 @@ export function listRegisteredConsumers(): ReadonlyArray<
   return out
 }
 
+/** Per-consumer outcome — the loop aggregates failures after invoking all. */
+type ConsumerOutcome =
+  | Readonly<{ kind: 'ok' }>
+  | Readonly<{ kind: 'failed'; consumerName: string; err: unknown }>
+
 /**
  * Invoke one consumer for an event: receipt short-circuit, BQC-3.2 policy
- * gate, then the handler. Extracted so the dispatch loop stays under the
- * complexity budget — behavior is identical to the former inline body.
+ * gate, then the handler. A handler failure is reported (never swallowed) so
+ * the caller can fail the job after every consumer has been invoked.
  */
 async function invokeConsumer(
   deps: Readonly<{
@@ -104,7 +122,7 @@ async function invokeConsumer(
     event: ConsumerEvent
     consumer: ConsumerRegistration
   }>,
-): Promise<void> {
+): Promise<ConsumerOutcome> {
   const { repo, logger, eventId, event, consumer } = deps
   try {
     // Check receipt — skip if already processed
@@ -114,25 +132,27 @@ async function invokeConsumer(
         { eventId, consumerName: consumer.consumerName },
         'Consumer already has receipt — skipping',
       )
-      return
+      return { kind: 'ok' }
     }
 
     // BQC-3.2: authorize against CURRENT policy before any protected
-    // read or side effect. Terminal deny skips WITHOUT writing a
-    // receipt (terminal-deny receipt semantics — a 'denied' receipt
-    // status — are BQC-3.6 dispatcher correction; the dispatcher is
-    // off in production under OUTBOX_DISPATCHER_ENABLED).
+    // read or side effect.
     const gate = await gateDispatcherConsumer(
       consumer.consumerName,
       'inbox.outbox-consumers',
       event,
     )
     if (gate.kind === 'deny_terminal') {
+      // BQC-3.6: record the terminal denial as an 'obsolete' receipt
+      // ("processed without effect" — the receipts CHECK constraint admits
+      // applied/duplicate/obsolete; no migration needed). Redelivery then
+      // short-circuits on the receipt instead of re-evaluating forever.
+      await repo.insertReceipt(eventId, consumer.consumerName, 'obsolete')
       logger.warn(
         { eventId, consumerName: consumer.consumerName, reason: gate.decision.reason },
-        'delayed execution denied — terminal (consumer skipped, no receipt)',
+        'delayed execution denied — terminal (consumer skipped, obsolete receipt written)',
       )
-      return
+      return { kind: 'ok' }
     }
     if (gate.kind === 'deny_retry') {
       // Policy unavailable is transient, not a revocation — escape the
@@ -149,15 +169,18 @@ async function invokeConsumer(
       { eventId, consumerName: consumer.consumerName, status: result.status },
       'Consumer completed',
     )
+    return { kind: 'ok' }
   } catch (err) {
     if (err instanceof PolicyUnavailableError) throw err
-    // Log and continue — other consumers should still receive the event
+    // Isolate the failure: other consumers still receive the event in this
+    // attempt. The caller rethrows an aggregate so the BullMQ job fails and
+    // configured attempts apply — receipts protect consumers that already
+    // committed (they short-circuit on redelivery).
     logger.error(
       { err, eventId, consumerName: consumer.consumerName },
-      'Consumer handler failed — other consumers will still be processed',
+      'Consumer handler failed — job will fail after remaining consumers run',
     )
-    // The receipt was NOT committed, so this event will be retried
-    // for this consumer on the next BullMQ attempt
+    return { kind: 'failed', consumerName: consumer.consumerName, err }
   }
 }
 
@@ -172,18 +195,26 @@ export function createDispatcherHandler(repo: OutboxRepository) {
     await trace('outbox.dispatch', async () => {
       const { id: jobId, name: jobName, data } = job
       if (!jobId) {
-        logger.error({ jobName }, 'Job has no ID — cannot process outbox event')
-        return
+        // BQC-3.6: no retry — content-free reason (job name only).
+        logger.error({ jobName }, 'Job has no ID — unrecoverable')
+        throw new UnrecoverableError(
+          `outbox job '${jobName}' has no id — unrecoverable (BQC-3.6)`,
+        )
       }
 
       // BQR-2.1: require full ConsumerEvent envelope (relay must not send bare payload)
       const event = parseConsumerEvent(data)
       if (!event) {
+        // BQC-3.6: malformed envelopes are unrecoverable — the job lands in
+        // BullMQ failed state immediately (quarantine substrate; 3.7 alerting
+        // picks it up). Reason is content-free: job name + id only.
         logger.error(
           { jobId, jobName },
-          'Job data is not a ConsumerEvent envelope — discarding (BQR-2.1 contract)',
+          'Job data is not a ConsumerEvent envelope — unrecoverable (BQC-3.6)',
         )
-        return
+        throw new UnrecoverableError(
+          `outbox envelope malformed (job '${jobName}', id ${jobId}) — schema/envelope mismatch, no retry`,
+        )
       }
 
       // Prefer envelope eventId; fall back to BullMQ job ID (relay sets jobId = event UUID)
@@ -194,20 +225,37 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       try {
         validateEventPayload(event.eventType, event.eventVersion, event.payload)
       } catch (err) {
+        // BQC-3.6: schema failures are unrecoverable. The reason carries the
+        // type/version fingerprint only — never payload content.
         logger.error(
           { err, eventId, eventType },
-          'Event payload validation failed — discarding',
+          'Event payload failed schema validation — unrecoverable (BQC-3.6)',
         )
-        return
+        throw new UnrecoverableError(
+          `event payload failed schema validation (${eventType}:v${event.eventVersion}, id ${eventId}) — no retry`,
+        )
       }
 
       // Resolve consumers for this event type
       const consumers = consumersByType.get(eventType) ?? []
 
       if (consumers.length === 0) {
-        logger.warn(
+        // BQC-3.6: the catalogue decides whether this is a misconfigured
+        // deployment (durable consumer expected but never registered → fail
+        // so BullMQ retries; a redeploy fixes it) or a genuinely bus-only
+        // family (no durable dispatch expected → complete).
+        if (durableConsumersFor(eventType).length > 0) {
+          logger.error(
+            { eventId, eventType },
+            'No consumers registered for catalogued durable event type — deployment/config failure',
+          )
+          throw new Error(
+            `no durable consumer registered for catalogued event type '${eventType}' — deployment/config failure (BQC-3.6)`,
+          )
+        }
+        logger.debug(
           { eventId, eventType },
-          'No consumers registered for event type — event will be retried',
+          'No durable consumers for event type (bus-only family) — completing',
         )
         return
       }
@@ -217,9 +265,23 @@ export function createDispatcherHandler(repo: OutboxRepository) {
         'Dispatching event to consumers',
       )
 
-      // Invoke each consumer independently — one failure doesn't block others
+      // Invoke each consumer independently — one failure doesn't block the
+      // others in this attempt — then fail the job if any consumer threw so
+      // configured attempts apply (BQC-3.6).
+      const failures: Array<{ consumerName: string; err: unknown }> = []
       for (const consumer of consumers) {
-        await invokeConsumer({ repo, logger, eventId, event, consumer })
+        const outcome = await invokeConsumer({ repo, logger, eventId, event, consumer })
+        if (outcome.kind === 'failed') {
+          failures.push({ consumerName: outcome.consumerName, err: outcome.err })
+        }
+      }
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures.map((f) => f.err),
+          `${failures.length} consumer(s) failed for event ${eventId}: ${failures
+            .map((f) => f.consumerName)
+            .join(', ')}`,
+        )
       }
     })
   }

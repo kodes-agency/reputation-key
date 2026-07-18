@@ -10,6 +10,9 @@ import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
+import { assertJobReadiness } from '#/shared/jobs/readiness'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
@@ -45,16 +48,39 @@ async function main() {
   // immediately) arrive with no handler registered yet.
   await bootstrap(container)
 
+  // BQR-2.2: always register durable consumers when outbox is available so
+  // the dispatcher is never started with an empty registry. Registration
+  // alone does not process work — relay still requires the enable flag.
+  if (container.outboxRepo) {
+    container.registerOutboxConsumers()
+    logger.info('Outbox consumers registered with dispatcher')
+  }
+
   // Track workers for graceful shutdown
   let worker: Worker | undefined
   let backgroundWorker: Worker | undefined
 
   const registry = container.jobRegistry
 
+  // BQC-3.6: fail the boot on catalogue/runtime mismatch — a missing handler
+  // for an enabled job, a stale registered handler, or (only when the durable
+  // dispatcher is enabled) an unregistered durable consumer. Readiness
+  // failure is a deployment/config error per the failure taxonomy.
+  assertJobReadiness(registry, logger, {
+    dispatcherEnabled: Boolean(
+      container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED,
+    ),
+  })
+
   // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
   // property id (publish-reply carries replyId only — resolved via reply →
   // review → propertyId). Every other job name falls through to the payload.
   const resolveScope = createPublishReplyScopeResolver({ db: container.db })
+
+  // BQC-3.6: the dead-letter quarantine queue — created here (same pattern
+  // as the domain-events queue below), NEVER processed by a worker. Jobs
+  // whose attempt budget is spent land here with a content-safe envelope.
+  const quarantineQueue = createJobQueue(QUARANTINE_QUEUE_NAME)
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Higher concurrency so a single long-running job doesn't block user actions.
@@ -65,6 +91,7 @@ async function main() {
       'default',
       createGatedJobHandler('default', registry, resolveScope),
       10,
+      quarantineQueue,
     )
 
     if (worker) {
@@ -82,6 +109,7 @@ async function main() {
       'background',
       createGatedJobHandler('background', registry, resolveScope),
       3,
+      quarantineQueue,
     )
 
     if (backgroundWorker) {
@@ -96,6 +124,7 @@ async function main() {
         {
           repeat: { every: 5 * 60 * 1000 },
           jobId: 'health-check-recurring',
+          ...jobEnqueueOptions(HEALTH_CHECK_JOB_NAME),
         },
       )
       .then(() => {
@@ -116,6 +145,7 @@ async function main() {
           // budget 10/run, resumes when budget is exhausted or a run fails).
           repeat: { every: 60 * 60 * 1000 },
           jobId: 'refresh-expiring-reviews-recurring',
+          ...jobEnqueueOptions(REFRESH_EXPIRING_JOB_NAME),
         },
       )
       .then(() => {
@@ -132,6 +162,7 @@ async function main() {
         {
           repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
           jobId: 'purge-expired-reviews-recurring',
+          ...jobEnqueueOptions(PURGE_EXPIRED_JOB_NAME),
         },
       )
       .then(() => {
@@ -150,6 +181,7 @@ async function main() {
         {
           repeat: { every: 24 * 60 * 60 * 1000, offset: 3 * 60 * 60 * 1000 },
           jobId: 'retention-sweep-recurring',
+          ...jobEnqueueOptions('retention-sweep'),
         },
       )
       .then(() => {
@@ -182,7 +214,11 @@ async function main() {
     for (const { jobName, every, pattern, label } of metricSchedules) {
       const repeat = pattern ? { pattern } : { every: every! }
       container.backgroundQueue
-        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
+        .add(
+          jobName,
+          {},
+          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
+        )
         .then(() => logger.info({ jobName, label }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
@@ -243,7 +279,11 @@ async function main() {
       }
       const repeat = pattern ? { pattern } : { every: every! }
       container.backgroundQueue
-        .add(jobName, {}, { repeat, jobId: `${jobName}-recurring` })
+        .add(
+          jobName,
+          {},
+          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
+        )
         .then(() => logger.info({ jobName, label, capability }, 'Job scheduled'))
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
@@ -262,14 +302,6 @@ async function main() {
   let stopRelay: (() => void) | undefined
   let domainEventsQueue: Queue | undefined
 
-  // BQR-2.2: always register durable consumers when outbox is available so
-  // the dispatcher is never started with an empty registry. Registration
-  // alone does not process work — relay still requires the enable flag.
-  if (container.outboxRepo) {
-    container.registerOutboxConsumers()
-    logger.info('Outbox consumers registered with dispatcher')
-  }
-
   if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
     domainEventsQueue = createJobQueue('domain-events')
 
@@ -277,7 +309,12 @@ async function main() {
       const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
       stopRelay = relay.start(5_000)
       const dispatchHandler = createDispatcherHandler(container.outboxRepo)
-      domainEventsWorker = createJobWorker('domain-events', dispatchHandler, 20)
+      domainEventsWorker = createJobWorker(
+        'domain-events',
+        dispatchHandler,
+        20,
+        quarantineQueue,
+      )
 
       if (domainEventsWorker) {
         logger.warn(
@@ -321,6 +358,7 @@ async function main() {
       ['default', container.jobQueue],
       ['background', container.backgroundQueue],
       ['domain-events', domainEventsQueue],
+      ['quarantine', quarantineQueue],
     ] as const) {
       if (q) {
         try {
