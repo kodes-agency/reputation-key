@@ -18,11 +18,14 @@ const classifyHttpStatus = (status: number): GbpApiErrorKind => {
   return 'upstream_error'
 }
 
-const NOTIFICATIONS_BASE = 'https://mybusinessnotifications.googleapis.com/v1'
-
-export const createMyBusinessNotificationsAdapter = (): MyBusinessNotificationsPort => {
+// BQC-4.3: base URL from the composition root's providerConfigFor mapping —
+// no hardcoded or fallback endpoint (ADR 0031/0048).
+export const createMyBusinessNotificationsAdapter = (config: {
+  baseUrl: string
+}): MyBusinessNotificationsPort => {
+  const baseUrl = config.baseUrl
   const subscribe: MyBusinessNotificationsPort['subscribe'] = async (input) => {
-    const url = `${NOTIFICATIONS_BASE}/accounts/${input.gbpAccountId}/notificationSetting`
+    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting`
     const response = await trace('mybusinessNotifications.subscribe', () =>
       fetch(url, {
         method: 'PATCH',
@@ -46,7 +49,7 @@ export const createMyBusinessNotificationsAdapter = (): MyBusinessNotificationsP
   }
 
   const unsubscribe: MyBusinessNotificationsPort['unsubscribe'] = async (input) => {
-    const url = `${NOTIFICATIONS_BASE}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic`
+    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic`
     const response = await trace('mybusinessNotifications.unsubscribe', () =>
       fetch(url, {
         method: 'PATCH',

@@ -40,9 +40,12 @@ const gbpBatchGetReviewsResponseSchema = z.object({
   nextPageToken: z.string().optional(),
 })
 
-const GBP_API_BASE = 'https://mybusinessbusinessinformation.googleapis.com/v1'
-
-export const createGbpApiAdapter = (): GbpApiPort => {
+// BQC-4.3: the base URL arrives via construction config from the composition
+// root's providerConfigFor mapping (ProcessingTarget.provider → endpoints).
+// No URL is hardcoded here — an adapter can never silently call an alternate
+// or fallback endpoint (ADR 0031/0048).
+export const createGbpApiAdapter = (config: { baseUrl: string }): GbpApiPort => {
+  const baseUrl = config.baseUrl
   const listAccounts = async (
     accessToken: string,
   ): Promise<ReadonlyArray<GbpAccount>> => {
@@ -53,7 +56,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       const params = new URLSearchParams({ pageSize: '100' })
       if (nextPageToken) params.set('pageToken', nextPageToken)
 
-      const url = `${GBP_API_BASE}/accounts?${params.toString()}`
+      const url = `${baseUrl}/accounts?${params.toString()}`
       const response = await trace('gbpApi.listAccounts', () =>
         fetch(url, {
           headers: {
@@ -93,7 +96,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
       })
       if (nextPageToken) params.set('pageToken', nextPageToken)
 
-      const url = `${GBP_API_BASE}/accounts/${accountName}/locations?${params.toString()}`
+      const url = `${baseUrl}/accounts/${accountName}/locations?${params.toString()}`
       const response = await trace('gbpApi.listLocations', () =>
         fetch(url, {
           headers: {
@@ -123,7 +126,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     accessToken: string,
     locationName: string,
   ): Promise<GbpLocation> => {
-    const url = `${GBP_API_BASE}/${locationName}`
+    const url = `${baseUrl}/${locationName}`
     const response = await trace('gbpApi.getLocation', () =>
       fetch(url, {
         headers: {
@@ -149,7 +152,7 @@ export const createGbpApiAdapter = (): GbpApiPort => {
     accountName: string,
     locationNames: ReadonlyArray<string>,
   ): Promise<ReadonlyArray<{ locationName: string; reviews: unknown }>> => {
-    const url = `${GBP_API_BASE}/accounts/${accountName}/locations:batchGetReviews`
+    const url = `${baseUrl}/accounts/${accountName}/locations:batchGetReviews`
     const response = await trace('gbpApi.batchGetReviews', () =>
       fetch(url, {
         method: 'POST',

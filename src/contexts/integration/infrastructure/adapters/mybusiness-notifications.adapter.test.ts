@@ -7,6 +7,10 @@ import { createMyBusinessNotificationsAdapter } from './mybusiness-notifications
 
 const ok = () => ({ ok: true, status: 200, text: () => Promise.resolve('{}') })
 
+// BQC-4.3: the adapter receives its base URL via construction config (tests
+// pass the production endpoint explicitly, as the composition mapping does).
+const BASE_URL = 'https://mybusinessnotifications.googleapis.com/v1'
+
 describe('createMyBusinessNotificationsAdapter', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
@@ -20,7 +24,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('subscribe PATCHes updateNotificationSetting with the topic, types, and bearer token', async () => {
     fetchMock.mockResolvedValueOnce(ok())
-    const adapter = createMyBusinessNotificationsAdapter()
+    const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
 
     await adapter.subscribe({
       accessToken: 'tok',
@@ -48,7 +52,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('unsubscribe PATCHes with updateMask=pubsubTopic and an empty topic', async () => {
     fetchMock.mockResolvedValueOnce(ok())
-    const adapter = createMyBusinessNotificationsAdapter()
+    const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
 
     await adapter.unsubscribe({ accessToken: 'tok', gbpAccountId: '123' })
 
@@ -66,7 +70,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
       status: 401,
       text: () => Promise.resolve('unauth'),
     })
-    const adapter = createMyBusinessNotificationsAdapter()
+    const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
 
     await expect(
       adapter.subscribe({
@@ -84,7 +88,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
       status: 429,
       text: () => Promise.resolve('slow'),
     })
-    const adapter = createMyBusinessNotificationsAdapter()
+    const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
 
     await expect(
       adapter.unsubscribe({ accessToken: 'tok', gbpAccountId: '1' }),

@@ -27,16 +27,21 @@ const googleTokenRefreshSchema = z.object({
   token_type: z.string().optional(),
 })
 
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
-const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
-
+// BQC-4.3: endpoint URLs arrive via construction config from the composition
+// root's providerConfigFor mapping — no hardcoded or fallback endpoints
+// (ADR 0031/0048).
 export const createGoogleOAuthAdapter = (config: {
   clientId: string
   clientSecret: string
+  tokenUrl: string
+  userInfoUrl: string
+  revokeUrl: string
 }): GoogleOAuthPort => {
   const clientId = config.clientId
   const clientSecret = config.clientSecret
+  const tokenUrl = config.tokenUrl
+  const userInfoUrl = config.userInfoUrl
+  const revokeUrl = config.revokeUrl
 
   const exchangeCode = async (
     code: string,
@@ -50,7 +55,7 @@ export const createGoogleOAuthAdapter = (config: {
     scopes: readonly string[]
   }> => {
     const response = await trace('googleOAuth.exchangeCode', () =>
-      fetch(GOOGLE_TOKEN_URL, {
+      fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -89,7 +94,7 @@ export const createGoogleOAuthAdapter = (config: {
 
     // Fetch user info
     const userInfoResponse = await trace('googleOAuth.fetchUserInfo', () =>
-      fetch(GOOGLE_USERINFO_URL, {
+      fetch(userInfoUrl, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -122,7 +127,7 @@ export const createGoogleOAuthAdapter = (config: {
     refreshToken: string,
   ): Promise<{ accessToken: string; expiresIn: number }> => {
     const response = await trace('googleOAuth.refreshToken', () =>
-      fetch(GOOGLE_TOKEN_URL, {
+      fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -156,7 +161,7 @@ export const createGoogleOAuthAdapter = (config: {
 
   const revokeToken = async (token: string): Promise<void> => {
     const response = await trace('googleOAuth.revokeToken', () =>
-      fetch(GOOGLE_REVOKE_URL, {
+      fetch(revokeUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
