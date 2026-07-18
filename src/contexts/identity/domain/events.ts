@@ -77,25 +77,9 @@ export const identityInvitationAccepted = (
   }
 }
 
-export type IdentityInvitationRejected = Readonly<{
-  _tag: 'identity.invitation.rejected'
-  eventId: string
-  invitationId: InvitationId
-  organizationId: OrganizationId
-  occurredAt: Date
-  correlationId: string | null
-}>
-export const identityInvitationRejected = (
-  args: Omit<IdentityInvitationRejected, '_tag' | 'eventId' | 'correlationId'>,
-): IdentityInvitationRejected => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    _tag: 'identity.invitation.rejected',
-    eventId: newEventId(),
-    correlationId: null,
-    ...args,
-  }
-}
+// BQC-3.9: identity.invitation.rejected retired — never emitted (constructor
+// only), never schema-registered, no consumers. The event type and its
+// catalogue row are gone; guard suites enforce consistency both ways.
 
 export type IdentityInvitationCanceled = Readonly<{
   _tag: 'identity.invitation.canceled'
@@ -170,7 +154,6 @@ export type IdentityEvent =
   | IdentityOrganizationCreated
   | IdentityMemberInvited
   | IdentityInvitationAccepted
-  | IdentityInvitationRejected
   | IdentityInvitationCanceled
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged

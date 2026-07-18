@@ -14,6 +14,8 @@ export type { GbpImportJob, GbpImportJobStatus } from '../domain/types'
 export type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
+  IntegrationGoogleConnectionVisibilityChanged,
+  IntegrationPropertyImportCompleted,
 } from '../domain/events'
 export {
   integrationGoogleAccountConnected,

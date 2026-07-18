@@ -44,7 +44,7 @@ export const isPropertyImportConflict = (e: unknown): e is PropertyImportConflic
   (e as PropertyImportConflict)._tag === 'PropertyImportConflict'
 
 export { propertyCreated } from '../domain/events'
-export type { PropertyCreated } from '../domain/events'
+export type { PropertyCreated, PropertyUpdated, PropertyDeleted } from '../domain/events'
 
 export type PropertyPublicApi = Readonly<{
   /**

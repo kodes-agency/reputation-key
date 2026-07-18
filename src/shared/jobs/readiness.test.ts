@@ -125,4 +125,51 @@ describe('assertJobReadiness (BQC-3.6)', () => {
       }),
     ).not.toThrow()
   })
+
+  it('BQC-3.9: fails the boot when a family is shadow/switch but the dispatcher is off', () => {
+    const logger = fakeLogger()
+
+    expect(() =>
+      assertJobReadiness(fullyRegisteredRegistry(), logger, {
+        dispatcherEnabled: false,
+        activeCutoverFamilies: () => [{ family: 'review.created', state: 'shadow' }],
+      }),
+    ).toThrow(/review\.created=shadow.*OUTBOX_DISPATCHER_ENABLED/)
+
+    expect(() =>
+      assertJobReadiness(fullyRegisteredRegistry(), logger, {
+        dispatcherEnabled: false,
+        activeCutoverFamilies: () => [
+          { family: 'review.created', state: 'switch' },
+          { family: 'review.expired', state: 'shadow' },
+        ],
+      }),
+    ).toThrow(/review\.created=switch.*review\.expired=shadow/)
+  })
+
+  it('BQC-3.9: passes shadow/switch families when the dispatcher is enabled and consumers register', () => {
+    const logger = fakeLogger()
+
+    expect(() =>
+      assertJobReadiness(fullyRegisteredRegistry(), logger, {
+        dispatcherEnabled: true,
+        listConsumers: () => allCatalogueDurableConsumers(),
+        activeCutoverFamilies: () => [
+          { family: 'review.created', state: 'switch' },
+          { family: 'review.updated', state: 'shadow' },
+        ],
+      }),
+    ).not.toThrow()
+  })
+
+  it('BQC-3.9: record-only everywhere needs no dispatcher (explicit empty cutover)', () => {
+    const logger = fakeLogger()
+
+    expect(() =>
+      assertJobReadiness(fullyRegisteredRegistry(), logger, {
+        dispatcherEnabled: false,
+        activeCutoverFamilies: () => [],
+      }),
+    ).not.toThrow()
+  })
 })

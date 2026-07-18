@@ -18,7 +18,8 @@ import type { ResourceType } from '../domain/types'
 // Derive accepted resourceType values from the domain ResourceType union so the
 // DTO cannot drift from the domain (ctx-small §6): team / staff_assignment /
 // integration activity was previously rejected with a 400 because the enum
-// listed only 6 of the 9 ResourceTypes that handlers write.
+// lagged the ResourceTypes that handlers write ('organization' added in
+// BQC-3.9 for the identity.organization.created audit consumer).
 const RESOURCE_TYPES = [
   'inbox_item',
   'review',
@@ -29,6 +30,7 @@ const RESOURCE_TYPES = [
   'team',
   'staff_assignment',
   'integration',
+  'organization',
 ] as const satisfies readonly ResourceType[]
 
 const getActivityTimelineDto = z.object({
