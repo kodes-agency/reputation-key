@@ -1,9 +1,11 @@
 // Metric context — record-metric use case
 // Validates metric key against known definitions, inserts a raw reading.
 // Per architecture: "Dependencies are passed as function arguments."
+// BQC-3.5: the reading + metric.recorded fact commit atomically via the
+// metric command store (one transaction, post-commit bus emit).
 
 import type { MetricKey, MetricReading } from '../../domain/types'
-import type { MetricRepository } from '../ports/metric.repository'
+import type { MetricCommandStore } from '../ports/metric-command-store.port'
 import type {
   OrganizationId,
   PropertyId,
@@ -11,7 +13,6 @@ import type {
   PortalGroupId,
   MetricReadingId,
 } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import { metricError } from '../../domain/errors'
 import { metricRecorded } from '../../domain/events'
 import { createMetricReading } from '../../domain/constructors'
@@ -19,7 +20,6 @@ import { createMetricReading } from '../../domain/constructors'
 // F073: Use the shared METRIC_KEYS constant instead of duplicating values.
 // If a new MetricKey is added to the union, it is automatically valid here.
 import { METRIC_KEYS } from '#/shared/domain/metric-keys'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set(METRIC_KEYS)
 
 export type RecordMetricInput = Readonly<{
@@ -32,11 +32,9 @@ export type RecordMetricInput = Readonly<{
 }>
 
 export type RecordMetricDeps = Readonly<{
-  metricRepo: MetricRepository
-  events: EventBus
+  commandStore: MetricCommandStore
   clock: () => Date
   idGen: () => MetricReadingId
-  outboxRepo?: OutboxRepository
 }>
 export type RecordMetric = ReturnType<typeof recordMetric>
 
@@ -58,22 +56,19 @@ export const recordMetric =
       occurredAt: deps.clock(),
     })
 
-    const persisted = await deps.metricRepo.insertReading(reading)
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      metricRecorded({
-        readingId: persisted.id,
-        organizationId: persisted.organizationId,
-        propertyId: persisted.propertyId,
-        portalId: persisted.portalId,
-        groupId: persisted.groupId,
-        metricKey: persisted.metricKey,
-        value: persisted.value,
-        occurredAt: persisted.occurredAt,
+    // Persist + fact — atomic via the command store (BQC-3.5). The reading id
+    // is assigned here so the fact's readingId matches the committed row.
+    return deps.commandStore.recordMetric({
+      reading,
+      event: metricRecorded({
+        readingId: reading.id,
+        organizationId: reading.organizationId,
+        propertyId: reading.propertyId,
+        portalId: reading.portalId,
+        groupId: reading.groupId,
+        metricKey: reading.metricKey,
+        value: reading.value,
+        occurredAt: reading.occurredAt,
       }),
-    )
-
-    return persisted
+    })
   }

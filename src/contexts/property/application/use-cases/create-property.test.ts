@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import { createProperty } from './create-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
+import { createSequentialPropertyCommandStore } from '#/shared/testing/sequential-property-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
@@ -17,7 +18,7 @@ const setup = () => {
   const events = createCapturingEventBus()
   const deps = {
     propertyRepo,
-    events,
+    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }

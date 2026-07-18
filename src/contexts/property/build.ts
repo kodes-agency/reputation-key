@@ -19,9 +19,9 @@ import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
 import { deleteProperty } from './application/use-cases/soft-delete-property'
+import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 type PropertyContextDeps = Readonly<{
   db: Database
@@ -29,23 +29,24 @@ type PropertyContextDeps = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
-  outboxRepo?: OutboxRepository
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   const idGen = () => propertyId(randomUUID())
+  // BQC-3.5: every property state mutation + fact commits atomically here.
+  const commandStore = createAtomicPropertyCommandStore(deps.db, deps.events)
 
   const useCases = {
     createProperty: createProperty({
       propertyRepo: deps.repo,
-      events: deps.events,
+      commandStore,
       idGen,
       clock: deps.clock,
     }),
     updateProperty: updateProperty({
       propertyRepo: deps.repo,
       staffPublicApi: deps.staffPublicApi,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     listProperties: listProperties({
@@ -58,7 +59,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
     softDeleteProperty: deleteProperty({
       propertyRepo: deps.repo,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
       sourceContentPurge: createSourceContentPurge({
         db: deps.db,
@@ -118,7 +119,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     // F060 NOTE: importProperty intentionally bypasses buildProperty use case.
     // GBP sync requires raw property construction because imported properties
     // have different validation rules (no user-facing slug collision check, etc.).
-    // The repo's insertAndReturn still enforces tenant guard (orgId mismatch check).
+    // BQC-3.5: the insert + property.created fact commit atomically via the
+    // command store; the integration import job no longer re-emits the fact.
     importProperty: async (input) => {
       try {
         const id = idGen()
@@ -148,20 +150,19 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           lifecycleInitiatedBy: null,
           ...routing,
         }
-        const inserted = await deps.repo.insertAndReturn(input.orgId, property)
-        await emitAndRecord(
-          deps.events,
-          deps.outboxRepo,
-          propertyCreated({
-            propertyId: inserted.id,
-            organizationId: inserted.organizationId,
-            name: inserted.name,
-            slug: inserted.slug,
-            gbpPlaceId: inserted.gbpPlaceId ?? undefined,
-            googleConnectionId: inserted.googleConnectionId ?? undefined,
-            occurredAt: inserted.createdAt,
+        const inserted = await commandStore.createProperty({
+          organizationId: input.orgId,
+          property,
+          event: propertyCreated({
+            propertyId: property.id,
+            organizationId: property.organizationId,
+            name: property.name,
+            slug: property.slug,
+            gbpPlaceId: property.gbpPlaceId ?? undefined,
+            googleConnectionId: property.googleConnectionId ?? undefined,
+            occurredAt: property.createdAt,
           }),
-        )
+        })
         return {
           id: inserted.id,
           organizationId: inserted.organizationId,
@@ -171,10 +172,15 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
           createdAt: inserted.createdAt,
         }
       } catch (err) {
+        // drizzle wraps driver errors in DrizzleQueryError — the SQLSTATE
+        // lives on the cause (accept both shapes).
+        const code = (err as { code?: unknown } | null)?.code
+        const causeCode = (err as { cause?: unknown } | null)?.cause
         const isPg23505 =
-          err instanceof Error &&
-          'code' in err &&
-          (err as { code: string }).code === '23505'
+          code === '23505' ||
+          (typeof causeCode === 'object' &&
+            causeCode !== null &&
+            (causeCode as { code?: unknown }).code === '23505')
         if (isPg23505) {
           throw propertyImportConflict(
             `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,

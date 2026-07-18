@@ -1,16 +1,16 @@
 // Identity context — register user and create organization use case
 // Multi-step orchestration with domain rules (normalizeSlug, validateOrganizationName).
 // Per architecture: use cases THROW tagged errors at the application boundary.
+// BQC-3.5: the organization + owner-member rows and the organization.created
+// fact now commit in ONE transaction via the command store (the fact is the
+// audit trail — no consumers).
 
-import type { EventBus } from '#/shared/events/event-bus'
+import type { IdentityCommandStore } from '../ports/identity-command-store.port'
+import type { OrganizationId } from '#/shared/domain/ids'
 import { normalizeSlug, validateOrganizationName } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityOrganizationCreated } from '../../domain/events'
-import {
-  organizationId as toOrganizationId,
-  userId as toUserId,
-} from '#/shared/domain/ids'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { userId as toUserId } from '#/shared/domain/ids'
 /** Minimal logger surface this use case needs for compensating-transaction
  * diagnostics. Injected (not imported from shared/observability) so the
  * application layer stays free of infrastructure dependencies. */
@@ -33,21 +33,30 @@ export type RegisterUserAndOrgOutput = Readonly<{
 export type RegisterUserAndOrg = ReturnType<typeof registerUserAndOrg>
 
 export type RegisterUserAndOrgDeps = Readonly<{
-  events: EventBus
   /** Sign up a new user with email+password. Returns user ID or throws. */
   signUp: (name: string, email: string, password: string) => Promise<string>
-  /** Create an organization with the given name and slug. Accepts optional userId for server-side creation. */
-  createOrg: (name: string, slug: string, userId?: string) => Promise<string>
   /** Set the active organization for the current session. */
   setActiveOrg: (orgId: string) => Promise<void>
   /** Injectable clock for deterministic timestamps. */
   clock: () => Date
+  /** Organization id generator. */
+  idGen: () => OrganizationId
+  /** Atomic organization + owner-member + fact write. */
+  commandStore: IdentityCommandStore
   /** Delete a user (compensating transaction for registration rollback). */
   deleteUser: (userId: string) => Promise<void>
   /** Logger for compensating-transaction diagnostics (injected, not imported). */
   logger: RegisterUserAndOrgLogger
-  outboxRepo?: OutboxRepository
 }>
+
+/** Extract a readable message from Error instances and tagged domain errors. */
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'object' && e !== null && 'message' in e) {
+    return String((e as { message: unknown }).message)
+  }
+  return 'unknown error'
+}
 
 /**
  * Register a new user and create their first organization.
@@ -55,10 +64,9 @@ export type RegisterUserAndOrgDeps = Readonly<{
  * Steps:
  * 1. Validate — organization name (domain rule)
  * 2. Persist user — sign up via auth API
- * 3. Persist org — create org with slug from domain rule
+ * 3. Persist org — organization + owner member + created fact, atomic
  * 4. Set active org
- * 5. Emit — organization.created event
- * 6. Return
+ * 5. Return
  */
 export const registerUserAndOrg =
   (deps: RegisterUserAndOrgDeps) =>
@@ -82,13 +90,24 @@ export const registerUserAndOrg =
       )
     }
 
-    // 3–4. Create the org and set it as active
-    // Pass userId to createOrganization so it works server-side
-    // (the new user's session cookies aren't available yet).
-    let orgId: string
+    // 3–4. Create the org (atomic with the fact) and set it as active
+    const orgId = deps.idGen()
     try {
-      orgId = await deps.createOrg(validName, slug, userId)
-      await deps.setActiveOrg(orgId)
+      await deps.commandStore.registerOrganization({
+        organizationId: orgId,
+        organizationName: validName,
+        slug,
+        ownerId: toUserId(userId),
+        now: deps.clock(),
+        event: identityOrganizationCreated({
+          organizationId: orgId,
+          organizationName: validName,
+          slug,
+          ownerId: toUserId(userId),
+          occurredAt: deps.clock(),
+        }),
+      })
+      await deps.setActiveOrg(orgId as string)
     } catch (e) {
       // Compensating transaction: remove the orphaned user
       try {
@@ -102,23 +121,10 @@ export const registerUserAndOrg =
       }
       throw identityError(
         'org_setup_failed',
-        `Account created, but organization setup failed: ${e instanceof Error ? e.message : 'unknown error'}`,
+        `Account created, but organization setup failed: ${errorMessage(e)}`,
       )
     }
 
-    // 5. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      identityOrganizationCreated({
-        organizationId: toOrganizationId(orgId),
-        organizationName: validName,
-        slug,
-        ownerId: toUserId(userId),
-        occurredAt: deps.clock(),
-      }),
-    )
-
-    // 6. Return
-    return { organizationId: orgId }
+    // 5. Return
+    return { organizationId: orgId as string }
   }

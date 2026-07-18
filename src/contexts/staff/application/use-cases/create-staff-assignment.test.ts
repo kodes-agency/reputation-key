@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createStaffAssignment } from './create-staff-assignment'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
+import { createSequentialStaffCommandStore } from '#/shared/testing/sequential-staff-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isStaffError } from '../../domain/errors'
@@ -37,10 +38,11 @@ const setup = (
 ) => {
   const assignmentRepo = createInMemoryStaffAssignmentRepo()
   const events = createCapturingEventBus()
+  const commandStore = createSequentialStaffCommandStore({ repo: assignmentRepo, events })
 
   const deps = {
     assignmentRepo,
-    events,
+    commandStore,
     staffPublicApi: staffApi,
     identityMembership: membership,
     idGen: () => FIXED_ID,
@@ -177,7 +179,7 @@ describe('createStaffAssignment', () => {
 
     const deps = {
       assignmentRepo: spiedRepo,
-      events,
+      commandStore: createSequentialStaffCommandStore({ repo: spiedRepo, events }),
       staffPublicApi: allAccessStaffApi,
       identityMembership: allowAllMembership,
       idGen: () => FIXED_ID,

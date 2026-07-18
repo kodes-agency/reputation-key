@@ -51,12 +51,12 @@ import {
 } from '#/contexts/identity/infrastructure/repositories/property-access-grant.repository'
 import { writePolicyDecision } from '#/contexts/identity/infrastructure/repositories/policy-decision-audit.repository'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
-import {
-  betterAuthOrganizationSchema,
-  parseBetterAuthResponse,
-} from '#/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { buildIdentityContext } from '#/contexts/identity/build'
-import { getAuth, setOnAcceptInvitation } from '#/shared/auth/auth'
+import {
+  getAuth,
+  setOnAcceptInvitation,
+  INVITATION_EXPIRY_SECONDS,
+} from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv } from '#/shared/config/env'
@@ -148,23 +148,6 @@ function buildInfrastructure(options: {
 }
 
 // ── Identity infrastructure helpers ────────────────────────────────
-
-function createOrg(name: string, slug: string, userId?: string): Promise<string> {
-  const auth = getAuth()
-  return auth.api
-    .createOrganization({
-      body: { name, slug, userId },
-    })
-    .then((org) => {
-      const parsed = parseBetterAuthResponse(
-        betterAuthOrganizationSchema,
-        org,
-        'org_setup_failed',
-        'Invalid organization response from auth provider',
-      )
-      return parsed.id
-    })
-}
 
 async function setActiveOrg(orgId: string): Promise<void> {
   const auth = getAuth()
@@ -285,6 +268,7 @@ export function createContainer(options?: {
   // ── Context builds (dependency order) ──────────────────────────────
   const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
+    db,
     repo: staffRepo,
     identityMembership: createIdentityMembershipAdapter(db),
     // BQC-2.3: property scope resolves from the identity-owned grant
@@ -302,17 +286,15 @@ export function createContainer(options?: {
         portal.publicApi.portal.getPortalInfo(orgId, portalId),
     },
     events: eventBus,
-    outboxRepo,
     clock,
   })
 
   const identity = buildIdentityContext({
+    db,
     identityPort,
     events: eventBus,
-    outboxRepo,
     clock,
     signUp: identityPort.signUp,
-    createOrg,
     setActiveOrg,
     updateOrg: async (data) => {
       const auth = getAuth()
@@ -327,6 +309,7 @@ export function createContainer(options?: {
       return org?.name ?? 'Unknown Organization'
     },
     baseUrl: env.BETTER_AUTH_URL,
+    invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
     deleteUser: identityPort.deleteUser,
   })
 
@@ -334,7 +317,6 @@ export function createContainer(options?: {
     db,
     repo: createPropertyRepository(db),
     events: eventBus,
-    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
   })
@@ -388,7 +370,6 @@ export function createContainer(options?: {
   const integration = buildIntegrationContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
     jobQueue: infra.jobQueue,
     propertyLookup,
@@ -466,7 +447,6 @@ export function createContainer(options?: {
   const metricApi = buildMetricContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
     findGroupForPortal: async (orgId, pid) => {
       const group = await portal.publicApi.portalGroup.findGroupForPortal(orgId, pid)
@@ -563,8 +543,7 @@ export function createContainer(options?: {
   // (no human actor in the audit trail).
   const createSystemStaffAssignment = createStaffAssignmentSystem({
     assignmentRepo: staffRepo,
-    events: eventBus,
-    outboxRepo,
+    commandStore: staff.internal.commandStore,
     idGen: () => crypto.randomUUID(),
     clock,
   })

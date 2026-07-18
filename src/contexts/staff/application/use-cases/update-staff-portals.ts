@@ -1,10 +1,17 @@
 // Staff context — update staff portals use case
 // Replaces all portal assignments for a user in a property with the given set.
 // Diff current vs new → creates missing, removes extra.
+// BQC-3.5: the whole diff (creates + removals + every fact) commits in ONE
+// transaction via the command store — the pre-BQC-3.5 loop could split rows
+// from their facts mid-diff.
 
 import type { StaffAssignmentRepository } from '../ports/staff-assignment.repository'
+import type { StaffCommandStore } from '../ports/staff-command-store.port'
+import type {
+  AssignStaffCommand,
+  UnassignStaffCommand,
+} from '../ports/staff-command-store.port'
 import type { StaffPortalLookupPort } from '../ports/portal-lookup.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { StaffAssignment } from '../../domain/types'
@@ -16,7 +23,6 @@ import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsInput = Readonly<{
@@ -29,12 +35,108 @@ export type UpdateStaffPortalsInput = Readonly<{
 export type UpdateStaffPortalsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   portalLookup: StaffPortalLookupPort
-  events: EventBus
+  commandStore: StaffCommandStore
   staffPublicApi: StaffPublicApi
   clock: () => Date
   idGen: () => string
-  outboxRepo?: OutboxRepository
 }>
+
+/** Build the create command for one missing portal assignment (+ its fact). */
+function buildCreateCommand(
+  deps: UpdateStaffPortalsDeps,
+  input: UpdateStaffPortalsInput,
+  ctx: AuthContext,
+  teamId: StaffAssignment['teamId'],
+  pId: PortalId,
+  correlationId: string,
+): AssignStaffCommand {
+  const buildResult = buildStaffAssignment({
+    id: staffAssignmentId(deps.idGen()),
+    organizationId: ctx.organizationId,
+    userId: input.userId,
+    propertyId: input.propertyId,
+    teamId,
+    portalId: pId,
+    actingUserId: hasRole(ctx.role, 'AccountAdmin') ? undefined : ctx.userId,
+    now: deps.clock(),
+  })
+
+  if (buildResult.isErr()) {
+    throw staffError(buildResult.error.code, buildResult.error.message)
+  }
+
+  const assignment = buildResult.value
+  return {
+    assignment,
+    event: {
+      ...staffAssigned({
+        assignmentId: assignment.id,
+        organizationId: assignment.organizationId,
+        userId: assignment.userId,
+        propertyId: assignment.propertyId,
+        teamId: assignment.teamId,
+        portalId: assignment.portalId,
+        occurredAt: assignment.createdAt,
+      }),
+      correlationId,
+    },
+  }
+}
+
+/**
+ * Diff current vs desired portal assignments: creates for missing portals
+ * (team from the first row — all rows share the same team), removals for
+ * portals no longer desired. Every command carries its fact with the shared
+ * correlationId.
+ */
+function buildPortalDiff(
+  deps: UpdateStaffPortalsDeps,
+  input: UpdateStaffPortalsInput,
+  ctx: AuthContext,
+  current: ReadonlyArray<StaffAssignment>,
+  correlationId: string,
+): { creates: AssignStaffCommand[]; removals: UnassignStaffCommand[] } {
+  // Build lookup: portalId → assignment
+  const currentByPortal: Map<PortalId, StaffAssignment> = new Map(
+    current
+      .filter((a): a is StaffAssignment & { portalId: PortalId } => a.portalId != null)
+      .map((a) => [a.portalId, a] as const),
+  )
+  const currentPortalIds = new Set(currentByPortal.keys())
+  const teamId = current[0]?.teamId ?? null
+  const desiredSet = new Set(input.portalIds)
+
+  const creates: AssignStaffCommand[] = []
+  const removals: UnassignStaffCommand[] = []
+
+  for (const pId of input.portalIds) {
+    if (!currentPortalIds.has(pId)) {
+      creates.push(buildCreateCommand(deps, input, ctx, teamId, pId, correlationId))
+    }
+  }
+
+  for (const [portalId, assignment] of currentByPortal) {
+    if (!desiredSet.has(portalId)) {
+      removals.push({
+        assignmentId: assignment.id,
+        organizationId: ctx.organizationId,
+        event: {
+          ...staffUnassigned({
+            assignmentId: assignment.id,
+            organizationId: assignment.organizationId,
+            userId: assignment.userId,
+            propertyId: assignment.propertyId,
+            portalId: assignment.portalId,
+            occurredAt: deps.clock(),
+          }),
+          correlationId,
+        },
+      })
+    }
+  }
+
+  return { creates, removals }
+}
 
 export const updateStaffPortals =
   (deps: UpdateStaffPortalsDeps) =>
@@ -53,8 +155,8 @@ export const updateStaffPortals =
     // 1b. Property-access scoping (D6-001):
     // AccountAdmin bypasses; PropertyManager/Staff must be assigned to the target property.
     const accessible = await isPropertyAccessibleForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      (orgId, userId, orgWide) =>
+        deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
       ctx,
       'staff_assignment.create',
       input.propertyId,
@@ -87,84 +189,17 @@ export const updateStaffPortals =
       input.propertyId,
     )
 
-    // 4. Build lookup: portalId → assignment
-    const currentByPortal: Map<PortalId, StaffAssignment> = new Map(
-      current
-        .filter((a): a is StaffAssignment & { portalId: PortalId } => a.portalId != null)
-        .map((a) => [a.portalId, a] as const),
+    // 4. Diff + apply the whole change set + every fact in ONE transaction
+    const { creates, removals } = buildPortalDiff(
+      deps,
+      input,
+      ctx,
+      current,
+      correlationId,
     )
-    const currentPortalIds = new Set(currentByPortal.keys())
+    await deps.commandStore.updatePortals({ creates, removals })
 
-    let added = 0
-    let removed = 0
-
-    // 5. Create assignments for missing portals
-    //    Use the teamId from the first assignment if there is one (all rows share same team)
-    const referenceAssignment = current[0]
-    const teamId = referenceAssignment?.teamId ?? null
-
-    const desiredSet = new Set(input.portalIds)
-
-    for (const pId of input.portalIds) {
-      if (!currentPortalIds.has(pId)) {
-        const id = staffAssignmentId(deps.idGen())
-
-        const buildResult = buildStaffAssignment({
-          id,
-          organizationId: ctx.organizationId,
-          userId: input.userId,
-          propertyId: input.propertyId,
-          teamId,
-          portalId: pId,
-          actingUserId: hasRole(ctx.role, 'AccountAdmin') ? undefined : ctx.userId,
-          now: deps.clock(),
-        })
-
-        if (buildResult.isErr()) {
-          throw staffError(buildResult.error.code, buildResult.error.message)
-        }
-
-        await deps.assignmentRepo.insert(ctx.organizationId, buildResult.value)
-
-        await emitAndRecord(deps.events, deps.outboxRepo, {
-          ...staffAssigned({
-            assignmentId: buildResult.value.id,
-            organizationId: buildResult.value.organizationId,
-            userId: buildResult.value.userId,
-            propertyId: buildResult.value.propertyId,
-            teamId: buildResult.value.teamId,
-            portalId: buildResult.value.portalId,
-            occurredAt: buildResult.value.createdAt,
-          }),
-          correlationId,
-        })
-
-        added++
-      }
-    }
-
-    // 6. Remove assignments for portals no longer desired
-    for (const [portalId, assignment] of currentByPortal) {
-      if (!desiredSet.has(portalId)) {
-        await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
-
-        await emitAndRecord(deps.events, deps.outboxRepo, {
-          ...staffUnassigned({
-            assignmentId: assignment.id,
-            organizationId: assignment.organizationId,
-            userId: assignment.userId,
-            propertyId: assignment.propertyId,
-            portalId: assignment.portalId,
-            occurredAt: deps.clock(),
-          }),
-          correlationId,
-        })
-
-        removed++
-      }
-    }
-
-    return { added, removed }
+    return { added: creates.length, removed: removals.length }
   }
 
 export type UpdateStaffPortalsResult = Readonly<{ added: number; removed: number }>

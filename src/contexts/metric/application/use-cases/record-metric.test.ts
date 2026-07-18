@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { recordMetric, type RecordMetricDeps } from './record-metric'
 import type { MetricReading } from '../../domain/types'
 import type { DomainEvent } from '#/shared/events/events'
+import type { MetricRepository } from '../ports/metric.repository'
+import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
 import {
   organizationId,
   propertyId,
@@ -20,23 +22,24 @@ const createFakeDeps = (): RecordMetricDeps & {
 } => {
   const readings: InsertInput[] = []
   const emittedEvents: DomainEvent[] = []
+  const metricRepo: MetricRepository = {
+    insertReading: async (input: MetricReading) => {
+      readings.push(input)
+      return input
+    },
+    queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
+  }
+  const events = {
+    on: () => {},
+    emit: async (event: DomainEvent) => {
+      emittedEvents.push(event)
+    },
+    clear: () => {},
+  }
   return {
     readings,
     emittedEvents,
-    metricRepo: {
-      insertReading: async (input: MetricReading) => {
-        readings.push(input)
-        return input
-      },
-      queryAggregate: async () => ({ sum: 0, count: 0, max: 0 }),
-    },
-    events: {
-      on: () => {},
-      emit: async (event: DomainEvent) => {
-        emittedEvents.push(event)
-      },
-      clear: () => {},
-    },
+    commandStore: createSequentialMetricCommandStore({ repo: metricRepo, events }),
     clock: () => FIXED_TIME,
     idGen: () => metricReadingId('mr-gen'),
   }
@@ -80,6 +83,7 @@ describe('recordMetric', () => {
       groupId: null,
     })
 
+    expect(deps.readings).toHaveLength(1)
     expect(deps.emittedEvents).toHaveLength(1)
     expect(deps.emittedEvents[0]!._tag).toBe('metric.recorded')
   })

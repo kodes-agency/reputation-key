@@ -2,10 +2,15 @@
 // Per architecture: "Every use case tested for happy path + every error path."
 // This use case evolved from thin to full: it loads the target member and checks
 // the actual role hierarchy.
+// BQC-3.5: the role update + role_changed fact go through the sequential
+// command-store fake. Members are seeded in BOTH surfaces: the identity port
+// backs the read-side UX guards, the command store backs the atomic write.
 
 import { describe, it, expect } from 'vitest'
 import { updateMemberRole } from './update-member-role'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
+import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
+import type { SequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
@@ -56,22 +61,41 @@ const ADMIN_MEMBER_2: MemberRecord = {
 }
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+const DEFAULT_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'
+
+/** Seed the same member into the identity port (reads) and the store (write). */
+const seedMemberBoth = (
+  identity: ReturnType<typeof createInMemoryIdentityPort>,
+  commandStore: SequentialIdentityCommandStore,
+  member: MemberRecord,
+) => {
+  identity.seedMembers([member])
+  commandStore.seedMember({
+    id: member.id,
+    organizationId: DEFAULT_ORG_ID,
+    userId: member.userId,
+    email: member.email,
+    role: member.rawRole,
+    createdAt: member.createdAt,
+  })
+}
 
 const setup = () => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
+  const commandStore = createSequentialIdentityCommandStore({ events })
   const useCase = updateMemberRole({
     identity,
-    events,
+    commandStore,
     clock: () => FIXED_TIME,
   })
-  return { useCase, identity, events }
+  return { useCase, identity, events, commandStore }
 }
 
 describe('updateMemberRole', () => {
   it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
-    const { useCase, identity, events } = setup()
-    identity.seedMembers([STAFF_MEMBER])
+    const { useCase, identity, events, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(
@@ -81,9 +105,8 @@ describe('updateMemberRole', () => {
 
     expect(result.success).toBe(true)
 
-    // Verify the port received the update
-    const updated = await identity.getMember(ctx, 'member-staff')
-    expect(updated?.role).toBe('PropertyManager')
+    // The member row carries the better-auth role string
+    expect(commandStore.memberById('member-staff')?.role).toBe('admin')
 
     // Verify event
     const emitted = events.capturedByTag('identity.member.role_changed')
@@ -93,8 +116,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects PropertyManager from changing any member role', async () => {
-    const { useCase, identity } = setup()
-    identity.seedMembers([STAFF_MEMBER])
+    const { useCase, identity, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -103,8 +126,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects Staff from changing any role', async () => {
-    const { useCase, identity } = setup()
-    identity.seedMembers([STAFF_MEMBER])
+    const { useCase, identity, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     await expect(
@@ -113,8 +136,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects PropertyManager from changing another PropertyManager', async () => {
-    const { useCase, identity } = setup()
-    identity.seedMembers([PM_MEMBER])
+    const { useCase, identity, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, PM_MEMBER)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -123,8 +146,8 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects PropertyManager from assigning AccountAdmin', async () => {
-    const { useCase, identity } = setup()
-    identity.seedMembers([STAFF_MEMBER])
+    const { useCase, identity, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
@@ -142,8 +165,8 @@ describe('updateMemberRole', () => {
   })
 
   it('emits member.role-changed with previous and new role', async () => {
-    const { useCase, identity, events } = setup()
-    identity.seedMembers([STAFF_MEMBER])
+    const { useCase, identity, events, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx)
@@ -153,26 +176,29 @@ describe('updateMemberRole', () => {
     expect(event.newRole).toBe('PropertyManager')
     expect(event.userId).toBe(ctx.userId)
     expect(event.organizationId).toBe(ctx.organizationId)
+    expect(event.memberUserId).toBe('user-staff')
   })
 
   it('forbids demoting the last AccountAdmin of the organization', async () => {
-    const { useCase, identity } = setup()
+    const { useCase, identity, commandStore } = setup()
     // Only one admin in the org — the last-admin guard must fire.
-    identity.seedMembers([ADMIN_MEMBER])
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
       useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
-    // The admin was not demoted.
+    // The admin was not demoted (neither read-side nor write-side).
     const still = await identity.getMember(ctx, 'member-admin')
     expect(still?.role).toBe('AccountAdmin')
+    expect(commandStore.memberById('member-admin')?.role).toBe('owner')
   })
 
   it('rejects demoting an AccountAdmin even with a second admin (role hierarchy guards first)', async () => {
-    const { useCase, identity, events } = setup()
-    identity.seedMembers([ADMIN_MEMBER, ADMIN_MEMBER_2])
+    const { useCase, identity, events, commandStore } = setup()
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     // The role-hierarchy rule (domain/rules.ts) forbids changing an
@@ -190,22 +216,20 @@ describe('updateMemberRole', () => {
   })
 
   it('counts a multi-role owner via rawRole for the last-owner guard (H2/M4)', async () => {
-    const { useCase, identity } = setup()
+    const { useCase, identity, commandStore } = setup()
     // A multi-role owner: built-in Role is null, but rawRole 'owner,editor' grants owner.
     // Previously this member crashed listMembers (toDomainRoleStrict) AND escaped the
     // last-owner guard (role !== ADMIN_ROLE). Now it must be counted as an owner.
-    identity.seedMembers([
-      {
-        id: 'multi-owner',
-        userId: 'user-multi',
-        email: 'multi@test.com',
-        name: 'Multi Owner',
-        role: null,
-        rawRole: 'owner,editor',
-        image: null,
-        createdAt: new Date('2025-01-01'),
-      },
-    ])
+    seedMemberBoth(identity, commandStore, {
+      id: 'multi-owner',
+      userId: 'user-multi',
+      email: 'multi@test.com',
+      name: 'Multi Owner',
+      role: null,
+      rawRole: 'owner,editor',
+      image: null,
+      createdAt: new Date('2025-01-01'),
+    })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     // Demoting the sole multi-role owner must be blocked — the guard fires via

@@ -1,8 +1,8 @@
 // Staff context — create staff assignment use case
 
 import type { StaffAssignmentRepository } from '../ports/staff-assignment.repository'
+import type { StaffCommandStore } from '../ports/staff-command-store.port'
 import type { IdentityMembershipPort } from '../ports/identity-membership.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffAssignment } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
@@ -26,11 +26,10 @@ import {
   type TeamId,
   type PortalId,
 } from '#/shared/domain/ids'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type CreateStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
-  events: EventBus
+  commandStore: StaffCommandStore
   staffPublicApi: StaffPublicApi
   /** Membership gate (ADR 0006): the target user must belong to the acting
    *  organization before an assignment row is created, so a caller with
@@ -40,7 +39,6 @@ export type CreateStaffAssignmentDeps = Readonly<{
   identityMembership: IdentityMembershipPort
   idGen: () => string
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 /**
@@ -53,10 +51,9 @@ export type CreateStaffAssignmentDeps = Readonly<{
  */
 export type CreateStaffAssignmentSystemDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
-  events: EventBus
+  commandStore: StaffCommandStore
   idGen: () => string
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 /** Input for the shared persistence core (post-authorization). */
@@ -85,13 +82,14 @@ type PersistStaffAssignmentInput = {
 const persistStaffAssignment =
   (deps: {
     assignmentRepo: StaffAssignmentRepository
-    events: EventBus
+    commandStore: StaffCommandStore
     idGen: () => string
     clock: () => Date
-    outboxRepo?: OutboxRepository
   }) =>
   async (input: PersistStaffAssignmentInput): Promise<StaffAssignment> => {
-    // 1. Check uniqueness — prevent duplicate assignments
+    // 1. Check uniqueness — prevent duplicate assignments (fast path; the
+    //    command store re-checks inside the transaction and the partial
+    //    unique indexes are the authoritative backstop)
     if (
       await deps.assignmentRepo.assignmentExists(
         input.organizationId,
@@ -125,14 +123,10 @@ const persistStaffAssignment =
 
     const assignment = buildResult.value
 
-    // 3. Persist
-    await deps.assignmentRepo.insert(input.organizationId, assignment)
-
-    // 4. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      staffAssigned({
+    // 3. Persist + fact — atomic via the command store (BQC-3.5)
+    return deps.commandStore.assignStaff({
+      assignment,
+      event: staffAssigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,
         userId: assignment.userId,
@@ -141,10 +135,7 @@ const persistStaffAssignment =
         portalId: assignment.portalId,
         occurredAt: assignment.createdAt,
       }),
-    )
-
-    // 5. Return
-    return assignment
+    })
   }
 
 export const createStaffAssignment =
@@ -192,7 +183,7 @@ export const createStaffAssignment =
     // Only AccountAdmin may self-assign; PropertyManager/Staff cannot.
     const actingUserId = hasRole(ctx.role, 'AccountAdmin') ? undefined : ctx.userId
 
-    // 5. Persist (uniqueness + build + insert + event)
+    // 5. Persist (uniqueness + build + insert + event, atomic via the store)
     return persistStaffAssignment(deps)({
       organizationId: ctx.organizationId,
       userId,

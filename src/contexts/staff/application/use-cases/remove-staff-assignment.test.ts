@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { removeStaffAssignment } from './remove-staff-assignment'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
+import { createSequentialStaffCommandStore } from '#/shared/testing/sequential-staff-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestStaffAssignment } from '#/shared/testing/fixtures'
 import { isStaffError } from '../../domain/errors'
@@ -14,7 +15,7 @@ const setup = () => {
   const events = createCapturingEventBus()
   const useCase = removeStaffAssignment({
     assignmentRepo,
-    events,
+    commandStore: createSequentialStaffCommandStore({ repo: assignmentRepo, events }),
     clock: () => FIXED_TIME,
   })
   return { useCase, assignmentRepo, events }
@@ -51,11 +52,17 @@ describe('removeStaffAssignment', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      removeStaffAssignment({
-        assignmentRepo: createInMemoryStaffAssignmentRepo(),
-        events: createCapturingEventBus(),
-        clock: () => FIXED_TIME,
-      })({ assignmentId: staffAssignmentId('nonexistent') }, ctx),
+      (() => {
+        const assignmentRepo = createInMemoryStaffAssignmentRepo()
+        return removeStaffAssignment({
+          assignmentRepo,
+          commandStore: createSequentialStaffCommandStore({
+            repo: assignmentRepo,
+            events: createCapturingEventBus(),
+          }),
+          clock: () => FIXED_TIME,
+        })
+      })()({ assignmentId: staffAssignmentId('nonexistent') }, ctx),
     ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'assignment_not_found')
   })
 

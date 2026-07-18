@@ -1,10 +1,13 @@
 // Identity context — build function.
-// Wires identity port, use cases.
+// Wires identity port, the atomic command store (BQC-3.5), and use cases.
 // Per ADR-0001: the composition root calls this and merges useCases into the container.
 
+import type { Database } from '#/shared/db'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
+import { invitationId, organizationId } from '#/shared/domain/ids'
+import { randomUUID } from 'crypto'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateCustomRole } from './application/use-cases/update-custom-role'
@@ -21,6 +24,7 @@ import {
 } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
 import { updateOrganization } from './application/use-cases/update-organization'
+import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { getLogger } from '#/shared/observability/logger'
 
 /** Callback invoked after an invitation is accepted.
@@ -33,14 +37,12 @@ export type OnMemberJoined = (ctx: {
 }) => Promise<void>
 
 type IdentityContextDeps = Readonly<{
+  db: Database
   identityPort: IdentityPort
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   /** Sign up a new user. Returns user ID. */
   signUp: (name: string, email: string, password: string) => Promise<string>
-  /** Create an organization. Returns org ID. */
-  createOrg: (name: string, slug: string, userId?: string) => Promise<string>
   /** Set the active organization for the current session. */
   setActiveOrg: (orgId: string) => Promise<void>
   /** Update organization fields via auth provider. */
@@ -56,6 +58,8 @@ type IdentityContextDeps = Readonly<{
   getOrganizationName: (ctx: AuthContext) => Promise<string>
   /** Base URL for building invitation links. */
   baseUrl: string
+  /** Invitation lifetime in ms (INVITATION_EXPIRY_SECONDS in shared/auth/auth). */
+  invitationExpiresInMs: number
   /** Delete a user (compensating transaction for registration rollback). */
   deleteUser: (userId: string) => Promise<void>
   /** Logger for the register-user-and-org compensating transaction.
@@ -64,20 +68,28 @@ type IdentityContextDeps = Readonly<{
 }>
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
+  // BQC-3.5: every identity state mutation + fact commits atomically here.
+  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events)
+
   const useCases = {
     inviteMember: inviteMember({
       identity: deps.identityPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
+      idGen: () => invitationId(randomUUID()),
+      invitationExpiresInMs: deps.invitationExpiresInMs,
+      sendEmail: deps.sendEmail,
+      getOrganizationName: deps.getOrganizationName,
+      baseUrl: deps.baseUrl,
     }),
     updateMemberRole: updateMemberRole({
       identity: deps.identityPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     removeMember: removeMember({
       identity: deps.identityPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
@@ -89,20 +101,19 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }),
     acceptInvitation: acceptInvitation({
       identity: deps.identityPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     cancelInvitation: cancelInvitation({
-      identity: deps.identityPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     registerUserAndOrg: registerUserAndOrg({
-      events: deps.events,
       signUp: deps.signUp,
-      createOrg: deps.createOrg,
       setActiveOrg: deps.setActiveOrg,
       clock: deps.clock,
+      idGen: () => organizationId(randomUUID()),
+      commandStore,
       deleteUser: deps.deleteUser,
       logger:
         deps.logger ??

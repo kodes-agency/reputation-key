@@ -3,6 +3,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { importProperty, type ImportPropertyDeps } from './import-property'
 import { createInMemoryGbpImportRepo } from '#/shared/testing/in-memory-gbp-import-repo'
+import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildTestGbpImportJob } from '#/shared/testing/fixtures'
 import { gbpImportJobId, organizationId } from '#/shared/domain/ids'
@@ -10,7 +12,6 @@ import { createHash } from 'crypto'
 import { duplicateKeyError } from '../ports/property-import-repo.port'
 import type { GbpImportJob } from '../../domain/types'
 import type { PropertyImportRepo } from '../ports/property-import-repo.port'
-import type { PropertyEventPort } from '../ports/property-event.port'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -65,24 +66,6 @@ function makeFailingPropertyImportRepo(error: Error): PropertyImportRepo {
   }
 }
 
-function makeEventPort() {
-  const events: unknown[] = []
-  return {
-    emitPropertyCreated: async (event: unknown) => {
-      events.push(event)
-    },
-    getEvents: () => events,
-  }
-}
-
-function makeFailingEventPort(): PropertyEventPort {
-  return {
-    emitPropertyCreated: async () => {
-      throw new Error('Event bus unavailable')
-    },
-  }
-}
-
 // ── Setup ────────────────────────────────────────────────────────
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -95,13 +78,16 @@ const setup = () => {
   const importRepo = createInMemoryGbpImportRepo()
   const propertyRepo = makePropertyImportRepo()
   const eventBus = createCapturingEventBus()
-  const events = makeEventPort()
+  const commandStore = createSequentialIntegrationCommandStore({
+    connectionRepo: createInMemoryGoogleConnectionRepo(),
+    importRepo,
+    events: eventBus,
+  })
 
   const deps = {
     importRepo,
     propertyRepo,
-    events,
-    eventBus,
+    commandStore,
     toJobId: (id: string) => gbpImportJobId(id),
     toOrgId: (id: string) => organizationId(id),
     clock: () => FIXED_TIME,
@@ -127,14 +113,12 @@ const setup = () => {
 
   const buildUseCase = (
     propertyRepoOverride: PropertyImportRepo,
-    eventOverride?: PropertyEventPort,
     onFirstPropertyImported?: ImportPropertyDeps['onFirstPropertyImported'],
   ) =>
     importProperty({
       importRepo,
       propertyRepo: propertyRepoOverride,
-      events: eventOverride ?? events,
-      eventBus,
+      commandStore,
       toJobId: (id: string) => gbpImportJobId(id),
       toOrgId: (id: string) => organizationId(id),
       clock: () => FIXED_TIME,
@@ -143,14 +127,14 @@ const setup = () => {
       onFirstPropertyImported,
     })
 
-  return { useCase, importRepo, propertyRepo, events, seedJob, buildUseCase }
+  return { useCase, importRepo, propertyRepo, eventBus, seedJob, buildUseCase }
 }
 
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('importProperty', () => {
   it('happy path: imports new locations and returns created properties', async () => {
-    const { useCase, importRepo, events, seedJob } = setup()
+    const { useCase, importRepo, eventBus, seedJob } = setup()
     seedJob({ totalCount: 2 })
 
     const result = await useCase({
@@ -178,9 +162,12 @@ describe('importProperty', () => {
     expect(result.created[0].googleConnectionId).toBe(CONNECTION_ID)
     expect(result.created[1].gbpPlaceId).toBe('ChIJ-2')
 
-    // Events emitted
-    const emitted = events.getEvents()
-    expect(emitted).toHaveLength(2)
+    // The import.completed fact is recorded+emitted via the command store.
+    // (property.created facts commit with their rows inside
+    // propertyApi.importProperty — covered by the property command store.)
+    const emitted = eventBus.capturedByTag('integration.property_import.completed')
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0]).toMatchObject({ totalCount: 2, importedCount: 2 })
 
     // Job finalized to completed
     const job = await importRepo.findById(organizationId(ORG_ID), gbpImportJobId(JOB_ID))
@@ -373,12 +360,34 @@ describe('importProperty', () => {
     expect(job?.status).toBe('failed')
   })
 
-  it('continues when event emission fails', async () => {
-    const { seedJob, buildUseCase } = setup()
+  it('continues when the post-commit bus emit fails', async () => {
+    const { importRepo, seedJob } = setup()
     seedJob({ totalCount: 1 })
 
+    // A failing in-process bus must not fail the import — the durable
+    // fact already committed (emit-after-commit is failure-isolated).
+    const failingBus = {
+      on: () => {},
+      emit: async () => {
+        throw new Error('Event bus unavailable')
+      },
+      clear: () => {},
+    }
     const goodRepo = makePropertyImportRepo()
-    const useCase = buildUseCase(goodRepo, makeFailingEventPort())
+    const useCase = importProperty({
+      importRepo,
+      propertyRepo: goodRepo,
+      commandStore: createSequentialIntegrationCommandStore({
+        connectionRepo: createInMemoryGoogleConnectionRepo(),
+        importRepo,
+        events: failingBus,
+      }),
+      toJobId: (id: string) => gbpImportJobId(id),
+      toOrgId: (id: string) => organizationId(id),
+      clock: () => FIXED_TIME,
+      hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
+      logger: createMockLogger(),
+    })
 
     const result = await useCase({
       jobId: JOB_ID,
@@ -393,7 +402,7 @@ describe('importProperty', () => {
       ],
     })
 
-    // Should still succeed — event failure is non-fatal
+    // Should still succeed — the bus emit failure is non-fatal
     expect(result.status).toBe('completed')
     expect(result.created).toHaveLength(1)
   })
@@ -433,7 +442,6 @@ describe('importProperty', () => {
     const hook = vi.fn()
     const useCase = buildUseCase(
       makePropertyImportRepo({ connectionPropertyCount: 0 }),
-      undefined,
       hook,
     )
 
@@ -460,7 +468,6 @@ describe('importProperty', () => {
     const hook = vi.fn()
     const useCase = buildUseCase(
       makePropertyImportRepo({ connectionPropertyCount: 2 }),
-      undefined,
       hook,
     )
 

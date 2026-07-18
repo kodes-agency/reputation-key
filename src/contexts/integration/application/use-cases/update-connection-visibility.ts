@@ -1,8 +1,8 @@
 // Integration context — update connection visibility use case
-// Steps: authorize → find connection → update visibility
+// Steps: authorize → find connection → update visibility (+ fact, atomic)
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateConnectionVisibilityInput } from '../dto/update-connection-visibility.dto'
@@ -11,13 +11,11 @@ import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleConnectionVisibilityChanged } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type UpdateConnectionVisibilityDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
-  events: EventBus
+  commandStore: IntegrationCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const updateConnectionVisibility =
@@ -45,32 +43,18 @@ export const updateConnectionVisibility =
       throw integrationError('connection_not_found', 'Google connection not found')
     }
 
-    // 3. Update visibility
-    await deps.connectionRepo.updateVisibility(
-      ctx.organizationId,
+    // 3. Update visibility + fact — atomic via the command store (BQC-3.5)
+    const updatedConnection = await deps.commandStore.updateConnectionVisibility({
+      organizationId: ctx.organizationId,
       connectionId,
-      input.visibility,
-    )
-
-    const updatedConnection = await deps.connectionRepo.findById(
-      ctx.organizationId,
-      connectionId,
-    )
-    if (!updatedConnection) {
-      throw integrationError('connection_not_found', 'Connection not found after update')
-    }
-
-    // 4. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      integrationGoogleConnectionVisibilityChanged({
+      visibility: input.visibility,
+      event: integrationGoogleConnectionVisibilityChanged({
         connectionId,
         organizationId: ctx.organizationId,
         visibility: input.visibility,
         occurredAt: deps.clock(),
       }),
-    )
+    })
 
     return updatedConnection
   }

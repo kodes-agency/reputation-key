@@ -9,16 +9,9 @@ import type {
   OrganizationRecord,
 } from '#/contexts/identity/application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { Role } from '#/shared/domain/roles'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import { identityError } from '#/contexts/identity/domain/errors'
-import {
-  invitationId,
-  organizationId,
-  type InvitationId,
-  type OrganizationId,
-} from '#/shared/domain/ids'
 
 // fallow-ignore-next-line unused-type
 export type InMemoryIdentityPort = IdentityPort & {
@@ -28,6 +21,14 @@ export type InMemoryIdentityPort = IdentityPort & {
   seedInvitations: (invitations: ReadonlyArray<InvitationRecord>) => void
   /** Seed organizations for testing. */
   seedOrganizations: (orgs: ReadonlyArray<OrganizationRecord>) => void
+  /** Set the session user returned by getSessionUser (null = no session). */
+  setSessionUser: (user: Readonly<{ id: string; email: string }> | null) => void
+  /** Calls received by runOnAcceptInvitation. */
+  readonly acceptInvitationHookCalls: ReadonlyArray<{
+    userId: string
+    organizationId: string
+    propertyIds: ReadonlyArray<string>
+  }>
   /** Access all stored members. */
   readonly allMembers: ReadonlyArray<MemberRecord>
   /** Access all stored invitations. */
@@ -45,6 +46,12 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
   const invitations = new Map<string, InvitationRecord>()
   const organizations = new Map<string, OrganizationRecord>()
   const customRoles = new Map<string, { role: string }>()
+  const hookCalls: Array<{
+    userId: string
+    organizationId: string
+    propertyIds: ReadonlyArray<string>
+  }> = []
+  let sessionUser: Readonly<{ id: string; email: string }> | null = null
 
   return {
     async signUp(_name: string, _email: string, _password: string): Promise<string> {
@@ -65,42 +72,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return rest
     },
 
-    async createInvitation(
-      _ctx: AuthContext,
-      email: string,
-      role: string,
-      _propertyIds?: ReadonlyArray<string>,
-    ): Promise<InvitationId> {
-      const id = invitationId(`inv-${invitations.size + 1}`)
-      invitations.set(id, {
-        id,
-        email,
-        role: role as Role,
-        rawRole: role,
-        status: 'pending',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(),
-        propertyIds: _propertyIds ?? [],
-      })
-      return id
-    },
-    async acceptInvitation(
-      invitationId: string,
-      _headers: Headers,
-    ): Promise<{ organizationId: OrganizationId; propertyIds: ReadonlyArray<string> }> {
-      const inv = invitations.get(invitationId)
-      if (inv) {
-        invitations.set(invitationId, { ...inv, status: 'accepted' })
-      }
-      return {
-        organizationId: organizationId(inv?.organizationId ?? 'org-test'),
-        propertyIds: inv?.propertyIds ?? [],
-      }
-    },
-    async cancelInvitation(invitationId: string, _headers: Headers): Promise<void> {
-      invitations.delete(invitationId)
-    },
-
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
       return [...invitations.values()]
     },
@@ -111,16 +82,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return [...invitations.values()]
     },
 
-    async updateMemberRole(
-      _ctx: AuthContext,
-      memberId: string,
-      role: string,
-    ): Promise<void> {
-      const member = members.get(memberId)
-      if (member) {
-        members.set(memberId, { ...member, role: role as Role, rawRole: role })
-      }
-    },
     async getActiveOrg(_headers: Headers): Promise<OrganizationRecord | null> {
       const org = organizations.get(DEFAULT_TEST_ORG_ID)
       return org ?? null
@@ -131,10 +92,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return Array.from(organizations.values())
     },
 
-    async removeMember(_ctx: AuthContext, memberId: string): Promise<void> {
-      members.delete(memberId)
-    },
-
     async setActiveOrganization(
       _headers: Headers,
       _organizationId: string,
@@ -142,9 +99,18 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       // Test fake — no-op
     },
 
-    async withOrgLock<T>(_organizationId: string, fn: () => Promise<T>): Promise<T> {
-      // Test fake — no real locking, just execute the function
-      return fn()
+    async getSessionUser(
+      _headers: Headers,
+    ): Promise<Readonly<{ id: string; email: string }> | null> {
+      return sessionUser
+    },
+
+    async runOnAcceptInvitation(ctx: {
+      userId: string
+      organizationId: string
+      propertyIds: ReadonlyArray<string>
+    }): Promise<void> {
+      hookCalls.push(ctx)
     },
 
     async deleteUser(_userId: string): Promise<void> {
@@ -194,6 +160,14 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
 
     seedOrganizations(orgs: ReadonlyArray<OrganizationRecord>): void {
       for (const org of orgs) organizations.set(org.id, org)
+    },
+
+    setSessionUser(user: Readonly<{ id: string; email: string }> | null): void {
+      sessionUser = user
+    },
+
+    get acceptInvitationHookCalls() {
+      return hookCalls
     },
 
     get allMembers(): ReadonlyArray<MemberRecord> {

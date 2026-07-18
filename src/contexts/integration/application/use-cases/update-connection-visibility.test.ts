@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { updateConnectionVisibility } from './update-connection-visibility'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
+import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   buildTestAuthContext,
@@ -17,7 +18,7 @@ const setup = () => {
   const events = createCapturingEventBus()
   const deps = {
     connectionRepo,
-    events,
+    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
     clock: () => FIXED_TIME,
   }
   const useCase = updateConnectionVisibility(deps)

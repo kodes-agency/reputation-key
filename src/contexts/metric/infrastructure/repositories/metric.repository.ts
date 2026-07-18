@@ -19,7 +19,7 @@ import { createMetricReading, VALID_METRIC_KEYS } from '../../domain/constructor
 import { metricError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
-function readingFromRow(row: typeof metricReadings.$inferSelect) {
+export function readingFromRow(row: typeof metricReadings.$inferSelect) {
   if (!VALID_METRIC_KEYS.has(row.metricKey as MetricKey)) {
     throw metricError(
       'unknown_metric_key',

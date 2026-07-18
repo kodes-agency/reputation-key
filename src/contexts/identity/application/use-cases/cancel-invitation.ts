@@ -1,27 +1,23 @@
 // Identity context — cancel invitation use case
 // Extracted from the server fn (D8-007): the better-auth cancelInvitation call
 // + identity.invitation.canceled event emission now live in a use case,
-// testable independently.
+// testable independently. BQC-3.5: the status update and the fact commit in
+// ONE transaction via the command store.
 
-import type { IdentityPort } from '../ports/identity.port'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { identityInvitationCanceled } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type CancelInvitationDeps = Readonly<{
-  identity: IdentityPort
-  events: EventBus
+  commandStore: IdentityCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export type CancelInvitationInput = Readonly<{
   invitationId: InvitationId
-  headers: Headers
 }>
 
 /** Concrete use case instance type — named, not derived via ReturnType. */
@@ -35,8 +31,7 @@ export type CancelInvitation = (
  *
  * Steps:
  * 1. Authorize — permission check via centralized can()
- * 2. Persist — delegate to the identity port
- * 3. Emit — identity.invitation.canceled event
+ * 2. Persist + emit — command store: status update + canceled fact, atomic
  */
 export const cancelInvitation =
   (deps: CancelInvitationDeps): CancelInvitation =>
@@ -46,17 +41,14 @@ export const cancelInvitation =
       throw identityError('forbidden', 'Insufficient role to cancel invitations')
     }
 
-    // 2. Persist
-    await deps.identity.cancelInvitation(input.invitationId, input.headers)
-
-    // 3. Emit
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      identityInvitationCanceled({
+    // 2. Persist + fact — atomic via the command store
+    await deps.commandStore.cancelInvitation({
+      invitationId: input.invitationId,
+      organizationId: ctx.organizationId,
+      event: identityInvitationCanceled({
         organizationId: ctx.organizationId,
         invitationId: input.invitationId,
         occurredAt: deps.clock(),
       }),
-    )
+    })
   }

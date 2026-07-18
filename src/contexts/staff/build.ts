@@ -2,6 +2,7 @@
 // Wires staff repos, use cases, and the PublicApi surface.
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
+import type { Database } from '#/shared/db'
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
 import type { AccessiblePropertyLookupPort } from './application/ports/accessible-property-lookup.port'
 import { trace } from '#/shared/observability/trace'
@@ -16,13 +17,14 @@ import { listStaffAssignments } from './application/use-cases/list-staff-assignm
 import { getAssignedPortals } from './application/use-cases/get-assigned-portals'
 import { updateStaffPortals } from './application/use-cases/update-staff-portals'
 import { listStaffPortals } from './application/use-cases/list-staff-portals'
+import { createAtomicStaffCommandStore } from './infrastructure/staff-command-store'
 import { randomUUID } from 'crypto'
 
 type StaffContextDeps = Readonly<{
+  db: Database
   repo: StaffAssignmentRepository
   portalLookup: StaffPortalLookupPort
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   /**
    * Validates that a target userId is a member of ctx.organizationId before
@@ -41,6 +43,8 @@ type StaffContextDeps = Readonly<{
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
   const idGen = () => randomUUID()
+  // BQC-3.5: every staff state mutation + fact commits atomically here.
+  const commandStore = createAtomicStaffCommandStore(deps.db, deps.events)
 
   const getAssignedPortalsUC = getAssignedPortals({
     assignmentRepo: deps.repo,
@@ -74,7 +78,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
   const useCases = {
     createStaffAssignment: createStaffAssignment({
       assignmentRepo: deps.repo,
-      events: deps.events,
+      commandStore,
       staffPublicApi: publicApi,
       identityMembership: deps.identityMembership,
       idGen,
@@ -82,7 +86,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
     removeStaffAssignment: removeStaffAssignment({
       assignmentRepo: deps.repo,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
     listStaffAssignments: listStaffAssignments({
@@ -92,7 +96,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     updateStaffPortals: updateStaffPortals({
       assignmentRepo: deps.repo,
       portalLookup: deps.portalLookup,
-      events: deps.events,
+      commandStore,
       staffPublicApi: publicApi,
       clock: deps.clock,
       idGen,
@@ -107,6 +111,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     publicApi,
     internal: {
       repos: { staffAssignmentRepo: deps.repo } as const,
+      commandStore,
       useCases,
     },
   } as const

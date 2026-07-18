@@ -1,13 +1,12 @@
 // Staff context — remove staff assignment use case
 
 import type { StaffAssignmentRepository } from '../ports/staff-assignment.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { StaffCommandStore } from '../ports/staff-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffAssignmentId } from '../../domain/types'
 import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffUnassigned } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -18,9 +17,8 @@ export type RemoveStaffAssignmentInput = Readonly<{
 // fallow-ignore-next-line unused-type
 export type RemoveStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
-  events: EventBus
+  commandStore: StaffCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const removeStaffAssignment =
@@ -40,14 +38,11 @@ export const removeStaffAssignment =
       throw staffError('assignment_not_found', 'assignment not found')
     }
 
-    // 5. Persist
-    await deps.assignmentRepo.softDelete(ctx.organizationId, assignment.id)
-
-    // 6. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      staffUnassigned({
+    // 3. Persist + fact — atomic via the command store (BQC-3.5)
+    await deps.commandStore.unassignStaff({
+      assignmentId: assignment.id,
+      organizationId: ctx.organizationId,
+      event: staffUnassigned({
         assignmentId: assignment.id,
         organizationId: assignment.organizationId,
         userId: assignment.userId,
@@ -55,7 +50,7 @@ export const removeStaffAssignment =
         portalId: assignment.portalId,
         occurredAt: deps.clock(),
       }),
-    )
+    })
   }
 
 // fallow-ignore-next-line unused-type

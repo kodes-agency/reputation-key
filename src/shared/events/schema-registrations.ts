@@ -143,12 +143,19 @@ const inboxItemBulkStatusChangedSchema = z.object({
 
 // ── Metric event schemas ────────────────────────────────────────────
 
+// BQC-3.5: corrected IN PLACE at version 1 — no version bump. Justification:
+// buildMetricContext never forwarded outboxRepo to recordMetric, so
+// emitAndRecord short-circuited after the bus emit and zero historical
+// outbox rows exist for metric.recorded; and had it been wired, every insert
+// would have thrown invalid_payload — the registered schema required
+// `recordedAt` while the domain event (and its consumers) carry
+// `occurredAt`. Now recorded atomically via the metric command store.
 const metricRecordedSchema = z.object({
   organizationId: z.string(),
   propertyId: z.string(),
   metricKey: z.string(),
   value: z.number(),
-  recordedAt: z.string(),
+  occurredAt: z.string(),
 })
 
 // ── Property event schemas ──────────────────────────────────────────
@@ -160,6 +167,20 @@ const propertyCreatedSchema = z.object({
   slug: z.string(),
   gbpPlaceId: z.string().optional(),
   googleConnectionId: z.string().optional(),
+})
+
+// BQC-3.5: registered so the orphan audit facts record with their state
+// (never registered before → zero historical rows; additive at v1).
+const propertyUpdatedSchema = z.object({
+  propertyId: z.string(),
+  organizationId: z.string(),
+  name: z.string(),
+  slug: z.string(),
+})
+
+const propertyDeletedSchema = z.object({
+  propertyId: z.string(),
+  organizationId: z.string(),
 })
 
 // ── Guest event schemas ─────────────────────────────────────────────
@@ -202,11 +223,27 @@ const teamEventSchema = z.object({
   propertyId: z.string(),
 })
 
-const staffEventSchema = z.object({
-  staffId: z.string(),
+// BQC-3.5: staff schemas corrected IN PLACE at version 1 — no version bump.
+// Justification: they never successfully recorded — the producer payloads
+// carry assignmentId/userId/portalId (NO staffId), so every insert would
+// have thrown invalid_payload, and the staff build never passed outboxRepo.
+// Zero historical rows exist for these types. The activity consumer reads
+// assignmentId/propertyId/organizationId/userId — domain side wins.
+const staffAssignedSchema = z.object({
+  assignmentId: z.string(),
   organizationId: z.string(),
+  userId: z.string(),
   propertyId: z.string(),
-  teamId: z.string().optional(),
+  teamId: z.string().nullable().optional(),
+  portalId: z.string().nullable().optional(),
+})
+
+const staffUnassignedSchema = z.object({
+  assignmentId: z.string(),
+  organizationId: z.string(),
+  userId: z.string(),
+  propertyId: z.string(),
+  portalId: z.string().nullable().optional(),
 })
 
 // ── Identity event schemas ──────────────────────────────────────────
@@ -234,11 +271,28 @@ const memberRemovedSchema = z.object({
   userId: z.string(),
 })
 
+// BQC-3.5: memberRoleChangedSchema gains `memberUserId` IN PLACE at version 1.
+// Justification: the identity use-case wiring never passed outboxRepo, so
+// these events only ever emitted on the bus — zero historical outbox rows
+// exist for any identity type. The activity consumer reads
+// event.memberUserId as the audit resourceId (the TARGET); the schema
+// previously kept only userId (the ACTOR) and silently stripped the target.
 const memberRoleChangedSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
+  memberUserId: z.string(),
   previousRole: z.string(),
   newRole: z.string(),
+})
+
+// BQC-3.5: registered so the registration path records the audit fact
+// (orphan event — no consumers; the fact is the trail). Same zero-row
+// justification as above: never wired, never recorded.
+const organizationCreatedSchema = z.object({
+  organizationId: z.string(),
+  organizationName: z.string(),
+  slug: z.string(),
+  ownerId: z.string(),
 })
 
 // ── Integration event schemas ───────────────────────────────────────
@@ -250,6 +304,27 @@ const propertyImportCompletedSchema = z.object({
   importedCount: z.number(),
   skippedCount: z.number(),
   failedCount: z.number(),
+})
+
+// BQC-3.5: connected/disconnected/visibility_changed were never registered,
+// so the outbox adapter silently skipped them (bus-only). Registered with
+// identifier-only allowlists so the atomic command store can record them —
+// zero historical rows existed. googleEmail is deliberately NOT allowlisted
+// (provider identity stays out of the durable trail).
+const googleAccountConnectedSchema = z.object({
+  connectionId: z.string(),
+  organizationId: z.string(),
+})
+
+const googleAccountDisconnectedSchema = z.object({
+  connectionId: z.string(),
+  organizationId: z.string(),
+})
+
+const connectionVisibilityChangedSchema = z.object({
+  connectionId: z.string(),
+  organizationId: z.string(),
+  visibility: z.string(),
 })
 
 // ── Portal event schemas (only consumed ones) ───────────────────────
@@ -372,6 +447,16 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: propertyCreatedSchema,
   })
+  registerEventSchema({
+    type: 'property.updated',
+    version: EVENT_VERSION,
+    schema: propertyUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'property.deleted',
+    version: EVENT_VERSION,
+    schema: propertyDeletedSchema,
+  })
 
   // Guest events (consumed by metric)
   registerEventSchema({
@@ -416,12 +501,12 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'staff.assigned',
     version: EVENT_VERSION,
-    schema: staffEventSchema,
+    schema: staffAssignedSchema,
   })
   registerEventSchema({
     type: 'staff.unassigned',
     version: EVENT_VERSION,
-    schema: staffEventSchema,
+    schema: staffUnassignedSchema,
   })
 
   // Identity events (consumed by activity)
@@ -450,12 +535,32 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: memberRoleChangedSchema,
   })
+  registerEventSchema({
+    type: 'identity.organization.created',
+    version: EVENT_VERSION,
+    schema: organizationCreatedSchema,
+  })
 
   // Integration events
   registerEventSchema({
     type: 'integration.property_import.completed',
     version: EVENT_VERSION,
     schema: propertyImportCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.google_account.connected',
+    version: EVENT_VERSION,
+    schema: googleAccountConnectedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.google_account.disconnected',
+    version: EVENT_VERSION,
+    schema: googleAccountDisconnectedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.google_connection.visibility_changed',
+    version: EVENT_VERSION,
+    schema: connectionVisibilityChangedSchema,
   })
 
   // Portal events (only consumed ones)

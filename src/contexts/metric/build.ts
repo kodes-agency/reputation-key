@@ -7,6 +7,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type { MetricPublicApi } from './application/public-api'
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
+import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, type RecordMetric } from './application/use-cases/record-metric'
 import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { metricReadingId } from '#/shared/domain/ids'
@@ -15,7 +16,6 @@ import type { ReviewRatingLookupPort } from './application/ports/review-rating-l
 export type MetricContextBuildInput = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   findGroupForPortal: (
     orgId: OrganizationId,
@@ -34,10 +34,11 @@ export type MetricContextApi = Readonly<{
 
 export const buildMetricContext = (input: MetricContextBuildInput): MetricContextApi => {
   const metricRepo = createMetricRepository(input.db, input.clock)
+  // BQC-3.5: every metric state mutation + fact commits atomically here.
+  const commandStore = createAtomicMetricCommandStore(input.db, input.events)
 
   const record = recordMetric({
-    metricRepo,
-    events: input.events,
+    commandStore,
     clock: input.clock,
     idGen: () => metricReadingId(crypto.randomUUID()),
   })

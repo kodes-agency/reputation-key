@@ -4,25 +4,20 @@
 //
 // This use case:
 //   - Generates unique property slugs
-//   - Creates properties for new GBP locations
+//   - Creates properties for new GBP locations (via propertyApi.importProperty,
+//     which records each property.created fact atomically with the row — BQC-3.5)
 //   - Handles duplicate/race-condition errors gracefully
-//   - Emits property.created events via a port
 //   - Tracks import job counters
+//   - Records the terminal status + property_import.completed fact atomically
 
-import type { PropertyEventPort } from '../ports/property-event.port'
+import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GbpImportRepository } from '../ports/gbp-import.repository'
 import type { PropertyImportRepo } from '../ports/property-import-repo.port'
 import { isDuplicateKeyError } from '../ports/property-import-repo.port'
 import type { GbpImportJobId, GbpImportJobStatus } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
-import {
-  propertyId as toPropertyId,
-  organizationId as toOrgId,
-  googleConnectionId as toConnectionId,
-} from '#/shared/domain/ids'
 import { normalizeSlug } from '#/shared/domain/slug'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { EventBus } from '#/shared/events/event-bus'
 import { integrationPropertyImportCompleted } from '../../domain/events'
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -61,8 +56,7 @@ export type ImportPropertyResult = Readonly<{
 export type ImportPropertyDeps = Readonly<{
   importRepo: GbpImportRepository
   propertyRepo: PropertyImportRepo
-  events: PropertyEventPort
-  eventBus: EventBus
+  commandStore: IntegrationCommandStore
   toJobId: (id: string) => GbpImportJobId
   toOrgId: (id: string) => OrganizationId
   clock: () => Date
@@ -104,6 +98,88 @@ function determineTerminalStatus(
   return 'completed'
 }
 
+/**
+ * Import one GBP location: insert the property (propertyApi records the
+ * property.created fact with the row — BQC-3.5) and count the outcome.
+ * Returns the created property, or null for a skip/failure (already
+ * counted). Duplicate-key races resolve as skips when the row now exists.
+ */
+async function processImportLocation(
+  deps: ImportPropertyDeps,
+  jobId: GbpImportJobId,
+  orgId: OrganizationId,
+  input: ImportPropertyInput,
+  location: ImportLocation,
+  existingGbpPlaceIds: ReadonlySet<string>,
+): Promise<CreatedProperty | null> {
+  try {
+    if (existingGbpPlaceIds.has(location.gbpPlaceId)) {
+      await deps.importRepo.incrementSkipped(orgId, jobId)
+      return null
+    }
+
+    const slug = generatePropertySlug(
+      location.businessName,
+      location.gbpPlaceId,
+      deps.hashFn,
+    )
+    const now = deps.clock()
+
+    const inserted = await deps.propertyRepo.insertProperty({
+      organizationId: input.organizationId,
+      name: location.businessName,
+      slug,
+      gbpPlaceId: location.gbpPlaceId,
+      googleConnectionId: input.connectionId,
+      countryCode: location.countryCode ?? null,
+    })
+
+    await deps.importRepo.incrementImported(orgId, jobId)
+
+    return {
+      id: inserted.id,
+      organizationId: inserted.organizationId,
+      name: inserted.name,
+      slug: inserted.slug,
+      gbpPlaceId: inserted.gbpPlaceId ?? location.gbpPlaceId,
+      gbpLocationName: location.gbpLocationName,
+      googleConnectionId: input.connectionId,
+      createdAt: inserted.createdAt ?? now,
+    }
+  } catch (err) {
+    // Handle duplicate-key race condition
+    const isDup = isDuplicateKeyError(err)
+
+    let treatAsSkip = false
+    if (isDup) {
+      treatAsSkip = await deps.propertyRepo.existsByGbpPlaceId(
+        input.organizationId,
+        location.gbpPlaceId,
+      )
+    }
+
+    if (!treatAsSkip) {
+      deps.logger.error(
+        {
+          jobId: input.jobId,
+          organizationId: input.organizationId,
+          gbpPlaceId: location.gbpPlaceId,
+          businessName: location.businessName,
+          err,
+        },
+        'GBP property import failed',
+      )
+    }
+
+    if (treatAsSkip) {
+      await deps.importRepo.incrementSkipped(orgId, jobId)
+    } else {
+      await deps.importRepo.incrementFailed(orgId, jobId)
+    }
+    return null
+  }
+}
+
 // ── Use case ───────────────────────────────────────────────────────
 
 export const importProperty =
@@ -136,74 +212,22 @@ export const importProperty =
 
       // 2. Process each location
       for (const location of input.locations) {
-        try {
-          if (existingGbpPlaceIds.has(location.gbpPlaceId)) {
-            await deps.importRepo.incrementSkipped(orgId, jobId)
-            continue
-          }
-
-          const slug = generatePropertySlug(
-            location.businessName,
-            location.gbpPlaceId,
-            deps.hashFn,
-          )
-          const now = deps.clock()
-
-          const inserted = await deps.propertyRepo.insertProperty({
-            organizationId: input.organizationId,
-            name: location.businessName,
-            slug,
-            gbpPlaceId: location.gbpPlaceId,
-            googleConnectionId: input.connectionId,
-            countryCode: location.countryCode ?? null,
-          })
-
-          await deps.importRepo.incrementImported(orgId, jobId)
-
-          createdProperties.push({
-            id: inserted.id,
-            organizationId: inserted.organizationId,
-            name: inserted.name,
-            slug: inserted.slug,
-            gbpPlaceId: inserted.gbpPlaceId ?? location.gbpPlaceId,
-            gbpLocationName: location.gbpLocationName,
-            googleConnectionId: input.connectionId,
-            createdAt: inserted.createdAt ?? now,
-          })
-        } catch (err) {
-          // Handle duplicate-key race condition
-          const isDup = isDuplicateKeyError(err)
-
-          let treatAsSkip = false
-          if (isDup) {
-            treatAsSkip = await deps.propertyRepo.existsByGbpPlaceId(
-              input.organizationId,
-              location.gbpPlaceId,
-            )
-          }
-
-          if (!treatAsSkip) {
-            logger.error(
-              {
-                jobId: input.jobId,
-                organizationId: input.organizationId,
-                gbpPlaceId: location.gbpPlaceId,
-                businessName: location.businessName,
-                err,
-              },
-              'GBP property import failed',
-            )
-          }
-
-          if (treatAsSkip) {
-            await deps.importRepo.incrementSkipped(orgId, jobId)
-          } else {
-            await deps.importRepo.incrementFailed(orgId, jobId)
-          }
-        }
+        const created = await processImportLocation(
+          deps,
+          jobId,
+          orgId,
+          input,
+          location,
+          existingGbpPlaceIds,
+        )
+        if (created) createdProperties.push(created)
       }
 
-      // 3. Finalize job status
+      // 3. Finalize job status + record the completed fact atomically (BQC-3.5).
+      //    The per-property property.created facts already committed with their
+      //    rows inside propertyApi.importProperty — this store call closes the
+      //    job with its terminal fact (previously a best-effort bus emit that
+      //    never recorded).
       const jobRow = await deps.importRepo.findById(orgId, jobId)
 
       const finalStatus: GbpImportJobStatus = jobRow
@@ -214,55 +238,28 @@ export const importProperty =
           )
         : 'failed'
 
-      await deps.importRepo.updateStatus(orgId, jobId, finalStatus)
-
-      // 5. Emit integration.property_import.completed
       const eventCounts = jobRow ?? {
         totalCount: input.locations.length,
         importedCount: createdProperties.length,
         skippedCount: 0,
         failedCount: 0,
       }
-      try {
-        await deps.eventBus.emit(
-          integrationPropertyImportCompleted({
-            importJobId: jobId,
-            organizationId: orgId,
-            totalCount: eventCounts.totalCount,
-            importedCount: eventCounts.importedCount,
-            skippedCount: eventCounts.skippedCount,
-            failedCount: eventCounts.failedCount,
-            occurredAt: deps.clock(),
-          }),
-        )
-      } catch (err) {
-        logger.warn(
-          { err, jobId: input.jobId, organizationId: input.organizationId },
-          'Failed to emit integration.property_import.completed event',
-        )
-      }
 
-      // 4. Emit property.created events
-      for (const prop of createdProperties) {
-        try {
-          await deps.events.emitPropertyCreated({
-            _tag: 'property.created',
-            propertyId: toPropertyId(prop.id),
-            organizationId: toOrgId(prop.organizationId),
-            name: prop.name,
-            slug: prop.slug,
-            gbpPlaceId: prop.gbpPlaceId,
-            gbpLocationName: prop.gbpLocationName,
-            googleConnectionId: toConnectionId(prop.googleConnectionId),
-            occurredAt: prop.createdAt,
-          })
-        } catch (err) {
-          logger.warn(
-            { err, propertyId: prop.id },
-            'Failed to emit property.created event',
-          )
-        }
-      }
+      await deps.commandStore.recordImportCompleted({
+        organizationId: orgId,
+        importJobId: jobId,
+        finalStatus,
+        now: deps.clock(),
+        event: integrationPropertyImportCompleted({
+          importJobId: jobId,
+          organizationId: orgId,
+          totalCount: eventCounts.totalCount,
+          importedCount: eventCounts.importedCount,
+          skippedCount: eventCounts.skippedCount,
+          failedCount: eventCounts.failedCount,
+          occurredAt: deps.clock(),
+        }),
+      })
 
       // Pub/Sub lifecycle: subscribe on the connection's first imported property (0→1).
       if (

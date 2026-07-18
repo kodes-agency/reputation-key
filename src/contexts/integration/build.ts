@@ -29,11 +29,11 @@ import { createGoogleConnectionRepository } from './infrastructure/repositories/
 import { createGbpCacheRepository } from './infrastructure/repositories/gbp-cache.repository'
 import { createGbpImportRepository } from './infrastructure/repositories/gbp-import.repository'
 import { createPropertyImportRepository } from './infrastructure/repositories/property-import.repository'
+import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
 import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
 import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
 import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
 import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/mybusiness-notifications.adapter'
-import { createPropertyEventAdapter } from './infrastructure/adapters/property-event.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import {
@@ -48,7 +48,6 @@ import { createSourceContentPurge } from '#/contexts/review/infrastructure/sourc
 type IntegrationContextDeps = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   jobQueue: Queue | undefined
   propertyLookup: PropertyLookupPort
@@ -101,6 +100,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const connectionRepo = createGoogleConnectionRepository(deps.db, propertyFkCleanup)
   const cacheRepo = createGbpCacheRepository(deps.db, propertyQuery)
   const importRepo = createGbpImportRepository(deps.db, deps.clock)
+  // BQC-3.5: every integration state mutation + fact commits atomically here.
+  const commandStore = createAtomicIntegrationCommandStore(deps.db, deps.events)
 
   // ── Adapters ──────────────────────────────────────────────────────
   const oauthPort = createGoogleOAuthAdapter({
@@ -111,7 +112,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const gbpApiPort = createGbpApiAdapter()
   const notificationsPort = createMyBusinessNotificationsAdapter()
   const propertyImportRepo = createPropertyImportRepository(deps.propertyApi)
-  const propertyEventPort = createPropertyEventAdapter(deps.events)
 
   // ── Queue Port ───────────────────────────────────────────────────
   if (!deps.jobQueue) throw new Error('jobQueue required')
@@ -152,7 +152,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       connectionRepo,
       oauth: oauthPort,
       encryption: encryptionPort,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
       idGen: () => randomUUID(),
       callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
@@ -163,7 +163,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       oauth: oauthPort,
       encryption: encryptionPort,
       cacheRepo,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
       logger: deps.logger,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
@@ -179,7 +179,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
     updateConnectionVisibility: updateConnectionVisibility({
       connectionRepo,
-      events: deps.events,
+      commandStore,
       clock: deps.clock,
     }),
 
@@ -211,8 +211,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     importProperty: importProperty({
       importRepo,
       propertyRepo: propertyImportRepo,
-      events: propertyEventPort,
-      eventBus: deps.events,
+      commandStore,
       toJobId: gbpImportJobId,
       toOrgId,
       clock: deps.clock,
