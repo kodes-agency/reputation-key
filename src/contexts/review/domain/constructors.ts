@@ -125,6 +125,11 @@ export const buildReply = (args: BuildReplyArgs) => {
     submittedAt: args.submittedAt ?? null,
     approvedAt: args.approvedAt ?? null,
     publishedAt: args.publishedAt ?? null,
+    // BQC-3.8: no publication workflow active at construction.
+    publicationState: null,
+    publicationAttempts: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
     createdAt: args.now,
     updatedAt: args.now,
   })

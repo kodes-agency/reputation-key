@@ -1,7 +1,7 @@
 // Review context — Drizzle reply repository implementation
 // Per architecture: factory function returning Readonly<{ method }>.
 
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { replies } from '#/shared/db/schema/review.schema'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
@@ -69,6 +69,45 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
         )
         .limit(1)
       return rows[0] ? replyFromRow(rows[0]) : null
+    })
+  },
+
+  findAmbiguousPublicationBatch: async (now, cursor, limit) => {
+    return trace('reply.findAmbiguousPublicationBatch', async () => {
+      const rows = await db
+        .select()
+        .from(replies)
+        .where(
+          and(
+            eq(replies.publicationState, 'ambiguous'),
+            isNotNull(replies.reconcileDueAt),
+            lte(replies.reconcileDueAt, now),
+            cursor
+              ? // Keyset: strictly after (reconcileDueAt, id) — no skip/repeat.
+                sql`(${replies.reconcileDueAt}, ${replies.id}) > (${cursor.reconcileDueAt}, ${cursor.id})`
+              : undefined,
+          ),
+        )
+        .orderBy(asc(replies.reconcileDueAt), asc(replies.id))
+        .limit(limit)
+      return rows.map(replyFromRow)
+    })
+  },
+
+  findPublicationActiveByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findPublicationActiveByReviewIds', async () => {
+      if (reviewIds.length === 0) return []
+      const rows = await db
+        .select()
+        .from(replies)
+        .where(
+          and(
+            inArray(replies.reviewId, [...reviewIds]),
+            eq(replies.organizationId, organizationId),
+            inArray(replies.publicationState, ['requested', 'authorized', 'sending']),
+          ),
+        )
+      return rows.map(replyFromRow)
     })
   },
 

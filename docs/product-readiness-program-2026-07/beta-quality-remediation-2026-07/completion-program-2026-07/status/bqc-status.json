@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T10:00:38Z",
+  "updatedAt": "2026-07-18T14:17:29Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -455,7 +455,24 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P0-02", "SPEC-P0-01", "SPEC-P1-02"],
       "exceptions": [],
-      "notes": "BQC-3.1 (event/job inventory + guard), BQC-3.2 (delayed policy integration), BQC-3.3 (review/reply atomic commands), BQC-3.4 (inbox atomic projections/commands), BQC-3.5 (remaining enabled families), BQC-3.6 (dispatcher/unknown-work correction), BQC-3.7 (relay/lease/ordering/retention) implementation_complete."
+      "notes": "BQC-3.1\u20133.7 implementation_complete; BQC-3.8 (durable publication state machine) implementation_complete."
+    },
+    {
+      "id": "BQC-3.8",
+      "kind": "slice",
+      "parentId": "BQC-3",
+      "title": "External workflow reliability",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [
+        "publication-state-machine",
+        "publication-race-guards",
+        "reconcile-before-retry",
+        "no-auto-publish-proof"
+      ],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Manual Google reply publication is now a DURABLE state machine (migration 0015, hand-written + journal-only per the 0011+ idiom; applied to the integration scratch DB): replies gains publication_state (requested/authorized/sending/published/terminal/ambiguous/cancelled, CHECK), publication_attempts, publication_last_error_class (CHECK), reconcile_due_at + a partial sweep index; pre-0015 rows backfilled (published\u2192published, publish_failed\u2192terminal, approved\u2192authorized). Machine wiring: approveReply/retryPublish \u2192 markPublicationAuthorized (approved fact, attempts reset); the job CLAIMS via markPublicationSending (guarded approved + authorized|sending \u2192 sending, attempts+1 \u2014 null claim = cancelled/racing = NO Google call); success \u2192 markPublished (state published + fact); terminal 4xx/connection-gone \u2192 markPublicationTerminal (no retry burn); retryable \u2192 markPublicationRetryQueued + rethrow (row stays approved for quarantine redrive); ambiguous non-final \u2192 rethrow (state stays sending, same-job retry re-claims); ambiguous final \u2192 markPublicationAmbiguous (class persisted + reconcile_due_at = now+15min \u2014 sweeps can finally FIND these rows; they were log-only before). POST-CALL RACE GUARD: after the Google call, the job re-reads \u2014 row purged by the disconnect cascade \u2192 return without marking (provider-visible reply has no local evidence; provider-side cleanup out of scope); publication_state=cancelled \u2192 return (disconnect won the race; local truth is cancelled). Disconnect cancellation end-to-end: review context now consumes integration.google_account.disconnected \u2192 cancelPublicationsForConnection \u2192 cancelPublications (bounded batches, one tx per batch: guarded publication_state IN (requested,authorized,sending) \u2192 cancelled + status \u2192 draft for re-approval + ONE review.reply.publication_cancelled fact per row, new identifier-only event with an activity consumer so the family satisfies the readiness rule). Policy cancellation = the 3.2 gate terminal deny (no side effect + audit \u2014 \u00a76 revocation-between-enqueue-and-send proven through the gate for publish-reply). RECONCILE-BEFORE-RETRY: retryPublish on an ambiguous row first re-reads the provider \u2014 shown \u2192 atomic heal to published, NO re-enqueue, NO duplicate send; absent \u2192 normal re-approve + enqueue. NEW hourly-30min sweep reconcile-ambiguous-publications (keyset-bounded 500\u00d710, per-row isolation, throw-on-failure like retention-sweep; bootstrap + schedule + both catalogues + jobEnqueueOptions; assertJobReadiness passes). GBP upsert-safety: retries never duplicate (encoded 3.3, re-proven). AI-draft invariant PROVEN (new no-auto-publish architecture test): addPublishJob callers confined to approveReply/retryPublish (both requireManager + property access), transitionReply forces draft \u2192 pending_approval \u2192 approved (no direct draft \u2192 approved even with aiGenerated=true \u2014 approval IS the human review; no auto-publish path exists). Deviations: markReplyPublishFailed use-case deleted (the job writes classified states directly \u2014 would be dead code); markPublicationRetryQueued preserves (not records) the retryable class \u2014 class for retryable-only failures lives in job logs; still_failed rows keep their reconcile_due_at (sweep re-reads every 30min until healed \u2014 no backoff specified); persisted 'requested' never written (approval writes authorized directly \u2014 documented reserved). Not claimed: provider-side cleanup of orphaned Google-visible replies (out of scope by design), operator surface for reconcile (BQC-7), stale disconnect comment (integration context off-limits). Slice not accepted \u2014 pending independent review."
     },
     {
       "id": "BQC-3.7",

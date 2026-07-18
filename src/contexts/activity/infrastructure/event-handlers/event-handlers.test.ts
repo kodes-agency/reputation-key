@@ -28,7 +28,7 @@ function createMockDeps() {
     }),
   } as unknown as Queue
   const inboxItemLookup = {
-    findBySourceId: vi.fn(async () => INBOX_ITEM as string),
+    findBySourceId: vi.fn(async (): Promise<string | null> => INBOX_ITEM as string),
   }
   return { queue, calls, inboxItemLookup }
 }
@@ -217,6 +217,63 @@ describe('activity event handlers', () => {
       const data = calls[0]!.data as { action: string; payload: { detail: string } }
       expect(data.action).toBe('rejected')
       expect(data.payload.detail).toBe('Not appropriate')
+    })
+  })
+
+  describe('onReplyPublicationCancelled (BQC-3.8)', () => {
+    it('maps to changed/reply with the cancellation cause in detail', async () => {
+      const { onReplyPublicationCancelled } =
+        await import('./on-reply-publication-cancelled')
+      const { queue, calls, inboxItemLookup } = createMockDeps()
+      const handler = onReplyPublicationCancelled({ queue, inboxItemLookup })
+
+      await handler({
+        _tag: 'review.reply.publication_cancelled',
+        eventId: 'evt-8',
+        replyId: REPLY,
+        reviewId: REVIEW,
+        propertyId: PROP,
+        organizationId: ORG,
+        cause: 'disconnect',
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]!.name).toBe('insert-activity-log')
+      const data = calls[0]!.data as {
+        action: string
+        resourceType: string
+        resourceId: string
+        payload: { to: string; detail: string }
+      }
+      expect(data.action).toBe('changed')
+      expect(data.resourceType).toBe('reply')
+      expect(data.resourceId).toBe(REPLY as string)
+      expect(data.payload.to).toBe('draft')
+      expect(data.payload.detail).toBe('publication_cancelled:disconnect')
+    })
+
+    it('skips reviews without an inbox item (mirrors on-reply-published)', async () => {
+      const { onReplyPublicationCancelled } =
+        await import('./on-reply-publication-cancelled')
+      const { queue, calls, inboxItemLookup } = createMockDeps()
+      inboxItemLookup.findBySourceId.mockResolvedValue(null)
+      const handler = onReplyPublicationCancelled({ queue, inboxItemLookup })
+
+      await handler({
+        _tag: 'review.reply.publication_cancelled',
+        eventId: 'evt-9',
+        replyId: REPLY,
+        reviewId: REVIEW,
+        propertyId: PROP,
+        organizationId: ORG,
+        cause: 'policy',
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      expect(calls).toHaveLength(0)
     })
   })
 })

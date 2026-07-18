@@ -4,12 +4,19 @@
 // The production implementation commits the state write and the outbox_events
 // row in one PostgreSQL transaction, then emits on the in-process bus after
 // commit (expand-phase dual path until durable switch).
+//
+// BQC-3.8: the publication state machine (domain/reply-publication-workflow.ts)
+// is persisted through this store. Every external-interaction transition is a
+// guarded write (status + publication_state), so a lost TOCTOU race
+// (cancellation, a racing claim, a purge) records no fact and returns null.
 
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
+import type { PublicationFailureClass } from '../../domain/reply-publication-workflow'
 import type {
   ReviewExpired,
   ReviewReplyApproved,
+  ReviewReplyPublicationCancelled,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
@@ -32,6 +39,18 @@ export type MirrorSyncedReplyCommand = Readonly<{
   now?: Date
 }>
 
+/**
+ * BQC-3.8: one cancellation per reply — the guarded state write and the
+ * review.reply.publication_cancelled fact commit in the batch transaction.
+ * Rows whose publication state moved on meanwhile (published / failed /
+ * already cancelled / purged) are skipped without a fact.
+ */
+export type CancelPublicationCommand = Readonly<{
+  reply: Reply
+  event: ReviewReplyPublicationCancelled
+  now?: Date
+}>
+
 export type ReplyCommandStore = Readonly<{
   /**
    * Guarded transition + review.reply.submitted fact, one transaction.
@@ -46,37 +65,87 @@ export type ReplyCommandStore = Readonly<{
     event: ReviewReplySubmitted,
     now?: Date,
   ): Promise<Reply | null>
-  /** Guarded transition + review.reply.approved fact, one transaction. */
-  approveReply(
+  /**
+   * BQC-3.8: the approve/retry authorization write. Guarded status update +
+   * publication_state='authorized' with attempts/last-error/reconcile-due
+   * reset (a NEW publication cycle) + the review.reply.approved fact — one
+   * transaction. `event` is null on the retryPublish path (re-authorization
+   * emits no new fact, exactly as before).
+   */
+  markPublicationAuthorized(
     reply: Reply,
     updates: ConditionalReplyUpdate,
-    event: ReviewReplyApproved,
+    event: ReviewReplyApproved | null,
     now?: Date,
   ): Promise<Reply | null>
-  /** Guarded transition + review.reply.rejected fact, one transaction. */
+  /**
+   * BQC-3.8: publish-job claim — status='approved' AND publication_state IN
+   * ('authorized','sending') → 'sending', attempts+1. 'sending' re-claim is
+   * the SAME BullMQ job retrying after an ambiguous attempt (jobId
+   * idempotency serializes attempts — no second worker can hold the claim).
+   * No fact. Returns null when the guard misses (cancelled meanwhile, or the
+   * row is no longer in a claimable state).
+   */
+  markPublicationSending(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
+   * BQC-3.8: classified terminal rejection — status → publish_failed +
+   * publication_state='terminal' + last_error_class + the publish_failed
+   * fact, one transaction. `event` is null only when the parent review row
+   * is missing (impossible under the replies→reviews FK): the update then
+   * commits fact-less, mirroring the pre-BQC-3.3 tolerate-and-log path.
+   */
+  markPublicationTerminal(
+    reply: Reply,
+    errorClass: PublicationFailureClass,
+    event: ReviewReplyPublishFailed | null,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * BQC-3.8: classified ambiguous outcome on the final attempt — status →
+   * publish_failed + publication_state='ambiguous' + last_error_class=
+   * 'ambiguous' + reconcile_due_at = now + AMBIGUOUS_RECONCILE_DELAY_MS +
+   * the publish_failed fact, one transaction. The persisted class and due
+   * date are what the reconcile sweep finds the row by.
+   */
+  markPublicationAmbiguous(
+    reply: Reply,
+    event: ReviewReplyPublishFailed | null,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * BQC-3.8: classified retryable failure — publication_state 'sending' →
+   * 'authorized' with last_error_class and attempts preserved, so the next
+   * BullMQ attempt (or a quarantine redrive) can claim the row again. No
+   * fact. Returns null when the guard misses.
+   */
+  markPublicationRetryQueued(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
+   * BQC-3.8: disconnect/policy cancellation — per command, guarded
+   * publication_state IN ('requested','authorized','sending') → 'cancelled'
+   * + status → 'draft' + the publication_cancelled fact, ALL in one
+   * transaction for the batch. Returns the number of cancelled rows; rows
+   * whose state moved on (published/failed/cancelled/purged) are skipped.
+   */
+  cancelPublications(commands: ReadonlyArray<CancelPublicationCommand>): Promise<number>
+  /**
+   * Guarded transition → rejected + review.reply.rejected fact, one transaction. */
   rejectReply(
     reply: Reply,
     updates: ConditionalReplyUpdate,
     event: ReviewReplyRejected,
     now?: Date,
   ): Promise<Reply | null>
-  /** Guarded transition approved → published + published fact, one transaction. */
+  /**
+   * Guarded transition approved → published + published fact, one
+   * transaction. BQC-3.8: also persists publication_state='published' and
+   * clears reconcile_due_at — provider confirmation is authoritative from
+   * any publication state (job ack from 'sending', reconciliation heal from
+   * 'ambiguous'/'terminal', legacy pre-0015 rows from NULL).
+   */
   markPublished(
     reply: Reply,
     updates: ConditionalReplyUpdate,
     event: ReviewReplyPublished,
-    now?: Date,
-  ): Promise<Reply | null>
-  /**
-   * Guarded transition approved → publish_failed + publish_failed fact, one
-   * transaction. `event` is null only when the parent review row is missing
-   * (impossible under the replies→reviews FK): the update then commits
-   * fact-less, mirroring the pre-BQC-3.3 tolerate-and-log path.
-   */
-  markPublishFailed(
-    reply: Reply,
-    updates: ConditionalReplyUpdate,
-    event: ReviewReplyPublishFailed | null,
     now?: Date,
   ): Promise<Reply | null>
   /**

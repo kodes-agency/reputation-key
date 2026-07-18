@@ -1908,7 +1908,18 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'GBP reply publish; BQC-3.2 dispatch gate authorizes; max 3 attempts → publish_failed',
+        'GBP reply publish; BQC-3.2 dispatch gate authorizes; BQC-3.8 durable claim (publication_state) + classified outcome marks; max 3 attempts → publish_failed',
+    },
+  ),
+  job(
+    'reconcile-ambiguous-publications',
+    'src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts',
+    'system:review.sync',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'BQC-3.8 ambiguous-publication reconcile sweep; provider re-read only — never a send',
     },
   ),
   job(
@@ -2045,6 +2056,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.submitted',
       'review.reply.approved',
       'review.reply.rejected',
+      'review.reply.publication_cancelled',
       'team.created',
       'team.updated',
       'team.deleted',
@@ -2129,8 +2141,11 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.sync',
     'none',
     'property',
-    ['property.created'],
-    { notes: 'enqueues initial GBP sync (BQC-3.2 dispatch gate authorizes)' },
+    ['property.created', 'integration.google_account.disconnected'],
+    {
+      notes:
+        'enqueues initial GBP sync (BQC-3.2 dispatch gate authorizes); BQC-3.8: disconnect cancels in-flight reply publications',
+    },
   ),
   consumer(
     'inbox.event-handlers',
@@ -2166,6 +2181,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'daily, offset 2h' },
+  ),
+  schedule(
+    'reconcile-ambiguous-publications-recurring',
+    'system:review.sync',
+    'none',
+    'tenant_cross',
+    { notes: 'every 30 min (BQC-3.8 ambiguous-outcome reconcile sweep)' },
   ),
   schedule(
     'retention-sweep-recurring',

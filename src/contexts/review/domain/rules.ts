@@ -53,11 +53,15 @@ export function computeReviewContentHash(
  *  every reply write — including edits.
  *  `publish_failed → published` exists ONLY for the BQC-3.3 reconciliation path
  *  (reconcileReplyPublication): the provider confirms the reply already exists,
- *  healing an ambiguous publish outcome. It never skips approval. */
+ *  healing an ambiguous publish outcome. It never skips approval.
+ *  `approved → draft` exists ONLY for the BQC-3.8 publication-cancellation path
+ *  (disconnect/policy): cancelling an in-flight publication returns the reply
+ *  to draft, where it must pass through pending_approval → approved again
+ *  before any new publish. */
 const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>>> = {
   draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
-  approved: ['published', 'publish_failed'],
+  approved: ['published', 'publish_failed', 'draft'],
   published: [],
   rejected: ['draft'],
   publish_failed: ['approved', 'published'],

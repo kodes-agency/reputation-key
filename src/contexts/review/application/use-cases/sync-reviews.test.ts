@@ -110,6 +110,10 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     submittedAt: null,
     approvedAt: null,
     publishedAt: daysAgo(4),
+    publicationState: 'published',
+    publicationAttempts: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
     createdAt: daysAgo(4),
     updatedAt: daysAgo(4),
     ...overrides,
@@ -151,6 +155,7 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     }),
     findByPropertyId: vi.fn(async (_propertyId, _orgId) => []),
     findByOrganizationId: vi.fn(async () => []),
+    findByConnection: vi.fn(async () => []),
     findIdsByContentFilter: vi.fn(async () => []),
     findAllExpiringBeforeAcrossTenants: vi.fn(async () => []),
     findAllExpiredBeforeAcrossTenants: vi.fn(async () => []),
@@ -174,6 +179,8 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
       return full
     }),
     conditionalUpdate: vi.fn(async () => null),
+    findAmbiguousPublicationBatch: vi.fn(async () => []),
+    findPublicationActiveByReviewIds: vi.fn(async () => []),
     deleteById: vi.fn(async (_id, _orgId) => {}),
     deleteByReviewIdAndSource: vi.fn(async (revId, source, _orgId) => {
       for (const [k, r] of replyStore.entries()) {
@@ -217,17 +224,29 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     submitReply: vi.fn(async () => {
       throw new Error('submitReply is not used by syncReviews')
     }),
-    approveReply: vi.fn(async () => {
-      throw new Error('approveReply is not used by syncReviews')
-    }),
     rejectReply: vi.fn(async () => {
       throw new Error('rejectReply is not used by syncReviews')
     }),
     markPublished: vi.fn(async () => {
       throw new Error('markPublished is not used by syncReviews')
     }),
-    markPublishFailed: vi.fn(async () => {
-      throw new Error('markPublishFailed is not used by syncReviews')
+    markPublicationAuthorized: vi.fn(async () => {
+      throw new Error('markPublicationAuthorized is not used by syncReviews')
+    }),
+    markPublicationSending: vi.fn(async () => {
+      throw new Error('markPublicationSending is not used by syncReviews')
+    }),
+    markPublicationTerminal: vi.fn(async () => {
+      throw new Error('markPublicationTerminal is not used by syncReviews')
+    }),
+    markPublicationAmbiguous: vi.fn(async () => {
+      throw new Error('markPublicationAmbiguous is not used by syncReviews')
+    }),
+    markPublicationRetryQueued: vi.fn(async () => {
+      throw new Error('markPublicationRetryQueued is not used by syncReviews')
+    }),
+    cancelPublications: vi.fn(async () => {
+      throw new Error('cancelPublications is not used by syncReviews')
     }),
     mirrorSyncedReply: async (command) => {
       if (!command.reply) {

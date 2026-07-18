@@ -24,6 +24,11 @@ const sampleRow: ReplyRow = {
   submittedAt: null,
   approvedAt: null,
   publishedAt,
+  // BQC-3.8 (migration 0015): publication state machine overlay columns.
+  publicationState: 'published',
+  publicationAttempts: 1,
+  publicationLastErrorClass: null,
+  reconcileDueAt: null,
   createdAt: now,
   updatedAt: now,
 }
@@ -51,6 +56,38 @@ describe('replyFromRow', () => {
     expect(reply.publishedAt).toBe(publishedAt)
     expect(reply.createdAt).toBe(now)
     expect(reply.updatedAt).toBe(now)
+  })
+
+  it('maps the BQC-3.8 publication state machine fields', () => {
+    const reply = replyFromRow(sampleRow)
+    expect(reply.publicationState).toBe('published')
+    expect(reply.publicationAttempts).toBe(1)
+    expect(reply.publicationLastErrorClass).toBeNull()
+    expect(reply.reconcileDueAt).toBeNull()
+  })
+
+  it('round-trips an ambiguous row (error class + reconcile schedule)', () => {
+    const due = new Date('2025-06-01T12:15:00Z')
+    const row: ReplyRow = {
+      ...sampleRow,
+      status: 'publish_failed',
+      publishedAt: null,
+      publicationState: 'ambiguous',
+      publicationAttempts: 3,
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: due,
+    }
+    const reply = replyFromRow(row)
+    expect(reply.publicationState).toBe('ambiguous')
+    expect(reply.publicationAttempts).toBe(3)
+    expect(reply.publicationLastErrorClass).toBe('ambiguous')
+    expect(reply.reconcileDueAt).toBe(due)
+
+    const back = replyToRow(reply)
+    expect(back.publicationState).toBe('ambiguous')
+    expect(back.publicationAttempts).toBe(3)
+    expect(back.publicationLastErrorClass).toBe('ambiguous')
+    expect(back.reconcileDueAt).toBe(due)
   })
 
   it('handles internal source with createdBy', () => {

@@ -459,6 +459,24 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         'atomic command-store outbox write (BQC-3.3); ambiguous outcomes reconcile via reconcileReplyPublication',
     },
   ),
+  ev(
+    'review.reply.publication_cancelled',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        'BQC-3.8: disconnect/policy cancellation of an in-flight publication (requested/authorized/sending → cancelled, reply back to draft for re-approval); atomic per-batch write + fact via ReplyCommandStore.cancelPublications',
+    },
+  ),
 ]
 
 const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -1082,12 +1100,15 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        bus('review.event-handlers', REVIEW_HANDLERS),
+      ],
       disposition: 'enabled',
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist — was unregistered/bus-only',
+        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist — was unregistered/bus-only; BQC-3.8: review consumer cancels in-flight reply publications for the connection',
     },
   ),
   ev(
@@ -1267,7 +1288,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       retryBackoff: 'exponential:5000',
       notes:
-        'GBP reply publish; in-handler gate; BQC-3.3 outcome classification — terminal 4xx → publish_failed (no retry burn), 5xx/network retry, ambiguous final → publish_failed + reconcile',
+        'GBP reply publish; in-handler gate; BQC-3.3 outcome classification — terminal 4xx → publish_failed (no retry burn), 5xx/network retry, ambiguous final → publish_failed + reconcile; BQC-3.8 durable claim (publication_state) + disconnect race guard',
     },
   ),
   job(
@@ -1358,6 +1379,23 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows; 5m bounds the daily batch',
+    },
+  ),
+  job(
+    'reconcile-ambiguous-publications',
+    'src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.sync',
+      schedule: 'every:1800000',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'exponential:300000',
+      timeoutMs: 300_000,
+      notes:
+        'BQC-3.8 ambiguous-outcome sweep (500×10, keyset on reconcile_due_at); per-row provider re-read via reconcileReplyPublication — never a send; throws on any row failure; 5m bounds a stalled batch',
     },
   ),
   job(
