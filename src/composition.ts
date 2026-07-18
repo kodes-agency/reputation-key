@@ -394,6 +394,12 @@ export function createContainer(options?: {
     googleReviewApi,
     jobQueue: infra.jobQueue,
     logger: getLogger(),
+    // BQC-4.1: review sync asserts the property's region before any external
+    // effect; the property context owns the routing fact (ADR 0048).
+    propertyRoutingLookup: {
+      getProcessingRegion: (orgId, pid) =>
+        property.publicApi.getProcessingRegion(orgId, pid),
+    },
   })
 
   // ── Inbox lookup ports (cross-context wiring) ─────────────────────

@@ -31,6 +31,12 @@ export type PropertyImportRepo = Readonly<{
     googleConnectionId: string
     /** ISO country from GBP when known (BQR-3.5). */
     countryCode?: string | null
+    /**
+     * GBP location resource name — the property side emits it on
+     * property.created as the initial-sync trigger only when the resolved
+     * region is processable (BQC-4.1 / ADR 0048).
+     */
+    gbpLocationName?: string
   }) => Promise<{
     id: string
     organizationId: string

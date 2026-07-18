@@ -59,6 +59,7 @@ describe('startPropertyImport', () => {
           address: null,
           primaryCategory: null,
           gbpLocationName: 'accounts/123/locations/456',
+          countryCode: 'US',
         },
       ],
     }
@@ -68,7 +69,7 @@ describe('startPropertyImport', () => {
     // Job was inserted
     expect(importRepo.all()).toHaveLength(1)
     const inserted = importRepo.all()[0]
-    expect(inserted.id).toBe(result.id)
+    expect(inserted.id).toBe(result.job.id)
     expect(inserted.organizationId).toBe(ctx.organizationId)
     expect(inserted.initiatedBy).toBe(ctx.userId)
     expect(inserted.status).toBe('queued')
@@ -84,10 +85,11 @@ describe('startPropertyImport', () => {
     expect(enqueued[0].organizationId).toBe(ctx.organizationId as string)
     expect(enqueued[0].locations).toEqual(input.locations)
 
-    // Returned job matches
-    expect(result.organizationId).toBe(ctx.organizationId)
-    expect(result.initiatedBy).toBe(ctx.userId)
-    expect(result.totalCount).toBe(1)
+    // Returned job matches; nothing skipped at the region gate
+    expect(result.job.organizationId).toBe(ctx.organizationId)
+    expect(result.job.initiatedBy).toBe(ctx.userId)
+    expect(result.job.totalCount).toBe(1)
+    expect(result.skippedLocations).toEqual([])
   })
 
   it('rejects without property.create permission → forbidden', async () => {
@@ -187,6 +189,7 @@ describe('startPropertyImport', () => {
         address: '123 Main St',
         primaryCategory: 'restaurant',
         gbpLocationName: 'accounts/123/locations/456',
+        countryCode: 'US',
       },
       {
         gbpPlaceId: 'ChIJ-2',
@@ -194,6 +197,7 @@ describe('startPropertyImport', () => {
         address: null,
         primaryCategory: null,
         gbpLocationName: 'accounts/123/locations/789',
+        countryCode: 'US',
       },
     ]
     const input = { connectionId: CONNECTION_ID, locations }
@@ -207,5 +211,92 @@ describe('startPropertyImport', () => {
     expect(enqueued[0].locations).toEqual(locations)
     // jobId is the generated import job ID
     expect(enqueued[0].jobId).toBeTruthy()
+  })
+
+  // BQC-4.1 / ADR 0048: a location with no resolvable country can never be
+  // region-resolved — skip it explicitly instead of importing it unresolved.
+  describe('region gate (BQC-4.1)', () => {
+    const withCountry = {
+      gbpPlaceId: 'ChIJ-us',
+      businessName: 'US Biz',
+      address: null,
+      primaryCategory: null,
+      gbpLocationName: 'accounts/123/locations/us',
+      countryCode: 'US',
+    }
+    const withoutCountry = {
+      gbpPlaceId: 'ChIJ-none',
+      businessName: 'No Country Biz',
+      address: null,
+      primaryCategory: null,
+      gbpLocationName: 'accounts/123/locations/none',
+      countryCode: null,
+    }
+
+    it('skips locations without a resolvable country and reports region_unresolved', async () => {
+      const { useCase, connectionRepo, importRepo, queue } = setup()
+      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+      seedActiveConnection(connectionRepo)
+
+      const result = await useCase(
+        { connectionId: CONNECTION_ID, locations: [withCountry, withoutCountry] },
+        ctx,
+      )
+
+      // The unresolvable location is explicit in the result…
+      expect(result.skippedLocations).toEqual([
+        {
+          gbpPlaceId: 'ChIJ-none',
+          businessName: 'No Country Biz',
+          reason: 'region_unresolved',
+        },
+      ])
+      // …and never reaches the import job (which tracks only eligible locations)
+      expect(result.job.totalCount).toBe(1)
+      expect(importRepo.all()[0].totalCount).toBe(1)
+      const enqueued = queue.enqueuedJobs()
+      expect(enqueued).toHaveLength(1)
+      expect(enqueued[0].locations).toEqual([withCountry])
+    })
+
+    it('treats null and missing countryCode the same (both skipped)', async () => {
+      const { useCase, connectionRepo } = setup()
+      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+      seedActiveConnection(connectionRepo)
+
+      const missingField = {
+        gbpPlaceId: 'ChIJ-missing',
+        businessName: 'Missing Field Biz',
+        address: null,
+        primaryCategory: null,
+        gbpLocationName: 'accounts/123/locations/missing',
+      }
+
+      const result = await useCase(
+        { connectionId: CONNECTION_ID, locations: [withCountry, missingField] },
+        ctx,
+      )
+
+      expect(result.skippedLocations).toHaveLength(1)
+      expect(result.skippedLocations[0].reason).toBe('region_unresolved')
+      expect(result.job.totalCount).toBe(1)
+    })
+
+    it('throws region_unresolved when no location has a resolvable country', async () => {
+      const { useCase, connectionRepo, importRepo, queue } = setup()
+      const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+      seedActiveConnection(connectionRepo)
+
+      await expect(
+        useCase({ connectionId: CONNECTION_ID, locations: [withoutCountry] }, ctx),
+      ).rejects.toSatisfy(
+        (e: unknown) =>
+          isIntegrationError(e) && (e as { code: string }).code === 'region_unresolved',
+      )
+
+      // Fail closed: no job row, no enqueue.
+      expect(importRepo.all()).toHaveLength(0)
+      expect(queue.enqueuedJobs()).toHaveLength(0)
+    })
   })
 })

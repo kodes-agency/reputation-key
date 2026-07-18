@@ -19,6 +19,7 @@ export type IntegrationErrorCode =
   | 'invalid_cache_entry'
   | 'invalid_event'
   | 'invalid_transition'
+  | 'region_unresolved'
 export type IntegrationError = Readonly<{
   _tag: 'IntegrationError'
   code: IntegrationErrorCode

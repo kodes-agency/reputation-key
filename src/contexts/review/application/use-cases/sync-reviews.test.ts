@@ -128,6 +128,9 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
   const replyStore = new Map<string, Reply>()
   const emittedEvents: Array<Record<string, unknown>> = []
   let nextId = 0
+  // BQC-4.1: region lookup backing the fail-closed assertion at sync entry.
+  // Default 'us' — the only approved beta cell (ADR 0048).
+  let propertyRegion: string | null = 'us'
 
   const clock = () => NOW
   const idGen = () => {
@@ -276,6 +279,9 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     logger: createMockLogger(),
     commandStore,
     replyCommandStore,
+    propertyRouting: {
+      getProcessingRegion: vi.fn(async () => propertyRegion),
+    },
   }
 
   return {
@@ -285,6 +291,10 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     replyStore,
     emittedEvents,
     events,
+    googleReviewApi,
+    setPropertyRegion(region: string | null) {
+      propertyRegion = region
+    },
     seedReview(r: Review) {
       reviewStore.set(`${r.organizationId}:${r.externalId}`, r)
     },
@@ -299,6 +309,59 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
 // ════════════════════════════════════════════════════════════════════
 
 describe('syncReviews', () => {
+  // ── BQC-4.1: fail-closed region gate (ADR 0048) ───────────────────
+  // Every sync path (webhook / sweep / consumer / manual enqueue) funnels
+  // through this use case, so the region assertion lives at entry. Only the
+  // approved 'us' cell may process; unresolved/europe/global fail closed and
+  // no Google fetch is attempted.
+
+  describe('region gate (BQC-4.1)', () => {
+    it.each(['unresolved', 'global', 'europe'])(
+      'refuses to sync when the property region is %s',
+      async (region) => {
+        const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
+        env.setPropertyRegion(region)
+
+        await expect(env.sync(defaultInput)).rejects.toSatisfy(
+          (e: unknown) =>
+            typeof e === 'object' &&
+            e !== null &&
+            (e as { _tag?: string })._tag === 'PropertyError' &&
+            (e as { code?: string }).code === 'region_unresolved',
+        )
+
+        // Fail closed BEFORE any external effect: no Google fetch, no writes.
+        expect(env.googleReviewApi.fetchReviews).not.toHaveBeenCalled()
+        expect(env.reviewStore.size).toBe(0)
+        expect(env.emittedEvents).toHaveLength(0)
+      },
+    )
+
+    it('refuses to sync when the property row is missing (region null)', async () => {
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
+      env.setPropertyRegion(null)
+
+      await expect(env.sync(defaultInput)).rejects.toSatisfy(
+        (e: unknown) =>
+          typeof e === 'object' &&
+          e !== null &&
+          (e as { code?: string }).code === 'region_unresolved',
+      )
+      expect(env.googleReviewApi.fetchReviews).not.toHaveBeenCalled()
+    })
+
+    it('syncs normally when the property is in the approved us cell', async () => {
+      const env = createTestEnv([makeGoogleReview({ externalId: 'ext-1', rating: 5 })])
+      env.setPropertyRegion('us')
+
+      const result = await env.sync(defaultInput)
+
+      expect(result.isOk()).toBe(true)
+      expect(env.googleReviewApi.fetchReviews).toHaveBeenCalledTimes(1)
+      expect(env.reviewStore.size).toBe(1)
+    })
+  })
+
   // ── Happy path ───────────────────────────────────────────────────
 
   describe('fresh sync — no existing reviews', () => {

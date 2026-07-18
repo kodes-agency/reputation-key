@@ -4,8 +4,11 @@ import { describe, it, expect } from 'vitest'
 import {
   resolvePropertyRouting,
   wouldChangeResolvedRegion,
+  assertRegionResolved,
+  isRegionProcessable,
   ROUTING_POLICY_VERSION,
 } from './processing-routing'
+import { isPropertyError } from './errors'
 
 const NOW = new Date('2026-07-16T12:00:00Z')
 
@@ -77,5 +80,53 @@ describe('wouldChangeResolvedRegion', () => {
     expect(wouldChangeResolvedRegion('us', 'DE')).toBe(true)
     expect(wouldChangeResolvedRegion('europe', 'US')).toBe(true)
     expect(wouldChangeResolvedRegion('global', 'US')).toBe(true)
+  })
+})
+
+// BQC-4.1 / ADR 0048: only the US cell executes protected workloads in beta.
+// 'europe' is denied until its infrastructure passes; 'global' is a denied
+// placeholder; 'unresolved' fails closed.
+describe('isRegionProcessable', () => {
+  it('is true only for us', () => {
+    expect(isRegionProcessable('us')).toBe(true)
+  })
+
+  it('is false for denied or unresolved regions', () => {
+    expect(isRegionProcessable('europe')).toBe(false)
+    expect(isRegionProcessable('global')).toBe(false)
+    expect(isRegionProcessable('unresolved')).toBe(false)
+    expect(isRegionProcessable(null)).toBe(false)
+  })
+})
+
+describe('assertRegionResolved', () => {
+  it('does not throw for the approved us cell', () => {
+    expect(() => assertRegionResolved({ processingRegion: 'us' })).not.toThrow()
+  })
+
+  it.each(['unresolved', 'europe', 'global'])(
+    'throws region_unresolved for %s',
+    (region) => {
+      try {
+        assertRegionResolved({ processingRegion: region })
+        expect.unreachable('should have thrown')
+      } catch (e) {
+        expect(isPropertyError(e)).toBe(true)
+        expect((e as { code: string }).code).toBe('region_unresolved')
+        expect((e as { context?: { processingRegion?: string } }).context).toEqual({
+          processingRegion: region,
+        })
+      }
+    },
+  )
+
+  it('throws region_unresolved when the region is missing (null)', () => {
+    try {
+      assertRegionResolved({ processingRegion: null })
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      expect(isPropertyError(e)).toBe(true)
+      expect((e as { code: string }).code).toBe('region_unresolved')
+    }
   })
 })

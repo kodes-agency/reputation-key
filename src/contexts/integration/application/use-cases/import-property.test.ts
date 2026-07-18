@@ -175,6 +175,52 @@ describe('importProperty', () => {
     expect(job?.importedCount).toBe(2)
   })
 
+  it('forwards countryCode and gbpLocationName to the property insert (BQC-4.1)', async () => {
+    const { importRepo, seedJob, buildUseCase } = setup()
+    seedJob({ totalCount: 1 })
+
+    const inserted: Array<Record<string, unknown>> = []
+    const capturingRepo: PropertyImportRepo = {
+      findExistingGbpPlaceIds: async () => [],
+      existsByGbpPlaceId: async () => false,
+      insertProperty: async (input) => {
+        inserted.push({ ...input })
+        return {
+          id: 'prop-captured',
+          organizationId: input.organizationId,
+          name: input.name,
+          slug: input.slug,
+          gbpPlaceId: input.gbpPlaceId,
+          createdAt: null,
+        }
+      },
+      countByGoogleConnectionId: async () => 0,
+    }
+    const useCase = buildUseCase(capturingRepo)
+
+    await useCase({
+      jobId: JOB_ID,
+      organizationId: ORG_ID,
+      connectionId: CONNECTION_ID,
+      locations: [
+        {
+          gbpPlaceId: 'ChIJ-1',
+          businessName: 'Biz One',
+          gbpLocationName: 'accounts/1/locations/1',
+          countryCode: 'US',
+        },
+      ],
+    })
+
+    // The property side needs gbpLocationName to emit the initial-sync
+    // trigger for in-cell properties — and to withhold it when unresolved.
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].countryCode).toBe('US')
+    expect(inserted[0].gbpLocationName).toBe('accounts/1/locations/1')
+    const job = await importRepo.findById(organizationId(ORG_ID), gbpImportJobId(JOB_ID))
+    expect(job?.importedCount).toBe(1)
+  })
+
   it('returns completed_with_skips when some locations already exist', async () => {
     const { importRepo, seedJob, buildUseCase } = setup()
     seedJob({ totalCount: 2 })

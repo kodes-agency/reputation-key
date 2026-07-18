@@ -132,6 +132,9 @@ async function processImportLocation(
       gbpPlaceId: location.gbpPlaceId,
       googleConnectionId: input.connectionId,
       countryCode: location.countryCode ?? null,
+      // BQC-4.1: the property side emits the initial-sync trigger only when
+      // the resolved region is processable (ADR 0048).
+      gbpLocationName: location.gbpLocationName,
     })
 
     await deps.importRepo.incrementImported(orgId, jobId)

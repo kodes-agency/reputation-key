@@ -8,6 +8,7 @@ import { createSequentialPropertyCommandStore } from '#/shared/testing/sequentia
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
+import { assertRegionResolved } from '../../domain/processing-routing'
 import { propertyId } from '#/shared/domain/ids'
 
 const FIXED_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
@@ -56,6 +57,41 @@ describe('createProperty', () => {
     expect(property.processingRegion).toBe('us')
     expect(property.countrySource).toBe('manual')
     expect(property.processingRegionResolvedAt).toEqual(FIXED_TIME)
+  })
+
+  // BQC-4.1 / ADR 0048: the resolution state is explicit on the created
+  // property — a property born without a country is unresolved and NOT
+  // processable (sync/import fail closed on it until reconciliation).
+  it('is born unresolved and non-processing when no country is given (BQC-4.1)', async () => {
+    const { useCase } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const property = await useCase(
+      { name: 'No Country Hotel', timezone: 'America/New_York' },
+      ctx,
+    )
+
+    expect(property.processingRegion).toBe('unresolved')
+    expect(property.processingRegionResolvedAt).toBeNull()
+    try {
+      assertRegionResolved(property)
+      expect.unreachable('unresolved property must not be processable')
+    } catch (e) {
+      expect(isPropertyError(e)).toBe(true)
+      expect((e as { code: string }).code).toBe('region_unresolved')
+    }
+  })
+
+  it('is born processable when the country resolves into the approved cell (BQC-4.1)', async () => {
+    const { useCase } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const property = await useCase(
+      { name: 'US Hotel', timezone: 'America/New_York', countryCode: 'US' },
+      ctx,
+    )
+
+    expect(() => assertRegionResolved(property)).not.toThrow()
   })
 
   it('creates a property with custom slug and gbpPlaceId', async () => {

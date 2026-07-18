@@ -20,6 +20,11 @@ export type PropertyCreated = Readonly<{
   gbpPlaceId?: string
   gbpLocationName?: string
   googleConnectionId?: GoogleConnectionId
+  /**
+   * BQC-4.1 / ADR 0048: content-free routing fact at creation time. The
+   * initial-sync consumer enqueues only when this names an approved cell.
+   */
+  processingRegion?: string
   occurredAt: Date
   correlationId: string | null
 }>
