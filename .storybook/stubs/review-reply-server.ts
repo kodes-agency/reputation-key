@@ -20,4 +20,5 @@ export const approveReplyFn = noop
 export const rejectReplyFn = noop
 export const deleteReplyFn = noop
 export const retryPublishFn = noop
+export const editPublishedReplyFn = noop
 export const getReplyFn = noop
