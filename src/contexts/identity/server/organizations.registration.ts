@@ -123,8 +123,13 @@ export const signInUser = createServerFn({ method: 'POST' })
                   const single = signedIn.headers.get('set-cookie')
                   return single ? [single] : []
                 })()
-          for (const cookie of setCookies) {
-            setResponseHeader('Set-Cookie', cookie)
+          // One call with the ARRAY: setResponseHeader with a string does
+          // headers.set (replace) — looping strings drops all but the last
+          // cookie (better-auth sets session_token AND session_data; the
+          // loop kept only session_data, so the session never stuck and the
+          // app bounced back to /login). Array form deletes + appends each.
+          if (setCookies.length > 0) {
+            setResponseHeader('Set-Cookie', setCookies)
           }
         } catch (e) {
           const { getLogger } = await import('#/shared/observability/logger')

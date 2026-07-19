@@ -453,4 +453,21 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     expect(outcome.decision.freshRead).toBe(false)
     expect(refreshPolicy).not.toHaveBeenCalled()
   })
+
+  it('reconcile-ambiguous-publications sweep allows under its own tenant-cross action (regression: shared system:review.sync scope merge denied it missing_scope)', async () => {
+    installRealPolicy(fixtureEnv('dark job (goal reconcile)'))
+
+    const outcome = await gateJob(
+      'reconcile-ambiguous-publications',
+      {},
+      'schedule:reconcile-ambiguous-publications',
+      'schedule',
+    )
+
+    // Tenant-cross + capability 'none' + the distinct system:review.reconcile
+    // action → allow under the sentinel org (no property required).
+    expect(outcome.kind).toBe('allow')
+    expect(outcome.decision.action).toBe('system:review.reconcile')
+    expect(outcome.decision.freshRead).toBe(false)
+  })
 })

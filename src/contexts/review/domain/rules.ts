@@ -1,6 +1,6 @@
 // Review context — domain rules
 
-import { createHash } from 'node:crypto'
+import { sha256Hex } from '#/shared/domain/sha256'
 import type { StarRating, ReplyStatus, Reply } from './types'
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
@@ -44,7 +44,10 @@ export function computeReviewContentHash(
     fields.reviewerName ?? '',
     fields.languageCode ?? '',
   ].join('\0')
-  return createHash('sha256').update(canonical, 'utf8').digest('hex')
+  // Browser-safe vendored sha256 (identical digests to node:crypto) — domain
+  // modules are shared by server AND client graphs; node:crypto crashes
+  // hydration in the dev server (STD-P2-01 class).
+  return sha256Hex(canonical)
 }
 
 /** Valid reply status transitions. Keys are current status, values are allowed next statuses.
