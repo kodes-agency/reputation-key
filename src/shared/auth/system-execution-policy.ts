@@ -241,10 +241,28 @@ export function initDelayedExecutionPolicy(policy: DelayedExecutionPolicy): void
 /** Reset — test teardown only. */
 export function resetDelayedExecutionPolicy(): void {
   _delayed = undefined
+  _ensureDelayedPolicy = undefined
+}
+
+/**
+ * Lazy initializer fired when the delayed policy is read before composition
+ * installed it (fresh-process first gated emit/dispatch). The composition
+ * root registers `getContainer`; tests that don't register keep the
+ * historical not-initialized throw. Same cold-boot race as the interactive
+ * ExecutionPolicy (see execution-policy.ts).
+ */
+let _ensureDelayedPolicy: (() => void) | undefined
+
+/** Register the lazy initializer — called once from composition module load. */
+export function registerDelayedExecutionPolicyInit(ensure: () => void): void {
+  _ensureDelayedPolicy = ensure
 }
 
 /** The installed delayed policy. Throws when composition has not installed it. */
 export function getDelayedExecutionPolicy(): DelayedExecutionPolicy {
+  if (!_delayed) {
+    _ensureDelayedPolicy?.()
+  }
   if (!_delayed) {
     throw new Error(
       '[DELAYED EXECUTION POLICY] not initialized — composition must call initDelayedExecutionPolicy',

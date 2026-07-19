@@ -322,9 +322,33 @@ export function initExecutionPolicy(policy: ExecutionPolicy): void {
 /** Reset — test teardown only. */
 export function resetExecutionPolicy(): void {
   _policy = undefined
+  _ensurePolicy = undefined
+}
+
+/**
+ * Lazy initializer fired when the policy is read before composition installed
+ * it — the first policy-gated call in a FRESH process. The composition root
+ * registers `getContainer` (which builds the container and installs the
+ * policy synchronously); tests that don't register anything keep the
+ * historical not-initialized throw.
+ *
+ * Why: getContainer() is a lazy singleton, but policy checks (e.g.
+ * organizations.query.ts requireExecutionAllowed) run BEFORE any
+ * getContainer() call in a fresh process — so the first gated request after
+ * every cold boot failed with "[EXECUTION POLICY] not initialized" until some
+ * other code happened to build the container first.
+ */
+let _ensurePolicy: (() => void) | undefined
+
+/** Register the lazy initializer — called once from composition module load. */
+export function registerExecutionPolicyInit(ensure: () => void): void {
+  _ensurePolicy = ensure
 }
 
 function getExecutionPolicy(): ExecutionPolicy {
+  if (!_policy) {
+    _ensurePolicy?.()
+  }
   if (!_policy) {
     throw new Error(
       '[EXECUTION POLICY] not initialized — composition must call initExecutionPolicy',

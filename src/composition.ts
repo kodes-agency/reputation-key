@@ -37,6 +37,8 @@ import {
   type Capability,
 } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import { registerExecutionPolicyInit } from '#/shared/auth/execution-policy'
+import { registerDelayedExecutionPolicyInit } from '#/shared/auth/system-execution-policy'
 import {
   setOrganizationPolicy,
   setPropertyPolicy,
@@ -760,3 +762,15 @@ export function getContainer(): Container {
   }
   return _container
 }
+
+// Cold-boot race fix: the policy singletons (interactive + delayed) are
+// installed inside createContainer, but policy checks can run BEFORE any
+// getContainer() call in a fresh process (e.g. the first dashboard load
+// after a dev-server restart — requireExecutionAllowed precedes the fn's
+// own getContainer call and used to fail with "[EXECUTION POLICY] not
+// initialized"). Registering getContainer as the lazy initializer means the
+// first policy read builds the root on demand. Tests that reset the
+// singletons and don't need the lazy path are unaffected — the hooks only
+// fire while a policy is uninitialized.
+registerExecutionPolicyInit(() => getContainer())
+registerDelayedExecutionPolicyInit(() => getContainer())
