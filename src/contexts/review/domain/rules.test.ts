@@ -129,13 +129,25 @@ describe('canTransitionReply', () => {
     expect(canTransitionReply('publish_failed', 'published')).toBe(true)
   })
 
+  it('allows published → approved (edit-and-republish)', () => {
+    expect(canTransitionReply('published', 'approved')).toBe(true)
+  })
+
+  it('blocks published → draft and published → publish_failed', () => {
+    expect(canTransitionReply('published', 'draft')).toBe(false)
+    expect(canTransitionReply('published', 'publish_failed')).toBe(false)
+  })
+
   it('blocks draft → approved (must go through pending_approval)', () => {
     expect(canTransitionReply('draft', 'approved')).toBe(false)
   })
 
-  it('blocks published → any', () => {
+  it('published → approved ONLY (edit-and-republish); all other published exits blocked', () => {
+    expect(canTransitionReply('published', 'approved')).toBe(true)
     expect(canTransitionReply('published', 'draft')).toBe(false)
-    expect(canTransitionReply('published', 'approved')).toBe(false)
+    expect(canTransitionReply('published', 'publish_failed')).toBe(false)
+    expect(canTransitionReply('published', 'pending_approval')).toBe(false)
+    expect(canTransitionReply('published', 'rejected')).toBe(false)
   })
 
   it('blocks rejected → pending_approval (must re-draft first)', () => {

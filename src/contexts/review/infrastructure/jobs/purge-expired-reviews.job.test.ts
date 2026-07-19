@@ -73,6 +73,7 @@ function makeCommandStore(opts: { failFor?: ReadonlyArray<string> } = {}) {
     markPublicationTerminal: vi.fn(),
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),
+    editPublishedReply: vi.fn(),
     cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(),
     purgeExpiredReview: vi.fn(async (id, event) => {

@@ -792,6 +792,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { externalEffect: true, notes: 'enqueues GBP publish job' },
     ),
     sf(
+      'editPublishedReplyFn',
+      `${REVIEW}/reply-draft.ts`,
+      'reply.manage',
+      'property.publish_reply',
+      'property',
+      {
+        externalEffect: true,
+        notes: 'edit-and-republish (published → approved) — enqueues GBP upsert',
+      },
+    ),
+    sf(
       'getReplyFn',
       `${REVIEW}/reply-read.ts`,
       'reply.manage',
@@ -2080,6 +2091,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.approved',
       'review.reply.rejected',
       'review.reply.publication_cancelled',
+      'review.reply.updated',
       'team.created',
       'team.updated',
       'team.deleted',

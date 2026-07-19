@@ -43,6 +43,7 @@ import {
   reviewReplyPublishFailed,
   reviewReplyRejected,
   reviewReplySubmitted,
+  reviewReplyUpdated,
 } from '../domain/events'
 import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
 
@@ -494,6 +495,68 @@ describe('createAtomicReplyCommandStore', () => {
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
       expect(events.emit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('editPublishedReply (edit-and-republish)', () => {
+    const updatedEvent = () =>
+      reviewReplyUpdated({
+        replyId: REPLY_ID,
+        reviewId: REVIEW_ID,
+        propertyId: PROP_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        occurredAt: NOW,
+      })
+
+    it('commits text + approved + fresh publication cycle + updated fact, one tx', async () => {
+      const order: string[] = []
+      const setPayloads: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({
+        order,
+        updateRowsQueue: [
+          [
+            makeRow({
+              status: 'approved',
+              text: 'Improved public reply',
+              publicationState: 'authorized',
+            }),
+          ],
+        ],
+        setPayloads,
+      })
+      const events = makeEvents(order)
+      const store = createAtomicReplyCommandStore(db, events)
+
+      const result = await store.editPublishedReply(
+        makeReply({ status: 'published', publicationState: 'published' }),
+        { text: 'Improved public reply', event: updatedEvent(), now: NOW },
+      )
+
+      expect(result?.status).toBe('approved')
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(setPayloads[0]).toMatchObject({
+        text: 'Improved public reply',
+        status: 'approved',
+        publicationState: 'authorized',
+        publicationAttempts: 0,
+        publicationLastErrorClass: null,
+        reconcileDueAt: null,
+      })
+    })
+
+    it('non-published reply returns null WITHOUT touching the DB (race guard)', async () => {
+      const order: string[] = []
+      const { db } = createMockDb({ order })
+      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+
+      const result = await store.editPublishedReply(
+        makeReply({ status: 'approved', publicationState: 'authorized' }),
+        { text: 'New', event: updatedEvent(), now: NOW },
+      )
+
+      expect(result).toBeNull()
+      expect(order).toEqual([])
     })
   })
 

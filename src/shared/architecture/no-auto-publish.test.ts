@@ -65,13 +65,14 @@ describe('BQC-3.8: no-auto-publish invariant', () => {
 
   it('(a) addPublishJob is called ONLY from reply-operations.ts', () => {
     expect(callSiteFiles).toEqual([OPS_FILE])
-    // Exactly the two human-gated enqueue sites: approveReply + retryPublish.
-    expect(read(OPS_FILE).match(new RegExp(CALL_RE.source, 'g'))).toHaveLength(2)
+    // Exactly the three human-gated enqueue sites: approveReply + retryPublish
+    // + editPublishedReply (edit-and-republish — also requireManager-gated).
+    expect(read(OPS_FILE).match(new RegExp(CALL_RE.source, 'g'))).toHaveLength(3)
   })
 
   it('(b) every publish enqueue site requires a human AuthContext first', () => {
     const ops = read(OPS_FILE)
-    for (const fn of ['approveReply', 'retryPublish']) {
+    for (const fn of ['approveReply', 'retryPublish', 'editPublishedReply']) {
       const body = functionBlock(ops, fn)
       expect(body, `${fn} must call requireManager(ctx)`).toContain('requireManager(ctx)')
       expect(CALL_RE.test(body), `${fn} must contain the publish enqueue`).toBe(true)

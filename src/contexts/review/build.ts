@@ -30,6 +30,7 @@ import {
   deleteReply,
   getReply,
   retryPublish,
+  editPublishedReply,
 } from './application/use-cases/reply-operations'
 import { reconcileReplyPublication } from './application/use-cases/reconcile-reply-publication'
 import { cancelPublicationsForConnection } from './application/use-cases/cancel-publications'
@@ -80,6 +81,7 @@ export type ReviewContextApi = Readonly<{
       draftReply: ReturnType<typeof draftReply>
       submitReply: ReturnType<typeof submitReply>
       approveReply: ReturnType<typeof approveReply>
+      editPublishedReply: ReturnType<typeof editPublishedReply>
       rejectReply: ReturnType<typeof rejectReply>
       deleteReply: ReturnType<typeof deleteReply>
       getReply: ReturnType<typeof getReply>
@@ -231,6 +233,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     deleteReply: deleteReply(replyDeps),
     getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
+    editPublishedReply: editPublishedReply(replyDeps),
     reconcileReplyPublication: reconcileReplyPublication({
       replyRepo,
       reviewRepo,

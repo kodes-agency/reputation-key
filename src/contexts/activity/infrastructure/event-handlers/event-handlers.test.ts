@@ -276,4 +276,60 @@ describe('activity event handlers', () => {
       expect(calls).toHaveLength(0)
     })
   })
+
+  describe('onReplyUpdated (edit-and-republish)', () => {
+    it('maps to changed/reply with the published → approved edit in the payload', async () => {
+      const { onReplyUpdated } = await import('./on-reply-updated')
+      const { queue, calls, inboxItemLookup } = createMockDeps()
+      const handler = onReplyUpdated({ queue, inboxItemLookup })
+
+      await handler({
+        _tag: 'review.reply.updated',
+        eventId: 'evt-10',
+        replyId: REPLY,
+        reviewId: REVIEW,
+        propertyId: PROP,
+        organizationId: ORG,
+        userId: USER,
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      expect(calls).toHaveLength(1)
+      expect(calls[0]!.name).toBe('insert-activity-log')
+      const data = calls[0]!.data as {
+        action: string
+        resourceType: string
+        resourceId: string
+        payload: { from: string; to: string; detail: string }
+      }
+      expect(data.action).toBe('changed')
+      expect(data.resourceType).toBe('reply')
+      expect(data.resourceId).toBe(REPLY as string)
+      expect(data.payload.from).toBe('published')
+      expect(data.payload.to).toBe('approved')
+      expect(data.payload.detail).toBe('edited_for_republish')
+    })
+
+    it('skips reviews without an inbox item', async () => {
+      const { onReplyUpdated } = await import('./on-reply-updated')
+      const { queue, calls, inboxItemLookup } = createMockDeps()
+      inboxItemLookup.findBySourceId.mockResolvedValue(null)
+      const handler = onReplyUpdated({ queue, inboxItemLookup })
+
+      await handler({
+        _tag: 'review.reply.updated',
+        eventId: 'evt-11',
+        replyId: REPLY,
+        reviewId: REVIEW,
+        propertyId: PROP,
+        organizationId: ORG,
+        userId: null,
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      expect(calls).toHaveLength(0)
+    })
+  })
 })

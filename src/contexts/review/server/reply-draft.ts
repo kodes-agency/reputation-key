@@ -85,3 +85,33 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
       'review.approveReply',
     ),
   )
+
+// ── editPublishedReply ───────────────────────────────────────────────
+// Edit-and-republish: edit a published reply's text and republish through the
+// durable publication machine (the GBP reply update is an upsert — no
+// duplicate is possible). Mirrors approveReplyFn's permission and error shape.
+
+export const editPublishedReplyFn = createServerFn({ method: 'POST' })
+  .inputValidator(draftReplyDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
+        const { useCases } = getContainer()
+        try {
+          return await useCases.editPublishedReply(
+            { reviewId: reviewId(data.reviewId), text: data.text },
+            ctx,
+          )
+        } catch (e) {
+          if (isReviewError(e))
+            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'review.editPublishedReply',
+    ),
+  )

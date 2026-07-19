@@ -150,6 +150,7 @@ function makeDeps(overrides: {
     markPublicationTerminal: vi.fn(),
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),
+    editPublishedReply: vi.fn(),
     cancelPublications: vi.fn(),
     mirrorSyncedReply: vi.fn(),
     purgeExpiredReview: vi.fn(),

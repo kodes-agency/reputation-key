@@ -410,6 +410,11 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: replyPublicationCancelledSchema,
   })
+  registerEventSchema({
+    type: 'review.reply.updated',
+    version: EVENT_VERSION,
+    schema: replyEventSchema,
+  })
 
   // Inbox events
   registerEventSchema({

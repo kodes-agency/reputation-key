@@ -236,6 +236,9 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     markPublicationAuthorized: vi.fn(async () => {
       throw new Error('markPublicationAuthorized is not used by syncReviews')
     }),
+    editPublishedReply: vi.fn(async () => {
+      throw new Error('editPublishedReply is not used by syncReviews')
+    }),
     markPublicationSending: vi.fn(async () => {
       throw new Error('markPublicationSending is not used by syncReviews')
     }),
