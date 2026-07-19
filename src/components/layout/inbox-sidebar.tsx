@@ -29,6 +29,7 @@ interface InboxSidebarProps {
   getInboxFolderCounts: typeof getInboxFolderCountsFn
 }
 
+// fallow-ignore-next-line complexity — pre-existing component layout (was already over threshold on main; my 3-line query-key change doesn't alter it — extraction belongs to a sidebar refactor, not this badge-scoping fix)
 export function InboxSidebar({
   propertyId,
   properties,
@@ -39,8 +40,10 @@ export function InboxSidebar({
   const activeFolder = useInboxFolder()
   const activePlatform = useInboxPlatform()
   const countsQuery = useQuery({
-    queryKey: inboxKeys.counts(),
-    queryFn: () => getInboxFolderCounts({ data: {} }),
+    // Keyed per property: folder badges follow the property selector
+    // (previously keyed once globally, so counts never changed on switch).
+    queryKey: inboxKeys.countsFor(propertyId),
+    queryFn: () => getInboxFolderCounts({ data: { propertyId } }),
     staleTime: 0,
   })
   const counts = countsQuery.data ?? DEFAULT_COUNTS

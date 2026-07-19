@@ -147,13 +147,16 @@ export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
   .inputValidator(getInboxFolderCountsDto)
   .handler(
     tracedHandler(
-      async () => {
+      async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
         const { useCases } = getContainer()
         try {
-          return await useCases.getInboxFolderCounts({}, ctx)
+          return await useCases.getInboxFolderCounts(
+            { propertyId: data?.propertyId },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
