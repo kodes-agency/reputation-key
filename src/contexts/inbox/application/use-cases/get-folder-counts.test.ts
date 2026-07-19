@@ -146,4 +146,51 @@ describe('getInboxFolderCounts', () => {
 
     expect(counts.open).toBe(1)
   })
+
+  it('propertyId narrows counts to that property (org-wide role)', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      makeItem({ id: 'ii-1', status: 'open', propertyId: propertyId('prop-1') }),
+      makeItem({
+        id: 'ii-2',
+        status: 'open',
+        isEscalated: true,
+        propertyId: propertyId('prop-1'),
+      }),
+      makeItem({ id: 'ii-3', status: 'closed', propertyId: propertyId('prop-1') }),
+      makeItem({ id: 'ii-4', status: 'closed', propertyId: propertyId('prop-2') }),
+      makeItem({ id: 'ii-5', status: 'closed', propertyId: propertyId('prop-2') }),
+    )
+
+    const counts = await useCase({ propertyId: 'prop-1' }, ctxFor('AccountAdmin'))
+
+    expect(counts).toEqual({ open: 2, escalated: 1, closed: 1 })
+  })
+
+  it('propertyId narrows counts for a scoped role when the property is accessible', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1', 'prop-2']))
+    repo.items.push(
+      makeItem({ id: 'ii-1', status: 'open', propertyId: propertyId('prop-1') }),
+    )
+    repo.items.push(
+      makeItem({ id: 'ii-2', status: 'open', propertyId: propertyId('prop-2') }),
+    )
+
+    const counts = await useCase({ propertyId: 'prop-2' }, ctxFor('PropertyManager'))
+
+    expect(counts.open).toBe(1)
+  })
+
+  it('throws forbidden when a scoped role requests an inaccessible property', async () => {
+    const { useCase } = setup(createScopedStaffApi(['prop-1']))
+
+    await expect(
+      useCase({ propertyId: 'prop-2' }, ctxFor('PropertyManager')),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isInboxError(e) &&
+        e.code === 'forbidden' &&
+        /No access to this property/.test(e.message),
+    )
+  })
 })

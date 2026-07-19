@@ -12,6 +12,9 @@ export const inboxKeys = {
   list: (filters: Readonly<Record<string, unknown>>) =>
     [...inboxKeys.lists(), filters] as const,
   counts: () => [...inboxKeys.all, 'counts'] as const,
+  // Per-property variant — invalidation via the counts() prefix still matches.
+  countsFor: (propertyId?: string) =>
+    [...inboxKeys.counts(), propertyId ?? 'all'] as const,
   lastVisitCount: () => [...inboxKeys.all, 'last-visit-count'] as const,
   details: () => [...inboxKeys.all, 'item'] as const,
   detail: (id: string) => [...inboxKeys.details(), id] as const,

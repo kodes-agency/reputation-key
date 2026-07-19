@@ -16,7 +16,10 @@ export type InboxFolderCounts = Readonly<{
   closed: number
 }>
 
-export type GetInboxFolderCountsInput = Readonly<Record<string, never>>
+export type GetInboxFolderCountsInput = Readonly<{
+  /** When set, counts are scoped to this property (permission-checked). */
+  propertyId?: string
+}>
 
 export type GetInboxFolderCountsDeps = Readonly<{
   repo: InboxRepository
@@ -30,7 +33,7 @@ export type GetInboxFolderCounts = (
 
 export const getInboxFolderCounts =
   (deps: GetInboxFolderCountsDeps): GetInboxFolderCounts =>
-  async (_input, ctx) => {
+  async (input, ctx) => {
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
@@ -52,13 +55,25 @@ export const getInboxFolderCounts =
       if (accessible.length === 0) {
         return { open: 0, escalated: 0, closed: 0 }
       }
+      if (input.propertyId && !accessible.includes(input.propertyId as PropertyId)) {
+        throw inboxError('forbidden', 'No access to this property', {
+          propertyId: input.propertyId,
+        })
+      }
       propertyIds = accessible
     }
 
+    // An explicit property filter narrows the count to that property;
+    // otherwise the count spans every accessible property (org-wide for
+    // org-wide roles).
+    const scoped: ReadonlyArray<PropertyId> | undefined = input.propertyId
+      ? [input.propertyId as PropertyId]
+      : propertyIds
+
     const [open, escalated, closed] = await Promise.all([
-      deps.repo.countByStatus(ctx.organizationId, 'open', propertyIds),
-      deps.repo.countEscalatedActive(ctx.organizationId, propertyIds),
-      deps.repo.countByStatus(ctx.organizationId, 'closed', propertyIds),
+      deps.repo.countByStatus(ctx.organizationId, 'open', scoped),
+      deps.repo.countEscalatedActive(ctx.organizationId, scoped),
+      deps.repo.countByStatus(ctx.organizationId, 'closed', scoped),
     ])
 
     return { open, escalated, closed }

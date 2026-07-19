@@ -73,8 +73,12 @@ export const getInboxNotesDto = z.object({
   inboxItemId: z.string().uuid(),
 })
 
-// GET folder counts — for the email-style sidebar (open, escalated, closed)
-export const getInboxFolderCountsDto = z.object({})
+// GET folder counts — for the email-style sidebar (open, escalated, closed).
+// propertyId scopes the counts to one property (permission-checked); omitted
+// means every accessible property (org-wide for org-wide roles).
+export const getInboxFolderCountsDto = z.object({
+  propertyId: z.string().optional(),
+})
 
 // Type exports
 export type GetInboxItemsInput = z.infer<typeof getInboxItemsDto>
