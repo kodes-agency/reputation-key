@@ -2352,6 +2352,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'seed:e2e-user — better-auth API + DIRECT-DB writes; writes e2e/.seed-state.json',
   }),
+  ops('scripts/seed-demo-reviews.ts', 'scripts/seed-demo-reviews.ts', 'tenant_cross', {
+    notes:
+      'demo seed — DIRECT-DB inserts of 6 reviews + inbox items (+replies) for UI demos; idempotent by externalId',
+  }),
   ops('scripts/simulate.ts', 'scripts/simulate.ts', 'tenant_cross', {
     externalEffect: true,
     notes: 'Neon branch lifecycle (Neon API) + seed + invariants',
