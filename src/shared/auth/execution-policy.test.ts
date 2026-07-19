@@ -11,6 +11,8 @@ import {
   createExecutionPolicy,
   initExecutionPolicy,
   requireExecutionAllowed,
+  registerExecutionPolicyInit,
+  resetExecutionPolicy,
   EXECUTION_POLICY_VERSION,
   type DecisionAuditEntry,
   type DecisionRequest,
@@ -298,5 +300,40 @@ describe('requireExecutionAllowed (BQC-2.4 migration helper)', () => {
         propertyId: propertyId(PROP),
       }),
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('registerExecutionPolicyInit (cold-boot lazy init)', () => {
+  it('still throws when uninitialized and no initializer is registered', async () => {
+    resetExecutionPolicy()
+    await expect(
+      requireExecutionAllowed({
+        actor: orgWideCtx(['property.read']),
+        action: 'property.read',
+      }),
+    ).rejects.toThrow(/not initialized/)
+  })
+
+  it('fires the registered initializer on first read (the cold-boot race fix)', async () => {
+    resetExecutionPolicy()
+    const install = vi.fn(() => initExecutionPolicy(createExecutionPolicy(deps())))
+    registerExecutionPolicyInit(install)
+
+    await expect(
+      requireExecutionAllowed({
+        actor: orgWideCtx(['property.read']),
+        action: 'property.read',
+      }),
+    ).resolves.toBeUndefined()
+    expect(install).toHaveBeenCalledTimes(1)
+
+    // Second read uses the installed policy — the initializer does not re-fire.
+    await expect(
+      requireExecutionAllowed({
+        actor: orgWideCtx(['property.read']),
+        action: 'property.read',
+      }),
+    ).resolves.toBeUndefined()
+    expect(install).toHaveBeenCalledTimes(1)
   })
 })

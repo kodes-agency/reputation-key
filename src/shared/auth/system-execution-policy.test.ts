@@ -8,6 +8,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   createDelayedExecutionPolicy,
+  getDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  registerDelayedExecutionPolicyInit,
+  resetDelayedExecutionPolicy,
   requiresFreshRead,
   capabilityForSystemAction,
   type DelayedPolicyDeps,
@@ -117,5 +121,26 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       policyVersion: 'bqc-2.4',
       correlationId: 'corr-delayed-1',
     })
+  })
+})
+
+describe('registerDelayedExecutionPolicyInit (cold-boot lazy init)', () => {
+  it('still throws when uninitialized and no initializer is registered', () => {
+    resetDelayedExecutionPolicy()
+    expect(() => getDelayedExecutionPolicy()).toThrow(/not initialized/)
+  })
+
+  it('fires the registered initializer on first read (the cold-boot race fix)', () => {
+    resetDelayedExecutionPolicy()
+    const stub = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+    const install = vi.fn(() => initDelayedExecutionPolicy(stub))
+    registerDelayedExecutionPolicyInit(install)
+
+    expect(getDelayedExecutionPolicy()).toBe(stub)
+    expect(install).toHaveBeenCalledTimes(1)
+
+    // Second read uses the installed policy — the initializer does not re-fire.
+    expect(getDelayedExecutionPolicy()).toBe(stub)
+    expect(install).toHaveBeenCalledTimes(1)
   })
 })
