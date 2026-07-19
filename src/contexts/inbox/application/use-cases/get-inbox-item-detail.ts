@@ -55,13 +55,16 @@ export const getInboxItemDetail =
       detail.item.propertyId,
     )
 
-    // Attach the review's internal reply. Primary authorization is inbox.read
-    // (above); reply.manage is a field-level scope so Staff (who lack it) never
-    // receive reply data. Mild tension with ADR 0009 §6 ("each use case maps to
-    // exactly one permission") — justified by mandatory leak prevention.
+    // Attach the review's effective reply (internal, else the google_sync
+    // mirror — without the mirror fallback, replies published via the GBP UI
+    // are invisible and the panel renders a compose box over them). Primary
+    // authorization is inbox.read (above); reply.manage is a field-level
+    // scope so Staff (who lack it) never receive reply data. Mild tension
+    // with ADR 0009 §6 ("each use case maps to exactly one permission") —
+    // justified by mandatory leak prevention.
     let reply: ReplyView | null = null
     if (detail.item.sourceType === 'review' && canForContext(ctx, 'reply.manage')) {
-      reply = await deps.replyLookup.getReplyByReviewId(
+      reply = await deps.replyLookup.getEffectiveReplyByReviewId(
         detail.item.sourceId as ReviewId,
         ctx.organizationId,
       )
