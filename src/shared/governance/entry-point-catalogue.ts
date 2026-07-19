@@ -84,6 +84,7 @@ export type SystemAction =
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
   | 'system:review.purge'
+  | 'system:review.reconcile'
   | 'system:reply.publish'
   | 'system:metric.refresh'
   | 'system:metric.record'
@@ -1936,12 +1937,12 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
     'reconcile-ambiguous-publications',
     'src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts',
-    'system:review.sync',
+    'system:review.reconcile',
     'none',
     'tenant_cross',
     {
       notes:
-        'BQC-3.8 ambiguous-publication reconcile sweep; provider re-read only — never a send',
+        'BQC-3.8 ambiguous-publication reconcile sweep; provider re-read only — never a send; distinct action: shares nothing with property-scoped system:review.sync (strictest-scope merge would missing_scope-deny this tenant-cross sweep)',
     },
   ),
   job(
@@ -2211,7 +2212,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   schedule(
     'reconcile-ambiguous-publications-recurring',
-    'system:review.sync',
+    'system:review.reconcile',
     'none',
     'tenant_cross',
     { notes: 'every 30 min (BQC-3.8 ambiguous-outcome reconcile sweep)' },

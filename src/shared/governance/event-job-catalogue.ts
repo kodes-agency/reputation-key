@@ -1365,7 +1365,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       queue: 'background',
       capability: 'none',
-      action: 'system:review.sync',
+      action: 'system:review.reconcile',
       schedule: 'every:1800000',
       registration: 'enabled',
     },
