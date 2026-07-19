@@ -65,7 +65,11 @@ const REPLY_TRANSITIONS: Readonly<Record<ReplyStatus, ReadonlyArray<ReplyStatus>
   draft: ['draft', 'pending_approval'],
   pending_approval: ['approved', 'rejected'],
   approved: ['published', 'publish_failed', 'draft'],
-  published: [],
+  // published → approved exists ONLY for the edit-and-republish path
+  // (editPublishedReply): editing a published reply's text re-enters the
+  // durable publication machine; the GBP reply update is an upsert, so
+  // republishing can never duplicate the provider-visible reply.
+  published: ['approved'],
   rejected: ['draft'],
   publish_failed: ['approved', 'published'],
 }

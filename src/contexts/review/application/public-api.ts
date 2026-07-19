@@ -19,6 +19,7 @@ export type {
   ReviewReplyApproved,
   ReviewReplyRejected,
   ReviewReplyPublishFailed,
+  ReviewReplyUpdated,
   ReviewReplyPublicationCancelled,
   ReviewEvent,
 } from '../domain/events'
@@ -31,6 +32,7 @@ export {
   reviewReplyApproved,
   reviewReplyRejected,
   reviewReplyPublishFailed,
+  reviewReplyUpdated,
   reviewReplyPublicationCancelled,
 } from '../domain/events'
 

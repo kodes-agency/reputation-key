@@ -233,6 +233,32 @@ export const reviewReplyPublishFailed = (
 // BQC-3.8: a publication in flight (requested/authorized/sending) was
 // cancelled by policy or by Google account disconnect. The reply returns to
 // draft and must be re-approved before any new publish.
+export type ReviewReplyUpdated = Readonly<{
+  _tag: 'review.reply.updated'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  /** The user who edited the published reply text. */
+  userId: UserId | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const reviewReplyUpdated = (
+  args: Omit<ReviewReplyUpdated, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewReplyUpdated => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  return {
+    ...args,
+    _tag: 'review.reply.updated',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type ReviewReplyPublicationCancelled = Readonly<{
   _tag: 'review.reply.publication_cancelled'
   eventId: string
@@ -267,4 +293,5 @@ export type ReviewEvent =
   | ReviewReplyApproved
   | ReviewReplyRejected
   | ReviewReplyPublishFailed
+  | ReviewReplyUpdated
   | ReviewReplyPublicationCancelled

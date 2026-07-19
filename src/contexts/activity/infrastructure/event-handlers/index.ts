@@ -15,6 +15,7 @@ import { onInboxNoteAdded } from './on-inbox-note-added'
 import { onInboxBulkStatusChanged } from './on-inbox-bulk-status-changed'
 import { onReplyPublished } from './on-reply-published'
 import { onReplyPublicationCancelled } from './on-reply-publication-cancelled'
+import { onReplyUpdated } from './on-reply-updated'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReplyApproved } from './on-reply-approved'
 import { onReplyRejected } from './on-reply-rejected'
@@ -95,6 +96,9 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     onReplyPublicationCancelled(deps),
     { consumer: 'activity.event-handlers' },
   )
+  deps.events.on('review.reply.updated', onReplyUpdated(deps), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on('review.reply.submitted', onReplySubmitted(deps), {
     consumer: 'activity.event-handlers',
   })

@@ -477,6 +477,24 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         'BQC-3.8: disconnect/policy cancellation of an in-flight publication (requested/authorized/sending → cancelled, reply back to draft for re-approval); atomic per-batch write + fact via ReplyCommandStore.cancelPublications',
     },
   ),
+  ev(
+    'review.reply.updated',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        "edit-and-republish: a published reply's text was edited and re-entered the durable publication machine (published → approved, fresh cycle); atomic write + fact via ReplyCommandStore.editPublishedReply; the provider upsert (GBP) makes republish non-duplicating",
+    },
+  ),
 ]
 
 const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [

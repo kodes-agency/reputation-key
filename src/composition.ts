@@ -694,6 +694,7 @@ export function createContainer(options?: {
       draftReply: review.internal.useCases.draftReply,
       submitReply: review.internal.useCases.submitReply,
       approveReply: review.internal.useCases.approveReply,
+      editPublishedReply: review.internal.useCases.editPublishedReply,
       rejectReply: review.internal.useCases.rejectReply,
       deleteReply: review.internal.useCases.deleteReply,
       getReply: review.internal.useCases.getReply,

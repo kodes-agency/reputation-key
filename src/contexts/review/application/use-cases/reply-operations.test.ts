@@ -10,6 +10,7 @@ import {
   getReply,
   retryPublish,
   markReplyPublished,
+  editPublishedReply,
 } from './reply-operations'
 import type { ReplyDeps } from './reply-operations'
 import type { ReplyRepository, ConditionalReplyUpdate } from '../ports/reply.repository'
@@ -20,6 +21,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import type { Reply, Review } from '../../domain/types'
 import { isReviewError } from '../../domain/errors'
+import { MAX_REPLY_LENGTH } from '../../domain/rules'
 import {
   buildIdempotencyKey,
   nextPublicationState,
@@ -171,6 +173,24 @@ function makeReplyCommandStoreFake(
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),
     cancelPublications: vi.fn(),
+    // Edit-and-republish mirrors the production write: guarded published-only
+    // transition with the edit fields + the updated fact.
+    editPublishedReply: async (reply, command) => {
+      if (reply.status !== 'published') return null
+      return transition(
+        reply,
+        {
+          text: command.text,
+          status: 'approved',
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        command.event,
+        command.now,
+      )
+    },
     mirrorSyncedReply: vi.fn(async () => {
       throw new Error('mirrorSyncedReply is not used by reply-operations')
     }),
@@ -610,6 +630,145 @@ describe('approveReply', () => {
     expect(emittedEvent.organizationId).toBe(ORG_ID)
     expect(emittedEvent.userId).toBe(USER_ID)
     expect(emittedEvent.occurredAt).toBe(NOW)
+  })
+})
+
+// ── editPublishedReply ─────────────────────────────────────────────────
+
+describe('editPublishedReply', () => {
+  const published = () =>
+    makeReply({
+      status: 'published',
+      text: 'Old public reply',
+      publicationState: 'published',
+      publicationAttempts: 1,
+      publishedAt: NOW,
+    })
+
+  it('edits text, re-enters the publication machine, emits review.reply.updated, and enqueues the republish', async () => {
+    const reply = published()
+    const review = makeReview()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => reply),
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => review),
+      } as unknown as ReviewRepository,
+    })
+
+    const result = await editPublishedReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Improved public reply' },
+      MANAGER_CTX,
+    )
+
+    expect(result.status).toBe('approved')
+    expect(result.text).toBe('Improved public reply')
+    expect(result.publicationState).toBe('authorized')
+    expect(result.publicationAttempts).toBe(0)
+    expect(result.publicationLastErrorClass).toBeNull()
+    expect(result.reconcileDueAt).toBeNull()
+
+    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(emittedEvent._tag).toBe('review.reply.updated')
+    expect(emittedEvent.replyId).toBe(REPLY_ID)
+    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
+    expect(emittedEvent.propertyId).toBe(PROP_ID)
+    expect(emittedEvent.organizationId).toBe(ORG_ID)
+    expect(emittedEvent.userId).toBe(USER_ID)
+
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
+      {
+        replyId: REPLY_ID,
+        organizationId: ORG_ID,
+        policy: { initiator: { kind: 'user', id: USER_ID } },
+      },
+      { idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()) },
+    )
+  })
+
+  it('no-ops when the trimmed text is unchanged (no write, no fact, no enqueue)', async () => {
+    const reply = published()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => reply),
+      } as unknown as ReplyRepository,
+    })
+
+    const result = await editPublishedReply(deps)(
+      { reviewId: REVIEW_ID, text: '  Old public reply  ' },
+      MANAGER_CTX,
+    )
+
+    expect(result).toBe(reply)
+    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('rejects editing a non-published reply', async () => {
+    const reply = makeReply({ status: 'approved', publicationState: 'authorized' })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => reply),
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(
+      editPublishedReply(deps)({ reviewId: REVIEW_ID, text: 'New' }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+  })
+
+  it('rejects empty and over-length text', async () => {
+    const reply = published()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => reply),
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(
+      editPublishedReply(deps)({ reviewId: REVIEW_ID, text: '   ' }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_reply' })
+    await expect(
+      editPublishedReply(deps)(
+        { reviewId: REVIEW_ID, text: 'x'.repeat(MAX_REPLY_LENGTH + 1) },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_reply' })
+  })
+
+  it('rejects when the reply does not exist', async () => {
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => null),
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(
+      editPublishedReply(deps)({ reviewId: REVIEW_ID, text: 'New' }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'reply_not_found' })
+  })
+
+  it('treats a lost race (store returns null) as invalid_transition', async () => {
+    const reply = published()
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => reply),
+        conditionalUpdate: vi.fn(
+          async () => null,
+        ) as unknown as ReplyRepository['conditionalUpdate'],
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(
+      editPublishedReply(deps)({ reviewId: REVIEW_ID, text: 'New text' }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 })
 

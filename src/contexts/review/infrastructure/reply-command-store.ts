@@ -321,6 +321,29 @@ export function createAtomicReplyCommandStore(
       })
     },
 
+    // Edit-and-republish: guarded status='published' → 'approved' with the new
+    // text + a fresh publication cycle + the review.reply.updated fact — one
+    // transaction. The guard: the row must still be published (a purge,
+    // cancellation, or concurrent edit since the user opened the editor loses
+    // the race — no fact, no mutation, the caller surfaces invalid_transition).
+    editPublishedReply: (reply, command) => {
+      if (reply.status !== 'published') return Promise.resolve(null)
+      return transition(
+        'reply.commandStore.editPublishedReply',
+        reply,
+        {
+          text: command.text,
+          status: 'approved',
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        command.event,
+        command.now,
+      )
+    },
+
     cancelPublications: async (commands) => {
       return trace('reply.commandStore.cancelPublications', async () => {
         if (commands.length === 0) return 0
@@ -542,6 +565,25 @@ export function createSequentialReplyCommandStore(deps: {
         null,
         now,
       ),
+
+    // Edit-and-republish: guard on the persisted published status (mirrors the
+    // atomic store — the fake's conditionalUpdate enforces the TOCTOU guard).
+    editPublishedReply: (reply, command) => {
+      if (reply.status !== 'published') return Promise.resolve(null)
+      return transition(
+        reply,
+        {
+          text: command.text,
+          status: 'approved',
+          publicationState: 'authorized',
+          publicationAttempts: 0,
+          publicationLastErrorClass: null,
+          reconcileDueAt: null,
+        },
+        command.event,
+        command.now,
+      )
+    },
 
     cancelPublications: async (commands) => {
       let count = 0

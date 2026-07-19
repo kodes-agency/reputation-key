@@ -21,8 +21,16 @@ import type {
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
   ReviewReplySubmitted,
+  ReviewReplyUpdated,
 } from '../../domain/events'
 import type { ConditionalReplyUpdate } from './reply.repository'
+
+/** The edit-and-republish write: new text + re-authorization in one command. */
+export type EditPublishedReplyCommand = Readonly<{
+  text: string
+  event: ReviewReplyUpdated
+  now?: Date
+}>
 
 /** Mirror command for the GBP sync path: upsert or delete the google_sync reply. */
 export type MirrorSyncedReplyCommand = Readonly<{
@@ -119,6 +127,17 @@ export type ReplyCommandStore = Readonly<{
    * fact. Returns null when the guard misses.
    */
   markPublicationRetryQueued(reply: Reply, now?: Date): Promise<Reply | null>
+  /**
+   * Edit-and-republish: guarded status='published' → 'approved' with the new
+   * text and a fresh publication cycle (publication_state='authorized',
+   * attempts/error/reconcile-due reset) + the review.reply.updated fact, one
+   * transaction. Returns null when the reply is no longer published (race
+   * with a purge/cancellation or a concurrent edit) — no fact, no mutation.
+   */
+  editPublishedReply(
+    reply: Reply,
+    command: EditPublishedReplyCommand,
+  ): Promise<Reply | null>
   /**
    * BQC-3.8: disconnect/policy cancellation — per command, guarded
    * publication_state IN ('requested','authorized','sending') → 'cancelled'

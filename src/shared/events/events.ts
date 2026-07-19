@@ -118,6 +118,8 @@ export type {
   ReviewReplyPublishFailed,
   // fallow-ignore-next-line unused-type
   ReviewReplyPublicationCancelled,
+  // fallow-ignore-next-line unused-type
+  ReviewReplyUpdated,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events

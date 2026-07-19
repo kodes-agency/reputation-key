@@ -91,4 +91,9 @@ export const retryPublishFn = createServerFn({ method: 'POST' })
 // ── Re-exports from split files ──────────────────────────────────────
 
 export { getReplyFn } from './reply-read'
-export { draftReplyFn, submitReplyFn, approveReplyFn } from './reply-draft'
+export {
+  draftReplyFn,
+  submitReplyFn,
+  approveReplyFn,
+  editPublishedReplyFn,
+} from './reply-draft'

@@ -21,6 +21,7 @@ import {
   reviewReplySubmitted,
   reviewReplyApproved,
   reviewReplyRejected,
+  reviewReplyUpdated,
 } from '../../domain/events'
 
 // ── Shared ────────────────────────────────────────────────────────────
@@ -281,6 +282,100 @@ export const approveReply =
     )
 
     return approved
+  }
+
+// ── Edit published reply (edit-and-republish) ─────────────────────────
+
+export type EditPublishedReplyInput = Readonly<{
+  reviewId: ReviewId
+  text: string
+}>
+
+/**
+ * Edit the text of a PUBLISHED internal reply and republish it. The write
+ * re-enters the durable publication machine (published → approved with a
+ * fresh cycle), the review.reply.updated fact records the edit atomically,
+ * and the existing publish job performs the provider upsert — the GBP reply
+ * update is an upsert, so republishing can never duplicate the reply.
+ *
+ * No-ops when the trimmed text equals the current text (no write, no enqueue).
+ * Mirrors are read-only: editing a google_sync reply is not supported here
+ * (external edits happen in the GBP UI and sync back to the mirror).
+ */
+export const editPublishedReply =
+  (deps: ReplyDeps) =>
+  async (input: EditPublishedReplyInput, ctx: AuthContext): Promise<Reply> => {
+    requireManager(ctx)
+
+    const text = input.text.trim()
+    if (text.length === 0) {
+      throw reviewError('invalid_reply', 'Reply text cannot be empty')
+    }
+    if (text.length > MAX_REPLY_LENGTH) {
+      throw reviewError(
+        'invalid_reply',
+        `Reply text exceeds ${MAX_REPLY_LENGTH} characters`,
+      )
+    }
+
+    const reply = await deps.replyRepo.findInternalByReviewId(
+      input.reviewId,
+      ctx.organizationId,
+    )
+    if (!reply) {
+      throw reviewError('reply_not_found', 'No reply found for this review')
+    }
+    if (reply.status !== 'published') {
+      throw reviewError(
+        'invalid_transition',
+        'Only a published reply can be edited and republished',
+      )
+    }
+
+    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
+    if (!review) {
+      throw reviewError('review_not_found', 'Review not found')
+    }
+    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+
+    // No-op: identical text — no write, no provider call, no fact.
+    if (text === reply.text) {
+      return reply
+    }
+
+    const now = deps.clock()
+    const transitioned = transitionReply(reply, 'approved', now)
+    if (transitioned.isErr()) throw transitioned.error
+
+    // Guarded edit: text + status → approved + a fresh publication cycle +
+    // the review.reply.updated fact — one transaction. The committed updated
+    // fact is the recovery record if the process crashes before the enqueue.
+    const updated = await deps.commandStore.editPublishedReply(reply, {
+      text,
+      event: reviewReplyUpdated({
+        replyId: reply.id,
+        reviewId: reply.reviewId,
+        propertyId: review.propertyId,
+        organizationId: reply.organizationId,
+        userId: ctx.userId,
+        occurredAt: now,
+      }),
+      now,
+    })
+    if (!updated) {
+      throw reviewError('invalid_transition', 'Reply status changed concurrently')
+    }
+
+    await deps.queue.addPublishJob(
+      {
+        replyId: updated.id,
+        organizationId: updated.organizationId,
+        policy: { initiator: { kind: 'user', id: ctx.userId } },
+      },
+      { idempotencyKey: buildIdempotencyKey(updated.id, updated.updatedAt.getTime()) },
+    )
+
+    return updated
   }
 
 // ── Reject reply ──────────────────────────────────────────────────────
