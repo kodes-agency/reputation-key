@@ -90,6 +90,7 @@ function setup(opts: {
   }
   const replyLookup: ReplyLookupPort = {
     getReplyByReviewId: vi.fn(async () => null),
+    getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => opts.milestones ?? new Map()),
   }
   const deps = {

@@ -114,6 +114,7 @@ const noopLogger: LoggerPort = {
 
 const noopReplyLookup: ReplyLookupPort = {
   getReplyByReviewId: async () => null,
+  getEffectiveReplyByReviewId: async () => null,
   getReplyMilestonesByReviewIds: async () => new Map(),
 }
 

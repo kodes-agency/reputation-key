@@ -139,6 +139,10 @@ const setup = (
       replyCalls.push(id)
       return reply
     },
+    getEffectiveReplyByReviewId: async (id) => {
+      replyCalls.push(id)
+      return reply
+    },
     getReplyMilestonesByReviewIds: async () => new Map(),
   }
   return {
@@ -173,6 +177,29 @@ describe('getInboxItemDetail', () => {
     // AccountAdmin holds reply.manage → reply is attached for review items.
     expect(result.reply).toEqual(reply)
     expect(replyCalls).toHaveLength(1)
+  })
+
+  it('attaches a google_sync mirror reply with its source intact (mirror fallback)', async () => {
+    const mirror = {
+      ...makeReply(),
+      status: 'published' as const,
+      source: 'google_sync' as const,
+      submittedAt: FIXED_TIME,
+      approvedAt: FIXED_TIME,
+      publishedAt: FIXED_TIME,
+      publicationState: 'published' as const,
+      publicationAttempts: 1,
+    }
+    const { repo, staffApi, replyLookup, setDetail } = setup(adminStaffApi, mirror)
+    setDetail(makeDetail(makeItem()))
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    // The panel now receives mirror-published replies (previously invisible —
+    // the detail rendered a compose box over an existing Google-visible reply).
+    expect(result.reply?.source).toBe('google_sync')
+    expect(result.reply?.status).toBe('published')
   })
 
   it('throws not_found when item does not exist', async () => {

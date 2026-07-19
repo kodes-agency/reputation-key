@@ -41,6 +41,15 @@ export const createReplyLookupAdapter = (deps: {
   ) => Promise<ReadonlyArray<ReplyView>>
 }): ReplyLookupPort => ({
   getReplyByReviewId: (id, orgId) => deps.findInternalByReviewId(id, orgId),
+  getEffectiveReplyByReviewId: async (id, orgId) => {
+    // Internal first; the google_sync mirror only when no internal reply exists.
+    const replies = await deps.findByReviewId(id, orgId)
+    return (
+      replies.find((r) => r.source === 'internal') ??
+      replies.find((r) => r.source === 'google_sync') ??
+      null
+    )
+  },
   getReplyMilestonesByReviewIds: async (ids, orgId) => {
     // Per-review lookups, bounded by the caller's rebuild batch size.
     const map = new Map<string, ReplyMilestones>()
