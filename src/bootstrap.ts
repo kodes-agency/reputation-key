@@ -7,7 +7,7 @@
 
 import type { Container } from './composition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
-import { isDbHealthy } from '#/shared/db'
+import { isDbHealthy } from '#/shared/health/db-probe'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { createHealthChecker } from '#/shared/observability/health-metrics'

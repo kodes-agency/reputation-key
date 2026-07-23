@@ -8,7 +8,9 @@ import { portalId, unbrand } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
-import type { Queue } from 'bullmq'
+// BQC-5.1: application must not import bullmq directly — the Queue type comes
+// from the shared/jobs wiring surface (re-exported there).
+import type { Queue } from '#/shared/jobs/queue'
 import { PROCESS_IMAGE_JOB_NAME as JOB_NAME } from '../job-names'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 

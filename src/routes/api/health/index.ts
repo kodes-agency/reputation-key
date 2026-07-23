@@ -2,7 +2,7 @@
 // Prefer /api/health/live and /api/health/ready for orchestration (BQR-6.1).
 import { createFileRoute } from '@tanstack/react-router'
 import { isRedisHealthy } from '#/shared/cache/redis'
-import { isDbHealthy } from '#/shared/db'
+import { isDbHealthy } from '#/shared/health/db-probe'
 import { readyProbe, probeHttpStatus } from '#/shared/health/probes'
 
 export const Route = createFileRoute('/api/health/')({

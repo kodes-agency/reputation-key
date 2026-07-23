@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-18T23:31:06Z",
+  "updatedAt": "2026-07-23T17:08:47Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -717,7 +717,7 @@
       "id": "BQC-5",
       "kind": "phase",
       "title": "Clean architecture and context quality",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": [
@@ -730,7 +730,20 @@
         "STD-P2-04",
         "STD-P2-05"
       ],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "5.1 implementation_complete (PR pending): architecture policy is now executable — CONTEXT.md dependency rules are enforced by eslint-plugin-boundaries (full element coverage: context-build, context-ui, root ports/queries classified as application, shared catch-all) plus a new local cross-context-public-api eslint rule with a 12-case architecture test. Routes/server can no longer import #/shared/db; domain bans node:*/bullmq/ioredis, application bans bullmq/ioredis; shared/events narrowed to domain/events only. All 7 cross-context violations redirected through public interfaces; fallow config repaired (single regression block, refreshed honest baseline: 0 boundary violations). Slices 5.2–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.1",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Make architecture policy executable",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "CONTEXT.md is now mechanically enforced, not prose. (1) New local eslint rule cross-context-public-api (eslint-rules/cross-context-public-api.mjs): any import from a foreign context must target its application/public-api; sole exception infrastructure/adapters/** → foreign application/ports/** (the CONTEXT.md adapter exception). 12-case architecture test via programmatic ESLint (RED 7 failed → GREEN 12/12); negative check: re-adding a domain import fails pnpm lint on the rule. (2) Element coverage closed: context-build (build.ts/build-*.ts), context-ui (contexts/*/ui), root ports/+queries/ classified as application (activity layout deviation — physical move logged for BQC-5.2), shared catch-all element so every shared file now has dependency rules (shared runtime → context implementations structurally banned; shared-events keeps its sanctioned domain/events-only union, narrowed via negated import patterns). (3) All 7 cross-context violations redirected through public interfaces, zero behavior change: property public-api now exposes isRegionProcessable/assertRegionResolved (BQC-4.1 fail-closed gates; consumed by review sync + on-property-created), portal public-api exposes isPortalError (guest resolver; deeper guest-owned result stays with BQC-5.6), review public-api exposes the SourceContentPurge port type and the composition root now constructs the review-owned purge implementation ONCE and injects it into the property/integration builds (was: both build.ts files imported review infrastructure directly). (4) Routes → DB banned: isDbHealthy moved to shared/health/db-probe.ts, metrics route uses container.db; shared-db removed from routes and server allow-lists (zero server importers verified). route-queries.ts moved to src/routes/-queries/ (17 importers; TanStack '-' escape) — shared no longer imports context server fns. (5) Runtime bans: domain × node:*/bullmq/ioredis; application × bullmq/ioredis (node:* kept — get-google-auth-url legitimately uses createHmac; noted). (6) Fallow config repaired: 3 duplicate regression keys → 1, stale check-schema-drift entry removed, shared-events zone added (12 sanctioned events imports no longer flagged), baseline refreshed from stale 221/33 to honest 355 total / 0 boundary violations. (7) Stale docs/conventions.md references fixed (file did not exist) → CONTEXT.md. Gates: unit 368f/4104t, integration 49f/306t, typecheck, lint, format:check, fallow audit --gate new-only — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6",

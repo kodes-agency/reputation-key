@@ -1,5 +1,5 @@
 import type { PropertyCreated } from '#/contexts/property/application/public-api'
-import { isRegionProcessable } from '#/contexts/property/domain/processing-routing'
+import { isRegionProcessable } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'

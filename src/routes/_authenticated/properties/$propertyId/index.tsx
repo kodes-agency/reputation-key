@@ -5,7 +5,7 @@ import { getDashboardDataFn } from '#/contexts/dashboard/server/dashboard'
 import { getAttentionSignalsFn } from '#/contexts/dashboard/server/attention-signals'
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
 import { dashboardKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 
 const timeRangeSearch = z.object({

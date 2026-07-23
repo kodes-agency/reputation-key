@@ -6,7 +6,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
-import { propertiesQuery } from '#/shared/queries/route-queries'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')

@@ -12,7 +12,7 @@ import type { Property } from './domain/types'
 import { isRegionProcessable, resolvePropertyRouting } from './domain/processing-routing'
 import { getLogger } from '#/shared/observability/logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
+import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createProperty } from './application/use-cases/create-property'
@@ -50,6 +50,10 @@ type PropertyContextDeps = Readonly<{
   clock: () => Date
   staffPublicApi: StaffPublicApi
   regionMove: RegionMoveContextDeps
+  /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete.
+   * Constructed once by the composition root (the only layer that may
+   * import review infrastructure) and shared across contexts. */
+  sourceContentPurge: SourceContentPurge
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
@@ -100,10 +104,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       propertyRepo: deps.repo,
       commandStore,
       clock: deps.clock,
-      sourceContentPurge: createSourceContentPurge({
-        db: deps.db,
-        clock: deps.clock,
-      }),
+      sourceContentPurge: deps.sourceContentPurge,
     }),
   } as const
 

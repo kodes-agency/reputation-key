@@ -39,7 +39,7 @@ import {
   InvitationTable,
 } from '#/components/features/identity'
 import { identityKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/shared/queries/route-queries'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 const membersQuery = queryOptions({

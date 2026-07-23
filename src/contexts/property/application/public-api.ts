@@ -46,6 +46,10 @@ export const isPropertyImportConflict = (e: unknown): e is PropertyImportConflic
 export { propertyCreated } from '../domain/events'
 export type { PropertyCreated, PropertyUpdated, PropertyDeleted } from '../domain/events'
 
+// Sanctioned fail-closed cell gates for protected workloads (BQC-4.1 / ADR 0048).
+// Cross-context consumers import them here, never from domain/.
+export { isRegionProcessable, assertRegionResolved } from '../domain/processing-routing'
+
 export type PropertyPublicApi = Readonly<{
   /**
    * Check whether a property exists within an organization.

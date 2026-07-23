@@ -16,7 +16,7 @@ import { PortalBadgeSection } from '#/components/features/badges/portal-badge-se
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useServerFn } from '@tanstack/react-start'
 import { portalKeys, badgeKeys } from '#/shared/queries/query-keys'
-import { propertyQuery, propertiesQuery } from '#/shared/queries/route-queries'
+import { propertyQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'

@@ -8,7 +8,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { cancelGoal } from '#/contexts/goal/server/goals'
 import { GoalDetailPage } from '#/components/features/property/goals/goal-detail-page'
 import { goalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 
