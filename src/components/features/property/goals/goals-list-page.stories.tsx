@@ -72,11 +72,24 @@ function withProgress(goal: Goal, currentValue: number): GoalWithProgress {
   return { goal, progress }
 }
 
+// Date-relative windows: the active goals' attention classification is
+// pace-based against the WALL CLOCK (goal/ui/helpers defaults now = new
+// Date()), so fixed period dates rot with the calendar (this fixture broke
+// on 2026-07-23 when 'On-track review clicks' fell behind pace). Anchoring
+// the window to the run date keeps both classifications stable on any day:
+// elapsed fraction ≈ 2/3 → expected pace ≈ 53/80 (behind) and ≈ 20/30
+// (on track with a wide margin).
+const DAY_MS = 24 * 60 * 60 * 1000
+const ACTIVE_PERIOD_START = new Date(Date.now() - 20 * DAY_MS)
+const ACTIVE_PERIOD_END = new Date(Date.now() + 10 * DAY_MS)
+
 const mixedGoals: readonly GoalWithProgress[] = [
   withProgress(
     makeGoal({
       name: 'Behind July scans',
       targetValue: 80,
+      periodStart: ACTIVE_PERIOD_START,
+      periodEnd: ACTIVE_PERIOD_END,
       createdAt: new Date('2026-07-01T09:00:00Z'),
     }),
     4,
@@ -86,9 +99,11 @@ const mixedGoals: readonly GoalWithProgress[] = [
       name: 'On-track review clicks',
       metricKey: 'portal.review_link_click',
       targetValue: 30,
+      periodStart: ACTIVE_PERIOD_START,
+      periodEnd: ACTIVE_PERIOD_END,
       createdAt: new Date('2026-07-02T09:00:00Z'),
     }),
-    20,
+    25,
   ),
   withProgress(
     makeGoal({
