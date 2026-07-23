@@ -9,7 +9,10 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
-import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
+import {
+  assertGlobalCapability,
+  BetaCapabilityError,
+} from '#/shared/auth/beta-capabilities'
 import { throwIdentityError } from './organizations.errors.server'
 import {
   registerUserInputSchema,
@@ -17,6 +20,30 @@ import {
   setActiveOrgInputSchema,
   signInInputSchema,
 } from '../application/dto/invitation.dto'
+
+// ── Registration gate (B0.6 capability check) ───────────────────────
+// BQC-5.3: the /register route's beforeLoad must not import beta-capabilities
+// directly — its lazy policy store reads process.env, which does not exist in
+// the browser module graph (client-side navigation to /register crashed on
+// `process`). The gate runs server-side and returns a typed signal that the
+// route maps to a redirect.
+export const getRegistrationGate = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      try {
+        assertGlobalCapability('identity.register')
+        return { allowed: true as const }
+      } catch (e) {
+        if (e instanceof BetaCapabilityError) {
+          return { allowed: false as const }
+        }
+        throw catchUntagged(e)
+      }
+    },
+    'GET',
+    'identity.getRegistrationGate',
+  ),
+)
 
 // ── Register user only (no organization) ────────────────────────────
 // Used by invited members joining an existing org via /join.

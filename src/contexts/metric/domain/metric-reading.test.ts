@@ -8,83 +8,53 @@ import {
 } from './metric-reading'
 
 describe('MetricReading', () => {
+  const NOW = new Date('2026-01-16T00:00:00Z')
+
+  function makeReadingParams(
+    overrides: Partial<Parameters<typeof createReading>[0]> = {},
+  ): Parameters<typeof createReading>[0] {
+    return {
+      id: 'read-1',
+      definitionVersionId: 'ver-1',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      value: 42,
+      sampleSize: 10,
+      sourceEventId: 'evt-1',
+      sourceSchema: 'v1',
+      occurredAt: new Date('2026-01-15'),
+      propertyLocalDate: '2026-01-15',
+      attributionQuality: 'exact',
+      retentionClass: 'standard',
+      now: NOW,
+      ...overrides,
+    }
+  }
+
   describe('createReading', () => {
     it('creates a reading with all fields', () => {
-      const r = createReading({
-        id: 'read-1',
-        definitionVersionId: 'ver-1',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        value: 42,
-        sampleSize: 10,
-        sourceEventId: 'evt-1',
-        sourceSchema: 'v1',
-        occurredAt: new Date('2026-01-15'),
-        propertyLocalDate: '2026-01-15',
-        attributionQuality: 'exact',
-        retentionClass: 'standard',
-      })
+      const r = createReading(makeReadingParams())
       expect(r.value).toBe(42)
-      expect(r.recordedAt).toBeInstanceOf(Date)
+      expect(r.recordedAt).toEqual(NOW)
       expect(r.correctedBy).toBeNull()
     })
   })
 
   describe('findDuplicate', () => {
     it('finds duplicate by definition version and source event', () => {
-      const r = createReading({
-        id: 'read-1',
-        definitionVersionId: 'ver-1',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        value: 42,
-        sampleSize: 10,
-        sourceEventId: 'evt-1',
-        sourceSchema: 'v1',
-        occurredAt: new Date('2026-01-15'),
-        propertyLocalDate: '2026-01-15',
-        attributionQuality: 'exact',
-        retentionClass: 'standard',
-      })
+      const r = createReading(makeReadingParams())
       const dup = findDuplicate([r], 'ver-1', 'evt-1', null)
       expect(dup?.id).toBe('read-1')
     })
 
     it('returns null when no duplicate', () => {
-      const r = createReading({
-        id: 'read-1',
-        definitionVersionId: 'ver-1',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        value: 42,
-        sampleSize: 10,
-        sourceEventId: 'evt-1',
-        sourceSchema: 'v1',
-        occurredAt: new Date('2026-01-15'),
-        propertyLocalDate: '2026-01-15',
-        attributionQuality: 'exact',
-        retentionClass: 'standard',
-      })
+      const r = createReading(makeReadingParams())
       const dup = findDuplicate([r], 'ver-1', 'evt-2', null)
       expect(dup).toBeNull()
     })
 
     it('respects portal_id in idempotency key', () => {
-      const r = createReading({
-        id: 'read-1',
-        definitionVersionId: 'ver-1',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        portalId: 'portal-1',
-        value: 42,
-        sampleSize: 10,
-        sourceEventId: 'evt-1',
-        sourceSchema: 'v1',
-        occurredAt: new Date('2026-01-15'),
-        propertyLocalDate: '2026-01-15',
-        attributionQuality: 'exact',
-        retentionClass: 'standard',
-      })
+      const r = createReading(makeReadingParams({ portalId: 'portal-1' }))
       // Same event but different portal is not a duplicate
       expect(findDuplicate([r], 'ver-1', 'evt-1', 'portal-2')).toBeNull()
       // Same event and same portal is a duplicate

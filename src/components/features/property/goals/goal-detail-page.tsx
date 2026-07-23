@@ -43,6 +43,8 @@ type Props = Readonly<{
   onCancel: () => void
   isCancelling: boolean
   canCancelGoal?: boolean
+  /** BQC-5.3: the render edge owns the wall clock — inject a fixed value in stories/tests for deterministic pace. */
+  now?: Date
 }>
 
 export function GoalDetailPage({
@@ -54,9 +56,10 @@ export function GoalDetailPage({
   onCancel,
   isCancelling,
   canCancelGoal = true,
+  now = new Date(),
 }: Props) {
   const scope = deriveEntityScope(goal)
-  const presentation = getGoalPresentation(goal, progress)
+  const presentation = getGoalPresentation(goal, progress, now)
   const isRecurringTemplate = goal.goalType === 'recurring' && !goal.parentGoalId
   const canCancel = goal.status === 'active' && canCancelGoal
 

@@ -9,6 +9,8 @@ import {
 } from './property-access-grant'
 
 describe('PropertyAccessGrant', () => {
+  const NOW = new Date('2026-01-15T12:00:00Z')
+
   const baseParams = {
     id: 'grant-1',
     organizationId: 'org-1',
@@ -16,6 +18,7 @@ describe('PropertyAccessGrant', () => {
     userId: 'user-1',
     kind: 'full_access' as const,
     grantedBy: 'admin-1',
+    now: NOW,
   }
 
   describe('createGrant', () => {
@@ -37,10 +40,10 @@ describe('PropertyAccessGrant', () => {
   describe('revokeGrant', () => {
     it('revokes an active grant', () => {
       const grant = createGrant(baseParams) as PropertyAccessGrant
-      const result = revokeGrant(grant, 'admin-2', 'offboarding', 3)
+      const result = revokeGrant(grant, 'admin-2', 'offboarding', 3, NOW)
       expect(result).toHaveProperty('status', 'revoked')
       if (!('code' in result)) {
-        expect(result.revokedAt).not.toBeNull()
+        expect(result.revokedAt).toEqual(NOW)
         expect(result.revokedBy).toBe('admin-2')
         expect(result.reason).toBe('offboarding')
       }
@@ -48,20 +51,20 @@ describe('PropertyAccessGrant', () => {
 
     it('prevents revoking the last full_access grant', () => {
       const grant = createGrant(baseParams) as PropertyAccessGrant
-      const result = revokeGrant(grant, 'admin-2', 'test', 1)
+      const result = revokeGrant(grant, 'admin-2', 'test', 1, NOW)
       expect(result).toHaveProperty('code', 'last_owner_protection')
     })
 
     it('prevents revoking an already-revoked grant', () => {
       const grant = createGrant(baseParams) as PropertyAccessGrant
-      const revoked = revokeGrant(grant, 'admin-2', 'test', 3) as PropertyAccessGrant
-      const result = revokeGrant(revoked, 'admin-3', 'again', 3)
+      const revoked = revokeGrant(grant, 'admin-2', 'test', 3, NOW) as PropertyAccessGrant
+      const result = revokeGrant(revoked, 'admin-3', 'again', 3, NOW)
       expect(result).toHaveProperty('code', 'grant_not_active')
     })
 
     it('allows revoking non-full_access even when alone', () => {
       const grant = createGrant({ ...baseParams, kind: 'view' }) as PropertyAccessGrant
-      const result = revokeGrant(grant, 'admin-2', 'test', 0)
+      const result = revokeGrant(grant, 'admin-2', 'test', 0, NOW)
       expect(result).toHaveProperty('status', 'revoked')
     })
   })
@@ -84,7 +87,7 @@ describe('PropertyAccessGrant', () => {
 
     it('revoked grant allows nothing', () => {
       const grant = createGrant(baseParams) as PropertyAccessGrant
-      const revoked = revokeGrant(grant, 'admin', 'test', 3) as PropertyAccessGrant
+      const revoked = revokeGrant(grant, 'admin', 'test', 3, NOW) as PropertyAccessGrant
       expect(allowsAction(revoked, 'view')).toBe(false)
     })
   })

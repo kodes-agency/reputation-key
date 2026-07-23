@@ -14,6 +14,12 @@ const meta: Meta<typeof GoalProgressRing> = {
 export default meta
 type Story = StoryObj<typeof GoalProgressRing>
 
+// Frozen render clock — the pace notch is time-derived (BQC-5.3: the
+// component defaults `now` to the wall clock; stories pin it so the named
+// pace states cannot rot with the calendar).
+// 2026-07-16 is ~48% through the July period: expected ≈ 48/100.
+const STORY_NOW = new Date('2026-07-16T00:00:00Z')
+
 function makePeriod(
   overrides: { periodStart?: Date | null; periodEnd?: Date | null } = {},
 ) {
@@ -32,6 +38,7 @@ export const Default: Story = {
     targetValue: 100,
     status: 'active',
     ...makePeriod(),
+    now: STORY_NOW,
   },
 }
 
@@ -40,10 +47,8 @@ export const AheadOfPace: Story = {
     currentValue: 85,
     targetValue: 100,
     status: 'active',
-    ...makePeriod({
-      periodStart: new Date(Date.now() - 1000 * 3600 * 24 * 5),
-      periodEnd: new Date(Date.now() + 1000 * 3600 * 24 * 10),
-    }),
+    ...makePeriod(),
+    now: STORY_NOW,
   },
 }
 
@@ -53,6 +58,7 @@ export const BehindPace: Story = {
     targetValue: 100,
     status: 'active',
     ...makePeriod(),
+    now: STORY_NOW,
   },
 }
 
@@ -62,6 +68,7 @@ export const OnPace: Story = {
     targetValue: 100,
     status: 'active',
     ...makePeriod(),
+    now: STORY_NOW,
   },
 }
 
@@ -71,6 +78,7 @@ export const Completed: Story = {
     targetValue: 100,
     status: 'completed',
     ...makePeriod(),
+    now: STORY_NOW,
   },
 }
 
@@ -91,6 +99,7 @@ export const Small: Story = {
     status: 'active',
     ...makePeriod(),
     size: 'sm',
+    now: STORY_NOW,
   },
 }
 
@@ -102,6 +111,7 @@ export const Large: Story = {
     ...makePeriod(),
     size: 'lg',
     showLabel: true,
+    now: STORY_NOW,
   },
 }
 
@@ -111,6 +121,7 @@ export const InteractivePlay: Story = {
     targetValue: 100,
     status: 'active',
     ...makePeriod(),
+    now: STORY_NOW,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

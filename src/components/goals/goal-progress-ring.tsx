@@ -30,6 +30,8 @@ type GoalProgressRingProps = Readonly<{
   ariaLabel?: string
   /** Show the "expected % (time)" hint under the ring. Default true; suppress on dense list rows where a separate pace label already carries it. */
   showPaceHint?: boolean
+  /** BQC-5.3: the render edge owns the wall clock — inject a fixed value in stories/tests for deterministic pace. */
+  now?: Date
 }>
 
 /**
@@ -53,6 +55,7 @@ export function GoalProgressRing({
   className,
   ariaLabel,
   showPaceHint = true,
+  now = new Date(),
 }: GoalProgressRingProps) {
   const safeTarget = Math.max(0.0001, targetValue) // avoid /0
   const pct = Math.min(100, Math.max(0, (currentValue / safeTarget) * 100))
@@ -61,7 +64,6 @@ export function GoalProgressRing({
     expectedOverride !== undefined || (periodStart != null && periodEnd != null)
 
   // Expected notch
-  const now = new Date()
   const elapsed = hasExpectedPace
     ? computeElapsedFraction(periodStart ?? null, periodEnd ?? null, now)
     : 0

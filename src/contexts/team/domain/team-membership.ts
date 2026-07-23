@@ -36,7 +36,7 @@ export type MembershipError =
   | { code: 'cannot_change_role_on_ended' }
   | { code: 'start_after_end' }
 
-export function isActive(membership: TeamMembership, asOf: Date = new Date()): boolean {
+export function isActive(membership: TeamMembership, asOf: Date): boolean {
   if (membership.effectiveTo !== null && asOf >= membership.effectiveTo) return false
   return asOf >= membership.effectiveFrom
 }

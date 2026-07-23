@@ -33,6 +33,10 @@ const PROPERTY_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
 const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000001')
 const GOAL_ID = goalId('goal-00000000-0000-0000-0000-000000000001')
 
+// Frozen render clock — pace/remaining labels are computed against `now`
+// (BQC-5.3: the page defaults the prop to the wall clock; stories pin it).
+const STORY_NOW = new Date('2026-07-21T00:00:00Z')
+
 const activeGoal: Goal = {
   id: GOAL_ID,
   organizationId: ORG_ID,
@@ -78,6 +82,7 @@ export const ActiveWithProgress: Story = {
     onCancel: () => {},
     isCancelling: false,
     canCancelGoal: true,
+    now: STORY_NOW,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

@@ -124,9 +124,8 @@ export function getValidAggregationsForKey(key: MetricKey): AggregationFunction[
 
 const MS_PER_DAY = 86_400_000
 
-export function daysRemaining(periodEnd: Date | null): number | null {
+export function daysRemaining(periodEnd: Date | null, now: Date): number | null {
   if (periodEnd === null) return null
-  const now = new Date()
   return Math.ceil((periodEnd.getTime() - now.getTime()) / MS_PER_DAY)
 }
 
@@ -416,7 +415,7 @@ export function hasPeriod(goal: Goal): boolean {
 export function computeElapsedFraction(
   periodStart: Date | null,
   periodEnd: Date | null,
-  now: Date = new Date(),
+  now: Date,
 ): number {
   if (!periodStart || !periodEnd) return 0
   const totalMs = periodEnd.getTime() - periodStart.getTime()
@@ -678,7 +677,7 @@ function sortPriorityForGoal(
 export function getGoalPresentation(
   goal: Goal,
   progress: GoalProgress | null,
-  now: Date = new Date(),
+  now: Date,
 ): GoalPresentation {
   const currentValue = progress?.currentValue ?? 0
   const targetValue = goal.targetValue

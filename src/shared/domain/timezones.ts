@@ -67,13 +67,13 @@ export const VALID_TIMEZONES: ReadonlyArray<string> = [
   'UTC',
 ]
 
-export function getTimezoneOffsetLabel(tz: string): string {
+export function getTimezoneOffsetLabel(tz: string, asOf: Date): string {
   try {
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       timeZoneName: 'shortOffset',
     })
-    const parts = formatter.formatToParts(new Date())
+    const parts = formatter.formatToParts(asOf)
     const offsetPart = parts.find((p) => p.type === 'timeZoneName')
     return offsetPart?.value ?? tz
   } catch {

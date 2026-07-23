@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { Goal } from '#/contexts/goal/domain/types'
 import {
   formatProgressLabel,
@@ -320,34 +320,27 @@ describe('getValidAggregationsForKey', () => {
 // ── 9. daysRemaining ───────────────────────────────────────────────────
 
 describe('daysRemaining', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-05-22T12:00:00Z'))
-  })
+  const NOW = new Date('2026-05-22T12:00:00Z')
 
   it('returns null when periodEnd is null', () => {
-    expect(daysRemaining(null)).toBeNull()
+    expect(daysRemaining(null, NOW)).toBeNull()
   })
 
   it('returns positive days for future date', () => {
-    expect(daysRemaining(new Date('2026-06-01T00:00:00Z'))).toBe(10)
+    expect(daysRemaining(new Date('2026-06-01T00:00:00Z'), NOW)).toBe(10)
   })
 
   it('returns 0 when periodEnd is exactly now', () => {
-    expect(daysRemaining(new Date('2026-05-22T12:00:00Z'))).toBe(0)
+    expect(daysRemaining(new Date('2026-05-22T12:00:00Z'), NOW)).toBe(0)
   })
 
   it('returns negative days for past date', () => {
-    expect(daysRemaining(new Date('2026-05-20T00:00:00Z'))).toBe(-2)
+    expect(daysRemaining(new Date('2026-05-20T00:00:00Z'), NOW)).toBe(-2)
   })
 
   it('uses ceiling for fractional days', () => {
     const future = new Date('2026-05-25T00:00:00Z')
-    expect(daysRemaining(future)).toBe(3)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
+    expect(daysRemaining(future, NOW)).toBe(3)
   })
 })
 
@@ -419,7 +412,7 @@ describe('hasPeriod', () => {
 
 describe('computeElapsedFraction', () => {
   it('0 when no period', () => {
-    expect(computeElapsedFraction(null, null)).toBe(0)
+    expect(computeElapsedFraction(null, null, new Date('2026-07-06'))).toBe(0)
   })
   it('clamps and computes mid period', () => {
     const start = new Date('2026-07-01')
