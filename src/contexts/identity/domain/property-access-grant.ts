@@ -60,6 +60,7 @@ export function createGrant(params: {
   userId: string
   kind: GrantKind
   grantedBy: string
+  now: Date
 }): PropertyAccessGrant | GrantError {
   if (!isValidKind(params.kind)) {
     return { code: 'invalid_kind', kind: params.kind }
@@ -72,7 +73,7 @@ export function createGrant(params: {
     userId: params.userId,
     kind: params.kind,
     status: 'active',
-    grantedAt: new Date(),
+    grantedAt: params.now,
     revokedAt: null,
     grantedBy: params.grantedBy,
     revokedBy: null,
@@ -90,6 +91,7 @@ export function revokeGrant(
   revokedBy: string,
   reason: string,
   activeFullAccessCount: number,
+  now: Date,
 ): PropertyAccessGrant | GrantError {
   if (grant.status !== 'active') {
     return { code: 'grant_not_active', status: grant.status }
@@ -105,7 +107,7 @@ export function revokeGrant(
   return {
     ...grant,
     status: 'revoked',
-    revokedAt: new Date(),
+    revokedAt: now,
     revokedBy,
     reason,
   }

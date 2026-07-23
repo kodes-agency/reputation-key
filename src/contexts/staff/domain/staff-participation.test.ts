@@ -11,6 +11,8 @@ import {
 } from './staff-participation'
 
 describe('StaffParticipation', () => {
+  const NOW = new Date('2026-01-15T12:00:00Z')
+
   const baseParams = {
     id: 'part-1',
     organizationId: 'org-1',
@@ -18,6 +20,7 @@ describe('StaffParticipation', () => {
     userId: 'user-1',
     displayName: 'Jane Doe',
     createdBy: 'admin-1',
+    now: NOW,
   }
 
   describe('createParticipation', () => {
@@ -25,6 +28,7 @@ describe('StaffParticipation', () => {
       const p = createParticipation(baseParams)
       expect(p.status).toBe('active')
       expect(isActive(p)).toBe(true)
+      expect(p.startedAt).toEqual(NOW)
       expect(p.endedAt).toBeNull()
     })
   })
@@ -32,17 +36,17 @@ describe('StaffParticipation', () => {
   describe('deactivate', () => {
     it('deactivates an active participation', () => {
       const p = createParticipation(baseParams)
-      const result = deactivate(p)
+      const result = deactivate(p, NOW)
       expect(result).toHaveProperty('status', 'inactive')
       if (!('code' in result)) {
-        expect(result.endedAt).not.toBeNull()
+        expect(result.endedAt).toEqual(NOW)
         expect(isActive(result)).toBe(false)
       }
     })
 
     it('prevents deactivating an archived participation', () => {
-      const p = archive(createParticipation(baseParams)) as StaffParticipation
-      const result = deactivate(p)
+      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
+      const result = deactivate(p, NOW)
       expect(result).toHaveProperty('code', 'already_archived')
     })
   })
@@ -50,8 +54,8 @@ describe('StaffParticipation', () => {
   describe('reactivate', () => {
     it('reactivates an inactive participation', () => {
       const p = createParticipation(baseParams)
-      const inactive = deactivate(p) as StaffParticipation
-      const result = reactivate(inactive)
+      const inactive = deactivate(p, NOW) as StaffParticipation
+      const result = reactivate(inactive, NOW)
       expect(result).toHaveProperty('status', 'active')
       if (!('code' in result)) {
         expect(result.endedAt).toBeNull()
@@ -59,8 +63,8 @@ describe('StaffParticipation', () => {
     })
 
     it('cannot reactivate an archived participation', () => {
-      const p = archive(createParticipation(baseParams)) as StaffParticipation
-      const result = reactivate(p)
+      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
+      const result = reactivate(p, NOW)
       expect(result).toHaveProperty('code', 'invalid_transition')
     })
   })
@@ -68,19 +72,19 @@ describe('StaffParticipation', () => {
   describe('archive', () => {
     it('archives an active participation', () => {
       const p = createParticipation(baseParams)
-      const result = archive(p)
+      const result = archive(p, NOW)
       expect(result).toHaveProperty('status', 'archived')
     })
 
     it('archives an inactive participation', () => {
-      const p = deactivate(createParticipation(baseParams)) as StaffParticipation
-      const result = archive(p)
+      const p = deactivate(createParticipation(baseParams), NOW) as StaffParticipation
+      const result = archive(p, NOW)
       expect(result).toHaveProperty('status', 'archived')
     })
 
     it('prevents archiving an already-archived participation', () => {
-      const p = archive(createParticipation(baseParams)) as StaffParticipation
-      const result = archive(p)
+      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
+      const result = archive(p, NOW)
       expect(result).toHaveProperty('code', 'already_archived')
     })
   })
@@ -88,9 +92,10 @@ describe('StaffParticipation', () => {
   describe('updateProfile', () => {
     it('updates display name', () => {
       const p = createParticipation(baseParams)
-      const updated = updateProfile(p, 'New Name')
+      const updated = updateProfile(p, 'New Name', NOW)
       expect(updated.displayName).toBe('New Name')
       expect(updated.id).toBe(p.id)
+      expect(updated.updatedAt).toEqual(NOW)
     })
   })
 

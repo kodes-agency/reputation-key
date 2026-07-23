@@ -65,6 +65,7 @@ export function createActivation(params: {
   activationReason: string
   audience: BadgeVisibility
   reviewExpiryDays: number
+  now: Date
 }): BadgeActivation | ActivationError {
   return {
     id: params.id,
@@ -74,11 +75,11 @@ export function createActivation(params: {
     definitionVersion: params.definitionVersion,
     status: 'active',
     audience: params.audience,
-    effectiveFrom: new Date(),
+    effectiveFrom: params.now,
     effectiveTo: null,
     activatedBy: params.activatedBy,
     activationReason: params.activationReason,
-    reviewExpiryDate: new Date(Date.now() + params.reviewExpiryDays * 86400000),
+    reviewExpiryDate: new Date(params.now.getTime() + params.reviewExpiryDays * 86400000),
     acknowledgementNoEmploymentDecision: true,
   }
 }
@@ -101,10 +102,7 @@ export function resumeActivation(
   return { ...activation, status: 'active' }
 }
 
-export function isActivationActive(
-  activation: BadgeActivation,
-  asOf: Date = new Date(),
-): boolean {
+export function isActivationActive(activation: BadgeActivation, asOf: Date): boolean {
   if (activation.status !== 'active') return false
   if (activation.effectiveTo !== null && asOf >= activation.effectiveTo) return false
   return true

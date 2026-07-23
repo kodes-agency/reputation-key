@@ -10,6 +10,8 @@ import {
   isVisibleTo,
 } from './badge-award'
 
+const NOW = new Date('2026-02-15T12:00:00Z')
+
 const snapshot: BadgeAwardSnapshot = {
   definitionName: 'Top Performer',
   definitionPurpose: 'Recognizes consistent quality',
@@ -39,6 +41,7 @@ function makeAward(overrides: Partial<BadgeAward> = {}): BadgeAward {
     evidenceSummary: 'Score 92 based on 50 observations',
     evaluatorVersion: 'eval-1',
     snapshot,
+    now: NOW,
   })
   return { ...base, ...overrides }
 }
@@ -56,9 +59,10 @@ describe('BadgeAward', () => {
   describe('invalidateAward', () => {
     it('invalidates an active award', () => {
       const a = makeAward()
-      const result = invalidateAward(a, 'admin', 'data_correction', 'corr-1')
+      const result = invalidateAward(a, 'admin', 'data_correction', NOW, 'corr-1')
       expect(result).toHaveProperty('status', 'invalidated')
       if (!('code' in result)) {
+        expect(result.invalidatedAt).toEqual(NOW)
         expect(result.invalidatedBy).toBe('admin')
         expect(result.invalidationReason).toBe('data_correction')
         expect(result.correctionReference).toBe('corr-1')
@@ -66,8 +70,8 @@ describe('BadgeAward', () => {
     })
 
     it('prevents invalidating an already-invalidated award', () => {
-      const a = invalidateAward(makeAward(), 'admin', 'test') as BadgeAward
-      const result = invalidateAward(a, 'admin', 'again')
+      const a = invalidateAward(makeAward(), 'admin', 'test', NOW) as BadgeAward
+      const result = invalidateAward(a, 'admin', 'again', NOW)
       expect(result).toHaveProperty('code', 'already_invalidated')
     })
   })
@@ -86,19 +90,22 @@ describe('BadgeAward', () => {
   describe('hideAward / unhideAward', () => {
     it('hides an active award', () => {
       const a = makeAward()
-      const result = hideAward(a, 'part-1')
+      const result = hideAward(a, 'part-1', NOW)
       expect(result).toHaveProperty('status', 'hidden')
+      if (!('code' in result)) {
+        expect(result.hiddenAt).toEqual(NOW)
+      }
     })
 
     it('unhides a hidden award', () => {
-      const a = hideAward(makeAward(), 'part-1') as BadgeAward
+      const a = hideAward(makeAward(), 'part-1', NOW) as BadgeAward
       const result = unhideAward(a)
       expect(result).toHaveProperty('status', 'active')
     })
 
     it('prevents hiding an already-hidden award', () => {
-      const a = hideAward(makeAward(), 'part-1') as BadgeAward
-      const result = hideAward(a, 'part-1')
+      const a = hideAward(makeAward(), 'part-1', NOW) as BadgeAward
+      const result = hideAward(a, 'part-1', NOW)
       expect(result).toHaveProperty('code', 'already_hidden')
     })
   })
@@ -112,7 +119,7 @@ describe('BadgeAward', () => {
     })
 
     it('hidden award visible only to recipient', () => {
-      const a = hideAward(makeAward(), 'part-1') as BadgeAward
+      const a = hideAward(makeAward(), 'part-1', NOW) as BadgeAward
       expect(isVisibleTo(a, 'recipient')).toBe(true)
       expect(isVisibleTo(a, 'manager')).toBe(false)
       expect(isVisibleTo(a, 'other_staff')).toBe(false)

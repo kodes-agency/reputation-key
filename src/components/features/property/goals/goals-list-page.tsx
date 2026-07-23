@@ -26,18 +26,27 @@ type GoalsListPageProps = Readonly<{
   historyStatus?: HistoryGoalStatus
   goalType?: GoalType
   canCreateGoal?: boolean
+  /** BQC-5.3: the render edge owns the wall clock — inject a fixed value in stories/tests for deterministic pace. */
+  now?: Date
 }>
 
-export function GoalsListPage({
-  goals,
-  propertyId,
-  propertyName,
-  view = 'active',
-  historyStatus,
-  goalType,
-  canCreateGoal = true,
-}: GoalsListPageProps) {
-  const now = new Date()
+type GoalListModel = Readonly<{
+  activeItems: GoalListItem[]
+  historyItems: GoalListItem[]
+  totalGoalCount: number
+  allActiveCount: number
+  allHistoryCount: number
+  needsAttentionCount: number
+  onTrackCount: number
+}>
+
+/** Builds the list view model: presentations, active/history partitions, counts. */
+function buildGoalListModel(
+  goals: readonly GoalWithProgress[],
+  goalType: GoalType | undefined,
+  historyStatus: HistoryGoalStatus | undefined,
+  now: Date,
+): GoalListModel {
   const typedGoals = goalType
     ? goals.filter(({ goal }) => goal.goalType === goalType)
     : goals
@@ -55,13 +64,40 @@ export function GoalsListPage({
     .sort(compareHistoryGoals)
 
   const allActiveCount = typedGoals.filter(({ goal }) => goal.status === 'active').length
-  const allHistoryCount = typedGoals.length - allActiveCount
-  const needsAttentionCount = activeItems.filter(
-    ({ presentation }) => presentation.attention === 'needs-attention',
-  ).length
-  const onTrackCount = activeItems.filter(
-    ({ presentation }) => presentation.attention === 'on-track',
-  ).length
+  return {
+    activeItems,
+    historyItems,
+    totalGoalCount: typedGoals.length,
+    allActiveCount,
+    allHistoryCount: typedGoals.length - allActiveCount,
+    needsAttentionCount: activeItems.filter(
+      ({ presentation }) => presentation.attention === 'needs-attention',
+    ).length,
+    onTrackCount: activeItems.filter(
+      ({ presentation }) => presentation.attention === 'on-track',
+    ).length,
+  }
+}
+
+export function GoalsListPage({
+  goals,
+  propertyId,
+  propertyName,
+  view = 'active',
+  historyStatus,
+  goalType,
+  canCreateGoal = true,
+  now = new Date(),
+}: GoalsListPageProps) {
+  const {
+    activeItems,
+    historyItems,
+    totalGoalCount,
+    allActiveCount,
+    allHistoryCount,
+    needsAttentionCount,
+    onTrackCount,
+  } = buildGoalListModel(goals, goalType, historyStatus, now)
 
   return (
     <PageShell className="flex flex-col gap-5 md:gap-6">
@@ -99,7 +135,7 @@ export function GoalsListPage({
           items={activeItems}
           propertyId={propertyId}
           canCreateGoal={canCreateGoal}
-          totalGoalCount={typedGoals.length}
+          totalGoalCount={totalGoalCount}
           needsAttentionCount={needsAttentionCount}
           onTrackCount={onTrackCount}
         />
@@ -109,7 +145,7 @@ export function GoalsListPage({
           propertyId={propertyId}
           historyStatus={historyStatus}
           goalType={goalType}
-          totalGoalCount={typedGoals.length}
+          totalGoalCount={totalGoalCount}
         />
       )}
     </PageShell>

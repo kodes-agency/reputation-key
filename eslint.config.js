@@ -773,6 +773,30 @@ export default tseslint.config(
     },
   },
 
+  // BQC-5.3: domain decisions must be runtime-neutral — time is a
+  // parameter (CONTEXT.md / ADR 0017). No ambient wall-clock reads in
+  // domain code; callers inject `now`/`asOf`. (Test files are exempt via
+  // the test-files override below.)
+  {
+    files: ['src/contexts/*/domain/**/*.{ts,tsx}', 'src/shared/domain/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message:
+            'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of new Date().',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message:
+            'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of Date.now().',
+        },
+      ],
+    },
+  },
+
   // ─── Test files: relaxed boundary rules ────────────────────────────
   {
     files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
@@ -780,6 +804,9 @@ export default tseslint.config(
       'boundaries/dependencies': 'off',
       'no-restricted-imports': 'off',
       'local/cross-context-public-api': 'off',
+      // BQC-5.3: test fixtures build dates freely — the ambient-clock ban
+      // applies to production domain code only.
+      'no-restricted-syntax': 'off',
     },
   },
 
