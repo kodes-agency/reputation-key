@@ -10,7 +10,7 @@ import type {
   ReplyMilestones,
   ReplyView,
 } from '../../application/ports/reply-lookup.port'
-import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
+import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
 
 /** Earliest non-null timestamp across the given reply views. */
 const earliest = (
@@ -25,21 +25,7 @@ const earliest = (
   return best
 }
 
-export const createReplyLookupAdapter = (deps: {
-  /** Returns the internal reply for a review. The review repo's
-   *  findInternalByReviewId returns its own Reply type, which is structurally
-   *  identical to ReplyView — so no mapping is needed. */
-  findInternalByReviewId: (
-    id: ReviewId,
-    orgId: OrganizationId,
-  ) => Promise<ReplyView | null>
-  /** Returns ALL replies for a review (internal + google_sync). Used by the
-   *  BQC-3.4 rebuild to derive first-submitted/published milestones. */
-  findByReviewId: (
-    id: ReviewId,
-    orgId: OrganizationId,
-  ) => Promise<ReadonlyArray<ReplyView>>
-}): ReplyLookupPort => ({
+export const createReplyLookupAdapter = (deps: ReplyLookupSource): ReplyLookupPort => ({
   getReplyByReviewId: (id, orgId) => deps.findInternalByReviewId(id, orgId),
   getEffectiveReplyByReviewId: async (id, orgId) => {
     // Internal first; the google_sync mirror only when no internal reply exists.

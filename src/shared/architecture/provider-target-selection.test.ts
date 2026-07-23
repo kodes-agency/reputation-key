@@ -154,7 +154,8 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
 describe('BQC-4.3: exactly one provider construction site per adapter factory', () => {
   const FACTORIES: ReadonlyArray<readonly [string, string]> = [
     ['createGbpApiAdapter', 'src/contexts/integration/build.ts'],
-    ['createGoogleReviewApiAdapter', 'src/composition.ts'],
+    // BQC-5.2: the integration build module owns the adapter (was composition).
+    ['createGoogleReviewApiAdapter', 'src/contexts/integration/build.ts'],
     ['createMyBusinessNotificationsAdapter', 'src/contexts/integration/build.ts'],
     ['createGoogleOAuthAdapter', 'src/contexts/integration/build.ts'],
   ]

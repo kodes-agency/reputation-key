@@ -8,16 +8,10 @@ import type {
   ReviewSourceLookupPort,
   ReviewSourceMeta,
 } from '../../application/ports/review-source-lookup.port'
-import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-
-/** Structural shape the review repository rows satisfy (metadata only). */
-export type ReviewSourceRow = Readonly<{
-  id: ReviewId
-  propertyId: PropertyId
-  platform: string
-  reviewedAt: Date
-  contentExpiresAt: Date | null
-}>
+import type {
+  ReviewSourceLookupSource,
+  ReviewSourceRow,
+} from '../../application/ports/lookup-sources.port'
 
 const toMeta = (row: ReviewSourceRow): ReviewSourceMeta => ({
   id: row.id,
@@ -27,14 +21,9 @@ const toMeta = (row: ReviewSourceRow): ReviewSourceMeta => ({
   contentExpiresAt: row.contentExpiresAt,
 })
 
-export const createReviewSourceLookupAdapter = (deps: {
-  findById: (id: ReviewId, orgId: OrganizationId) => Promise<ReviewSourceRow | null>
-  findByOrganizationId: (orgId: OrganizationId) => Promise<ReadonlyArray<ReviewSourceRow>>
-  findByPropertyId: (
-    propertyId: PropertyId,
-    orgId: OrganizationId,
-  ) => Promise<ReadonlyArray<ReviewSourceRow>>
-}): ReviewSourceLookupPort => ({
+export const createReviewSourceLookupAdapter = (
+  deps: ReviewSourceLookupSource,
+): ReviewSourceLookupPort => ({
   getReviewSourceMetaById: async (id, orgId) => {
     const row = await deps.findById(id, orgId)
     return row ? toMeta(row) : null

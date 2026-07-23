@@ -89,7 +89,7 @@ function setup(
     jobQueue,
     logger: createMockLogger(),
     staffPublicApi: stubStaffApi,
-    propertyRoutingLookup: { getProcessingRegion: async () => 'us' },
+    propertyApi: { getProcessingRegion: async () => 'us' },
     ...(over.router ? { processingRouter: over.router } : {}),
   })
   return { api, jobQueue }

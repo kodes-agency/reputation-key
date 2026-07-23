@@ -107,4 +107,4 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 - **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
 - **AttentionSignalsPort** — unanswered-review (past SLA), new/escalated inbox-item, and goals-behind-pace counts per property. Implemented by attention-signals.adapter.ts.
 
-All ports are injected at composition time via `buildDashboardContext()`.
+All ports are constructed inside `buildDashboardContext()` (BQC-5.2) from the injected db/clock/staffPublicApi — the composition root no longer wires individual dashboard adapters.

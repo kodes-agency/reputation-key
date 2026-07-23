@@ -1,13 +1,19 @@
 // Dashboard context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the dashboard context.
+//
+// Facade ports per ADR-0007: dashboard never queries review/reply/metric
+// tables directly — the build constructs the SQL adapters itself and the
+// dashboard repo only composes.
 
-import type { ReviewStatsPort } from './application/ports/review-stats.port'
-import type { MetricStatsPort } from './application/ports/metric-stats.port'
-import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
-import type { StaffPortalResolverPort } from './application/ports/staff-portal-resolver.port'
-import type { AttentionSignalsPort } from './application/ports/attention-signals.port'
+import type { Database } from '#/shared/db'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
+import { createReviewStatsAdapter } from './infrastructure/adapters/review-stats.adapter'
+import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
+import { createPortalMetricsAdapter } from './infrastructure/adapters/portal-metrics.adapter'
+import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
+import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
 import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
@@ -17,11 +23,8 @@ import { getFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
 
 export type DashboardContextBuildInput = Readonly<{
-  reviewStats: ReviewStatsPort
-  metricStats: MetricStatsPort
-  portalMetrics: PortalMetricsPort
-  staffPortalResolver: StaffPortalResolverPort
-  attentionSignals: AttentionSignalsPort
+  db: Database
+  staffPublicApi: StaffPublicApi
   clock: () => Date
 }>
 
@@ -48,7 +51,15 @@ export type DashboardContextApi = Readonly<{
 export const buildDashboardContext = (
   input: DashboardContextBuildInput,
 ): DashboardContextApi => {
-  const dashboardRepo = createDashboardRepository(input.reviewStats, input.metricStats)
+  // Facade ports per ADR-0007 — SQL adapters are dashboard-owned
+  // infrastructure; the repo only composes.
+  const reviewStats = createReviewStatsAdapter(input.db)
+  const metricStats = createMetricStatsAdapter(input.db)
+  const portalMetrics = createPortalMetricsAdapter(input.db)
+  const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
+  const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
+
+  const dashboardRepo = createDashboardRepository(reviewStats, metricStats)
 
   const getDashboard = getDashboardData({
     repo: dashboardRepo,
@@ -57,25 +68,25 @@ export const buildDashboardContext = (
 
   const getPortal = getPortalAnalytics({
     repo: dashboardRepo,
-    portalMetrics: input.portalMetrics,
+    portalMetrics,
     clock: input.clock,
   })
 
   const getStaffDashboard = getStaffDashboardData({
     repo: dashboardRepo,
-    staffPortalResolver: input.staffPortalResolver,
+    staffPortalResolver,
     clock: input.clock,
   })
 
   const getAttention = getAttentionSignals({
     repo: dashboardRepo,
-    signals: input.attentionSignals,
+    signals: attentionSignals,
     clock: input.clock,
   })
 
   const getFleet = getFleetOverview({
     repo: dashboardRepo,
-    signals: input.attentionSignals,
+    signals: attentionSignals,
     clock: input.clock,
   })
 

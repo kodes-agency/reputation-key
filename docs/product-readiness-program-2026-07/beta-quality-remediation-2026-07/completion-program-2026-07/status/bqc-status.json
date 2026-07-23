@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-23T17:08:47Z",
+  "updatedAt": "2026-07-23T18:46:52Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1 implementation_complete (PR pending): architecture policy is now executable — CONTEXT.md dependency rules are enforced by eslint-plugin-boundaries (full element coverage: context-build, context-ui, root ports/queries classified as application, shared catch-all) plus a new local cross-context-public-api eslint rule with a 12-case architecture test. Routes/server can no longer import #/shared/db; domain bans node:*/bullmq/ioredis, application bans bullmq/ioredis; shared/events narrowed to domain/events only. All 7 cross-context violations redirected through public interfaces; fallow config repaired (single regression block, refreshed honest baseline: 0 boundary violations). Slices 5.2–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1 implementation_complete: architecture policy executable (cross-context eslint rule, full element coverage, routes/server DB ban, 7 violations redirected, fallow config repaired). 5.2 implementation_complete: non-worker composition cleanup — per-context clusters (identity policy admin + readiness, inbox lookups + outbox consumer registrar, dashboard query adapters, integration googleReviewApi + GBP notification binder, review routing lookup, metric/goal portal group lookups, property region-move audit, staff invitation hook) moved into the owning build modules; composition root (786→596 lines) now only selects modules, supplies cross-context adapters, and owns root scalars; container shape pinned identical by new characterization tests. Slices 5.3–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.2",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Non-worker context composition cleanup",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Global composition clusters replaced by per-context modules exposing only what composition needs. Characterization FIRST (src/composition.characterization.test.ts — container built with a throwing-Proxy Database proving query-free construction, in-memory queues, fake identity/email): pins exact 38 top-level keys, 114 useCases keys, lifecycle surface, infra selection, policyAdmin shape — 5/5 green PRE-refactor and 5/5 POST-refactor (parity). Moves: (1) identity build now constructs the capability policy store, policyAdmin ops (12 repo bindings), region diagnostic, and the operator audit sink — exposes policyAdmin, refreshPolicyStore (readiness), writeOperatorAudit; (2) inbox build constructs its 4 lookup adapters from foreign sources typed by new narrow ports (lookup-sources.port.ts) and owns registerOutboxConsumers (runtime contribution); (3) dashboard build constructs its 5 SQL read adapters from {db, clock, staffPublicApi}; (4) integration build constructs googleReviewApi internally and exposes a curried gbpNotificationHandler (breaks the integration↔review build cycle) — composition no longer imports an individual use case; (5) review build wraps property public-api into PropertyRoutingPort; (6) metric/goal builds wrap portal group lookups (root duplication killed); (7) property region-move consumes identity's writeOperatorAudit; (8) staff build constructs the invitation-acceptance assignment system — composition keeps only the global hook registration + the TDZ late-binding portalLookup (build-order root concern). Composition.ts 786→596 lines, createContainer ~529→~400; root now only selects modules, supplies adapters, owns scalars; NO worker/job/consumer/schedule registration touched (BQC-3-owned; known worker-side duplications logged for BQC-3/5.10 reconciliation). Build-module contract documented in CONTEXT.md. Gates: unit 369f/4110t, integration 49f/306t, typecheck, lint, format:check, fallow audit --gate new-only — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.1",

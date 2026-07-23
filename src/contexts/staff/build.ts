@@ -1,6 +1,10 @@
 // Staff context — build function.
 // Wires staff repos, use cases, and the PublicApi surface.
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
+//
+// Cross-context contribution exposed to the composition root (BQC-5.2):
+//   - internal.systemStaffAssignment — the privileged SYSTEM write behind the
+//     identity invitation-acceptance hook (the root registers the hook).
 
 import type { Database } from '#/shared/db'
 import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
@@ -11,7 +15,10 @@ import type { IdentityMembershipPort } from './application/ports/identity-member
 import type { StaffPublicApi } from './application/public-api'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
-import { createStaffAssignment } from './application/use-cases/create-staff-assignment'
+import {
+  createStaffAssignment,
+  createStaffAssignmentSystem,
+} from './application/use-cases/create-staff-assignment'
 import { removeStaffAssignment } from './application/use-cases/remove-staff-assignment'
 import { listStaffAssignments } from './application/use-cases/list-staff-assignments'
 import { getAssignedPortals } from './application/use-cases/get-assigned-portals'
@@ -107,12 +114,26 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
   } as const
 
+  // Privileged SYSTEM write behind the identity invitation-acceptance hook:
+  // bootstraps an assignment for the invitee. Skips can(), the membership
+  // gate, property-access scoping, and the self-assignment guard BY DESIGN
+  // (deep-review §9 — no forged AccountAdmin AuthContext); tagged
+  // system-initiated (no human actor in the audit trail). The only consumer
+  // is the composition root's setOnAcceptInvitation registration.
+  const systemStaffAssignment = createStaffAssignmentSystem({
+    assignmentRepo: deps.repo,
+    commandStore,
+    idGen,
+    clock: deps.clock,
+  })
+
   return {
     publicApi,
     internal: {
       repos: { staffAssignmentRepo: deps.repo } as const,
       commandStore,
       useCases,
+      systemStaffAssignment,
     },
   } as const
 }

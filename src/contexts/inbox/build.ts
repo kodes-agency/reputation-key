@@ -1,11 +1,16 @@
 // Inbox context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the inbox context.
+//
+// Runtime contribution exposed to the composition root:
+//   - internal.registerOutboxConsumers — BQR-2.2/2.4 durable consumer
+//     registration; the worker calls it before optional durable dispatch start.
 
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { InboxViewRepository } from './application/ports/inbox-view.repository'
@@ -15,6 +20,12 @@ import type { ReviewSourceLookupPort } from './application/ports/review-source-l
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
+import type {
+  FeedbackLookupSource,
+  PropertyLookupSource,
+  ReplyLookupSource,
+  ReviewSourceLookupSource,
+} from './application/ports/lookup-sources.port'
 import type { CreateInboxItem } from './application/use-cases/create-inbox-item'
 import type { UpdateInboxStatus } from './application/use-cases/update-inbox-status'
 import type { BulkUpdateInboxStatus } from './application/use-cases/bulk-update-inbox-status'
@@ -34,6 +45,11 @@ import { createInboxNoteRepository } from './infrastructure/repositories/inbox-n
 import { createInboxViewRepository } from './infrastructure/repositories/inbox-view.repository'
 import { createAtomicInboxCommandStore } from './infrastructure/inbox-command-store'
 import { registerInboxHandlers } from './infrastructure/event-handlers'
+import { registerInboxConsumers } from './infrastructure/outbox-consumers'
+import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-lookup.adapter'
+import { createPropertyLookupAdapter } from './infrastructure/adapters/property-lookup.adapter'
+import { createReplyLookupAdapter } from './infrastructure/adapters/reply-lookup.adapter'
+import { createReviewSourceLookupAdapter } from './infrastructure/adapters/review-source-lookup.adapter'
 import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
@@ -41,11 +57,20 @@ export type InboxContextBuildInput = Readonly<{
   events: EventBus
   clock: () => Date
   staffPublicApi: StaffPublicApi
+  /** BQC-1.4: review.publicApi IS the governed read interface — it satisfies
+   * the inbox ReviewLookupPort directly (single rule, one owner). */
   reviewLookup: ReviewLookupPort
-  reviewSourceLookup: ReviewSourceLookupPort
-  feedbackLookup: FeedbackLookupPort
-  propertyLookup: PropertyLookupPort
-  replyLookup: ReplyLookupPort
+  /**
+   * BQC-5.2: foreign-owned read pieces the inbox build adapts into its lookup
+   * ports (guest feedback/rating reads, property names, review reply/metadata
+   * reads). Narrow structural contracts — no foreign infrastructure imports.
+   */
+  sources: Readonly<{
+    feedback: FeedbackLookupSource
+    property: PropertyLookupSource
+    reply: ReplyLookupSource
+    review: ReviewSourceLookupSource
+  }>
   logger: LoggerPort
 }>
 
@@ -60,6 +85,9 @@ export type InboxContextApi = Readonly<{
     }>
     /** BQC-3.4: atomic state+outbox command store — also drives the durable consumers. */
     commandStore: InboxCommandStore
+    /** BQR-2.2/2.4: registers the durable outbox consumers (worker calls this
+     * before optional durable dispatch start). Runtime contribution. */
+    registerOutboxConsumers: () => void
     useCases: Readonly<{
       createInboxItem: CreateInboxItem
       updateInboxStatus: UpdateInboxStatus
@@ -80,10 +108,33 @@ export type InboxContextApi = Readonly<{
 }>
 
 export const buildInboxContext = (input: InboxContextBuildInput): InboxContextApi => {
+  // Cross-context lookup ports — the inbox build adapts the foreign-owned
+  // sources (injected structurally) into its own lookup contracts.
+  const feedbackLookup: FeedbackLookupPort = createFeedbackLookupAdapter({
+    findFeedbackById: (id, orgId) => input.sources.feedback.findFeedbackById(id, orgId),
+    findRatingById: (id, orgId) => input.sources.feedback.findRatingById(id, orgId),
+  })
+  const propertyLookup: PropertyLookupPort = createPropertyLookupAdapter({
+    getPropertyName: (orgId, pid) => input.sources.property.getPropertyName(orgId, pid),
+    getPropertyNames: (orgId, pids) =>
+      input.sources.property.getPropertyNames(orgId, pids),
+  })
+  const replyLookup: ReplyLookupPort = createReplyLookupAdapter({
+    findInternalByReviewId: (id, orgId) =>
+      input.sources.reply.findInternalByReviewId(id, orgId),
+    findByReviewId: (id, orgId) => input.sources.reply.findByReviewId(id, orgId),
+  })
+  // BQC-3.4: projection source metadata (review.updated consumer + rebuild).
+  const reviewSourceLookup: ReviewSourceLookupPort = createReviewSourceLookupAdapter({
+    findById: (id, orgId) => input.sources.review.findById(id, orgId),
+    findByOrganizationId: (orgId) => input.sources.review.findByOrganizationId(orgId),
+    findByPropertyId: (pid, orgId) => input.sources.review.findByPropertyId(pid, orgId),
+  })
+
   const inboxRepo = createInboxRepository(input.db, {
     reviewLookup: input.reviewLookup,
-    feedbackLookup: input.feedbackLookup,
-    propertyLookup: input.propertyLookup,
+    feedbackLookup,
+    propertyLookup,
   })
   const inboxNoteRepo = createInboxNoteRepository(input.db)
   const inboxViewRepo = createInboxViewRepository(input.db)
@@ -98,8 +149,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     inboxNoteRepo,
     inboxViewRepo,
     commandStore,
-    reviewSourceLookup: input.reviewSourceLookup,
-    replyLookup: input.replyLookup,
+    reviewSourceLookup,
+    replyLookup,
     staffPublicApi: input.staffPublicApi,
     logger: input.logger,
     clock: input.clock,
@@ -112,6 +163,21 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     repo: inboxRepo,
   })
 
+  // BQR-2.2/2.4: durable consumer registration — inbox's runtime
+  // contribution. The worker calls this before optional durable dispatch
+  // start; wiring stays a single assignment in the composition root while
+  // the deps stay captured here.
+  const registerOutboxConsumers = () => {
+    registerInboxConsumers({
+      commandStore,
+      reviewLookup: input.reviewLookup,
+      reviewSourceLookup,
+      inboxRepo,
+      idGen: () => inboxItemId(crypto.randomUUID()),
+      clock: input.clock,
+    })
+  }
+
   return {
     publicApi: {} as Record<string, never>,
     internal: {
@@ -122,6 +188,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         staffPublicApi: input.staffPublicApi,
       },
       commandStore,
+      registerOutboxConsumers,
       useCases,
     },
   }
