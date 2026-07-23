@@ -1,7 +1,7 @@
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { PublicPortalLookup } from '../../application/ports/public-portal-lookup.port'
 import { guestError } from '../../domain/errors'
-import { isPortalError } from '#/contexts/portal/domain/errors'
+import { isPortalError } from '#/contexts/portal/application/public-api'
 import { trace } from '#/shared/observability/trace'
 export const createPublicPortalLookup = (
   portalApi: PortalPublicApi,

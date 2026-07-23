@@ -2,6 +2,14 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import boundaries from 'eslint-plugin-boundaries'
+import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
+
+// BQC-5.1: local rules enforcing what eslint-plugin-boundaries cannot express.
+const local = {
+  rules: {
+    'cross-context-public-api': crossContextPublicApi,
+  },
+}
 
 export default tseslint.config(
   js.configs.recommended,
@@ -24,20 +32,26 @@ export default tseslint.config(
   },
 
   // ─── Architectural boundary enforcement ────────────────────────────
-  // Mechanically enforces every rule from docs/conventions.md
-  // "Dependency rules (enforced by lint)"
+  // Mechanically enforces the dependency rules from src/contexts/CONTEXT.md
+  // ("Dependency rules"), together with the local cross-context-public-api
+  // rule (registered further below).
   //
   // Element types map to our folder structure:
   //   domain         → contexts/<name>/domain/
-  //   application    → contexts/<name>/application/
+  //   application    → contexts/<name>/application/ (+ legacy root ports/, queries/)
   //   infrastructure → contexts/<name>/infrastructure/
   //   server         → contexts/<name>/server/
+  //   context-build  → contexts/<name>/build.ts, build-*.ts (per-context wiring seam)
+  //   context-ui     → contexts/<name>/ui/ (pure view helpers for routes/components)
   //   routes         → routes/
   //   components     → components/
   //   shared-domain  → shared/domain/
   //   shared-auth    → shared/auth/
   //   shared-db      → shared/db/ (schema barrel, drizzle client — allowed to use drizzle-orm)
-  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit, routing)
+  //   shared-events  → shared/events/ (event bus + master union)
+  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit,
+  //                    routing, security, queries, ... — catch-all for dirs without a
+  //                    dedicated element; MUST stay the last shared-* pattern)
   //   test-helpers   → shared/testing/
   //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
   // ────────────────────────────────────────────────────────────────────
@@ -68,6 +82,32 @@ export default tseslint.config(
         {
           type: 'server',
           pattern: 'src/contexts/*/server/**',
+        },
+        // BQC-5.1: per-context build files are the wiring seam — they may
+        // touch every layer of their OWN context + shared. Cross-context
+        // narrowing (public-api only) comes from the local rule.
+        {
+          type: 'context-build',
+          pattern: 'src/contexts/*/build.ts',
+        },
+        {
+          type: 'context-build',
+          pattern: 'src/contexts/*/build-*.ts',
+        },
+        // BQC-5.1: the activity context keeps root-level ports/ and queries/
+        // dirs — they ARE application concerns; classifying them enforces the
+        // rules. BQC-5.2 owns the physical layout alignment.
+        {
+          type: 'application',
+          pattern: 'src/contexts/*/ports/**',
+        },
+        {
+          type: 'application',
+          pattern: 'src/contexts/*/queries/**',
+        },
+        {
+          type: 'context-ui',
+          pattern: 'src/contexts/*/ui/**',
         },
 
         // ── Route & UI layers ───────────────────────────────────────
@@ -164,6 +204,14 @@ export default tseslint.config(
           type: 'test-helpers',
           pattern: 'src/shared/testing/**',
         },
+        // BQC-5.1: catch-all for shared/ dirs without a dedicated element
+        // (queries, architecture, ...). MUST stay the last shared-* pattern —
+        // element matching is first-match-wins, so the specific patterns
+        // above keep their types.
+        {
+          type: 'shared-other',
+          pattern: 'src/shared/**',
+        },
 
         // ── Top-level entry points ──────────────────────────────────
         {
@@ -197,7 +245,7 @@ export default tseslint.config(
         {
           default: 'disallow',
           message:
-            'Architectural boundary violated. See docs/conventions.md "Dependency rules".',
+            'Architectural boundary violated. See src/contexts/CONTEXT.md "Dependency rules".',
           rules: [
             // domain → imports nothing outside domain/ and shared/domain/
             {
@@ -270,6 +318,7 @@ export default tseslint.config(
 
             // server → imports from domain/ (error types + type guards), application/, shared/*, TanStack Start
             // Per architecture: server functions catch tagged errors and need isXxxError type guards (pattern #16).
+            // BQC-5.1: server must NOT import shared/db — DB access goes through use cases/repos.
             {
               from: { type: 'server' },
               allow: {
@@ -277,6 +326,28 @@ export default tseslint.config(
                   type: [
                     'domain',
                     'application',
+                    'shared-domain',
+                    'shared-auth',
+                    'shared-events',
+                    'shared-other',
+                  ],
+                },
+              },
+            },
+
+            // context-build → the per-context wiring seam (BQC-5.1). May touch
+            // every layer of its OWN context + shared; the local
+            // cross-context-public-api rule narrows foreign-context imports to
+            // public-api surfaces.
+            {
+              from: { type: 'context-build' },
+              allow: {
+                to: {
+                  type: [
+                    'domain',
+                    'application',
+                    'infrastructure',
+                    'server',
                     'shared-domain',
                     'shared-auth',
                     'shared-db',
@@ -287,8 +358,18 @@ export default tseslint.config(
               },
             },
 
+            // context-ui → pure view helpers (e.g. goal/ui) consumed by routes
+            // and components; reads application DTOs + shared types only.
+            {
+              from: { type: 'context-ui' },
+              allow: {
+                to: { type: ['application', 'shared-domain', 'shared-other'] },
+              },
+            },
+
             // routes → imports from server/, application/dto/ (form schemas), components/, shared/*
             //   Per conventions: routes need DTO types for mutation variable types.
+            //   BQC-5.1: routes must NOT import shared/db (health probes use shared/health seams).
             {
               from: { type: 'routes' },
               allow: {
@@ -297,9 +378,9 @@ export default tseslint.config(
                     'server',
                     'application',
                     'components',
+                    'context-ui',
                     'shared-domain',
                     'shared-auth',
-                    'shared-db',
                     'shared-other',
                   ],
                 },
@@ -314,6 +395,7 @@ export default tseslint.config(
                 to: {
                   type: [
                     'components',
+                    'context-ui',
                     'shared-domain',
                     'shared-auth',
                     'shared-other',
@@ -433,6 +515,18 @@ export default tseslint.config(
     },
   },
 
+  // ─── BQC-5.1: cross-context public-api rule ────────────────────────
+  // CONTEXT.md "Dependency rules": cross-context imports go through the
+  // target context's application/public-api.ts only; infrastructure/adapters/**
+  // may import the foreign application/ports/** contract they implement.
+  {
+    files: ['src/contexts/**/*.{ts,tsx}'],
+    plugins: { local },
+    rules: {
+      'local/cross-context-public-api': 'error',
+    },
+  },
+
   // ─── no-restricted-imports: catch what boundaries can't ────────────
   // Enforces conventions that folder-based element matching can't express.
   {
@@ -531,11 +625,7 @@ export default tseslint.config(
   // ─── Allow React in permitted locations ────────────────────────────
   // Re-enables no-restricted-imports for React, but keeps the barrel-only rule.
   {
-    files: [
-      'src/routes/**/*.{ts,tsx}',
-      'src/components/**/*.{ts,tsx}',
-      'src/integrations/**/*.{ts,tsx}',
-    ],
+    files: ['src/routes/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
     rules: {
       // React is allowed here — override the global restriction
       'no-restricted-imports': [
@@ -546,7 +636,7 @@ export default tseslint.config(
             {
               group: ['#/components/features/*/*'],
               message:
-                'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See docs/conventions.md "Component Organization".',
+                'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
             },
           ],
         },
@@ -554,13 +644,67 @@ export default tseslint.config(
     },
   },
 
-  // BQR-1.3: application + domain must not import outbox internals.
-  // Public surface is `#/shared/outbox` (barrel). Composition/worker construct adapters.
+  // BQR-1.3 + BQC-5.1: domain must not import outbox internals, Node builtins,
+  // or runtime infrastructure (bullmq/ioredis) — domain stays pure.
+  // Public outbox surface is `#/shared/outbox` (barrel). Composition/worker
+  // construct adapters.
   {
-    files: [
-      'src/contexts/*/application/**/*.{ts,tsx}',
-      'src/contexts/*/domain/**/*.{ts,tsx}',
-    ],
+    files: ['src/contexts/*/domain/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '#/shared/outbox/infrastructure/outbox-repository',
+              message:
+                'BQR-1.3: import OutboxRepository from #/shared/outbox (public barrel), not infrastructure.',
+            },
+            {
+              name: '#/shared/outbox/relay',
+              message: 'BQR-1.3: outbox relay is worker-only. Domain must not import it.',
+            },
+            {
+              name: '#/shared/outbox/dispatcher',
+              message:
+                'BQR-1.3: outbox dispatcher is worker-only. Domain must not import it.',
+            },
+            {
+              name: '#/shared/outbox/event-adapter',
+              message:
+                'BQR-1.3: event-adapter is internal. Use emitAndRecord from #/shared/outbox.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/shared/outbox/infrastructure/**'],
+              message:
+                'BQR-1.3: domain must not import outbox infrastructure. Use #/shared/outbox.',
+            },
+            {
+              group: ['node:*'],
+              message:
+                'BQC-5.1: domain must stay runtime-free — no Node builtins (node:*). Domain is pure: types, rules, constructors, events, errors.',
+            },
+            {
+              group: ['bullmq', 'ioredis'],
+              message:
+                'BQC-5.1: domain must not import runtime infrastructure (bullmq/ioredis). Domain is pure.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // BQR-1.3 + BQC-5.1: application must not import outbox internals or
+  // queue/redis clients directly — durable work goes through ports wired by
+  // the context build/composition.
+  // node:* is deliberately NOT banned here: application use cases
+  // legitimately use crypto (e.g. integration/application/use-cases/
+  // get-google-auth-url.ts uses createHmac for OAuth state).
+  {
+    files: ['src/contexts/*/application/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -591,7 +735,37 @@ export default tseslint.config(
             {
               group: ['**/shared/outbox/infrastructure/**'],
               message:
-                'BQR-1.3: application/domain must not import outbox infrastructure. Use #/shared/outbox.',
+                'BQR-1.3: application must not import outbox infrastructure. Use #/shared/outbox.',
+            },
+            {
+              group: ['bullmq', 'ioredis'],
+              message:
+                'BQC-5.1: application must not import bullmq/ioredis directly — depend on a port or the shared/jobs wiring surface.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // BQC-5.1: the events master union (shared/events) may import ONLY each
+  // context's domain/events module — CONTEXT.md: "Cross-context type imports
+  // allowed for events only." Every other domain path is rejected.
+  {
+    files: ['src/shared/events/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/contexts/*/domain/**',
+                '!**/contexts/*/domain/events',
+                '!**/contexts/*/domain/events.ts',
+              ],
+              message:
+                'shared/events may only import context domain/events modules (the master union). Other domain imports belong in the context itself.',
             },
           ],
         },
@@ -605,6 +779,7 @@ export default tseslint.config(
     rules: {
       'boundaries/dependencies': 'off',
       'no-restricted-imports': 'off',
+      'local/cross-context-public-api': 'off',
     },
   },
 

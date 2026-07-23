@@ -8,7 +8,7 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
 import { can } from '#/shared/domain/permissions'
 import { dashboardKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/shared/queries/route-queries'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
   FleetOverview,

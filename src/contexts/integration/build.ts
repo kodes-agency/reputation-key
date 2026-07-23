@@ -44,7 +44,7 @@ import {
   googleConnectionId as toConnectionId,
 } from '#/shared/domain/ids'
 import { randomUUID, createHash } from 'crypto'
-import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
+import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 
 type IntegrationContextDeps = Readonly<{
@@ -55,6 +55,10 @@ type IntegrationContextDeps = Readonly<{
   propertyLookup: PropertyLookupPort
   propertyApi: PropertyPublicApi
   logger: LoggerPort
+  /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
+   * content. Constructed once by the composition root (the only layer that
+   * may import review infrastructure) and shared across contexts. */
+  sourceContentPurge: SourceContentPurge
   /** BQC-4.3: provider endpoint construction config resolved ONCE by the
    * composition root from the cell's logical provider reference
    * (ProcessingTarget.provider). Adapters never hardcode URLs. */
@@ -184,10 +188,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       logger: deps.logger,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
-      sourceContentPurge: createSourceContentPurge({
-        db: deps.db,
-        clock: deps.clock,
-      }),
+      sourceContentPurge: deps.sourceContentPurge,
     }),
 
     listGoogleConnections: listGoogleConnections({

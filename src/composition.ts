@@ -82,6 +82,7 @@ import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
+import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildBadgeContext } from '#/contexts/badge/build'
@@ -379,12 +380,19 @@ export function createContainer(options?: {
     deleteUser: identityPort.deleteUser,
   })
 
+  // BQC-1.7: the bounded lifecycle purge implementation is review-owned
+  // infrastructure — the composition root is the only layer allowed to
+  // import it (CONTEXT.md cross-context rule). Constructed ONCE and shared
+  // by the property (hard delete) and integration (disconnect) builds.
+  const sourceContentPurge = createSourceContentPurge({ db, clock })
+
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),
     events: eventBus,
     clock,
     staffPublicApi: staff.publicApi,
+    sourceContentPurge,
     // BQC-4.5: region move workflow. Approved cells stay {'us'} (ADR 0048) —
     // every real request denies typed + audited today. The audit sink is the
     // identity-owned policy_decision_audit (content-free, operator kind);
@@ -466,6 +474,7 @@ export function createContainer(options?: {
     propertyApi: property.publicApi,
     logger: getLogger(),
     providerEndpoints,
+    sourceContentPurge,
   })
 
   // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.

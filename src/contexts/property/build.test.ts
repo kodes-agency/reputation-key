@@ -37,6 +37,23 @@ const createStubStaffApi = (): StaffPublicApi => ({
   countAssignmentsByTeam: async () => 0,
 })
 
+// Minimal SourceContentPurge stub — the purge port is a required build dep
+// (BQC-1.7); these tests never exercise the purge path.
+const createStubSourceContentPurge = () => ({
+  forConnection: vi.fn(async () => ({
+    subject: 'connection',
+    batches: 0,
+    rowsDeleted: 0,
+  })),
+  forProperty: vi.fn(async () => ({ subject: 'property', batches: 0, rowsDeleted: 0 })),
+  forOrganization: vi.fn(async () => ({
+    subject: 'organization',
+    batches: 0,
+    rowsDeleted: 0,
+  })),
+  inboxForProperty: vi.fn(async () => ({ subject: 'inbox', batches: 0, rowsDeleted: 0 })),
+})
+
 // Minimal tx stub: properties insert returns the inserted row (the command
 // store maps it back to the domain Property); the outbox insert is a no-op.
 const makeMockDb = () => ({
@@ -69,6 +86,7 @@ describe('PropertyPublicApi', () => {
       events,
       clock,
       staffPublicApi,
+      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
@@ -88,6 +106,7 @@ describe('PropertyPublicApi', () => {
       events,
       clock,
       staffPublicApi,
+      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
@@ -116,6 +135,7 @@ describe('PropertyPublicApi.importProperty — initial-sync trigger gate', () =>
       events,
       clock: () => new Date('2026-07-18T12:00:00Z'),
       staffPublicApi: createStubStaffApi(),
+      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
     return { publicApi, events }

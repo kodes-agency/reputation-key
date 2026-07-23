@@ -8,7 +8,6 @@
 // handles, memoized per process).
 import { createFileRoute } from '@tanstack/react-router'
 import { getContainer } from '#/composition'
-import { getDb } from '#/shared/db'
 import { getRedis } from '#/shared/cache/redis'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
@@ -41,7 +40,7 @@ export const Route = createFileRoute('/api/health/metrics')({
       GET: async () => {
         const container = getContainer()
         const ops = getOpsQueues()
-        const checker = createHealthChecker(getDb(), container.outboxRepo, {
+        const checker = createHealthChecker(container.db, container.outboxRepo, {
           quarantineQueue: ops.quarantine ?? null,
         })
         const [snapshot, queues, heartbeat] = await Promise.all([

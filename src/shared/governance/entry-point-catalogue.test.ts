@@ -148,7 +148,14 @@ function routeName(file: string): string {
 function discoverRoutes(): ReadonlyArray<DiscoveredRoute> {
   const routes = walk(join(ROOT, 'src/routes'))
     .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.(ts|tsx)$/.test(f))
-    .filter((f) => !(f.split('/').pop() ?? '').startsWith('-'))
+    // TanStack file-based routing opts out ANY path segment prefixed with '-'
+    // (files like -notification-fns.ts AND directories like -queries/).
+    .filter((f) => {
+      const relSegments = rel(f)
+        .replace(/^src\/routes\//, '')
+        .split('/')
+      return !relSegments.some((seg) => seg.startsWith('-'))
+    })
     .map((f) => ({
       name: routeName(f),
       file: rel(f),

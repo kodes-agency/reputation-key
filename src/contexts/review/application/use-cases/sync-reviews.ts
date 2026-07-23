@@ -37,7 +37,7 @@ import {
   computeReviewContentHash,
   MAX_REPLY_LENGTH,
 } from '../../domain/rules'
-import { assertRegionResolved } from '#/contexts/property/domain/processing-routing'
+import { assertRegionResolved } from '#/contexts/property/application/public-api'
 import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'

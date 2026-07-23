@@ -12,6 +12,10 @@ export type { PortalGroupDeleted } from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
 
+// Guest-facing error guard. BQC-5.6 may still replace the guest-side
+// dependency with a guest-owned result; until then consumers import it here.
+export { isPortalError } from '../domain/errors'
+
 import type {
   OrganizationId,
   PropertyId,

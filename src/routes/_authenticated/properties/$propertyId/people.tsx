@@ -24,7 +24,7 @@ import {
   portalKeys,
   propertyKeys,
 } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 
 const assignmentsQuery = (propertyId: string) =>
   queryOptions({

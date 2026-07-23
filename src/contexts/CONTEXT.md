@@ -60,6 +60,17 @@ Dependencies point inward: `server` → `application` → `domain`. Infrastructu
 - Cross-context: import from `application/public-api.ts` only. Never from `domain/`, `infrastructure/`, `server/`, or non-public-api `application/`.
 - **Exception:** Cross-context adapter implementations (e.g., `integration/infrastructure/adapters/google-review-api.adapter.ts` implementing `review/application/ports/google-review-api.port.ts`) may import the port they implement. The port IS the public interface for adapter contracts.
 
+### Mechanical enforcement (BQC-5.1)
+
+These rules are executable, not aspirational:
+
+- `eslint.config.js` (eslint-plugin-boundaries element types + `boundaries/dependencies`, default disallow) enforces the layer rules above.
+- The local ESLint rule `local/cross-context-public-api` (`eslint-rules/cross-context-public-api.mjs`) enforces the cross-context public-api-only rule, including the adapter-port exception.
+- `server/` and `routes/` may not import `#/shared/db` — DB access goes through use cases/repositories; health probes use `shared/health/` seams.
+- `no-restricted-imports` bans runtime imports (`node:*`, `bullmq`, `ioredis`) in `domain/` and queue/redis clients in `application/`.
+
+Fix violations by routing through public interfaces (extend the owning context's `application/public-api.ts` when the surface is missing), never by suppressing the rules.
+
 ## Use case shape
 
 Steps in order, **including only what applies**:

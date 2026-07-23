@@ -7,7 +7,7 @@ import { can } from '#/shared/domain/permissions'
 import { PropertyListPage } from '#/components/features/property/property-list-page'
 import { deleteProperty } from '#/contexts/property/server/properties'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { propertiesQuery } from '#/shared/queries/route-queries'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 
 export const Route = createFileRoute('/_authenticated/properties/')({

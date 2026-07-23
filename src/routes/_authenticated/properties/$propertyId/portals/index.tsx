@@ -7,7 +7,7 @@ import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/shared/queries/route-queries'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 const portalsQuery = (propertyId: string) =>

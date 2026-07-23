@@ -9,7 +9,7 @@ import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { GoalCreateForm } from '#/components/features/property/goals/goal-create-form'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 

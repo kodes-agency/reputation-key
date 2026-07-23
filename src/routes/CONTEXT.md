@@ -80,10 +80,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 
 ### Reading parent layout data
 
-Parent layout data (orgs, properties, property) lives in the shared Query cache via cross-cutting query options in `src/shared/queries/route-queries.ts` (`organizationsQuery`, `propertiesQuery`, `propertyQuery(propertyId)`). The parent loaders `ensureQueryData` these (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
+Parent layout data (orgs, properties, property) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`organizationsQuery`, `propertiesQuery`, `propertyQuery(propertyId)`). The parent loaders `ensureQueryData` these (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
 
 ```tsx
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 const { data } = useSuspenseQuery(propertyQuery(propertyId))
 const property = data.property
 ```

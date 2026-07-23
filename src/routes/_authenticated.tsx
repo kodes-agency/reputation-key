@@ -26,7 +26,7 @@ import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { organizationsQuery, propertiesQuery } from '#/shared/queries/route-queries'
+import { organizationsQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 
 export type AuthRouteContext = Readonly<{

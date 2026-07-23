@@ -13,7 +13,7 @@ import {
 import type { GoalListView, HistoryGoalStatus } from '#/contexts/goal/ui/helpers'
 import type { GoalType } from '#/contexts/goal/application/public-api'
 import { goalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/shared/queries/route-queries'
+import { propertyQuery } from '#/routes/-queries/route-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 

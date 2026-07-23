@@ -43,6 +43,11 @@ export type {
   SyncPropertyReviewsJobData,
   AddSyncJobOptions,
 } from './ports/review-queue.port'
+// BQC-1.7: lifecycle purge port consumed by integration + property use cases.
+export type {
+  SourceContentPurge,
+  SourcePurgeResult,
+} from './ports/source-content-purge.port'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────
 export type StaffRecentReview = {

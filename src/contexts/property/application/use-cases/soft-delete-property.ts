@@ -3,7 +3,7 @@
 import type { PropertyRepository } from '../ports/property.repository'
 import type { PropertyCommandStore } from '../ports/property-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'
+import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
