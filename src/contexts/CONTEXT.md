@@ -71,6 +71,29 @@ These rules are executable, not aspirational:
 
 Fix violations by routing through public interfaces (extend the owning context's `application/public-api.ts` when the surface is missing), never by suppressing the rules.
 
+## Build modules (BQC-5.2)
+
+Each context has exactly one build module (`contexts/<name>/build.ts`) — the wiring seam the composition root calls. It constructs the context's repos, adapters, use cases, and event-handler registrations and returns:
+
+```typescript
+{
+  ;(publicApi, internal)
+} // + optional readiness/runtime contributions
+```
+
+- `publicApi` — the governed cross-context interface (matches `application/public-api.ts`).
+- `internal` — the pieces the composition root flattens into the container (`repos`, `useCases`, command stores).
+- **Readiness/runtime contributions** (optional) — e.g. identity's `refreshPolicyStore` (workers await it before starting) and inbox's `registerOutboxConsumers` (worker calls it before durable dispatch start).
+- **Shutdown hook** (optional, none today) — a context with teardown needs would expose it here; no context requires one at present.
+
+Contract for the composition root (`src/composition.ts`):
+
+- It **selects** the enabled modules and **supplies** cross-context adapters and true root scalars (db/redis/logger/clock/env, event bus, queues + job registry, outbox repo, provider endpoints + processing router).
+- It must **not** import individual use cases, event handlers, or business rules — those are constructed inside the owning build module.
+- A build module may import its **own** context's infrastructure, but never a foreign context's — foreign pieces arrive as injected deps typed via the target's `application/public-api.ts` (or a narrow structural port owned by the consuming context).
+- Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root consumes that runtime registry as one accepted interface and never introduces another worker/job registry.
+- Build **order is load-bearing** (TDZ): staff → identity → property → team/portal/guest → integration → review → inbox → metric → goal → dashboard → activity/badge/leaderboard/notification. Late-binding closures (e.g. staff's `portalLookup`) are the sanctioned escape hatch, not reordering.
+
 ## Use case shape
 
 Steps in order, **including only what applies**:

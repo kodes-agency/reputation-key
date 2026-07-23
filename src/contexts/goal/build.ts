@@ -8,6 +8,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
+import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type { GoalRepository } from './application/ports/goal.repository'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
@@ -35,12 +36,9 @@ export type GoalContextBuildInput = Readonly<{
   idGen: () => string
   staffPublicApi: StaffPublicApi
   getLogger: typeof getLoggerType
-  findGroupForPortal: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-  ) => Promise<{ portalGroupId: PortalGroupId } | null>
-  /** Resolve portal group IDs for a batch of portal IDs (staff goals visibility). */
-  portalGroupLookup: PortalGroupLookupPort
+  /** Portal group resolution (portal public API) — the build wraps it into
+   * the findGroupForPortal + portalGroupLookup shapes goal consumes. */
+  portalGroupApi: PortalGroupPublicApi
 }>
 
 export type GoalContextApi = Readonly<{
@@ -69,6 +67,20 @@ export type GoalContextApi = Readonly<{
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
   const goalRepo = createGoalRepository(input.db)
+
+  // Portal group resolution — portal public API wrapped into goal's shapes.
+  const findGroupForPortal = async (
+    orgId: OrganizationId,
+    pid: PortalId,
+  ): Promise<{ portalGroupId: PortalGroupId } | null> => {
+    const group = await input.portalGroupApi.findGroupForPortal(orgId, pid)
+    return group ? { portalGroupId: group.id } : null
+  }
+  // Resolve portal group IDs for a batch of portal IDs (staff goals visibility).
+  const portalGroupLookup: PortalGroupLookupPort = {
+    findGroupIdsByPortalIds: (orgId, portalIds) =>
+      input.portalGroupApi.findGroupIdsByPortalIds(orgId, portalIds),
+  }
 
   const _createGoal = createGoal({
     goalRepo,
@@ -111,7 +123,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
   const _listStaffGoals = listStaffGoals({
     goalRepo,
     staffPublicApi: input.staffPublicApi,
-    portalGroupLookup: input.portalGroupLookup,
+    portalGroupLookup,
   })
 
   // Register event handlers (metric.recorded, portal_group.deleted, etc.)
@@ -123,7 +135,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     systemCancelGoalFn: _systemCancelGoal,
     clock: input.clock,
     getLogger: input.getLogger,
-    findGroupForPortal: input.findGroupForPortal,
+    findGroupForPortal,
   })
 
   return {

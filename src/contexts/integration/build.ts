@@ -1,6 +1,12 @@
 // Integration context — build function.
 // Wires integration repos, adapters, use cases, and the GbpQueuePort.
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
+//
+// Cross-context contributions exposed to the composition root (BQC-5.2):
+//   - internal.googleReviewApi — the Google review API adapter, typed by
+//     review's GoogleReviewApiPort (integration owns connection/token/refresh).
+//   - internal.gbpNotificationHandler — curried webhook binder; the root
+//     supplies the review-owned queue at container assembly.
 
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -12,6 +18,10 @@ import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
 import type { PropertyQueryPort } from './application/ports/property-query.port'
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  GoogleReviewApiPort,
+  ReviewQueuePort,
+} from '#/contexts/review/application/public-api'
 import {
   connectGoogleAccount,
   disconnectGoogleAccount,
@@ -24,8 +34,9 @@ import {
   importProperty,
   getGoogleAuthUrl,
   manageNotifications,
+  handleGbpNotification,
 } from './application/use-cases'
-import type { GetGoogleAuthUrl } from './application/use-cases'
+import type { GetGoogleAuthUrl, HandleGbpNotification } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGbpCacheRepository } from './infrastructure/repositories/gbp-cache.repository'
 import { createGbpImportRepository } from './infrastructure/repositories/gbp-import.repository'
@@ -35,6 +46,7 @@ import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth
 import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
 import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
 import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/mybusiness-notifications.adapter'
+import { createGoogleReviewApiAdapter } from './infrastructure/adapters/google-review-api.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import {
@@ -52,7 +64,6 @@ type IntegrationContextDeps = Readonly<{
   events: EventBus
   clock: () => Date
   jobQueue: Queue | undefined
-  propertyLookup: PropertyLookupPort
   propertyApi: PropertyPublicApi
   logger: LoggerPort
   /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
@@ -73,6 +84,14 @@ export type IntegrationContextApi = Readonly<{
       encryptionPort: ReturnType<typeof createTokenEncryptionAdapter>
       oauthPort: ReturnType<typeof createGoogleOAuthAdapter>
     }>
+    /** BQC-5.2: the Google review API adapter (integration-owned), typed by
+     * review's port — consumed by the review context build. */
+    googleReviewApi: GoogleReviewApiPort
+    /** BQC-5.2: webhook binder — the root supplies the review-owned queue at
+     * container assembly (review builds after integration). */
+    gbpNotificationHandler: (deps: {
+      reviewQueue: ReviewQueuePort
+    }) => HandleGbpNotification
     useCases: Readonly<{
       connectGoogleAccount: ReturnType<typeof connectGoogleAccount>
       disconnectGoogleAccount: ReturnType<typeof disconnectGoogleAccount>
@@ -250,6 +269,33 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Public API — cross-context boundary ─────────────────────────
   const publicApi: Record<string, never> = {}
 
+  // ── Review-facing adapter + webhook binder (BQC-5.2) ────────────
+  // The GBP webhook needs to find properties by gbpPlaceId without an
+  // organizationId (push-based from Google). Delegates to Property context's
+  // public API instead of querying the properties table directly (M4).
+  const propertyLookup: PropertyLookupPort = {
+    findByGbpPlaceId: deps.propertyApi.findByGbpPlaceId,
+  }
+
+  // Integration owns the Google review API adapter (connection repo + token
+  // encryption + refresh); the review context consumes it via its port.
+  const googleReviewApi: GoogleReviewApiPort = createGoogleReviewApiAdapter({
+    connectionRepo,
+    encryption: encryptionPort,
+    refreshToken: refreshGoogleTokenUseCase,
+    logger: deps.logger,
+    baseUrl: deps.providerEndpoints.reviewsApiBaseUrl,
+  })
+
+  // The review queue is review-owned and builds after integration — the
+  // composition root supplies it at container assembly.
+  const gbpNotificationHandler = (handlerDeps: { reviewQueue: ReviewQueuePort }) =>
+    handleGbpNotification({
+      propertyLookup,
+      reviewQueue: handlerDeps.reviewQueue,
+      logger: deps.logger,
+    })
+
   return {
     publicApi,
     internal: {
@@ -258,6 +304,8 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         encryptionPort,
         oauthPort,
       },
+      googleReviewApi,
+      gbpNotificationHandler,
       useCases: {
         ...useCases,
       },

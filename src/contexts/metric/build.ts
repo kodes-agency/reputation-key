@@ -5,6 +5,7 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
+import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { MetricPublicApi } from './application/public-api'
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
@@ -17,10 +18,9 @@ export type MetricContextBuildInput = Readonly<{
   db: Database
   events: EventBus
   clock: () => Date
-  findGroupForPortal: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-  ) => Promise<{ portalGroupId: PortalGroupId } | null>
+  /** Portal group resolution (portal public API) — the build wraps it into
+   * the findGroupForPortal shape the event handlers consume. */
+  portalGroupApi: PortalGroupPublicApi
   reviewRatingLookup: ReviewRatingLookupPort
 }>
 
@@ -43,10 +43,19 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     idGen: () => metricReadingId(crypto.randomUUID()),
   })
 
+  // Resolve the portal's group for metric attribution — portal public API.
+  const findGroupForPortal = async (
+    orgId: OrganizationId,
+    pid: PortalId,
+  ): Promise<{ portalGroupId: PortalGroupId } | null> => {
+    const group = await input.portalGroupApi.findGroupForPortal(orgId, pid)
+    return group ? { portalGroupId: group.id } : null
+  }
+
   registerMetricHandlers({
     events: input.events,
     recordMetric: record,
-    findGroupForPortal: input.findGroupForPortal,
+    findGroupForPortal,
     reviewRatingLookup: input.reviewRatingLookup,
   })
 

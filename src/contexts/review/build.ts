@@ -17,6 +17,7 @@ import type {
   ReplyQueuePort,
 } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
@@ -55,8 +56,12 @@ export type ReviewContextBuildInput = Readonly<{
   jobQueue: Queue | undefined
   logger: LoggerPort
   staffPublicApi: StaffPublicApi
-  /** BQC-4.1: fail-closed region gate for review sync (ADR 0048). */
-  propertyRoutingLookup: PropertyRoutingPort
+  /**
+   * BQC-4.1: fail-closed region gate for review sync (ADR 0048). The property
+   * context owns the routing fact — the build wraps its public API into
+   * review's PropertyRoutingPort.
+   */
+  propertyApi: Pick<PropertyPublicApi, 'getProcessingRegion'>
   /**
    * BQC-4.2: stamps the content-free routing envelope on sync/publish job
    * payloads at enqueue. Optional — when absent (or when resolution fails),
@@ -181,6 +186,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
   }
 
+  // BQC-4.1: review sync asserts the property's region before any external
+  // effect; the property context owns the routing fact (ADR 0048).
+  const propertyRoutingLookup: PropertyRoutingPort = {
+    getProcessingRegion: (orgId, pid) =>
+      input.propertyApi.getProcessingRegion(orgId, pid),
+  }
+
   // BQC-3.3: atomic reply state + outbox writes for the reply command family.
   // This closes the replyDeps wiring gap — reply facts were previously
   // bus-only in production because replyDeps never received outboxRepo.
@@ -224,7 +236,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       logger: input.logger,
       commandStore,
       replyCommandStore,
-      propertyRouting: input.propertyRoutingLookup,
+      propertyRouting: propertyRoutingLookup,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),
