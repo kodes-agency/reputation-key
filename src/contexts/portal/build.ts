@@ -36,6 +36,7 @@ import { getPortalGroup } from './application/use-cases/get-portal-group'
 import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
+import { toPublicPortalBySlugOutcome } from './application/public-portal-outcome'
 import { portalId, portalGroupId } from '#/shared/domain/ids'
 import type { Queue } from 'bullmq'
 
@@ -223,7 +224,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         .findById(orgId, pid)
         .then((p) => (p ? { id: p.id, name: p.name, isActive: p.isActive } : null)),
     findPublicPortalBySlug: (propertySlug, portalSlug) =>
-      portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
+      toPublicPortalBySlugOutcome(() =>
+        portalRepo.findPublicPortalBySlug(propertySlug, portalSlug),
+      ),
   }
 
   const portalGroupPublicApi: import('./application/public-api').PortalGroupPublicApi = {

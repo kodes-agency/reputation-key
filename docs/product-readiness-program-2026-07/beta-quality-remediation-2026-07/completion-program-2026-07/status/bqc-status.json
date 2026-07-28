@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T13:25:40Z",
+  "updatedAt": "2026-07-28T14:24:29Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup. 5.3 implementation_complete: runtime-neutral domain + browser-reachability. 5.4 implementation_complete: semantic schema authority. 5.5 implementation_complete: operational reads deepened — composition-owned OperationsSnapshot (route no longer constructs DB/Redis readers, degrade-not-abort sections with time budgets); the 6 dashboard review-stats reads moved into the review context behind a governed interface with source-eligibility enforced on ALL content reads (privacy fix: aggregates no longer include expired/clock-less content); dashboard read facade consolidates scope/bounds/timeout (statement_timeout) with an explicit no-server-cache policy; unused dashboard-cache and health-endpoints modules removed. Slices 5.6–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6 implementation_complete: cross-context/privacy cleanup — guest no longer depends on portal's error taxonomy (typed PublicPortalBySlugOutcome replaces the isPortalError stopgap); shared events/queries verified inverted and pinned (type-only union scan); content-free facts register pinned (3 BQC-1 behavior gaps registered, not fixed); dark contexts verified barrel-free and gate-pinned. Slices 5.7–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.6",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Cross-context/privacy cleanup",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Dependency-direction cleanup only; behavior preserved. (1) Guest→Portal: the 5.1 isPortalError stopgap is replaced by an explicit public interface outcome — portal public-api now returns a typed PublicPortalBySlugOutcome (found/inactive/not_found; mapping inside portal via public-portal-outcome.ts, review eligible-reads precedent); the guest resolver consumes it with zero portal error imports (identical 410 path; other errors still propagate untouched). The isPortalError re-export is removed. RED 3/4 → GREEN 15/15 across the 5 slice test files. (2) Shared event/queries modules VERIFIED inverted (events.ts is a type-only registry, erased at compile; schema-registrations re-declare payloads inline; zero shared→context production imports outside the sanctioned union) and now PINNED by shared-events-type-only.test.ts. (3) Content-free facts: compliance verified (metric resolves ratings via review-owned eligible-reads fail-closed; dashboard selects no TEXT columns; activity/notification lookups ids-only; staff zero cross-context imports) and pinned by content-free-facts.test.ts — a facts register failing any new free-text payload field outside registered exceptions. Registered BQC-1 behavior gaps (NOT fixed, owners notified): F1 ReviewReplyRejected.reason free text on the in-process bus, copied into activity audit detail + notification email bodies (durable outbox already strips it); F2 MemberInvited.email persisted into activity audit detail; F3 inbox feedback-lookup serves comment text with no eligibility/retention clock (dependency direction fine; policy question BQC-1's). Also registered: IntegrationGoogleAccountConnected.googleEmail on the bus (not copied durably — not a gap, noted). (4) Dark contexts: no context index barrels exist; schema barrels are table-defs only; dark consumer/job registrations are capability-gated, pinned by dark-consumer-gating.test.ts (badge/goal/leaderboard→*.use, goal jobs→goal.use, process-image→portal.upload; metric's 'none' consumer documented — dark tags flow only when portal.read is enabled). Gates: unit 376f/4145t, integration 51f/314t, typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.5",

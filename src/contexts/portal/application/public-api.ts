@@ -12,10 +12,6 @@ export type { PortalGroupDeleted } from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
 
-// Guest-facing error guard. BQC-5.6 may still replace the guest-side
-// dependency with a guest-owned result; until then consumers import it here.
-export { isPortalError } from '../domain/errors'
-
 import type {
   OrganizationId,
   PropertyId,
@@ -54,6 +50,18 @@ export type PublicPortalBySlugResult = Readonly<{
   propertyId: string
 }>
 
+/**
+ * BQC-5.6: typed outcome for the public slug lookup — cross-context
+ * consumers switch on `status` instead of catching portal domain errors
+ * (review eligible-reads precedent). `inactive` maps the repository's
+ * portalError('portal_inactive'); `not_found` maps its null; any other
+ * error is rethrown unchanged.
+ */
+export type PublicPortalBySlugOutcome =
+  | Readonly<{ status: 'found'; result: PublicPortalBySlugResult }>
+  | Readonly<{ status: 'inactive' }>
+  | Readonly<{ status: 'not_found' }>
+
 /** Portal context public API — consumed by guest and other contexts. */
 export type PortalPublicApi = Readonly<{
   /**
@@ -74,13 +82,14 @@ export type PortalPublicApi = Readonly<{
 
   /**
    * Full public portal lookup by property slug + portal slug.
-   * Returns portal info, link categories, links, and org name.
-   * Used by guest context for the public-facing portal page.
+   * Returns a typed outcome: found (portal info, link categories, links,
+   * org name), inactive, or not_found. Used by guest context for the
+   * public-facing portal page.
    */
   findPublicPortalBySlug: (
     propertySlug: string,
     portalSlug: string,
-  ) => Promise<PublicPortalBySlugResult | null>
+  ) => Promise<PublicPortalBySlugOutcome>
 }>
 
 /** Minimal portal group info for cross-context consumers. */
