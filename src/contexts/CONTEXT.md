@@ -250,3 +250,9 @@ Factories live in each context's `domain/errors.ts` (`xxxError` + `isXxxError`).
 | Adapters     | Integration with mocked external API | Test-after              |
 
 Required: 100% domain coverage. Every use case tested for happy + error paths. Every repo has tenant isolation test. Tests colocated: `rules.ts` next to `rules.test.ts`.
+
+## Context acceptance matrix (BQC-5.10)
+
+`src/shared/architecture/context-acceptance-matrix.test.ts` is the executable acceptance checklist for the 17 bounded-context rows (phase doc §5.10). Each row names its verdict (enabled/limited or dark), its criterion, and the pin that carries the full proof. Rows already covered by an owning suite (provider-target-selection, atomic-review-outbox, inbox applyOnce, dark-context-matrix, dark-consumer-gating, …) reference those suites instead of duplicating them; the matrix adds new pins only where no suite held the row (Identity grant sole-access scan, Staff no-authZ participation scan, Metric rollup idempotency, AI absence, Activity/audit sole-writer scans, the properties-table WATCH register).
+
+Rerun rule: the matrix does not implement missing product behavior. A failing row returns to its owner; after the owner fix lands, the matrix is updated and rerun. Registered gaps (F1–F3, the properties-table WATCH, the `isGamificationViolation` call-site gap, and the two documented ambient-clock exceptions) are listed in the matrix header.
