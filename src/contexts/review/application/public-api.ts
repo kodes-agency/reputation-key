@@ -54,6 +54,11 @@ export type {
   SourcePurgeResult,
 } from './ports/source-content-purge.port'
 
+// BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
+// eligibility enforced at the owner, clock-injected). The dashboard build
+// depends on this type; composition wires the infrastructure implementation.
+export type { ReviewServingStats } from './ports/serving-stats.port'
+
 // ── Staff type aliases for cross-context consumers ──────────────────────
 export type StaffRecentReview = {
   id: string

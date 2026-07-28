@@ -9,7 +9,7 @@ import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { RATING_DROP_THRESHOLD } from './get-attention-signals'
+import { isRatingDrop, priorPeriodDates } from '../utils'
 
 /** Property identity the fleet use case enriches. Resolved server-side. */
 export type FleetProperty = Readonly<{
@@ -46,12 +46,11 @@ export const getFleetOverview =
 
     // Prior period mirrors getAttentionSignals so the rating-drop flag stays
     // consistent with the per-property deep-dive. 'all' has no prior period.
-    // fallow-ignore-next-line code-duplication — prior-period pattern shared across dashboard use cases
-    const priorStartDate =
-      timeRange === 'all'
-        ? startDate
-        : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
-    const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
+    const { priorStartDate, priorEndDate } = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+    )
 
     // Process properties in batches of 5 to bound DB connection pool usage.
     // Each property fires 5 concurrent queries, so a batch of 5 = 25 concurrent
@@ -83,10 +82,7 @@ export const getFleetOverview =
               }),
             ])
 
-          // Avoid false positives when there is no prior-period data (priorValue 0).
-          const ratingDrop =
-            kpis.avgRating.priorValue > 0 &&
-            kpis.avgRating.priorValue - kpis.avgRating.value >= RATING_DROP_THRESHOLD
+          const ratingDrop = isRatingDrop(kpis.avgRating.value, kpis.avgRating.priorValue)
 
           const attentionSignals: AttentionSignals = {
             unanswered,

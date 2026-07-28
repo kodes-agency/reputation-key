@@ -11,7 +11,6 @@ import { isDbHealthy } from '#/shared/health/db-probe'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { createHealthChecker } from '#/shared/observability/health-metrics'
-import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
@@ -46,27 +45,9 @@ import {
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { activityLogId, replyId } from '#/shared/domain/ids'
 
-// BQC-3.7: lazily-created ops queue handles for the health-check's metric
-// sample. The domain-events and quarantine queues are owned by the worker
-// entry point, which starts AFTER bootstrap — so the health-check opens its
-// own read-only handles on first use and reuses them (one Redis connection
-// per queue per process, never two).
-let opsQueues:
-  | { domainEvents: Queue | undefined; quarantine: Queue | undefined }
-  | undefined
-
-function getOpsQueues(): {
-  domainEvents: Queue | undefined
-  quarantine: Queue | undefined
-} {
-  if (!opsQueues) {
-    opsQueues = {
-      domainEvents: createJobQueue('domain-events'),
-      quarantine: createJobQueue(QUARANTINE_QUEUE_NAME),
-    }
-  }
-  return opsQueues
-}
+// BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
+// — the per-module getOpsQueues() duplicate is gone. The health-check job
+// consumes the same read-only handles as /api/health/metrics.
 
 export async function bootstrap(container: Container): Promise<void> {
   const logger = getLogger()
@@ -113,7 +94,7 @@ export async function bootstrap(container: Container): Promise<void> {
     // BQC-3.7: outbox/quarantine metric sample for the threshold evaluation.
     sampleOpsMetrics: async () => {
       const snapshot = await createHealthChecker(container.db, container.outboxRepo, {
-        quarantineQueue: getOpsQueues().quarantine ?? null,
+        quarantineQueue: container.opsQueues.quarantine ?? null,
       }).check()
       return {
         oldestUnpublishedAgeMs: snapshot.outbox.oldestUnpublishedAgeMs,
@@ -127,8 +108,8 @@ export async function bootstrap(container: Container): Promise<void> {
       readAllQueueDepths([
         { name: 'default', queue: container.jobQueue ?? null },
         { name: 'background', queue: container.backgroundQueue ?? null },
-        { name: 'domain-events', queue: getOpsQueues().domainEvents ?? null },
-        { name: QUARANTINE_QUEUE_NAME, queue: getOpsQueues().quarantine ?? null },
+        { name: 'domain-events', queue: container.opsQueues.domainEvents ?? null },
+        { name: QUARANTINE_QUEUE_NAME, queue: container.opsQueues.quarantine ?? null },
       ]),
   })
 

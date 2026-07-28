@@ -6,6 +6,7 @@ import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { DashboardData } from '../../domain/types'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
+import { DEFAULT_RECENT_REVIEWS_LIMIT, priorPeriodDates } from '../utils'
 
 export type GetDashboardDataInput = Readonly<{
   organizationId: OrganizationId
@@ -28,11 +29,11 @@ export const getDashboardData =
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
 
     // For 'all' time range, no meaningful prior period — skip trend comparison
-    const priorStartDate =
-      timeRange === 'all'
-        ? startDate
-        : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
-    const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
+    const { priorStartDate, priorEndDate } = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+    )
 
     const { repo } = deps
 
@@ -60,7 +61,11 @@ export const getDashboardData =
       repo.getRatingTrend({ organizationId, propertyId, startDate, endDate }),
       repo.getReviewVolume({ organizationId, propertyId, startDate, endDate }),
       repo.getReplyPerformance({ organizationId, propertyId, startDate, endDate }),
-      repo.getRecentReviews({ organizationId, propertyId, limit: 5 }),
+      repo.getRecentReviews({
+        organizationId,
+        propertyId,
+        limit: DEFAULT_RECENT_REVIEWS_LIMIT,
+      }),
       portalId
         ? repo.getEngagementFunnel({
             organizationId,

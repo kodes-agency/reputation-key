@@ -28,3 +28,35 @@ export function computeTrend(current: number, prior: number): number | null {
   const result = ((current - prior) / prior) * 100
   return Number.isFinite(result) ? Math.round(result) : null
 }
+
+// ── BQC-5.5: consolidated read-policy helpers (were inline copies ×5/×2) ──
+
+/** Default bound for the recent-reviews list read — the dashboard's one
+ *  bounded list. Named here so the use case and the repo share it. */
+export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
+
+/** Prior period: the same duration immediately before the current period.
+ *  'all' has no meaningful prior — returns the current period unchanged so
+ *  trend comparisons no-op. Pure function of its inputs (ADR 0017). */
+export function priorPeriodDates(
+  preset: TimeRangePreset,
+  startDate: Date,
+  endDate: Date,
+): { priorStartDate: Date; priorEndDate: Date } {
+  if (preset === 'all') return { priorStartDate: startDate, priorEndDate: endDate }
+  return {
+    priorStartDate: new Date(
+      startDate.getTime() - (endDate.getTime() - startDate.getTime()),
+    ),
+    priorEndDate: new Date(startDate.getTime() - 1),
+  }
+}
+
+/** A rating drop is flagged when avg rating falls ≥ this vs the prior period.
+ *  Module-private: the servable contract is isRatingDrop (BQC-5.5). */
+const RATING_DROP_THRESHOLD = 0.3
+
+/** Rating-drop flag. Guards the no-prior-data false positive (priorValue 0). */
+export function isRatingDrop(currentAvg: number, priorAvg: number): boolean {
+  return priorAvg > 0 && priorAvg - currentAvg >= RATING_DROP_THRESHOLD
+}

@@ -1,13 +1,19 @@
 // Dashboard context — Drizzle adapter implementing MetricStatsPort
 // SQL queries against metric_readings table.
 // This is the ONLY place dashboard infrastructure touches metric_readings.
+// BQC-5.5: scope predicates, the aggregate skeleton, and the statement
+// timeout come from the read facade — methods are scope→skeleton wiring.
 
 import type { Database } from '#/shared/db'
-import { metricReadings } from '#/shared/db/schema'
-import { and, sum, count, eq, gte, lte, inArray } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import {
+  metricPeriodWhere,
+  metricPortalWhere,
+  metricPortalsWhere,
+  readMetricAggregates,
+} from '../read-facade'
 
 export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
   async getSumsByPeriod(
@@ -17,26 +23,11 @@ export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
     endDate: Date,
   ) {
     return trace('dashboard.metricStats.getSumsByPeriod', async () => {
-      const rows = await db
-        .select({
-          metricKey: metricReadings.metricKey,
-          total: sum(metricReadings.value),
-        })
-        .from(metricReadings)
-        .where(
-          and(
-            eq(metricReadings.organizationId, organizationId),
-            eq(metricReadings.propertyId, propertyId),
-            gte(metricReadings.occurredAt, startDate),
-            lte(metricReadings.occurredAt, endDate),
-          ),
-        )
-        .groupBy(metricReadings.metricKey)
-
-      return rows.map((r) => ({
-        metricKey: r.metricKey,
-        total: Number(r.total ?? 0),
-      }))
+      const rows = await readMetricAggregates(
+        db,
+        metricPeriodWhere(organizationId, propertyId, startDate, endDate),
+      )
+      return rows.map(({ metricKey, total }) => ({ metricKey, total }))
     })
   },
 
@@ -48,27 +39,11 @@ export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
     endDate: Date,
   ) {
     return trace('dashboard.metricStats.getSumsByPortal', async () => {
-      const rows = await db
-        .select({
-          metricKey: metricReadings.metricKey,
-          total: sum(metricReadings.value),
-        })
-        .from(metricReadings)
-        .where(
-          and(
-            eq(metricReadings.organizationId, organizationId),
-            eq(metricReadings.propertyId, propertyId),
-            eq(metricReadings.portalId, portalId),
-            gte(metricReadings.occurredAt, startDate),
-            lte(metricReadings.occurredAt, endDate),
-          ),
-        )
-        .groupBy(metricReadings.metricKey)
-
-      return rows.map((r) => ({
-        metricKey: r.metricKey,
-        total: Number(r.total ?? 0),
-      }))
+      const rows = await readMetricAggregates(
+        db,
+        metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+      )
+      return rows.map(({ metricKey, total }) => ({ metricKey, total }))
     })
   },
 
@@ -82,28 +57,11 @@ export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
     return trace('dashboard.metricStats.getSumsByPortals', async () => {
       if (portalIds.length === 0) return []
 
-      const rows = await db
-        .select({
-          metricKey: metricReadings.metricKey,
-          total: sum(metricReadings.value),
-        })
-        .from(metricReadings)
-        .where(
-          and(
-            eq(metricReadings.organizationId, organizationId),
-            eq(metricReadings.propertyId, propertyId),
-            // Drizzle inArray() doesn't accept branded PortalId[] — cast to string[] is safe because PortalId is a string-brand.
-            inArray(metricReadings.portalId, portalIds as unknown as string[]),
-            gte(metricReadings.occurredAt, startDate),
-            lte(metricReadings.occurredAt, endDate),
-          ),
-        )
-        .groupBy(metricReadings.metricKey)
-
-      return rows.map((r) => ({
-        metricKey: r.metricKey,
-        total: Number(r.total ?? 0),
-      }))
+      const rows = await readMetricAggregates(
+        db,
+        metricPortalsWhere(organizationId, propertyId, portalIds, startDate, endDate),
+      )
+      return rows.map(({ metricKey, total }) => ({ metricKey, total }))
     })
   },
 
@@ -115,27 +73,11 @@ export const createMetricStatsAdapter = (db: Database): MetricStatsPort => ({
     endDate: Date,
   ) {
     return trace('dashboard.metricStats.getCountsByPortal', async () => {
-      const rows = await db
-        .select({
-          metricKey: metricReadings.metricKey,
-          count: count(),
-        })
-        .from(metricReadings)
-        .where(
-          and(
-            eq(metricReadings.organizationId, organizationId),
-            eq(metricReadings.propertyId, propertyId),
-            eq(metricReadings.portalId, portalId),
-            gte(metricReadings.occurredAt, startDate),
-            lte(metricReadings.occurredAt, endDate),
-          ),
-        )
-        .groupBy(metricReadings.metricKey)
-
-      return rows.map((r) => ({
-        metricKey: r.metricKey,
-        count: Number(r.count ?? 0),
-      }))
+      const rows = await readMetricAggregates(
+        db,
+        metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+      )
+      return rows.map(({ metricKey, count }) => ({ metricKey, count }))
     })
   },
 })

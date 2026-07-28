@@ -53,6 +53,8 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'notificationPrefRepo',
   'notificationPublicApi',
   'notificationRepo',
+  'operationsSnapshot',
+  'opsQueues',
   'outboxRepo',
   'policyAdmin',
   'portalLinkRepo',
@@ -212,6 +214,10 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       clock,
       queue,
       backgroundQueue,
+      // BQC-5.5: ops queue read handles are container-owned; inject in-memory
+      // fakes so construction never opens real Redis connections.
+      opsDomainEventsQueue: createInMemoryQueue({ clock }),
+      opsQuarantineQueue: createInMemoryQueue({ clock }),
       redis: undefined,
       enableJobs: true,
       db: dbStub,

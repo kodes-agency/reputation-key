@@ -13,14 +13,15 @@
 //      tables or content columns at all.
 //   2. The aggregate query files feeding fleet/org-level views select no
 //      content columns (COUNT/SUM/AVG over the tables is their purpose).
-//   3. The ONE content-column selection in dashboard infrastructure
-//      (reviews.text for the property-local recent-reviews widget) stays
-//      confined to getRecentReviews — the fleet path never reaches it.
+//   3. The ONE content-column selection in serving reads (reviews.text for
+//      the property-local recent-reviews widget) stays confined to
+//      getRecentReviews in the review-owned serving implementation (BQC-5.5)
+//      — the fleet path never reaches it.
 //   4. The fleet DTO shapes (FleetEntry/FleetOverviewData/FleetTotals/
 //      AttentionSignals) declare no content fields.
 //
 // Runtime halves: get-fleet-overview.test.ts (aggregation behavior),
-// dashboard.repository.test.ts / review-stats-eligibility.test.ts
+// dashboard.repository.test.ts / serving-stats-eligibility.test.ts
 // (integration, content-expiry eligibility).
 
 import { describe, it, expect } from 'vitest'
@@ -157,7 +158,9 @@ describe('BQC-4.4: fleet/global views are content-free aggregates', () => {
   })
 
   it('reviews.text stays confined to the property-local getRecentReviews widget', () => {
-    const file = 'src/contexts/dashboard/infrastructure/adapters/review-stats.adapter.ts'
+    // BQC-5.5: the serving read is review-owned; dashboard consumes the
+    // governed ReviewServingStats interface and cannot select content itself.
+    const file = 'src/contexts/review/infrastructure/serving-stats.ts'
     const code = stripComments(read(file))
     // Blank out the getRecentReviews method (the documented property-local
     // exception: org-scoped, assignment-scoped, content-expiry eligible);

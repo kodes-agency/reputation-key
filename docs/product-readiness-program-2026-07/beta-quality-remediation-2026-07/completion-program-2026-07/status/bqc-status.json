@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T11:13:14Z",
+  "updatedAt": "2026-07-28T13:25:40Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup. 5.3 implementation_complete: runtime-neutral domain + browser-reachability proof. 5.4 implementation_complete: semantic schema authority — migration SQL track is the authority; snapshot chain repaired (drizzle-kit check green, generate noop); semantic pg_catalog comparator verifies all 68 tables both directions against the migrated DB; 19 drifts fixed incl. phantom invitation.teamId and outbox index predicate/direction/type drift; DB-only constructs register with owners; deploy sidecar wired into CI. Slices 5.5–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup. 5.3 implementation_complete: runtime-neutral domain + browser-reachability. 5.4 implementation_complete: semantic schema authority. 5.5 implementation_complete: operational reads deepened — composition-owned OperationsSnapshot (route no longer constructs DB/Redis readers, degrade-not-abort sections with time budgets); the 6 dashboard review-stats reads moved into the review context behind a governed interface with source-eligibility enforced on ALL content reads (privacy fix: aggregates no longer include expired/clock-less content); dashboard read facade consolidates scope/bounds/timeout (statement_timeout) with an explicit no-server-cache policy; unused dashboard-cache and health-endpoints modules removed. Slices 5.6–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.5",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Deepen operational reads",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) OperationsSnapshot (STD-P1-04): new composition-owned governed interface (src/shared/health/operations-snapshot.ts) — owns health-checker construction (once, not per request), queue-depth + heartbeat reads, assembly into one typed snapshot (HealthSnapshot + queues + workers.heartbeat + degraded[]). Per-section 5s budget (withBudget): timeout/rejection → degraded marker, never a 500 for a partial read. Container gains additive-only opsQueues + operationsSnapshot keys (characterization updated); metrics route slimmed to one .read() call (auth 'none' kept — authorization at this boundary is BQC-7's gate); bootstrap's duplicate getOpsQueues deleted (consumes container handles). (2) Review-owned dashboard stats: the 6 review-stats queries moved from a dashboard adapter into review context behind ReviewServingStats (application port + infrastructure impl + public-api type; composition wires review→dashboard). EVERY review-content read now enforces source eligibility (contentExpiresAt IS NOT NULL AND > injected-now) — RED first: period stats/distribution/reply-performance counted expired+clock-less rows (3 failed), GREEN after (4 passed). Attention-signals' unanswered count predicates too, with an integration equivalence test against review's own eligible-id query. (3) Dashboard governed read facade: scoped where-builders per table family (~15 inline copies killed), prior-period (×5)/computeTrend/rating-drop consolidated, named bounds, withStatementTimeout (drizzle tx + set_config statement_timeout) enforced at the facade with a tagged DashboardReadTimeout (integration-proven against pg_sleep; no pool leak), and an explicit NO-server-cache policy (client staleTimes authoritative; a server cache would be a second read model). (4) Removed the unused dashboard-cache (120 lines, admitted no-op invalidation) and dormant health-endpoints duplicate — documented remove-decisions; the write-only rollup tables stay registered for BQC-5.8's classification (not dashboard cache). Behavior changes: dashboard review aggregates exclude expired/clock-less content (privacy fix); ops sections degrade instead of throwing. Gates: unit 372f/4133t, integration 51f/314t, typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.4",
