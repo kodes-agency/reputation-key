@@ -26,8 +26,12 @@ const BASE = {
 }
 
 describe('buildGoal', () => {
-  // ── Open goal ────────────────────────────────────────────────────────
-  describe('open goal', () => {
+  // ── Goal type rules (integration) ──────────────────────────────
+  // The exhaustive goalType × temporal-fields decision matrix moved to
+  // goal-type-rules.test.ts (table-driven, at the new interface). These are
+  // thin end-to-end pins through buildGoal: one happy path + one rejection
+  // per goal type.
+  describe('goal type rules (thin integration)', () => {
     it('creates an open goal at property scope', () => {
       const result = buildGoal({
         ...BASE,
@@ -45,30 +49,6 @@ describe('buildGoal', () => {
       expect(goal.completedAt).toBeNull()
     })
 
-    it('creates an open goal at portal scope', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        portalId: portalId('portal-1'),
-        metricKey: 'portal.scan' as const,
-        aggregationFunction: 'sum' as const,
-        targetValue: 200,
-      })
-      expect(result.isOk()).toBe(true)
-    })
-
-    it('creates an open goal at portal group scope', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        portalGroupId: portalGroupId('pg-1'),
-        metricKey: 'portal.scan' as const,
-        aggregationFunction: 'sum' as const,
-        targetValue: 200,
-      })
-      expect(result.isOk()).toBe(true)
-    })
-
     it('rejects open goal with period dates', () => {
       const result = buildGoal({
         ...BASE,
@@ -80,29 +60,6 @@ describe('buildGoal', () => {
       expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
     })
 
-    it('rejects open goal with rollingWindowDays', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        rollingWindowDays: 30,
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
-    })
-
-    it('rejects open goal with recurrenceRule', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'open',
-        recurrenceRule: { frequency: 'monthly' },
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
-    })
-  })
-
-  // ── One-shot goal ────────────────────────────────────────────────────
-  describe('one-shot goal', () => {
     it('creates a one-shot goal with period dates', () => {
       const result = buildGoal({
         ...BASE,
@@ -125,44 +82,6 @@ describe('buildGoal', () => {
       expect(result._unsafeUnwrapErr().code).toBe('period_required')
     })
 
-    it('rejects one-shot goal with periodEnd before periodStart', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'one_shot',
-        periodStart: new Date('2026-06-30'),
-        periodEnd: new Date('2026-06-01'),
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('invalid_period')
-    })
-
-    it('rejects one-shot goal with rollingWindowDays', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'one_shot',
-        periodStart: new Date('2026-06-01'),
-        periodEnd: new Date('2026-06-30'),
-        rollingWindowDays: 30,
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
-    })
-
-    it('rejects one-shot goal with recurrenceRule', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'one_shot',
-        periodStart: new Date('2026-06-01'),
-        periodEnd: new Date('2026-06-30'),
-        recurrenceRule: { frequency: 'monthly' },
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
-    })
-  })
-
-  // ── Rolling goal ─────────────────────────────────────────────────────
-  describe('rolling goal', () => {
     it('creates a rolling goal with window days', () => {
       const result = buildGoal({
         ...BASE,
@@ -184,52 +103,6 @@ describe('buildGoal', () => {
       expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
     })
 
-    it('rejects rolling goal with period dates', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'rolling',
-        rollingWindowDays: 30,
-        periodStart: new Date('2026-06-01'),
-        periodEnd: new Date('2026-06-30'),
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
-    })
-
-    it('rejects rolling goal with recurrenceRule', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'rolling',
-        rollingWindowDays: 30,
-        recurrenceRule: { frequency: 'monthly' },
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_not_allowed')
-    })
-
-    it('rejects rolling goal with rollingWindowDays = 0', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'rolling',
-        rollingWindowDays: 0,
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
-    })
-
-    it('rejects rolling goal with negative rollingWindowDays', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'rolling',
-        rollingWindowDays: -5,
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_required')
-    })
-  })
-
-  // ── Recurring goal (template) ────────────────────────────────────────
-  describe('recurring goal', () => {
     it('creates a recurring template with recurrenceRule', () => {
       const result = buildGoal({
         ...BASE,
@@ -243,16 +116,7 @@ describe('buildGoal', () => {
       expect(goal.periodEnd).toBeNull()
     })
 
-    it('rejects recurring without recurrenceRule', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'recurring',
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('recurrence_rule_required')
-    })
-
-    it('rejects recurring with period dates (template cannot have dates)', () => {
+    it('rejects recurring template with period dates', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'recurring',
@@ -262,17 +126,6 @@ describe('buildGoal', () => {
       })
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().code).toBe('period_not_allowed')
-    })
-
-    it('rejects recurring with rollingWindowDays', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'monthly' },
-        rollingWindowDays: 30,
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('rolling_window_not_allowed')
     })
 
     it('allows recurring instance (parentGoalId set) with period dates', () => {
@@ -287,19 +140,6 @@ describe('buildGoal', () => {
       expect(result.isOk()).toBe(true)
       const goal = result._unsafeUnwrap()
       expect(goal.parentGoalId).not.toBeNull()
-    })
-
-    it('rejects recurring instance with periodEnd before periodStart', () => {
-      const result = buildGoal({
-        ...BASE,
-        goalType: 'recurring',
-        recurrenceRule: { frequency: 'monthly' },
-        parentGoalId: goalId('parent-1'),
-        periodStart: new Date('2026-06-30'),
-        periodEnd: new Date('2026-06-01'),
-      })
-      expect(result.isErr()).toBe(true)
-      expect(result._unsafeUnwrapErr().code).toBe('invalid_period')
     })
   })
 

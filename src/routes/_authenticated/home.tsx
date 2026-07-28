@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
@@ -7,12 +6,10 @@ import { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashb
 import { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
 import {
-  badgeKeys,
-  dashboardKeys,
-  goalKeys,
-  reviewKeys,
-  staffKeys,
-} from '#/shared/queries/query-keys'
+  staffHomeQueries,
+  useStaffHomeData,
+  type StaffHomeFns,
+} from '#/components/features/staff/use-staff-home-data'
 import { StaffHomeKpis } from '#/components/features/staff/staff-home-kpis'
 import { StaffBadgeSummary } from '#/components/features/badges/staff-badge-summary'
 import { StaffGoalSummary } from '#/components/features/staff/staff-goal-summary'
@@ -32,41 +29,14 @@ const homeSearch = z.object({
   portalId: z.string().uuid().optional(),
 })
 
-const staffGoalsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: goalKeys.staff(propertyId),
-    queryFn: () => listStaffGoals({ data: { propertyId } }),
-    staleTime: 60 * 1000,
-  })
-
-const staffDashboardQuery = (propertyId: string, portalId: string | undefined) =>
-  queryOptions({
-    queryKey: dashboardKeys.staff({ propertyId, portalId }),
-    queryFn: () =>
-      getStaffDashboardDataFn({ data: { propertyId, portalId, timeRange: '30d' } }),
-    staleTime: 60 * 1000,
-  })
-
-const staffPortalsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: staffKeys.portals(propertyId),
-    queryFn: () => listStaffPortals({ data: { propertyId } }),
-    staleTime: 60 * 1000,
-  })
-
-const staffActivityQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: reviewKeys.staffActivity(propertyId),
-    queryFn: () => getStaffRecentActivity({ data: { propertyId } }),
-    staleTime: 60 * 1000,
-  })
-
-const staffBadgesQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: badgeKeys.staffVisible(propertyId),
-    queryFn: () => getStaffVisibleBadges({ data: { propertyId, limit: 6 } }),
-    staleTime: 60 * 1000,
-  })
+/** Real server fns for the staff-home prop channel (loader + page hook). */
+const staffHomeFns: StaffHomeFns = {
+  listStaffGoals,
+  getStaffDashboardData: getStaffDashboardDataFn,
+  listStaffPortals,
+  getStaffRecentActivity,
+  getStaffVisibleBadges,
+}
 
 export const Route = createFileRoute('/_authenticated/home')({
   validateSearch: homeSearch,
@@ -86,13 +56,14 @@ export const Route = createFileRoute('/_authenticated/home')({
       }
     }
 
+    const queries = staffHomeQueries(staffHomeFns, propertyId, portalId)
     const [{ goals }, dashboard, { portals }, { reviews: recentReviews }, badges] =
       await Promise.all([
-        context.queryClient.ensureQueryData(staffGoalsQuery(propertyId)),
-        context.queryClient.ensureQueryData(staffDashboardQuery(propertyId, portalId)),
-        context.queryClient.ensureQueryData(staffPortalsQuery(propertyId)),
-        context.queryClient.ensureQueryData(staffActivityQuery(propertyId)),
-        context.queryClient.ensureQueryData(staffBadgesQuery(propertyId)),
+        context.queryClient.ensureQueryData(queries.goals),
+        context.queryClient.ensureQueryData(queries.dashboard),
+        context.queryClient.ensureQueryData(queries.portals),
+        context.queryClient.ensureQueryData(queries.activity),
+        context.queryClient.ensureQueryData(queries.badges),
       ])
 
     return {
@@ -109,42 +80,15 @@ export const Route = createFileRoute('/_authenticated/home')({
 
 function StaffHomePage() {
   const { propertyId: searchPropertyId, portalId: searchPortalId } = Route.useSearch()
+  const { kpis, portals, goals, badges, recentReviews, emptyState } = useStaffHomeData(
+    searchPropertyId,
+    searchPortalId,
+    staffHomeFns,
+  )
 
-  const { data: goalsData } = useSuspenseQuery({
-    ...staffGoalsQuery(searchPropertyId ?? ''),
-  })
-  const { data: dashboardData } = useSuspenseQuery({
-    ...staffDashboardQuery(searchPropertyId ?? '', searchPortalId),
-  })
-  const { data: portalsData } = useSuspenseQuery({
-    ...staffPortalsQuery(searchPropertyId ?? ''),
-  })
-  const { data: activityData } = useSuspenseQuery({
-    ...staffActivityQuery(searchPropertyId ?? ''),
-  })
-  const { data: badgesData } = useSuspenseQuery({
-    ...staffBadgesQuery(searchPropertyId ?? ''),
-  })
-
-  const goals = goalsData?.goals ?? []
-  const kpis = dashboardData?.kpis ?? null
-  const portals = portalsData?.portals ?? []
-  const recentReviews = activityData?.reviews ?? []
-  const badges = (badgesData ?? []) as BadgeAwardWithTarget[]
-  const hasAssignments = dashboardData?.hasAssignments ?? false
-  // No property selected — the sidebar defaults ?propertyId= on first load; if
-  // none ever appears the staff has no assignments, so show the empty state.
-  if (!searchPropertyId) {
-    return (
-      <PageShell>
-        <PageHeader title="Home" description="Your performance at a glance." />
-        <StaffEmptyState />
-      </PageShell>
-    )
-  }
-
-  // Property is selected but staff has no assignments
-  if (!hasAssignments) {
+  // Empty states (no property selected / property selected but no assignments) —
+  // the decision lives in the hook.
+  if (emptyState) {
     return (
       <PageShell>
         <PageHeader title="Home" description="Your performance at a glance." />

@@ -49,3 +49,9 @@ export const createGbpApiError = (
   }
   return err
 }
+
+/** Type guard for the tagged GBP API error (anything else is unclassifiable). */
+export const isGbpApiError = (err: unknown): err is GbpApiError => {
+  if (typeof err !== 'object' || err === null || !('_tag' in err)) return false
+  return err._tag === 'GbpApiError'
+}
