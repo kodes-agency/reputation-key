@@ -6,9 +6,8 @@ import type { InboxRepository } from '../ports/inbox.repository'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { canForContext } from '#/shared/domain/permissions'
-import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../../domain/errors'
+import { resolveVisiblePropertyIds } from '../visible-properties'
 
 export type InboxFolderCounts = Readonly<{
   open: number
@@ -34,33 +33,27 @@ export type GetInboxFolderCounts = (
 export const getInboxFolderCounts =
   (deps: GetInboxFolderCountsDeps): GetInboxFolderCounts =>
   async (input, ctx) => {
-    if (!canForContext(ctx, 'inbox.read')) {
-      throw inboxError('forbidden', 'No inbox read permission')
-    }
-
     // Resolve property scoping per-permission: org-wide scope (AccountAdmin) →
-    // null (all); assigned scope (PM/Staff) → their staff_assignment set.
-    const accessible = await getAccessiblePropertyIdsForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    // 'all'; assigned scope (PM/Staff) → their staff_assignment set ('none'
+    // short-circuits to zeros — a scoped user with no assignments must not
+    // see org-wide counts).
+    const visible = await resolveVisiblePropertyIds(
+      deps.staffPublicApi,
       ctx,
       'inbox.read',
     )
+    if (visible === 'none') {
+      return { open: 0, escalated: 0, closed: 0 }
+    }
 
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (accessible !== null) {
-      // No assignments → no visible items. The repo treats propertyIds=[] as
-      // "no filter" (org-wide), so short-circuit to zeros to avoid leaking
-      // org-wide counts to a scoped user with no property assignments.
-      if (accessible.length === 0) {
-        return { open: 0, escalated: 0, closed: 0 }
-      }
-      if (input.propertyId && !accessible.includes(input.propertyId as PropertyId)) {
+    if (visible !== 'all') {
+      if (input.propertyId && !visible.includes(input.propertyId as PropertyId)) {
         throw inboxError('forbidden', 'No access to this property', {
           propertyId: input.propertyId,
         })
       }
-      propertyIds = accessible
+      propertyIds = visible
     }
 
     // An explicit property filter narrows the count to that property;

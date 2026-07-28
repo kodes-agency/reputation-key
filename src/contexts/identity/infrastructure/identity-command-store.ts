@@ -22,7 +22,6 @@
 import { randomUUID } from 'crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   invitation,
   member,
@@ -32,9 +31,7 @@ import {
 } from '#/shared/db/schema/auth'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { getLogger } from '#/shared/observability/logger'
+import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
@@ -48,25 +45,6 @@ import type {
   RegisterOrganizationCommand,
   RemoveMemberCommand,
 } from '../application/ports/identity-command-store.port'
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQC-3.5: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
-
-async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
-}
 
 /**
  * Invitation insert via raw SQL. The drizzle mirror for the better-auth
@@ -116,6 +94,42 @@ async function countOwners(tx: Tx, orgId: string): Promise<number> {
     .from(member)
     .where(eq(member.organizationId, orgId))
   return rows.filter((r) => isOwnerToken(r.role)).length
+}
+
+/**
+ * Lock the member row FOR UPDATE (under the org advisory lock) and re-check
+ * the last-owner invariant. Without `newRole` the member is being removed and
+ * any owner triggers the check; with `newRole` it fires only on owner
+ * demotion. Single source for removeMember/changeMemberRole (BQC-5.9 E7).
+ */
+async function lockMemberForRoleChange(
+  tx: Tx,
+  orgId: string,
+  memberId: string,
+  opts: { newRole?: string } = {},
+): Promise<void> {
+  await lockOrg(tx, orgId)
+  const rows = await tx
+    .select()
+    .from(member)
+    .where(and(eq(member.id, memberId), eq(member.organizationId, orgId)))
+    .for('update')
+  const target = rows[0]
+  if (!target) {
+    throw identityError('member_not_found', 'Member not found in this organization')
+  }
+  if (
+    isOwnerToken(target.role) &&
+    (opts.newRole === undefined || !isOwnerToken(opts.newRole))
+  ) {
+    const owners = await countOwners(tx, orgId)
+    if (owners <= 1) {
+      throw identityError(
+        'last_owner',
+        'Cannot remove the last owner of the organization',
+      )
+    }
+  }
 }
 
 /** Parse the JSON-encoded propertyIds string from an invitation row. */
@@ -316,34 +330,11 @@ export function createAtomicIdentityCommandStore(
     removeMember: async (command: RemoveMemberCommand) => {
       return trace('identity.commandStore.removeMember', async () => {
         await db.transaction(async (tx) => {
-          await lockOrg(tx, command.organizationId as string)
-          const rows = await tx
-            .select()
-            .from(member)
-            .where(
-              and(
-                eq(member.id, command.memberId),
-                eq(member.organizationId, command.organizationId as string),
-              ),
-            )
-            .for('update')
-          const target = rows[0]
-          if (!target) {
-            throw identityError(
-              'member_not_found',
-              'Member not found in this organization',
-            )
-          }
-          // Last-owner invariant re-enforced under the advisory lock.
-          if (isOwnerToken(target.role)) {
-            const owners = await countOwners(tx, command.organizationId as string)
-            if (owners <= 1) {
-              throw identityError(
-                'last_owner',
-                'Cannot remove the last owner of the organization',
-              )
-            }
-          }
+          await lockMemberForRoleChange(
+            tx,
+            command.organizationId as string,
+            command.memberId,
+          )
           await tx
             .delete(member)
             .where(
@@ -361,34 +352,14 @@ export function createAtomicIdentityCommandStore(
     changeMemberRole: async (command: ChangeMemberRoleCommand) => {
       return trace('identity.commandStore.changeMemberRole', async () => {
         await db.transaction(async (tx) => {
-          await lockOrg(tx, command.organizationId as string)
-          const rows = await tx
-            .select()
-            .from(member)
-            .where(
-              and(
-                eq(member.id, command.memberId),
-                eq(member.organizationId, command.organizationId as string),
-              ),
-            )
-            .for('update')
-          const target = rows[0]
-          if (!target) {
-            throw identityError(
-              'member_not_found',
-              'Member not found in this organization',
-            )
-          }
-          // Demoting an owner: re-check the last-owner invariant under the lock.
-          if (isOwnerToken(target.role) && !isOwnerToken(command.newRole)) {
-            const owners = await countOwners(tx, command.organizationId as string)
-            if (owners <= 1) {
-              throw identityError(
-                'last_owner',
-                'Cannot remove the last owner of the organization',
-              )
-            }
-          }
+          await lockMemberForRoleChange(
+            tx,
+            command.organizationId as string,
+            command.memberId,
+            {
+              newRole: command.newRole,
+            },
+          )
           await tx
             .update(member)
             .set({ role: command.newRole })

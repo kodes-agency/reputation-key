@@ -3,20 +3,9 @@ import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
+import { escapeHtml } from '#/shared/email/template'
 
 let _resend: Resend | undefined
-
-// ── HTML escaping ─────────────────────────────────────────────────────
-/** Escape user-controlled values before embedding in HTML email templates.
- * Prevents XSS via HTML entity encoding. */
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 // ── Tagged errors ────────────────────────────────────────────────────
 

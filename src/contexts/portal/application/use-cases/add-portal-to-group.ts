@@ -4,13 +4,11 @@
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalRepository } from '../ports/portal.repository'
-import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalAddedToGroup } from '../../domain/events'
 import type { EventBus } from '#/shared/events/event-bus'
-import { portalGroupId, portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { loadGroupAndPortalForMembership } from '../load-accessible-portal'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type AddPortalToGroupDeps = Readonly<{
@@ -28,24 +26,7 @@ export const addPortalToGroup =
     input: { portalGroupId: string; portalId: string },
     ctx: AuthContext,
   ): Promise<void> => {
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'this role cannot manage portal group membership')
-    }
-
-    const gid = portalGroupId(input.portalGroupId)
-    const pid = portalId(input.portalId)
-
-    const group = await deps.portalGroupRepo.findById(ctx.organizationId, gid)
-    if (!group) {
-      throw portalError('group_not_found', 'portal group not found in this organization')
-    }
-    // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      group.propertyId,
-    )
+    const { gid, pid, group } = await loadGroupAndPortalForMembership(deps, ctx, input)
 
     // Verify the portal exists and belongs to the same property as the group.
     // This prevents cross-property grouping via a group from one property + portal from another.

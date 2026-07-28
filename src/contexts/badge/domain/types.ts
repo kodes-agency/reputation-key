@@ -11,6 +11,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from '#/shared/domain/metric-keys'
+import type { PeriodPreset } from '#/shared/domain/period-range'
 
 export type BadgeTargetScope = 'portal' | 'portal_group'
 export type BadgeTargetType = BadgeTargetScope
@@ -18,15 +19,7 @@ export type BadgeTargetType = BadgeTargetScope
 export type BadgeCriteriaType = 'threshold' | 'streak' | 'milestone'
 export type BadgeCriteriaOperator = '>=' | '<='
 export type BadgeAggregation = 'sum' | 'count' | 'avg' | 'max'
-export type BadgePeriodPreset =
-  | 'today'
-  | 'this_week'
-  | 'this_month'
-  | 'this_quarter'
-  | 'all_time'
-  | 'last_7_days'
-  | 'last_30_days'
-  | 'last_90_days'
+export type BadgePeriodPreset = PeriodPreset
 
 export type BadgeCriteria = Readonly<{
   type: BadgeCriteriaType

@@ -6,10 +6,9 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal, RecurrenceRule } from '../../domain/types'
 import type { GoalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import { loadAccessibleGoal } from '../goal-access'
 
 // ── Input type ──────────────────────────────────────────────────────────
 
@@ -45,28 +44,12 @@ export const updateGoal =
     input: UpdateGoalInput,
     ctx: AuthContext,
   ): Promise<Result<Goal, UpdateGoalError>> => {
-    if (!canForContext(ctx, 'goal.update')) {
-      return err({ tag: 'forbidden' })
-    }
-
-    // 1. Load goal
-    const goal = await deps.goalRepo.getById(input.goalId, ctx.organizationId)
-    if (!goal) {
-      return err({ tag: 'goal_not_found' })
-    }
-
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
-    // Scope resolved per-permission (goal.update): org-wide → all; assigned → set.
-    const accessible = await isPropertyAccessibleForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-      ctx,
-      'goal.update',
-      goal.propertyId,
-    )
-    if (!accessible) {
-      return err({ tag: 'forbidden' })
+    const loaded = await loadAccessibleGoal(deps, input.goalId, ctx, 'goal.update')
+    if (loaded.isErr()) {
+      return err(loaded.error)
     }
+    const goal = loaded.value
 
     // 2. Must be active
     if (goal.status !== 'active') {

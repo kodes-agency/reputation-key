@@ -44,6 +44,52 @@ const withDefaults = (row: InboxItemRow): InboxItem => ({
   propertyName: null,
 })
 
+/** Mutable set-values for an inbox_items update. */
+type InboxItemSet = Partial<typeof inboxItems.$inferInsert>
+
+/**
+ * Update one inbox item by id+org, throwing not_found with `notFoundMessage`
+ * when the row vanished (single source for the update+guard shape, BQC-5.9 E14).
+ */
+async function updateByIdAndOrg(
+  db: Database,
+  id: InboxItemId,
+  orgId: OrganizationId,
+  set: InboxItemSet,
+  notFoundMessage: string,
+): Promise<InboxItem> {
+  const result = await db
+    .update(inboxItems)
+    .set(set)
+    .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+    .returning()
+  if (!result[0]) {
+    throw inboxError('not_found', notFoundMessage)
+  }
+  return withDefaults(result[0])
+}
+
+/**
+ * Count inbox items matching `conditions`, optionally narrowed to a property
+ * set (single source for the count-with-optional-property-filter shape).
+ */
+async function countWhere(
+  db: Database,
+  orgId: OrganizationId,
+  propertyIds: ReadonlyArray<PropertyId> | undefined,
+  ...conditions: SQL[]
+): Promise<number> {
+  const all: SQL[] = [eq(inboxItems.organizationId, orgId), ...conditions]
+  if (propertyIds && propertyIds.length > 0) {
+    all.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
+  }
+  const result = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(inboxItems)
+    .where(and(...all))
+  return Number(result[0]?.count ?? 0)
+}
+
 export const createInboxRepository = (
   db: Database,
   ports: LookupPorts,
@@ -220,20 +266,17 @@ export const createInboxRepository = (
     now?: Date,
   ) => {
     return trace('inbox.updateStatus', async () => {
-      const result = await db
-        .update(inboxItems)
-        .set({
+      return updateByIdAndOrg(
+        db,
+        id,
+        orgId,
+        {
           status,
           updatedAt: now ?? new Date(),
           ...timestampFields,
-        })
-        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-        .returning()
-
-      if (!result[0]) {
-        throw inboxError('not_found', 'Inbox item status update failed — no row returned')
-      }
-      return withDefaults(result[0])
+        },
+        'Inbox item status update failed — no row returned',
+      )
     })
   },
 
@@ -271,22 +314,16 @@ export const createInboxRepository = (
     now?: Date,
   ) => {
     return trace('inbox.updateAssignment', async () => {
-      const result = await db
-        .update(inboxItems)
-        .set({
+      return updateByIdAndOrg(
+        db,
+        id,
+        orgId,
+        {
           assignedTo,
           updatedAt: now ?? new Date(),
-        })
-        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-        .returning()
-
-      if (!result[0]) {
-        throw inboxError(
-          'not_found',
-          'Inbox item assignment update failed — no row returned',
-        )
-      }
-      return withDefaults(result[0])
+        },
+        'Inbox item assignment update failed — no row returned',
+      )
     })
   },
 
@@ -296,18 +333,7 @@ export const createInboxRepository = (
     propertyIds?: ReadonlyArray<PropertyId>,
   ) => {
     return trace('inbox.countByStatus', async () => {
-      const conditions: SQL[] = [
-        eq(inboxItems.organizationId, orgId),
-        eq(inboxItems.status, status),
-      ]
-      if (propertyIds && propertyIds.length > 0) {
-        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
-      }
-      const result = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(inboxItems)
-        .where(and(...conditions))
-      return Number(result[0]?.count ?? 0)
+      return countWhere(db, orgId, propertyIds, eq(inboxItems.status, status))
     })
   },
   setEscalation: async (
@@ -318,25 +344,20 @@ export const createInboxRepository = (
   ) => {
     return trace('inbox.setEscalation', async () => {
       const stamp = now ?? new Date()
-      const result = await db
-        .update(inboxItems)
-        .set({
+      return updateByIdAndOrg(
+        db,
+        id,
+        orgId,
+        {
           isEscalated: true,
           escalatedAt: stamp,
           escalatedBy,
           escalationResolvedAt: null,
           escalationResolvedBy: null,
           updatedAt: stamp,
-        })
-        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-        .returning()
-      if (!result[0]) {
-        throw inboxError(
-          'not_found',
-          'Inbox item escalation update failed — no row returned',
-        )
-      }
-      return withDefaults(result[0])
+        },
+        'Inbox item escalation update failed — no row returned',
+      )
     })
   },
   resolveEscalation: async (
@@ -347,23 +368,18 @@ export const createInboxRepository = (
   ) => {
     return trace('inbox.resolveEscalation', async () => {
       const stamp = now ?? new Date()
-      const result = await db
-        .update(inboxItems)
-        .set({
+      return updateByIdAndOrg(
+        db,
+        id,
+        orgId,
+        {
           isEscalated: false,
           escalationResolvedAt: stamp,
           escalationResolvedBy: resolvedBy,
           updatedAt: stamp,
-        })
-        .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
-        .returning()
-      if (!result[0]) {
-        throw inboxError(
-          'not_found',
-          'Inbox item resolve-escalation failed — no row returned',
-        )
-      }
-      return withDefaults(result[0])
+        },
+        'Inbox item resolve-escalation failed — no row returned',
+      )
     })
   },
   countEscalatedActive: async (
@@ -371,19 +387,13 @@ export const createInboxRepository = (
     propertyIds?: ReadonlyArray<PropertyId>,
   ) => {
     return trace('inbox.countEscalatedActive', async () => {
-      const conditions: SQL[] = [
-        eq(inboxItems.organizationId, orgId),
+      return countWhere(
+        db,
+        orgId,
+        propertyIds,
         eq(inboxItems.isEscalated, true),
         isNull(inboxItems.escalationResolvedAt),
-      ]
-      if (propertyIds && propertyIds.length > 0) {
-        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
-      }
-      const result = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(inboxItems)
-        .where(and(...conditions))
-      return Number(result[0]?.count ?? 0)
+      )
     })
   },
   countOpenSince: async (
@@ -392,19 +402,9 @@ export const createInboxRepository = (
     propertyIds?: ReadonlyArray<PropertyId>,
   ) => {
     return trace('inbox.countOpenSince', async () => {
-      const conditions: SQL[] = [
-        eq(inboxItems.organizationId, orgId),
-        eq(inboxItems.status, 'open'),
-      ]
+      const conditions: SQL[] = [eq(inboxItems.status, 'open')]
       if (since) conditions.push(gte(inboxItems.createdAt, since))
-      if (propertyIds && propertyIds.length > 0) {
-        conditions.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
-      }
-      const result = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(inboxItems)
-        .where(and(...conditions))
-      return Number(result[0]?.count ?? 0)
+      return countWhere(db, orgId, propertyIds, ...conditions)
     })
   },
 

@@ -1,15 +1,15 @@
-// Leaderboard context — date range utility tests
+// Shared period-range tests — merged from the badge/leaderboard copies (BQC-5.9 E3).
 
 import { describe, it, expect } from 'vitest'
-import { periodToRange, LEADERBOARD_PERIODS } from './utils'
+import { periodToRange, dayKeyInTimezone, PERIOD_PRESETS } from './period-range'
 
 const REF = new Date('2026-06-15T14:30:00.000Z')
 
 describe('periodToRange', () => {
-  it('returns all LEADERBOARD_PERIODS', () => {
-    expect(LEADERBOARD_PERIODS).toHaveLength(8)
-    expect(LEADERBOARD_PERIODS).toContain('today')
-    expect(LEADERBOARD_PERIODS).toContain('all_time')
+  it('returns all PERIOD_PRESETS', () => {
+    expect(PERIOD_PRESETS).toHaveLength(8)
+    expect(PERIOD_PRESETS).toContain('today')
+    expect(PERIOD_PRESETS).toContain('all_time')
   })
 
   it('today starts at midnight', () => {
@@ -37,7 +37,7 @@ describe('periodToRange', () => {
     expect(start!.getDate()).toBe(1)
   })
 
-  it('last_7_days start is 6 days before end date', () => {
+  it('last_7_days start is 6 days before end', () => {
     const { start, end } = periodToRange('last_7_days', REF)
     const expectedStart = new Date(REF)
     expectedStart.setDate(expectedStart.getDate() - 6)
@@ -46,7 +46,7 @@ describe('periodToRange', () => {
     expect(end).toEqual(REF)
   })
 
-  it('last_30_days start is 29 days before end date', () => {
+  it('last_30_days start is 29 days before end', () => {
     const { start, end } = periodToRange('last_30_days', REF)
     const expectedStart = new Date(REF)
     expectedStart.setDate(expectedStart.getDate() - 29)
@@ -55,7 +55,7 @@ describe('periodToRange', () => {
     expect(end).toEqual(REF)
   })
 
-  it('last_90_days start is 89 days before end date', () => {
+  it('last_90_days start is 89 days before end', () => {
     const { start, end } = periodToRange('last_90_days', REF)
     const expectedStart = new Date(REF)
     expectedStart.setDate(expectedStart.getDate() - 89)
@@ -64,9 +64,32 @@ describe('periodToRange', () => {
     expect(end).toEqual(REF)
   })
 
-  it('all_time returns undefined boundaries', () => {
+  it('returns undefined boundaries for all_time', () => {
     const { start, end } = periodToRange('all_time', REF)
     expect(start).toBeUndefined()
     expect(end).toBeUndefined()
+  })
+
+  it('returns undefined boundaries for undefined period', () => {
+    const { start, end } = periodToRange(undefined, REF)
+    expect(start).toBeUndefined()
+    expect(end).toBeUndefined()
+  })
+})
+
+describe('dayKeyInTimezone', () => {
+  it('formats date as yyyy_MM_dd', () => {
+    const key = dayKeyInTimezone(new Date('2026-06-15T14:30:00Z'), 'UTC')
+    expect(key).toBe('2026_06_15')
+  })
+
+  it('shifts day forward in positive timezone', () => {
+    const key = dayKeyInTimezone(new Date('2026-06-15T23:00:00Z'), 'Asia/Tokyo')
+    expect(key).toBe('2026_06_16')
+  })
+
+  it('shifts day backward in negative timezone', () => {
+    const key = dayKeyInTimezone(new Date('2026-06-15T02:00:00Z'), 'America/Los_Angeles')
+    expect(key).toBe('2026_06_14')
   })
 })

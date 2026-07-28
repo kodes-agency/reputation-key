@@ -8,13 +8,12 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup, PortalGroupId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalGroupInput } from '../dto/create-portal-group.dto'
-import { canForContext } from '#/shared/domain/permissions'
 import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
-import { propertyId, portalId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type CreatePortalGroupDeps = Readonly<{
@@ -31,36 +30,16 @@ export type CreatePortalGroupDeps = Readonly<{
 export const createPortalGroup =
   (deps: CreatePortalGroupDeps) =>
   async (input: CreatePortalGroupInput, ctx: AuthContext): Promise<PortalGroup> => {
-    // 1. Authorize
-    if (!canForContext(ctx, 'portal.create')) {
-      throw portalError('forbidden', 'this role cannot create portal groups')
-    }
-
-    // 2. Validate referenced property exists
-    if (
-      !(await deps.propertyApi.propertyExists(
-        ctx.organizationId,
-        propertyId(input.propertyId),
-      ))
-    ) {
-      throw portalError('property_not_found', 'property not found in this organization')
-    }
-    // Enforce property-assignment scoping for PropertyManager (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
+    // 1. Authorize + 2. validate referenced property exists + assignment access (D6-001)
+    const pid = await assertNewPortalPropertyAccess(
+      deps,
       ctx,
-      'portal.create',
-      propertyId(input.propertyId),
+      input.propertyId,
+      'this role cannot create portal groups',
     )
 
     // 3. Check uniqueness — group name must be unique per org+property
-    if (
-      await deps.portalGroupRepo.nameExists(
-        ctx.organizationId,
-        propertyId(input.propertyId),
-        input.name,
-      )
-    ) {
+    if (await deps.portalGroupRepo.nameExists(ctx.organizationId, pid, input.name)) {
       throw portalError('group_name_taken', 'a group with this name already exists')
     }
 
@@ -68,7 +47,7 @@ export const createPortalGroup =
     const groupResult = buildPortalGroup({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
-      propertyId: propertyId(input.propertyId),
+      propertyId: pid,
       name: input.name,
       now: deps.clock(),
     })

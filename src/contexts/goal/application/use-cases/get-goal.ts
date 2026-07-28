@@ -7,10 +7,9 @@ import type { Goal, GoalProgress } from '../../domain/types'
 import type { GoalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoalWithProgress } from './list-goals'
-import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import { loadAccessibleGoal } from '../goal-access'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -44,27 +43,12 @@ export const getGoal =
     input: GetGoalInput,
     ctx: AuthContext,
   ): Promise<Result<GoalDetail, GetGoalError>> => {
-    if (!canForContext(ctx, 'goal.read')) {
-      return err({ tag: 'forbidden' })
-    }
-
-    const goal = await deps.goalRepo.getById(input.goalId, ctx.organizationId)
-    if (!goal) {
-      return err({ tag: 'goal_not_found' })
-    }
-
     // D6-001: PropertyManager/Staff must be assigned to the goal's property.
-    // Scope resolved per-permission (goal.read): org-wide → all; assigned → set.
-    const accessible = await isPropertyAccessibleForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-      ctx,
-      'goal.read',
-      goal.propertyId,
-    )
-    if (!accessible) {
-      return err({ tag: 'forbidden' })
+    const loaded = await loadAccessibleGoal(deps, input.goalId, ctx, 'goal.read')
+    if (loaded.isErr()) {
+      return err(loaded.error)
     }
+    const goal = loaded.value
 
     const progressMap = await deps.goalRepo.getProgressBatch(
       [goal.id],

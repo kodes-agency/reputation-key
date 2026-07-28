@@ -11,9 +11,8 @@ import type {
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { canForContext } from '#/shared/domain/permissions'
-import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../../domain/errors'
+import { resolveVisiblePropertyIds } from '../visible-properties'
 
 export type GetInboxItemsInput = Readonly<{
   filters: InboxFilters
@@ -29,36 +28,30 @@ export type GetInboxItemsDeps = Readonly<{
 export const getInboxItems =
   (deps: GetInboxItemsDeps) =>
   async (input: GetInboxItemsInput, ctx: AuthContext): Promise<PaginatedResult> => {
-    // 0. Auth gate
-    if (!canForContext(ctx, 'inbox.read')) {
-      throw inboxError('forbidden', 'No inbox read permission')
-    }
-
     // Property scoping resolved per-permission: org-wide scope (AccountAdmin) →
-    // null (all properties); assigned scope (PropertyManager/Staff) → their
-    // staff_assignment set. PM holds inbox.manage but inbox.read scope is
-    // assigned — so PM is scoped (CONTEXT.md L72).
-    const accessible = await getAccessiblePropertyIdsForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    // 'all'; assigned scope (PropertyManager/Staff) → their staff_assignment
+    // set; 'none' → fail-closed empty page (a scoped user with no assignments
+    // must not see org-wide items).
+    const visible = await resolveVisiblePropertyIds(
+      deps.staffPublicApi,
       ctx,
       'inbox.read',
     )
+    if (visible === 'none') {
+      return { items: [], nextCursor: null }
+    }
 
     let propertyIds: ReadonlyArray<PropertyId> | undefined
-    if (accessible !== null) {
-      if (accessible.length === 0) {
-        return { items: [], nextCursor: null }
-      }
+    if (visible !== 'all') {
       if (
         input.filters.propertyId &&
-        !accessible.includes(input.filters.propertyId as PropertyId)
+        !visible.includes(input.filters.propertyId as PropertyId)
       ) {
         throw inboxError('forbidden', 'No access to this property', {
           propertyId: input.filters.propertyId,
         })
       }
-      propertyIds = accessible
+      propertyIds = visible
     }
 
     const mergedFilters: InboxFilters = {

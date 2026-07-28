@@ -15,12 +15,9 @@
 
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { getLogger } from '#/shared/observability/logger'
+import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
 import type { Property } from '../domain/types'
@@ -31,44 +28,7 @@ import type {
   PropertyCommandStore,
   UpdatePropertyCommand,
 } from '../application/ports/property-command-store.port'
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQC-3.5: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
-
-async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
-}
-
-/** Mutable set-values type for Drizzle .set() — mirrors PropertyRepository.update. */
-type PropertySetValues = {
-  name?: string
-  slug?: string
-  timezone?: string
-  gbpPlaceId?: string | null
-  updatedAt?: Date
-  deletedAt?: Date | null
-  countryCode?: string | null
-  countrySource?: string | null
-  timezoneSource?: string | null
-  timezoneResolvedAt?: Date | null
-  processingRegion?: string | null
-  processingRegionSource?: string | null
-  routingPolicyVersion?: number
-  processingRegionResolvedAt?: Date | null
-  sourceEpoch?: number
-}
+import type { PropertySetValues } from './repositories/property.repository'
 
 /** Same field-picking as PropertyRepository.update — never sets identity columns. */
 function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {

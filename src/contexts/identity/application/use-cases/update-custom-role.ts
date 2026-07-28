@@ -5,9 +5,9 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
-import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
-import { broadestScope } from '#/shared/domain/data-scope'
+import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
+import { assertGrantablePermissions } from '../role-escalation-guard'
 import type { UpdateCustomRoleInput } from '../dto/custom-role.dto'
 
 export type { UpdateCustomRoleInput }
@@ -23,21 +23,7 @@ export const updateCustomRole =
     }
 
     const perms = input.permissions as ReadonlyArray<Permission>
-    for (const perm of perms) {
-      if (!canForContext(ctx, perm)) {
-        throw identityError(
-          'forbidden',
-          `Cannot grant a permission you do not hold: ${perm}`,
-        )
-      }
-      const callerScope = scopeForPermission(ctx, perm)
-      if (broadestScope(input.dataScope, callerScope) !== callerScope) {
-        throw identityError(
-          'forbidden',
-          `Cannot grant ${perm} at ${input.dataScope} scope (you hold ${callerScope})`,
-        )
-      }
-    }
+    assertGrantablePermissions(ctx, perms, input.dataScope)
 
     await deps.identity.updateCustomRole(ctx, input.role, {
       permissions: perms,

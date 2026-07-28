@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T17:28:04Z",
+  "updatedAt": "2026-07-28T19:27:32Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7: complexity burn-down. 5.8 implementation_complete: dead-code and control reconciliation — fallow dead-code 318 → 0 with an honest all-zero baseline; every unused file/export classified (17 dead files removed incl. operator-commands, ~60 dead exports/barrel lines removed, ~30 unexported); B-class controls (security headers, web-vitals, catalogued-but-unwired server fns) retained with owner+reason+expiry; C/E surface documented; stale suppressions removed, active ones narrowed; dependency hygiene (4 devDeps moved to production, nitropack listed, cmdk removed); duplicate exports resolved. unused-types rule stays OFF by documented decision (232 no-op comments stripped). Slices 5.9, 5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7: complexity burn-down. 5.8: dead-code reconciliation. 5.9 implementation_complete: duplication and consistency — measured 9.7% → 3.0% (14,266 → 3,501 lines); all 22 classified policy-bearing clone groups eliminated into deeper modules; ZERO duplicated authorization/retention/routing decisions remain. Only 5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.9",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Duplication and consistency",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Policy invariants single-sourced; duplication 9.7%/14,266 (program baseline) → 4.23%/4,958 (slice start) → 3.0%/3,501 lines (fallow dupes, repo settings; tests excluded by tool). All 22 classified policy-bearing groups eliminated into modules deeper than the copies: E1 shared/outbox/commit.ts single-sources the BQC-3.5 'bus failure must not roll back the durable fact' policy across all 8 command stores (architecture tests re-pinned); E2 goal progress-query/compute shared by use case + job (aggregation invariant cannot drift); E3 shared/domain/period-range.ts unifies badge+leaderboard period semantics; E4 dashboard computeKpis; E5 review reply requireAccessibleReply + commitTransition (reply-commit.ts) — mutation authZ + BQC-3.3 commit sequence once; E6 identity role-escalation-guard (never grant what you don't hold); E7 last-owner invariant once under lock; E8 metric record-portal-metric handler factory (degradation policy once); E9 notification reply-notification factory (ADR 0022 routing once); E10 goal-access mirroring inbox-access; E11 portal load-accessible-portal; E12 inbox visible-properties (fail-closed anti-leak short-circuit once); E13 dashboard assert-property-access (finishes 5.5); E14 inbox tenant guards; E15 badge tenant joins/projections (predicate difference now an explicit policy flag); E16 integration updateConnectionRow; E17 goal upsertProgressRow; E18 rollup watermark boundary protocol; E19 identity upload-policy (allowlist + limit once); E20 consumer no-op receipt idempotency; E21 escapeHtml single-sourced (XSS); E22 PropertySetValues single type. Error codes/messages byte-identical everywhere. Remaining clones are story/fixture (allowed), schema DDL (onDelete variance IS the retention policy), registered contract mirrors, and idiomatic per-entry-point permission gates — ZERO duplicated authorization/retention/routing decisions. Gates: unit 382f/4203t, integration 51f/314t, storybook 74f/379t, typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.8",

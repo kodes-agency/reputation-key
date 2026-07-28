@@ -4,15 +4,13 @@
 
 import type { Job } from 'bullmq'
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type {
-  MetricReadingsQuery,
-  MetricReadingsAggregate,
-} from '#/contexts/metric/application/public-api'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { AggregationFunction } from '#/shared/domain/metric-keys'
-import { buildProgressQuery, type ProgressQuery } from '../../domain/progress-strategy'
-import type { Goal } from '../../domain/types'
+import { buildProgressQuery } from '../../domain/progress-strategy'
+import {
+  computeValue,
+  progressQueryToMetricReadingsQuery,
+} from '../../application/progress-query'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -157,50 +155,3 @@ export type ReconcileSummary = Readonly<{
   completed: number
   failed: number
 }>
-
-// ── Helpers ───────────────────────────────────────────────────────────────
-
-function progressQueryToMetricReadingsQuery(
-  pq: ProgressQuery,
-  goal: Goal,
-): MetricReadingsQuery {
-  const base: MetricReadingsQuery = {
-    organizationId: goal.organizationId,
-    propertyId: pq.scopeFilter.propertyId,
-    portalId: pq.scopeFilter.portalId,
-    groupId: pq.scopeFilter.portalGroupId,
-    metricKey: pq.metricKey,
-  }
-
-  switch (pq.timeFilter.tag) {
-    case 'bounded':
-      return {
-        ...base,
-        periodStart: pq.timeFilter.start,
-        periodEnd: pq.timeFilter.end,
-      }
-    case 'sliding_window':
-      return {
-        ...base,
-        rollingWindowDays: pq.timeFilter.days,
-      }
-    case 'none':
-      return base
-  }
-}
-
-function computeValue(
-  agg: AggregationFunction,
-  aggregate: MetricReadingsAggregate,
-): number {
-  switch (agg) {
-    case 'sum':
-      return aggregate.sum
-    case 'count':
-      return aggregate.count
-    case 'max':
-      return aggregate.max
-    case 'avg':
-      return aggregate.count > 0 ? aggregate.sum / aggregate.count : 0
-  }
-}

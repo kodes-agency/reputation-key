@@ -1,12 +1,9 @@
 // Goal context — create-goal use case
 // Validates input, builds domain object, persists, computes initial progress.
 // Per architecture: "Dependencies are passed as function arguments."
-import { assertNever } from '#/shared/domain/assert'
-
 import type { GoalRepository } from '../ports/goal.repository'
 import type {
   MetricReadingsQuery,
-  MetricReadingsAggregate,
   MetricPublicApi,
 } from '../../../metric/application/public-api'
 import type {
@@ -24,12 +21,12 @@ import type { GoalError } from '../../domain/errors'
 import {
   buildProgressQuery,
   buildProgressQueryForInstance,
-  type ProgressQuery,
 } from '../../domain/progress-strategy'
+import { computeValue, progressQueryToMetricReadingsQuery } from '../progress-query'
 import { canForContext } from '#/shared/domain/permissions'
 import { ok, err, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
+import { assertGoalPropertyAccessible } from '../goal-access'
 import {
   goalId as toGoalId,
   goalProgressId as toGoalProgressId,
@@ -94,15 +91,14 @@ export const createGoal =
 
     // D6-001: PropertyManager/Staff must be assigned to the target property.
     // Runs before buildGoal and the recurring branch so no work is done when forbidden.
-    const accessible = await isPropertyAccessibleForPermission(
-      (orgId, uId, orgWide) =>
-        deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    const access = await assertGoalPropertyAccessible(
+      deps,
       ctx,
       'goal.create',
       input.propertyId,
     )
-    if (!accessible) {
-      return err({ tag: 'forbidden' })
+    if (access.isErr()) {
+      return err(access.error)
     }
 
     const now = deps.clock()
@@ -293,51 +289,4 @@ function buildMetricQuery(goal: Goal): Result<MetricReadingsQuery, CreateGoalErr
   }
   const pq = pqResult.value
   return ok(progressQueryToMetricReadingsQuery(pq, goal))
-}
-
-function progressQueryToMetricReadingsQuery(
-  pq: ProgressQuery,
-  goal: Goal,
-): MetricReadingsQuery {
-  const base: MetricReadingsQuery = {
-    organizationId: goal.organizationId,
-    propertyId: pq.scopeFilter.propertyId,
-    portalId: pq.scopeFilter.portalId,
-    groupId: pq.scopeFilter.portalGroupId,
-    metricKey: pq.metricKey,
-  }
-
-  switch (pq.timeFilter.tag) {
-    case 'bounded':
-      return {
-        ...base,
-        periodStart: pq.timeFilter.start,
-        periodEnd: pq.timeFilter.end,
-      }
-    case 'sliding_window':
-      return {
-        ...base,
-        rollingWindowDays: pq.timeFilter.days,
-      }
-    case 'none':
-      return base
-  }
-}
-
-function computeValue(
-  agg: AggregationFunction,
-  aggregate: MetricReadingsAggregate,
-): number {
-  switch (agg) {
-    case 'sum':
-      return aggregate.sum
-    case 'count':
-      return aggregate.count
-    case 'max':
-      return aggregate.max
-    case 'avg':
-      return aggregate.count > 0 ? aggregate.sum / aggregate.count : 0
-    default:
-      assertNever('aggregation', agg)
-  }
 }

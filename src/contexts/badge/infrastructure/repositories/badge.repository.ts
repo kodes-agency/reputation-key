@@ -21,6 +21,7 @@ import {
   unbrand,
   unbrandAll,
 } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { badgeError } from '../../domain/errors'
 import type { BadgeRepository } from '../../application/ports/badge.repository'
@@ -31,6 +32,97 @@ import {
   badgeDefinitionFromRow,
   organizationBadgeEnablementFromRow,
 } from '../mappers/badge.mapper'
+
+/** Definitions + org enablement join (BQC-5.9 E15) — the list/find definition
+ *  queries share this select/join chain and differ only in where/order/limit. */
+function definitionsWithEnablementQuery(db: Database, orgId: OrganizationId) {
+  return db
+    .select({
+      definition: badgeDefinitions,
+      enablement: organizationBadgeEnablements,
+    })
+    .from(badgeDefinitions)
+    .leftJoin(
+      organizationBadgeEnablements,
+      and(
+        eq(organizationBadgeEnablements.organizationId, unbrand(orgId)),
+        eq(organizationBadgeEnablements.badgeDefinitionId, badgeDefinitions.id),
+      ),
+    )
+}
+
+/** Award + definition projection and join chain (BQC-5.9 E15) — shared by the
+ *  target/staff award listings; callers add where/order/limit. */
+function awardsWithDefinitionsQuery(db: Database) {
+  return db
+    .select({
+      award: badgeAwards,
+      definitionKey: badgeDefinitions.key,
+      definitionName: badgeDefinitions.name,
+      definitionIcon: badgeDefinitions.icon,
+      definitionDescription: badgeDefinitions.description,
+      definitionCriteria: badgeDefinitions.criteriaJson,
+      definitionTargetScope: badgeDefinitions.targetScope,
+      definitionCriteriaVersion: badgeDefinitions.criteriaVersion,
+      definitionEnabled: badgeDefinitions.enabled,
+      definitionCreatedAt: badgeDefinitions.createdAt,
+      definitionUpdatedAt: badgeDefinitions.updatedAt,
+      targetLabel: sql<string>`COALESCE(${portals.name}, ${portalGroups.name})`,
+    })
+    .from(badgeAwards)
+    .innerJoin(badgeDefinitions, eq(badgeDefinitions.id, badgeAwards.badgeDefinitionId))
+    .leftJoin(portals, eq(portals.id, badgeAwards.portalId))
+    .leftJoin(portalGroups, eq(portalGroups.id, badgeAwards.portalGroupId))
+}
+
+/**
+ * Resolve a staff member's portal scope (BQC-5.9 E15): their non-deleted
+ * assignment portals plus the portal groups containing them.
+ * `portalScopedOnly` is the documented predicate difference as an explicit
+ * policy flag: listStaffAwards only wants portal-scoped assignments
+ * (isNotNull portalId), while resolveStaffVisibility counts property-only
+ * assignments (portalId may be null) as property-level access.
+ */
+async function resolveStaffPortalScope(
+  db: Database,
+  input: Readonly<{
+    organizationId: OrganizationId
+    userId: UserId
+    propertyId: PropertyId
+  }>,
+  opts: { portalScopedOnly: boolean },
+): Promise<{ assignmentCount: number; portalIds: string[]; groupIds: string[] }> {
+  const assignmentRows = await db
+    .selectDistinct({ portalId: staffAssignments.portalId })
+    .from(staffAssignments)
+    .where(
+      and(
+        eq(staffAssignments.organizationId, unbrand(input.organizationId)),
+        eq(staffAssignments.userId, unbrand(input.userId)),
+        eq(staffAssignments.propertyId, unbrand(input.propertyId)),
+        isNull(staffAssignments.deletedAt),
+        ...(opts.portalScopedOnly ? [isNotNull(staffAssignments.portalId)] : []),
+      ),
+    )
+
+  const portalIds = assignmentRows
+    .map((row) => row.portalId)
+    .filter((id): id is string => !!id)
+
+  const groupRows =
+    portalIds.length > 0
+      ? await db
+          .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
+          .from(portalGroupMembers)
+          .where(inArray(portalGroupMembers.portalId, portalIds))
+      : []
+
+  return {
+    assignmentCount: assignmentRows.length,
+    portalIds,
+    groupIds: groupRows.map((row) => row.portalGroupId),
+  }
+}
 
 export const createBadgeRepository = (db: Database, clock: Clock): BadgeRepository => ({
   seedDefinitions: async (definitions) => {
@@ -90,19 +182,7 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
 
   listEnabledDefinitionsForOrg: async (orgId) => {
     return trace('badge.listEnabledDefinitionsForOrg', async () => {
-      const rows = await db
-        .select({
-          definition: badgeDefinitions,
-          enablement: organizationBadgeEnablements,
-        })
-        .from(badgeDefinitions)
-        .leftJoin(
-          organizationBadgeEnablements,
-          and(
-            eq(organizationBadgeEnablements.organizationId, unbrand(orgId)),
-            eq(organizationBadgeEnablements.badgeDefinitionId, badgeDefinitions.id),
-          ),
-        )
+      const rows = await definitionsWithEnablementQuery(db, orgId)
         .where(
           and(
             eq(badgeDefinitions.enabled, true),
@@ -119,19 +199,7 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
   },
   listDefinitionsWithEnablement: async (orgId) => {
     return trace('badge.listDefinitionsWithEnablement', async () => {
-      const rows = await db
-        .select({
-          definition: badgeDefinitions,
-          enablement: organizationBadgeEnablements,
-        })
-        .from(badgeDefinitions)
-        .leftJoin(
-          organizationBadgeEnablements,
-          and(
-            eq(organizationBadgeEnablements.organizationId, unbrand(orgId)),
-            eq(organizationBadgeEnablements.badgeDefinitionId, badgeDefinitions.id),
-          ),
-        )
+      const rows = await definitionsWithEnablementQuery(db, orgId)
         .where(eq(badgeDefinitions.enabled, true))
         .orderBy(desc(badgeDefinitions.name))
 
@@ -144,19 +212,7 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
 
   findDefinition: async (orgId, id) => {
     return trace('badge.findDefinition', async () => {
-      const rows = await db
-        .select({
-          definition: badgeDefinitions,
-          enablement: organizationBadgeEnablements,
-        })
-        .from(badgeDefinitions)
-        .leftJoin(
-          organizationBadgeEnablements,
-          and(
-            eq(organizationBadgeEnablements.organizationId, unbrand(orgId)),
-            eq(organizationBadgeEnablements.badgeDefinitionId, badgeDefinitions.id),
-          ),
-        )
+      const rows = await definitionsWithEnablementQuery(db, orgId)
         .where(
           and(
             eq(badgeDefinitions.id, unbrand(id)),
@@ -266,28 +322,7 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
 
   listTargetAwards: async (input) => {
     return trace('badge.listTargetAwards', async () => {
-      const rows = await db
-        .select({
-          award: badgeAwards,
-          definitionKey: badgeDefinitions.key,
-          definitionName: badgeDefinitions.name,
-          definitionIcon: badgeDefinitions.icon,
-          definitionDescription: badgeDefinitions.description,
-          definitionCriteria: badgeDefinitions.criteriaJson,
-          definitionTargetScope: badgeDefinitions.targetScope,
-          definitionCriteriaVersion: badgeDefinitions.criteriaVersion,
-          definitionEnabled: badgeDefinitions.enabled,
-          definitionCreatedAt: badgeDefinitions.createdAt,
-          definitionUpdatedAt: badgeDefinitions.updatedAt,
-          targetLabel: sql<string>`COALESCE(${portals.name}, ${portalGroups.name})`,
-        })
-        .from(badgeAwards)
-        .innerJoin(
-          badgeDefinitions,
-          eq(badgeDefinitions.id, badgeAwards.badgeDefinitionId),
-        )
-        .leftJoin(portals, eq(portals.id, badgeAwards.portalId))
-        .leftJoin(portalGroups, eq(portalGroups.id, badgeAwards.portalGroupId))
+      const rows = await awardsWithDefinitionsQuery(db)
         .where(
           and(
             eq(badgeAwards.organizationId, unbrand(input.organizationId)),
@@ -305,32 +340,9 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
 
   listStaffAwards: async (input) => {
     return trace('badge.listStaffAwards', async () => {
-      const assignmentRows = await db
-        .selectDistinct({ portalId: staffAssignments.portalId })
-        .from(staffAssignments)
-        .where(
-          and(
-            eq(staffAssignments.organizationId, unbrand(input.organizationId)),
-            eq(staffAssignments.userId, unbrand(input.userId)),
-            eq(staffAssignments.propertyId, unbrand(input.propertyId)),
-            isNull(staffAssignments.deletedAt),
-            isNotNull(staffAssignments.portalId),
-          ),
-        )
-
-      const portalIds = assignmentRows
-        .map((row) => row.portalId)
-        .filter((id): id is string => !!id)
-
-      const groupRows =
-        portalIds.length > 0
-          ? await db
-              .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
-              .from(portalGroupMembers)
-              .where(inArray(portalGroupMembers.portalId, portalIds))
-          : []
-
-      const groupIds = groupRows.map((row) => row.portalGroupId)
+      const { portalIds, groupIds } = await resolveStaffPortalScope(db, input, {
+        portalScopedOnly: true,
+      })
       if (portalIds.length === 0 && groupIds.length === 0) {
         return []
       }
@@ -349,28 +361,7 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
           ? or(...targetPredicates)
           : (targetPredicates[0] ?? sql`false`)
 
-      const rows = await db
-        .select({
-          award: badgeAwards,
-          definitionKey: badgeDefinitions.key,
-          definitionName: badgeDefinitions.name,
-          definitionIcon: badgeDefinitions.icon,
-          definitionDescription: badgeDefinitions.description,
-          definitionCriteria: badgeDefinitions.criteriaJson,
-          definitionTargetScope: badgeDefinitions.targetScope,
-          definitionCriteriaVersion: badgeDefinitions.criteriaVersion,
-          definitionEnabled: badgeDefinitions.enabled,
-          definitionCreatedAt: badgeDefinitions.createdAt,
-          definitionUpdatedAt: badgeDefinitions.updatedAt,
-          targetLabel: sql<string>`COALESCE(${portals.name}, ${portalGroups.name})`,
-        })
-        .from(badgeAwards)
-        .innerJoin(
-          badgeDefinitions,
-          eq(badgeDefinitions.id, badgeAwards.badgeDefinitionId),
-        )
-        .leftJoin(portals, eq(portals.id, badgeAwards.portalId))
-        .leftJoin(portalGroups, eq(portalGroups.id, badgeAwards.portalGroupId))
+      const rows = await awardsWithDefinitionsQuery(db)
         .where(
           and(
             eq(badgeAwards.organizationId, unbrand(input.organizationId)),
@@ -390,38 +381,14 @@ export const createBadgeRepository = (db: Database, clock: Clock): BadgeReposito
       // Any non-deleted assignment to (org, user, property) grants property-level
       // access (PropertyManager). portalId may be null on a property-only
       // assignment, so we don't require it here — unlike listStaffAwards, which
-      // only wants portal-scoped awards.
-      const assignmentRows = await db
-        .selectDistinct({ portalId: staffAssignments.portalId })
-        .from(staffAssignments)
-        .where(
-          and(
-            eq(staffAssignments.organizationId, unbrand(input.organizationId)),
-            eq(staffAssignments.userId, unbrand(input.userId)),
-            eq(staffAssignments.propertyId, unbrand(input.propertyId)),
-            isNull(staffAssignments.deletedAt),
-          ),
-        )
-
-      const hasPropertyAssignment = assignmentRows.length > 0
-      const portalIds = assignmentRows
-        .map((row) => row.portalId)
-        .filter((id): id is string => !!id)
-
-      // Resolve the portal groups that contain this staff member's assigned
-      // portals — Staff may view badges for those groups too.
-      const groupRows =
-        portalIds.length > 0
-          ? await db
-              .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
-              .from(portalGroupMembers)
-              .where(inArray(portalGroupMembers.portalId, portalIds))
-          : []
+      // only wants portal-scoped awards. Staff may also view badges for the
+      // portal groups containing their assigned portals.
+      const scope = await resolveStaffPortalScope(db, input, { portalScopedOnly: false })
 
       return {
-        hasPropertyAssignment,
-        portalIds: portalIds.map((id) => portalId(id)),
-        groupIds: groupRows.map((row) => portalGroupId(row.portalGroupId)),
+        hasPropertyAssignment: scope.assignmentCount > 0,
+        portalIds: scope.portalIds.map((id) => portalId(id)),
+        groupIds: scope.groupIds.map((id) => portalGroupId(id)),
       }
     })
   },

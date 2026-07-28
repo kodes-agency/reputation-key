@@ -10,10 +10,8 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { err, ok, type Result } from '#/shared/domain'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import {
-  isPropertyAccessibleForPermission,
-  getAccessiblePropertyIdsForPermission,
-} from '#/shared/domain/property-access'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
+import { assertGoalPropertyAccessible } from '../goal-access'
 
 // ── Input type ────────────────────────────────────────────────────────────
 
@@ -64,15 +62,14 @@ export const listGoals =
     // If a specific propertyId is requested, verify access to it.
     // If no propertyId filter, scope results to accessible properties.
     if (filter.propertyId) {
-      const isAccessible = await isPropertyAccessibleForPermission(
-        (orgId, uId, orgWide) =>
-          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+      const access = await assertGoalPropertyAccessible(
+        deps,
         ctx,
         'goal.read',
         filter.propertyId,
       )
-      if (!isAccessible) {
-        return err({ tag: 'forbidden' })
+      if (access.isErr()) {
+        return err(access.error)
       }
     }
 

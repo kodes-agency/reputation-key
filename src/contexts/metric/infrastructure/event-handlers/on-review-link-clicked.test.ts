@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  onReviewLinkClicked,
-  type OnReviewLinkClickedDeps,
-} from './on-review-link-clicked'
+import { onReviewLinkClicked } from './on-review-link-clicked'
+import type { RecordPortalMetricDeps as OnReviewLinkClickedDeps } from './record-portal-metric'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {

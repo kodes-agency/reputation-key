@@ -9,20 +9,12 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { canForContext } from '#/shared/domain/permissions'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
-import type { DashboardErrorCode } from '../domain/errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
-
-/** Local error constructor — server must not import domain error constructors. */
-const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
-  _tag: 'DashboardError' as const,
-  code,
-  message,
-})
+import { assertDashboardPropertyAccessible } from './assert-property-access'
 
 import { timeRangeToDates } from '../application/utils'
 
@@ -41,17 +33,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           })
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
-          if (
-            !(await isPropertyAccessibleForPermission(
-              (orgId, uId, orgWide) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-              ctx,
-              'dashboard.read',
-              propertyId(data.propertyId),
-            ))
-          ) {
-            throw makeDashboardError('forbidden', 'Property not assigned to caller')
-          }
+          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           const dashboard = await useCases.getDashboardData({

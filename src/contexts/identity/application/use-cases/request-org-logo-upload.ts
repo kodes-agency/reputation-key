@@ -2,8 +2,7 @@
 
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { identityError } from '../../domain/errors'
-import { canForContext } from '#/shared/domain/permissions'
+import { assertUploadAllowed, MAX_UPLOAD_BYTES } from '../upload-policy'
 
 export type RequestOrgLogoUploadInput = Readonly<{
   contentType: string
@@ -15,38 +14,24 @@ export type RequestOrgLogoUploadDeps = Readonly<{
   idGen: () => string
 }>
 
-const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB for logos
-
 export const requestOrgLogoUpload =
   (deps: RequestOrgLogoUploadDeps) =>
   async (
     input: RequestOrgLogoUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!canForContext(ctx, 'identity.logo_upload')) {
-      throw identityError(
-        'forbidden',
-        'Insufficient permissions to upload organization logo',
-      )
-    }
-
-    if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
-      throw identityError(
-        'validation_error',
-        `Content type ${input.contentType} is not allowed`,
-      )
-    }
-
-    if (input.fileSize > MAX_FILE_SIZE) {
-      throw identityError('validation_error', 'File size exceeds 5 MB limit')
-    }
+    assertUploadAllowed(
+      ctx,
+      'identity.logo_upload',
+      input,
+      'Insufficient permissions to upload organization logo',
+    )
 
     const key = `organizations/${ctx.organizationId}/logo/${deps.idGen()}`
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
-      MAX_FILE_SIZE,
+      MAX_UPLOAD_BYTES,
     )
 
     return { uploadUrl, key }

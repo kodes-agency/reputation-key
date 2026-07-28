@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { onRatingSubmitted, type OnRatingSubmittedDeps } from './on-rating-submitted'
+import { onRatingSubmitted } from './on-rating-submitted'
+import type { RecordPortalMetricDeps as OnRatingSubmittedDeps } from './record-portal-metric'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {

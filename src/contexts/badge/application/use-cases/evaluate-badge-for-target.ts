@@ -11,7 +11,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type { Clock } from '#/shared/domain/clock'
 import { badgeAwarded } from '../../domain/events'
-import { dayKeyInTimezone, periodToRange } from '../../application/utils'
+import { dayKeyInTimezone, periodToRange } from '#/shared/domain/period-range'
 import type { BadgeRepository } from '../ports/badge.repository'
 import type {
   BadgeAward,

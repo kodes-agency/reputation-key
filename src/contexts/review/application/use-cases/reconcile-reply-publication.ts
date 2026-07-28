@@ -23,8 +23,8 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReplyId, OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { ReviewError } from '../../domain/errors'
 import { reviewError } from '../../domain/errors'
-import { transitionReply } from '../../domain/rules'
 import { reviewReplyPublished } from '../../domain/events'
+import { commitTransition } from '../reply-commit'
 import { ok, err, type Result } from '#/shared/domain'
 
 export type ReconcileReplyPublicationDeps = Readonly<{
@@ -84,25 +84,23 @@ export const reconcileReplyPublication =
     // Provider shows the reply → heal the divergence. publish_failed →
     // published is valid only on this path (see REPLY_TRANSITIONS note).
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'published', now)
-    if (transitioned.isErr()) return err(transitioned.error)
-    const published = await deps.commandStore.markPublished(
-      reply,
-      { status: 'published', publishedAt: now },
-      reviewReplyPublished({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: null,
-        authorId: reply.createdBy,
-        occurredAt: now,
-      }),
-      now,
+    const published = await commitTransition(reply, 'published', now, () =>
+      deps.commandStore.markPublished(
+        reply,
+        { status: 'published', publishedAt: now },
+        reviewReplyPublished({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: null,
+          authorId: reply.createdBy,
+          occurredAt: now,
+        }),
+        now,
+      ),
     )
-    if (!published) {
-      return err(reviewError('invalid_transition', 'Reply status changed concurrently'))
-    }
+    if (published.isErr()) return err(published.error)
     return ok({ outcome: 'published' })
   }
 

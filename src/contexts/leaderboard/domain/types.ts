@@ -9,16 +9,9 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from '#/shared/domain/metric-keys'
+import type { PeriodPreset } from '#/shared/domain/period-range'
 
-export type LeaderboardPeriod =
-  | 'today'
-  | 'this_week'
-  | 'this_month'
-  | 'this_quarter'
-  | 'all_time'
-  | 'last_7_days'
-  | 'last_30_days'
-  | 'last_90_days'
+export type LeaderboardPeriod = PeriodPreset
 
 export type LeaderboardScope = 'portal' | 'portal_group'
 export type LeaderboardMetricKey = MetricKey

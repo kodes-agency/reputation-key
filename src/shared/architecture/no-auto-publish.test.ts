@@ -72,13 +72,28 @@ describe('BQC-3.8: no-auto-publish invariant', () => {
 
   it('(b) every publish enqueue site requires a human AuthContext first', () => {
     const ops = read(OPS_FILE)
+    // BQC-5.9 E5: the manager gate is single-sourced in requireAccessibleReply
+    // (requireManager is its first statement, before any row load); the
+    // approve/retry sites call it, editPublishedReply keeps its explicit
+    // requireManager before the published-status check.
+    const helperStart = ops.indexOf('async function requireAccessibleReply')
+    expect(helperStart, 'requireAccessibleReply helper not found').toBeGreaterThanOrEqual(
+      0,
+    )
+    const helperBody = ops.slice(helperStart, ops.indexOf('export type DraftReply'))
+    expect(helperBody).toContain('requireManager(ctx)')
+    expect(helperBody.indexOf('requireManager(ctx)')).toBeLessThan(
+      helperBody.indexOf('findInternalByReviewId'),
+    )
     for (const fn of ['approveReply', 'retryPublish', 'editPublishedReply']) {
       const body = functionBlock(ops, fn)
-      expect(body, `${fn} must call requireManager(ctx)`).toContain('requireManager(ctx)')
+      const gate =
+        fn === 'editPublishedReply' ? 'requireManager(ctx)' : 'requireAccessibleReply('
+      expect(body, `${fn} must call ${gate}`).toContain(gate)
       expect(CALL_RE.test(body), `${fn} must contain the publish enqueue`).toBe(true)
       expect(
-        body.indexOf('requireManager(ctx)'),
-        `${fn}: requireManager must precede the enqueue`,
+        body.indexOf(gate),
+        `${fn}: the manager gate must precede the enqueue`,
       ).toBeLessThan(body.search(CALL_RE))
     }
   })

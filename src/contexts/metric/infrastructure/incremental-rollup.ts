@@ -23,6 +23,50 @@ import { trace } from '#/shared/observability/trace'
 const NULL_PORTAL = sql`'00000000-0000-0000-0000-000000000000'`
 
 /**
+ * Read the rollup watermark and the earliest partition boundary in data that
+ * arrived after it (BQC-5.9 E18). Returns null when no new data exists — the
+ * caller then bumps the watermark and no-ops. The watermark/boundary SQL is
+ * raw because _rollup_watermarks is a migration-owned ops table outside the
+ * drizzle schema; identifiers are internal constants interpolated via sql.raw.
+ */
+async function readWatermarkBoundary(
+  db: Database,
+  opts: Readonly<{
+    name: string
+    partitionUnit: 'day' | 'week'
+    sourceTable: string
+    dateColumn: string
+    watermarkColumn: string
+  }>,
+): Promise<Date | null> {
+  const watermarkResult = await db.execute(sql`
+    SELECT watermark FROM _rollup_watermarks WHERE name = ${opts.name}
+  `)
+  const watermarkRow = watermarkResult.rows[0] as { watermark: Date } | undefined
+  const watermark = watermarkRow?.watermark ?? new Date(0)
+
+  const newBoundary = await db.execute(sql`
+    SELECT date_trunc(${sql.raw(`'${opts.partitionUnit}'`)}, ${sql.raw(opts.dateColumn)}) AS min_partition
+    FROM ${sql.raw(opts.sourceTable)}
+    WHERE ${sql.raw(opts.watermarkColumn)} > ${watermark}
+    ORDER BY ${sql.raw(opts.dateColumn)} ASC
+    LIMIT 1
+  `)
+  const boundaryRow = newBoundary.rows[0] as { min_partition: Date } | undefined
+
+  return boundaryRow?.min_partition ?? null
+}
+
+/** Advance a rollup watermark to now() after a refresh (or a no-data no-op). */
+async function advanceWatermark(db: Database, name: string): Promise<void> {
+  await db.execute(sql`
+    UPDATE _rollup_watermarks
+    SET watermark = now(), updated_at = now()
+    WHERE name = ${name}
+  `)
+}
+
+/**
  * Incrementally refresh rollup_daily_metrics.
  *
  * Only recomputes days that have new or updated metric_readings since
@@ -34,32 +78,19 @@ export async function refreshDailyMetricsIncrementally(
   return trace('rollup.dailyMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const watermarkResult = await db.execute(sql`
-      SELECT watermark FROM _rollup_watermarks WHERE name = 'daily_metrics'
-    `)
-    const watermarkRow = watermarkResult.rows[0] as { watermark: Date } | undefined
-    const watermark = watermarkRow?.watermark ?? new Date(0)
+    const affectedDate = await readWatermarkBoundary(db, {
+      name: 'daily_metrics',
+      partitionUnit: 'day',
+      sourceTable: 'metric_readings',
+      dateColumn: 'recorded_at',
+      watermarkColumn: 'recorded_at',
+    })
 
-    const newBoundary = await db.execute(sql`
-      SELECT date_trunc('day', recorded_at) AS min_date
-      FROM metric_readings
-      WHERE recorded_at > ${watermark}
-      ORDER BY recorded_at ASC
-      LIMIT 1
-    `)
-    const boundaryRow = newBoundary.rows[0] as { min_date: Date } | undefined
-
-    if (!boundaryRow) {
+    if (!affectedDate) {
       logger.debug('rollup.dailyMetrics: no new data since watermark')
-      await db.execute(sql`
-        UPDATE _rollup_watermarks
-        SET watermark = now(), updated_at = now()
-        WHERE name = 'daily_metrics'
-      `)
+      await advanceWatermark(db, 'daily_metrics')
       return { partitionsRecomputed: 0 }
     }
-
-    const affectedDate = boundaryRow.min_date
 
     await db.execute(sql`
       DELETE FROM rollup_daily_metrics WHERE date >= ${affectedDate}
@@ -82,11 +113,7 @@ export async function refreshDailyMetricsIncrementally(
       GROUP BY organization_id, property_id, COALESCE(portal_id, ${NULL_PORTAL}), metric_key, date_trunc('day', recorded_at)
     `)
 
-    await db.execute(sql`
-      UPDATE _rollup_watermarks
-      SET watermark = now(), updated_at = now()
-      WHERE name = 'daily_metrics'
-    `)
+    await advanceWatermark(db, 'daily_metrics')
 
     logger.info({ affectedDate }, 'Incrementally refreshed rollup_daily_metrics')
     return { partitionsRecomputed: 1 }
@@ -102,32 +129,19 @@ export async function refreshWeeklyMetricsIncrementally(
   return trace('rollup.weeklyMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const watermarkResult = await db.execute(sql`
-      SELECT watermark FROM _rollup_watermarks WHERE name = 'weekly_metrics'
-    `)
-    const watermarkRow = watermarkResult.rows[0] as { watermark: Date } | undefined
-    const watermark = watermarkRow?.watermark ?? new Date(0)
+    const affectedWeek = await readWatermarkBoundary(db, {
+      name: 'weekly_metrics',
+      partitionUnit: 'week',
+      sourceTable: 'metric_readings',
+      dateColumn: 'recorded_at',
+      watermarkColumn: 'recorded_at',
+    })
 
-    const newBoundary = await db.execute(sql`
-      SELECT date_trunc('week', recorded_at) AS min_week
-      FROM metric_readings
-      WHERE recorded_at > ${watermark}
-      ORDER BY recorded_at ASC
-      LIMIT 1
-    `)
-    const boundaryRow = newBoundary.rows[0] as { min_week: Date } | undefined
-
-    if (!boundaryRow) {
+    if (!affectedWeek) {
       logger.debug('rollup.weeklyMetrics: no new data since watermark')
-      await db.execute(sql`
-        UPDATE _rollup_watermarks
-        SET watermark = now(), updated_at = now()
-        WHERE name = 'weekly_metrics'
-      `)
+      await advanceWatermark(db, 'weekly_metrics')
       return { partitionsRecomputed: 0 }
     }
-
-    const affectedWeek = boundaryRow.min_week
 
     await db.execute(sql`
       DELETE FROM rollup_weekly_metrics WHERE week >= ${affectedWeek}
@@ -150,11 +164,7 @@ export async function refreshWeeklyMetricsIncrementally(
       GROUP BY organization_id, property_id, COALESCE(portal_id, ${NULL_PORTAL}), metric_key, date_trunc('week', recorded_at)
     `)
 
-    await db.execute(sql`
-      UPDATE _rollup_watermarks
-      SET watermark = now(), updated_at = now()
-      WHERE name = 'weekly_metrics'
-    `)
+    await advanceWatermark(db, 'weekly_metrics')
 
     logger.info({ affectedWeek }, 'Incrementally refreshed rollup_weekly_metrics')
     return { partitionsRecomputed: 1 }
@@ -170,32 +180,19 @@ export async function refreshDailyInboxMetricsIncrementally(
   return trace('rollup.dailyInboxMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const watermarkResult = await db.execute(sql`
-      SELECT watermark FROM _rollup_watermarks WHERE name = 'daily_inbox_metrics'
-    `)
-    const watermarkRow = watermarkResult.rows[0] as { watermark: Date } | undefined
-    const watermark = watermarkRow?.watermark ?? new Date(0)
+    const affectedDate = await readWatermarkBoundary(db, {
+      name: 'daily_inbox_metrics',
+      partitionUnit: 'day',
+      sourceTable: 'inbox_items',
+      dateColumn: 'source_date',
+      watermarkColumn: 'updated_at',
+    })
 
-    const newBoundary = await db.execute(sql`
-      SELECT date_trunc('day', source_date) AS min_date
-      FROM inbox_items
-      WHERE updated_at > ${watermark}
-      ORDER BY source_date ASC
-      LIMIT 1
-    `)
-    const boundaryRow = newBoundary.rows[0] as { min_date: Date } | undefined
-
-    if (!boundaryRow) {
+    if (!affectedDate) {
       logger.debug('rollup.dailyInboxMetrics: no new data since watermark')
-      await db.execute(sql`
-        UPDATE _rollup_watermarks
-        SET watermark = now(), updated_at = now()
-        WHERE name = 'daily_inbox_metrics'
-      `)
+      await advanceWatermark(db, 'daily_inbox_metrics')
       return { partitionsRecomputed: 0 }
     }
-
-    const affectedDate = boundaryRow.min_date
 
     await db.execute(sql`
       DELETE FROM rollup_daily_inbox_metrics WHERE date >= ${affectedDate}
@@ -217,11 +214,7 @@ export async function refreshDailyInboxMetricsIncrementally(
       GROUP BY organization_id, property_id, date_trunc('day', source_date)
     `)
 
-    await db.execute(sql`
-      UPDATE _rollup_watermarks
-      SET watermark = now(), updated_at = now()
-      WHERE name = 'daily_inbox_metrics'
-    `)
+    await advanceWatermark(db, 'daily_inbox_metrics')
 
     logger.info({ affectedDate }, 'Incrementally refreshed rollup_daily_inbox_metrics')
     return { partitionsRecomputed: 1 }
