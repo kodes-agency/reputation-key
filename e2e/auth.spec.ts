@@ -1,6 +1,6 @@
 // E2E: Authentication flows — register and login (residual soft suite).
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn, registerAccount } from './helpers/auth'
 
 test.describe('Authentication', () => {

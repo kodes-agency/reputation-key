@@ -1,7 +1,7 @@
 // E2E: Password reset request flow (BQR-5.2).
 // AuthCard titles are divs — assert by text, not heading role.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 
 test.describe('Password Reset', () => {
   test('request password reset for existing email', async ({ page }) => {

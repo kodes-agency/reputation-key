@@ -1,7 +1,7 @@
 // E2E: Property detail page — open seeded property (BQR-5.1)
 // Edit/delete UI may still drift; critical path only asserts detail opens.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from './helpers/property'
 
