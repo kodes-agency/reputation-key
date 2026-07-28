@@ -9,7 +9,7 @@
 // - Property people/teams UI stays residual until loader is green under CI seed.
 // - Property/inbox/members use seed-state deep-links (no UI property create).
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from '../helpers/property'
 import { requireE2eSeedState } from '../helpers/seed-state'

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T21:43:00Z",
+  "updatedAt": "2026-07-28T22:53:51Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1 implementation_complete: hermetic test environment — one validated builder feeds vitest unit/integration, Playwright webServer, and Storybook; bare-shell unit run green (was 49 files/186 tests red on empty Google credential defaults); destructive tests refuse non-localhost DB/Redis by default (opt-out is explicit); ephemeral DB setup (create + migrate + sidecar, idempotent) wired as integration globalSetup — clean-clone integration green without manual prep; provider DI slots added to composition (googleOAuth/gbpApi/storage) with byte-identical defaults. Slices 6.2–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1 implementation_complete: hermetic test environment (one builder, guards, ephemeral DB, provider DI). 6.2 implementation_complete: client/runtime error detection — global Playwright listeners (pageerror, console.error, failed critical mutations, net failures) with immediate failure + transcript attachment; narrow owned expiring allowlist (3 seeded entries, all the CI email-placeholder cases); error-injection proof incl. expected-failure inversion; critical e2e 7/7 green ×5 consecutive; the 5 full-suite failures are pre-existing soft residual owned by BQC-6.7 (byte-identical to main baseline). Slices 6.3–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.2",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Enforce client/runtime error detection",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) Harness (e2e/helpers/error-detection.ts): a test.extend drop-in attaching listeners before any navigation — pageerror (uncaught exceptions + unhandled rejections, original error + page URL), console.error, mutation-status (non-2xx on POST /_server or mutating /api/auth/*), request-failed — with teardown assertion failing the first offending test immediately and a full transcript attached via testInfo.attach (artifact floor; trace/video is 6.4's). All 10 specs adopted (one-line import swap each). A navigation-abort correlation was required for honesty: TanStack Router aborts in-flight loader GETs on redirect and dev React echoes 'Failed to fetch' as console.error — suppressed ONLY when a fresh net::ERR_ABORTED exists on the same page; genuine failures and aborted mutations still gate. (2) Allowlist: narrow owned expiring entries (owner/reason/ISO expiry; expired never matches; pageerror entries REQUIRE page scoping). Seeded exactly 3 — all the CI placeholder-RESEND cases (reset-password + member-invitation console echo + one deterministic invitation pageerror with a follow-up noted) — nothing else; notably /register is NOT masked. (3) Injection proof (e2e/error-detection.spec.ts, 13 tests): every listener class captured live (setTimeout throw, unhandled rejection, console.error, route-fulfilled 500 on /_server, route.abort net failure), allowlist suppression + expiry fail-closed + unscoped-pageerror fail-closed + hygiene, and a test.fail() expected-failure inversion proving the gate bites end-to-end. (4) Verified locally CI-faithful: critical 7/7 ×5 consecutive; full 18/5-failed/1-skipped with the 5 failures byte-identical to a main baseline (pre-existing soft residual — BQC-6.7 owns registration/invitation/reset/navigation/staff/team expectation rewrites + continue-on-error removal); the harness adds ZERO new failures and enriched 3 already-red tests with real signal. (5) BQC-5 PROMOTED: browser-reachability.test.ts green — Node crypto and other Node-only imports stay out of browser-reachable code; no second solution, no defect returned. Gates: unit 386f/4271t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.1",

@@ -2,7 +2,7 @@
 // Requires a seeded public portal (/p/{org}/{portal}). BQR-5.2 does not seed
 // portals (import/GBP path). Skip until BQR-6/7 seed fixtures add a portal.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 
 test('guest portal flow: visit, rate, feedback', async ({ page }) => {
   test.skip(

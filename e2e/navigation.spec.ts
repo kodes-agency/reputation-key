@@ -1,7 +1,7 @@
 // E2E: Navigation between authenticated manager surfaces (BQR-5.2).
 // Single-property orgs redirect /dashboard → property deep-dive (product behavior).
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from './helpers/property'
 import { requireE2eSeedState } from './helpers/seed-state'

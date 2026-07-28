@@ -1,6 +1,6 @@
 // E2E: Member invitation flow — /settings/members (BQR-5.2).
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 
 test.describe('Member Invitation', () => {

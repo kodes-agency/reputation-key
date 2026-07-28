@@ -1,7 +1,7 @@
 // E2E: Property list + detail using seeded property (BQR-5.1)
 // UI create path was removed; properties enter via Google import.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 import { openSeededProperty, SEEDED_PROPERTY_NAME } from './helpers/property'
 

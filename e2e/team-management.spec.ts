@@ -2,7 +2,7 @@
 // Uses seeded property (BQR-5.2) — no UI property create path.
 // Teams list UI supports create + delete (no inline edit on list row).
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 import { requireE2eSeedState } from './helpers/seed-state'
 

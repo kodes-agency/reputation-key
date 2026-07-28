@@ -2,7 +2,7 @@
 // Uses seeded property. Assigning requires at least one other org member —
 // with only the seed admin present, assert the Staff tab chrome loads.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
 import { requireE2eSeedState } from './helpers/seed-state'
 
