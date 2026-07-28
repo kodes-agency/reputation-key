@@ -401,6 +401,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
     ),
     sfPublic(
+      'getRegistrationGate',
+      `${IDENTITY}/organizations.registration.ts`,
+      'system:identity.register',
+      'identity.register',
+      'none',
+      {
+        notes:
+          'public unauthenticated; read-only capability gate for /register beforeLoad (BQC-5.3)',
+      },
+    ),
+    sfPublic(
       'registerMember',
       `${IDENTITY}/organizations.registration.ts`,
       'system:identity.register',

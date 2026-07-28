@@ -72,24 +72,20 @@ function withProgress(goal: Goal, currentValue: number): GoalWithProgress {
   return { goal, progress }
 }
 
-// Date-relative windows: the active goals' attention classification is
-// pace-based against the WALL CLOCK (goal/ui/helpers defaults now = new
-// Date()), so fixed period dates rot with the calendar (this fixture broke
-// on 2026-07-23 when 'On-track review clicks' fell behind pace). Anchoring
-// the window to the run date keeps both classifications stable on any day:
-// elapsed fraction ≈ 2/3 → expected pace ≈ 53/80 (behind) and ≈ 20/30
-// (on track with a wide margin).
-const DAY_MS = 24 * 60 * 60 * 1000
-const ACTIVE_PERIOD_START = new Date(Date.now() - 20 * DAY_MS)
-const ACTIVE_PERIOD_END = new Date(Date.now() + 10 * DAY_MS)
+// Frozen render clock: the active goals' attention classification is
+// pace-based against `now` (goal/ui/helpers takes now as a required
+// parameter; the page defaults the prop to the wall clock). Passing a
+// fixed `now` keeps both classifications stable on any day — elapsed
+// fraction ≈ 2/3 of July → expected pace ≈ 52/80 (behind) and ≈ 19/30
+// (on track with a wide margin). (This fixture rotted on 2026-07-23 when
+// it depended on the ambient wall clock.)
+const STORY_NOW = new Date('2026-07-21T00:00:00Z')
 
 const mixedGoals: readonly GoalWithProgress[] = [
   withProgress(
     makeGoal({
       name: 'Behind July scans',
       targetValue: 80,
-      periodStart: ACTIVE_PERIOD_START,
-      periodEnd: ACTIVE_PERIOD_END,
       createdAt: new Date('2026-07-01T09:00:00Z'),
     }),
     4,
@@ -99,8 +95,6 @@ const mixedGoals: readonly GoalWithProgress[] = [
       name: 'On-track review clicks',
       metricKey: 'portal.review_link_click',
       targetValue: 30,
-      periodStart: ACTIVE_PERIOD_START,
-      periodEnd: ACTIVE_PERIOD_END,
       createdAt: new Date('2026-07-02T09:00:00Z'),
     }),
     25,
@@ -165,6 +159,7 @@ export const Active: Story = {
     propertyId: 'prop-00000000-0000-0000-0000-000000000001',
     propertyName: 'Harborline Suites',
     view: 'active',
+    now: STORY_NOW,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -184,6 +179,7 @@ export const History: Story = {
     propertyId: 'prop-00000000-0000-0000-0000-000000000001',
     propertyName: 'Harborline Suites',
     view: 'history',
+    now: STORY_NOW,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

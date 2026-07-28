@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-23T18:46:52Z",
+  "updatedAt": "2026-07-23T20:31:02Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1 implementation_complete: architecture policy executable (cross-context eslint rule, full element coverage, routes/server DB ban, 7 violations redirected, fallow config repaired). 5.2 implementation_complete: non-worker composition cleanup — per-context clusters (identity policy admin + readiness, inbox lookups + outbox consumer registrar, dashboard query adapters, integration googleReviewApi + GBP notification binder, review routing lookup, metric/goal portal group lookups, property region-move audit, staff invitation hook) moved into the owning build modules; composition root (786→596 lines) now only selects modules, supplies cross-context adapters, and owns root scalars; container shape pinned identical by new characterization tests. Slices 5.3–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup (clusters into owning build modules, container shape pinned). 5.3 implementation_complete: runtime-neutral domain — all ambient domain clocks in the 8 named contexts now take required now/asOf (eslint-guarded), live policy-admin clock injected, goal UI decision table now-injected (root cause of the 2026-07-23 story rot), browser-reachability architecture test added and two real client-graph process.env defects fixed behind the RPC boundary (register.tsx, dark-route-gate). Review hashing verified already universal-pure; ID generation verified already injected. Slices 5.4–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.3",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Runtime-neutral domain decisions",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) Clock injection: every ambient domain clock in Identity/Activity/Staff/Metric/Portal/Guest/Goal/Badge now takes a REQUIRED now/asOf (28 functions; all were dark-feature modules whose only callers were their own tests — tests now pass fixed dates, several assertions strengthened to toEqual(NOW)). New eslint no-restricted-syntax guard bans bare new Date()/Date.now() in all domain + shared/domain (RED: 47 errors pre-fix incl. 2 beyond-catalog sites — team-membership.isActive, timezones.getTimezoneOffsetLabel — fixed identically). Live application clock (policy-admin getOrgPolicyState) now uses an injected clock wired in identity build. (2) Goal UI decision table: daysRemaining/computeElapsedFraction/getGoalPresentation require now; 4 components gained an optional now prop (edge default), goal stories frozen at STORY_NOW (kills the date-rot class at the root; the #255 relative-date workaround simplified back to fixed dates). (3) Review hashing VERIFIED already universal (vendored pure-TS sha256, byte-identical to node:crypto) — pinned, not moved; ID generation VERIFIED already injected in domain/application (ambient randomUUID only at edges — documented). (4) Browser reachability: new architecture test walks the client import graph (routes minus api + components minus stories, RPC-stub-aware) and fails on node-only modules (vite importProtection patterns, node:/pg/ioredis/bullmq/drizzle/resend imports, process.env reads). RED on TWO real defects: register.tsx beforeLoad and gateDarkRoute (9 route callers) both evaluated the process.env-reading capability store in the browser graph — latent hydration crashes. Both moved behind the RPC boundary (new getRegistrationGate server fn; gateDarkRoute converted to createServerFn, deliberately without tracedHandler so redirect control-flow isn't remapped to 500). GREEN: zero client-graph violations. (5) MAX_REPLY_LENGTH duplicated literals in inbox components now import the review public-api re-export. Gates: unit 370f/4111t, integration 49f/306t, typecheck, lint, format:check, storybook goals 5f/28t, fallow audit --gate new-only — all green. Explicit behavior change (the point of the slice): the two client-navigation crashes are fixed. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.2",

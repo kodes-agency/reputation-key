@@ -89,6 +89,7 @@ export function submitResponse(
     contactConsent?: boolean
     contactDetails?: string | null
   },
+  now: Date,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
     return { code: 'already_deleted' }
@@ -125,7 +126,7 @@ export function submitResponse(
     text: text || null,
     contactConsent: params.contactConsent ?? false,
     contactDetails: params.contactDetails ?? null,
-    submittedAt: new Date(),
+    submittedAt: now,
   }
 }
 
@@ -142,6 +143,7 @@ export function correctResponse(
     contactConsent?: boolean
     contactDetails?: string | null
   },
+  now: Date,
   correctionWindowMs: number = DEFAULT_CORRECTION_WINDOW_MS,
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
@@ -154,7 +156,7 @@ export function correctResponse(
 
   // Check correction window
   if (response.submittedAt) {
-    const elapsed = Date.now() - response.submittedAt.getTime()
+    const elapsed = now.getTime() - response.submittedAt.getTime()
     if (elapsed > correctionWindowMs) {
       return { code: 'correction_window_expired' }
     }
@@ -181,21 +183,24 @@ export function correctResponse(
     text: text || response.text,
     contactConsent: params.contactConsent ?? response.contactConsent,
     contactDetails: params.contactDetails ?? response.contactDetails,
-    correctedAt: new Date(),
+    correctedAt: now,
   }
 }
 
 /**
  * Moderate a response (manager action). Does not destroy evidence.
  */
-export function moderateResponse(response: GuestResponse): GuestResponse | ResponseError {
+export function moderateResponse(
+  response: GuestResponse,
+  now: Date,
+): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
     return { code: 'already_deleted' }
   }
   return {
     ...response,
     status: 'moderated',
-    moderatedAt: new Date(),
+    moderatedAt: now,
   }
 }
 
@@ -203,13 +208,16 @@ export function moderateResponse(response: GuestResponse): GuestResponse | Respo
  * Delete/anonymize a response. Per ADR 0044: deletion workflow
  * purges projection/cache/search/media copies.
  */
-export function deleteResponse(response: GuestResponse): GuestResponse | ResponseError {
+export function deleteResponse(
+  response: GuestResponse,
+  now: Date,
+): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
     return { code: 'already_deleted' }
   }
   return {
     ...response,
     status: 'deleted',
-    deletedAt: new Date(),
+    deletedAt: now,
   }
 }

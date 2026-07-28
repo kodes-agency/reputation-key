@@ -8,6 +8,8 @@ import {
 } from './activity-audit'
 
 describe('Activity & Audit', () => {
+  const NOW = new Date('2026-01-15T12:00:00Z')
+
   describe('sanitizeActivityMetadata', () => {
     it('keeps safe fields', () => {
       const result = sanitizeActivityMetadata({ name: 'John', count: 5, active: true })
@@ -47,8 +49,10 @@ describe('Activity & Audit', () => {
         resourceLabel: 'Monthly target',
         action: 'created',
         metadata: { target: 20, reviewText: 'should be removed' },
+        now: NOW,
       })
       expect(item.isTombstoned).toBe(false)
+      expect(item.occurredAt).toEqual(NOW)
       expect(item.metadata).toHaveProperty('target', 20)
       expect(item.metadata).not.toHaveProperty('reviewText')
     })
@@ -66,9 +70,11 @@ describe('Activity & Audit', () => {
         resourceLabel: 'Award name',
         action: 'awarded',
         metadata: { value: 90 },
+        now: NOW,
       })
-      const tombstoned = tombstoneActivity(item)
+      const tombstoned = tombstoneActivity(item, NOW)
       expect(tombstoned.isTombstoned).toBe(true)
+      expect(tombstoned.tombstonedAt).toEqual(NOW)
       expect(tombstoned.resourceLabel).toBe('[redacted]')
       expect(Object.keys(tombstoned.metadata)).toHaveLength(0)
     })

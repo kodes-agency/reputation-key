@@ -9,19 +9,22 @@ import {
 } from './guest-session'
 
 describe('GuestSession', () => {
+  const NOW = new Date('2026-01-15T12:00:00Z')
+
   const baseParams = {
     sessionId: 'sess-1',
     portalId: 'portal-1',
     organizationId: 'org-1',
     propertyId: 'prop-1',
     tokenVersion: 1,
+    now: NOW,
   }
 
   describe('createSession', () => {
     it('creates a session with default duration', () => {
       const s = createSession(baseParams)
       expect(s.sessionId).toBe('sess-1')
-      expect(s.issuedAt).toBeInstanceOf(Date)
+      expect(s.issuedAt).toEqual(NOW)
       expect(s.expiresAt.getTime()).toBeGreaterThan(s.issuedAt.getTime())
       expect(s.campaignMediumHint).toBeNull()
     })
@@ -35,13 +38,13 @@ describe('GuestSession', () => {
   describe('isSessionValid', () => {
     it('valid before expiry', () => {
       const s = createSession(baseParams)
-      expect(isSessionValid(s)).toBe(true)
+      expect(isSessionValid(s, NOW)).toBe(true)
     })
 
     it('invalid after expiry', () => {
       const s = createSession({ ...baseParams, durationMs: 0 })
       // Session with 0 duration expires immediately
-      expect(isSessionValid(s, new Date(Date.now() + 1000))).toBe(false)
+      expect(isSessionValid(s, new Date(NOW.getTime() + 1000))).toBe(false)
     })
   })
 

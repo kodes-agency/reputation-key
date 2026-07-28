@@ -37,10 +37,7 @@ export interface GroupAttributionResult {
   readonly membershipId: string | null
 }
 
-export function isActive(
-  membership: PortalGroupMembership,
-  asOf: Date = new Date(),
-): boolean {
+export function isActive(membership: PortalGroupMembership, asOf: Date): boolean {
   if (membership.effectiveTo !== null && asOf >= membership.effectiveTo) return false
   return asOf >= membership.effectiveFrom
 }

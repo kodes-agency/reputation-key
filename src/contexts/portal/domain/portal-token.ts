@@ -44,7 +44,7 @@ export function isValidTransition(from: TokenStatus, to: TokenStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false
 }
 
-export function isActive(token: PortalToken, asOf: Date = new Date()): boolean {
+export function isActive(token: PortalToken, asOf: Date): boolean {
   if (token.status === 'revoked') return false
   if (
     token.status === 'rotating' &&
@@ -69,6 +69,7 @@ export function issueToken(params: {
   tokenHash: string
   version: number
   printBatch?: string
+  now: Date
 }): PortalToken {
   return {
     id: params.id,
@@ -79,7 +80,7 @@ export function issueToken(params: {
     version: params.version,
     printBatch: params.printBatch ?? null,
     status: 'active',
-    issuedAt: new Date(),
+    issuedAt: params.now,
     revokedAt: null,
     gracePeriodEnds: null,
     revokedBy: null,
@@ -100,13 +101,13 @@ export function rotateToken(
   newId: string,
   newVersion: number,
   gracePeriodDuration: number,
+  now: Date,
 ): { oldToken: PortalToken; newToken: PortalToken } | TokenError {
   if (!isValidTransition(token.status, 'rotating')) {
     if (token.status === 'revoked') return { code: 'already_revoked' }
     return { code: 'invalid_status_transition', from: token.status, to: 'rotating' }
   }
 
-  const now = new Date()
   const graceEnd = new Date(now.getTime() + gracePeriodDuration)
 
   return {
@@ -122,6 +123,7 @@ export function rotateToken(
       portalId: token.portalId,
       tokenHash: newTokenHash,
       version: newVersion,
+      now,
     }),
   }
 }
@@ -133,6 +135,7 @@ export function revokeToken(
   token: PortalToken,
   revokedBy: string,
   reason: string,
+  now: Date,
 ): PortalToken | TokenError {
   if (token.status === 'revoked') {
     return { code: 'already_revoked' }
@@ -141,7 +144,7 @@ export function revokeToken(
   return {
     ...token,
     status: 'revoked',
-    revokedAt: new Date(),
+    revokedAt: now,
     revokedBy,
     revokedReason: reason,
   }
@@ -151,7 +154,7 @@ export function revokeToken(
  * Check if a token is within its grace period (still resolves alongside
  * a newer token).
  */
-export function isInGracePeriod(token: PortalToken, asOf: Date = new Date()): boolean {
+export function isInGracePeriod(token: PortalToken, asOf: Date): boolean {
   return (
     token.status === 'rotating' &&
     token.gracePeriodEnds !== null &&

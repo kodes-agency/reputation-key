@@ -110,6 +110,7 @@ export function createActivityItem(params: {
   resourceLabel: string
   action: string
   metadata: Readonly<Record<string, unknown>>
+  now: Date
 }): ActivityItem {
   return {
     id: params.id,
@@ -121,7 +122,7 @@ export function createActivityItem(params: {
     resourceLabel: params.resourceLabel,
     action: params.action,
     metadata: sanitizeActivityMetadata(params.metadata),
-    occurredAt: new Date(),
+    occurredAt: params.now,
     isTombstoned: false,
     tombstonedAt: null,
   }
@@ -131,11 +132,11 @@ export function createActivityItem(params: {
  * Tombstone an activity item (privacy/redaction).
  * Per ADR 0045: presentation may be redacted/tombstoned.
  */
-export function tombstoneActivity(item: ActivityItem): ActivityItem {
+export function tombstoneActivity(item: ActivityItem, now: Date): ActivityItem {
   return {
     ...item,
     isTombstoned: true,
-    tombstonedAt: new Date(),
+    tombstonedAt: now,
     metadata: {},
     resourceLabel: '[redacted]',
   }

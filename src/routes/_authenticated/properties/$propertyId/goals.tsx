@@ -4,7 +4,7 @@ import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals')({
   beforeLoad: async () => {
-    await gateDarkRoute('goal.use', 'Goals')
+    await gateDarkRoute({ data: { capability: 'goal.use', featureLabel: 'Goals' } })
   },
   component: () => <Outlet />,
 })

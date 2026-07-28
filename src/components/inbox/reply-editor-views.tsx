@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
+import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import { formatDateTime } from './utils'
-
-const MAX_REPLY_LENGTH = 4096
 
 type ReplyView = Readonly<{
   text: string

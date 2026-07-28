@@ -88,7 +88,9 @@ const leaderboardQuery = (
 
 export const Route = createFileRoute('/_authenticated/leaderboard')({
   beforeLoad: async () => {
-    await gateDarkRoute('leaderboard.use', 'Leaderboard')
+    await gateDarkRoute({
+      data: { capability: 'leaderboard.use', featureLabel: 'Leaderboard' },
+    })
   },
   validateSearch: leaderboardSearch,
   loaderDeps: ({ search }) => ({

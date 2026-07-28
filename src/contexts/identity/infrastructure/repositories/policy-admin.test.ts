@@ -53,6 +53,7 @@ const PROP = 'd4000000-0000-4000-8000-000000000088'
 const NOW = new Date('2026-07-17T12:00:00Z')
 
 const ops = createPolicyAdminOps({
+  clock: () => NOW,
   isCoreCapability: (cap) => isCoreCapability(cap as Capability),
   isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
   listAllCapabilities,

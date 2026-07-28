@@ -70,7 +70,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId',
 )({
   beforeLoad: async ({ context }) => {
-    await gateDarkRoute('team.use', 'Teams')
+    await gateDarkRoute({ data: { capability: 'team.use', featureLabel: 'Teams' } })
     const { role } = context as AuthRouteContext
     if (!can(role, 'team.read')) throw redirect({ to: '/properties' })
   },

@@ -9,6 +9,11 @@
  */
 export type { GoogleReview, StarRating } from '../domain/types'
 
+// BQC-5.3: reply length limit — single source of truth lives in
+// domain/rules; inbox reply editor components import it from here
+// (components may not import domain directly).
+export { MAX_REPLY_LENGTH } from '../domain/rules'
+
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type {
   ReviewCreated,

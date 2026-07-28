@@ -29,6 +29,9 @@ import type { Permission } from '#/shared/domain/permissions'
 // ── Injected persistence + policy surface (bound at composition) ─────
 
 export type PolicyAdminDeps = Readonly<{
+  // BQC-5.3: runtime-neutral decisions — time comes from the injected
+  // clock, never an ambient wall clock (ADR 0017).
+  clock: () => Date
   // Policy functions (decision layer, shared/auth — bound at composition).
   isCoreCapability: (capability: string) => boolean
   isBlockedCapability: (capability: string) => boolean
@@ -147,7 +150,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   async function getOrgPolicyState(organizationId: string) {
     const [state, grants] = await Promise.all([
       deps.loadOrgPolicyState(organizationId),
-      deps.listActiveGrantsForOrg(organizationId, new Date()),
+      deps.listActiveGrantsForOrg(organizationId, deps.clock()),
     ])
     return { ...state, grants }
   }

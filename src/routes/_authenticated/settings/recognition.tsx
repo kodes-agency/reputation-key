@@ -22,7 +22,9 @@ const badgeDefinitionsQuery = queryOptions({
 
 export const Route = createFileRoute('/_authenticated/settings/recognition')({
   beforeLoad: async ({ context }) => {
-    await gateDarkRoute('badge.use', 'Recognition')
+    await gateDarkRoute({
+      data: { capability: 'badge.use', featureLabel: 'Recognition' },
+    })
     const { role } = context as AuthRouteContext
     if (!can(role, 'badge.manage')) {
       throw redirect({ to: '/settings/profile' })

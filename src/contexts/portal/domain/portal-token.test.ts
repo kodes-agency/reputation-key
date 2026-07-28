@@ -9,6 +9,8 @@ import {
 } from './portal-token'
 
 describe('PortalToken', () => {
+  const NOW = new Date('2026-01-15T12:00:00Z')
+
   const baseParams = {
     id: 'token-1',
     organizationId: 'org-1',
@@ -16,13 +18,14 @@ describe('PortalToken', () => {
     portalId: 'portal-1',
     tokenHash: 'hash-abc',
     version: 1,
+    now: NOW,
   }
 
   describe('issueToken', () => {
     it('creates an active token', () => {
       const t = issueToken(baseParams)
       expect(t.status).toBe('active')
-      expect(isActive(t)).toBe(true)
+      expect(isActive(t, NOW)).toBe(true)
       expect(t.revokedAt).toBeNull()
     })
   })
@@ -30,7 +33,7 @@ describe('PortalToken', () => {
   describe('rotateToken', () => {
     it('creates old (rotating) and new (active) tokens', () => {
       const t = issueToken(baseParams)
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       if ('oldToken' in result) {
         expect(result.oldToken.status).toBe('rotating')
         expect(result.oldToken.gracePeriodEnds).not.toBeNull()
@@ -42,16 +45,21 @@ describe('PortalToken', () => {
 
     it('both tokens are active during grace period', () => {
       const t = issueToken(baseParams)
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       if ('oldToken' in result) {
-        expect(isActive(result.oldToken)).toBe(true)
-        expect(isActive(result.newToken)).toBe(true)
+        expect(isActive(result.oldToken, NOW)).toBe(true)
+        expect(isActive(result.newToken, NOW)).toBe(true)
       }
     })
 
     it('prevents rotating a revoked token', () => {
-      const t = revokeToken(issueToken(baseParams), 'admin', 'compromised') as PortalToken
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const t = revokeToken(
+        issueToken(baseParams),
+        'admin',
+        'compromised',
+        NOW,
+      ) as PortalToken
+      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       expect(result).toHaveProperty('code', 'already_revoked')
     })
   })
@@ -59,7 +67,7 @@ describe('PortalToken', () => {
   describe('revokeToken', () => {
     it('revokes an active token', () => {
       const t = issueToken(baseParams)
-      const result = revokeToken(t, 'admin', 'compromised')
+      const result = revokeToken(t, 'admin', 'compromised', NOW)
       expect(result).toHaveProperty('status', 'revoked')
       if (!('code' in result)) {
         expect(result.revokedBy).toBe('admin')
@@ -68,16 +76,16 @@ describe('PortalToken', () => {
     })
 
     it('prevents revoking an already-revoked token', () => {
-      const t = revokeToken(issueToken(baseParams), 'admin', 'test') as PortalToken
-      const result = revokeToken(t, 'admin', 'again')
+      const t = revokeToken(issueToken(baseParams), 'admin', 'test', NOW) as PortalToken
+      const result = revokeToken(t, 'admin', 'again', NOW)
       expect(result).toHaveProperty('code', 'already_revoked')
     })
 
     it('revokes a rotating token', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       if ('oldToken' in rot) {
-        const result = revokeToken(rot.oldToken, 'admin', 'urgent')
+        const result = revokeToken(rot.oldToken, 'admin', 'urgent', NOW)
         expect(result).toHaveProperty('status', 'revoked')
       }
     })
@@ -85,29 +93,29 @@ describe('PortalToken', () => {
 
   describe('isActive', () => {
     it('active token is active', () => {
-      expect(isActive(issueToken(baseParams))).toBe(true)
+      expect(isActive(issueToken(baseParams), NOW)).toBe(true)
     })
 
     it('revoked token is not active', () => {
-      const t = revokeToken(issueToken(baseParams), 'admin', 'test') as PortalToken
-      expect(isActive(t)).toBe(false)
+      const t = revokeToken(issueToken(baseParams), 'admin', 'test', NOW) as PortalToken
+      expect(isActive(t, NOW)).toBe(false)
     })
 
     it('rotating token within grace period is active', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       if ('oldToken' in rot) {
-        expect(isActive(rot.oldToken)).toBe(true)
+        expect(isActive(rot.oldToken, NOW)).toBe(true)
       }
     })
 
     it('rotating token after grace period is not active', () => {
       const t = issueToken(baseParams)
       // Grace period of 0ms — immediately expired
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 0)
+      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 0, NOW)
       if ('oldToken' in rot) {
         // Add 1ms to ensure we're past the grace end
-        expect(isActive(rot.oldToken, new Date(Date.now() + 1000))).toBe(false)
+        expect(isActive(rot.oldToken, new Date(NOW.getTime() + 1000))).toBe(false)
       }
     })
   })
@@ -115,14 +123,14 @@ describe('PortalToken', () => {
   describe('isInGracePeriod', () => {
     it('returns true for rotating token within grace', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000)
+      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
       if ('oldToken' in rot) {
-        expect(isInGracePeriod(rot.oldToken)).toBe(true)
+        expect(isInGracePeriod(rot.oldToken, NOW)).toBe(true)
       }
     })
 
     it('returns false for active token (not rotating)', () => {
-      expect(isInGracePeriod(issueToken(baseParams))).toBe(false)
+      expect(isInGracePeriod(issueToken(baseParams), NOW)).toBe(false)
     })
   })
 })

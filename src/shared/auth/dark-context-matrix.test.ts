@@ -14,6 +14,10 @@ import {
   resetExecutionPolicy,
 } from './execution-policy'
 import { gateDarkRoute } from './dark-route-gate'
+// gateDarkRoute is a createServerFn (BQC-5.3 — the capability check runs
+// behind the RPC boundary); its middleware chain reads startOptions from a
+// global ALS, seeded here via the shared test helper.
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { createDelayedExecutionPolicy } from './system-execution-policy'
 import {
   assertGlobalCapability,
@@ -71,7 +75,9 @@ describe('BQC-2.6 dark-context containment matrix', () => {
     for (const { capability, label } of DARK) {
       it(`${capability} (${label}) redirects to /unavailable`, async () => {
         try {
-          await gateDarkRoute(capability, label)
+          await withStartContext(() =>
+            gateDarkRoute({ data: { capability, featureLabel: label } }),
+          )
           expect.unreachable('gate must redirect while dark')
         } catch (err) {
           const redirect = err as {

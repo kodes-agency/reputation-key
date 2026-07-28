@@ -164,6 +164,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
   const policyAdmin = createPolicyAdminOps({
+    clock: deps.clock,
     isCoreCapability: (cap) => isCoreCapability(cap as Capability),
     isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
     listAllCapabilities,

@@ -62,7 +62,7 @@ describe('MetricRegistry', () => {
   describe('getActiveVersion', () => {
     it('returns the active version', () => {
       const entry = makeEntry()
-      const result = getActiveVersion(entry)
+      const result = getActiveVersion(entry, new Date('2026-02-01'))
       expect(result?.version).toBe(1)
     })
 

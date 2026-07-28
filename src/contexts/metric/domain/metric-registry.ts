@@ -76,7 +76,7 @@ export interface MetricRegistryEntry {
  */
 export function getActiveVersion(
   entry: MetricRegistryEntry,
-  asOf: Date = new Date(),
+  asOf: Date,
 ): MetricDefinitionVersion | null {
   const active = entry.versions.filter((v) => {
     if (v.effectiveFrom > asOf) return false

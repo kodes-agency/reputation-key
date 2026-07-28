@@ -16,7 +16,7 @@ export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/new',
 )({
   beforeLoad: async ({ context }) => {
-    await gateDarkRoute('portal.write', 'Portals')
+    await gateDarkRoute({ data: { capability: 'portal.write', featureLabel: 'Portals' } })
     const role = (context as AuthRouteContext).role
     if (!can(role, 'portal.create')) {
       throw redirect({ to: '/properties' })

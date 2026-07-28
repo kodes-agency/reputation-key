@@ -57,6 +57,7 @@ const PROP_MISSING = 'd4000000-0000-4000-8000-0000000000ff'
 const CELL = 'us'
 
 const ops = createPolicyAdminOps({
+  clock: () => new Date('2026-07-17T12:00:00Z'),
   isCoreCapability: (cap) => isCoreCapability(cap as Capability),
   isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
   listAllCapabilities,

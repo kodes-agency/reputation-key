@@ -23,7 +23,7 @@ const staffGoalsQuery = (propertyId: string) =>
 
 export const Route = createFileRoute('/_authenticated/progress')({
   beforeLoad: async () => {
-    await gateDarkRoute('goal.use', 'Goals')
+    await gateDarkRoute({ data: { capability: 'goal.use', featureLabel: 'Goals' } })
   },
   validateSearch: progressSearch,
   loaderDeps: ({ search }) => ({ propertyId: search.propertyId }),

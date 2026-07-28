@@ -39,8 +39,9 @@ export function createSession(params: {
   tokenVersion: number
   campaignMediumHint?: string
   durationMs?: number
+  now: Date
 }): GuestSession {
-  const now = new Date()
+  const now = params.now
   const duration = params.durationMs ?? DEFAULT_SESSION_DURATION_MS
   return {
     sessionId: params.sessionId,
@@ -54,7 +55,7 @@ export function createSession(params: {
   }
 }
 
-export function isSessionValid(session: GuestSession, asOf: Date = new Date()): boolean {
+export function isSessionValid(session: GuestSession, asOf: Date): boolean {
   return asOf < session.expiresAt
 }
 

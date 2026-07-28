@@ -22,6 +22,8 @@ type Props = Readonly<{
   propertyName: string
   portals: readonly PortalOption[]
   portalGroups: readonly PortalOption[]
+  /** BQC-5.3: the render edge owns the wall clock — inject a fixed value in stories/tests for deterministic pace. */
+  now?: Date
 }>
 
 export function GoalCreatePreview({
@@ -29,6 +31,7 @@ export function GoalCreatePreview({
   propertyName,
   portals,
   portalGroups,
+  now = new Date(),
 }: Props) {
   const metricKey = (s.metricKey || null) as MetricKey | null
 
@@ -62,12 +65,14 @@ export function GoalCreatePreview({
                       computeElapsedFraction(
                         new Date(s.periodStart),
                         new Date(s.periodEnd),
+                        now,
                       ),
                     )
                   : undefined
               }
               size="md"
               showLabel={false}
+              now={now}
             />
           </div>
         )}

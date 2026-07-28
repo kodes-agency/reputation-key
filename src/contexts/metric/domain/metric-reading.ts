@@ -78,6 +78,7 @@ export function createReading(params: {
   attributionQuality: AttributionQuality
   dataQuality?: ReadingDataQuality
   retentionClass: string
+  now: Date
 }): MetricReading {
   return {
     id: params.id,
@@ -94,7 +95,7 @@ export function createReading(params: {
     sourceEventId: params.sourceEventId,
     sourceSchema: params.sourceSchema,
     occurredAt: params.occurredAt,
-    recordedAt: new Date(),
+    recordedAt: params.now,
     propertyLocalDate: params.propertyLocalDate,
     attributionQuality: params.attributionQuality,
     dataQuality: params.dataQuality ?? 'exact',

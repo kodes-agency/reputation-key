@@ -58,6 +58,7 @@ export function createParticipation(params: {
   userId: string
   displayName: string
   createdBy: string
+  now: Date
 }): StaffParticipation {
   return {
     id: params.id,
@@ -66,15 +67,16 @@ export function createParticipation(params: {
     userId: params.userId,
     displayName: params.displayName,
     status: 'active',
-    startedAt: new Date(),
+    startedAt: params.now,
     endedAt: null,
     createdBy: params.createdBy,
-    updatedAt: new Date(),
+    updatedAt: params.now,
   }
 }
 
 export function deactivate(
   participation: StaffParticipation,
+  now: Date,
 ): StaffParticipation | ParticipationError {
   if (!isValidTransition(participation.status, 'inactive')) {
     if (participation.status === 'archived') return { code: 'already_archived' }
@@ -83,13 +85,14 @@ export function deactivate(
   return {
     ...participation,
     status: 'inactive',
-    endedAt: new Date(),
-    updatedAt: new Date(),
+    endedAt: now,
+    updatedAt: now,
   }
 }
 
 export function reactivate(
   participation: StaffParticipation,
+  now: Date,
 ): StaffParticipation | ParticipationError {
   if (!isValidTransition(participation.status, 'active')) {
     if (participation.status === 'active')
@@ -100,12 +103,13 @@ export function reactivate(
     ...participation,
     status: 'active',
     endedAt: null,
-    updatedAt: new Date(),
+    updatedAt: now,
   }
 }
 
 export function archive(
   participation: StaffParticipation,
+  now: Date,
 ): StaffParticipation | ParticipationError {
   if (!isValidTransition(participation.status, 'archived')) {
     if (participation.status === 'archived') return { code: 'already_archived' }
@@ -114,18 +118,19 @@ export function archive(
   return {
     ...participation,
     status: 'archived',
-    endedAt: participation.endedAt ?? new Date(),
-    updatedAt: new Date(),
+    endedAt: participation.endedAt ?? now,
+    updatedAt: now,
   }
 }
 
 export function updateProfile(
   participation: StaffParticipation,
   displayName: string,
+  now: Date,
 ): StaffParticipation {
   return {
     ...participation,
     displayName,
-    updatedAt: new Date(),
+    updatedAt: now,
   }
 }

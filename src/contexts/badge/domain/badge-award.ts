@@ -72,10 +72,12 @@ export function createAward(params: {
   evidenceSummary: string
   evaluatorVersion: string
   snapshot: BadgeAwardSnapshot
+  now: Date
 }): BadgeAward {
+  const { now, ...rest } = params
   return {
-    ...params,
-    awardedAt: new Date(),
+    ...rest,
+    awardedAt: now,
     status: 'active',
     invalidatedAt: null,
     invalidatedBy: null,
@@ -94,6 +96,7 @@ export function invalidateAward(
   award: BadgeAward,
   invalidatedBy: string,
   reason: string,
+  now: Date,
   correctionReference?: string,
 ): BadgeAward | AwardError {
   if (award.status === 'invalidated') {
@@ -105,7 +108,7 @@ export function invalidateAward(
   return {
     ...award,
     status: 'invalidated',
-    invalidatedAt: new Date(),
+    invalidatedAt: now,
     invalidatedBy,
     invalidationReason: reason,
     correctionReference: correctionReference ?? null,
@@ -133,14 +136,18 @@ export function supersedeAward(
  * Hide an award from wider staff views (recipient opt-out).
  * Per ADR 0043: a recipient can hide their recognition where required.
  */
-export function hideAward(award: BadgeAward, hiddenBy: string): BadgeAward | AwardError {
+export function hideAward(
+  award: BadgeAward,
+  hiddenBy: string,
+  now: Date,
+): BadgeAward | AwardError {
   if (award.status === 'hidden') {
     return { code: 'already_hidden' }
   }
   return {
     ...award,
     status: 'hidden',
-    hiddenAt: new Date(),
+    hiddenAt: now,
     hiddenBy,
   }
 }

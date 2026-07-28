@@ -36,10 +36,7 @@ export type ResponsibilityError =
   | { code: 'cannot_change_kind_on_ended' }
   | { code: 'start_after_end' }
 
-export function isActive(
-  responsibility: PortalResponsibility,
-  asOf: Date = new Date(),
-): boolean {
+export function isActive(responsibility: PortalResponsibility, asOf: Date): boolean {
   if (responsibility.effectiveTo !== null && asOf >= responsibility.effectiveTo)
     return false
   return asOf >= responsibility.effectiveFrom
