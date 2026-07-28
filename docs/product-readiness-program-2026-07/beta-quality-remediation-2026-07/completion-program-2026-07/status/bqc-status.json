@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T19:27:32Z",
+  "updatedAt": "2026-07-28T20:34:07Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -717,7 +717,7 @@
       "id": "BQC-5",
       "kind": "phase",
       "title": "Clean architecture and context quality",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": [
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7: complexity burn-down. 5.8: dead-code reconciliation. 5.9 implementation_complete: duplication and consistency — measured 9.7% → 3.0% (14,266 → 3,501 lines); all 22 classified policy-bearing clone groups eliminated into deeper modules; ZERO duplicated authorization/retention/routing decisions remain. Only 5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "All ten slices implementation_complete. 5.1 architecture policy executable (cross-context eslint rule, full element coverage, routes/server DB ban, 7 violations redirected, fallow config repaired). 5.2 non-worker composition cleanup (clusters into owning build modules; container shape pinned by characterization; composition 786→596 lines). 5.3 runtime-neutral domain (28 ambient domain clocks now required params + eslint-guarded; browser-reachability architecture test; 2 client-graph process.env crash paths fixed). 5.4 semantic schema authority (snapshot chain repaired — check green, generate noop; pg_catalog comparator verifies all 68 tables both directions; 19 drifts fixed incl. phantom teamId; DB-only register; sidecar in CI). 5.5 operational reads (composition-owned OperationsSnapshot; review-owned serving stats with eligibility on ALL content reads — privacy fix; dashboard facade: scope/bounds/statement_timeout/no-server-cache; unused modules removed). 5.6 cross-context/privacy (guest free of portal error taxonomy via typed outcome; shared-events type-only pinned; content-free facts register; dark gate pins). 5.7 complexity burn-down (re-baselined 120→33; enabled P0/P1 closed via decision tables/deep modules; resolveTenantContext suppression removed; buildGoal — worst function — decision-tabled). 5.8 dead-code reconciliation (fallow dead-code 318→0, honest all-zero baseline; all 5 categories resolved; suppression registry with owner/reason/expiry). 5.9 duplication 9.7%→3.0% with ZERO duplicated authorization/retention/routing decisions (22 groups eliminated into deeper modules). 5.10 context acceptance matrix (17/17 rows PASS, executable at src/shared/architecture/context-acceptance-matrix.test.ts with failure-mode proofs; registered gaps: F1/F2/F3 to BQC-1, properties-table watch register, isGamificationViolation call-site, 2 documented infra clock exceptions). Registered cross-phase findings for owners: F1 replyRejected.reason (BQC-1), F2 memberInvited.email (BQC-1), F3 feedback comment without retention clock (BQC-1), mirrorReply/syncOneReview hotspot (BQC-1/3), bootstrap+worker complexity (BQC-3), dormant PRE17A JobRuntime vs manual worker wiring (BQC-3), rollup tables write-only read model (Metric/5.8-registered), security-headers nitro v2/v3 specifier (BQC-7), web-vitals/initObservability wire-or-remove (BQC-6), 18 catalogued-but-unwired server fns (BQC-6/7). Phase at evidence_pending — acceptance is the user's independent review of the full matrix + exit criteria."
+    },
+    {
+      "id": "BQC-5.10",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Context acceptance pass",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "PROMOTES the owning BQC-1–4 interfaces into an executable architecture acceptance matrix: src/shared/architecture/context-acceptance-matrix.test.ts (44 tests; header carries the full 17-row checklist + rerun rule). ALL 17 ROWS PASS: 10 enabled/limited (Identity grant-sole-access, Property lifecycle/profile interfaces, Integration provider-port + no in-use-case construction, Review lifecycle + atomic commands authoritative, Inbox content-free projection + applyOnce, Dashboard governed reads + no expired data/direct DB, Metric idempotent content-free rollup + no review-derived staff gamification, Notification privacy-filtered + outbound email dark, Activity facts/audit separated, Staff participation authZ-free) and 7 dark (Team isolated, Portal taxonomy + no BullMQ + edge denied, Guest portal-error-free + public adapters denied, Goal split + clock-injected + gated, Badge deterministic + gated, Leaderboard no active paths + isolated, AI absent — no context dir, no provider SDKs). New pins with failure-mode proofs (6 injected violations → 6 failures, reverted): grant-table sole-access scan, staff no-authZ scan, rollup idempotency (integration, host-TZ-independent, zero residue), AI absence, activity/policy-audit sole-writer scans, properties-table WATCH register. Suite self-suffices in a bare shell (env caveat fixed). Registered gaps returned to owners, NOT fixed (rerun rule: owner fix flips the register assertion and forces the matrix update): F1 replyRejected.reason→activity+notification (BQC-1), F2 memberInvited.email→activity (BQC-1), F3 feedback comment without retention clock (BQC-1), properties-table direct reads by portal/badge/leaderboard repos (Property + dark owners — WATCH register; also observed: identity policy-state/reconcile + notification digest read properties directly), isGamificationViolation has no production call-site (Metric), identity grant-access ambient new Date() and goal.repository default clock (documented infra exceptions). Gates: unit 383f/4247t, integration 52f/315t, matrix 44/44 standalone + bare-shell, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.9",
