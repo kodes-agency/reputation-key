@@ -71,6 +71,8 @@ export const inboxItems = pgTable(
       t.sourceId,
       t.organizationId,
     ),
+    // Migration 0008: cross-org date-ordered scan for incremental rollups.
+    index('inbox_items_source_date_idx').on(t.sourceDate),
   ],
 )
 

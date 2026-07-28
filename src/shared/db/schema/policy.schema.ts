@@ -171,7 +171,7 @@ export const policyDecisionAudit = pgTable(
       'policy_decision_audit_decision_check',
       sql`${t.decision} IN ('allow', 'deny')`,
     ),
-    index('policy_decision_audit_org_time_idx').on(t.organizationId, t.occurredAt),
+    index('policy_decision_audit_org_time_idx').on(t.organizationId, t.occurredAt.desc()),
   ],
 )
 

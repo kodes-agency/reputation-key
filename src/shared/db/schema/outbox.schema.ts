@@ -2,11 +2,13 @@ import {
   pgTable,
   uuid,
   text,
+  varchar,
   integer,
   jsonb,
   timestamp,
   index,
   primaryKey,
+  check,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -19,8 +21,8 @@ export const outboxEvents = pgTable(
     eventType: text('event_type').notNull(),
     eventVersion: integer('event_version').notNull().default(1),
     payload: jsonb('payload').notNull(),
-    organizationId: text('organization_id').notNull(),
-    propertyId: text('property_id'),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: varchar('property_id', { length: 255 }),
     sourceContext: text('source_context').notNull(),
     sourceAggregateId: text('source_aggregate_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -35,8 +37,11 @@ export const outboxEvents = pgTable(
       .where(sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NULL`),
     index('outbox_events_lease_expires_idx')
       .on(table.leaseExpiresAt)
-      .where(sql`${table.publishedAt} IS NULL`),
-    index('outbox_events_org_created_idx').on(table.organizationId, table.createdAt),
+      .where(sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NOT NULL`),
+    index('outbox_events_org_created_idx').on(
+      table.organizationId,
+      table.createdAt.desc(),
+    ),
   ],
 )
 
@@ -52,7 +57,13 @@ export const eventConsumerReceipts = pgTable(
     status: text('status').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.eventId, table.consumerName] })],
+  (table) => [
+    primaryKey({ columns: [table.eventId, table.consumerName] }),
+    check(
+      'event_consumer_receipts_status_check',
+      sql`${table.status} IN ('applied', 'duplicate', 'obsolete')`,
+    ),
+  ],
 )
 
 // ── Row types ───────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 // Integration context — Drizzle schema for google_connections table
 
+import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import {
   pgTable,
@@ -9,6 +10,7 @@ import {
   text,
   pgEnum,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core'
 
 export const connectionVisibilityEnum = pgEnum('connection_visibility', [
@@ -52,5 +54,10 @@ export const googleConnections = pgTable(
     // per-account, so an account spread across orgs would share one notification
     // config. Global uniqueness enforces the 1:1 account↔org invariant.
     uniqueIndex('google_connections_google_account_idx').on(t.googleAccountId),
+    // Migration 0010: connections needing attention (reauth, degraded, …) —
+    // anything outside the two steady states (active / disconnected).
+    index('google_connections_status_idx')
+      .on(t.status)
+      .where(sql`${t.status} NOT IN ('active', 'disconnected')`),
   ],
 )

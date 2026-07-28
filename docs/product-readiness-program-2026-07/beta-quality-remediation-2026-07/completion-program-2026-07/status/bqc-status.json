@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-23T20:31:02Z",
+  "updatedAt": "2026-07-28T11:13:14Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup (clusters into owning build modules, container shape pinned). 5.3 implementation_complete: runtime-neutral domain — all ambient domain clocks in the 8 named contexts now take required now/asOf (eslint-guarded), live policy-admin clock injected, goal UI decision table now-injected (root cause of the 2026-07-23 story rot), browser-reachability architecture test added and two real client-graph process.env defects fixed behind the RPC boundary (register.tsx, dark-route-gate). Review hashing verified already universal-pure; ID generation verified already injected. Slices 5.4–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1 implementation_complete: architecture policy executable. 5.2 implementation_complete: non-worker composition cleanup. 5.3 implementation_complete: runtime-neutral domain + browser-reachability proof. 5.4 implementation_complete: semantic schema authority — migration SQL track is the authority; snapshot chain repaired (drizzle-kit check green, generate noop); semantic pg_catalog comparator verifies all 68 tables both directions against the migrated DB; 19 drifts fixed incl. phantom invitation.teamId and outbox index predicate/direction/type drift; DB-only constructs register with owners; deploy sidecar wired into CI. Slices 5.5–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.4",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Semantic schema authority",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "One authority chosen: the migration SQL track (drizzle journal 0000–0016 + better-auth CLI track + registered deploy sidecars); the drizzle schema modules are the app-side model, now verified semantically against migrated pg_catalog metadata. (1) Snapshot chain REPAIRED: 0004–0010 duplicate-id copies and missing 0011–0016 snapshots replaced with correct-form snapshots (fresh ids, prevId chained from 0003); fidelity loss documented in drizzle/REPAIR.md. drizzle-kit check passes; drizzle-kit generate emits noop. (2) Authority expanded 34→60 non-auth tables: new migratable.ts barrel, tablesFilter dropped, business.ts removed. (3) 19 drifts fixed schema-side (metadata-only): phantom invitation.teamId; outbox lease-index predicate conjunct; org_created_idx DESC; varchar(255) ids; event_consumer_receipts + replies publication CHECKs; auth-mirror 13 timestamp→timestamptz + nullability/default drift (incl. organization.metadata missing — teamId's exact class); property lifecycle partial index + check + composite unique; google_connections partial index; metric/inbox 0008 indexes; review_sync_state + reviews cursor predicates/DESC; policy audit DESC. (4) Semantic comparator (src/shared/db/schema-drift.ts): getTableConfig for all 68 tables vs information_schema.columns, pg_constraint (+constraintdef, FK actions), pg_index (indoption direction, indpred/indexprs expressions), pg_enum, pg_trigger, pg_proc, journal continuity (17 rows, hashes = sha256 of SQL files). Both directions closed: unregistered catalog objects fail; registered DB-only constructs (13 entries — sidecar functions/triggers/expression index, each with owner+source+reason in db-only-constructs.ts) verified to exist. Proven to FAIL on a reintroduced drift with a precise message. Process + authority + deploy order documented in src/shared/db/CONTEXT.md. (5) CI: the deploy trigger sidecar now applied in ci.yml (check+e2e) and simulation.yml so the tested DB matches deploy state; test teardown adapted via disable-guard-triggers.ts (transactional disable of the last-owner guards — NOT session_replication_role, which silently orphaned FK-cascade rows; caught via double-run). (6) scripts/check-schema-drift.ts + check:schema-drift script (exit 1 on drift, 2 on error) — ✓ No schema drift on the canonical scratch DB, which was also rebuilt empty→latest validating the upgrade path (17 journal rows, 68 tables, 8 triggers, 4 functions). Gates: unit 371f/4124t, integration 49f/307t (twice consecutively on one DB), typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.3",

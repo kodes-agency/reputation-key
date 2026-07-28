@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { createPolicyAdminOps } from '../../application/use-cases/policy-admin'
 import {
   createPolicyDiagnostic,
@@ -94,18 +95,25 @@ async function auditRows(): Promise<Array<Record<string, unknown>>> {
   return rows.rows as Array<Record<string, unknown>>
 }
 
-beforeAll(async () => {
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`)
-  await db.execute(
+// Teardown DELETEs run with user triggers disabled: the deployed
+// guard_last_owner backstop blocks deleting an org's final owner row,
+// including fixture cleanup (cascades from organization fire it too).
+async function clearOrgFixtures() {
+  await executeWithLastOwnerGuardDisabled(db, [
+    sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`,
     sql`DELETE FROM organization_capability WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM member WHERE "organizationId" = ${ORG}`)
-  await db.execute(sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${MEMBER})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+    sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
+    sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${MEMBER})`,
+    sql`DELETE FROM organization WHERE id = ${ORG}`,
+  ])
+}
+
+beforeAll(async () => {
+  await clearOrgFixtures()
 
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Policy Admin Org', ${ORG}, now())`,
@@ -127,17 +135,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`)
-  await db.execute(
-    sql`DELETE FROM organization_capability WHERE organization_id = ${ORG}`,
-  )
-  await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM member WHERE "organizationId" = ${ORG}`)
-  await db.execute(sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${MEMBER})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await clearOrgFixtures()
 })
 
 describe('policy administration (BQC-2.7)', () => {

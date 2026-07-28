@@ -14,6 +14,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  check,
 } from 'drizzle-orm/pg-core'
 
 export const properties = pgTable(
@@ -68,5 +69,17 @@ export const properties = pgTable(
     routingBackfillIdx: index('properties_routing_backfill_idx')
       .on(t.routingPolicyVersion, t.id)
       .where(sql`processing_region = 'unresolved' AND deleted_at IS NULL`),
+    // Migration 0009: lifecycle sweep lookup (all non-purged rows).
+    lifecycleStateIdx: index('properties_lifecycle_state_idx')
+      .on(t.lifecycleState)
+      .where(sql`lifecycle_state <> 'purged'`),
+    // Migration 0009: pins the lifecycle machine's persisted states.
+    lifecycleStateCheck: check(
+      'properties_lifecycle_state_valid',
+      sql`${t.lifecycleState} IN ('active', 'suspended', 'archived', 'disconnecting', 'purge_pending', 'purging', 'purged')`,
+    ),
+    // Migration 0014: unique (organization_id, id) target for the composite
+    // tenant FK property_access_grant_tenant_fk (policy.schema.ts).
+    orgIdKey: uniqueIndex('properties_org_id_key').on(t.organizationId, t.id),
   }),
 )

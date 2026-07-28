@@ -7,9 +7,17 @@ Auth tables and their custom columns are managed by the **better-auth CLI**, nev
 
 **Auth-managed tables (better-auth CLI):** `user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`, and ALL `additionalFields` on them.
 
-**Business tables (Drizzle):** only the tables in `drizzle.config.ts` `tablesFilter` (`properties`, `reviews`, `portals`, …). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). Drizzle's filter deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them.
+**Business tables (Drizzle):** all 60 app-owned tables — `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` (no `tablesFilter` whitelist since BQC-5.4). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
 
 ## Fresh-DB provisioning (the one manual-SQL exception)
+
+> **2026-07-28 (BQC-5.4): largely superseded.** The current better-auth CLI
+> creates the 8 baseline tables on an empty database (verified — CI relies on
+> it), so step 1 is no longer required; the `mv_*` materialized views in step
+> 4 were folded into migration 0004 and dropped by migration 0008, so
+> `pnpm db:matviews` is historical. The live deploy order is
+> `auth:migrate → db:migrate → registered sidecars` (step 5 below) — see
+> `src/shared/db/CONTEXT.md`. Kept below for the historical record.
 
 Better Auth's CLI never captured a **baseline** migration — `better-auth_migrations/` contains only 2 incremental files that assume the 8 baseline tables already exist. So `pnpm auth:migrate` on an **empty** database silently reports "no migrations needed" and creates nothing. A committed bootstrap SQL is the reproducible fix:
 
