@@ -1,5 +1,18 @@
 import { AlertTriangle, Ban } from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { EntityScope } from '#/shared/domain/metric-keys'
+import type { Goal } from '#/contexts/goal/application/public-api'
+import {
+  aggregationLabel,
+  formatDate,
+  formatPeriodDates,
+  goalTypeLabel,
+  measureLabel,
+  metricLabel,
+  scopeLabel,
+  statusLabel,
+  targetUnit,
+} from '#/contexts/goal/ui/helpers'
 import { Button } from '#/components/ui/button'
 import {
   AlertDialog,
@@ -89,4 +102,52 @@ export function formatValue(value: number, unit: string): string {
 
 export function sentenceCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+/** "Goal settings" section of the detail page — the rule used to measure
+ * and group the target. Extracted from goal-detail-page.tsx (BQC-5.3 CI
+ * fallow gate: the page went 15 → 16 cognitive after the now-prop
+ * threading; this section owns two of the nested branches). */
+export function GoalSettingsSection({
+  goal,
+  scope,
+  timeframeLabel,
+}: Readonly<{
+  goal: Goal
+  scope: EntityScope
+  timeframeLabel: string
+}>) {
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-sm font-semibold">Goal settings</h2>
+        <p className="text-sm text-muted-foreground">
+          The rule used to measure and group this target.
+        </p>
+      </div>
+      <dl className="grid rounded-lg border sm:grid-cols-2 lg:grid-cols-3">
+        <Detail term="Scope">{scopeLabel(scope)}</Detail>
+        <Detail term="Type">{goalTypeLabel(goal.goalType)}</Detail>
+        <Detail term="Measured as">
+          {sentenceCase(measureLabel(goal.metricKey, goal.aggregationFunction))}
+        </Detail>
+        <Detail term="Metric">{metricLabel(goal.metricKey)}</Detail>
+        <Detail term="Aggregation">{aggregationLabel(goal.aggregationFunction)}</Detail>
+        <Detail term="Target">
+          {goal.targetValue.toLocaleString()}{' '}
+          {targetUnit(goal.metricKey, goal.aggregationFunction)}
+        </Detail>
+        <Detail term="Timeframe">{timeframeLabel}</Detail>
+        <Detail term="Status">{statusLabel(goal.status)}</Detail>
+        {goal.completedAt && (
+          <Detail term="Completed">{formatDate(goal.completedAt)}</Detail>
+        )}
+        {goal.periodStart || goal.periodEnd ? (
+          <Detail term="Period">
+            {formatPeriodDates(goal.periodStart, goal.periodEnd)}
+          </Detail>
+        ) : null}
+      </dl>
+    </section>
+  )
 }

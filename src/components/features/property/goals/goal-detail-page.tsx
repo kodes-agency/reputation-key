@@ -12,23 +12,15 @@ import { InstanceHistoryTable } from './instance-history-table'
 import { GoalProgressTrack } from './goal-progress-track'
 import {
   CancelGoalDialog,
-  Detail,
+  GoalSettingsSection,
   SummaryMetric,
   formatValue,
-  sentenceCase,
 } from './goal-detail-parts'
 import {
-  aggregationLabel,
   formatDate,
-  formatPeriodDates,
   getGoalPresentation,
-  goalTypeLabel,
-  measureLabel,
-  metricLabel,
-  scopeLabel,
   statusBadgeVariant,
   statusLabel,
-  targetUnit,
   type GoalWithProgress,
 } from '#/contexts/goal/ui/helpers'
 import { deriveEntityScope } from '#/contexts/goal/application/public-api'
@@ -139,37 +131,11 @@ export function GoalDetailPage({
         </CardContent>
       </Card>
 
-      <section className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-semibold">Goal settings</h2>
-          <p className="text-sm text-muted-foreground">
-            The rule used to measure and group this target.
-          </p>
-        </div>
-        <dl className="grid rounded-lg border sm:grid-cols-2 lg:grid-cols-3">
-          <Detail term="Scope">{scopeLabel(scope)}</Detail>
-          <Detail term="Type">{goalTypeLabel(goal.goalType)}</Detail>
-          <Detail term="Measured as">
-            {sentenceCase(measureLabel(goal.metricKey, goal.aggregationFunction))}
-          </Detail>
-          <Detail term="Metric">{metricLabel(goal.metricKey)}</Detail>
-          <Detail term="Aggregation">{aggregationLabel(goal.aggregationFunction)}</Detail>
-          <Detail term="Target">
-            {goal.targetValue.toLocaleString()}{' '}
-            {targetUnit(goal.metricKey, goal.aggregationFunction)}
-          </Detail>
-          <Detail term="Timeframe">{presentation.timeframeLabel}</Detail>
-          <Detail term="Status">{statusLabel(goal.status)}</Detail>
-          {goal.completedAt && (
-            <Detail term="Completed">{formatDate(goal.completedAt)}</Detail>
-          )}
-          {goal.periodStart || goal.periodEnd ? (
-            <Detail term="Period">
-              {formatPeriodDates(goal.periodStart, goal.periodEnd)}
-            </Detail>
-          ) : null}
-        </dl>
-      </section>
+      <GoalSettingsSection
+        goal={goal}
+        scope={scope}
+        timeframeLabel={presentation.timeframeLabel}
+      />
 
       {canCancel && (
         <section className="flex flex-col gap-3 rounded-lg border border-destructive/20 p-4 sm:flex-row sm:items-center sm:justify-between">
