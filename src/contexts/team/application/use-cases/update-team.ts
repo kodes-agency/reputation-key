@@ -17,7 +17,6 @@ import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type UpdateTeamDeps = Readonly<{
   teamRepo: TeamRepository
   staffApi: StaffPublicApi
@@ -120,5 +119,4 @@ export const updateTeam =
     return updated
   }
 
-// fallow-ignore-next-line unused-type
 export type UpdateTeam = ReturnType<typeof updateTeam>

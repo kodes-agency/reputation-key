@@ -29,7 +29,7 @@ export interface SessionCookieAttributes {
 }
 
 export const SESSION_COOKIE_NAME = 'rk_guest_session'
-export const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000 // 1 hour
+const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000 // 1 hour
 
 export function createSession(params: {
   sessionId: string

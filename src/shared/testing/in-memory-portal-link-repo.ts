@@ -4,7 +4,6 @@
 import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
 import type { PortalLinkCategory, PortalLink } from '#/contexts/portal/domain/types'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryPortalLinkRepo = PortalLinkRepository &
   Readonly<{
     seedCategories: (categories: ReadonlyArray<PortalLinkCategory>) => void

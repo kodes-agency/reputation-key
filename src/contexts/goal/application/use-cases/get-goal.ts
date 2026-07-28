@@ -102,5 +102,4 @@ export const getGoal =
     return ok({ goal, progress })
   }
 
-// fallow-ignore-next-line unused-type
 export type GetGoal = ReturnType<typeof getGoal>

@@ -29,7 +29,7 @@ export type PropertyLifecycleState =
   | 'purged'
 
 /** All lifecycle states in order of progression. */
-export const LIFECYCLE_STATES: readonly PropertyLifecycleState[] = [
+const LIFECYCLE_STATES: readonly PropertyLifecycleState[] = [
   'active',
   'suspended',
   'archived',
@@ -53,24 +53,18 @@ const VALID_TRANSITIONS: Readonly<
 }
 
 /** States that allow external effects (sync, publish, notifications). */
-export const ACTIVE_STATES: ReadonlySet<PropertyLifecycleState> = new Set(['active'])
+const ACTIVE_STATES: ReadonlySet<PropertyLifecycleState> = new Set(['active'])
 
 /** States that preserve data (no external effects, but recovery is possible). */
-export const RECOVERABLE_STATES: ReadonlySet<PropertyLifecycleState> = new Set([
+const RECOVERABLE_STATES: ReadonlySet<PropertyLifecycleState> = new Set([
   'suspended',
   'archived',
   'disconnecting',
   'purge_pending',
 ])
 
-/** States where data has been or is being destroyed. */
-export const IRREVERSIBLE_STATES: ReadonlySet<PropertyLifecycleState> = new Set([
-  'purging',
-  'purged',
-])
-
 /** States that block sync, publish, and external API calls. */
-export const BLOCKED_STATES: ReadonlySet<PropertyLifecycleState> = new Set([
+const BLOCKED_STATES: ReadonlySet<PropertyLifecycleState> = new Set([
   'suspended',
   'archived',
   'disconnecting',

@@ -27,8 +27,9 @@ export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 
 export const getPortalAnalytics =
   (deps: GetPortalAnalyticsDeps) =>
-  // Pre-existing KPI assembly complexity — already over threshold on main;
-  // BQC-5.5 only shifted its line (dupe removal), re-registering the finding.
+  // Pre-existing KPI assembly complexity — owner: Dashboard (BQC-5.5); still
+  // matches on unit-size, no expiry while over threshold. BQC-5.5 only shifted
+  // its line (dupe removal), re-registering the finding.
   // fallow-ignore-next-line complexity
   async (input: GetPortalAnalyticsInput): Promise<PortalAnalyticsData> => {
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input

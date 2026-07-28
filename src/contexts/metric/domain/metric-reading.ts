@@ -126,24 +126,6 @@ export function findDuplicate(
 }
 
 /**
- * Apply a correction to a reading. Per ADR 0041: corrections are
- * append-only — they never overwrite the original fact.
- *
- * - 'retract': the reading is marked as retracted (value null in query results)
- * - 'replace': a new value replaces the old for query purposes
- * - 'adjust': the value is adjusted by a delta
- */
-export function applyCorrection(
-  reading: MetricReading,
-  correction: MetricCorrection,
-): MetricReading {
-  return {
-    ...reading,
-    correctedBy: correction.id,
-  }
-}
-
-/**
  * Get the effective value of a reading after corrections.
  * Returns null for retracted readings.
  */

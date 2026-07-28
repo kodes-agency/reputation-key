@@ -8,7 +8,6 @@ import type {
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGoogleConnectionRepo = GoogleConnectionRepository &
   Readonly<{
     seed: (connections: ReadonlyArray<GoogleConnection>) => void

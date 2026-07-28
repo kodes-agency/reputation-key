@@ -196,7 +196,7 @@ export type SpawnSummary = Readonly<{
  * monthly: first day of next month after periodEnd
  * quarterly: first day of next quarter after periodEnd
  */
-export function computeNextPeriodStart(
+function computeNextPeriodStart(
   latestPeriodEnd: Date,
   frequency: RecurrenceFrequency,
 ): Date {
@@ -217,7 +217,7 @@ export function computeNextPeriodStart(
  * monthly: last day of the month
  * quarterly: last day of the quarter
  */
-export function computePeriodEnd(start: Date, frequency: RecurrenceFrequency): Date {
+function computePeriodEnd(start: Date, frequency: RecurrenceFrequency): Date {
   switch (frequency) {
     case 'weekly': {
       const end = new Date(start)

@@ -17,7 +17,10 @@ export const authClient = createAuthClient({
   ],
 })
 
-// Typed hooks re-exports for convenience
+// Typed hooks re-exports for convenience.
+// Owner: Identity. Documented convenience surface (E-class, BQC-5.8): routes
+// import these hooks from here so authClient call-sites stay terse; each
+// re-export is suppressed individually below. Review at BQC-6 close.
 export const {
   // fallow-ignore-next-line unused-export
   useSession,

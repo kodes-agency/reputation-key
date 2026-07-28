@@ -1,7 +1,8 @@
 // BQC-4.6 — no-fallback fault proof (real PostgreSQL + real Redis/BullMQ).
 //
 // fallow-ignore-file boundary-violation
-// This cross-context end-to-end proof BY DESIGN wires the real property
+// Architecture proof (BQC-4.6) — deliberate, no expiry. This cross-context
+// end-to-end proof BY DESIGN wires the real property
 // routing adapter, review command stores, outbox relay, gated dispatch and
 // BullMQ workers the same way the worker composition does
 // (src/worker/index.ts); no single context's zone can own it, and the

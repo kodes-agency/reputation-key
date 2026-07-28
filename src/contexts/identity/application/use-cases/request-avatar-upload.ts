@@ -10,7 +10,6 @@ export type RequestAvatarUploadInput = Readonly<{
   fileSize: number
 }>
 
-// fallow-ignore-next-line unused-type
 export type RequestAvatarUploadDeps = Readonly<{
   storage: IdentityStoragePort
   idGen: () => string
@@ -50,5 +49,4 @@ export const requestAvatarUpload =
     return { uploadUrl, key }
   }
 
-// fallow-ignore-next-line unused-type
 export type RequestAvatarUpload = ReturnType<typeof requestAvatarUpload>

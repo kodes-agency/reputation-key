@@ -426,31 +426,6 @@ export class BetaCapabilityError extends Error {
   }
 }
 
-// ── Capability metadata for UI ──────────────────────────────────────
-
-export const ALL_CAPABILITIES: readonly Capability[] = [
-  'identity.invite',
-  'identity.register',
-  'organization.create',
-  'property.create',
-  'property.connect_gbp',
-  'property.publish_reply',
-  'notification.send_email',
-  'portal.read',
-  'portal.write',
-  'portal.upload',
-  'team.use',
-  'goal.use',
-  'badge.use',
-  'leaderboard.use',
-  'ai.analyze',
-  'ai.generate_reply',
-  'ai.detect_trends',
-  'gbp.reply.auto_publish',
-  'gbp.ai.cross_property_summary',
-  'gbp.review_solicitation_gamification',
-]
-
 export function isCoreCapability(cap: Capability): boolean {
   return CORE_CAPABILITIES.has(cap)
 }
@@ -470,9 +445,8 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
 }
 
 /**
- * The complete capability universe (all 28 — ALL_CAPABILITIES above is the
- * older UI-facing subset and does NOT include the BQR-4.1 surface caps).
- * Used for validation (BQC-2.7 policy administration) and guards.
+ * The complete capability universe (all 28 — includes the BQR-4.1 surface
+ * caps). Used for validation (BQC-2.7 policy administration) and guards.
  */
 export function listAllCapabilities(): ReadonlyArray<Capability> {
   const nonCore: ReadonlyArray<Capability> = [

@@ -39,19 +39,13 @@ const VALID_TRANSITIONS: Readonly<Record<ConnectionState, readonly ConnectionSta
 }
 
 /** States that allow review sync and reply publish. */
-export const SYNC_CAPABLE_STATES: ReadonlySet<ConnectionState> = new Set([
-  'active',
-  'degraded',
-])
+const SYNC_CAPABLE_STATES: ReadonlySet<ConnectionState> = new Set(['active', 'degraded'])
 
 /** States that are terminal (no recovery possible). */
-export const TERMINAL_STATES: ReadonlySet<ConnectionState> = new Set([
-  'disconnected',
-  'failed',
-])
+const TERMINAL_STATES: ReadonlySet<ConnectionState> = new Set(['disconnected', 'failed'])
 
 /** States that require user action (re-auth or operator intervention). */
-export const ACTION_REQUIRED_STATES: ReadonlySet<ConnectionState> = new Set([
+const ACTION_REQUIRED_STATES: ReadonlySet<ConnectionState> = new Set([
   'reauth_required',
   'failed',
 ])

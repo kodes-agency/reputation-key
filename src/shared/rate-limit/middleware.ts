@@ -9,7 +9,6 @@
 import type { Redis } from 'ioredis'
 import { getLogger } from '#/shared/observability/logger'
 
-// fallow-ignore-next-line unused-type
 export type RateLimiterOptions = Readonly<{
   /** Prefix for Redis keys, e.g. 'ratelimit:public' */
   keyPrefix: string
@@ -19,7 +18,6 @@ export type RateLimiterOptions = Readonly<{
   windowSeconds: number
 }>
 
-// fallow-ignore-next-line unused-type
 export type RateLimitResult = Readonly<{
   /** Whether the request is allowed */
   allowed: boolean

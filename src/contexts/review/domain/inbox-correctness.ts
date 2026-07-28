@@ -96,7 +96,7 @@ export function checkVersionConflict(
  */
 export type ReviewTriageState = 'new' | 'open' | 'in_progress' | 'resolved' | 'ignored'
 
-export const VALID_TRIAGE_TRANSITIONS: Readonly<
+const VALID_TRIAGE_TRANSITIONS: Readonly<
   Record<ReviewTriageState, readonly ReviewTriageState[]>
 > = {
   new: ['open', 'ignored'],

@@ -12,14 +12,12 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type ReorderLinksInput = Readonly<{
   categoryId: string
   portalId: string
   items: ReadonlyArray<{ id: string; sortKey: string }>
 }>
 
-// fallow-ignore-next-line unused-type
 export type ReorderLinksDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -62,5 +60,4 @@ export const reorderLinks =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type ReorderLinks = ReturnType<typeof reorderLinks>

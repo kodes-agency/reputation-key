@@ -40,7 +40,7 @@ const VALID_TRANSITIONS: Readonly<Record<TokenStatus, readonly TokenStatus[]>> =
   revoked: [],
 }
 
-export function isValidTransition(from: TokenStatus, to: TokenStatus): boolean {
+function isValidTransition(from: TokenStatus, to: TokenStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false
 }
 

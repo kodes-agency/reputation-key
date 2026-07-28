@@ -4,6 +4,11 @@
 // In production, these would send to Sentry, Google Analytics, or a
 // Web Vitals collector. The stubs ensure no PII is transmitted.
 //
+// BQC-5.8 classification: B (required control, wire-or-remove in BQC-6).
+// The module is intentionally not wired into the client yet; its exports
+// are suppressed via .fallowrc.json ignoreExports. Owner: BQC-6.
+// Expiry: BQC-6 close (wire the vitals or remove the module).
+//
 // Usage:
 //   import { initWebVitals } from '#/components/hooks/web-vitals'
 //   initWebVitals()  // call once in root layout

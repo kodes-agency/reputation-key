@@ -74,6 +74,10 @@ export function applySecurityHeaders(
  * Register in `nitro/plugins/` or wire explicitly. For dev mode (where Nitro
  * is not active), call {@link applySecurityHeaders} from TanStack Start router
  * middleware instead.
+ *
+ * BQC-5.8 classification: B — one wiring seam kept for BQC-7 (B0.7 control;
+ * the auto-discovered plugin in server/plugins/ is inert, STD-P1-07).
+ * Suppressed via .fallowrc.json ignoreExports. Owner: BQC-7. Expiry: BQC-7 close.
  */
 export const securityHeadersPlugin: NitroAppPlugin = (nitroApp) => {
   nitroApp.hooks.hook('response', (res) => {

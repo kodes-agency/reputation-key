@@ -35,7 +35,6 @@ import {
 
 // ── Portal constructor ─────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type BuildPortalInput = Readonly<{
   id: PortalId
   organizationId: OrganizationId
@@ -89,7 +88,6 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
 
 // ── PortalGroup constructor ────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type BuildPortalGroupInput = Readonly<{
   id: PortalGroupId
   organizationId: OrganizationId
@@ -119,7 +117,6 @@ export const buildPortalGroup = (
 
 // ── PortalLinkCategory constructor ─────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type BuildCategoryInput = Readonly<{
   id: PortalLinkCategoryId
   portalId: PortalId
@@ -148,7 +145,6 @@ export const buildPortalLinkCategory = (
 
 // ── PortalLink constructor ─────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type BuildLinkInput = Readonly<{
   id: PortalLinkId
   categoryId: PortalLinkCategoryId

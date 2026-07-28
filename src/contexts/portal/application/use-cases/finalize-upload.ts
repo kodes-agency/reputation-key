@@ -14,13 +14,11 @@ import type { Queue } from '#/shared/jobs/queue'
 import { PROCESS_IMAGE_JOB_NAME as JOB_NAME } from '../job-names'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 
-// fallow-ignore-next-line unused-type
 export type FinalizeUploadInput = Readonly<{
   portalId: string
   key: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type FinalizeUploadDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
@@ -83,5 +81,4 @@ export const finalizeUpload =
     return { heroImageUrl: publicUrl }
   }
 
-// fallow-ignore-next-line unused-type
 export type FinalizeUpload = ReturnType<typeof finalizeUpload>

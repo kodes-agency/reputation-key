@@ -18,7 +18,6 @@ export type SoftDeleteTeamInput = Readonly<{
   teamId: TeamId
 }>
 
-// fallow-ignore-next-line unused-type
 export type SoftDeleteTeamDeps = Readonly<{
   teamRepo: TeamRepository
   staffApi: StaffPublicApi
@@ -83,5 +82,4 @@ export const softDeleteTeam =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type SoftDeleteTeam = ReturnType<typeof softDeleteTeam>

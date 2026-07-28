@@ -11,7 +11,6 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type UpdateLinkInput = Readonly<{
   linkId: string
   label?: string
@@ -19,7 +18,6 @@ export type UpdateLinkInput = Readonly<{
   iconKey?: string | null
 }>
 
-// fallow-ignore-next-line unused-type
 export type UpdateLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -89,5 +87,4 @@ export const updateLink =
     return { ...existing, label: newLabel, url: newUrl, iconKey: newIconKey, updatedAt }
   }
 
-// fallow-ignore-next-line unused-type
 export type UpdateLink = ReturnType<typeof updateLink>

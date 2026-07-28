@@ -43,7 +43,6 @@ vi.mock('#/shared/auth/headers', () => ({
 
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,
-  clearTenantCache: vi.fn(),
 }))
 vi.mock('#/shared/auth/beta-capabilities', () => ({
   assertBetaCapability: vi.fn(),

@@ -6,7 +6,6 @@ import type {
   ImportPropertyJobData,
 } from '#/contexts/integration/application/ports/gbp-queue.port'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGbpQueuePort = GbpQueuePort &
   Readonly<{
     enqueuedJobs: () => ReadonlyArray<ImportPropertyJobData>

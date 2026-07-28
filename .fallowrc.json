@@ -30,7 +30,9 @@
     "@tanstack/intent",
     "@better-auth/cli",
     "@tanstack/start-server-core",
-    "eslint-import-resolver-typescript"
+    "eslint-import-resolver-typescript",
+    "shadcn",
+    "@tailwindcss/typography"
   ],
   "ignoreExports": [
     { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
@@ -59,7 +61,110 @@
     },
     {
       "file": "src/shared/db/schema/auth.ts",
-      "exports": ["member", "organization"]
+      "exports": ["member", "organization", "session", "account", "verification"]
+    },
+    {
+      "file": "src/contexts/*/domain/errors.ts",
+      "exports": ["isActivityError", "isLeaderboardError", "isMetricError"]
+    },
+    {
+      "file": "src/contexts/activity/server/activity.ts",
+      "exports": ["getOrgActivityFn"]
+    },
+    {
+      "file": "src/contexts/inbox/server/inbox-queries.ts",
+      "exports": ["stampLastInboxViewFn"]
+    },
+    {
+      "file": "src/contexts/inbox/server/inbox-item-actions.ts",
+      "exports": ["assignInboxItemFn"]
+    },
+    {
+      "file": "src/contexts/identity/server/auth-settings.org.ts",
+      "exports": ["createOrganizationFn"]
+    },
+    {
+      "file": "src/contexts/integration/server/google-connections.ts",
+      "exports": ["connectGoogle", "updateConnectionVisibility"]
+    },
+    {
+      "file": "src/contexts/property/server/properties.ts",
+      "exports": ["createProperty", "updateProperty"]
+    },
+    {
+      "file": "src/contexts/goal/server/goals.ts",
+      "exports": ["updateGoal"]
+    },
+    {
+      "file": "src/contexts/portal/server/portal-groups.ts",
+      "exports": [
+        "createPortalGroup",
+        "updatePortalGroup",
+        "getPortalGroup",
+        "softDeletePortalGroup",
+        "addPortalToGroup",
+        "removePortalFromGroup"
+      ]
+    },
+    {
+      "file": "src/shared/observability/web-vitals.ts",
+      "exports": ["setVitalsReporter", "initWebVitals", "reportVital"]
+    },
+    {
+      "file": "src/shared/observability/telemetry.ts",
+      "exports": ["initObservability"]
+    },
+    {
+      "file": "src/shared/security/security-headers.ts",
+      "exports": ["securityHeadersPlugin", "default"]
+    },
+    {
+      "file": "src/shared/bqc/status-schema.ts",
+      "exports": [
+        "BQC_STATES",
+        "bqcStateSchema",
+        "bqcEntrySchema",
+        "bqcStatusManifestSchema"
+      ]
+    },
+    {
+      "file": "src/contexts/*/application/public-api.ts",
+      "exports": [
+        "badgeAwarded",
+        "goalCompleted",
+        "guestScanRecorded",
+        "guestRatingSubmitted",
+        "guestFeedbackSubmitted",
+        "guestReviewLinkClicked",
+        "identityOrganizationCreated",
+        "identityMemberInvited",
+        "identityInvitationAccepted",
+        "identityInvitationCanceled",
+        "identityMemberRemoved",
+        "identityMemberRoleChanged",
+        "isInboxError",
+        "integrationGoogleAccountConnected",
+        "integrationGoogleAccountDisconnected",
+        "URGENT_TYPES",
+        "isUrgent",
+        "notificationError",
+        "propertyCreated",
+        "reviewCreated",
+        "reviewUpdated",
+        "reviewExpired",
+        "reviewReplyPublished",
+        "reviewReplySubmitted",
+        "reviewReplyApproved",
+        "reviewReplyRejected",
+        "reviewReplyPublishFailed",
+        "reviewReplyUpdated",
+        "reviewReplyPublicationCancelled",
+        "staffAssigned",
+        "staffUnassigned",
+        "teamCreated",
+        "teamDeleted",
+        "teamUpdated"
+      ]
     }
   ],
   "production": false,
@@ -74,6 +179,27 @@
     "unused-exports": "warn",
     "unused-types": "off"
   },
+  "overrides": [
+    {
+      "files": [
+        "server/plugins/security-headers.ts",
+        "src/components/hooks/use-reduced-motion.ts",
+        "src/contexts/identity/server/auth-settings.org.ts",
+        "src/contexts/identity/server/organizations.roles.ts",
+        "src/contexts/identity/server/policy-admin.ts",
+        "src/contexts/property/server/region-move.ts"
+      ],
+      "rules": { "unused-files": "off" }
+    },
+    {
+      "files": ["src/components/ui/**"],
+      "rules": { "unused-exports": "off", "unused-types": "off" }
+    },
+    {
+      "files": ["**/*.dto.ts", "**/domain/events.ts"],
+      "rules": { "unused-types": "off" }
+    }
+  ],
   "duplicates": {
     "mode": "mild",
     "minTokens": 50,
@@ -118,18 +244,18 @@
   },
   "regression": {
     "baseline": {
-      "totalIssues": 355,
-      "unusedFiles": 24,
-      "unusedExports": 204,
+      "totalIssues": 0,
+      "unusedFiles": 0,
+      "unusedExports": 0,
       "unusedTypes": 0,
       "unusedDependencies": 0,
-      "unusedDevDependencies": 1,
+      "unusedDevDependencies": 0,
       "unusedOptionalDependencies": 0,
       "unusedEnumMembers": 0,
       "unusedClassMembers": 0,
       "unresolvedImports": 0,
-      "unlistedDependencies": 1,
-      "duplicateExports": 4,
+      "unlistedDependencies": 0,
+      "duplicateExports": 0,
       "circularDependencies": 0,
       "reExportCycles": 0,
       "typeOnlyDependencies": 0,

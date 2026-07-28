@@ -12,7 +12,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type SoftDeletePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   staffPublicApi: StaffPublicApi
@@ -55,5 +54,4 @@ export const softDeletePortalGroup =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type SoftDeletePortalGroup = ReturnType<typeof softDeletePortalGroup>

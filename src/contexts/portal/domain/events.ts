@@ -16,7 +16,6 @@ import { portalError } from './errors'
 
 // ── Portal events ──────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type PortalCreated = Readonly<{
   _tag: 'portal.created'
   eventId: string
@@ -28,7 +27,6 @@ export type PortalCreated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalUpdated = Readonly<{
   _tag: 'portal.updated'
   eventId: string
@@ -40,7 +38,6 @@ export type PortalUpdated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalDeleted = Readonly<{
   _tag: 'portal.deleted'
   eventId: string
@@ -52,7 +49,6 @@ export type PortalDeleted = Readonly<{
 
 // ── Link category events ───────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type PortalLinkCategoryCreated = Readonly<{
   _tag: 'portal_link_category.created'
   eventId: string
@@ -63,7 +59,6 @@ export type PortalLinkCategoryCreated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalLinkCategoryReordered = Readonly<{
   _tag: 'portal_link_category.reordered'
   eventId: string
@@ -75,7 +70,6 @@ export type PortalLinkCategoryReordered = Readonly<{
 
 // ── Link events ────────────────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type PortalLinkCreated = Readonly<{
   _tag: 'portal_link.created'
   eventId: string
@@ -87,7 +81,6 @@ export type PortalLinkCreated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalLinkReordered = Readonly<{
   _tag: 'portal_link.reordered'
   eventId: string
@@ -100,7 +93,6 @@ export type PortalLinkReordered = Readonly<{
 
 // ── Portal group events ───────────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type PortalGroupCreated = Readonly<{
   _tag: 'portal_group.created'
   eventId: string
@@ -112,7 +104,6 @@ export type PortalGroupCreated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalGroupUpdated = Readonly<{
   _tag: 'portal_group.updated'
   eventId: string
@@ -124,7 +115,6 @@ export type PortalGroupUpdated = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalGroupDeleted = Readonly<{
   _tag: 'portal_group.deleted'
   eventId: string
@@ -135,7 +125,6 @@ export type PortalGroupDeleted = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalAddedToGroup = Readonly<{
   _tag: 'portal_group.portal_added'
   eventId: string
@@ -146,7 +135,6 @@ export type PortalAddedToGroup = Readonly<{
   occurredAt: Date
 }>
 
-// fallow-ignore-next-line unused-type
 export type PortalRemovedFromGroup = Readonly<{
   _tag: 'portal_group.portal_removed'
   eventId: string

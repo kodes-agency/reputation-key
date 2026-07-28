@@ -78,14 +78,6 @@ export const listMembersResponseSchema = z.object({
   total: z.number().optional(),
 })
 
-/** createInvitation response — the invitation object directly. */
-export const createInvitationResponseSchema = betterAuthInvitationSchema
-
-/** acceptInvitation response — { organizationId: string } */
-export const acceptInvitationResponseSchema = z.object({
-  organizationId: z.string(),
-})
-
 /** listInvitations response — array of invitations directly. */
 export const listInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
 

@@ -10,7 +10,7 @@ import { ScanLine, Star, MessageCircle, MousePointerClick, BarChart3 } from 'luc
 import {
   ChartCard,
   EngagementFunnelChart,
-  RatingDistributionChart,
+  PortalRatingDistributionChart,
   RatingTrendChart,
 } from './portal-analytics-charts'
 
@@ -113,7 +113,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           <EngagementFunnelChart funnel={data.engagementFunnel} />
         </ChartCard>
         <ChartCard title="Rating Distribution">
-          <RatingDistributionChart distribution={data.ratingDistribution} />
+          <PortalRatingDistributionChart distribution={data.ratingDistribution} />
         </ChartCard>
         {data.ratingTrend.length > 0 && (
           <ChartCard title="Rating Trend">

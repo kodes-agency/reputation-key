@@ -24,7 +24,6 @@ import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 
-// fallow-ignore-next-line unused-type
 export type UpdatePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   staffPublicApi: StaffPublicApi
@@ -225,5 +224,4 @@ export const updateProperty =
     }
   }
 
-// fallow-ignore-next-line unused-type
 export type UpdateProperty = ReturnType<typeof updateProperty>

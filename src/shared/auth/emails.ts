@@ -140,7 +140,6 @@ function resetPasswordEmailHtml(resetUrl: string): string {
 
 // ─── Organization Invitation Email ────────────────────────────────────
 
-// fallow-ignore-next-line unused-type
 export type InvitationEmailParams = Readonly<{
   email: string
   invitedByUsername: string

@@ -60,9 +60,6 @@ export function feedbackId(id: string): FeedbackId {
 export function teamId(id: string): TeamId {
   return id as TeamId
 }
-export function staffId(id: string): StaffId {
-  return id as StaffId
-}
 export function staffAssignmentId(id: string): StaffAssignmentId {
   return id as StaffAssignmentId
 }

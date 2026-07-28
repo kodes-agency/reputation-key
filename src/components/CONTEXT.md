@@ -33,6 +33,7 @@ components/
 5. **Props typing** — `type Props = Readonly<{ ... }>` for all components. **Exempt:** `ui/` (shadcn components use library defaults).
 6. **One concept per folder** — each sub-folder is a single user-facing concept (list, detail, form, widget).
 7. **Feature `shared/`** — components used across multiple concept folders within that feature. Not for cross-feature sharing (those go in `forms/` or `ui/`).
+8. **shadcn surface kept whole (BQC-5.8)** — `ui/` primitives are vendored shadcn/ui. Their full export surface is retained for upgrade fidelity, so fallow's `unused-exports`/`unused-types` rules are disabled for `src/components/ui/**` via one `overrides` entry in `.fallowrc.json` (no per-file suppression comments). New vendored primitives fall under the same policy automatically.
 
 ## Dependency rules
 

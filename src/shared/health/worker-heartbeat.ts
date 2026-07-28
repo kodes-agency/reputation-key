@@ -19,7 +19,7 @@ export type WorkerHeartbeat = Readonly<{
 }>
 
 /** Stale if missing or older than 2× health-check interval (10 min). */
-export const WORKER_HEARTBEAT_STALE_MS = 10 * 60 * 1000
+const WORKER_HEARTBEAT_STALE_MS = 10 * 60 * 1000
 
 export async function writeWorkerHeartbeat(
   redis: RedisHeartbeatPort | null | undefined,

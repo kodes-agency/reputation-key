@@ -169,7 +169,9 @@ async function setActiveOrg(orgId: string): Promise<void> {
 
 // ── Main container ─────────────────────────────────────────────────
 
-// fallow-ignore-next-line complexity — composition root: per-dependency override pattern is inherently branchy (was already over threshold on main; extraction would scatter the wiring)
+// Accepted residual (BQC-5.2/BQC-5.7): per-dependency override pattern is
+// inherently branchy; extraction would scatter the wiring. Owner: BQC-5.2.
+// fallow-ignore-next-line complexity
 export function createContainer(options?: {
   enableJobs?: boolean
   /** Override the database connection (simulations, per-test isolation). */

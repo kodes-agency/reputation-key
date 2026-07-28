@@ -9,7 +9,6 @@ export type FinalizeOrgLogoUploadInput = Readonly<{
   key: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type FinalizeOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
   /** Persist the logo URL on the organization via the auth provider. */
@@ -43,5 +42,4 @@ export const finalizeOrgLogoUpload =
     return { logoUrl }
   }
 
-// fallow-ignore-next-line unused-type
 export type FinalizeOrgLogoUpload = ReturnType<typeof finalizeOrgLogoUpload>

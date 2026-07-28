@@ -46,7 +46,7 @@ import { getActiveConsent } from './repositories/policy-consent.repository'
 import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
 
 /** Revocation/suspension bound: tenant policy state is at most this stale. */
-export const POLICY_REFRESH_INTERVAL_MS = 5_000
+const POLICY_REFRESH_INTERVAL_MS = 5_000
 
 export type PolicyStoreHandle = Readonly<{
   /** Version-gated strong read — await before decisions that must be fresh. */

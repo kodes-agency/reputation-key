@@ -10,7 +10,6 @@ import { identityError } from '../../domain/errors'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
 export type ResendInvitationInput = AcceptInvitationInput
 
-// fallow-ignore-next-line unused-type
 export type ResendInvitationOutput = Readonly<{
   success: boolean
 }>

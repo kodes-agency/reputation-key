@@ -19,13 +19,6 @@ export const normalizeSlug = (input: string): string =>
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
 
 /**
- * Validate a slug format against the shared slug pattern.
- * Returns the slug string on success, or the slug string on failure.
- * Consumers wrap this with their own error type.
- */
-export const isValidSlug = (slug: string): boolean => SLUG_PATTERN.test(slug)
-
-/**
  * Validate a slug, returning a Result with the provided error type on failure.
  * @param slug The slug to validate
  * @param makeError A function that creates the context-specific error

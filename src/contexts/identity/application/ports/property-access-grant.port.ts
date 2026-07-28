@@ -4,10 +4,15 @@
 // the application layer imports records from here (boundary rule); the
 // infrastructure repositories implement them.
 //
-// OrgPolicyRecord/PropertyPolicyRecord mirror the snapshot records in
-// shared/auth/persisted-policy-store (same shape, separate home: shared/auth
-// types are unreachable from application under the boundary rules). The
-// policy tables are the single source of truth for both.
+// OrgPolicyRecord/PropertyPolicyRecord are imported from
+// shared/domain/policy-records — the single home legal for application,
+// shared/auth, and infrastructure alike (BQC-5.8; previously mirrored here).
+// The policy tables are the single source of truth for both.
+
+import type {
+  OrgPolicyRecord,
+  PropertyPolicyRecord,
+} from '#/shared/domain/policy-records'
 
 export type GrantSource = 'operator' | 'migration' | 'invitation'
 
@@ -22,19 +27,6 @@ export type PropertyAccessGrantRecord = Readonly<{
   expiresAt: Date | null
   revokedAt: Date | null
   revokeReason: string | null
-}>
-
-export type OrgPolicyRecord = Readonly<{
-  organizationId: string
-  cohort: string
-  suspendedAt: Date | null
-  suspendedReason: string | null
-}>
-
-export type PropertyPolicyRecord = Readonly<{
-  propertyId: string
-  suspendedAt: Date | null
-  suspendedReason: string | null
 }>
 
 export type OrgPolicyState = Readonly<{

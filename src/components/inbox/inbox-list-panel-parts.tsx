@@ -36,7 +36,7 @@ export interface InboxListPanelProps {
   bulkUpdateFn: typeof bulkUpdateInboxStatusFn
 }
 
-export function InboxListSkeleton() {
+function InboxListSkeleton() {
   return (
     <div className="space-y-0">
       {Array.from({ length: 8 }).map((_, i) => (

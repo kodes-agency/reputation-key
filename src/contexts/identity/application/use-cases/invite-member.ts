@@ -14,7 +14,6 @@ import { identityError } from '../../domain/errors'
 import { identityMemberInvited } from '../../domain/events'
 import type { InviteMemberInput } from '../dto/invitation.dto'
 
-// fallow-ignore-next-line unused-type
 export type { InviteMemberInput }
 export type InviteMember = ReturnType<typeof inviteMember>
 

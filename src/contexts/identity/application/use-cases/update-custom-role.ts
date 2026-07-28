@@ -10,7 +10,6 @@ import { broadestScope } from '#/shared/domain/data-scope'
 import { identityError } from '../../domain/errors'
 import type { UpdateCustomRoleInput } from '../dto/custom-role.dto'
 
-// fallow-ignore-next-line unused-type
 export type { UpdateCustomRoleInput }
 export type UpdateCustomRole = ReturnType<typeof updateCustomRole>
 

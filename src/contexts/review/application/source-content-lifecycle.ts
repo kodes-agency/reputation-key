@@ -11,12 +11,11 @@ import type { SourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
   contentExpiresAtFromFetch,
   contentRefreshDueThreshold,
-  contentRefreshLeadMs,
   createGoogleSourceContentPolicy,
 } from '#/shared/domain/source-content-policy'
 import { computeReviewContentHash } from '../domain/rules'
 
-export { computeReviewContentHash, contentRefreshDueThreshold, contentRefreshLeadMs }
+export { computeReviewContentHash, contentRefreshDueThreshold }
 
 const DEFAULT_POLICY = createGoogleSourceContentPolicy()
 

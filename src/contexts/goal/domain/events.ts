@@ -14,7 +14,6 @@ import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys
 import type { GoalType } from './types'
 import { goalError } from './errors'
 
-// fallow-ignore-next-line unused-type
 export type GoalCompleted = Readonly<{
   _tag: 'goal.completed'
   eventId: string

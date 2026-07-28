@@ -46,7 +46,7 @@ export type ResponseError =
 export const MAX_TEXT_LENGTH = 2000
 export const MAX_RATING = 5
 export const MIN_RATING = 1
-export const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 
 export function createResponse(params: {
   id: string

@@ -5,7 +5,6 @@ import type { GbpImportRepository } from '#/contexts/integration/application/por
 import type { GbpImportJob } from '#/contexts/integration/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGbpImportRepo = GbpImportRepository &
   Readonly<{
     seed: (jobs: ReadonlyArray<GbpImportJob>) => void

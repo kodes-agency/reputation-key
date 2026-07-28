@@ -7,11 +7,7 @@ import { getAuth } from './auth'
 import type { AuthUser } from './auth'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { throwAuthError } from './auth-errors'
-import {
-  resolveTenant,
-  evictExpiredTenantEntries,
-  resetTenantResolutionCache,
-} from './tenant-resolver'
+import { resolveTenant, resetTenantResolutionCache } from './tenant-resolver'
 
 // The tenant-resolution pipeline (session decode → per-request memo → tenant-cache
 // freshness decision table → member + role strategy) lives in the TenantResolver
@@ -65,11 +61,6 @@ export async function requireAuth(headers: Headers): Promise<AuthUser> {
  */
 export async function resolveTenantContext(headers: Headers): Promise<AuthContext> {
   return resolveTenant(headers)
-}
-
-/** Evict expired entries from the tenant cache. No longer called unconditionally after every server function (see auth-caching plan). */
-export function clearTenantCache(): void {
-  evictExpiredTenantEntries()
 }
 
 /** Reset the tenant cache completely. Test-only. */

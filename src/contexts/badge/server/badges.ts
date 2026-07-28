@@ -19,10 +19,7 @@ import {
   badgeId,
   organizationId as toOrgId,
 } from '#/shared/domain/ids'
-import { standardErrorStatus } from '#/shared/http/status'
 import type { BadgeAwardWithTarget } from '../application/public-api'
-
-export const badgeErrorStatus = standardErrorStatus
 
 export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
   .inputValidator(getStaffVisibleBadgesSchema)

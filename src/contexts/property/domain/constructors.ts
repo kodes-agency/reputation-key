@@ -17,7 +17,6 @@ import {
 import { resolvePropertyRouting } from './processing-routing'
 import { ok } from '#/shared/domain'
 
-// fallow-ignore-next-line unused-type
 export type BuildPropertyInput = Readonly<{
   id: PropertyId
   organizationId: OrganizationId

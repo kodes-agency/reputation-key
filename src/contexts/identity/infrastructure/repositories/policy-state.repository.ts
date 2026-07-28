@@ -9,9 +9,11 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { BUMP_POLICY_VERSION_SQL } from './policy-version-sql'
 import type {
-  PolicySnapshot,
   OrgPolicyRecord,
   PropertyPolicyRecord,
+} from '#/shared/domain/policy-records'
+import type {
+  PolicySnapshot,
   OrgCapabilityRecord,
   PropertyCapabilityRecord,
 } from '#/shared/auth/persisted-policy-store'

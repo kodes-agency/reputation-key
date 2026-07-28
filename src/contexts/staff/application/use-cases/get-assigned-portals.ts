@@ -6,13 +6,11 @@ import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import { staffError } from '../../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
 
-// fallow-ignore-next-line unused-type
 export type GetAssignedPortalsInput = Readonly<{
   userId: UserId
   propertyId: PropertyId
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetAssignedPortalsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
 }>
@@ -47,5 +45,4 @@ export const getAssignedPortals =
     return portals
   }
 
-// fallow-ignore-next-line unused-type
 export type GetAssignedPortals = ReturnType<typeof getAssignedPortals>

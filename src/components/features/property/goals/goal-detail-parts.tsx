@@ -39,10 +39,7 @@ export function SummaryMetric({
   )
 }
 
-export function Detail({
-  term,
-  children,
-}: Readonly<{ term: string; children: ReactNode }>) {
+function Detail({ term, children }: Readonly<{ term: string; children: ReactNode }>) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-b p-4 last:border-b-0 sm:border-r sm:[&:nth-child(2n)]:border-r-0 lg:[&:nth-child(2n)]:border-r lg:[&:nth-child(3n)]:border-r-0">
       <dt className="text-xs font-medium text-muted-foreground">{term}</dt>
@@ -100,7 +97,7 @@ export function formatValue(value: number, unit: string): string {
   return unit ? `${formatted} ${unit}` : formatted
 }
 
-export function sentenceCase(value: string): string {
+function sentenceCase(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 

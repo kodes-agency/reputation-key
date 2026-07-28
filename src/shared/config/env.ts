@@ -123,7 +123,6 @@ const envSchema = z.object({
   PROCESSING_CELL: z.string().min(1).default('us'),
 })
 
-// fallow-ignore-next-line unused-type
 export type Env = z.infer<typeof envSchema>
 
 let _env: Env | undefined

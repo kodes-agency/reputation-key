@@ -12,12 +12,6 @@ export const MAX_PAGES_PER_RUN = 50
 /** Maximum wall-clock time per sync run (ms) before checkpointing. */
 export const MAX_RUN_DURATION_MS = 120_000 // 2 minutes
 
-/** Maximum reviews per page from the Google API. */
-export const PAGE_SIZE = 200
-
-/** Time budget for a single Google API page request before timeout. */
-export const PAGE_TIMEOUT_MS = 15_000
-
 /**
  * Bounded sync checkpoint — persisted between sync runs so an
  * interrupted import resumes at the correct position.

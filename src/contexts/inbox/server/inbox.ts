@@ -2,7 +2,6 @@
 export {
   getInboxItemsFn,
   getLastVisitCountFn,
-  stampLastInboxViewFn,
   getInboxFolderCountsFn,
 } from './inbox-queries'
 export {
@@ -11,5 +10,5 @@ export {
   escalateInboxItemFn,
   resolveEscalationFn,
 } from './inbox-status'
-export { assignInboxItemFn, addInboxNoteFn } from './inbox-item-actions'
+export { addInboxNoteFn } from './inbox-item-actions'
 export { getInboxItemDetailFn, getInboxNotesFn } from './inbox-item-queries'

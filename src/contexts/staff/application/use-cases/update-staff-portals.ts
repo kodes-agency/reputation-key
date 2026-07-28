@@ -24,14 +24,12 @@ import { buildStaffAssignment } from '../../domain/constructors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { staffAssignmentId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsInput = Readonly<{
   userId: UserId
   propertyId: PropertyId
   portalIds: ReadonlyArray<PortalId>
 }>
 
-// fallow-ignore-next-line unused-type
 export type UpdateStaffPortalsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   portalLookup: StaffPortalLookupPort

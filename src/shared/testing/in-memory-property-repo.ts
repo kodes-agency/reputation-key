@@ -6,7 +6,6 @@ import type { PropertyRepository } from '#/contexts/property/application/ports/p
 import type { Property } from '#/contexts/property/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryPropertyRepo = PropertyRepository &
   Readonly<{
     seed: (properties: ReadonlyArray<Property>) => void

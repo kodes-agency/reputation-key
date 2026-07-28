@@ -10,7 +10,6 @@ import { portalError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
-// fallow-ignore-next-line unused-type
 export type ListPortalGroupsDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   staffPublicApi: StaffPublicApi
@@ -43,5 +42,4 @@ export const listPortalGroups =
     return groups.filter((g) => accessible.includes(g.propertyId))
   }
 
-// fallow-ignore-next-line unused-type
 export type ListPortalGroups = ReturnType<typeof listPortalGroups>

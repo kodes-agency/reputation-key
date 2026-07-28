@@ -9,7 +9,6 @@ import { identityError } from '../../domain/errors'
 
 export type ListInvitationsInput = void
 
-// fallow-ignore-next-line unused-type
 export type ListInvitationsOutput = Readonly<{
   invitations: ReadonlyArray<InvitationRecord>
 }>

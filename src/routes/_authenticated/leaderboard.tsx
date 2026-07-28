@@ -122,7 +122,6 @@ export const Route = createFileRoute('/_authenticated/leaderboard')({
   component: StaffLeaderboardPage,
 })
 
-// fallow-ignore-next-line complexity — pre-existing component on main (BQC-2.6 touched only this file's beforeLoad gate, not the component)
 function StaffLeaderboardPage() {
   const {
     propertyId: searchPropertyId,

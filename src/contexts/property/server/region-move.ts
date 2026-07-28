@@ -5,6 +5,10 @@
 // RESULT — a denial is data ({ ok: false, reason }), never an exception:
 // beta has one approved cell ('us'), so every real request today resolves to
 // a typed denial + operator audit, with no region_moves row written.
+//
+// BQC-5.8 classification: B — catalogued entry point (entry-point-catalogue)
+// awaiting UI wiring. Reported as an unused file by fallow and suppressed via
+// .fallowrc.json ignoreFindings. Owner: BQC-6/7. Expiry: BQC-7 close.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'

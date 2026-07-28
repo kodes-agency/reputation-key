@@ -84,16 +84,6 @@ function evictOldestIfNeeded(): void {
   }
 }
 
-/** Evict expired entries from the tenant cache. No longer called unconditionally after every server function (see auth-caching plan). */
-export function evictExpiredTenantEntries(): void {
-  const now = Date.now()
-  for (const [key, entry] of tenantCache) {
-    if (now - entry.ts >= TENANT_CACHE_TTL_MS) {
-      tenantCache.delete(key)
-    }
-  }
-}
-
 /** Reset the tenant cache completely. Test-only. */
 export function resetTenantResolutionCache(): void {
   tenantCache.clear()

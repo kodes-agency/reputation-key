@@ -4,8 +4,8 @@
  * from `application/public-api` but NOT from `domain/`.
  *
  * DTOs, events, and select port types used by cross-context consumers
- * are exported here. Remaining port types live in
- * `application/internal-ports.ts` for internal/adapter use only.
+ * are exported here. Remaining port types are imported directly from
+ * `application/ports/` by the adapters that implement them.
  */
 export type { GoogleReview, StarRating } from '../domain/types'
 

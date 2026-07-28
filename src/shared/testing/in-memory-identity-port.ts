@@ -13,7 +13,6 @@ import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import { identityError } from '#/contexts/identity/domain/errors'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryIdentityPort = IdentityPort & {
   /** Seed members for testing. */
   seedMembers: (members: ReadonlyArray<MemberRecord>) => void

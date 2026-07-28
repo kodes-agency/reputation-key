@@ -18,7 +18,6 @@ export type RegisterUserAndOrgLogger = {
   error: (obj: object, message?: string) => void
 }
 
-// fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgInput = Readonly<{
   name: string
   email: string
@@ -26,7 +25,6 @@ export type RegisterUserAndOrgInput = Readonly<{
   organizationName: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type RegisterUserAndOrgOutput = Readonly<{
   organizationId: string
 }>

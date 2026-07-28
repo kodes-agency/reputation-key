@@ -2,7 +2,7 @@
 
 import { z } from 'zod/v4'
 
-export const leaderboardPeriodSchema = z.enum([
+const leaderboardPeriodSchema = z.enum([
   'today',
   'this_week',
   'this_month',
@@ -13,7 +13,7 @@ export const leaderboardPeriodSchema = z.enum([
   'last_90_days',
 ])
 
-export const leaderboardScopeSchema = z.enum(['portal', 'portal_group'])
+const leaderboardScopeSchema = z.enum(['portal', 'portal_group'])
 
 export const getLeaderboardSchema = z.object({
   propertyId: z.string().uuid(),

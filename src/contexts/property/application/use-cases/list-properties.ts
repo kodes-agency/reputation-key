@@ -10,7 +10,6 @@ import { propertyError } from '../../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 
-// fallow-ignore-next-line unused-type
 export type ListPropertiesDeps = Readonly<{
   propertyRepo: PropertyRepository
   staffApi: StaffPublicApi
@@ -40,5 +39,4 @@ export const listProperties =
     return all.filter((p) => idSet.has(p.id))
   }
 
-// fallow-ignore-next-line unused-type
 export type ListProperties = ReturnType<typeof listProperties>

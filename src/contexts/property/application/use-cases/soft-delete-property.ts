@@ -9,7 +9,6 @@ import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
 import { propertyDeleted } from '../../domain/events'
 
-// fallow-ignore-next-line unused-type
 export type DeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   commandStore: PropertyCommandStore
@@ -18,7 +17,6 @@ export type DeletePropertyDeps = Readonly<{
   sourceContentPurge?: SourceContentPurge
 }>
 
-// fallow-ignore-next-line unused-type
 export type DeletePropertyInput = Readonly<{
   propertyId: string
 }>
@@ -64,5 +62,4 @@ export const deleteProperty =
     })
   }
 
-// fallow-ignore-next-line unused-type
 export type DeletePropertyUseCase = ReturnType<typeof deleteProperty>

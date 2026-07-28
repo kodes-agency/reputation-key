@@ -1,5 +1,6 @@
 // Inbox page state hook — extracted from inbox-page-v2 for line-limit compliance.
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
+import { useIsMobile } from '#/components/hooks/use-mobile'
 import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
 import { useInboxKeyboardShortcuts } from '#/components/inbox/use-inbox-keyboard-shortcuts'
@@ -13,18 +14,6 @@ export type InboxPageNav = (o: {
   to: '.'
   search: (p: InboxSearchParams) => Partial<InboxSearchParams>
 }) => void
-
-export function useIsMobile() {
-  const [m, set] = useState(false)
-  useEffect(() => {
-    const q = window.matchMedia('(max-width: 767px)')
-    set(q.matches)
-    const h = (e: MediaQueryListEvent) => set(e.matches)
-    q.addEventListener('change', h)
-    return () => q.removeEventListener('change', h)
-  }, [])
-  return m
-}
 
 export function useInboxPage(
   orgId: string | undefined,

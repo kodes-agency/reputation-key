@@ -4,7 +4,6 @@
 
 import type { InvitationEmailParams } from '#/shared/auth/emails'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryEmailSender = ((params: InvitationEmailParams) => Promise<void>) & {
   /** All emails "sent" since the last clear. */
   readonly sentEmails: ReadonlyArray<InvitationEmailParams>

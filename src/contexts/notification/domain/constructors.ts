@@ -7,7 +7,6 @@ import type {
   NotificationType,
   NotificationPriority,
   NotificationResourceType,
-  NotificationStatus,
 } from './types'
 import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
@@ -17,17 +16,11 @@ import { isUrgent, NOTIFICATION_TYPES } from './types'
 
 export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
 
-export const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'inbox_item',
   'reply',
   'goal',
   'badge',
-])
-
-export const ALLOWED_STATUSES: ReadonlySet<NotificationStatus> = new Set([
-  'unread',
-  'read',
-  'dismissed',
 ])
 
 // ── Create notification ─────────────────────────────────────────────

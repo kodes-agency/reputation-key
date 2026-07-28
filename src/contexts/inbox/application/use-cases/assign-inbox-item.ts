@@ -18,7 +18,6 @@ export type AssignInboxItemInput = Readonly<{
   assignedToUserId: UserId | null
 }>
 
-// fallow-ignore-next-line unused-type
 export type AssignInboxItemDeps = Readonly<{
   repo: InboxRepository
   commandStore: InboxCommandStore
@@ -106,5 +105,4 @@ export const assignInboxItem =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type AssignInboxItem = ReturnType<typeof assignInboxItem>

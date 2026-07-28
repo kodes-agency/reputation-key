@@ -18,7 +18,6 @@ export type AddInboxNoteInput = Readonly<{
   text: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type AddInboxNoteDeps = Readonly<{
   repo: InboxRepository
   commandStore: InboxCommandStore
@@ -78,5 +77,4 @@ export const addInboxNote =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type AddInboxNote = ReturnType<typeof addInboxNote>

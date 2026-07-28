@@ -4,7 +4,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 
-export const RETENTION_POLICY_VERSION = 1
+const RETENTION_POLICY_VERSION = 1
 
 export async function openRetentionRun(
   db: Database,

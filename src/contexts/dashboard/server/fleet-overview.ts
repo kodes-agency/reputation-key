@@ -17,11 +17,9 @@ import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { isDashboardError } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
-import { standardErrorStatus } from '#/shared/http/status'
+import { standardErrorStatus as fleetOverviewErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
-
-export const fleetOverviewErrorStatus = standardErrorStatus
 
 const getFleetOverviewDto = z.object({
   // Operational default — the fleet overview answers "what needs my eye today".

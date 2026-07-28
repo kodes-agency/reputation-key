@@ -11,7 +11,6 @@ export type FinalizeAvatarUploadInput = Readonly<{
   key: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type FinalizeAvatarUploadDeps = Readonly<{
   storage: StoragePort
 }>
@@ -35,5 +34,4 @@ export const finalizeAvatarUpload =
     return { avatarUrl }
   }
 
-// fallow-ignore-next-line unused-type
 export type FinalizeAvatarUpload = ReturnType<typeof finalizeAvatarUpload>

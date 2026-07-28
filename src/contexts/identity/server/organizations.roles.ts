@@ -1,5 +1,9 @@
 // Custom role management server functions (ADR 0001, app-owned role writes).
 // The raw BA create-role endpoint is permanently blocked; this is the only write path.
+//
+// BQC-5.8 classification: B — catalogued entry points (entry-point-catalogue)
+// awaiting UI wiring. Reported as an unused file by fallow and suppressed via
+// .fallowrc.json ignoreFindings. Owner: BQC-6/7. Expiry: BQC-7 close.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'

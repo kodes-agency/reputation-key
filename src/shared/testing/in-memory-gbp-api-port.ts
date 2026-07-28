@@ -8,7 +8,6 @@ import type {
 import type { GbpLocation } from '#/contexts/integration/domain/types'
 import type { GbpApiError } from '#/contexts/integration/domain/gbp-api-error'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGbpApiPort = GbpApiPort &
   Readonly<{
     setAccounts: (accounts: ReadonlyArray<GbpAccount>) => void

@@ -9,12 +9,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type DeleteLinkCategoryInput = Readonly<{
   categoryId: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type DeleteLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -51,5 +49,4 @@ export const deleteLinkCategory =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type DeleteLinkCategory = ReturnType<typeof deleteLinkCategory>

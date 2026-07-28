@@ -8,7 +8,7 @@
 import { z } from 'zod/v4'
 
 /** Reusable role-name schema: 3–64 chars, lowercase, letter-led, no reserved names. */
-export const customRoleNameSchema = z
+const customRoleNameSchema = z
   .string()
   .min(3)
   .max(64)
@@ -20,8 +20,8 @@ export const customRoleNameSchema = z
     message: 'Role name is reserved',
   })
 
-export const dataScopeSchema = z.enum(['organization', 'assigned-properties', 'none'])
-export const permissionsSchema = z
+const dataScopeSchema = z.enum(['organization', 'assigned-properties', 'none'])
+const permissionsSchema = z
   .array(z.string().min(1))
   .min(1, 'At least one permission is required')
 
