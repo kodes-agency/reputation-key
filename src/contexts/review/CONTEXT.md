@@ -56,7 +56,8 @@ review/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
     ports/             review.repository.ts, reply.repository.ts, review-queue.port.ts,
-                       reply-queue.port.ts, google-review-api.port.ts
+                       reply-queue.port.ts, google-review-api.port.ts,
+                       serving-stats.port.ts (BQC-5.5 ReviewServingStats)
     dto/               sync-reviews.dto.ts
     use-cases/         sync-reviews.ts, reply-operations.ts, reconcile-reply-publication.ts
     ports/             review-command-store.port.ts, reply-command-store.port.ts (BQC-3.3), ...
@@ -64,6 +65,7 @@ review/
     internal-ports.ts  internal-only port re-exports (ReviewQueuePort, GoogleReviewApiPort)
   infrastructure/
     repositories/      review.repository.ts, reply.repository.ts (Drizzle)
+    serving-stats.ts   governed aggregate serving reads (BQC-5.5; eligibility in SQL)
     mappers/           review.mapper.ts, reply.mapper.ts
     event-handlers/    on-property-created.ts, index.ts
     jobs/              sync-property-reviews.job.ts, refresh-expiring-reviews.job.ts,
@@ -89,6 +91,7 @@ review/
 Exported from `application/public-api.ts`:
 
 - Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`, `StaffRecentReview`
+- BQC-5.5: `ReviewServingStats` — governed aggregate serving reads over review/reply content (ADR 0031 eligibility enforced at this owner, clock-injected). Composition wires the infrastructure implementation (`infrastructure/serving-stats.ts`) into the dashboard build; exposed on the build's `internal.servingStats`.
 - Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyRejected`, `ReviewReplyPublishFailed`, `ReviewExpired`, `ReviewEvent`
 - Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyRejected`, `reviewReplyPublishFailed`, `reviewExpired`
 

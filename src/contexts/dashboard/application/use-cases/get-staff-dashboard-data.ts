@@ -10,6 +10,7 @@ import type { OrganizationId, PropertyId, PortalId, UserId } from '#/shared/doma
 import type { StaffDashboardData } from '../../domain/types'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { priorPeriodDates } from '../utils'
 
 export type GetStaffDashboardDataInput = Readonly<{
   organizationId: OrganizationId
@@ -69,11 +70,11 @@ export const getStaffDashboardData =
     }
 
     // For 'all' time range, no meaningful prior period — skip trend comparison
-    const priorStartDate =
-      timeRange === 'all'
-        ? startDate
-        : new Date(startDate.getTime() - (endDate.getTime() - startDate.getTime()))
-    const priorEndDate = timeRange === 'all' ? endDate : new Date(startDate.getTime() - 1)
+    const { priorStartDate, priorEndDate } = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+    )
 
     const kpis = await deps.repo.getKPIsForPortals({
       organizationId,

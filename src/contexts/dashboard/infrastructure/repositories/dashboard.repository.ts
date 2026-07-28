@@ -20,7 +20,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
-import { computeTrend } from '../../application/utils'
+import { computeTrend, DEFAULT_RECENT_REVIEWS_LIMIT } from '../../application/utils'
 
 export const createDashboardRepository = (
   reviewStats: ReviewStatsPort,
@@ -28,7 +28,7 @@ export const createDashboardRepository = (
 ): DashboardRepository => ({
   async getRecentReviews(input): Promise<RecentReview[]> {
     return trace('dashboard.getRecentReviews', async () => {
-      const { organizationId, propertyId, limit = 5 } = input
+      const { organizationId, propertyId, limit = DEFAULT_RECENT_REVIEWS_LIMIT } = input
 
       const rows = await reviewStats.getRecentReviews(organizationId, propertyId, limit)
 

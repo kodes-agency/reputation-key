@@ -5,13 +5,18 @@
 import { describe, it, expect } from 'vitest'
 import { Pool } from 'pg'
 import { createDashboardRepository } from '../../infrastructure/repositories/dashboard.repository'
-import { createReviewStatsAdapter } from '../../infrastructure/adapters/review-stats.adapter'
+import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
 import { createMetricStatsAdapter } from '../../infrastructure/adapters/metric-stats.adapter'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 
 const MS_PER_DAY = 86_400_000
+
+// BQC-5.5: review stats come from the review-owned governed serving
+// implementation (what composition wires into the dashboard build).
+const createReviewStats = (db: Database) =>
+  createServingStats({ db, clock: () => new Date() })
 
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
@@ -140,7 +145,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRecentReviews({
@@ -166,7 +171,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRecentReviews({
@@ -193,7 +198,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRecentReviews({
@@ -219,7 +224,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRecentReviews({
@@ -247,7 +252,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRatingDistribution({
@@ -275,7 +280,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRatingDistribution({
@@ -324,7 +329,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const now = new Date()
@@ -373,7 +378,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const now = new Date()
@@ -428,7 +433,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getReplyPerformance({
@@ -452,7 +457,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getReplyPerformance({
@@ -482,7 +487,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRatingTrend({
@@ -517,7 +522,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getReviewVolume({
@@ -592,7 +597,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getEngagementFunnel({
@@ -624,7 +629,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const result = await repo.getRecentReviews({
@@ -660,7 +665,7 @@ describe('dashboardRepository (integration)', () => {
 
       const db = getDb()
       const repo = createDashboardRepository(
-        createReviewStatsAdapter(db),
+        createReviewStats(db),
         createMetricStatsAdapter(db),
       )
       const now = new Date()

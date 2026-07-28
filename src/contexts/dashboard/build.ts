@@ -3,13 +3,15 @@
 // Returns the public API surface of the dashboard context.
 //
 // Facade ports per ADR-0007: dashboard never queries review/reply/metric
-// tables directly — the build constructs the SQL adapters itself and the
-// dashboard repo only composes.
+// tables directly — BQC-5.5: review-content reads cross the review-owned
+// governed serving interface (wired by composition); the build constructs
+// only the remaining direct-read SQL adapters (metric/inbox/goal tables)
+// itself and the dashboard repo only composes.
 
 import type { Database } from '#/shared/db'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { ReviewServingStats } from '#/contexts/review/application/public-api'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
-import { createReviewStatsAdapter } from './infrastructure/adapters/review-stats.adapter'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from './infrastructure/adapters/portal-metrics.adapter'
 import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
@@ -26,6 +28,12 @@ export type DashboardContextBuildInput = Readonly<{
   db: Database
   staffPublicApi: StaffPublicApi
   clock: () => Date
+  /**
+   * BQC-5.5: review-owned governed serving stats (ADR 0031 eligibility
+   * enforced at the owner). Composition wires review.internal.servingStats
+   * here; structurally satisfies ReviewStatsPort.
+   */
+  reviewServingStats: ReviewServingStats
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -51,15 +59,15 @@ export type DashboardContextApi = Readonly<{
 export const buildDashboardContext = (
   input: DashboardContextBuildInput,
 ): DashboardContextApi => {
-  // Facade ports per ADR-0007 — SQL adapters are dashboard-owned
+  // Facade ports per ADR-0007 — review stats arrive governed from the review
+  // context (BQC-5.5); the remaining SQL adapters are dashboard-owned
   // infrastructure; the repo only composes.
-  const reviewStats = createReviewStatsAdapter(input.db)
   const metricStats = createMetricStatsAdapter(input.db)
   const portalMetrics = createPortalMetricsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
 
-  const dashboardRepo = createDashboardRepository(reviewStats, metricStats)
+  const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
 
   const getDashboard = getDashboardData({
     repo: dashboardRepo,

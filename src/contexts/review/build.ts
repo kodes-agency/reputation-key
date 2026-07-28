@@ -20,6 +20,8 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
+import { createServingStats } from './infrastructure/serving-stats'
+import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
 import { createAtomicReplyCommandStore } from './infrastructure/reply-command-store'
 import { syncReviews } from './application/use-cases/sync-reviews'
@@ -94,6 +96,12 @@ export type ReviewContextApi = Readonly<{
       reconcileReplyPublication: ReturnType<typeof reconcileReplyPublication>
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
     }>
+    /**
+     * BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
+     * eligibility enforced here). Composition passes this to foreign
+     * consumers (dashboard) as their review-stats dep port.
+     */
+    servingStats: ReviewServingStats
   }>
 }>
 
@@ -270,6 +278,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         replyQueue,
       },
       useCases,
+      // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
+      // clock-injected. Wired into the dashboard build by composition.
+      servingStats: createServingStats({ db: input.db, clock: input.clock }),
     },
   }
 }

@@ -30,6 +30,8 @@ import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
+import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
+import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
@@ -184,6 +186,11 @@ export function createContainer(options?: {
   queue?: Queue
   /** Override the background queue (simulations inject an in-memory queue). */
   backgroundQueue?: Queue
+  /** Override the ops domain-events read handle (simulations/tests inject an
+   * in-memory queue — the real one opens a dedicated Redis connection). */
+  opsDomainEventsQueue?: Queue
+  /** Override the ops quarantine read handle (same rationale). */
+  opsQuarantineQueue?: Queue
   /** Override the identity port (simulations use the in-memory identity fake). */
   identityPort?: IdentityPort
   /** Override the email sender (simulations capture emails instead of sending). */
@@ -421,12 +428,15 @@ export function createContainer(options?: {
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
-  // Dashboard never queries review/reply/metric tables directly — the
-  // dashboard build constructs its SQL adapters internally.
+  // Dashboard never queries review/reply/metric tables directly. BQC-5.5:
+  // review-content reads cross the review-owned governed serving interface
+  // (eligibility enforced at the owner, ADR 0031); the dashboard build
+  // constructs only its remaining direct-read SQL adapters internally.
   const dashboard = buildDashboardContext({
     db,
     staffPublicApi: staff.publicApi,
     clock,
+    reviewServingStats: review.internal.servingStats,
   })
 
   // ── Activity context ────────────────────────────────────────────
@@ -492,6 +502,33 @@ export function createContainer(options?: {
       }
     }
   })
+  // ── Operations snapshot (BQC-5.5) ─────────────────────────────────
+  // The ONE governed operational read interface. Ops queue read handles
+  // (domain-events + quarantine — worker-owned write side) are opened ONCE
+  // here, read-only, one Redis connection per queue per process; the
+  // /api/health/metrics route and the health-check job both consume these —
+  // no per-request or per-module duplicates.
+  const opsQueues = {
+    domainEvents:
+      options?.opsDomainEventsQueue ??
+      (redis ? createJobQueue('domain-events') : undefined),
+    quarantine:
+      options?.opsQuarantineQueue ??
+      (redis ? createJobQueue(QUARANTINE_QUEUE_NAME) : undefined),
+  } as const
+  const operationsSnapshot = createOperationsSnapshot({
+    db,
+    outboxRepo,
+    queues: {
+      default: infra.jobQueue ?? null,
+      background: infra.backgroundQueue ?? null,
+      domainEvents: opsQueues.domainEvents ?? null,
+      quarantine: opsQueues.quarantine ?? null,
+    },
+    redis: redis ?? null,
+    clock,
+  })
+
   return {
     db,
     logger,
@@ -499,6 +536,8 @@ export function createContainer(options?: {
     eventBus,
     outboxRepo,
     clock,
+    opsQueues,
+    operationsSnapshot,
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
