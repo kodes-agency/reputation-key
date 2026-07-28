@@ -26,7 +26,7 @@ components/
 
 ## Rules
 
-1. **Kebab-case filenames** — all `.tsx` and `.ts` files. Enforced by `scripts/check-filenames.mjs` on `pnpm lint`.
+1. **Kebab-case filenames** — all `.tsx` and `.ts` files. Co-located unit tests (`*.test.ts`) and stories (`*.stories.tsx`) are allowed. Enforced by `scripts/check-filenames.mjs` on `pnpm lint`.
 2. **Named exports only** — no default exports.
 3. **Barrel re-exports** — each feature has `index.ts` exporting only page-level components. Sub-components stay internal. ESLint `no-restricted-imports` blocks deep imports into feature internals.
 4. **Max 150 lines per file** — if a component exceeds this, extract sub-components into the same concept folder. **Exempt:** `ui/` (vendored shadcn code).

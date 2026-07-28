@@ -1,27 +1,19 @@
 // Identity context — update organization use case.
 // Moves authorization from server function into the use case layer.
+// The Better Auth payload semantics (field inclusion + null→undefined) live in
+// the OrganizationUpdatePatch builder (../organization-update-patch).
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { validateSlug, validateOrganizationName } from '../../domain/rules'
+import { buildOrganizationUpdatePatch } from '../organization-update-patch'
+import type { UpdateOrganizationInput } from '../organization-update-patch'
+
+export type { UpdateOrganizationInput } from '../organization-update-patch'
 
 export type UpdateOrganizationDeps = Readonly<{
   updateOrg: (data: Record<string, unknown>) => Promise<void>
-}>
-
-export type UpdateOrganizationInput = Readonly<{
-  name?: string
-  slug?: string
-  logo?: string | null
-  contactEmail?: string | null
-  billingCompanyName?: string | null
-  billingAddress?: string | null
-  billingCity?: string | null
-  billingPostalCode?: string | null
-  billingCountry?: string | null
-  /** Response SLA in hours for unanswered-review alerts. Positive integer. */
-  responseSlaHours?: number
 }>
 
 export const updateOrganization =
@@ -48,36 +40,8 @@ export const updateOrganization =
       }
     }
 
-    // 3. Build update payload — convert nulls to undefined for Better Auth
-    const updateData: Record<string, unknown> = {
-      ...(input.name && { name: input.name }),
-      ...(input.slug && { slug: input.slug }),
-      logo: input.logo ?? undefined,
-      ...(input.contactEmail !== undefined && {
-        contactEmail: input.contactEmail ?? undefined,
-      }),
-      ...(input.billingCompanyName !== undefined && {
-        billingCompanyName: input.billingCompanyName ?? undefined,
-      }),
-      ...(input.billingAddress !== undefined && {
-        billingAddress: input.billingAddress ?? undefined,
-      }),
-      ...(input.billingCity !== undefined && {
-        billingCity: input.billingCity ?? undefined,
-      }),
-      ...(input.billingPostalCode !== undefined && {
-        billingPostalCode: input.billingPostalCode ?? undefined,
-      }),
-      ...(input.billingCountry !== undefined && {
-        billingCountry: input.billingCountry ?? undefined,
-      }),
-      ...(input.responseSlaHours !== undefined && {
-        responseSlaHours: input.responseSlaHours,
-      }),
-    }
-
-    // 4. Delegate to auth provider
-    await deps.updateOrg(updateData)
+    // 3. Delegate to auth provider with the Better Auth payload
+    await deps.updateOrg(buildOrganizationUpdatePatch(input))
   }
 
 export type UpdateOrganization = ReturnType<typeof updateOrganization>

@@ -1,4 +1,7 @@
 // Identity context — update organization use case tests
+// Orchestration-level coverage: authorization, validation, and delegation.
+// The payload-shape cases (field inclusion + null→undefined) moved to
+// organization-update-patch.test.ts.
 
 import { describe, it, expect } from 'vitest'
 import { updateOrganization } from './update-organization'
@@ -54,7 +57,17 @@ describe('updateOrganization', () => {
     )
   })
 
-  it('converts null logo to undefined for Better Auth', async () => {
+  it('rejects an invalid slug and does not call the auth provider', async () => {
+    const { useCase, updateCalls } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(useCase({ slug: 'INVALID SLUG!' }, ctx)).rejects.toSatisfy(
+      (e: unknown) => isIdentityError(e),
+    )
+    expect(updateCalls).toHaveLength(0)
+  })
+
+  it('delegates the patch-builder payload to the auth provider', async () => {
     const { useCase, updateCalls } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -62,80 +75,5 @@ describe('updateOrganization', () => {
 
     expect(updateCalls).toHaveLength(1)
     expect(updateCalls[0].logo).toBeUndefined()
-  })
-
-  it('passes logo value when provided', async () => {
-    const { useCase, updateCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await useCase({ logo: 'https://example.com/logo.png' }, ctx)
-
-    expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].logo).toBe('https://example.com/logo.png')
-  })
-
-  it('converts null billing fields to undefined', async () => {
-    const { useCase, updateCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await useCase(
-      {
-        contactEmail: null,
-        billingCompanyName: null,
-        billingAddress: null,
-        billingCity: null,
-        billingPostalCode: null,
-        billingCountry: null,
-      },
-      ctx,
-    )
-
-    expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0]
-    expect(data.contactEmail).toBeUndefined()
-    expect(data.billingCompanyName).toBeUndefined()
-    expect(data.billingAddress).toBeUndefined()
-    expect(data.billingCity).toBeUndefined()
-    expect(data.billingPostalCode).toBeUndefined()
-    expect(data.billingCountry).toBeUndefined()
-  })
-
-  it('passes billing fields as strings when provided', async () => {
-    const { useCase, updateCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await useCase(
-      {
-        contactEmail: 'billing@test.com',
-        billingCompanyName: 'Test Corp',
-        billingAddress: '123 Billing St',
-        billingCity: 'Hong Kong',
-        billingPostalCode: '00000',
-        billingCountry: 'HK',
-      },
-      ctx,
-    )
-
-    expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0]
-    expect(data.contactEmail).toBe('billing@test.com')
-    expect(data.billingCompanyName).toBe('Test Corp')
-    expect(data.billingAddress).toBe('123 Billing St')
-    expect(data.billingCity).toBe('Hong Kong')
-    expect(data.billingPostalCode).toBe('00000')
-    expect(data.billingCountry).toBe('HK')
-  })
-
-  it('omits name and slug when not provided', async () => {
-    const { useCase, updateCalls } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await useCase({ logo: 'https://example.com/new-logo.png' }, ctx)
-
-    expect(updateCalls).toHaveLength(1)
-    const data = updateCalls[0]
-    expect(data).not.toHaveProperty('name')
-    expect(data).not.toHaveProperty('slug')
-    expect(data.logo).toBe('https://example.com/new-logo.png')
   })
 })

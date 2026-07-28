@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Enforces kebab-case naming for all component files.
-// Hooks (use-*.ts) are exempt.
+// Hooks (use-*.ts), story files (*.stories.tsx), and unit test files (*.test.ts) are exempt.
 // Run as: node scripts/check-filenames.mjs
 
 import { readdirSync, statSync } from 'node:fs'
@@ -13,6 +13,7 @@ const componentsDir = join(__dirname, '..', 'src', 'components')
 const KEBAB_CASE = /^[a-z][a-z0-9-]*\.(ts|tsx)$/
 const HOOK_PATTERN = /^use-[a-z][a-zA-Z0-9-]*\.ts$/
 const STORY_PATTERN = /^[a-z][a-z0-9-]*\.stories\.(ts|tsx)$/
+const TEST_PATTERN = /^[a-z][a-z0-9-]*\.test\.(ts|tsx)$/
 
 function walk(dir, relativePath = '') {
   const entries = readdirSync(dir, { withFileTypes: true })
@@ -42,6 +43,8 @@ for (const file of files) {
   if (file.includes('hooks') && HOOK_PATTERN.test(name)) continue
   // Story files (Component.stories.tsx) co-locate with components
   if (STORY_PATTERN.test(name)) continue
+  // Unit test files (module.test.ts) co-locate with the module under test
+  if (TEST_PATTERN.test(name)) continue
 
   if (!KEBAB_CASE.test(name)) {
     violations.push(file)

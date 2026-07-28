@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T14:24:29Z",
+  "updatedAt": "2026-07-28T15:51:06Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6 implementation_complete: cross-context/privacy cleanup — guest no longer depends on portal's error taxonomy (typed PublicPortalBySlugOutcome replaces the isPortalError stopgap); shared events/queries verified inverted and pinned (type-only union scan); content-free facts register pinned (3 BQC-1 behavior gaps registered, not fixed); dark contexts verified barrel-free and gate-pinned. Slices 5.7–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7 implementation_complete: complexity burn-down — full triage re-baseline (33 real findings, not the stale 120) with the enabled P0/P1 hotspots closed via decision tables and deep modules (resolveTenantContext suppression REMOVED; listGbpLocations; updateOrganization; useInboxDetail; StaffHomePage; buildGoal — the repo's worst function — as the one sanctioned dark exception). BQC-1/BQC-3-owned hotspots returned to their owners; bootstrap/worker out of scope. Slices 5.8–5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.7",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Complexity burn-down",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Triage first: the phase-doc '120 findings' baseline is stale — at HEAD there were 33 (26 unsuppressed + 7 suppressed); the register ranks all 33 across the doc's 5 buckets + out-of-scope, and corrects stale hotspots (MembersSettingsRoute, GoalCreatePreview, AuthenticatedLayout are no longer over threshold). Closed the enabled P0/P1 set with decision tables/deep modules (no one-line pass-throughs; each verified by before/after fallow health — 26+1 suppressed → 21, zero new findings): P0-1 resolveTenantContext → deep TenantResolver (pure freshness decision table + role strategy; the :161 fallow-ignore REMOVED; 46 caller files stopped knowing cache-key/TTL/permission_version/custom-roles); P0-2 listGbpLocations → ActiveConnectionTokenProvider (expiry decision table) + GbpLocationFetchStrategy (retry decision table); P1-1 updateOrganization → OrganizationUpdatePatch field-inclusion table; P1-2 useInboxDetail → InboxCachePolicy (key topology + 2.5s BullMQ-lag + reply-poll predicate); P1-3 StaffHomePage → useStaffHomeData (empty-state decision table); P2-dark buildGoal (cc 43/cog 57 — the repo's worst function) → declarative GOAL_TYPE_RULES decision table (error codes/messages byte-identical). Tests moved to the new interfaces (unit 383f/4206t incl. ~90 moved/new cases). Returned to owners, not reimplemented: mirrorReply/syncOneReview (BQC-1/BQC-3 accepted lifecycle module), bootstrap/worker/index (BQC-3), validateOperatorCommand (zero importers — BQC-5.8). Recorded: createContainer as accepted residual (deliberate 5.2 suppression), 16 dark findings, test-file unit-size entries. Also recorded: the two CRAP-critical dark UI items (parseColorString, chart.tsx) are cheapest closed by coverage — deferred with bucket 5. Gates: unit 383f/4206t, integration 51f/314t, storybook 74f/379t, typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.6",

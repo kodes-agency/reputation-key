@@ -14,11 +14,11 @@ import {
   isValidMetricKeyForScope,
   isValidAggregationForMetric,
 } from '#/shared/domain/metric-keys'
-import { assertNever } from '#/shared/domain/assert'
 import type { Goal, GoalType, RecurrenceRule } from './types'
 import { deriveEntityScope } from './types'
 import { ok, err, type Result } from '#/shared/domain'
 import { goalError, type GoalError } from './errors'
+import { firstGoalTypeRuleViolation, type GoalTemporalInput } from './goal-type-rules'
 
 // ── Input type ───────────────────────────────────────────────────────────
 
@@ -44,6 +44,18 @@ export type BuildGoalInput = Readonly<{
 }>
 
 // ── Constructor ──────────────────────────────────────────────────────────
+
+/** Normalize the optional temporal fields (undefined → null) for the rules + entity. */
+function normalizeTemporalFields(input: BuildGoalInput): GoalTemporalInput {
+  return {
+    goalType: input.goalType,
+    periodStart: input.periodStart ?? null,
+    periodEnd: input.periodEnd ?? null,
+    recurrenceRule: input.recurrenceRule ?? null,
+    rollingWindowDays: input.rollingWindowDays ?? null,
+    parentGoalId: input.parentGoalId ?? null,
+  }
+}
 
 export function buildGoal(input: BuildGoalInput): Result<Goal, GoalError> {
   const scope = deriveEntityScope(input)
@@ -89,129 +101,12 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalError> {
     )
   }
 
-  const periodStart = input.periodStart ?? null
-  const periodEnd = input.periodEnd ?? null
-  const recurrenceRule = input.recurrenceRule ?? null
-  const rollingWindowDays = input.rollingWindowDays ?? null
-
-  // Goal type rules
-  switch (input.goalType) {
-    case 'open': {
-      if (periodStart || periodEnd)
-        return err(
-          goalError('period_not_allowed', 'Period not allowed for open goals', {
-            goalType: 'open',
-          }),
-        )
-      if (rollingWindowDays !== null)
-        return err(
-          goalError(
-            'rolling_window_not_allowed',
-            'Rolling window not allowed for open goals',
-            { goalType: 'open' },
-          ),
-        )
-      if (recurrenceRule)
-        return err(
-          goalError(
-            'recurrence_rule_not_allowed',
-            'Recurrence rule not allowed for open goals',
-            { goalType: 'open' },
-          ),
-        )
-      break
-    }
-    case 'one_shot': {
-      if (!periodStart || !periodEnd)
-        return err(
-          goalError('period_required', 'Period required for one-shot goals', {
-            goalType: 'one_shot',
-          }),
-        )
-      if (periodEnd <= periodStart)
-        return err(goalError('invalid_period', 'periodEnd must be after periodStart'))
-      if (rollingWindowDays !== null)
-        return err(
-          goalError(
-            'rolling_window_not_allowed',
-            'Rolling window not allowed for one-shot goals',
-            { goalType: 'one_shot' },
-          ),
-        )
-      if (recurrenceRule)
-        return err(
-          goalError(
-            'recurrence_rule_not_allowed',
-            'Recurrence rule not allowed for one-shot goals',
-            { goalType: 'one_shot' },
-          ),
-        )
-      break
-    }
-    case 'rolling': {
-      if (!rollingWindowDays || rollingWindowDays <= 0)
-        return err(
-          goalError(
-            'rolling_window_required',
-            'Rolling window required for rolling goals',
-          ),
-        )
-      if (periodStart || periodEnd)
-        return err(
-          goalError('period_not_allowed', 'Period not allowed for rolling goals', {
-            goalType: 'rolling',
-          }),
-        )
-      if (recurrenceRule)
-        return err(
-          goalError(
-            'recurrence_rule_not_allowed',
-            'Recurrence rule not allowed for rolling goals',
-            { goalType: 'rolling' },
-          ),
-        )
-      break
-    }
-    case 'recurring': {
-      if (!recurrenceRule)
-        return err(
-          goalError(
-            'recurrence_rule_required',
-            'Recurrence rule required for recurring goals',
-          ),
-        )
-      // Template (no parentGoalId) cannot have period dates;
-      // Instances (parentGoalId set) must have period dates.
-      const parentGoalId = input.parentGoalId ?? null
-      if (!parentGoalId && (periodStart || periodEnd))
-        return err(
-          goalError('period_not_allowed', 'Period not allowed for recurring templates', {
-            goalType: 'recurring',
-          }),
-        )
-      if (parentGoalId) {
-        if (!periodStart || !periodEnd)
-          return err(
-            goalError('period_required', 'Period required for recurring instances', {
-              goalType: 'recurring',
-            }),
-          )
-        if (periodEnd <= periodStart)
-          return err(goalError('invalid_period', 'periodEnd must be after periodStart'))
-      }
-      if (rollingWindowDays !== null)
-        return err(
-          goalError(
-            'rolling_window_not_allowed',
-            'Rolling window not allowed for recurring goals',
-            { goalType: 'recurring' },
-          ),
-        )
-      break
-    }
-    default: {
-      assertNever('goalType', input.goalType)
-    }
+  // Goal type rules — the decision table (./goal-type-rules) owns the per-type
+  // temporal validation (period × rolling window × recurrence rule × parent).
+  const temporal = normalizeTemporalFields(input)
+  const violation = firstGoalTypeRuleViolation(temporal)
+  if (violation) {
+    return err(violation)
   }
 
   return ok({
@@ -228,11 +123,11 @@ export function buildGoal(input: BuildGoalInput): Result<Goal, GoalError> {
     metricKey: input.metricKey,
     targetValue: input.targetValue,
     status: 'active',
-    periodStart,
-    periodEnd,
-    recurrenceRule,
-    rollingWindowDays,
-    parentGoalId: input.parentGoalId ?? null,
+    periodStart: temporal.periodStart,
+    periodEnd: temporal.periodEnd,
+    recurrenceRule: temporal.recurrenceRule,
+    rollingWindowDays: temporal.rollingWindowDays,
+    parentGoalId: temporal.parentGoalId,
     completedAt: null,
     createdAt: input.now,
     updatedAt: input.now,
