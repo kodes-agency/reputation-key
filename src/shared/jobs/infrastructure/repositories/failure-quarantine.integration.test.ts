@@ -10,19 +10,21 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Queue, type Job } from 'bullmq'
-import { Redis } from 'ioredis'
 import {
   quarantineExhaustedJob,
   createRedriveJob,
   listQuarantinedJobs,
 } from '#/shared/jobs/failure-quarantine'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import {
+  acquireRedisTestLease,
+  type RedisTestLease,
+} from '#/shared/testing/redis-test-lease'
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 const QUARANTINE = 'bqc36-it-quarantine'
 const TARGET = 'bqc36-it-default'
 
-let redis: Redis | undefined
+let redisLease: RedisTestLease | undefined
 let redisAvailable = false
 let quarantineQueue: Queue | undefined
 let targetQueue: Queue | undefined
@@ -37,14 +39,12 @@ async function obliterateQuietly(queue: Queue | undefined): Promise<void> {
 }
 
 beforeAll(async () => {
-  redis = new Redis(REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 2000 })
-  try {
-    await redis.ping()
-    redisAvailable = true
-  } catch {
-    redisAvailable = false
-    return
-  }
+  // BQC-6.1: lease-guarded Redis — refuses remote/managed hosts; skips cleanly
+  // when the local Redis is unavailable. Obliterates suite-unique queues only.
+  redisLease = await acquireRedisTestLease()
+  redisAvailable = redisLease.available
+  const redis = redisLease.redis
+  if (!redisAvailable || !redis) return
   const connection = redis as unknown as import('bullmq').ConnectionOptions
   quarantineQueue = new Queue(QUARANTINE, { connection })
   targetQueue = new Queue(TARGET, { connection })
@@ -57,7 +57,7 @@ afterAll(async () => {
   await obliterateQuietly(targetQueue)
   await quarantineQueue?.close()
   await targetQueue?.close()
-  redis?.disconnect()
+  redisLease?.release()
 })
 
 function exhaustedJob(): Job {

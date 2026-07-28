@@ -2,11 +2,14 @@ import { defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
+import { testEnvironment } from './src/shared/testing/test-environment'
 
 // B0.3: Do NOT load .env here — Vitest must not inherit developer .env
-// files that may point to a remote/production database. Test env vars are
-// set explicitly in the project env block below. CI sets them via the
-// workflow env: key.
+// files that may point to a remote/production database. Test env vars come
+// from the canonical builder (src/shared/testing/test-environment.ts, BQC-6.1)
+// spread into each project env block below: deterministic non-empty values in
+// a bare shell, with documented passthroughs (TEST_DATABASE_URL, REDIS_URL,
+// Google credentials, ENCRYPTION_KEY) for explicit shell/CI overrides.
 
 // The storybook browser project is only included when VITEST_STORYBOOK=true,
 // which the @storybook/addon-vitest manager sets at module load (it runs inside
@@ -71,19 +74,9 @@ export default defineConfig({
           maxWorkers: 4,
           testTimeout: 30_000,
           env: {
-            NODE_ENV: 'test',
-            DATABASE_URL:
-              process.env.TEST_DATABASE_URL ??
-              'postgresql://test:test@localhost:5432/test',
-            BETTER_AUTH_SECRET: 'test-test-test-test-test-test-test-test',
-            BETTER_AUTH_URL: 'http://localhost:3000',
-            RESEND_API_KEY: 're_test_key_for_testing_only',
-            GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
-            GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
-            ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? 'a'.repeat(64),
-            OAUTH_STATE_SECRET: 'ab'.repeat(32),
+            // BQC-6.1: canonical deterministic test env (bare shell runs green).
+            ...testEnvironment(),
             ALLOW_DESTRUCTIVE_DB_TESTS: '1',
-            REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
           },
         },
       },
@@ -100,23 +93,16 @@ export default defineConfig({
             'src/shared/db/migration-verification.test.ts',
           ],
           setupFiles: ['src/test-setup.ts'],
+          // BQC-6.1: create + migrate the scratch database before the suite
+          // (idempotent — fast-skips when the deploy migration state is present).
+          globalSetup: ['src/shared/testing/integration-global-setup.ts'],
           pool: 'forks',
           maxWorkers: 1,
           testTimeout: 30_000,
           env: {
-            NODE_ENV: 'test',
-            DATABASE_URL:
-              process.env.TEST_DATABASE_URL ??
-              'postgresql://test:test@localhost:5432/test',
-            BETTER_AUTH_SECRET: 'test-test-test-test-test-test-test-test',
-            BETTER_AUTH_URL: 'http://localhost:3000',
-            RESEND_API_KEY: 're_test_key_for_testing_only',
-            GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
-            GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
-            ENCRYPTION_KEY: process.env.ENCRYPTION_KEY ?? 'a'.repeat(64),
-            OAUTH_STATE_SECRET: 'ab'.repeat(32),
+            // BQC-6.1: canonical deterministic test env (bare shell runs green).
+            ...testEnvironment(),
             ALLOW_DESTRUCTIVE_DB_TESTS: '1',
-            REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
           },
         },
       },

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { testEnvironment } from './src/shared/testing/test-environment'
 
 // CI previously used retries: 2. With a missing seed user every test timed out
 // at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e.
@@ -13,6 +14,10 @@ export default defineConfig({
     reuseExistingServer: !isCi,
     timeout: 180_000,
     env: {
+      // BQC-6.1: deterministic test-env floor for the dev server — explicit
+      // shell/CI values win (spread last), matching the previous behavior of
+      // inheriting the job env verbatim.
+      ...testEnvironment(),
       ...process.env,
     },
   },

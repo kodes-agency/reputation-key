@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   acquireTestLease,
   validateTestDatabaseUrl,
+  validateTestDatabaseTarget,
   TestEnvironmentError,
 } from './test-environment-lease'
 
@@ -60,13 +61,18 @@ describe('TestEnvironmentLease', () => {
       ).toThrow(TestEnvironmentError)
     })
 
-    it('rejects railway.app host', () => {
+    it('rejects railway hosts', () => {
+      // railway.app matches the denylist directly.
+      expect(() =>
+        validateTestDatabaseUrl('postgresql://user:pass@db.up.railway.app:5432/railway'),
+      ).toThrow(TestEnvironmentError)
+      // monorail.proxy.rlwy.net doesn't match "railway.app" — BQC-6.1 refuses
+      // it anyway via the localhost requirement (remote_host_refused).
       expect(() =>
         validateTestDatabaseUrl(
           'postgresql://user:pass@monorail.proxy.rlwy.net:6543/railway',
         ),
-      ).not.toThrow()
-      // monorail.proxy.rlwy.net doesn't match "railway.app" — this is correct
+      ).toThrow(TestEnvironmentError)
     })
 
     it('rejects supabase.co host', () => {
@@ -116,6 +122,69 @@ describe('TestEnvironmentLease', () => {
 
     it('rejects invalid URL', () => {
       expect(() => validateTestDatabaseUrl('not-a-url')).toThrow(TestEnvironmentError)
+    })
+  })
+
+  describe('localhost requirement (BQC-6.1)', () => {
+    beforeEach(() => {
+      process.env.NODE_ENV = 'test'
+      process.env.ALLOW_DESTRUCTIVE_DB_TESTS = '1'
+      delete process.env.ALLOW_REMOTE_TEST_DB
+    })
+
+    it('refuses a non-local host, names it, and codes the refusal', () => {
+      let error: unknown
+      try {
+        validateTestDatabaseUrl('postgresql://user:pass@db.example.com:5432/test')
+      } catch (e) {
+        error = e
+      }
+      expect(error).toBeInstanceOf(TestEnvironmentError)
+      expect(error).toMatchObject({ code: 'remote_host_refused' })
+      expect((error as Error).message).toContain('db.example.com')
+    })
+
+    it('accepts localhost, 127.0.0.1, ::1, and unix-socket targets', () => {
+      expect(() =>
+        validateTestDatabaseUrl('postgresql://test:test@localhost:5432/test'),
+      ).not.toThrow()
+      expect(() =>
+        validateTestDatabaseUrl('postgresql://test:test@127.0.0.1:5432/test'),
+      ).not.toThrow()
+      expect(() =>
+        validateTestDatabaseUrl('postgresql://test:test@[::1]:5432/test'),
+      ).not.toThrow()
+      expect(() => validateTestDatabaseUrl('postgresql:///test')).not.toThrow()
+    })
+
+    it('honors ALLOW_REMOTE_TEST_DB=1 for a non-denylisted remote host', () => {
+      process.env.ALLOW_REMOTE_TEST_DB = '1'
+      expect(() =>
+        validateTestDatabaseUrl('postgresql://user:pass@db.example.com:5432/test'),
+      ).not.toThrow()
+    })
+
+    it('still applies the denylist when ALLOW_REMOTE_TEST_DB=1', () => {
+      process.env.ALLOW_REMOTE_TEST_DB = '1'
+      expect(() =>
+        validateTestDatabaseUrl(
+          'postgresql://user:pass@ep-cool.us-east-2.aws.neon.tech/dbname',
+        ),
+      ).toThrow(TestEnvironmentError)
+    })
+
+    it('validateTestDatabaseTarget guards host/name without the destructive-test env flags', () => {
+      delete process.env.NODE_ENV
+      delete process.env.ALLOW_DESTRUCTIVE_DB_TESTS
+      expect(() =>
+        validateTestDatabaseTarget('postgresql://test:test@localhost:5432/test'),
+      ).not.toThrow()
+      expect(() =>
+        validateTestDatabaseTarget('postgresql://user:pass@db.example.com:5432/test'),
+      ).toThrow(TestEnvironmentError)
+      expect(() =>
+        validateTestDatabaseTarget('postgresql://test:test@localhost:5432/prod'),
+      ).toThrow(TestEnvironmentError)
     })
   })
 })

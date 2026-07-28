@@ -17,6 +17,10 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue, type InMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
+import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
+import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 
@@ -250,5 +254,72 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   it('exposes policyAdmin with its operation keys', () => {
     expect(container.policyAdmin).toBeDefined()
     expect(Object.keys(container.policyAdmin).sort()).toEqual(EXPECTED_POLICY_ADMIN_OPS)
+  })
+})
+
+describe('provider DI slots (BQC-6.1)', () => {
+  // Build a second container with the same deterministic backends plus the
+  // provider overrides under test.
+  function buildWithProviders(providers: {
+    googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
+    gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
+    storage?: StoragePort
+  }): Container {
+    const clock: Clock = () => FIXED_DATE
+    // createContainer registers all event schemas at construction; the
+    // registry is process-global and single-shot, so each additional
+    // construction in this describe starts from a clean registry.
+    clearEventSchemas()
+    return createContainer({
+      clock,
+      queue: createInMemoryQueue({ clock }),
+      backgroundQueue: createInMemoryQueue({ clock }),
+      opsDomainEventsQueue: createInMemoryQueue({ clock }),
+      opsQuarantineQueue: createInMemoryQueue({ clock }),
+      redis: undefined,
+      enableJobs: true,
+      db: dbStub,
+      identityPort: createInMemoryIdentityPort(),
+      email: async () => {},
+      providers,
+    })
+  }
+
+  const fakeStorage: StoragePort = {
+    createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
+    confirmUpload: async (key) => `memory://${key}`,
+    deleteObject: async () => {},
+    getPublicUrl: (key) => `memory://${key}`,
+    putObject: async () => {},
+  }
+
+  it('leaves defaults unchanged when no providers are injected', () => {
+    // Built WITHOUT providers: same pinned shape; the default env-driven
+    // adapters are present.
+    const defaults = buildWithProviders({})
+    expect(defaults.storage).toBeDefined()
+    expect(defaults.googleReviewApi).toBeDefined()
+    expect(defaults.storage.createPresignedUploadUrl).toBeDefined()
+  })
+
+  it('honors injected provider overrides without changing the container shape', () => {
+    const withProviders = buildWithProviders({
+      googleOAuth: createInMemoryGoogleOAuthPort(),
+      gbpApi: createInMemoryGbpApiPort(),
+      storage: fakeStorage,
+    })
+    // Storage is observable at the container boundary — the injected fake wins.
+    expect(withProviders.storage).toBe(fakeStorage)
+    // googleOAuth/gbpApi thread into the integration build (proven at the
+    // build seam in src/contexts/integration/build.test.ts); the external
+    // container shape is byte-identical either way.
+    expect(Object.keys(withProviders).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)
+    expect(Object.keys(withProviders.useCases).sort()).toEqual(EXPECTED_USE_CASE_KEYS)
+  })
+
+  it('defaults and overrides produce the same top-level and useCases keys', () => {
+    const withProviders = buildWithProviders({})
+    expect(withProviders.storage).not.toBe(fakeStorage)
+    expect(Object.keys(withProviders).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)
   })
 })

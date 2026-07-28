@@ -12,6 +12,7 @@ import { createPortalLinkRepository } from './infrastructure/repositories/portal
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
+import type { StoragePort } from './application/ports/storage.port'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { getPortal } from './application/use-cases/get-portal'
@@ -56,6 +57,9 @@ type PortalContextDeps = Readonly<{
     bucketName: string
     region: string
   }>
+  /** BQC-6.1: optional storage adapter override (simulations/tests inject an
+   * in-memory storage; absent = the S3 adapter built from storageConfig). */
+  storage?: StoragePort
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
@@ -63,12 +67,14 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const linkResolver = createLinkResolverPort(deps.db)
-  const storage = createS3StorageAdapter({
-    accessKey: deps.storageConfig.accessKey,
-    secretKey: deps.storageConfig.secretKey,
-    bucketName: deps.storageConfig.bucketName,
-    region: deps.storageConfig.region,
-  })
+  const storage =
+    deps.storage ??
+    createS3StorageAdapter({
+      accessKey: deps.storageConfig.accessKey,
+      secretKey: deps.storageConfig.secretKey,
+      bucketName: deps.storageConfig.bucketName,
+      region: deps.storageConfig.region,
+    })
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()

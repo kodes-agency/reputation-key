@@ -70,8 +70,11 @@ import {
 } from 'vitest'
 import { createServer } from 'node:net'
 import { Queue, type Job } from 'bullmq'
-import { Redis } from 'ioredis'
 import { sql } from 'drizzle-orm'
+import {
+  acquireRedisTestLease,
+  type RedisTestLease,
+} from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
@@ -118,8 +121,6 @@ import { createReplyRepository } from '#/contexts/review/infrastructure/reposito
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
-
 // Queue names are unique to this suite — the shared Redis hosts other suites'
 // queues, and BullMQ cross-talk is ruled out by name.
 const QUEUE_A = 'bqc46-it-a-domain-events'
@@ -149,7 +150,7 @@ const POLICY_ALLOW: DelayedDecision = {
   freshRead: true,
 }
 
-let redis: Redis | undefined
+let redisLease: RedisTestLease | undefined
 let redisAvailable = false
 const queues: Partial<Record<string, Queue>> = {}
 
@@ -169,14 +170,12 @@ async function obliterateQuietly(queue: Queue | undefined): Promise<void> {
 }
 
 beforeAll(async () => {
-  redis = new Redis(REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 2000 })
-  try {
-    await redis.ping()
-    redisAvailable = true
-  } catch {
-    redisAvailable = false
-    return
-  }
+  // BQC-6.1: lease-guarded Redis — refuses remote/managed hosts; skips cleanly
+  // when the local Redis is unavailable. Obliterates suite-unique queues only.
+  redisLease = await acquireRedisTestLease()
+  redisAvailable = redisLease.available
+  const redis = redisLease.redis
+  if (!redisAvailable || !redis) return
   const connection = redis as unknown as import('bullmq').ConnectionOptions
   for (const name of [
     QUEUE_A,
@@ -197,7 +196,7 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const name of Object.keys(queues)) await obliterateQuietly(queues[name])
   for (const name of Object.keys(queues)) await queues[name]?.close()
-  redis?.disconnect()
+  redisLease?.release()
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${OUTBOX_ORG}`)
 })
 
