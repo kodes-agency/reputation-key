@@ -1,60 +1,36 @@
 import { config } from 'dotenv'
 import { defineConfig } from 'drizzle-kit'
+import { getTableName, isTable } from 'drizzle-orm'
+import * as migratable from './src/shared/db/schema/migratable'
 
 config({ path: ['.env.local', '.env'] })
 
+// The migratable barrel IS the boundary: all 60 app-owned tables. Auth
+// tables (user, session, account, verification, organization, member,
+// invitation, organizationRole) are excluded by the barrel and managed by
+// `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the
+// barrel (never a second hand-maintained list): db:push introspects only
+// these tables — without it, push pulls the auth tables, hits interactive
+// rename/conflict prompts, and dies in non-TTY shells (simulation.yml).
+const managedTables = Object.values(migratable).filter(isTable).map(getTableName)
+
 export default defineConfig({
   out: './drizzle',
-  // Business tables only — auth tables (user, session, account, verification,
-  // organization, member, invitation) are managed by `pnpm auth:migrate`.
-  schema: './src/shared/db/schema/business.ts',
+  schema: './src/shared/db/schema/migratable.ts',
   dialect: 'postgresql',
   dbCredentials: {
     url: process.env.DATABASE_URL,
   },
-  // Drizzle manages business + DAC tables only. Auth tables (user, session,
-  // account, verification, organization, member, invitation, organizationRole)
-  // are managed by `pnpm auth:migrate` (Better Auth CLI) and are excluded here.
-  // Migrate-based workflow: edit schema -> `pnpm db:generate` -> commit drizzle/
-  // -> `pnpm db:migrate` (deploy). Do NOT use db:push on business tables — it
-  // bypasses the journal and was the root cause of the prior schema drift.
-  // Deploy apply order: `pnpm auth:migrate` -> `pnpm db:migrate` -> raw-SQL
-  // sidecars in scripts/migrations/ (materialized views; DAC triggers /
-  // organizationRole index / last-owner — objects Drizzle cannot express).
-  tablesFilter: [
-    'properties',
-    'permission_version',
-    'organization_role_policy',
-    'teams',
-    'staff_assignments',
-    'audit_logs',
-    'portals',
-    'portal_groups',
-    'portal_link_categories',
-    'portal_links',
-    'feedback',
-    'ratings',
-    'scan_events',
-    'google_connections',
-    'gbp_cache',
-    'gbp_import_jobs',
-    'reviews',
-    'replies',
-    'inbox_items',
-    'inbox_notes',
-    'metric_definitions',
-    'metric_readings',
-    'badge_definitions',
-    'organization_badge_enablements',
-    'badge_awards',
-    'leaderboard_snapshots',
-    'leaderboard_entries',
-    'goals',
-    'activity_log',
-    'notifications',
-    'notification_email_queue',
-    'notification_preferences',
-    'outbox_events',
-    'event_consumer_receipts',
-  ],
+  tablesFilter: managedTables,
+  // Schema authority (BQC-5.4): the migration SQL track (this journal +
+  // better-auth CLI + registered deploy sidecars) is authoritative; the
+  // Drizzle model is verified semantically against the migrated metadata by
+  // src/shared/db/migration-verification.test.ts. Migrate-based workflow:
+  // edit schema -> `pnpm db:generate` -> commit drizzle/ -> `pnpm db:migrate`
+  // (deploy). Do NOT use db:push — it bypasses the journal and was the root
+  // cause of the prior schema drift. Deploy apply order:
+  //   `pnpm auth:migrate` -> `pnpm db:migrate` -> registered raw-SQL sidecars
+  // (currently scripts/migrations/2026-07-06-permission-version-triggers.sql
+  // — functions/triggers/BA-table index that Drizzle cannot express; see
+  // src/shared/db/schema/db-only-constructs.ts and src/shared/db/CONTEXT.md).
 })

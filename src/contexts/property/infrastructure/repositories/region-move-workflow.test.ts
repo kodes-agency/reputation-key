@@ -23,6 +23,7 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { createRegionMoveRepository } from './region-move.repository'
 import { requestRegionMove } from '../../application/use-cases/request-region-move'
 import { advanceRegionMove } from '../../application/use-cases/advance-region-move'
@@ -152,6 +153,20 @@ async function moveRowsFor(propertyId: string): Promise<Array<Record<string, unk
   return rows.rows as Array<Record<string, unknown>>
 }
 
+// Teardown DELETEs run with user triggers disabled: the deployed
+// guard_last_owner backstop blocks deleting an org's final owner row,
+// including fixture cleanup (cascades from organization fire it too).
+async function clearOrgFixtures() {
+  await executeWithLastOwnerGuardDisabled(db, [
+    sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM region_moves WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
+    sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
+    sql`DELETE FROM "user" WHERE id = ${OPERATOR}`,
+    sql`DELETE FROM organization WHERE id = ${ORG}`,
+  ])
+}
+
 beforeAll(async () => {
   clearEventSchemas()
   registerAllEventSchemas()
@@ -164,12 +179,7 @@ beforeAll(async () => {
   await defaultQueue.obliterate({ force: true })
   await backgroundQueue.obliterate({ force: true })
 
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM region_moves WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM member WHERE "organizationId" = ${ORG}`)
-  await db.execute(sql`DELETE FROM "user" WHERE id = ${OPERATOR}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await clearOrgFixtures()
 
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Region Move Org', ${ORG}, now())`,
@@ -203,12 +213,7 @@ afterAll(async () => {
   await defaultQueue.close()
   await backgroundQueue.close()
   clearEventSchemas()
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM region_moves WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM member WHERE "organizationId" = ${ORG}`)
-  await db.execute(sql`DELETE FROM "user" WHERE id = ${OPERATOR}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await clearOrgFixtures()
 })
 
 beforeEach(async () => {

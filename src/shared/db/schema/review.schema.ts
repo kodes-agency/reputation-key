@@ -14,6 +14,7 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  check,
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { googleConnections } from './google-connection.schema'
@@ -85,15 +86,17 @@ export const reviews = pgTable(
     // Migration 0006: incremental sync cursors (no text in covering indexes)
     index('reviews_property_updated_cursor_idx').on(
       t.propertyId,
-      t.sourceUpdatedAt,
-      t.id,
+      t.sourceUpdatedAt.desc(),
+      t.id.desc(),
     ),
     index('reviews_property_created_cursor_idx').on(
       t.propertyId,
-      t.sourceCreatedAt,
-      t.id,
+      t.sourceCreatedAt.desc(),
+      t.id.desc(),
     ),
-    index('reviews_content_expires_idx').on(t.contentExpiresAt, t.id),
+    index('reviews_content_expires_idx')
+      .on(t.contentExpiresAt, t.id)
+      .where(sql`content_expires_at IS NOT NULL`),
   ],
 )
 
@@ -128,9 +131,10 @@ export const replies = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  // NOTE: Partial unique index for one published reply per review must be created
-  // via raw SQL migration since Drizzle doesn't support partial unique indexes:
-  //   CREATE UNIQUE INDEX replies_one_published_per_review ON replies (review_id) WHERE status = 'published'
+  // NOTE: a partial unique index for one published reply per review does NOT
+  // exist in the journaled migration track (it was a historical sidecar). If
+  // the product wants that constraint it needs a new journaled migration —
+  // drizzle 0.45 can express it via uniqueIndex(...).on(...).where(...).
   (t) => [
     uniqueIndex('replies_review_source_unique').on(
       t.reviewId,
@@ -139,6 +143,15 @@ export const replies = pgTable(
     ),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
+    // Migration 0015: publication state machine overlays (DO-block guarded).
+    check(
+      'replies_publication_state_check',
+      sql`${t.publicationState} IN ('requested', 'authorized', 'sending', 'published', 'terminal', 'ambiguous', 'cancelled')`,
+    ),
+    check(
+      'replies_publication_last_error_class_check',
+      sql`${t.publicationLastErrorClass} IN ('terminal_rejection', 'retryable', 'ambiguous')`,
+    ),
     // Migration 0015: ambiguous-outcome reconciliation sweep lookup.
     index('replies_publication_reconcile_idx')
       .on(t.organizationId, t.reconcileDueAt)

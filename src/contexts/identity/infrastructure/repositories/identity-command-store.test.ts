@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -66,14 +67,21 @@ async function seedOrgAndUsers(p: Pool) {
 
 async function truncateAll(p: Pool) {
   // Receipts cascade from outbox_events; invitation/member cascade from org/user.
-  await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
-  await p.query('DELETE FROM invitation WHERE "organizationId" = $1', [ORG_ID])
-  await p.query('DELETE FROM member WHERE "organizationId" = $1', [ORG_ID])
-  // registerOrganization creates NEW orgs (member rows cascade with them).
-  await p.query(`DELETE FROM outbox_events WHERE organization_id LIKE 'org-idcmd-%'`)
-  await p.query(`DELETE FROM organization WHERE slug LIKE 'idcmd-%' AND id <> $1`, [
-    ORG_ID,
-  ])
+  // Triggers disabled: guard_last_owner (deployed last-owner backstop) blocks
+  // deleting an org's final owner row, including fixture teardown.
+  await withLastOwnerGuardDisabled(p, async (client) => {
+    await client.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
+    await client.query('DELETE FROM invitation WHERE "organizationId" = $1', [ORG_ID])
+    await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG_ID])
+    // registerOrganization creates NEW orgs (member rows cascade with them).
+    await client.query(
+      `DELETE FROM outbox_events WHERE organization_id LIKE 'org-idcmd-%'`,
+    )
+    await client.query(
+      `DELETE FROM organization WHERE slug LIKE 'idcmd-%' AND id <> $1`,
+      [ORG_ID],
+    )
+  })
 }
 
 beforeAll(async () => {
@@ -88,8 +96,13 @@ beforeAll(async () => {
 afterAll(async () => {
   clearEventSchemas()
   await truncateAll(pool)
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
-  await pool.query('DELETE FROM "user" WHERE id IN ($1, $2)', [INVITER_ID, ACCEPTOR_ID])
+  await withLastOwnerGuardDisabled(pool, async (client) => {
+    await client.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+    await client.query('DELETE FROM "user" WHERE id IN ($1, $2)', [
+      INVITER_ID,
+      ACCEPTOR_ID,
+    ])
+  })
   await pool.end()
 })
 

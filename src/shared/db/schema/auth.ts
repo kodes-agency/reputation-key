@@ -3,20 +3,29 @@ import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 // ─── Better Auth tables ────────────────────────────────────────────
 // Column names must be camelCase to match Better Auth's defaults.
 // Use `pnpm auth:migrate` to manage auth tables (wraps @better-auth/cli).
+//
+// This file is a READ-ONLY mirror: the better-auth CLI migration track is the
+// authority for these tables, and the semantic drift test
+// (src/shared/db/migration-verification.test.ts) verifies this mirror
+// column-by-column against the migrated database. Column types, nullability,
+// and defaults below must match what the CLI actually creates (timestamptz;
+// defaults only where the CLI sets them).
+
+const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
-  emailVerified: boolean('emailVerified').notNull().default(false),
+  emailVerified: boolean('emailVerified').notNull(),
   image: text('image'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
+  updatedAt: timestamptz('updatedAt').notNull().defaultNow(),
 })
 
 export const session = pgTable('session', {
   id: text('id').primaryKey(),
-  expiresAt: timestamp('expiresAt').notNull(),
+  expiresAt: timestamptz('expiresAt').notNull(),
   token: text('token').notNull().unique(),
   ipAddress: text('ipAddress'),
   userAgent: text('userAgent'),
@@ -24,8 +33,8 @@ export const session = pgTable('session', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   activeOrganizationId: text('activeOrganizationId'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
+  updatedAt: timestamptz('updatedAt').notNull(),
 })
 
 export const account = pgTable('account', {
@@ -38,35 +47,35 @@ export const account = pgTable('account', {
   accessToken: text('accessToken'),
   refreshToken: text('refreshToken'),
   idToken: text('idToken'),
-  accessTokenExpiresAt: timestamp('accessTokenExpiresAt'),
-  refreshTokenExpiresAt: timestamp('refreshTokenExpiresAt'),
+  accessTokenExpiresAt: timestamptz('accessTokenExpiresAt'),
+  refreshTokenExpiresAt: timestamptz('refreshTokenExpiresAt'),
   scope: text('scope'),
   password: text('password'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
+  updatedAt: timestamptz('updatedAt').notNull(),
 })
 
 export const verification = pgTable('verification', {
   id: text('id').primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
-  expiresAt: timestamp('expiresAt').notNull(),
-  createdAt: timestamp('createdAt').defaultNow(),
-  updatedAt: timestamp('updatedAt').defaultNow(),
+  expiresAt: timestamptz('expiresAt').notNull(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
+  updatedAt: timestamptz('updatedAt').notNull().defaultNow(),
 })
 
 // ─── Organization plugin tables ────────────────────────────────────
 // Read-only Drizzle definitions for querying. Migrations are managed by
 // `pnpm auth:migrate` (Better Auth CLI) — NOT by drizzle-kit.
 // Column names are camelCase to match Better Auth's defaults.
-// These tables are excluded from drizzle.config.ts tablesFilter.
+// These tables are excluded from drizzle.config.ts (see schema/migratable.ts).
 
 export const member = pgTable('member', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull(),
   organizationId: text('organizationId').notNull(),
   role: text('role').notNull(),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  createdAt: timestamptz('createdAt').notNull(),
 })
 
 export const organization = pgTable('organization', {
@@ -74,7 +83,8 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  createdAt: timestamptz('createdAt').notNull(),
+  metadata: text('metadata'),
   // Additional fields from org-schema.ts (managed by Better Auth CLI)
   contactEmail: text('contactEmail'),
   billingCompanyName: text('billingCompanyName'),
@@ -93,9 +103,9 @@ export const organizationRole = pgTable('organizationRole', {
   id: text('id').primaryKey(),
   organizationId: text('organizationId').notNull(),
   role: text('role').notNull(),
-  permission: text('permission'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
-  updatedAt: timestamp('updatedAt').notNull().defaultNow(),
+  permission: text('permission').notNull(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
+  updatedAt: timestamptz('updatedAt'),
 })
 
 // Organization invitations (Better Auth). Read-only Drizzle mirror — migrations managed
@@ -107,9 +117,8 @@ export const invitation = pgTable('invitation', {
   email: text('email').notNull(),
   role: text('role'),
   status: text('status').notNull(),
-  expiresAt: timestamp('expiresAt').notNull(),
+  expiresAt: timestamptz('expiresAt').notNull(),
   propertyIds: text('propertyIds'),
-  inviterId: text('inviterId'),
-  teamId: text('teamId'),
-  createdAt: timestamp('createdAt').notNull().defaultNow(),
+  inviterId: text('inviterId').notNull(),
+  createdAt: timestamptz('createdAt').notNull().defaultNow(),
 })

@@ -8,6 +8,7 @@
     "src/composition.ts",
     "scripts/cleanup-kodes.ts",
     "scripts/check-db.ts",
+    "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",
     "vite.config.ts",
     "drizzle.config.ts"

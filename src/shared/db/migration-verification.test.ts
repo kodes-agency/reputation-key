@@ -1,13 +1,24 @@
-// Migration verification test (PRE17A A1).
-// Verifies that all expected schema objects exist after applying migrations.
-// In CI, this runs after `auth:migrate && db:migrate` against a fresh database,
-// effectively testing the "empty → latest" path.
-// Locally, it requires a migrated test database.
+// Migration verification test — semantic schema authority gate.
+//
+// Two layers:
+//   1. Presence assertions (PRE17A A1 heritage): the objects CI's
+//      "empty → latest" migration path must produce.
+//   2. Semantic parity (BQC-5.4): the full Drizzle model (all 68 tables,
+//      incl. the better-auth mirror) compared against the migrated
+//      PostgreSQL catalog — columns/types/nullability/defaults, PK/unique/
+//      check/FK constraints incl. actions, indexes incl. order/direction/
+//      expressions/predicates, enum labels, journal continuity, and the
+//      DB-only register (both directions closed). See ./CONTEXT.md and
+//      ./schema-drift.ts.
+//
+// In CI this runs after `auth:migrate && db:migrate` + the registered deploy
+// sidecar against a fresh database. Locally it requires a migrated test
+// database with the sidecar applied (see src/shared/db/CONTEXT.md).
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { collectSchemaDrift, formatDrifts } from './schema-drift'
 
 const EXPECTED_TABLES = [
   // Auth tables (created by auth:migrate)
@@ -72,14 +83,12 @@ const EXPECTED_INDEXES = [
   'properties_lifecycle_state_idx',
 ] as const
 
-describe('migration verification (PRE17A A1)', () => {
+describe('migration verification (PRE17A A1 presence)', () => {
   let lease: TestLease
-  let pool: Pool
 
   beforeAll(async () => {
     const env = getEnv()
     lease = await acquireTestLease(env.DATABASE_URL)
-    pool = lease.pool
   })
 
   afterAll(async () => {
@@ -87,7 +96,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('all expected tables exist', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
     )
     const existing = new Set(result.rows.map((r) => r.tablename))
@@ -97,7 +106,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('all expected rollup tables exist (migration 0008)', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
     )
     const existing = new Set(result.rows.map((r) => r.tablename))
@@ -107,7 +116,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('all expected indexes exist (migration 0004)', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' ORDER BY indexname`,
     )
     const existing = new Set(result.rows.map((r) => r.indexname))
@@ -117,7 +126,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('inbox_items has the correct status enum (open/closed, not old values)', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT t.typname, e.enumlabel
        FROM pg_type t
        JOIN pg_enum e ON t.oid = e.enumtypid
@@ -135,7 +144,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('inbox_items has escalation columns (migration 0003)', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT column_name FROM information_schema.columns
        WHERE table_name = 'inbox_items'
        AND column_name IN ('is_escalated', 'escalated_by', 'escalation_resolved_at', 'escalation_resolved_by', 'closed_at')`,
@@ -149,7 +158,7 @@ describe('migration verification (PRE17A A1)', () => {
   })
 
   it('inbox_user_views table exists (migration 0003)', async () => {
-    const result = await pool.query(
+    const result = await lease.pool.query(
       `SELECT 1 FROM information_schema.tables WHERE table_name = 'inbox_user_views'`,
     )
     expect(result.rowCount).toBe(1)
@@ -158,27 +167,51 @@ describe('migration verification (PRE17A A1)', () => {
   it('no unjournaled sidecar SQL remains — all objects tracked by migrations', async () => {
     // The sidecar script is now migration 0004. Materialized views were
     // replaced by incremental rollup tables in migration 0008 (PRE17C).
-    const journalResult = await pool.query(
+    const journalResult = await lease.pool.query(
       `SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash IS NOT NULL`,
     )
     expect(journalResult.rowCount).toBeGreaterThan(0)
 
     // Materialized views were dropped by migration 0008
-    const mvResult = await pool.query(
+    const mvResult = await lease.pool.query(
       `SELECT count(*)::int FROM pg_matviews WHERE schemaname = 'public' AND matviewname LIKE 'mv_%'`,
     )
     expect(mvResult.rows[0].count).toBe(0)
 
     // Rollup tables must exist (created by migration 0008)
-    const rollupResult = await pool.query(
+    const rollupResult = await lease.pool.query(
       `SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'rollup_%'`,
     )
     expect(rollupResult.rows[0].count).toBeGreaterThanOrEqual(3)
 
     // Watermark table must exist
-    const watermarkResult = await pool.query(
+    const watermarkResult = await lease.pool.query(
       `SELECT count(*)::int FROM _rollup_watermarks`,
     )
     expect(watermarkResult.rows[0].count).toBe(3)
+  })
+})
+
+describe('semantic schema parity (BQC-5.4)', () => {
+  let lease: TestLease
+
+  beforeAll(async () => {
+    const env = getEnv()
+    lease = await acquireTestLease(env.DATABASE_URL)
+  })
+
+  afterAll(async () => {
+    await lease?.release()
+  })
+
+  it('drizzle model matches the migrated catalog exactly (both directions closed)', async () => {
+    const drifts = await collectSchemaDrift(lease.pool)
+    expect(
+      drifts,
+      `Schema drift detected (${drifts.length}):\n${formatDrifts(drifts)}\n\n` +
+        'Fix the model in src/shared/db/schema/*.ts to match the migrated DB, ' +
+        'or register intentional DB-only constructs in ' +
+        'src/shared/db/schema/db-only-constructs.ts (see src/shared/db/CONTEXT.md).',
+    ).toEqual([])
   })
 })

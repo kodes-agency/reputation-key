@@ -63,5 +63,7 @@ export const metricReadings = pgTable(
     ),
     // Index for portal-group-scoped badge/leaderboard queries
     index('metric_readings_org_group_idx').on(t.organizationId, t.groupId),
+    // Migration 0008: incremental refresh — find new rows efficiently.
+    index('metric_readings_recorded_at_idx').on(t.occurredAt),
   ],
 )

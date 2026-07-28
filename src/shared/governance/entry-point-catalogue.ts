@@ -2347,6 +2347,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/check-db.ts', 'scripts/check-db.ts', 'tenant_cross', {
     notes: 'read-only diagnostics; identifiers + clocks only (BQC-1.6)',
   }),
+  ops('scripts/check-schema-drift.ts', 'scripts/check-schema-drift.ts', 'tenant_cross', {
+    notes:
+      'check:schema-drift — read-only model↔catalog comparison; exits 1 on drift (BQC-5.4)',
+  }),
   ops(
     'scripts/check-component-boundaries.mjs',
     'scripts/check-component-boundaries.mjs',

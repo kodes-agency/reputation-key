@@ -13,6 +13,7 @@ import {
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 /**
  * One row per property/source — incremental cursor and scheduling state.
@@ -46,8 +47,14 @@ export const reviewSyncState = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.propertyId, t.source] }),
-    index('review_sync_state_due_incremental_idx').on(t.nextIncrementalAt),
-    index('review_sync_state_lease_expired_idx').on(t.leaseUntil),
+    // Migration 0007: properties due for incremental sync.
+    index('review_sync_state_due_incremental_idx')
+      .on(t.nextIncrementalAt)
+      .where(sql`next_incremental_at IS NOT NULL`),
+    // Migration 0007: properties with expired leases (reconciliation).
+    index('review_sync_state_lease_expired_idx')
+      .on(t.leaseUntil)
+      .where(sql`lease_until IS NOT NULL`),
   ],
 )
 

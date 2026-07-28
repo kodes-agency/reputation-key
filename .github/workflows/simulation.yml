@@ -54,7 +54,15 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: echo "y" | pnpm db:push && echo "y" | pnpm auth:migrate
+        # Ephemeral simulation DB: auth track FIRST (FKs reference the
+        # auth-owned organization/user tables), then the journaled migration
+        # track — NOT db:push, which cannot emit the 0014 composite FK
+        # (index-then-FK ordering) — then the registered idempotent sidecar.
+        # Identical sequence to ci.yml check/e2e and deploy (BQC-5.4).
+        run: |
+          echo "y" | pnpm auth:migrate
+          pnpm db:migrate
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
       - name: Run simulation with invariant checks
         env:
