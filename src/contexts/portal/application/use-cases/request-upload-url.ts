@@ -4,10 +4,9 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { loadPortalOrThrow } from '../load-accessible-portal'
 
 export type RequestUploadUrlInput = Readonly<{
   portalId: string
@@ -31,23 +30,10 @@ export const requestUploadUrl =
     input: RequestUploadUrlInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'Insufficient permissions to upload portal images')
-    }
-    const portal = await deps.portalRepo.findById(
-      ctx.organizationId,
-      portalId(input.portalId),
-    )
-    if (!portal) {
-      throw portalError('portal_not_found', 'portal not found in this organization')
-    }
-    // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      portal.propertyId,
-    )
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.update',
+      forbiddenMessage: 'Insufficient permissions to upload portal images',
+    })
 
     if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
       throw portalError(

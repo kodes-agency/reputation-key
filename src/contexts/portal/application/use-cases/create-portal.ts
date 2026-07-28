@@ -8,14 +8,13 @@ import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
 export type { CreatePortalInput }
-import { canForContext } from '#/shared/domain/permissions'
 import { normalizeSlug } from '../../domain/rules'
 import { buildPortal } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalCreated } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type CreatePortalDeps = Readonly<{
@@ -31,27 +30,12 @@ export type CreatePortalDeps = Readonly<{
 export const createPortal =
   (deps: CreatePortalDeps) =>
   async (input: CreatePortalInput, ctx: AuthContext): Promise<Portal> => {
-    // 1. Authorize
-    if (!canForContext(ctx, 'portal.create')) {
-      throw portalError('forbidden', 'this role cannot create portals')
-    }
-
-    // 2. Validate referenced property exists
-    if (
-      !(await deps.propertyApi.propertyExists(
-        ctx.organizationId,
-        propertyId(input.propertyId),
-      ))
-    ) {
-      throw portalError('property_not_found', 'property not found in this organization')
-    }
-    // Enforce property-assignment scoping for PropertyManager (AccountAdmin
-    // bypasses via getAccessiblePropertyIds returning null). (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
+    // 1. Authorize + 2. validate referenced property exists + assignment access (D6-001)
+    await assertNewPortalPropertyAccess(
+      deps,
       ctx,
-      'portal.create',
-      propertyId(input.propertyId),
+      input.propertyId,
+      'this role cannot create portals',
     )
 
     // 3. Check uniqueness — slug must be unique per org+property

@@ -12,8 +12,10 @@ import { propertyError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 import { propertyId, type GoogleConnectionId } from '#/shared/domain/ids'
 
-/** Mutable set-values type for Drizzle .set() — strips readonly from Property fields. */
-type SetValues = {
+/** Mutable set-values type for Drizzle .set() — strips readonly from Property fields.
+ *  Single source (BQC-5.9 E22) — the command store imports it so the update
+ *  column set cannot drift between the repository and the atomic store. */
+export type PropertySetValues = {
   name?: string
   slug?: string
   timezone?: string
@@ -94,7 +96,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
 
   update: async (orgId, id, patch) => {
     return trace('property.update', async () => {
-      const setValues: SetValues = {}
+      const setValues: PropertySetValues = {}
       if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
       if (patch.name !== undefined) setValues.name = patch.name
       if (patch.slug !== undefined) setValues.slug = patch.slug

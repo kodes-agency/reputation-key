@@ -40,7 +40,7 @@ import {
   type MatrixTarget,
   type ScoredTarget,
 } from '../../domain/scoring'
-import { periodToRange, LEADERBOARD_PERIODS } from '../../application/utils'
+import { periodToRange, PERIOD_PRESETS } from '#/shared/domain/period-range'
 import type { LeaderboardRepository } from '../../application/ports/leaderboard.repository'
 import type {
   LeaderboardEntryWithTarget,
@@ -140,7 +140,7 @@ export const createLeaderboardRepository = (
     return trace('leaderboard.refresh', async () => {
       const periods: LeaderboardPeriod[] = input.period
         ? [input.period]
-        : [...LEADERBOARD_PERIODS]
+        : [...PERIOD_PRESETS]
       const scopes: LeaderboardScope[] = input.scope
         ? [input.scope]
         : ['portal', 'portal_group']

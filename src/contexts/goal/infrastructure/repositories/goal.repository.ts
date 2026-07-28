@@ -3,6 +3,7 @@
 // Wrapped in trace() for observability.
 
 import { and, eq, sql, or, desc, isNull, inArray } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { goals, goalProgress } from '#/shared/db/schema/goal.schema'
 import type {
@@ -34,6 +35,62 @@ function safeMapGoals(rows: ReadonlyArray<typeof goals.$inferSelect>): Goal[] {
       return []
     }
   })
+}
+
+/**
+ * Insert-or-accumulate a goal_progress row for an event increment (BQC-5.9
+ * E17). The sum/count/max/avg branches share the upsert → not-found guard →
+ * return shape; they differ only in the initial values and the conflict set
+ * clause, both passed by the caller.
+ */
+async function upsertProgressRow(
+  db: Database,
+  clock: () => Date,
+  goalId: string,
+  organizationId: string,
+  initialValues: Readonly<{
+    currentValue: number
+    currentSum: number | null
+    currentCount: number | null
+  }>,
+  conflictSet: Readonly<{
+    currentValue?: SQL | number
+    currentSum?: SQL | number | null
+    currentCount?: SQL | number | null
+  }>,
+): Promise<{
+  currentValue: number
+  currentSum: number | null
+  currentCount: number | null
+}> {
+  const result = await db
+    .insert(goalProgress)
+    .values({
+      goalId,
+      organizationId,
+      currentValue: initialValues.currentValue,
+      currentSum: initialValues.currentSum,
+      currentCount: initialValues.currentCount,
+      lastComputedAt: clock(),
+      computedSource: 'event_increment',
+    })
+    .onConflictDoUpdate({
+      target: goalProgress.goalId,
+      set: conflictSet,
+    })
+    .returning({
+      currentValue: goalProgress.currentValue,
+      currentSum: goalProgress.currentSum,
+      currentCount: goalProgress.currentCount,
+    })
+  if (!result[0]) {
+    throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
+  }
+  return {
+    currentValue: result[0].currentValue,
+    currentSum: result[0].currentSum,
+    currentCount: result[0].currentCount,
+  }
 }
 
 export const createGoalRepository = (
@@ -399,104 +456,44 @@ export const createGoalRepository = (
 
       if (aggregation === 'sum' || aggregation === 'count') {
         const incDelta = aggregation === 'count' ? 1 : delta
-        const result = await db
-          .insert(goalProgress)
-          .values({
-            goalId,
-            organizationId,
-            currentValue: incDelta,
-            currentSum: null,
-            currentCount: null,
-            lastComputedAt: clock(),
-            computedSource: 'event_increment',
-          })
-          .onConflictDoUpdate({
-            target: goalProgress.goalId,
-            set: {
-              currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
-            },
-          })
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
+        return upsertProgressRow(
+          db,
+          clock,
+          goalId,
+          organizationId,
+          { currentValue: incDelta, currentSum: null, currentCount: null },
+          {
+            currentValue: sql`${goalProgress.currentValue} + ${incDelta}`,
+          },
+        )
       }
 
       if (aggregation === 'max') {
-        const result = await db
-          .insert(goalProgress)
-          .values({
-            goalId,
-            organizationId,
-            currentValue: delta,
-            currentSum: null,
-            currentCount: null,
-            lastComputedAt: clock(),
-            computedSource: 'event_increment',
-          })
-          .onConflictDoUpdate({
-            target: goalProgress.goalId,
-            set: {
-              currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
-            },
-          })
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
+        return upsertProgressRow(
+          db,
+          clock,
+          goalId,
+          organizationId,
+          { currentValue: delta, currentSum: null, currentCount: null },
+          {
+            currentValue: sql`GREATEST(${goalProgress.currentValue}, ${delta})`,
+          },
+        )
       }
 
       if (aggregation === 'avg') {
-        const result = await db
-          .insert(goalProgress)
-          .values({
-            goalId,
-            organizationId,
-            currentValue: delta,
-            currentSum: delta,
-            currentCount: 1,
-            lastComputedAt: clock(),
-            computedSource: 'event_increment',
-          })
-          .onConflictDoUpdate({
-            target: goalProgress.goalId,
-            set: {
-              currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
-              currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
-              currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
-            },
-          })
-          .returning({
-            currentValue: goalProgress.currentValue,
-            currentSum: goalProgress.currentSum,
-            currentCount: goalProgress.currentCount,
-          })
-        if (!result[0]) {
-          throw goalError('upsert_failed', `upsertProgress: failed for goal ${goalId}`)
-        }
-        return {
-          currentValue: result[0].currentValue,
-          currentSum: result[0].currentSum,
-          currentCount: result[0].currentCount,
-        }
+        return upsertProgressRow(
+          db,
+          clock,
+          goalId,
+          organizationId,
+          { currentValue: delta, currentSum: delta, currentCount: 1 },
+          {
+            currentSum: sql`COALESCE(${goalProgress.currentSum}, 0) + ${delta}`,
+            currentCount: sql`COALESCE(${goalProgress.currentCount}, 0) + 1`,
+            currentValue: sql`(COALESCE(${goalProgress.currentSum}, 0) + ${delta}) / (COALESCE(${goalProgress.currentCount}, 0) + 1)`,
+          },
+        )
       }
 
       throw goalError(

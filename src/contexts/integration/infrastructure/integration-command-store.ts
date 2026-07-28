@@ -19,13 +19,10 @@
 
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { gbpImportJobs } from '#/shared/db/schema/gbp-import-job.schema'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { getLogger } from '#/shared/observability/logger'
+import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../domain/errors'
 import { uniqueViolationError } from '../application/ports/google-connection.repository'
@@ -42,25 +39,6 @@ import type {
   UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQC-3.5: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
-
-async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
-}
-
 /** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
 function isPgUniqueViolation(err: unknown): boolean {
   // drizzle wraps driver errors in DrizzleQueryError — the SQLSTATE lives on
@@ -74,6 +52,27 @@ function isPgUniqueViolation(err: unknown): boolean {
     cause !== null &&
     (cause as { code?: unknown }).code === '23505'
   )
+}
+
+/**
+ * Update the google_connections row for (organizationId, connectionId)
+ * inside the command transaction (single source for the guarded connection
+ * updates, BQC-5.9 E16). Callers chain .returning(...) as needed.
+ */
+function updateConnectionRow(
+  tx: Tx,
+  command: Readonly<{ organizationId: string; connectionId: string }>,
+  set: Partial<typeof googleConnections.$inferInsert>,
+) {
+  return tx
+    .update(googleConnections)
+    .set(set)
+    .where(
+      and(
+        eq(googleConnections.organizationId, command.organizationId),
+        eq(googleConnections.id, command.connectionId),
+      ),
+    )
 }
 
 export function createAtomicIntegrationCommandStore(
@@ -106,23 +105,14 @@ export function createAtomicIntegrationCommandStore(
     reconnectGoogleAccount: async (command: ReconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.reconnectGoogleAccount', async () => {
         const updated = await db.transaction(async (tx) => {
-          const rows = await tx
-            .update(googleConnections)
-            .set({
-              encryptedAccessToken: command.encryptedAccessToken,
-              encryptedRefreshToken: command.encryptedRefreshToken,
-              tokenExpiresAt: command.tokenExpiresAt,
-              status: 'active',
-              visibility: command.visibility,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(googleConnections.organizationId, command.organizationId as string),
-                eq(googleConnections.id, command.connectionId as string),
-              ),
-            )
-            .returning()
+          const rows = await updateConnectionRow(tx, command, {
+            encryptedAccessToken: command.encryptedAccessToken,
+            encryptedRefreshToken: command.encryptedRefreshToken,
+            tokenExpiresAt: command.tokenExpiresAt,
+            status: 'active',
+            visibility: command.visibility,
+            updatedAt: new Date(),
+          }).returning()
           if (!rows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }
@@ -137,38 +127,23 @@ export function createAtomicIntegrationCommandStore(
     disconnectGoogleAccount: async (command: DisconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.disconnectGoogleAccount', async () => {
         const redacted = await db.transaction(async (tx) => {
-          const statusRows = await tx
-            .update(googleConnections)
-            .set({ status: 'disconnected', updatedAt: new Date() })
-            .where(
-              and(
-                eq(googleConnections.organizationId, command.organizationId as string),
-                eq(googleConnections.id, command.connectionId as string),
-              ),
-            )
-            .returning({ id: googleConnections.id })
+          const statusRows = await updateConnectionRow(tx, command, {
+            status: 'disconnected',
+            updatedAt: new Date(),
+          }).returning({ id: googleConnections.id })
           if (!statusRows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }
           // BQC-1.7: remove provider identifiers and secret material — the
           // row stays as a content-free audit fact.
-          const redactedRows = await tx
-            .update(googleConnections)
-            .set({
-              encryptedAccessToken: 'redacted',
-              encryptedRefreshToken: 'redacted',
-              googleEmail: 'redacted',
-              googleAccountId: `redacted:${command.connectionId as string}`,
-              scopes: [],
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(googleConnections.organizationId, command.organizationId as string),
-                eq(googleConnections.id, command.connectionId as string),
-              ),
-            )
-            .returning()
+          const redactedRows = await updateConnectionRow(tx, command, {
+            encryptedAccessToken: 'redacted',
+            encryptedRefreshToken: 'redacted',
+            googleEmail: 'redacted',
+            googleAccountId: `redacted:${command.connectionId as string}`,
+            scopes: [],
+            updatedAt: new Date(),
+          }).returning()
           if (!redactedRows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }
@@ -183,16 +158,10 @@ export function createAtomicIntegrationCommandStore(
     updateConnectionVisibility: async (command: UpdateConnectionVisibilityCommand) => {
       return trace('integration.commandStore.updateConnectionVisibility', async () => {
         const updated = await db.transaction(async (tx) => {
-          const rows = await tx
-            .update(googleConnections)
-            .set({ visibility: command.visibility, updatedAt: new Date() })
-            .where(
-              and(
-                eq(googleConnections.organizationId, command.organizationId as string),
-                eq(googleConnections.id, command.connectionId as string),
-              ),
-            )
-            .returning()
+          const rows = await updateConnectionRow(tx, command, {
+            visibility: command.visibility,
+            updatedAt: new Date(),
+          }).returning()
           if (!rows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }

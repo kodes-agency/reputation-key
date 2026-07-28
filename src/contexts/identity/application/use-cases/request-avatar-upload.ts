@@ -3,8 +3,7 @@
 
 import type { IdentityStoragePort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canForContext } from '#/shared/domain/permissions'
-import { identityError } from '../../domain/errors'
+import { assertUploadAllowed, MAX_UPLOAD_BYTES } from '../upload-policy'
 export type RequestAvatarUploadInput = Readonly<{
   contentType: string
   fileSize: number
@@ -15,35 +14,24 @@ export type RequestAvatarUploadDeps = Readonly<{
   idGen: () => string
 }>
 
-const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
-
 export const requestAvatarUpload =
   (deps: RequestAvatarUploadDeps) =>
   async (
     input: RequestAvatarUploadInput,
     ctx: AuthContext,
   ): Promise<{ uploadUrl: string; key: string }> => {
-    if (!canForContext(ctx, 'identity.avatar_upload')) {
-      throw identityError('forbidden', 'Insufficient permissions to upload avatar')
-    }
-
-    if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
-      throw identityError(
-        'validation_error',
-        `Content type ${input.contentType} is not allowed`,
-      )
-    }
-
-    if (input.fileSize > MAX_FILE_SIZE) {
-      throw identityError('validation_error', 'File size exceeds 5 MB limit')
-    }
+    assertUploadAllowed(
+      ctx,
+      'identity.avatar_upload',
+      input,
+      'Insufficient permissions to upload avatar',
+    )
 
     const key = `avatars/${ctx.userId}/${deps.idGen()}`
     const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
       key,
       input.contentType,
-      MAX_FILE_SIZE,
+      MAX_UPLOAD_BYTES,
     )
 
     return { uploadUrl, key }

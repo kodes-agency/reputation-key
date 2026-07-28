@@ -20,13 +20,11 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { replies, reviews } from '#/shared/db/schema/review.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
@@ -43,21 +41,6 @@ import type {
   ReplyRepository,
 } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQC-3.3: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
 
 /**
  * Guarded reply update inside a transaction. Applies only while the row's
@@ -123,10 +106,6 @@ function nextStateOrNull(
   event: PublicationStateEvent,
 ): PersistedPublicationState | null {
   return nextPublicationState(reply.publicationState, event)
-}
-
-async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
 }
 
 export function createAtomicReplyCommandStore(

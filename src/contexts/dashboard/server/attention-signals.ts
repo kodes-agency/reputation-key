@@ -10,23 +10,15 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { propertyId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
-import type { DashboardErrorCode } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { standardErrorStatus as attentionSignalsErrorStatus } from '#/shared/http/status'
-
-/** Local error constructor — server must not import domain error constructors. */
-const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
-  _tag: 'DashboardError' as const,
-  code,
-  message,
-})
+import { assertDashboardPropertyAccessible } from './assert-property-access'
 
 const getAttentionSignalsDto = z.object({
   propertyId: z.string().uuid(),
@@ -58,17 +50,7 @@ export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
           const slaHours = extractResponseSlaHours(org)
           const { useCases, clock, staffPublicApi } = getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
-          if (
-            !(await isPropertyAccessibleForPermission(
-              (orgId, uId, orgWide) =>
-                staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-              ctx,
-              'dashboard.read',
-              propertyId(data.propertyId),
-            ))
-          ) {
-            throw makeDashboardError('forbidden', 'Property not assigned to caller')
-          }
+          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
           return await useCases.getAttentionSignals({

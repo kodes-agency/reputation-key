@@ -4,8 +4,14 @@
 // Wrapped in trace() for observability.
 
 import type { DashboardRepository } from '../../application/ports/dashboard.repository'
-import type { ReviewStatsPort } from '../../application/ports/review-stats.port'
-import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
+import type {
+  ReviewPeriodStats,
+  ReviewStatsPort,
+} from '../../application/ports/review-stats.port'
+import type {
+  MetricStatsPort,
+  MetricSumRow,
+} from '../../application/ports/metric-stats.port'
 import type {
   KPIs,
   RatingDistribution,
@@ -21,6 +27,59 @@ import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 import { computeTrend, DEFAULT_RECENT_REVIEWS_LIMIT } from '../../application/utils'
+
+/**
+ * KPI assembly — single source for getKPIs/getKPIsForPortals (BQC-5.9 E4).
+ * The two methods differ only in how they select the metric sums; the
+ * current-vs-prior composition must not drift between them.
+ */
+function computeKpis(input: {
+  currentReviews: ReviewPeriodStats
+  priorReviews: ReviewPeriodStats
+  currentMetrics: readonly MetricSumRow[]
+  priorMetrics: readonly MetricSumRow[]
+}): KPIs {
+  const { currentReviews, priorReviews, currentMetrics, priorMetrics } = input
+
+  const curReviewCount = currentReviews.count
+  const priorReviewCount = priorReviews.count
+  const curAvgRating = currentReviews.avgRating
+  const priorAvgRating = priorReviews.avgRating
+
+  const toMap = (rows: readonly MetricSumRow[]) =>
+    new Map(rows.map((r) => [r.metricKey, r.total]))
+
+  const curMetricsMap = toMap(currentMetrics)
+  const priorMetricsMap = toMap(priorMetrics)
+
+  const curScans = curMetricsMap.get('portal.scan') ?? 0
+  const priorScans = priorMetricsMap.get('portal.scan') ?? 0
+  const curFeedback = curMetricsMap.get('portal.feedback') ?? 0
+  const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
+
+  return {
+    reviews: {
+      value: curReviewCount,
+      priorValue: priorReviewCount,
+      trend: computeTrend(curReviewCount, priorReviewCount),
+    },
+    avgRating: {
+      value: curAvgRating,
+      priorValue: priorAvgRating,
+      trend: computeTrend(curAvgRating, priorAvgRating),
+    },
+    scans: {
+      value: curScans,
+      priorValue: priorScans,
+      trend: computeTrend(curScans, priorScans),
+    },
+    feedback: {
+      value: curFeedback,
+      priorValue: priorFeedback,
+      trend: computeTrend(curFeedback, priorFeedback),
+    },
+  }
+}
 
 export const createDashboardRepository = (
   reviewStats: ReviewStatsPort,
@@ -67,11 +126,6 @@ export const createDashboardRepository = (
         ),
       ])
 
-      const curReviewCount = currentReviews.count
-      const priorReviewCount = priorReviews.count
-      const curAvgRating = currentReviews.avgRating
-      const priorAvgRating = priorReviews.avgRating
-
       // Metric sums for current and prior periods (parallel)
       // When portalId is set, use portal-scoped queries for scans/feedback
       const metricQuery = input.portalId
@@ -85,39 +139,7 @@ export const createDashboardRepository = (
         metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
       ])
 
-      const toMap = (rows: readonly { metricKey: string; total: number }[]) =>
-        new Map(rows.map((r) => [r.metricKey, r.total]))
-
-      const curMetricsMap = toMap(currentMetrics)
-      const priorMetricsMap = toMap(priorMetrics)
-
-      const curScans = curMetricsMap.get('portal.scan') ?? 0
-      const priorScans = priorMetricsMap.get('portal.scan') ?? 0
-      const curFeedback = curMetricsMap.get('portal.feedback') ?? 0
-      const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
-
-      return {
-        reviews: {
-          value: curReviewCount,
-          priorValue: priorReviewCount,
-          trend: computeTrend(curReviewCount, priorReviewCount),
-        },
-        avgRating: {
-          value: curAvgRating,
-          priorValue: priorAvgRating,
-          trend: computeTrend(curAvgRating, priorAvgRating),
-        },
-        scans: {
-          value: curScans,
-          priorValue: priorScans,
-          trend: computeTrend(curScans, priorScans),
-        },
-        feedback: {
-          value: curFeedback,
-          priorValue: priorFeedback,
-          trend: computeTrend(curFeedback, priorFeedback),
-        },
-      }
+      return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
     })
   },
   async getKPIsForPortals(input): Promise<KPIs> {
@@ -144,11 +166,6 @@ export const createDashboardRepository = (
         ),
       ])
 
-      const curReviewCount = currentReviews.count
-      const priorReviewCount = priorReviews.count
-      const curAvgRating = currentReviews.avgRating
-      const priorAvgRating = priorReviews.avgRating
-
       // Metric sums for current and prior periods across all assigned portals
       const metricQuery = (
         orgId: OrganizationId,
@@ -165,39 +182,7 @@ export const createDashboardRepository = (
         metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
       ])
 
-      const toMap = (rows: readonly { metricKey: string; total: number }[]) =>
-        new Map(rows.map((r) => [r.metricKey, r.total]))
-
-      const curMetricsMap = toMap(currentMetrics)
-      const priorMetricsMap = toMap(priorMetrics)
-
-      const curScans = curMetricsMap.get('portal.scan') ?? 0
-      const priorScans = priorMetricsMap.get('portal.scan') ?? 0
-      const curFeedback = curMetricsMap.get('portal.feedback') ?? 0
-      const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
-
-      return {
-        reviews: {
-          value: curReviewCount,
-          priorValue: priorReviewCount,
-          trend: computeTrend(curReviewCount, priorReviewCount),
-        },
-        avgRating: {
-          value: curAvgRating,
-          priorValue: priorAvgRating,
-          trend: computeTrend(curAvgRating, priorAvgRating),
-        },
-        scans: {
-          value: curScans,
-          priorValue: priorScans,
-          trend: computeTrend(curScans, priorScans),
-        },
-        feedback: {
-          value: curFeedback,
-          priorValue: priorFeedback,
-          trend: computeTrend(curFeedback, priorFeedback),
-        },
-      }
+      return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
     })
   },
   async getRatingDistribution(input): Promise<RatingDistribution> {

@@ -79,8 +79,10 @@ describe('BQC-3.5: atomic family outbox producers', () => {
       it(`${family.context} command store commits outbox inside db.transaction`, () => {
         const src = readFileSync(join(ROOT, family.storeFile), 'utf-8')
         expect(src).toContain('db.transaction')
-        expect(src).toContain('outboxEvents')
-        expect(src).toContain('toOutboxEvent')
+        // BQC-5.9 E1: the outbox insert (outboxEvents + toOutboxEvent) and the
+        // post-commit emit are single-sourced in src/shared/outbox/commit.ts.
+        expect(src).toContain('#/shared/outbox/commit')
+        expect(src).toContain('insertOutboxRow')
         // Post-commit bus emit is best-effort via emitAfterCommit
         expect(src).toContain('emitAfterCommit')
         const txIdx = src.indexOf('db.transaction')
@@ -93,4 +95,14 @@ describe('BQC-3.5: atomic family outbox producers', () => {
       })
     })
   }
+
+  it('shared commit module single-sources the outbox row insert + best-effort emit (BQC-5.9 E1)', () => {
+    const src = readFileSync(join(ROOT, 'src/shared/outbox/commit.ts'), 'utf-8')
+    // The durable insert and payload adaptation exist exactly once, here.
+    expect(src).toContain('outboxEvents')
+    expect(src).toContain('toOutboxEvent')
+    // Bus failure after commit is swallowed + logged, never rethrown.
+    expect(src).toContain('events.emit')
+    expect(src).toContain('durable row retained')
+  })
 })

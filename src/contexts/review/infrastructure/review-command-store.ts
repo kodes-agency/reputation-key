@@ -5,30 +5,15 @@
 // Crash after commit but before emit leaves a durable outbox row for relay.
 
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { reviews } from '#/shared/db/schema/review.schema'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { Review } from '../domain/types'
 import { reviewError } from '../domain/errors'
 import { reviewFromRow, reviewToRow } from './mappers/review.mapper'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQR-2.3: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
 
 export function createAtomicReviewCommandStore(
   db: Database,
@@ -75,11 +60,7 @@ export function createAtomicReviewCommandStore(
             )
           }
 
-          const outboxRow = {
-            ...toOutboxEvent(event),
-            id: event.eventId,
-          }
-          await tx.insert(outboxEvents).values(outboxRow)
+          await insertOutboxRow(tx, event)
 
           return reviewFromRow(result[0])
         })

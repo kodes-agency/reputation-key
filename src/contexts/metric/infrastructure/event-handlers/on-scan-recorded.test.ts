@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { onScanRecorded, type OnScanRecordedDeps } from './on-scan-recorded'
+import { onScanRecorded } from './on-scan-recorded'
+import type { RecordPortalMetricDeps as OnScanRecordedDeps } from './record-portal-metric'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {

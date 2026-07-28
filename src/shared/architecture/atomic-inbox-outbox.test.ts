@@ -46,8 +46,10 @@ describe('BQC-3.4: atomic inbox outbox producer', () => {
       'utf-8',
     )
     expect(src).toContain('db.transaction')
-    expect(src).toContain('outboxEvents')
-    expect(src).toContain('toOutboxEvent')
+    // BQC-5.9 E1: the outbox insert (outboxEvents + toOutboxEvent) and the
+    // post-commit emit are single-sourced in src/shared/outbox/commit.ts.
+    expect(src).toContain('#/shared/outbox/commit')
+    expect(src).toContain('insertOutboxRow')
     // Post-commit bus emit is best-effort via emitAfterCommit
     expect(src).toContain('emitAfterCommit')
     const txIdx = src.indexOf('db.transaction')

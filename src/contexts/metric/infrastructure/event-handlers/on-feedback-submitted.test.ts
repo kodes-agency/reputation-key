@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  onFeedbackSubmitted,
-  type OnFeedbackSubmittedDeps,
-} from './on-feedback-submitted'
+import { onFeedbackSubmitted } from './on-feedback-submitted'
+import type { RecordPortalMetricDeps as OnFeedbackSubmittedDeps } from './record-portal-metric'
 import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {

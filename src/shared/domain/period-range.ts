@@ -1,8 +1,32 @@
-// Badge context — date helpers
+// Shared period presets → concrete [start, end] ranges (BQC-5.9 E3).
+//
+// Single source for the badge/leaderboard period mapping — both contexts
+// must agree on what 'this_week' (etc.) means. Range math uses SERVER local
+// time (Date#setHours etc.), matching the pre-extraction behavior of both
+// copies; tenant-timezone day bucketing is dayKeyInTimezone's job.
 
-import type { BadgePeriodPreset } from '../domain/types'
+export type PeriodPreset =
+  | 'today'
+  | 'this_week'
+  | 'this_month'
+  | 'this_quarter'
+  | 'all_time'
+  | 'last_7_days'
+  | 'last_30_days'
+  | 'last_90_days'
 
-export function periodToRange(period: BadgePeriodPreset | undefined, now: Date) {
+export const PERIOD_PRESETS: readonly PeriodPreset[] = [
+  'today',
+  'this_week',
+  'this_month',
+  'this_quarter',
+  'all_time',
+  'last_7_days',
+  'last_30_days',
+  'last_90_days',
+]
+
+export function periodToRange(period: PeriodPreset | undefined, now: Date) {
   const end = new Date(now)
   const start = new Date(now)
 
@@ -48,6 +72,7 @@ export function periodToRange(period: BadgePeriodPreset | undefined, now: Date) 
   return { start, end, period }
 }
 
+/** Tenant-timezone day bucket key (yyyy_MM_dd) for streak/calendar logic. */
 export function dayKeyInTimezone(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,

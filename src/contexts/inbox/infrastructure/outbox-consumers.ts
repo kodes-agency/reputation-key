@@ -84,6 +84,24 @@ function asReplyPublishedPayload(payload: unknown): ReplyPublishedPayload {
   return payload as ReplyPublishedPayload
 }
 
+/**
+ * Record a consumer no-op (BQC-5.9 E20): warn with the consumer's log fields,
+ * mark the event applied via the receipt, and return the applied result.
+ * Used when the row the event targets is gone — the receipt marks the event
+ * as consumed and rebuild heals if the projection row should exist.
+ */
+async function appliedNoopReceipt(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+  consumerName: string,
+  logFields: Readonly<Record<string, unknown>>,
+  message: string,
+): Promise<ConsumerResult> {
+  getLogger().warn(logFields, message)
+  await deps.commandStore.recordReceipt(event.eventId, consumerName, 'applied')
+  return { status: 'applied' }
+}
+
 /** Exported for unit tests — review.created durable handler body. */
 export async function handleInboxReviewCreated(
   deps: InboxConsumerDeps,
@@ -193,7 +211,6 @@ export async function handleInboxReviewUpdated(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
-  const logger = getLogger()
   const payload = asReviewIdPayload(event.payload)
   const orgId = organizationId(payload.organizationId)
   const rId = reviewId(payload.reviewId)
@@ -202,22 +219,24 @@ export async function handleInboxReviewUpdated(
   if (!item) {
     // No projection row — nothing to refresh. Rebuild heals if the item
     // should exist; the receipt marks the event as consumed.
-    logger.warn(
+    return appliedNoopReceipt(
+      deps,
+      event,
+      ON_REVIEW_UPDATED,
       { reviewId: payload.reviewId, eventId: event.eventId },
       'inbox.on-review-updated: no inbox item — applied no-op (rebuild heals)',
     )
-    await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_UPDATED, 'applied')
-    return { status: 'applied' }
   }
 
   const meta = await deps.reviewSourceLookup.getReviewSourceMetaById(rId, orgId)
   if (!meta) {
-    logger.warn(
+    return appliedNoopReceipt(
+      deps,
+      event,
+      ON_REVIEW_UPDATED,
       { reviewId: payload.reviewId, eventId: event.eventId },
       'inbox.on-review-updated: review missing — applied no-op',
     )
-    await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_UPDATED, 'applied')
-    return { status: 'applied' }
   }
 
   await deps.commandStore.applyReviewUpdatedOnce({
@@ -240,19 +259,19 @@ export async function handleInboxReplyPublished(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
-  const logger = getLogger()
   const payload = asReplyPublishedPayload(event.payload)
   const orgId = organizationId(payload.organizationId)
   const rId = reviewId(payload.reviewId)
 
   const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
   if (!item) {
-    logger.warn(
+    return appliedNoopReceipt(
+      deps,
+      event,
+      ON_REPLY_PUBLISHED,
       { reviewId: payload.reviewId, eventId: event.eventId },
       'inbox.on-reply-published: no inbox item found — applied no-op',
     )
-    await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_PUBLISHED, 'applied')
-    return { status: 'applied' }
   }
 
   const occurredAt =

@@ -20,12 +20,11 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems, inboxNotes } from '#/shared/db/schema/inbox.schema'
-import { outboxEvents, eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
+import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import type { InboxItem } from '../domain/types'
 import { inboxError } from '../domain/errors'
@@ -36,25 +35,6 @@ import type {
   ApplyReceiptStatus,
   InboxCommandStore,
 } from '../application/ports/inbox-command-store.port'
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
-
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  // Expand-phase dual path: durable outbox already committed. Bus failure must
-  // not roll back or hide the durable fact (relay will deliver when enabled).
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
-      'BQC-3.4: in-process emit failed after atomic outbox commit — durable row retained',
-    )
-  }
-}
-
-async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
-}
 
 async function insertReceiptRow(
   tx: Tx,

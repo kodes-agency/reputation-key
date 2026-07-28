@@ -8,7 +8,7 @@ import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { Reply } from '../../domain/types'
+import type { Reply, Review } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
@@ -16,6 +16,7 @@ import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { reconcileReplyPublication } from './reconcile-reply-publication'
+import { commitTransition } from '../reply-commit'
 import {
   reviewReplyPublished,
   reviewReplySubmitted,
@@ -72,6 +73,39 @@ async function assertReplyPropertyAccessible(
   }
 }
 
+/** Load the review and assert the caller can access its property (D6-001). */
+async function requireAccessibleReview(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reviewId: ReviewId,
+): Promise<Review> {
+  const review = await deps.reviewRepo.findById(reviewId, ctx.organizationId)
+  if (!review) {
+    throw reviewError('review_not_found', 'Review not found')
+  }
+  await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+  return review
+}
+
+/**
+ * Reply mutations require a manager, the reply + review rows, and property
+ * access (D6-001) — the single prologue every reply mutation shares.
+ */
+async function requireAccessibleReply(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reviewId: ReviewId,
+  replyNotFoundMessage = 'No reply found for this review',
+): Promise<{ reply: Reply; review: Review }> {
+  requireManager(ctx)
+  const reply = await deps.replyRepo.findInternalByReviewId(reviewId, ctx.organizationId)
+  if (!reply) {
+    throw reviewError('reply_not_found', replyNotFoundMessage)
+  }
+  const review = await requireAccessibleReview(deps, ctx, reviewId)
+  return { reply, review }
+}
+
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
 export type ApproveReply = ReturnType<typeof approveReply>
@@ -101,11 +135,7 @@ export const draftReply =
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    await requireAccessibleReview(deps, ctx, input.reviewId)
 
     const existing = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
@@ -172,46 +202,35 @@ export type SubmitReplyInput = Readonly<{
 export const submitReply =
   (deps: ReplyDeps) =>
   async (input: SubmitReplyInput, ctx: AuthContext): Promise<Reply> => {
-    requireManager(ctx)
-
-    const reply = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-    if (!reply) {
-      throw reviewError('reply_not_found', 'No draft reply found for this review')
-    }
-
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const { reply, review } = await requireAccessibleReply(
+      deps,
+      ctx,
+      input.reviewId,
+      'No draft reply found for this review',
+    )
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'pending_approval', now)
-    if (transitioned.isErr()) throw transitioned.error
     // BQC-3.3: guarded status update + submitted fact commit in one tx;
-    // the store emits on the bus after commit. Null = lost TOCTOU race.
-    const submitted = await deps.commandStore.submitReply(
-      reply,
-      { status: 'pending_approval', submittedAt: now },
-      reviewReplySubmitted({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: ctx.userId,
-        occurredAt: now,
-      }),
-      now,
+    // the store emits on the bus after commit.
+    const submitted = await commitTransition(reply, 'pending_approval', now, () =>
+      deps.commandStore.submitReply(
+        reply,
+        { status: 'pending_approval', submittedAt: now },
+        reviewReplySubmitted({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: ctx.userId,
+          occurredAt: now,
+        }),
+        now,
+      ),
     )
-    if (!submitted) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    if (submitted.isErr()) throw submitted.error
 
-    return submitted
+    return submitted.value
   }
 
 // ── Approve reply ─────────────────────────────────────────────────────
@@ -223,48 +242,33 @@ export type ApproveReplyInput = Readonly<{
 export const approveReply =
   (deps: ReplyDeps) =>
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
-    requireManager(ctx)
-
-    const reply = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-    if (!reply) {
-      throw reviewError('reply_not_found', 'No reply found for this review')
-    }
-
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'approved', now)
-    if (transitioned.isErr()) throw transitioned.error
     // BQC-3.3: guarded status update + approved fact commit in one tx. The
     // durable review.reply.approved outbox row is the recovery record if the
     // process crashes before the enqueue below.
     // BQC-3.8: the same write authorizes the publication cycle —
     // publication_state='authorized', attempts/last-error/reconcile-due reset.
-    const approved = await deps.commandStore.markPublicationAuthorized(
-      reply,
-      { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
-      reviewReplyApproved({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: ctx.userId,
-        authorId: reply.createdBy,
-        occurredAt: now,
-      }),
-      now,
+    const approvedResult = await commitTransition(reply, 'approved', now, () =>
+      deps.commandStore.markPublicationAuthorized(
+        reply,
+        { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
+        reviewReplyApproved({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: ctx.userId,
+          authorId: reply.createdBy,
+          occurredAt: now,
+        }),
+        now,
+      ),
     )
-    if (!approved) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    if (approvedResult.isErr()) throw approvedResult.error
+    const approved = approvedResult.value
 
     // Post-commit enqueue: the BullMQ queue cannot join the pg transaction.
     // The committed approved fact is the recovery record; BQC-3.8 makes
@@ -332,11 +336,7 @@ export const editPublishedReply =
       )
     }
 
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const review = await requireAccessibleReview(deps, ctx, input.reviewId)
 
     // No-op: identical text — no write, no provider call, no fact.
     if (text === reply.text) {
@@ -344,27 +344,26 @@ export const editPublishedReply =
     }
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'approved', now)
-    if (transitioned.isErr()) throw transitioned.error
 
     // Guarded edit: text + status → approved + a fresh publication cycle +
     // the review.reply.updated fact — one transaction. The committed updated
     // fact is the recovery record if the process crashes before the enqueue.
-    const updated = await deps.commandStore.editPublishedReply(reply, {
-      text,
-      event: reviewReplyUpdated({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: ctx.userId,
-        occurredAt: now,
+    const updatedResult = await commitTransition(reply, 'approved', now, () =>
+      deps.commandStore.editPublishedReply(reply, {
+        text,
+        event: reviewReplyUpdated({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: ctx.userId,
+          occurredAt: now,
+        }),
+        now,
       }),
-      now,
-    })
-    if (!updated) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    )
+    if (updatedResult.isErr()) throw updatedResult.error
+    const updated = updatedResult.value
 
     await deps.queue.addPublishJob(
       {
@@ -388,51 +387,35 @@ export type RejectReplyInput = Readonly<{
 export const rejectReply =
   (deps: ReplyDeps) =>
   async (input: RejectReplyInput, ctx: AuthContext): Promise<Reply> => {
-    requireManager(ctx)
-
-    const reply = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-    if (!reply) {
-      throw reviewError('reply_not_found', 'No reply found for this review')
-    }
-
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'rejected', now)
-    if (transitioned.isErr()) throw transitioned.error
     // BQC-3.3: guarded status update + rejected fact commit in one tx.
-    const updated = await deps.commandStore.rejectReply(
-      reply,
-      {
-        status: 'rejected',
-        rejectedBy: ctx.userId,
-        rejectionReason: input.reason ?? null,
-      },
-      reviewReplyRejected({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: ctx.userId,
-        authorId: reply.createdBy,
-        reason: input.reason ?? null,
-        occurredAt: now,
-      }),
-      now,
+    const updated = await commitTransition(reply, 'rejected', now, () =>
+      deps.commandStore.rejectReply(
+        reply,
+        {
+          status: 'rejected',
+          rejectedBy: ctx.userId,
+          rejectionReason: input.reason ?? null,
+        },
+        reviewReplyRejected({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: ctx.userId,
+          authorId: reply.createdBy,
+          reason: input.reason ?? null,
+          occurredAt: now,
+        }),
+        now,
+      ),
     )
-    if (!updated) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    if (updated.isErr()) throw updated.error
 
-    return updated
+    return updated.value
   }
 
 // ── Delete draft ──────────────────────────────────────────────────────
@@ -444,22 +427,8 @@ export type DeleteReplyInput = Readonly<{
 export const deleteReply =
   (deps: ReplyDeps) =>
   async (input: DeleteReplyInput, ctx: AuthContext): Promise<void> => {
-    requireManager(ctx)
-
-    const reply = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-    if (!reply) {
-      throw reviewError('reply_not_found', 'No reply found for this review')
-    }
-
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const { reply } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     if (reply.status !== 'draft' && reply.status !== 'rejected') {
       throw reviewError('invalid_transition', 'Can only delete draft or rejected replies')
@@ -480,11 +449,7 @@ export const getReply =
     requireManager(ctx)
     // D6-001: scope the reply read to the caller's assigned properties — same guard
     // the mutations use. Without it a PropertyManager could read other properties' drafts.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    await requireAccessibleReview(deps, ctx, input.reviewId)
     return deps.replyRepo.findInternalByReviewId(input.reviewId, ctx.organizationId)
   }
 
@@ -504,36 +469,33 @@ export const markReplyPublished =
     }
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'published', now)
-    if (transitioned.isErr()) throw transitioned.error
-
-    const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found for published reply')
-    }
 
     // BQC-3.3: guarded status update + published fact commit in one tx.
     // The publish runs from the publish-reply BullMQ job (no user actor); the
     // fact carries userId: null (system) with authorId as the original author.
-    const published = await deps.commandStore.markPublished(
-      reply,
-      { status: 'published', publishedAt: now },
-      reviewReplyPublished({
-        replyId: reply.id,
-        reviewId: reply.reviewId,
-        propertyId: review.propertyId,
-        organizationId: reply.organizationId,
-        userId: null,
-        authorId: reply.createdBy,
-        occurredAt: now,
-      }),
-      now,
-    )
-    if (!published) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    const published = await commitTransition(reply, 'published', now, async () => {
+      const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
+      if (!review) {
+        throw reviewError('review_not_found', 'Review not found for published reply')
+      }
+      return deps.commandStore.markPublished(
+        reply,
+        { status: 'published', publishedAt: now },
+        reviewReplyPublished({
+          replyId: reply.id,
+          reviewId: reply.reviewId,
+          propertyId: review.propertyId,
+          organizationId: reply.organizationId,
+          userId: null,
+          authorId: reply.createdBy,
+          occurredAt: now,
+        }),
+        now,
+      )
+    })
+    if (published.isErr()) throw published.error
 
-    return published
+    return published.value
   }
 
 // ── Retry publish ─────────────────────────────────────────────────────
@@ -545,22 +507,8 @@ export type RetryPublishInput = Readonly<{
 export const retryPublish =
   (deps: ReplyDeps) =>
   async (input: RetryPublishInput, ctx: AuthContext): Promise<Reply> => {
-    requireManager(ctx)
-
-    const reply = await deps.replyRepo.findInternalByReviewId(
-      input.reviewId,
-      ctx.organizationId,
-    )
-    if (!reply) {
-      throw reviewError('reply_not_found', 'No reply found for this review')
-    }
-
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const review = await deps.reviewRepo.findById(input.reviewId, ctx.organizationId)
-    if (!review) {
-      throw reviewError('review_not_found', 'Review not found')
-    }
-    await assertReplyPropertyAccessible(deps, ctx, review.propertyId)
+    const { reply } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     // BQC-3.8: reconcile-before-retry for an AMBIGUOUS publication. The
     // previous send may have landed on Google — re-read provider state first:
@@ -585,20 +533,19 @@ export const retryPublish =
     }
 
     const now = deps.clock()
-    const transitioned = transitionReply(reply, 'approved', now)
-    if (transitioned.isErr()) throw transitioned.error
     // BQC-3.8: re-authorization starts a NEW publication cycle
     // (publication_state='authorized', attempts/error/reconcile-due reset).
     // No new fact — re-approval reuses the approved state, exactly as before.
-    const backToApproved = await deps.commandStore.markPublicationAuthorized(
-      reply,
-      { status: 'approved' },
-      null,
-      now,
+    const backToApprovedResult = await commitTransition(reply, 'approved', now, () =>
+      deps.commandStore.markPublicationAuthorized(
+        reply,
+        { status: 'approved' },
+        null,
+        now,
+      ),
     )
-    if (!backToApproved) {
-      throw reviewError('invalid_transition', 'Reply status changed concurrently')
-    }
+    if (backToApprovedResult.isErr()) throw backToApprovedResult.error
+    const backToApproved = backToApprovedResult.value
 
     // Post-commit enqueue (no new fact — re-approval reuses the approved
     // state). The retry bumps updatedAt, so the saga idempotency key differs

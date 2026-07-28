@@ -3,11 +3,9 @@
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canForContext } from '#/shared/domain/permissions'
 import { portalId, unbrand } from '#/shared/domain/ids'
-import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPropertyAccess } from '../assert-property-access'
+import { loadPortalOrThrow } from '../load-accessible-portal'
 // BQC-5.1: application must not import bullmq directly — the Queue type comes
 // from the shared/jobs wiring surface (re-exported there).
 import type { Queue } from '#/shared/jobs/queue'
@@ -33,27 +31,10 @@ export const finalizeUpload =
     input: FinalizeUploadInput,
     ctx: AuthContext,
   ): Promise<{ heroImageUrl: string }> => {
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError(
-        'forbidden',
-        'Insufficient permissions to finalize portal uploads',
-      )
-    }
-
-    const portal = await deps.portalRepo.findById(
-      ctx.organizationId,
-      portalId(input.portalId),
-    )
-    if (!portal) {
-      throw portalError('portal_not_found', 'portal not found in this organization')
-    }
-    // Enforce property-assignment scoping (D6-001.)
-    await assertPropertyAccess(
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      portal.propertyId,
-    )
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.update',
+      forbiddenMessage: 'Insufficient permissions to finalize portal uploads',
+    })
 
     const publicUrl = await deps.storage.confirmUpload(input.key)
 
