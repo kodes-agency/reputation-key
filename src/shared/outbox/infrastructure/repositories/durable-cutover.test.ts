@@ -40,9 +40,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Pool } from 'pg'
 import { Queue, Worker, type Job } from 'bullmq'
-import { Redis } from 'ioredis'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import {
+  acquireRedisTestLease,
+  type RedisTestLease,
+} from '#/shared/testing/redis-test-lease'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createEventBus, type EventBus } from '#/shared/events/event-bus'
@@ -100,7 +103,6 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 
 // ── Constants (hex-only UUID fixtures) ──────────────────────────────
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 const EVENTS_QUEUE = `bqc39-events-${process.pid}`
 const JOBS_QUEUE = `bqc39-jobs-${process.pid}`
 
@@ -132,7 +134,7 @@ const PUBLISHED_CONSUMER = 'inbox.on-reply-published'
 const db = getDb()
 const outboxRepo = createOutboxRepository(db)
 let pool: Pool
-let redis: Redis | undefined
+let redisLease: RedisTestLease | undefined
 let redisAvailable = false
 let eventsQueue: Queue | undefined
 let jobsQueue: Queue | undefined
@@ -443,14 +445,12 @@ beforeAll(async () => {
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [ORG])
 
-  redis = new Redis(REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 2000 })
-  try {
-    await redis.ping()
-    redisAvailable = true
-  } catch {
-    redisAvailable = false
-    return
-  }
+  // BQC-6.1: lease-guarded Redis — refuses remote/managed hosts; skips cleanly
+  // when the local Redis is unavailable. Obliterates suite-unique queues only.
+  redisLease = await acquireRedisTestLease()
+  redisAvailable = redisLease.available
+  const redis = redisLease.redis
+  if (!redisAvailable || !redis) return
   const connection = redis as unknown as import('bullmq').ConnectionOptions
   eventsQueue = new Queue(EVENTS_QUEUE, { connection })
   jobsQueue = new Queue(JOBS_QUEUE, { connection })
@@ -516,7 +516,7 @@ afterAll(async () => {
   }
   await eventsQueue?.close()
   await jobsQueue?.close()
-  redis?.disconnect()
+  redisLease?.release()
   policyHandle?.stopPolling()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()

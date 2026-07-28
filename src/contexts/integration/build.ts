@@ -15,6 +15,8 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
 import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
+import type { GoogleOAuthPort } from './application/ports/google-oauth.port'
+import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { PropertyQueryPort } from './application/ports/property-query.port'
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
@@ -74,6 +76,10 @@ type IntegrationContextDeps = Readonly<{
    * composition root from the cell's logical provider reference
    * (ProcessingTarget.provider). Adapters never hardcode URLs. */
   providerEndpoints: ProviderEndpoints
+  /** BQC-6.1: optional deterministic adapter overrides (simulations/tests
+   * inject in-memory providers; absent = the real env-driven HTTP adapters). */
+  googleOAuth?: GoogleOAuthPort
+  gbpApi?: GbpApiPort
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -83,6 +89,9 @@ export type IntegrationContextApi = Readonly<{
       connectionRepo: ReturnType<typeof createGoogleConnectionRepository>
       encryptionPort: ReturnType<typeof createTokenEncryptionAdapter>
       oauthPort: ReturnType<typeof createGoogleOAuthAdapter>
+      /** BQC-6.1: exposed (like oauthPort) so build-level tests can prove
+       * provider overrides are honored. */
+      gbpApiPort: GbpApiPort
     }>
     /** BQC-5.2: the Google review API adapter (integration-owned), typed by
      * review's port — consumed by the review context build. */
@@ -135,17 +144,20 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Adapters ──────────────────────────────────────────────────────
   // BQC-4.3: every Google endpoint comes from the composition-resolved
   // providerEndpoints (the cell's approved provider ref) — nowhere else.
-  const oauthPort = createGoogleOAuthAdapter({
-    clientId: getEnv().GOOGLE_CLIENT_ID,
-    clientSecret: getEnv().GOOGLE_CLIENT_SECRET,
-    tokenUrl: deps.providerEndpoints.oauthTokenUrl,
-    userInfoUrl: deps.providerEndpoints.oauthUserInfoUrl,
-    revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
-  })
+  // BQC-6.1: injected provider overrides win; absent slots build the real
+  // env-driven adapters exactly as before.
+  const oauthPort =
+    deps.googleOAuth ??
+    createGoogleOAuthAdapter({
+      clientId: getEnv().GOOGLE_CLIENT_ID,
+      clientSecret: getEnv().GOOGLE_CLIENT_SECRET,
+      tokenUrl: deps.providerEndpoints.oauthTokenUrl,
+      userInfoUrl: deps.providerEndpoints.oauthUserInfoUrl,
+      revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
+    })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
-  const gbpApiPort = createGbpApiAdapter({
-    baseUrl: deps.providerEndpoints.gbpApiBaseUrl,
-  })
+  const gbpApiPort =
+    deps.gbpApi ?? createGbpApiAdapter({ baseUrl: deps.providerEndpoints.gbpApiBaseUrl })
   const notificationsPort = createMyBusinessNotificationsAdapter({
     baseUrl: deps.providerEndpoints.notificationsApiBaseUrl,
   })
@@ -303,6 +315,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         connectionRepo,
         encryptionPort,
         oauthPort,
+        gbpApiPort,
       },
       googleReviewApi,
       gbpNotificationHandler,

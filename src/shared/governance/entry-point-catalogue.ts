@@ -2387,6 +2387,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     externalEffect: true,
     notes: 'Neon branch lifecycle (Neon API) + seed + invariants',
   }),
+  ops('scripts/test-db-setup.ts', 'scripts/test-db-setup.ts', 'tenant_cross', {
+    notes:
+      'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
+  }),
   ops(
     'scripts/verify-auth-schema.mjs',
     'scripts/verify-auth-schema.mjs',

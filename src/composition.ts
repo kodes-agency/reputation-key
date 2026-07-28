@@ -39,6 +39,9 @@ import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adap
 import { registerExecutionPolicyInit } from '#/shared/auth/execution-policy'
 import { registerDelayedExecutionPolicyInit } from '#/shared/auth/system-execution-policy'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
+import type { GoogleOAuthPort } from '#/contexts/integration/application/ports/google-oauth.port'
+import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-api.port'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { buildIdentityContext } from '#/contexts/identity/build'
 import {
   getAuth,
@@ -169,6 +172,18 @@ async function setActiveOrg(orgId: string): Promise<void> {
 
 // ── Main container ─────────────────────────────────────────────────
 
+/** BQC-6.1: deterministic external provider adapters by injection. When a
+ * slot is absent the context build constructs the real env-driven adapter —
+ * defaults are byte-identical to the pre-slot behavior (additive change). */
+export type ProviderOverrides = Readonly<{
+  /** Google OAuth adapter (integration context). */
+  googleOAuth?: GoogleOAuthPort
+  /** Google Business Profile API adapter (integration context). */
+  gbpApi?: GbpApiPort
+  /** Object storage adapter (portal context). */
+  storage?: StoragePort
+}>
+
 // Accepted residual (BQC-5.2/BQC-5.7): per-dependency override pattern is
 // inherently branchy; extraction would scatter the wiring. Owner: BQC-5.2.
 // fallow-ignore-next-line complexity
@@ -197,6 +212,9 @@ export function createContainer(options?: {
   identityPort?: IdentityPort
   /** Override the email sender (simulations capture emails instead of sending). */
   email?: typeof sendInvitationEmail
+  /** Override external provider adapters (BQC-6.1: deterministic Google/GBP/
+   * storage by injection — simulations/tests never hit the network). */
+  providers?: ProviderOverrides
 }) {
   const { enableJobs = false } = options ?? {}
   const db = options?.db ?? getDb()
@@ -344,6 +362,7 @@ export function createContainer(options?: {
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
     queue: infra.jobQueue,
+    storage: options?.providers?.storage,
     storageConfig: {
       accessKey: env.AWS_S3_ACCESS_KEY ?? '',
       secretKey: env.AWS_S3_SECRET_ACCESS_KEY ?? '',
@@ -371,6 +390,8 @@ export function createContainer(options?: {
     logger: getLogger(),
     providerEndpoints,
     sourceContentPurge,
+    googleOAuth: options?.providers?.googleOAuth,
+    gbpApi: options?.providers?.gbpApi,
   })
 
   const review = buildReviewContext({

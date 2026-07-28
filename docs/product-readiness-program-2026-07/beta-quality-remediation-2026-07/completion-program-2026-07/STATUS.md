@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-28T20:34:07Z  
+**Manifest updated:** 2026-07-28T21:43:00Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -37,7 +37,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-3 | phase | Durable commands, consumers, and jobs | `evidence_pending` | engineering | — | STD-P0-02, SPEC-P0-01, SPEC-P1-02 | — |
 | BQC-4 | phase | Enforced regional execution | `evidence_pending` | engineering | — | SPEC-P1-01 | — |
 | BQC-5 | phase | Clean architecture and context quality | `evidence_pending` | engineering | — | STD-P1-01, STD-P1-04, STD-P1-06, STD-P2-01, STD-P2-02, STD-P2-03, STD-P2-04, STD-P2-05 | — |
-| BQC-6 | phase | Trustworthy verification and experience gates | `not_started` | engineering | — | STD-P1-05, SPEC-P1-03, STD-P2-06 | — |
+| BQC-6 | phase | Trustworthy verification and experience gates | `implementation_in_progress` | engineering | — | STD-P1-05, SPEC-P1-03, STD-P2-06 | — |
 | BQC-7 | phase | Production operations, security, and observability | `not_started` | engineering | — | SPEC-P1-05, SPEC-P1-06, STD-P1-07 | — |
 | BQC-8 | phase | Scale, recovery, and release evidence | `not_started` | engineering | — | SPEC-P1-04, SPEC-P2-02 | — |
 | BQC-9 | phase | Controlled pilot and AI-readiness handoff | `blocked` | product | — | — | BQC-0 through BQC-8 accepted + human pilot authorization (review 2026-09-01) |
@@ -90,6 +90,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-5.3 | slice | Runtime-neutral domain decisions | `implementation_complete` | engineering | — | — | — |
 | BQC-5.2 | slice | Non-worker context composition cleanup | `implementation_complete` | engineering | — | — | — |
 | BQC-5.1 | slice | Make architecture policy executable | `implementation_complete` | engineering | — | — | — |
+| BQC-6.1 | slice | Hermetic test environment | `implementation_complete` | engineering | — | — | — |
 
 ## Historical BQR work
 

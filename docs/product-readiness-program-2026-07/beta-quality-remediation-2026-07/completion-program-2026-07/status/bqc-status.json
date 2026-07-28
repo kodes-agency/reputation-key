@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T20:34:07Z",
+  "updatedAt": "2026-07-28T21:43:00Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -857,11 +857,24 @@
       "id": "BQC-6",
       "kind": "phase",
       "title": "Trustworthy verification and experience gates",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "6.1 implementation_complete: hermetic test environment — one validated builder feeds vitest unit/integration, Playwright webServer, and Storybook; bare-shell unit run green (was 49 files/186 tests red on empty Google credential defaults); destructive tests refuse non-localhost DB/Redis by default (opt-out is explicit); ephemeral DB setup (create + migrate + sidecar, idempotent) wired as integration globalSetup — clean-clone integration green without manual prep; provider DI slots added to composition (googleOAuth/gbpApi/storage) with byte-identical defaults. Slices 6.2–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.1",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Hermetic test environment",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) THE builder (src/shared/testing/test-environment.ts): one canonical deterministic env record feeding both vitest projects, playwright webServer env (process.env still wins where set — CI behavior unchanged), and Storybook (pinned no-env). The `?? ''` Google defaults are dead — bare-shell `env -i pnpm vitest run --project=unit` is GREEN 386f/4271t (was 49 files/186 tests red on GOOGLE_CLIENT_ID/SECRET Too small via the logger→getEnv backdoor). Plain DATABASE_URL deliberately not honored (a shell dev-DB URL must never redirect tests). (2) Guards: DB lease now requires localhost by default (opt-out ALLOW_REMOTE_TEST_DB=1, host denylist still applies; refusal names the host); new redis-test-lease with the same posture + a bounded 2.5s probe — also fixes a latent hang (the old ping-skip pattern blocked forever on dead Redis); the 3 direct-REDIS_URL suites converted. (3) Ephemeral DB: test-db-setup (script + in-process integration globalSetup) — guard-validates target, creates role/db if missing, applies the deploy trio (auth:migrate → db:migrate → sidecar), fast-path skip when journal/table/sidecar markers present (0.3s idempotent). Fresh scratch verified: 68 tables + 17 journal rows; clean-clone integration green with no manual prep. (4) Provider DI: composition gains additive `providers` slot (googleOAuth/gbpApi/storage) threaded into integration/portal builds; defaults byte-identical (characterization extended: defaults unchanged + overrides honored); simulation container accepts them (full-fake simulation now possible — stale Track-4 header note retired). (5) Storybook hermeticity pinned (stub aliases stay the no-env boundary). Gates: unit 386f/4271t (incl. bare shell), integration 52f/315t, storybook goals 5f/28t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-7",

@@ -7,7 +7,10 @@
 //   2. ALLOW_DESTRUCTIVE_DB_TESTS === '1' (explicit opt-in)
 //   3. The database host/name does not match a denylist of production-like
 //      identifiers (neon, railway, supabase, planetscale, staging, beta, prod)
-//   4. A cryptographically unique lease marker exists inside the target database
+//   4. The database host is localhost / 127.0.0.1 / ::1 / a unix socket
+//      (BQC-6.1 — refuse destructive tests against shared/remote databases;
+//      opt out ONLY via ALLOW_REMOTE_TEST_DB=1, the denylist still applies)
+//   5. A cryptographically unique lease marker exists inside the target database
 //
 // The lease marker is a row in a _test_lease table. If the table or marker
 // is missing, the guard refuses to proceed — proving the database was not
@@ -19,7 +22,7 @@ import { Pool } from 'pg'
 const LEASE_TABLE = '_test_lease'
 
 /** Hostnames patterns that indicate a managed/remote database — never safe for destructive tests. */
-const DENYLIST_HOST_PATTERNS = [
+export const DENYLIST_HOST_PATTERNS = [
   'neon.tech',
   'railway.app',
   'supabase.co',
@@ -31,6 +34,9 @@ const DENYLIST_HOST_PATTERNS = [
 
 /** Database name patterns that indicate a non-disposable environment. */
 const DENYLIST_DB_PATTERNS = ['prod', 'staging', 'beta', 'live']
+
+/** Hosts that are always local — destructive tests are safe against them. */
+const LOCAL_TEST_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
 export type TestLease = Readonly<{
   /** Unique random marker stored in the _test_lease table. */
@@ -91,7 +97,7 @@ function checkDenylist(host: string, database: string): void {
   }
 }
 
-function checkEnvironment(): void {
+export function checkEnvironment(): void {
   if (process.env.NODE_ENV !== 'test') {
     throw new TestEnvironmentError(
       'not_test_env',
@@ -107,6 +113,22 @@ function checkEnvironment(): void {
         'Set ALLOW_DESTRUCTIVE_DB_TESTS=1 to explicitly opt in to destructive tests.',
     )
   }
+}
+
+/**
+ * BQC-6.1: destructive tests target localhost only. Any other host is
+ * refused by name unless ALLOW_REMOTE_TEST_DB=1 is set explicitly (the
+ * denylist above still applies even then). An empty host = unix socket = local.
+ */
+export function checkLocalTestHost(host: string): void {
+  if (host === '' || LOCAL_TEST_HOSTS.has(host)) return
+  if (process.env.ALLOW_REMOTE_TEST_DB === '1') return
+  throw new TestEnvironmentError(
+    'remote_host_refused',
+    `Refusing destructive tests against non-local host "${host}". ` +
+      'Destructive tests require a local database/Redis (localhost, 127.0.0.1, ::1, or a unix socket). ' +
+      'Set ALLOW_REMOTE_TEST_DB=1 to override for a disposable remote resource you own.',
+  )
 }
 
 async function ensureLeaseTable(pool: Pool): Promise<void> {
@@ -151,9 +173,7 @@ export async function acquireTestLease(
   maxConnections = 5,
 ): Promise<TestLease> {
   checkEnvironment()
-
-  const { host, database } = parseDatabaseUrl(databaseUrl)
-  checkDenylist(host, database)
+  validateTestDatabaseTarget(databaseUrl)
 
   const pool = new Pool({ connectionString: databaseUrl, max: maxConnections })
 
@@ -185,11 +205,22 @@ export async function acquireTestLease(
 }
 
 /**
+ * Validate that a database URL targets a disposable, local resource:
+ * denylist + localhost checks WITHOUT the destructive-test env flags.
+ * Used by the test-database setup script (BQC-6.1), which is not itself a
+ * destructive test but must never create/migrate a shared or remote database.
+ */
+export function validateTestDatabaseTarget(databaseUrl: string): void {
+  const { host, database } = parseDatabaseUrl(databaseUrl)
+  checkDenylist(host, database)
+  checkLocalTestHost(host)
+}
+
+/**
  * Validate that a database URL is safe for destructive testing without
  * creating a lease. Useful for pre-flight checks.
  */
 export function validateTestDatabaseUrl(databaseUrl: string): void {
   checkEnvironment()
-  const { host, database } = parseDatabaseUrl(databaseUrl)
-  checkDenylist(host, database)
+  validateTestDatabaseTarget(databaseUrl)
 }
