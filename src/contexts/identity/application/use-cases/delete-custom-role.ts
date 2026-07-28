@@ -8,7 +8,6 @@ import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import type { DeleteCustomRoleInput } from '../dto/custom-role.dto'
 
-// fallow-ignore-next-line unused-type
 export type { DeleteCustomRoleInput }
 export type DeleteCustomRole = ReturnType<typeof deleteCustomRole>
 

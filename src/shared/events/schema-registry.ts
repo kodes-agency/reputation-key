@@ -44,10 +44,7 @@ export function registerEventSchema(entry: EventSchemaEntry): void {
  * Look up the schema for an event type and version.
  * Returns undefined for unknown types — the caller must reject.
  */
-export function getEventSchema(
-  type: string,
-  version: number,
-): EventSchemaEntry | undefined {
+function getEventSchema(type: string, version: number): EventSchemaEntry | undefined {
   return registry.get(`${type}:v${version}`)
 }
 

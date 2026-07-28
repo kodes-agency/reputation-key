@@ -29,7 +29,6 @@ interface InboxSidebarProps {
   getInboxFolderCounts: typeof getInboxFolderCountsFn
 }
 
-// fallow-ignore-next-line complexity — pre-existing component layout (was already over threshold on main; my 3-line query-key change doesn't alter it — extraction belongs to a sidebar refactor, not this badge-scoping fix)
 export function InboxSidebar({
   propertyId,
   properties,

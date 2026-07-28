@@ -4,6 +4,11 @@
 // transitions, and parallax. Essential loading indicators (skeleton
 // pulse, progress bars) remain but are simplified.
 //
+// BQC-5.8 classification: B (required a11y control, wire in the BQC-6
+// experience pass). Not yet consumed by components; reported as an unused
+// file by fallow and suppressed via .fallowrc.json ignoreFindings.
+// Owner: BQC-6. Expiry: BQC-6 close.
+//
 // Usage in components:
 //   const prefersReducedMotion = usePrefersReducedMotion()
 //   <animate-spin className={prefersReducedMotion ? '' : 'animate-spin'} />

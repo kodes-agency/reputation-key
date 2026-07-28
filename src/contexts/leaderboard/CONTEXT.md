@@ -48,7 +48,7 @@ None. (The `leaderboard.snapshot.refreshed` event was pruned — it had zero sub
 
 ```
 leaderboard/
-  domain/              types.ts, events.ts (pruned), errors.ts, scoring.ts
+  domain/              types.ts, errors.ts, scoring.ts
   application/
     ports/             leaderboard.repository.ts
     use-cases/         refresh-leaderboard.ts, reconcile-leaderboards.ts, get-leaderboard.ts

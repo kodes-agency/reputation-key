@@ -10,7 +10,6 @@ export type RequestOrgLogoUploadInput = Readonly<{
   fileSize: number
 }>
 
-// fallow-ignore-next-line unused-type
 export type RequestOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
   idGen: () => string
@@ -53,5 +52,4 @@ export const requestOrgLogoUpload =
     return { uploadUrl, key }
   }
 
-// fallow-ignore-next-line unused-type
 export type RequestOrgLogoUpload = ReturnType<typeof requestOrgLogoUpload>

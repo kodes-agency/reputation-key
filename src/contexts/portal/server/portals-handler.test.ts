@@ -31,7 +31,6 @@ vi.mock('#/shared/auth/headers', () => ({
 
 vi.mock('#/shared/auth/middleware', () => ({
   resolveTenantContext: mocks.resolveTenantContext,
-  clearTenantCache: vi.fn(),
 }))
 
 // BQR-0: portal.read is non-core; handler tests assert use-case wiring, not capability policy.

@@ -55,13 +55,3 @@ const POLICIES: Readonly<Record<RetryPolicyName, Policy>> = {
 export function getPolicyJobOptions(name: RetryPolicyName): Readonly<JobsOptions> {
   return POLICIES[name].jobOptions
 }
-
-/** Get the human-readable description for a named retry policy. */
-export function getPolicyDescription(name: RetryPolicyName): string {
-  return POLICIES[name].description
-}
-
-/** List all policy names (for validation or UI). */
-export function getPolicyNames(): readonly RetryPolicyName[] {
-  return Object.keys(POLICIES) as RetryPolicyName[]
-}

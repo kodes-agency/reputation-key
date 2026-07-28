@@ -16,7 +16,6 @@ export type GetInboxNotesInput = Readonly<{
   inboxItemId: InboxItemId
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetInboxNotesDeps = Readonly<{
   noteRepo: InboxNoteRepository
   repo: InboxRepository
@@ -54,5 +53,4 @@ export const getInboxNotes =
     return deps.noteRepo.findByInboxItemId(input.inboxItemId, ctx.organizationId)
   }
 
-// fallow-ignore-next-line unused-type
 export type GetInboxNotesUseCase = ReturnType<typeof getInboxNotes>

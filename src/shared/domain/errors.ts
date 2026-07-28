@@ -15,7 +15,6 @@
 // - ADR 0005 hybrid (Error & tagged) is allowed for stack/logging where needed (e.g. integration).
 // - Server functions translate tagged errors to HTTP (throwContextError).
 
-// fallow-ignore-next-line unused-type
 export type TaggedError<
   Tag extends string = string,
   Code extends string = string,

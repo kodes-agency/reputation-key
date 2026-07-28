@@ -58,11 +58,9 @@ review/
     ports/             review.repository.ts, reply.repository.ts, review-queue.port.ts,
                        reply-queue.port.ts, google-review-api.port.ts,
                        serving-stats.port.ts (BQC-5.5 ReviewServingStats)
-    dto/               sync-reviews.dto.ts
     use-cases/         sync-reviews.ts, reply-operations.ts, reconcile-reply-publication.ts
     ports/             review-command-store.port.ts, reply-command-store.port.ts (BQC-3.3), ...
     public-api.ts      re-exports DTO types, port types, event types/constructors
-    internal-ports.ts  internal-only port re-exports (ReviewQueuePort, GoogleReviewApiPort)
   infrastructure/
     repositories/      review.repository.ts, reply.repository.ts (Drizzle)
     serving-stats.ts   governed aggregate serving reads (BQC-5.5; eligibility in SQL)

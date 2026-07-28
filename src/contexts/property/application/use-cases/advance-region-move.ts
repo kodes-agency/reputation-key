@@ -58,7 +58,6 @@ export type RegionMoveQueueBinding = Readonly<{
   queue: QuarantineQueuePort | undefined
 }>
 
-// fallow-ignore-next-line unused-type
 export type AdvanceRegionMoveDeps = Readonly<{
   moveStore: RegionMoveStore
   queues: ReadonlyArray<RegionMoveQueueBinding>
@@ -186,5 +185,4 @@ export const advanceRegionMove =
     return { move: { ...move, ...update }, advanced: true, note: null }
   }
 
-// fallow-ignore-next-line unused-type
 export type AdvanceRegionMove = ReturnType<typeof advanceRegionMove>

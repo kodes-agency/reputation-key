@@ -35,7 +35,7 @@ export function InboxNoOrgState() {
   )
 }
 
-export function EmptyDetailPlaceholder() {
+function EmptyDetailPlaceholder() {
   return (
     <div className="flex h-full flex-col border-l items-center justify-center gap-4 px-8">
       <div className="rounded-full bg-accent-muted/20 p-4">

@@ -15,7 +15,7 @@ import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
-import { standardErrorStatus } from '#/shared/http/status'
+import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
 const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
@@ -25,8 +25,6 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
 })
 
 import { timeRangeToDates } from '../application/utils'
-
-export const dashboardErrorStatus = standardErrorStatus
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
   .inputValidator(getDashboardDataDto)

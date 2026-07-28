@@ -15,7 +15,6 @@ export type ListStaffAssignmentsInput = Readonly<{
   teamId?: TeamId
 }>
 
-// fallow-ignore-next-line unused-type
 export type ListStaffAssignmentsDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
 }>
@@ -42,5 +41,4 @@ export const listStaffAssignments =
     return []
   }
 
-// fallow-ignore-next-line unused-type
 export type ListStaffAssignments = ReturnType<typeof listStaffAssignments>

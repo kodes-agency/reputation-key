@@ -14,9 +14,7 @@ import { quarantineExhaustedJob } from './failure-quarantine'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 
-// fallow-ignore-next-line unused-type
 export type { Job }
-// fallow-ignore-next-line unused-type
 export type { JobHandler }
 
 /**

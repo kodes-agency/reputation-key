@@ -30,7 +30,6 @@ export const OLDEST_QUARANTINED_WARN_MS = 24 * 60 * 60 * 1000
 // a stalled lease means a claim stopped mid-flight beyond 2× its lease, and
 // quarantined work always needs an operator decision.
 
-// fallow-ignore-next-line unused-type
 export type OpsMetricsSample = Readonly<{
   oldestUnpublishedAgeMs: number | null
   stalledLeaseCount: number
@@ -38,7 +37,6 @@ export type OpsMetricsSample = Readonly<{
   oldestQuarantinedAgeMs: number | null
 }>
 
-// fallow-ignore-next-line unused-type
 export type HealthCheckResult = Readonly<{
   db: boolean
   redis: boolean

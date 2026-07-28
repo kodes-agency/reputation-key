@@ -1,6 +1,2 @@
 export { AssignStaffForm } from './assign-staff-form'
 export { StaffAssignmentList } from './staff-assignment-list'
-export { TeamSelector } from './team-selector'
-export { OrgStaffTable } from './org-staff-table'
-export { MemberSelector } from './member-selector'
-export { PortalSelector } from './portal-selector'

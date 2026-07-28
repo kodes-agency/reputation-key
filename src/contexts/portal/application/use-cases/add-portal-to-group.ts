@@ -13,7 +13,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type AddPortalToGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   portalRepo: PortalRepository
@@ -82,5 +81,4 @@ export const addPortalToGroup =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type AddPortalToGroup = ReturnType<typeof addPortalToGroup>

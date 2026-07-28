@@ -6,7 +6,6 @@ import type {
   GoogleOAuthResult,
 } from '#/contexts/integration/application/ports/google-oauth.port'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
   Readonly<{
     setExchangeResult: (result: GoogleOAuthResult) => void

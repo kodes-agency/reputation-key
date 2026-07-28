@@ -9,14 +9,12 @@ import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type RequestUploadUrlInput = Readonly<{
   portalId: string
   contentType: string
   fileSize: number
 }>
 
-// fallow-ignore-next-line unused-type
 export type RequestUploadUrlDeps = Readonly<{
   portalRepo: PortalRepository
   storage: StoragePort
@@ -72,5 +70,4 @@ export const requestUploadUrl =
     return { uploadUrl, key }
   }
 
-// fallow-ignore-next-line unused-type
 export type RequestUploadUrl = ReturnType<typeof requestUploadUrl>

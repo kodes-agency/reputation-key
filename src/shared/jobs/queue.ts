@@ -14,7 +14,6 @@ import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import { getEnv } from '#/shared/config/env'
 
-// fallow-ignore-next-line unused-type
 export type { Queue }
 
 /**

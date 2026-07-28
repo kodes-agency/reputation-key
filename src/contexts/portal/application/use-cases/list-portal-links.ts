@@ -11,12 +11,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type ListPortalLinksInput = Readonly<{
   portalId: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type ListPortalLinksDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   portalRepo: PortalRepository
@@ -51,5 +49,4 @@ export const listPortalLinks =
     return { categories, links }
   }
 
-// fallow-ignore-next-line unused-type
 export type ListPortalLinks = ReturnType<typeof listPortalLinks>

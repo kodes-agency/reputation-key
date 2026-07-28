@@ -71,6 +71,48 @@ These rules are executable, not aspirational:
 
 Fix violations by routing through public interfaces (extend the owning context's `application/public-api.ts` when the surface is missing), never by suppressing the rules.
 
+#### Fallow suppression registry (BQC-5.8)
+
+`.fallowrc.json` is strict JSON (unknown keys rejected), so the reason/owner/expiry
+for every fallow suppression lives here. Every entry names its rule, the config
+mechanism, the owner, and the review/expiry point.
+
+**B-class — required controls, wire-or-remove in BQC-6/7** (each also carries a
+classification note in its own file header):
+
+| Item                                                                                                                                                                                                                                                                                                                                                                                | Mechanism                         | Owner   | Reason                                                                      | Expiry      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------- | --------------------------------------------------------------------------- | ----------- |
+| `server/plugins/security-headers.ts`                                                                                                                                                                                                                                                                                                                                                | `overrides` → `unused-files: off` | BQC-7   | B0.7 control; Nitro plugin discovery inert under TanStack Start (STD-P1-07) | BQC-7 close |
+| `shared/security/security-headers.ts` `securityHeadersPlugin` + `default`                                                                                                                                                                                                                                                                                                           | `ignoreExports`                   | BQC-7   | One wiring seam kept for the B0.7 plugin                                    | BQC-7 close |
+| `shared/observability/web-vitals.ts` (`setVitalsReporter`, `initWebVitals`, `reportVital`)                                                                                                                                                                                                                                                                                          | `ignoreExports`                   | BQC-6   | B2.7 vitals control, wire-or-remove                                         | BQC-6 close |
+| `shared/observability/telemetry.ts` (`initObservability`)                                                                                                                                                                                                                                                                                                                           | `ignoreExports`                   | BQC-6   | B3.5 telemetry init, wire-or-remove with B2.7                               | BQC-6 close |
+| `components/hooks/use-reduced-motion.ts`                                                                                                                                                                                                                                                                                                                                            | `overrides` → `unused-files: off` | BQC-6   | B2.5 a11y hook for the experience pass                                      | BQC-6 close |
+| `identity/server/auth-settings.org.ts`, `organizations.roles.ts`, `policy-admin.ts`, `property/server/region-move.ts`                                                                                                                                                                                                                                                               | `overrides` → `unused-files: off` | BQC-6/7 | Catalogued entry points (entry-point-catalogue) awaiting UI wiring          | BQC-7 close |
+| Catalogued-but-unwired fns in wired files: `getOrgActivityFn` (activity), `stampLastInboxViewFn` (inbox-queries), `assignInboxItemFn` (inbox-item-actions), `createOrganizationFn` (auth-settings.org), `connectGoogle`/`updateConnectionVisibility` (google-connections), `createProperty`/`updateProperty` (properties), `updateGoal` (goals), 6 portal-group fns (portal-groups) | `ignoreExports`                   | BQC-6/7 | Catalogued entry points awaiting UI wiring                                  | BQC-7 close |
+
+**E-class — public interface retained for a documented consumer:**
+
+| Item                                                                                               | Mechanism                                          | Consumer / reason                                                                                    |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `contexts/*/application/public-api.ts` event & facts re-exports (34 names, one rule)               | `ignoreExports` glob                               | BQC-5.1 cross-context contract; pinned by `src/shared/architecture/cross-context-public-api.test.ts` |
+| `shared/db/schema/auth.ts` `session`/`account`/`verification` (+ existing `member`/`organization`) | `ignoreExports`                                    | better-auth managed schema consumed by the CLI/migrations                                            |
+| `shared/bqc/status-schema.ts` exports                                                              | `ignoreExports`                                    | BQC tooling schema consumed by ignored `scripts/bqc/**`                                              |
+| `shared/auth/auth-client.ts` hook re-exports (7 inline `fallow-ignore-next-line unused-export`)    | inline                                             | Owner: Identity; documented convenience surface; review at BQC-6 close                               |
+| `contexts/*/domain/errors.ts` `isActivityError`/`isLeaderboardError`/`isMetricError`               | `ignoreExports` glob                               | Error-guard convention pinned by `src/shared/architecture/domain-error-convention.test.ts`           |
+| `components/ui/**` (shadcn primitives)                                                             | `overrides` → `unused-exports`/`unused-types: off` | Vendored shadcn/ui surface kept whole for upgrade fidelity — see `src/components/CONTEXT.md`         |
+
+**`unused-types` decision:** trialled `warn` on 2026-07-28 (fallow 3.5.0) after
+stripping all 232 no-op `fallow-ignore-next-line unused-type` comments (the rule
+was off, so every comment was inert). The trial surfaced **393** warn-tier
+findings — the codebase's type surface is deliberately exported contract
+(public-api types, DTO types, domain types), so the rule stays **OFF**. The
+type-only module exclusions for any future re-enable are pre-declared in
+`overrides` (`**/*.dto.ts`, `**/domain/events.ts` → `unused-types: off`).
+
+**`ignoreDependencies` additions:** `shadcn` (component generator CLI driven by
+`components.json`, used via `npx` — never imported), `@tailwindcss/typography`
+(CSS-only `@plugin` reference in `src/styles.css`).
+
 ## Build modules (BQC-5.2)
 
 Each context has exactly one build module (`contexts/<name>/build.ts`) — the wiring seam the composition root calls. It constructs the context's repos, adapters, use cases, and event-handler registrations and returns:

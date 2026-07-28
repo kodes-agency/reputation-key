@@ -15,7 +15,6 @@ export const removeStaffAssignmentInputSchema = z.object({
   assignmentId: z.string().min(1, 'Assignment ID is required'),
 })
 
-// fallow-ignore-next-line unused-type
 export type RemoveStaffAssignmentInput = z.infer<typeof removeStaffAssignmentInputSchema>
 
 export const listStaffAssignmentsInputSchema = z.object({
@@ -24,5 +23,4 @@ export const listStaffAssignmentsInputSchema = z.object({
   teamId: z.string().min(1, 'This field is required').optional(),
 })
 
-// fallow-ignore-next-line unused-type
 export type ListStaffAssignmentsInput = z.infer<typeof listStaffAssignmentsInputSchema>

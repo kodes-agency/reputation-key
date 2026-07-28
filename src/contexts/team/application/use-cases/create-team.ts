@@ -17,7 +17,6 @@ import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type CreateTeamDeps = Readonly<{
   teamRepo: TeamRepository
   propertyApi: PropertyPublicApi
@@ -101,5 +100,4 @@ export const createTeam =
     return team
   }
 
-// fallow-ignore-next-line unused-type
 export type CreateTeam = ReturnType<typeof createTeam>

@@ -25,11 +25,7 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import type { ReactNode } from 'react'
-import type {
-  MetricKey,
-  AggregationFunction,
-  EntityScope,
-} from '#/shared/domain/metric-keys'
+import type { MetricKey, EntityScope } from '#/shared/domain/metric-keys'
 import type { FormState } from './go-create-form-state'
 
 type Icon = ComponentType<{ className?: string }>
@@ -62,14 +58,6 @@ export const TIMEFRAMES: readonly FormState['goalType'][] = [
   'rolling',
   'open',
 ]
-
-// Aggregations rendered as friendly verbs (used by the rating target section).
-export const AGG_VERB: Readonly<Record<AggregationFunction, string>> = {
-  avg: 'Average',
-  max: 'Highest',
-  count: 'Number of',
-  sum: 'Total',
-}
 
 /** A titled card grouping one step of the form. */
 export function SectionCard({

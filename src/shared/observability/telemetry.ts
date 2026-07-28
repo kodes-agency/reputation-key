@@ -3,6 +3,11 @@
 // Provides Sentry initialization with a PII-scrubbing beforeSend hook.
 // Telemetry export failure never blocks business work.
 //
+// BQC-5.8 classification: B (required control, wire-or-remove in BQC-6,
+// alongside the B2.7 web-vitals decision). initObservability is not called
+// at startup yet; the export is suppressed via .fallowrc.json ignoreExports.
+// Owner: BQC-6. Expiry: BQC-6 close.
+//
 // Usage:
 //   import { initObservability } from '#/shared/observability/telemetry'
 //   initObservability()  // call once at startup

@@ -5,7 +5,6 @@ import type { PortalRepository } from '#/contexts/portal/application/ports/porta
 import type { Portal } from '#/contexts/portal/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryPortalRepo = PortalRepository &
   Readonly<{
     seed: (portals: ReadonlyArray<Portal>) => void

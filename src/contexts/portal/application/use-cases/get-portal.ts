@@ -9,12 +9,10 @@ import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type GetPortalInput = Readonly<{
   portalId: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetPortalDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
@@ -36,5 +34,4 @@ export const getPortal =
     return portal
   }
 
-// fallow-ignore-next-line unused-type
 export type GetPortal = ReturnType<typeof getPortal>

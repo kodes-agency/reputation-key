@@ -23,6 +23,7 @@ import {
   outboxEvents,
   eventConsumerReceipts,
   type OutboxEventInsert,
+  type ReceiptStatus,
 } from '#/shared/db/schema/outbox.schema'
 import { trace } from '#/shared/observability/trace'
 
@@ -50,7 +51,10 @@ export type UnpublishedEvent = Readonly<{
   recordedAt: Date
 }>
 
-export type ReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
+// ReceiptStatus lives in shared/db/schema/outbox.schema (single declaration,
+// BQC-5.8) — re-exported here so the public barrel (#/shared/outbox) keeps
+// surfacing it from the repository module.
+export type { ReceiptStatus }
 
 export type OutboxRepository = Readonly<{
   /** Insert a new outbox event. Call within the source context's transaction. */

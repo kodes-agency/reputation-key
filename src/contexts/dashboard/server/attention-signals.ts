@@ -19,7 +19,7 @@ import { propertyId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import type { DashboardErrorCode } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
-import { standardErrorStatus } from '#/shared/http/status'
+import { standardErrorStatus as attentionSignalsErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
 const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
@@ -27,8 +27,6 @@ const makeDashboardError = (code: DashboardErrorCode, message: string) => ({
   code,
   message,
 })
-
-export const attentionSignalsErrorStatus = standardErrorStatus
 
 const getAttentionSignalsDto = z.object({
   propertyId: z.string().uuid(),

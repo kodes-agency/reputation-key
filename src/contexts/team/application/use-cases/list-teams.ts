@@ -17,7 +17,6 @@ export type ListTeamsInput = Readonly<{
   propertyId: PropertyId
 }>
 
-// fallow-ignore-next-line unused-type
 export type ListTeamsDeps = Readonly<{
   teamRepo: TeamRepository
   staffApi: StaffPublicApi
@@ -48,5 +47,4 @@ export const listTeams =
     return deps.teamRepo.listByProperty(ctx.organizationId, input.propertyId)
   }
 
-// fallow-ignore-next-line unused-type
 export type ListTeams = ReturnType<typeof listTeams>

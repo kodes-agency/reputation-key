@@ -34,7 +34,9 @@ import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import type { Worker } from 'bullmq'
 
-// fallow-ignore-next-line complexity — worker wires 10+ job schedules, complexity is inherent
+// Worker entry wires 10+ job schedules — complexity is inherent to the
+// registration seam. Owner: BQC-3 (returned by BQC-5.7).
+// fallow-ignore-next-line complexity
 async function main() {
   const env = getEnv()
   const logger = getLogger()

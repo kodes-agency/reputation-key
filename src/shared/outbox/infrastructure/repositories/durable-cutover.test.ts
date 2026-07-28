@@ -1,10 +1,12 @@
 // BQC-3.9 — durable cutover synthetic proof (real PostgreSQL + real BullMQ/Redis).
 //
-// fallow-ignore-file boundary-violation — this cross-context end-to-end proof
-// BY DESIGN wires the real command stores/repositories of the review + inbox
-// contexts against the shared outbox runtime (the same wiring the composition
-// root performs); no single context's zone can own it, and the integration
-// project discovers it via the infrastructure/repositories glob.
+// fallow-ignore-file boundary-violation
+// Architecture proof (BQC-3.9) — deliberate, no expiry. This cross-context
+// end-to-end proof BY DESIGN wires the real command stores/repositories of
+// the review + inbox contexts against the shared outbox runtime (the same
+// wiring the composition root performs); no single context's zone can own
+// it, and the integration project discovers it via the
+// infrastructure/repositories glob.
 //
 // The FINAL BQC-3 slice's core evidence (phase BQC-3 §3.9). Against a scratch
 // DB + Redis this suite boots the REAL outbox relay and the REAL dispatcher

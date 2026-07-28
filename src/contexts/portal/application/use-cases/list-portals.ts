@@ -8,12 +8,10 @@ import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
-// fallow-ignore-next-line unused-type
 export type ListPortalsInput = Readonly<{
   propertyId?: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type ListPortalsDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
@@ -42,5 +40,4 @@ export const listPortals =
     return results.filter((p) => accessible.includes(p.propertyId))
   }
 
-// fallow-ignore-next-line unused-type
 export type ListPortals = ReturnType<typeof listPortals>

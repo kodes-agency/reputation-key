@@ -49,7 +49,6 @@ export type RequestRegionMoveResult =
   | Readonly<{ ok: true; move: RegionMoveRecord }>
   | Readonly<{ ok: false; reason: RegionMoveDenialReason }>
 
-// fallow-ignore-next-line unused-type
 export type RequestRegionMoveDeps = Readonly<{
   propertyRepo: PropertyRepository
   moveStore: RegionMoveStore
@@ -127,5 +126,4 @@ export const requestRegionMove =
     return { ok: true, move }
   }
 
-// fallow-ignore-next-line unused-type
 export type RequestRegionMove = ReturnType<typeof requestRegionMove>

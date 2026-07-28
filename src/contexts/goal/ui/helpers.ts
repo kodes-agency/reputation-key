@@ -70,7 +70,7 @@ export function progressBarColor(
 
 // ── 4. sortGoalsByStatus ───────────────────────────────────────────────
 
-export const STATUS_ORDER: Record<GoalStatus, number> = {
+const STATUS_ORDER: Record<GoalStatus, number> = {
   active: 0,
   completed: 1,
   expired: 2,
@@ -278,10 +278,6 @@ export function metricLabel(key: MetricKey): string {
   return METRIC_META[key].label
 }
 
-export function metricUnit(key: MetricKey): string {
-  return METRIC_META[key].unit
-}
-
 /** Plain-language description of what each goal type means, for the timeframe step. */
 export function goalTypeDescription(type: GoalType): string {
   switch (type) {
@@ -348,29 +344,6 @@ export function ratingAggOptionLabel(
   if (aggregation === 'count')
     return `Number of ${metricKey === 'portal.rating' ? 'ratings' : 'reviews'}`
   return `${aggregation === 'avg' ? 'Average' : 'Highest'} rating`
-}
-
-/** Plain-language one-line summary of an existing goal, mirroring the create-flow preview.
- *  e.g. "total scans — target 50 scans — resets monthly". */
-export function describeGoal(goal: Goal): string {
-  const measure = measureLabel(goal.metricKey, goal.aggregationFunction)
-  const unit = targetUnit(goal.metricKey, goal.aggregationFunction)
-  const target = `${goal.targetValue.toLocaleString()}${unit ? ` ${unit}` : ''}`
-  const timeframe = (() => {
-    switch (goal.goalType) {
-      case 'one_shot':
-        return formatPeriodDates(goal.periodStart, goal.periodEnd) || 'between two dates'
-      case 'recurring':
-        return `resets ${goal.recurrenceRule?.frequency ?? 'monthly'}`
-      case 'rolling':
-        return goal.rollingWindowDays
-          ? `last ${goal.rollingWindowDays} days`
-          : 'rolling window'
-      case 'open':
-        return 'ongoing'
-    }
-  })()
-  return `${measure} — target ${target} — ${timeframe}`
 }
 
 // ── 13. Color class from color name ───────────────────────────────────

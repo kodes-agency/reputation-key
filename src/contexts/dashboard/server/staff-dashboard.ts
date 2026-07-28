@@ -14,10 +14,8 @@ import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../application/public-api'
-import { standardErrorStatus } from '#/shared/http/status'
+import { standardErrorStatus as staffDashboardErrorStatus } from '#/shared/http/status'
 import { z } from 'zod/v4'
-
-export const staffDashboardErrorStatus = standardErrorStatus
 
 /** Local error constructor — server must not import domain error constructors. */
 

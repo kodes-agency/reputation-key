@@ -14,13 +14,11 @@ import {
   type RegionBlockedReason,
 } from '../../domain/processing-routing'
 
-// fallow-ignore-next-line unused-type
 export type GetPropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
   staffPublicApi: StaffPublicApi
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetPropertyInput = Readonly<{
   propertyId: string
 }>
@@ -32,7 +30,6 @@ export type GetPropertyInput = Readonly<{
  * exposing anything else; reads stay available for unresolved/denied
  * properties so owners can remediate.
  */
-// fallow-ignore-next-line unused-type
 export type PropertyDetail = Property &
   Readonly<{
     regionProcessable: boolean
@@ -71,5 +68,4 @@ export const getProperty =
     }
   }
 
-// fallow-ignore-next-line unused-type
 export type GetProperty = ReturnType<typeof getProperty>

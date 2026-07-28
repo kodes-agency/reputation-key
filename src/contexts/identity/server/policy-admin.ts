@@ -6,6 +6,10 @@
 // and writes a content-free audit outcome. The diagnostic is read-only and
 // explains decisions without PII or secret configuration.
 //
+// BQC-5.8 classification: B — catalogued entry points (entry-point-catalogue)
+// awaiting UI wiring. Reported as an unused file by fallow and suppressed via
+// .fallowrc.json ignoreFindings. Owner: BQC-6/7. Expiry: BQC-7 close.
+//
 // Global kill switches stay env-managed (BQC-0.4); BQC-7 owns general
 // runtime/redrive/repair operator commands — this surface is policy
 // administration only.

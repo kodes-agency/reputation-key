@@ -10,7 +10,6 @@ import { portalGroupId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type GetPortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   staffPublicApi: StaffPublicApi
@@ -33,5 +32,4 @@ export const getPortalGroup =
     return group
   }
 
-// fallow-ignore-next-line unused-type
 export type GetPortalGroup = ReturnType<typeof getPortalGroup>

@@ -17,7 +17,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type CreateLinkInput = Readonly<{
   categoryId: string
   portalId: string
@@ -26,7 +25,6 @@ export type CreateLinkInput = Readonly<{
   iconKey?: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type CreateLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -102,5 +100,4 @@ export const createLink =
     return result.value
   }
 
-// fallow-ignore-next-line unused-type
 export type CreateLink = ReturnType<typeof createLink>

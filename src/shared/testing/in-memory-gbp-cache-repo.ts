@@ -5,7 +5,6 @@ import type { GbpCacheRepository } from '#/contexts/integration/application/port
 import type { GbpCacheEntry, GbpCacheDataType } from '#/contexts/integration/domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryGbpCacheRepo = GbpCacheRepository &
   Readonly<{
     seed: (entries: ReadonlyArray<GbpCacheEntry>) => void

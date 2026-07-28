@@ -11,13 +11,11 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type UpdateLinkCategoryInput = Readonly<{
   categoryId: string
   title?: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type UpdateLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -70,5 +68,4 @@ export const updateLinkCategory =
     return existing
   }
 
-// fallow-ignore-next-line unused-type
 export type UpdateLinkCategory = ReturnType<typeof updateLinkCategory>

@@ -96,7 +96,6 @@ export const Route = createFileRoute(
   component: TeamLayout,
 })
 
-// fallow-ignore-next-line complexity — pre-existing component on main (BQC-2.6 touched only this file's beforeLoad gate, not the component)
 function TeamLayout() {
   const { team, propertyId, teamId } = useTeamLayout()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))

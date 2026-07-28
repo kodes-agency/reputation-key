@@ -22,21 +22,14 @@
 
 import { isCoreCapability, isBlockedCapability } from './beta-capabilities'
 import type { CapabilityPolicyStore, CapabilityPolicyEnv } from './beta-capabilities'
+import type {
+  OrgPolicyRecord,
+  PropertyPolicyRecord,
+} from '#/shared/domain/policy-records'
 
 // ── Snapshot types (shared contract: identity infra produces, this store consumes) ──
-
-export type OrgPolicyRecord = Readonly<{
-  organizationId: string
-  cohort: string
-  suspendedAt: Date | null
-  suspendedReason: string | null
-}>
-
-export type PropertyPolicyRecord = Readonly<{
-  propertyId: string
-  suspendedAt: Date | null
-  suspendedReason: string | null
-}>
+// OrgPolicyRecord/PropertyPolicyRecord live in shared/domain/policy-records —
+// the single home every layer may import (BQC-5.8).
 
 export type OrgCapabilityRecord = Readonly<{ organizationId: string; capability: string }>
 export type PropertyCapabilityRecord = Readonly<{

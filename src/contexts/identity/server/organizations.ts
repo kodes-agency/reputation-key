@@ -29,8 +29,6 @@ export {
 
 export { updateOrganization } from './organizations.update'
 
-export { getOrgResponseSlaFn, updateOrgResponseSlaFn } from './organizations.response-sla'
-
 export {
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,

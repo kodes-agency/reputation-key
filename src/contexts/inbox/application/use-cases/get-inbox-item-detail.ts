@@ -16,7 +16,6 @@ export type GetInboxItemDetailInput = Readonly<{
   inboxItemId: InboxItemId
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetInboxItemDetailDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
@@ -73,5 +72,4 @@ export const getInboxItemDetail =
     return { ...detail, reply }
   }
 
-// fallow-ignore-next-line unused-type
 export type GetInboxItemDetailUseCase = ReturnType<typeof getInboxItemDetail>

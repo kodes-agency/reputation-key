@@ -18,7 +18,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
-// fallow-ignore-next-line unused-type
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
@@ -109,5 +108,4 @@ export const createPortal =
     return portal
   }
 
-// fallow-ignore-next-line unused-type
 export type CreatePortal = ReturnType<typeof createPortal>

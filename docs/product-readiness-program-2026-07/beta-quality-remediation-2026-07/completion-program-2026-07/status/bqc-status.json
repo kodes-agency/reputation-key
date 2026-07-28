@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T15:51:06Z",
+  "updatedAt": "2026-07-28T17:28:04Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -731,7 +731,19 @@
         "STD-P2-05"
       ],
       "exceptions": [],
-      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7 implementation_complete: complexity burn-down — full triage re-baseline (33 real findings, not the stale 120) with the enabled P0/P1 hotspots closed via decision tables and deep modules (resolveTenantContext suppression REMOVED; listGbpLocations; updateOrganization; useInboxDetail; StaffHomePage; buildGoal — the repo's worst function — as the one sanctioned dark exception). BQC-1/BQC-3-owned hotspots returned to their owners; bootstrap/worker out of scope. Slices 5.8–5.10 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "5.1: architecture policy executable. 5.2: non-worker composition cleanup. 5.3: runtime-neutral domain + browser-reachability. 5.4: semantic schema authority. 5.5: operational reads deepened. 5.6: cross-context/privacy cleanup. 5.7: complexity burn-down. 5.8 implementation_complete: dead-code and control reconciliation — fallow dead-code 318 → 0 with an honest all-zero baseline; every unused file/export classified (17 dead files removed incl. operator-commands, ~60 dead exports/barrel lines removed, ~30 unexported); B-class controls (security headers, web-vitals, catalogued-but-unwired server fns) retained with owner+reason+expiry; C/E surface documented; stale suppressions removed, active ones narrowed; dependency hygiene (4 devDeps moved to production, nitropack listed, cmdk removed); duplicate exports resolved. unused-types rule stays OFF by documented decision (232 no-op comments stripped). Slices 5.9, 5.10 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-5.8",
+      "kind": "slice",
+      "parentId": "BQC-5",
+      "title": "Dead-code and control reconciliation",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Every reported unused file/export classified into the doc's 5 categories; fallow dead-code 318 → 0; .fallowrc.json regression baseline now honest all-zero. REMOVED (D): 17 files (bounded-properties, error-status shim, review internal-ports + orphan dto, portal-group.dto, comment-only leaderboard events, operator-commands [also a cc19/cog21 hotspot — BQC-7 owns the successor taxonomy], dead component/barrel files, ui/command + cmdk dep), ~60 dead barrel re-export lines + dead exports (CreateOrganization-Dialog, OrgStaffTable, ALL_CAPABILITIES, clearTenantCache + orphan evictExpiredTenantEntries, dead policy helpers), ~30 unexported file-local symbols, 4 dashboard error-status aliases converted to the import-alias precedent, duplicate useIsMobile removed. WIRE-LATER (B, narrow suppression with owner+reason+expiry): security-headers plugin (BQC-7/STD-P1-07 — noted: nitropack npm is v2-only while the app runs nitro v3 beta; BQC-7 must reconcile the import specifier when wiring), web-vitals + initObservability (BQC-6), 18 catalogued-but-unwired server fns (BQC-6/7). KEEP-WITH-OWNER (C/E): dark people/access modules (already owner+test), public-api event re-exports (consumer: the 5.1 architecture contract), auth schema twins, bqc status schema, auth-client hooks, unified shadcn-surface policy for components/ui. Suppression hygiene: 6 genuinely stale removed; 3 flagged-stale-but-actually-active restored in clean narrow form with owner/reason (composition.ts createContainer [cc35/cog23 live], worker/index.ts [cog33 live — BQC-3-owned], durable-cutover.test.ts [18 live boundary proofs]) — correcting the earlier audit that called them stale; active ones carry rule+owner+reason+expiry; 232 no-op unused-type comments stripped — rule stays OFF by documented decision (trial re-enable with dto/events exclusions surfaced 393 warn findings; exclusions pre-declared in overrides; documented in CONTEXT.md). Dependency hygiene: @aws-sdk/client-s3 + s3-request-presigner + dotenv + pino-pretty moved to dependencies (production-reachable), nitropack listed (was unlisted), cmdk removed, shadcn + @tailwindcss/typography documented in ignoreDependencies. Duplicate exports: OrgPolicyRecord/PropertyPolicyRecord homed in new shared/domain/policy-records.ts (the only boundaries-legal home), ReceiptStatus single-declared in outbox schema, portal RatingDistributionChart renamed. Gates: unit 383f/4201t, integration 51f/314t, storybook 74f/379t, typecheck, lint, format:check, fallow v3.5.0 CI-faithful — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-5.7",

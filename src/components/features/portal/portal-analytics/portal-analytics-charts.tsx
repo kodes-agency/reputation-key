@@ -88,7 +88,7 @@ const distConfig = {
   count: { label: 'Count', color: 'var(--chart-1)' },
 } satisfies ChartConfig
 
-export function RatingDistributionChart({
+export function PortalRatingDistributionChart({
   distribution,
 }: {
   distribution: readonly { stars: number; count: number }[]

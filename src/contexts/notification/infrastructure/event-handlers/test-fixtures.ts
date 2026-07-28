@@ -23,7 +23,6 @@ import type {
   InboxNoteAdded,
 } from '#/contexts/inbox/application/public-api'
 import type {
-  ReviewCreated,
   ReviewReplyApproved,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
@@ -143,21 +142,6 @@ export const buildInboxNoteAddedEvent = (
   userId: NOTIF_TEST_IDS.authorId,
   noteId: NOTIF_TEST_IDS.noteId,
   source: 'web',
-  occurredAt: NOTIF_TEST_IDS.now,
-  ...overrides,
-})
-
-export const buildReviewCreatedEvent = (
-  overrides: Partial<ReviewCreated> = {},
-): ReviewCreated => ({
-  _tag: 'review.created',
-  eventId: NOTIF_TEST_IDS.eventId,
-  correlationId: null,
-  reviewId: NOTIF_TEST_IDS.reviewId,
-  propertyId: NOTIF_TEST_IDS.propId,
-  organizationId: NOTIF_TEST_IDS.orgId,
-  platform: 'google',
-  externalId: 'ext-1',
   occurredAt: NOTIF_TEST_IDS.now,
   ...overrides,
 })

@@ -9,12 +9,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
 
-// fallow-ignore-next-line unused-type
 export type DeleteLinkInput = Readonly<{
   linkId: string
 }>
 
-// fallow-ignore-next-line unused-type
 export type DeleteLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
@@ -48,5 +46,4 @@ export const deleteLink =
     await deps.portalLinkRepo.deleteLink(ctx.organizationId, portalLinkId(input.linkId))
   }
 
-// fallow-ignore-next-line unused-type
 export type DeleteLink = ReturnType<typeof deleteLink>

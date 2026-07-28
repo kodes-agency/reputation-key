@@ -122,6 +122,3 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
       'identity.updateUserImage',
     ),
   )
-
-// Re-export createOrganizationFn from split file
-export { createOrganizationFn } from './auth-settings.org'

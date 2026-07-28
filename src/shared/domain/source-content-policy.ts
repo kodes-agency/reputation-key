@@ -83,7 +83,7 @@ export function contentExpiresAtFromFetch(
  * Lead time before hard expiry when refresh is due
  * (`rawContentTtlMs - rawRefreshDueBeforeMs`, typically 5 days).
  */
-export function contentRefreshLeadMs(
+function contentRefreshLeadMs(
   policy: SourceContentPolicy = createGoogleSourceContentPolicy(),
 ): number {
   return policy.rawContentTtlMs - policy.rawRefreshDueBeforeMs

@@ -14,7 +14,6 @@ export type RemoveStaffAssignmentInput = Readonly<{
   assignmentId: StaffAssignmentId
 }>
 
-// fallow-ignore-next-line unused-type
 export type RemoveStaffAssignmentDeps = Readonly<{
   assignmentRepo: StaffAssignmentRepository
   commandStore: StaffCommandStore
@@ -53,5 +52,4 @@ export const removeStaffAssignment =
     })
   }
 
-// fallow-ignore-next-line unused-type
 export type RemoveStaffAssignment = ReturnType<typeof removeStaffAssignment>

@@ -9,7 +9,6 @@ import type { Queue, Job } from 'bullmq'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { Clock } from '#/shared/domain/clock'
 
-// fallow-ignore-next-line unused-type
 export type InMemoryQueue = Queue & {
   /** All jobs enqueued since the last clear, as { name, data } pairs. */
   readonly enqueuedJobs: ReadonlyArray<Readonly<{ name: string; data: unknown }>>

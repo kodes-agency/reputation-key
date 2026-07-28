@@ -21,7 +21,6 @@ export type GetInboxItemsInput = Readonly<{
   limit?: number
 }>
 
-// fallow-ignore-next-line unused-type
 export type GetInboxItemsDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
@@ -75,5 +74,4 @@ export const getInboxItems =
     )
   }
 
-// fallow-ignore-next-line unused-type
 export type GetInboxItems = ReturnType<typeof getInboxItems>
