@@ -1,11 +1,14 @@
 // Guest context — public-portal-lookup resolver tests
-// Verifies the PortalError → GuestError translation, in particular that an
+// Verifies the portal outcome → guest translation, in particular that an
 // inactive portal surfaces as guestError('portal_inactive') (→ 410) rather
 // than falling through as an untagged 500.
+//
+// BQC-5.6: the portal public-api returns a typed PublicPortalBySlugOutcome
+// union; this test builds outcomes directly and has no portal error imports —
+// the portal inactive/not-found mapping is portal-owned (portal-side test).
 
 import { describe, it, expect } from 'vitest'
 import { createPublicPortalLookup } from './public-portal-lookup'
-import { portalError, isPortalError } from '#/contexts/portal/domain/errors'
 import { isGuestError } from '../../domain/errors'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 
@@ -19,11 +22,9 @@ function createPortalApiStub(
   }
 }
 
-describe('createPublicPortalLookup — findBySlug error translation', () => {
-  it('maps a portal_inactive PortalError to guestError(portal_inactive)', async () => {
-    const api = createPortalApiStub(async () => {
-      throw portalError('portal_inactive', 'Portal archived')
-    })
+describe('createPublicPortalLookup — findBySlug outcome translation', () => {
+  it('maps an inactive outcome to guestError(portal_inactive)', async () => {
+    const api = createPortalApiStub(async () => ({ status: 'inactive' }))
     const lookup = createPublicPortalLookup(api)
 
     await expect(lookup.findBySlug('prop', 'portal')).rejects.toSatisfy(
@@ -31,31 +32,27 @@ describe('createPublicPortalLookup — findBySlug error translation', () => {
     )
   })
 
-  it('re-throws a non-inactive PortalError untouched (not mapped to guestError)', async () => {
-    const api = createPortalApiStub(async () => {
-      throw portalError('portal_not_found', 'missing')
-    })
+  it('maps a not_found outcome to null', async () => {
+    const api = createPortalApiStub(async () => ({ status: 'not_found' }))
     const lookup = createPublicPortalLookup(api)
 
-    await expect(lookup.findBySlug('prop', 'portal')).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && e.code === 'portal_not_found',
-    )
+    await expect(lookup.findBySlug('prop', 'portal')).resolves.toBeNull()
   })
 
-  it('re-throws a non-portal error untouched', async () => {
+  it('returns the resolved portal data on a found outcome', async () => {
+    const result = { portal: { id: 'p1' }, organizationId: 'org-1' }
+    const api = createPortalApiStub(async () => ({ status: 'found', result }) as never)
+    const lookup = createPublicPortalLookup(api)
+
+    await expect(lookup.findBySlug('prop', 'portal')).resolves.toBe(result)
+  })
+
+  it('re-throws a foreign error untouched', async () => {
     const api = createPortalApiStub(async () => {
       throw new Error('boom')
     })
     const lookup = createPublicPortalLookup(api)
 
     await expect(lookup.findBySlug('prop', 'portal')).rejects.toThrow('boom')
-  })
-
-  it('returns the resolved portal data on success', async () => {
-    const result = { portal: { id: 'p1' }, organizationId: 'org-1' }
-    const api = createPortalApiStub(async () => result as never)
-    const lookup = createPublicPortalLookup(api)
-
-    await expect(lookup.findBySlug('prop', 'portal')).resolves.toBe(result)
   })
 })
