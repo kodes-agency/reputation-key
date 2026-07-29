@@ -98,8 +98,8 @@ Each runbook follows the structure:
 **Trigger:** Connection pool exhausted, slow queries, migration failure, or restore needed.
 **Impact:** P0 for migration failure or data loss. P1 for saturation.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check Neon dashboard for compute/storage. Check migration logs.
-**Containment:** Reduce worker concurrency. Pause non-critical jobs. If migration failed: rollback to previous schema version.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → fix migration SQL, re-run. Restore → PITR to isolated project, verify, cutover.
+**Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → PITR to isolated project, verify, cutover (the only rollback path, reserved for data loss).
 **Verification:** Connection count under budget. Migration journal consistent. Restore passes integrity checks.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Neon support if platform issue.
 
