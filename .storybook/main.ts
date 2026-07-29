@@ -1,3 +1,25 @@
+// Storybook main config.
+//
+// ── Component-test runner decision (BQC-6.3) ─────────────────────────────
+// Two story runners exist with green parity (74 files / 379 tests each):
+//
+// 1. @storybook/test-runner (`pnpm test-storybook`, against the dev server)
+//    — THE ONE AUTHORITATIVE GATE. Runs in CI (`storybook-test` job) with
+//    --failOnConsole (console.error during a story fails it; narrow benign
+//    allowlist lives in ./test-runner.ts) and enforces the a11y `test:'error'`
+//    config from ./preview.tsx (axe violations fail the story via the
+//    runner's own setup-page script, independent of addon behavior).
+//
+// 2. Vitest browser project (`pnpm test:storybook`, VITEST_STORYBOOK=true)
+//    — a dev/MCP tool, NOT a gate. Kept because @storybook/addon-mcp
+//    (registered below) and the in-editor story-test experience drive it,
+//    but it feeds no release evidence: its a11y hard throw can never fire
+//    (addon-a11y gates it on VITEST_STORYBOOK === "false", which this repo's
+//    script must set to "true" for the project to exist — the measured
+//    compatibility issue behind keeping the legacy runner), onConsoleLog is
+//    reporter-side filtering only, and onUnhandledError misses
+//    boundary-caught React errors.
+// ─────────────────────────────────────────────────────────────────────────
 import type { StorybookConfig } from '@storybook/react-vite'
 import { fileURLToPath } from 'node:url'
 // Polyfill for node:async_hooks (better-auth) — aliased in viteFinal.

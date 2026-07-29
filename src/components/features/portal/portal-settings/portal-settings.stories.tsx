@@ -6,10 +6,22 @@
 // smart-routing expanded.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
+import { useRef, type ComponentProps } from 'react'
 import { PortalSettings } from './portal-settings'
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalData, UpdatePortalVariables } from '../shared/types'
+import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+
+// Owns the formRef the real page passes in, so stories never put a ref object
+// in args: EditPortalForm assigns itself into the ref during render, and a ref
+// in args becomes a circular structure Storybook cannot serialize ("cycle in
+// arg" warnings).
+function PortalSettingsWithRef(
+  props: Omit<ComponentProps<typeof PortalSettings>, 'formRef'>,
+) {
+  const formRef = useRef<FormLike | null>(null)
+  return <PortalSettings {...props} formRef={formRef} />
+}
 
 const meta: Meta<typeof PortalSettings> = {
   title: 'Portal/PortalSettings',
@@ -17,12 +29,10 @@ const meta: Meta<typeof PortalSettings> = {
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [AuthedRouterDecorator],
+  render: (args) => <PortalSettingsWithRef {...args} />,
 }
 export default meta
 type Story = StoryObj<typeof PortalSettings>
-
-type FormRefHandle = { handleSubmit: () => void }
-type FormRef = { current: FormRefHandle | null }
 
 const portal: PortalData = {
   id: 'p-1',
@@ -61,7 +71,6 @@ const baseArgs = {
   onIsActiveChange: fn(),
   requestUploadUrl,
   finalizeUpload,
-  formRef: { current: null } as FormRef,
 }
 
 // Active portal — toggle on, smart routing expanded.

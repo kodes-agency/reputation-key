@@ -2,11 +2,13 @@
 // Uses usePermissions() (AccountAdmin → fields enabled; Staff → disabled), so
 // it needs the AuthedRouterDecorator. The form has NO submit button in
 // isolation — submission is driven by the parent's "Save Changes" button via
-// formRef.current.handleSubmit(). Stories pass a formRef and trigger it in the
-// play function.
+// formRef.current.handleSubmit(). Stories render a wrapper that owns the ref
+// and exposes the same Save button, so play functions submit by clicking it.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
+import { useRef, type ComponentProps } from 'react'
 import { EditPortalForm } from './edit-portal-form'
+import { Button } from '#/components/ui/button'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 import {
@@ -14,18 +16,39 @@ import {
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 
+// Owns the formRef so stories never pass a ref object as an arg: the form
+// assigns itself into the ref during render, and a ref in args becomes a
+// circular structure Storybook cannot serialize ("cycle in arg" warnings).
+// Mirrors the real parent (PortalSettings), which drives submission from an
+// external Save button via the ref.
+function EditPortalFormWithSave(
+  props: Omit<ComponentProps<typeof EditPortalForm>, 'formRef'>,
+) {
+  const formRef = useRef<{ handleSubmit: () => void } | null>(null)
+  return (
+    <div className="flex w-full flex-col gap-4">
+      <EditPortalForm {...props} formRef={formRef} />
+      <Button
+        type="button"
+        onClick={() => formRef.current?.handleSubmit()}
+        disabled={props.mutation.isPending}
+      >
+        {props.mutation.isPending ? 'Saving...' : 'Save Changes'}
+      </Button>
+    </div>
+  )
+}
+
 const meta: Meta<typeof EditPortalForm> = {
   title: 'Portal/EditPortalForm',
   component: EditPortalForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
   decorators: [AuthedRouterDecorator],
+  render: (args) => <EditPortalFormWithSave {...args} />,
 }
 export default meta
 type Story = StoryObj<typeof EditPortalForm>
-
-type FormRefHandle = { handleSubmit: () => void }
-type FormRef = { current: FormRefHandle | null }
 
 const portal: PortalData = {
   id: 'p-1',
@@ -51,10 +74,6 @@ const idleMutation = Object.assign(
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<UpdatePortalVariables, { success: boolean }>
 
-// Module-level refs/spies so play functions can read them without casting args.
-const defaultFormRef: FormRef = { current: null }
-const validationFormRef: FormRef = { current: null }
-const submitFormRef: FormRef = { current: null }
 const submitSpy = fn(async (_input: UpdatePortalVariables) => ({ success: true }))
 
 // Pre-filled from portal data — the canonical edit state.
@@ -62,7 +81,6 @@ export const Default: Story = {
   args: {
     portal,
     mutation: idleMutation,
-    formRef: defaultFormRef,
     requestUploadUrl,
     finalizeUpload,
   },
@@ -77,15 +95,12 @@ export const Default: Story = {
 
 // Clearing the required name + submitting surfaces field validation.
 export const ValidationError: Story = {
-  args: {
-    ...Default.args,
-    formRef: validationFormRef,
-  },
+  args: { ...Default.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.clear(canvas.getByLabelText('Name'))
-    // Drive submit via the formRef (no SubmitButton in isolation).
-    validationFormRef.current?.handleSubmit()
+    // Drive submit via the Save button (no SubmitButton in isolation).
+    await userEvent.click(canvas.getByRole('button', { name: /save changes/i }))
     // isTouched && !isValid → input flagged aria-invalid.
     await waitFor(() =>
       expect(canvas.getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true'),
@@ -103,15 +118,15 @@ export const SubmitCallsMutation: Story = {
       isSuccess: false,
       data: null,
     }) as unknown as Action<UpdatePortalVariables, { success: boolean }>,
-    formRef: submitFormRef,
   },
-  play: async () => {
-    submitFormRef.current?.handleSubmit()
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /save changes/i }))
     await waitFor(() => expect(submitSpy).toHaveBeenCalled())
   },
 }
 
-// Save in flight — mutation.isPending is the signal the parent Save button reads.
+// Save in flight — mutation.isPending is the signal the Save button reads.
 export const Saving: Story = {
   args: {
     ...Default.args,
@@ -122,6 +137,11 @@ export const Saving: Story = {
       },
       { isPending: true, error: null as unknown, isSuccess: false, data: null },
     ) as Action<UpdatePortalVariables, { success: boolean }>,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const save = canvas.getByRole('button', { name: /saving/i })
+    await expect(save).toBeDisabled()
   },
 }
 

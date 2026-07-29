@@ -10,19 +10,36 @@ import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
-type StatusInput = { data: { inboxItemId: string; status: string } }
+// Mirrors the server fns' { data } payloads (same as the detail-content
+// stories): updateStatus takes a status, escalate/resolveEscalation take only
+// the id. Output is InboxItem, matching the use-case returns.
+type StatusInput = { data: { inboxItemId: string; status: 'open' | 'closed' } }
+type IdInput = { data: { inboxItemId: string } }
 
 function makeStatusAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
-): Action<StatusInput, unknown> {
-  const impl = async (_input: StatusInput): Promise<unknown> => ({ ok: true })
+): Action<StatusInput, InboxItem> {
+  const impl = async (_input: StatusInput): Promise<InboxItem> => item
   return Object.assign(impl, {
     isPending: overrides.isPending ?? false,
     error: overrides.error ?? null,
     isSuccess: overrides.isSuccess ?? false,
     data: null,
-  }) as Action<StatusInput, unknown>
+  })
+}
+
+function makeIdAction(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<IdInput, InboxItem> {
+  const impl = async (_input: IdInput): Promise<InboxItem> => item
+  return Object.assign(impl, {
+    isPending: overrides.isPending ?? false,
+    error: overrides.error ?? null,
+    isSuccess: overrides.isSuccess ?? false,
+    data: null,
+  })
 }
 
 const detailFns = {
@@ -41,6 +58,8 @@ const item = makeInboxItem({
   rating: 4,
 })
 
+// Faithful InboxDetailState (the useInboxDetail return shape, post-5.7) —
+// every key the hook returns, no dead keys, no casts.
 function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetailState {
   return {
     detail: null,
@@ -48,12 +67,15 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     isLoading: false,
     currentItem: item,
     updateStatus: makeStatusAction(),
-    refresh: () => {},
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    refetch: () => {},
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
     error: null,
     lastMarkedId: null,
-    statusVersion: 0,
     ...overrides,
-  } as unknown as InboxDetailState
+  }
 }
 
 const meta: Meta<typeof InboxDetailSheet> = {

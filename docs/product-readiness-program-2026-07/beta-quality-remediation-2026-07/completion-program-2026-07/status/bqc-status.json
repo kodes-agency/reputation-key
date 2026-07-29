@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-28T22:53:51Z",
+  "updatedAt": "2026-07-29T00:16:03Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1 implementation_complete: hermetic test environment (one builder, guards, ephemeral DB, provider DI). 6.2 implementation_complete: client/runtime error detection — global Playwright listeners (pageerror, console.error, failed critical mutations, net failures) with immediate failure + transcript attachment; narrow owned expiring allowlist (3 seeded entries, all the CI email-placeholder cases); error-injection proof incl. expected-failure inversion; critical e2e 7/7 green ×5 consecutive; the 5 full-suite failures are pre-existing soft residual owned by BQC-6.7 (byte-identical to main baseline). Slices 6.3–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3 implementation_complete: one authoritative component gate — the legacy test-runner (the ONLY runner that can enforce the a11y test:'error' config — measured: addon-a11y's hard throw is gated on VITEST_STORYBOOK==='false', which this repo's vitest script must set to true; the doc's escape clause) now runs with --failOnConsole; the vitest browser project stays as dev/MCP tooling, not a gate. All 4 named defects fixed at root (InboxDetailContent mock crash, state-during-render, 395 circular story args, CSS import order). New critical stories: staff-home (populated/loading/empty/error — was zero-story), inbox detail expired/not_found, fleet denied-redirect. Slices 6.4–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.3",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "One authoritative component/Storybook gate",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Runner decision (doc's measured-compatibility escape clause): the legacy @storybook/test-runner is the ONE authoritative CI gate — the only runner that can enforce the a11y test:'error' config (measured: addon-a11y's hard throw is gated on import.meta.env.VITEST_STORYBOOK === 'false', while this repo's vitest script must set it true for the project to exist; the legacy runner enforces axe independently) — now with --failOnConsole. The vitest browser project stays as dev/MCP tooling (addon-mcp depends on it), explicitly not a gate; decision documented in .storybook/main.ts header. Console-gate mechanism: a defineProperty accessor in .storybook/test-runner.ts (the runner re-installs its console spy per story and latches before forwarding — a plain wrapper suppresses nothing, proven by two failed runs); ONE story-scoped allowlist entry (the deliberate boundary-throw story; boundary-caught errors anywhere else still fail). Defects fixed at root: (a) InboxDetailContent crash — faithful mocks matching the real InboxDetailState (no casts, no dead keys, missing action stubs incl. refetch); (b) state-during-render — slug auto-generation moved from the Subscribe render callback to a useStore-watched useEffect (React-19-safe, identical behavior); (c) 395 circular story args — ref-owning story wrappers, no refs in args; (d) CSS import ordering — all @imports precede @plugin (both builds green). Evidence: ZERO occurrences of all four signatures across the full vitest storybook output. Console gate: legacy runner green 75/387 with --failOnConsole; a11y gate unchanged. New critical stories (75f/387t): staff-home Populated/Loading/Empty/ErrorState (the surface had ZERO stories — drives the real useStaffHomeData with in-memory fns; plus an aria-label fix on staff-portal-filter the a11y gate legitimately caught), inbox-detail ReviewContentExpired/NotFound (stale text proven absent), fleet-overview DeniedStaffRedirect/AllowedManager (no denied UI exists — the gate is a beforeLoad redirect; asserted with the real can() decision in a memory router). Remaining state gaps registered for BQC-6.8 (mobile/light/reduced-motion/keyboard/RTL/long-text per surface). Gates: storybook vitest 75f/387t, legacy runner 75/387 --failOnConsole, build-storybook + app build, unit 386f/4271t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.2",

@@ -5,6 +5,16 @@
 // they are shown here as separate variants via render functions.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
+import { useState } from 'react'
+import {
+  createMemoryHistory,
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  Outlet,
+  redirect,
+  RouterProvider,
+} from '@tanstack/react-router'
 import {
   FleetOverview,
   FleetOverviewEmpty,
@@ -12,6 +22,8 @@ import {
   FleetOverviewLoading,
 } from './fleet-overview'
 import { entries, populatedData } from './fleet-overview-stories-data'
+import { can } from '#/shared/domain/permissions'
+import type { Role } from '#/shared/domain/roles'
 
 const meta: Meta<typeof FleetOverview> = {
   title: 'Dashboard/FleetOverview',
@@ -96,5 +108,63 @@ export const Error: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/we couldn't load your fleet overview/i)).toBeVisible()
     expect(canvas.getByRole('button', { name: /try again/i })).toBeVisible()
+  },
+}
+
+// Denied — the fleet dashboard is a manager surface (dashboard.fleet_read);
+// Staff have dashboard.read but not fleet_read. The route guard
+// (src/routes/_authenticated/dashboard.tsx:30-35) throws a redirect to /home,
+// so the denied UX is: the fleet view never mounts and the user lands on
+// Home. There is no denied UI component to story — this story drives the REAL
+// permission decision (can() from shared/domain/permissions, the same call the
+// route makes) in a two-route memory router and asserts the redirect. The
+// 2-line beforeLoad mirrors the route's (the route file itself is not
+// importable in Storybook — its server-fn imports are stubbed out of the
+// preview, see .storybook/main.ts viteFinal).
+function FleetGateHarness({ role }: { role: Role }) {
+  const [router] = useState(() => {
+    const rootRoute = createRootRouteWithContext<{ role: Role }>()({
+      component: Outlet,
+    })
+    const dashboardRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/dashboard',
+      beforeLoad: ({ context }) => {
+        // Mirrors src/routes/_authenticated/dashboard.tsx:30-35.
+        if (!can(context.role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
+      },
+      component: () => <FleetOverview data={populatedData} />,
+    })
+    const homeRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/home',
+      component: () => <p>Staff home (redirect target)</p>,
+    })
+    return createRouter({
+      routeTree: rootRoute.addChildren([dashboardRoute, homeRoute]),
+      context: { role },
+      history: createMemoryHistory({ initialEntries: ['/dashboard'] }),
+    })
+  })
+  return <RouterProvider router={router} />
+}
+
+export const DeniedStaffRedirect: Story = {
+  render: () => <FleetGateHarness role="Staff" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Staff is redirected away from the fleet dashboard to Home...
+    await expect(await canvas.findByText(/staff home \(redirect target\)/i)).toBeVisible()
+    // ...and the fleet UI never mounts.
+    expect(canvas.queryByText('Properties')).toBeNull()
+  },
+}
+
+// Control — a manager role clears the same gate and the fleet view mounts.
+export const AllowedManager: Story = {
+  render: () => <FleetGateHarness role="AccountAdmin" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(await canvas.findByText('Properties')).toBeVisible()
   },
 }

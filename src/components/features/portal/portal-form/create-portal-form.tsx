@@ -2,8 +2,8 @@
 // Per conventions: receives mutation as prop, uses TanStack Form + Zod schema from DTO.
 // Never imports server functions directly (dependency rules).
 
-import { useForm } from '@tanstack/react-form'
-import { useRef } from 'react'
+import { useForm, useStore } from '@tanstack/react-form'
+import { useEffect, useRef } from 'react'
 import { z } from 'zod/v4'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -43,7 +43,6 @@ type Props = Readonly<{
 }>
 
 export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Props) {
-  const previousNameRef = useRef<string>('')
   const previousPreviewRef = useRef<PreviewState>({
     name: '',
     description: '',
@@ -72,25 +71,36 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
     },
   })
 
+  // Auto-generate the slug from the name while the slug is empty. This runs
+  // in an effect (post-commit), never during render: the previous render-phase
+  // form.Subscribe callback wrote to the store mid-render, which React 19
+  // flags as "Cannot update a component while rendering".
+  const name = useStore(form.store, (state) => state.values.name)
+  useEffect(() => {
+    if (!name || form.getFieldValue('slug')) return
+    const generated = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    form.setFieldValue('slug', generated)
+  }, [form, name])
+
   return (
     <>
       {/*
-        Renderless subscribe: reads form values and fires side effects
-        (preview update, slug auto-generation) only when values actually change.
-        Returns null — no DOM output.
+        Renderless subscribe: reads form values and fires the preview side
+        effect only when values actually change. Returns null — no DOM output.
 
         onPreviewChange is deferred to a microtask: calling the parent's setState
         during this render callback is dropped by React under batched keystrokes,
         so the live preview never updated. Scheduling it outside the render phase
-        lets the parent re-render reliably. The slug setFieldValue is a TanStack
-        store write (not a React setState), so it stays synchronous.
+        lets the parent re-render reliably.
       */}
       <form.Subscribe
         selector={(state) => ({
           name: state.values.name,
           description: state.values.description,
           primaryColor: state.values.primaryColor,
-          slug: state.values.slug,
         })}
         children={(values) => {
           // Only call onPreviewChange when preview values actually changed
@@ -107,18 +117,6 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
             }
             previousPreviewRef.current = next
             queueMicrotask(() => onPreviewChange?.(next))
-          }
-
-          // Auto-generate slug from name when name changes
-          if (values.name && values.name !== previousNameRef.current) {
-            if (!values.slug) {
-              const generated = values.name
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, '')
-              form.setFieldValue('slug', generated)
-            }
-            previousNameRef.current = values.name
           }
 
           return null
