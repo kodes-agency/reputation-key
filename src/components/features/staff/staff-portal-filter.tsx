@@ -37,7 +37,7 @@ export function StaffPortalFilter({
         })
       }}
     >
-      <SelectTrigger className="w-[220px]">
+      <SelectTrigger className="w-[220px]" aria-label="Filter by portal">
         <SelectValue placeholder="All portals" />
       </SelectTrigger>
       <SelectContent>

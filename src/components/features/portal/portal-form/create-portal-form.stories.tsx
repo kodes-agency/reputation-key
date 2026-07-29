@@ -45,15 +45,16 @@ export const Default: Story = {
   },
 }
 
-// Typing a name auto-generates a slug from the name via the form's subscribe
-// side-effect. The auto-gen fires on the first name change only, so we assert
-// the slug field is populated (the wiring works) rather than an exact value.
+// Typing a name auto-generates a slug from the name via the form's
+// name-watching effect (post-commit store write). The auto-gen fires on the
+// first name change only, so we assert the slug field is populated (the
+// wiring works) rather than an exact value.
 export const AutoGeneratesSlug: Story = {
   args: { ...Default.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByLabelText('Name'), 'Guest Portal')
-    // Slug auto-fills from the name (subscribe → setFieldValue). The auto-gen
+    // Slug auto-fills from the name (effect → setFieldValue). The auto-gen
     // fires on the first name change; waitFor covers the async store update so
     // we assert "the slug field is populated" without depending on an exact
     // value (the first-change-only gen yields a prefix, not the full name).

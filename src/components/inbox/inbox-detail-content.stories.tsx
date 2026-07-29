@@ -4,6 +4,7 @@
 // not (gate OFF). The component also renders the status actions, activity
 // timeline, and notes thread, so stories supply mock detailFns for all three.
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, within } from 'storybook/test'
 import { InboxDetailContent } from './inbox-detail-content'
 import { getStatusActions } from './inbox-detail-helpers'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
@@ -128,6 +129,7 @@ export const ReviewAsPropertyManager: Story = {
     resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
+    onReplyMutated: () => {},
     detailFns,
   },
 }
@@ -144,6 +146,7 @@ export const ReviewAsStaff: Story = {
     resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
+    onReplyMutated: () => {},
     detailFns,
   },
 }
@@ -160,6 +163,7 @@ export const FeedbackDetail: Story = {
     resolveEscalation: makeIdAction(),
     notes: [],
     onNoteAdded: () => {},
+    onReplyMutated: () => {},
     detailFns,
   },
 }
@@ -177,6 +181,71 @@ export const StatusUpdating: Story = {
     resolveEscalation: makeIdAction({ isPending: true }),
     notes,
     onNoteAdded: () => {},
+    onReplyMutated: () => {},
     detailFns,
+  },
+}
+
+// Expired source content — the source cache expired, so the review text is
+// gone for good. The detail renders the honest unavailable state instead of
+// stale content (BQC-1.2: raw copies are never stored, no snippet fallback).
+export const ReviewContentExpired: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detail: {
+      ...reviewDetail,
+      reviewText: null,
+      reviewContentStatus: 'expired',
+    },
+    statusActions: getStatusActions(reviewItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/review content unavailable \(source cache expired\)/i),
+    ).toBeInTheDocument()
+    // No stale review text may render alongside the unavailable notice.
+    await expect(
+      canvas.queryByText(/wonderful stay — the front desk went above and beyond/i),
+    ).toBeNull()
+  },
+}
+
+// Source content not found — the review was deleted at the source. Same
+// unavailable contract, without the cache-expired qualifier.
+export const ReviewContentNotFound: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detail: {
+      ...reviewDetail,
+      reviewText: null,
+      reviewContentStatus: 'not_found',
+    },
+    statusActions: getStatusActions(reviewItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Review content unavailable')).toBeInTheDocument()
+    // The exact expired-variant copy must NOT render here.
+    await expect(canvas.queryByText(/source cache expired/i)).toBeNull()
+    await expect(
+      canvas.queryByText(/wonderful stay — the front desk went above and beyond/i),
+    ).toBeNull()
   },
 }
