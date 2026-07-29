@@ -107,8 +107,8 @@
       ]
     },
     {
-      "file": "src/shared/observability/web-vitals.ts",
-      "exports": ["setVitalsReporter", "initWebVitals", "reportVital"]
+      "file": "src/components/hooks/web-vitals.ts",
+      "exports": ["setVitalsReporter"]
     },
     {
       "file": "src/shared/observability/telemetry.ts",
@@ -183,7 +183,6 @@
     {
       "files": [
         "server/plugins/security-headers.ts",
-        "src/components/hooks/use-reduced-motion.ts",
         "src/contexts/identity/server/auth-settings.org.ts",
         "src/contexts/identity/server/organizations.roles.ts",
         "src/contexts/identity/server/policy-admin.ts",
