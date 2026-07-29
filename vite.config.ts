@@ -20,6 +20,13 @@ const config = defineConfig(({ mode }) => {
   // (storybook#33747). Keep tailwindcss, tsconfigPaths, and viteReact.
   const isStorybook =
     !!process.env.STORYBOOK || process.argv.slice(1).some((a) => a.includes('storybook'))
+  // BQC-6.4: Playwright's webServer sets E2E=1. Under e2e, disable the
+  // devtools console-pipe — it mirrors browser console into the server
+  // terminal (and server logs back into the browser via SSE), so one client
+  // console.error multiplies into unbounded [Client]/[Server] echo on stderr,
+  // which Playwright pipes into the CI job log. Local `pnpm dev` (no flag)
+  // keeps the pipe for DX.
+  const isE2E = !!process.env.E2E
 
   return {
     build: {
@@ -35,7 +42,7 @@ const config = defineConfig(({ mode }) => {
     },
     resolve: { tsconfigPaths: true },
     plugins: [
-      ...(isStorybook ? [] : [devtools()]),
+      ...(isStorybook ? [] : [devtools({ consolePiping: { enabled: !isE2E } })]),
       ...(isBuild && !isStorybook
         ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })]
         : []),
