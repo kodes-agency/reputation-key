@@ -15,6 +15,19 @@ export interface NamedCloseable {
   readonly close: () => Promise<void>
 }
 
+/**
+ * Map an optional BullMQ worker/queue to a NamedCloseable, or undefined when
+ * the resource was never created (no Redis, or the gated domain-events lane).
+ * Lives here (not inline in the entry point) so the mapping is unit-tested —
+ * the worker entry point itself has no hermetic coverage path.
+ */
+export function namedCloseable<T extends { close(): Promise<void> }>(
+  label: string,
+  resource: T | undefined,
+): NamedCloseable | undefined {
+  return resource ? { label, close: () => resource.close() } : undefined
+}
+
 /** Narrow structural subset of the pino logger used by the drain loop. */
 export interface DrainLogger {
   info: (obj: Record<string, unknown>, msg: string) => void
@@ -29,19 +42,23 @@ export interface DrainResult {
 }
 
 /**
- * Close workers, then queues, in the given order. A rejecting close is logged
- * and does not stop the sequence (mirrors the pre-BQC-7.1 inline loop). The
- * whole sequence races `budgetMs`; on expiry the still-open labels are
- * reported. The loop itself is not cancellable — a hung close keeps its
- * promise pending in the background until the process exits.
+ * Close workers, then queues, in the given order. Undefined entries (lanes
+ * that were never started) are skipped silently, mirroring the pre-BQC-7.1
+ * `if (w)` guards. A rejecting close is logged and does not stop the
+ * sequence (mirrors the pre-BQC-7.1 inline loop). The whole sequence races
+ * `budgetMs`; on expiry the still-open labels are reported. The loop itself
+ * is not cancellable — a hung close keeps its promise pending in the
+ * background until the process exits.
  */
 export async function drainWorkerResources(options: {
-  readonly workers: ReadonlyArray<NamedCloseable>
-  readonly queues: ReadonlyArray<NamedCloseable>
+  readonly workers: ReadonlyArray<NamedCloseable | undefined>
+  readonly queues: ReadonlyArray<NamedCloseable | undefined>
   readonly budgetMs: number
   readonly logger: DrainLogger
 }): Promise<DrainResult> {
-  const { workers, queues, budgetMs, logger } = options
+  const { budgetMs, logger } = options
+  const workers = options.workers.filter((w): w is NamedCloseable => w !== undefined)
+  const queues = options.queues.filter((q): q is NamedCloseable => q !== undefined)
   const remaining = [...workers, ...queues].map((r) => r.label)
 
   const loop = (async () => {

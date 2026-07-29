@@ -15,7 +15,7 @@ import {
 } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { drainWorkerResources } from './drain'
+import { drainWorkerResources, namedCloseable } from './drain'
 import {
   QUARANTINE_QUEUE_NAME,
   quarantineJobDirect,
@@ -397,21 +397,17 @@ async function main() {
     logger.info('Outbox relay stopped')
 
     const result = await drainWorkerResources({
-      workers: (
-        [
-          ['default', worker],
-          ['background', backgroundWorker],
-          ['domain-events', domainEventsWorker],
-        ] as const
-      ).flatMap(([label, w]) => (w ? [{ label, close: () => w.close() }] : [])),
-      queues: (
-        [
-          ['default', container.jobQueue],
-          ['background', container.backgroundQueue],
-          ['domain-events', domainEventsQueue],
-          ['quarantine', quarantineQueue],
-        ] as const
-      ).flatMap(([label, q]) => (q ? [{ label, close: () => q.close() }] : [])),
+      workers: [
+        namedCloseable('default', worker),
+        namedCloseable('background', backgroundWorker),
+        namedCloseable('domain-events', domainEventsWorker),
+      ],
+      queues: [
+        namedCloseable('default', container.jobQueue),
+        namedCloseable('background', container.backgroundQueue),
+        namedCloseable('domain-events', domainEventsQueue),
+        namedCloseable('quarantine', quarantineQueue),
+      ],
       budgetMs: env.DRAIN_BUDGET_MS,
       logger,
     })
