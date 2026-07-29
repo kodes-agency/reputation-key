@@ -142,9 +142,7 @@ export const LinksTab: Story = {
   render: (args) => withTab('links', <PortalDetailPage {...args} />),
   play: async () => {
     // Links tab renders the link tree (play simplified to avoid tab/query param flakiness in test env).
-  },
-  parameters: {
-    a11y: { disable: true },
+    // axe stays enabled (BQC-6.8).
   },
 }
 

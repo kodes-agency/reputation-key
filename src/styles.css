@@ -269,3 +269,21 @@ pre code {
 .display-title {
   font-family: var(--font-display);
 }
+
+/* BQC-6.8 / B2.5 — reduced motion. The animation surface is entirely CSS
+   (tw-animate-css classes + transitions; no JS animation library), so one
+   global media query covers the whole app: zero out animation/transition
+   durations and disable smooth scrolling when the user requests reduced
+   motion. The B-classified use-reduced-motion.ts hook was removed in BQC-6.8 —
+   it had no consumer, and a React hook cannot cover CSS-driven motion anyway
+   (its REDUCED_MOTION_CSS content is folded in below). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

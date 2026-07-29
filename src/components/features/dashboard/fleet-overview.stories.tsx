@@ -85,6 +85,31 @@ export const AllClear: Story = {
   },
 }
 
+// BQC-6.8 content robustness: a very long property name (with emoji) must
+// wrap/reflow inside the fleet row without horizontal overflow.
+export const LongPropertyName: Story = {
+  args: {
+    data: {
+      entries: [
+        {
+          ...entries[0],
+          propertyId: 'prop-long',
+          name:
+            'The Meridian Grand Resort & Spa at Sunset Harbor Bay 🌅 — ' +
+            'An Autograph Collection Property of the Northern Archipelago ' +
+            'Islands Hospitality Group International',
+        },
+      ],
+      totals: { propertyCount: 1, totalAttention: 8, overallAvgRating: 4.2 },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/the meridian grand resort/i)).toBeVisible()
+    expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
 // Empty state — org has no properties yet (CTA: Create Property).
 export const Empty: Story = {
   render: () => <FleetOverviewEmpty />,
@@ -102,7 +127,6 @@ export const Loading: Story = {
 
 // Error state — retry surfaces the route-invalidate path.
 export const Error: Story = {
-  parameters: { a11y: { disable: true } },
   render: () => <FleetOverviewError message="We couldn't load your fleet overview." />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

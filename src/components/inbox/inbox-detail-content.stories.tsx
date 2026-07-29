@@ -134,6 +134,24 @@ export const ReviewAsPropertyManager: Story = {
   },
 }
 
+// BQC-6.8: light-theme variant — axe runs on it too (light contrast proof).
+export const ReviewAsPropertyManagerLight: Story = {
+  decorators: [withRole('PropertyManager')],
+  parameters: { theme: 'light' },
+  args: {
+    currentItem: reviewItem,
+    detail: reviewDetail,
+    statusActions: getStatusActions(reviewItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+}
+
 // Review item as Staff — reply.manage denied → ReplyEditor is absent.
 export const ReviewAsStaff: Story = {
   decorators: [withRole('Staff')],
@@ -165,6 +183,50 @@ export const FeedbackDetail: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+}
+
+// BQC-6.8 content robustness: emoji-dense long-form review text plus a
+// missing reviewer name (null) — the detail must wrap long text and render
+// the name fallback without horizontal overflow.
+const longTextItem: InboxItem = {
+  ...makeInboxItem({ id: 'rev-long', sourceType: 'review', status: 'open', rating: 5 }),
+  reviewerName: null,
+}
+
+export const LongReviewText: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: longTextItem,
+    detail: {
+      ...reviewDetail,
+      item: longTextItem,
+      reviewText:
+        'Absolutely magical stay! 🎉✨ From check-in 🛎️ to checkout 🧳 everything ' +
+        'was flawless. The pool 🏊 was heated, the breakfast 🥐🍳☕ was fresh ' +
+        'every morning, and the staff 👏 remembered our names. The room had ' +
+        'a view of the harbor 🌅 that photos cannot do justice. We celebrated ' +
+        'our anniversary 💍 here and the team left champagne 🍾 and a ' +
+        'handwritten note ✍️ in the room. Ten out of ten 💯 — we will be ' +
+        'back every year. '.repeat(3),
+    },
+    statusActions: getStatusActions(longTextItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes: [],
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The full emoji-dense text renders (wrapped, not clipped)...
+    await expect(await canvas.findByText(/absolutely magical stay/i)).toBeVisible()
+    // ...and the missing reviewer name renders the detail WITHOUT the
+    // reviewer block (no broken placeholder, no layout break) — the list
+    // row's Anonymous fallback is covered by the Pages/Inbox LongContent story.
+    expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }
 

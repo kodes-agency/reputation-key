@@ -334,6 +334,16 @@ export function attachErrorDetection(
  */
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
+    // BQC-6.1 hermeticity: styles.css @imports font CSS from external CDNs
+    // (api.fontshare.com, fonts.googleapis.com — binaries from cdn.fontshare.com /
+    // fonts.gstatic.com). Tests must never depend on real network — fontshare
+    // returned 500 in CI once and gated a green suite (#274). Stub the four
+    // hosts with an empty stylesheet; glyph rendering is irrelevant to every
+    // assertion. Follow-up for the product: self-host the fonts.
+    await page.route(
+      /api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/,
+      (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
+    )
     const collector = attachErrorDetection(page)
     await use(page)
     await collector.assertEmpty(testInfo)

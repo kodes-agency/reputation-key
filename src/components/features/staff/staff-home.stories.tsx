@@ -353,6 +353,14 @@ export const Populated: Story = {
   },
 }
 
+// BQC-6.8: light-theme variant of the populated surface — the a11y gate runs
+// on it too, so light-mode contrast is proven (the dark primary was tuned for
+// dark; light surfaces need their own axe pass).
+export const PopulatedLight: Story = {
+  args: { fns: populatedFns, searchPropertyId: SEARCH_PROPERTY_ID },
+  parameters: { theme: 'light' },
+}
+
 // Loading — a pending suspense query keeps the page in the pending fallback.
 export const Loading: Story = {
   args: {

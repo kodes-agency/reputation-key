@@ -47,6 +47,13 @@ export const Idle: Story = {
   args: { mutation: resolvingAction, allowedRoles, properties },
 }
 
+// BQC-6.8: light-theme variant of the form — axe runs on it too (inputs,
+// labels, and error text need a light-mode contrast proof).
+export const IdleLight: Story = {
+  args: { mutation: resolvingAction, allowedRoles, properties },
+  parameters: { theme: 'light' },
+}
+
 // Pending mutation: submit button shows the spinner + is disabled.
 export const Submitting: Story = {
   args: {

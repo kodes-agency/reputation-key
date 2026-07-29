@@ -82,7 +82,6 @@ const pendingBulkFn = mockServerFn(
 ) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const Pending: Story = {
-  parameters: { a11y: { disable: true } },
   args: {
     ...ThreeSelected.args,
     bulkUpdateFn: pendingBulkFn,
@@ -107,7 +106,6 @@ const closeSpy = fn(
 const closeBulkFn = mockServerFn(closeSpy) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const MarkClosed: Story = {
-  parameters: { a11y: { disable: true } },
   args: {
     ...ThreeSelected.args,
     bulkUpdateFn: closeBulkFn,

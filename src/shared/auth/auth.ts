@@ -89,6 +89,16 @@ export function createAuth() {
         httpOnly: true,
       },
     },
+    rateLimit: {
+      // BQC-6.8: disabled on Playwright-launched dev servers only (E2E=1 —
+      // the same discriminator vite.config.ts uses for the console pipe).
+      // better-auth's default /sign-in rule (3 per 10s per IP) 429'd the e2e
+      // suite once BQC-6.8's accessibility spec added its sign-ins: every
+      // spec signs in per test, and retries: 0 makes a single 429 fatal. No
+      // spec exercises rate-limit behavior. Production and local-dev
+      // limiting are unchanged.
+      enabled: !process.env.E2E,
+    },
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days
       updateAge: SESSION_UPDATE_AGE_SECONDS, // Rolling update every 24 hours

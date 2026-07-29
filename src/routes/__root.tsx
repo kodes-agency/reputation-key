@@ -5,9 +5,11 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
+import { initWebVitals } from '#/components/hooks/web-vitals'
 import { authClient } from '#/shared/auth/auth-client'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
@@ -41,6 +43,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       )
     },
   })
+
+  // BQC-6.8: Core Web Vitals collection (LCP + CLS). Runs client-side only
+  // (useEffect never fires during SSR); initWebVitals is a no-op without
+  // PerformanceObserver support.
+  useEffect(() => {
+    initWebVitals()
+  }, [])
 
   return (
     <html lang="en" suppressHydrationWarning>
