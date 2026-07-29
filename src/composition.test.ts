@@ -6,8 +6,12 @@
 // throws — there is no default endpoint to fall back to. The logical ref is
 // never a URL callers could misuse; URLs exist only inside this mapping.
 
-import { describe, it, expect } from 'vitest'
-import { providerConfigFor, applyProviderEndpointOverrides } from '#/composition'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import {
+  providerConfigFor,
+  applyProviderEndpointOverrides,
+  closeContainer,
+} from '#/composition'
 import type { Env } from '#/shared/config/env'
 
 describe('providerConfigFor (BQC-4.3)', () => {
@@ -71,5 +75,50 @@ describe('applyProviderEndpointOverrides (BQC-6.5 operator sandbox seam)', () =>
     expect(overridden.reviewsApiBaseUrl).toBe('http://localhost:4100')
     expect(overridden.gbpApiBaseUrl).toBe(approved.gbpApiBaseUrl)
     expect(overridden.oauthTokenUrl).toBe(approved.oauthTokenUrl)
+  })
+})
+
+// BQC-7.1 — closeContainer: the web graceful-shutdown path for the
+// getContainer() singleton's BullMQ queues. The singleton lives on the
+// process-wide Symbol.for store (the production build bundles composition
+// twice), so tests seed the same well-known key — no test-only export.
+describe('closeContainer (BQC-7.1)', () => {
+  const CONTAINER_KEY = Symbol.for('repkey.composition.container')
+  type SeededContainer = {
+    jobQueue?: { close: () => Promise<void> }
+    backgroundQueue?: { close: () => Promise<void> }
+  }
+
+  function seed(container: SeededContainer | undefined): void {
+    if (container === undefined)
+      delete (globalThis as Record<symbol, unknown>)[CONTAINER_KEY]
+    else (globalThis as Record<symbol, unknown>)[CONTAINER_KEY] = container
+  }
+
+  afterEach(() => seed(undefined))
+
+  it('no-ops when the singleton was never built', async () => {
+    seed(undefined)
+    await expect(closeContainer()).resolves.toBeUndefined()
+  })
+
+  it('closes both queues and resets the store (idempotent second call)', async () => {
+    const jobQueue = { close: vi.fn(async () => undefined) }
+    const backgroundQueue = { close: vi.fn(async () => undefined) }
+    seed({ jobQueue, backgroundQueue })
+
+    await closeContainer()
+
+    expect(jobQueue.close).toHaveBeenCalledOnce()
+    expect(backgroundQueue.close).toHaveBeenCalledOnce()
+    // Store was reset — a second close is a no-op.
+    await closeContainer()
+    expect(jobQueue.close).toHaveBeenCalledOnce()
+    expect(backgroundQueue.close).toHaveBeenCalledOnce()
+  })
+
+  it('tolerates a no-Redis container (queues absent)', async () => {
+    seed({})
+    await expect(closeContainer()).resolves.toBeUndefined()
   })
 })

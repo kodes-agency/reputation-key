@@ -33,4 +33,10 @@ export default defineConfig({
   // (currently scripts/migrations/2026-07-06-permission-version-triggers.sql
   // — functions/triggers/BA-table index that Drizzle cannot express; see
   // src/shared/db/schema/db-only-constructs.ts and src/shared/db/CONTEXT.md).
+  // BQC-7.1: at deploy time this trio runs inside the Railway
+  // preDeployCommand via scripts/migrate-deploy.ts (advisory-locked,
+  // idempotent, forward-recovery) — the better-auth track runs through
+  // better-auth's getMigrations and the drizzle track through drizzle-orm's
+  // migrator (the same engines the CLIs wrap; CI's "Predeploy migration
+  // parity" step proves end-state equivalence with the manual trio).
 })

@@ -15,6 +15,7 @@ import {
 } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import { drainWorkerResources, namedCloseable } from './drain'
 import {
   QUARANTINE_QUEUE_NAME,
   quarantineJobDirect,
@@ -383,7 +384,11 @@ async function main() {
     logger.warn('Outbox relay not started — no outboxRepo or Redis')
   }
 
-  // Graceful shutdown — drain in-progress jobs before exiting
+  // Graceful shutdown — drain in-progress jobs before exiting.
+  // BQC-7.1: the close sequence races DRAIN_BUDGET_MS (default 25s, below
+  // Railway's 30s drainingSeconds); a hung job previously stalled the deploy
+  // window until SIGKILL. Budget expiry exits 1 — an unclean stop the
+  // platform records — instead of an unbounded wait.
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received, draining workers')
 
@@ -391,34 +396,28 @@ async function main() {
     stopRelay?.()
     logger.info('Outbox relay stopped')
 
-    for (const [label, w] of [
-      ['default', worker],
-      ['background', backgroundWorker],
-      ['domain-events', domainEventsWorker],
-    ] as const) {
-      if (w) {
-        try {
-          await w.close()
-          logger.info({ queue: label }, 'Worker drained successfully')
-        } catch (err) {
-          logger.error({ err, queue: label }, 'Error draining worker')
-        }
-      }
-    }
-    for (const [label, q] of [
-      ['default', container.jobQueue],
-      ['background', container.backgroundQueue],
-      ['domain-events', domainEventsQueue],
-      ['quarantine', quarantineQueue],
-    ] as const) {
-      if (q) {
-        try {
-          await q.close()
-          logger.info({ queue: label }, 'Queue closed successfully')
-        } catch (err) {
-          logger.error({ err, queue: label }, 'Error closing queue')
-        }
-      }
+    const result = await drainWorkerResources({
+      workers: [
+        namedCloseable('default', worker),
+        namedCloseable('background', backgroundWorker),
+        namedCloseable('domain-events', domainEventsWorker),
+      ],
+      queues: [
+        namedCloseable('default', container.jobQueue),
+        namedCloseable('background', container.backgroundQueue),
+        namedCloseable('domain-events', domainEventsQueue),
+        namedCloseable('quarantine', quarantineQueue),
+      ],
+      budgetMs: env.DRAIN_BUDGET_MS,
+      logger,
+    })
+
+    if (result.timedOut) {
+      logger.error(
+        { stuck: result.stuck, budgetMs: env.DRAIN_BUDGET_MS },
+        'Drain budget exceeded — exiting with unclean shutdown',
+      )
+      process.exit(1)
     }
     process.exit(0)
   }

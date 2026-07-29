@@ -44,7 +44,16 @@ const config = defineConfig(({ mode }) => {
     plugins: [
       ...(isStorybook ? [] : [devtools({ consolePiping: { enabled: !isE2E } })]),
       ...(isBuild && !isStorybook
-        ? [nitro({ rollupConfig: { external: [/^@sentry\//] } })]
+        ? [
+            nitro({
+              rollupConfig: { external: [/^@sentry\//] },
+              // BQC-7.1: wire the graceful-shutdown runtime plugin. serverDir
+              // scanning stays off (default false under TanStack Start), so
+              // this explicit list is the ONLY plugin registration path — the
+              // inert security-headers plugin is unaffected (STD-P1-07).
+              plugins: ['server/plugins/graceful-shutdown.ts'],
+            }),
+          ]
         : []),
       tailwindcss(),
       // Import protection prevents server-only modules (Node builtins, DB

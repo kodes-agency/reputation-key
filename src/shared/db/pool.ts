@@ -7,7 +7,18 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 
-let _pool: Pool | undefined
+// BQC-7.1: the production build bundles this module TWICE (the nitro app
+// chunk and the lazy SSR service chunk each inline their own copy), so a
+// module-level singleton would create two independent pools — and the
+// graceful-shutdown plugin would close the copy requests never used.
+// Symbol.for keys the singleton on the process-global registry so every
+// bundle copy shares one pool.
+const POOL_KEY = Symbol.for('repkey.shared.db.pool')
+type PoolStore = { [POOL_KEY]?: Pool }
+
+function poolStore(): PoolStore {
+  return globalThis as PoolStore
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -106,9 +117,10 @@ async function warmup(pool: Pool): Promise<void> {
 
 /** Get the shared database connection pool. Creates it on first call. */
 export function getPool(): Pool {
-  if (!_pool) {
+  const store = poolStore()
+  if (!store[POOL_KEY]) {
     const env = getEnv()
-    _pool = new Pool({
+    const pool = new Pool({
       connectionString: env.DATABASE_URL,
       max: 10,
       // Neon (serverless Postgres) recycles connections when the compute
@@ -122,7 +134,7 @@ export function getPool(): Pool {
     // behind our back, the Pool emits 'error'. Without a listener Node treats
     // it as an unhandled exception, which destabilizes the process and causes
     // cascading 500s. This handler logs and lets the Pool recycle the client.
-    _pool.on('error', (err) => {
+    pool.on('error', (err) => {
       getLogger().warn(
         { error: err.message },
         '[db] idle pool connection error (Neon recycled connection)',
@@ -131,9 +143,24 @@ export function getPool(): Pool {
     // Retry transient connection failures (Neon cold-start, recycled
     // connections) at the pool level — wraps connect() + query() so both
     // Kysely (Better Auth) and Drizzle queries survive a cold Neon endpoint.
-    wrapPoolWithRetry(_pool)
+    wrapPoolWithRetry(pool)
     // Warm the first connection (fire-and-forget). Retries internally.
-    void warmup(_pool)
+    void warmup(pool)
+    store[POOL_KEY] = pool
   }
-  return _pool
+  return store[POOL_KEY]
+}
+
+/**
+ * End the shared pool if it was created (BQC-7.1 graceful shutdown). No-op
+ * when the pool was never initialized, so the shutdown path runs regardless
+ * of whether any request touched the database. pool.end() waits for
+ * checked-out clients to be released — in-flight queries finish, new
+ * acquisitions fail. Resets the singleton so a later getPool() recreates.
+ */
+export async function closePool(): Promise<void> {
+  const store = poolStore()
+  const pool = store[POOL_KEY]
+  store[POOL_KEY] = undefined
+  if (pool) await pool.end()
 }

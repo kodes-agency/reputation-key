@@ -1,0 +1,36 @@
+# BQC-7.1 — Docker build context. Everything the image needs is copied
+# explicitly in the Dockerfiles; keep the context small and never ship env.
+.git
+node_modules
+.output
+dist
+dist-worker
+storybook-static
+coverage
+test-results
+playwright-report
+docs
+e2e
+review
+findings
+drizzle.bak
+better-auth_migrations
+.storybook
+.tanstack
+.vscode
+.husky
+.claude
+.codex
+.fallow
+.od-skills
+.omp
+.pi
+.superpowers
+.a5c
+.github
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+npm-debug.log*

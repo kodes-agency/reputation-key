@@ -1,0 +1,71 @@
+# syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────────────────────
+# BQC-7.1 — production WORKER image (BullMQ: job workers, schedules, outbox
+# relay). Shares the base/deps/build/prod-deps stages with the web Dockerfile
+# (keep the two files' shared stages identical; Railway has no dockerfile
+# target field, so each service gets its own Dockerfile).
+#
+# Reproducibility + least privilege: same pins as Dockerfile (digest-pinned
+# node:22-slim, corepack-pinned pnpm, --frozen-lockfile everywhere, non-root
+# `node` user, no runtime disk writes → read-only root + tmpfs /tmp posture).
+#
+# Deploy contract (railway.worker.json):
+#   - startCommand: image CMD (node dist-worker/index.js)
+#   - NO healthcheckPath: the worker serves no HTTP (liveness is the process
+#     itself + restartPolicy; queue depth/heartbeat are observable via
+#     /api/health/metrics on the web service)
+#   - numReplicas 1 — the worker is the singleton scheduler: it re-registers
+#     ~12 repeatable jobs per boot (fixed jobIds dedupe concurrent boots, but
+#     >1 replica would double-process schedules)
+#   - restart ON_FAILURE×10, drainingSeconds 30 — the outer bound for the
+#     DRAIN_BUDGET_MS (default 25s) graceful drain in src/worker/index.ts
+#   - region: platform/dashboard setting (ADR 0048 single 'us' cell)
+#
+# Graceful shutdown: SIGTERM/SIGINT → stop the outbox relay, close BullMQ
+# workers (stops fetching, drains in-flight), close queues — raced against
+# DRAIN_BUDGET_MS; budget expiry exits 1 (unclean stop is recorded) instead
+# of hanging the deploy window (src/worker/drain.ts).
+# ─────────────────────────────────────────────────────────────────────────────
+
+# node:22-slim (bookworm) — digest resolved 2026-07-14 (pin bumps deliberately).
+FROM node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS base
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    HUSKY=0
+RUN corepack enable
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+# The worker image only needs dist-worker; building the web bundle here too
+# would double build time for no artifact. `pnpm build:worker` produces both
+# dist-worker/index.js and dist-worker/migrate-deploy.js. Placeholders are
+# inline on RUN so they never persist in image metadata.
+RUN NODE_ENV=production \
+    DATABASE_URL=postgresql://build:build@localhost:5432/build \
+    BETTER_AUTH_SECRET=build-placeholder-secret-32-characters-xx \
+    BETTER_AUTH_URL=http://localhost:3000 \
+    GOOGLE_CLIENT_ID=build-placeholder-client-id \
+    GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
+    ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
+    OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
+    pnpm build:worker
+
+FROM base AS prod-deps
+COPY package.json pnpm-lock.yaml ./
+# --ignore-scripts: see the web Dockerfile (husky prepare is a devDependency).
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+
+FROM base AS worker
+ENV NODE_ENV=production
+# The tsup bundle keeps only pg, ioredis, bullmq, pino, better-auth and
+# drizzle-orm external — all present in the prod install.
+COPY --from=build /app/dist-worker ./dist-worker
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY package.json ./
+USER node
+CMD ["node", "dist-worker/index.js"]

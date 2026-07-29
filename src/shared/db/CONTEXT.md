@@ -34,6 +34,14 @@ standalone: `pnpm check:schema-drift` (see `scripts/check-schema-drift.ts`).
 **Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` → registered
 sidecars (`psql "$DATABASE_URL" -f <sidecar>`). CI applies the same order in
 the `check` and `e2e` jobs, so the tested DB matches the deploy state.
+BQC-7.1: production deploys run the trio via the Railway `preDeployCommand`
+(`node dist-worker/migrate-deploy.js`, source `scripts/migrate-deploy.ts`) —
+a PostgreSQL advisory lock serializes concurrent deploys, every step is
+idempotent, and the recovery policy is fix-forward-and-rerun (never hand-roll
+partial schema). The script drives better-auth's `getMigrations` and
+drizzle-orm's migrator — the same engines the two CLIs wrap; the `check`
+job's "Predeploy migration parity" step proves it converges to the manual
+trio's end state on every PR.
 
 ## How to change the schema
 

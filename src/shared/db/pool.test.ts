@@ -1,5 +1,55 @@
-import { describe, it, expect } from 'vitest'
-import { isTransientConnectionError } from './pool'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { isTransientConnectionError, getPool, closePool } from './pool'
+
+vi.mock('pg', () => {
+  class FakePool {
+    static instances: FakePool[] = []
+    readonly handlers = new Map<string, (err: unknown) => void>()
+    end = vi.fn(async () => undefined)
+    connect = vi.fn(async () => ({
+      query: vi.fn(async () => ({ rows: [] })),
+      release: vi.fn(),
+    }))
+    query = vi.fn(async () => ({ rows: [] }))
+
+    constructor(public readonly options: unknown) {
+      FakePool.instances.push(this)
+    }
+
+    on(event: string, cb: (err: unknown) => void): this {
+      this.handlers.set(event, cb)
+      return this
+    }
+  }
+  return { Pool: FakePool }
+})
+
+import { Pool } from 'pg'
+
+type FakePoolInstance = Pool & {
+  options: { connectionString?: string; max?: number }
+  end: ReturnType<typeof vi.fn>
+}
+
+function fakePools(): FakePoolInstance[] {
+  return (Pool as unknown as { instances: FakePoolInstance[] }).instances
+}
+
+const POOL_KEY = Symbol.for('repkey.shared.db.pool')
+
+function clearStore(): void {
+  delete (globalThis as Record<symbol, unknown>)[POOL_KEY]
+}
+
+beforeEach(() => {
+  clearStore()
+  fakePools().length = 0
+  vi.clearAllMocks()
+})
+
+afterEach(() => {
+  clearStore()
+})
 
 /**
  * The error shapes below are copied from the actual production logs:
@@ -74,5 +124,40 @@ describe('isTransientConnectionError', () => {
     expect(isTransientConnectionError(undefined)).toBe(false)
     expect(isTransientConnectionError('string error')).toBe(false)
     expect(isTransientConnectionError(42)).toBe(false)
+  })
+})
+
+// BQC-7.1 — process-wide pool singleton (Symbol.for store: the production
+// build bundles this module twice, so the store must be global, not module
+// scope) and the graceful-shutdown close semantics.
+describe('getPool / closePool (BQC-7.1)', () => {
+  it('creates one pool with the Neon-safe options and dedups on the process store', () => {
+    const first = getPool()
+    const second = getPool()
+
+    expect(fakePools()).toHaveLength(1)
+    expect(first).toBe(second)
+    expect(fakePools()[0].options).toMatchObject({
+      connectionString: process.env.DATABASE_URL,
+      max: 10,
+      connectionTimeoutMillis: 15_000,
+      idleTimeoutMillis: 30_000,
+    })
+  })
+
+  it('closePool ends the pool and resets the store so getPool recreates', async () => {
+    const first = getPool() as FakePoolInstance
+
+    await closePool()
+    expect(first.end).toHaveBeenCalledOnce()
+
+    const second = getPool()
+    expect(second).not.toBe(first)
+    expect(fakePools()).toHaveLength(2)
+  })
+
+  it('closePool no-ops when no pool was ever created', async () => {
+    await expect(closePool()).resolves.toBeUndefined()
+    expect(fakePools()).toHaveLength(0)
   })
 })
