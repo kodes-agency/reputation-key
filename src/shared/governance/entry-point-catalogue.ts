@@ -2357,6 +2357,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     { notes: 'CI lint: component boundary check' },
   ),
+  ops('scripts/check-bundle-budget.mjs', 'scripts/check-bundle-budget.mjs', 'none', {
+    notes:
+      'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
+  }),
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
   }),

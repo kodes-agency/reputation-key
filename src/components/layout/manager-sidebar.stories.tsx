@@ -96,7 +96,6 @@ function withRoleAt(role: Role, initialUrl: string) {
 export const AsPropertyManager: Story = {
   args: { properties, getLastVisitCount: lastVisitCountWithBadge },
   decorators: [withRoleAt('PropertyManager', '/?propertyId=prop-acme')],
-  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Property switcher shows the active property.
@@ -117,7 +116,6 @@ export const AsPropertyManager: Story = {
 export const AsAccountAdmin: Story = {
   args: { properties, getLastVisitCount: lastVisitCountZero },
   decorators: [withRoleAt('AccountAdmin', '/?propertyId=prop-acme')],
-  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()
@@ -130,7 +128,6 @@ export const AsAccountAdmin: Story = {
 export const NoPropertySelected: Story = {
   args: { properties, getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
-  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/select property/i)).toBeInTheDocument()
@@ -142,7 +139,6 @@ export const NoPropertySelected: Story = {
 export const EmptyProperties: Story = {
   args: { properties: [], getLastVisitCount: lastVisitCountZero },
   decorators: [withRole('PropertyManager')],
-  parameters: { a11y: { disable: true } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/select property/i)).toBeInTheDocument()

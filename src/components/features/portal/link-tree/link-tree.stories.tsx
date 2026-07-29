@@ -62,9 +62,7 @@ const links: readonly LinkTreeLink[] = [
 export const Default: Story = {
   args: { portalId: 'portal-1', categories, links },
   // play removed temporarily to unblock storybook-test CI; visual + basic render verified in dev.
-  parameters: {
-    a11y: { disable: true },
-  },
+  // axe stays enabled (BQC-6.8).
 }
 
 // Empty tree renders the empty-state affordance.
@@ -77,7 +75,5 @@ export const Empty: Story = {
 export const AddCategory: Story = {
   args: { portalId: 'portal-1', categories, links },
   // play removed temporarily to unblock storybook-test CI.
-  parameters: {
-    a11y: { disable: true },
-  },
+  // axe stays enabled (BQC-6.8).
 }

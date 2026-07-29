@@ -93,47 +93,50 @@ export function StaffSidebar({
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <StaffOrgSwitcher
-          organizations={organizations}
-          activeOrganization={activeOrganization}
-          onSwitch={handleOrgSwitch}
-        />
-        <StaffPropertySwitcher
-          properties={properties}
-          propertyId={propertyId}
-          onSwitch={handlePropertySwitch}
-        />
-      </SidebarHeader>
+      {/* BQC-6.8: nav landmark for the staff navigation (see manager-sidebar). */}
+      <nav aria-label="Primary navigation" className="flex h-full w-full flex-col">
+        <SidebarHeader>
+          <StaffOrgSwitcher
+            organizations={organizations}
+            activeOrganization={activeOrganization}
+            onSwitch={handleOrgSwitch}
+          />
+          <StaffPropertySwitcher
+            properties={properties}
+            propertyId={propertyId}
+            onSwitch={handlePropertySwitch}
+          />
+        </SidebarHeader>
 
-      <SidebarSeparator />
+        <SidebarSeparator />
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <StaffNavItems activeSection={activeSection} hasTeam={hasTeam} />
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <StaffNavItems activeSection={activeSection} hasTeam={hasTeam} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={activeSection === 'settings'}
-              tooltip="Settings"
-            >
-              <Link to="/settings/profile">
-                <Settings />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={activeSection === 'settings'}
+                tooltip="Settings"
+              >
+                <Link to="/settings/profile">
+                  <Settings />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
 
-      <SidebarRail />
+        <SidebarRail />
+      </nav>
     </Sidebar>
   )
 }

@@ -80,14 +80,40 @@ export const Route = createFileRoute('/_authenticated/home')({
 
 function StaffHomePage() {
   const { propertyId: searchPropertyId, portalId: searchPortalId } = Route.useSearch()
+
+  // BQC-6.8: with no property selected, render the no-property empty state
+  // WITHOUT mounting the data hook — useStaffHomeData fires all five suspense
+  // queries with propertyId='' otherwise, the fns' input validation throws
+  // ("Property ID is required") and SSR aborts to client rendering. (The
+  // suspense-query pattern can't be disabled, so the branch must happen
+  // before the hook mounts — hence the split component.)
+  if (!searchPropertyId) {
+    return (
+      <PageShell>
+        <PageHeader title="Home" description="Your performance at a glance." />
+        <StaffEmptyState />
+      </PageShell>
+    )
+  }
+
+  return <StaffHomeDataView propertyId={searchPropertyId} portalId={searchPortalId} />
+}
+
+function StaffHomeDataView({
+  propertyId,
+  portalId,
+}: {
+  propertyId: string
+  portalId: string | undefined
+}) {
   const { kpis, portals, goals, badges, recentReviews, emptyState } = useStaffHomeData(
-    searchPropertyId,
-    searchPortalId,
+    propertyId,
+    portalId,
     staffHomeFns,
   )
 
-  // Empty states (no property selected / property selected but no assignments) —
-  // the decision lives in the hook.
+  // Empty state (property selected but no assignments) — the decision lives
+  // in the hook.
   if (emptyState) {
     return (
       <PageShell>
@@ -105,8 +131,8 @@ function StaffHomePage() {
         actions={
           <StaffPortalFilter
             portals={portals}
-            activePortalId={searchPortalId}
-            searchPropertyId={searchPropertyId}
+            activePortalId={portalId}
+            searchPropertyId={propertyId}
           />
         }
       />

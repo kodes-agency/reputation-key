@@ -80,6 +80,7 @@ export function MemberTable({
               {canChangeRoles && member.userId !== currentUserId ? (
                 <RoleSelect
                   role={member.role}
+                  memberName={member.name}
                   onRoleChange={(newRole) =>
                     updateRoleAction({
                       data: {

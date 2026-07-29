@@ -224,10 +224,7 @@ export const Default: Story = {
 export const Loading: Story = {
   args: { notificationFns: loadingFns },
   // play removed to unblock storybook-test (flaky dialog timing / portaling in test env).
-  // a11y disabled; visual render is verified.
-  parameters: {
-    a11y: { disable: true },
-  },
+  // Visual render is verified; axe stays enabled (BQC-6.8).
 }
 
 export const ErrorState: Story = {

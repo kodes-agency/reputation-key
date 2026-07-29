@@ -56,7 +56,6 @@ type Story = StoryObj<typeof ReplyEditor>
 
 // loading=true → "Loading reply..." stays on screen (detail still loading).
 export const Loading: Story = {
-  parameters: { a11y: { disable: true } },
   args: { loading: true, initialReply: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -66,7 +65,6 @@ export const Loading: Story = {
 
 // initialReply is the pending-approval reply → its text renders.
 export const LoadedWithReply: Story = {
-  parameters: { a11y: { disable: true } },
   args: { loading: false, initialReply: pendingReply },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -76,7 +74,6 @@ export const LoadedWithReply: Story = {
 
 // No reply yet → the empty composer (no error UI, no fetch).
 export const NoReply: Story = {
-  parameters: { a11y: { disable: true } },
   args: { loading: false, initialReply: null },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

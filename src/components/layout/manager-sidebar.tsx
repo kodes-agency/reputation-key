@@ -60,44 +60,52 @@ export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <ManagerPropertySwitcher
-          properties={properties}
-          propertyId={propertyId ?? undefined}
-          onSwitch={handlePropertySwitch}
-        />
-      </SidebarHeader>
+      {/*
+        BQC-6.8: the app sidebar IS the primary navigation — give it the nav
+        landmark so its links don't fail axe's region rule (all page content
+        must be inside a landmark). flex-col h-full replicates the
+        sidebar-inner layout so rendering is unchanged.
+      */}
+      <nav aria-label="Primary navigation" className="flex h-full w-full flex-col">
+        <SidebarHeader>
+          <ManagerPropertySwitcher
+            properties={properties}
+            propertyId={propertyId ?? undefined}
+            onSwitch={handlePropertySwitch}
+          />
+        </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <ManagerNavItems
-              propertyId={propertyId ?? undefined}
-              activeSection={activeSection}
-              getLastVisitCount={getLastVisitCount}
-            />
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <ManagerNavItems
+                propertyId={propertyId ?? undefined}
+                activeSection={activeSection}
+                getLastVisitCount={getLastVisitCount}
+              />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={activeSection === 'settings'}
-              tooltip="Settings"
-            >
-              <Link to="/settings/profile">
-                <Settings />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={activeSection === 'settings'}
+                tooltip="Settings"
+              >
+                <Link to="/settings/profile">
+                  <Settings />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
 
-      <SidebarRail />
+        <SidebarRail />
+      </nav>
     </Sidebar>
   )
 }

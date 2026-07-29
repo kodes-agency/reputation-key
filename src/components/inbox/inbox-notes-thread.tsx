@@ -78,7 +78,9 @@ export function InboxNotesThread({
 
   return (
     <div className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium text-foreground">Notes ({notes.length})</h3>
+      {/* BQC-6.8: h2 — page outline is h1 (list header) → h2 (detail sections);
+          the previous h3 skipped a level (axe heading-order). */}
+      <h2 className="text-sm font-medium text-foreground">Notes ({notes.length})</h2>
 
       {/* Notes list */}
       {sortedNotes.length === 0 ? (

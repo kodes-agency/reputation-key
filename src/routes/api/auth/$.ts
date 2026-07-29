@@ -24,6 +24,14 @@ const BLOCKED_RAW_WRITE_ENDPOINTS = [
  * Handle a raw better-auth HTTP request. Blocked write endpoints are refused with
  * 404 + a structured warn log (the alerting anchor). POST endpoints are rate-limited
  * to blunt brute-force / credential stuffing against better-auth native auth.
+ *
+ * BQC-6.8: the limiter is skipped on Playwright-launched dev servers (E2E=1 —
+ * the same discriminator vite.config.ts uses). The 60-POSTs/60s fixed window
+ * per IP was sized for interactive traffic; the e2e suite signs in per test
+ * (~70 POSTs in ~70s once the accessibility spec joined), and retries: 0
+ * makes a single 429 fatal. No spec exercises rate-limit behavior. Production
+ * and local-dev limiting are unchanged (better-auth's own limiter inside the
+ * handler is likewise e2e-disabled, see shared/auth/auth.ts).
  */
 async function handleAuthRequest(
   request: Request,
@@ -42,7 +50,7 @@ async function handleAuthRequest(
     })
   }
 
-  if (opts.rateLimit) {
+  if (opts.rateLimit && !process.env.E2E) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
     const { rateLimiter } = getContainer()
     const rlResult = await rateLimiter.check(`auth:native:${ip}`)

@@ -115,6 +115,11 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
 
+      # BQC-6.8: client bundle budgets on the production output (main entry /
+      # initial payload / lazy chunks — see scripts/check-bundle-budget.mjs).
+      - name: Bundle budget
+        run: pnpm check:bundles
+
       - name: Worker build
         run: pnpm build:worker
 

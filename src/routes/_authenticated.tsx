@@ -18,7 +18,7 @@ import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
 import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
-import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
+import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { StaffSidebar } from '#/components/layout/staff-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
@@ -173,7 +173,21 @@ function AuthenticatedLayout() {
           hasTeam={false}
         />
       )}
-      <SidebarInset className={`min-w-0 ${isInbox ? 'overflow-hidden' : ''}`}>
+      {/*
+        BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
+        vendored SidebarInset renders <main>, which nested the content <main>
+        below inside it (duplicate main, main-in-main, non-unique landmarks on
+        the e2e axe gate). With a div wrapper the landmarks are textbook:
+        sidebar nav (landmark) + AppTopBar <header> (top-level banner) + one
+        <main>. The inset-variant peer classes from SidebarInset are dead
+        weight here (the app sidebars never use variant="inset").
+      */}
+      <div
+        data-slot="sidebar-inset"
+        className={`relative flex w-full flex-1 flex-col bg-background min-w-0 ${
+          isInbox ? 'overflow-hidden' : ''
+        }`}
+      >
         <AppTopBar user={ctx.user} notificationFns={notificationFns} />
         <main
           className={`min-w-0 flex-1 ${
@@ -182,7 +196,7 @@ function AuthenticatedLayout() {
         >
           <Outlet />
         </main>
-      </SidebarInset>
+      </div>
     </SidebarProvider>
   )
 

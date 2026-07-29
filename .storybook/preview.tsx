@@ -1,39 +1,58 @@
 // Storybook preview — imports the app's design-system styles (Tailwind v4 +
-// shadcn tokens) and applies dark theme by default (per PRODUCT.md).
+// shadcn tokens). Theme is parameter-driven (BQC-6.8): stories default to the
+// dark theme the product ships with; a story opts into light with
+// `parameters: { theme: 'light' }` (axe runs on those variants too — the dark
+// primary was tuned for dark contrast, so light surfaces need their own proof).
 import type { Preview } from '@storybook/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useState } from 'react'
 import '../src/styles.css'
 import '../src/shared/auth/permissions' // side-effect: initPermissionTable() for can()
 import { RouterDecorator } from './RouterDecorator'
 
-// Shared QueryClient for storybook tests (retry: false to avoid flakiness, staleTime high for stability).
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      staleTime: Infinity,
-      gcTime: Infinity,
-    },
-  },
-})
+// Per-story QueryClient (BQC-6.8): a module-level singleton leaked cached
+// queries across stories (identical query keys + staleTime/gcTime Infinity —
+// the Pages/Inbox LongContent story was served the PREVIOUS story's list).
+// One client per story render keeps stories hermetic while preserving the
+// shared-across-decorators behavior within a story (retry: false to avoid
+// flakiness, staleTime high for stability).
+function StoryQueryClientProvider({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+            staleTime: Infinity,
+            gcTime: Infinity,
+          },
+        },
+      }),
+  )
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+}
 
 const preview: Preview = {
   decorators: [
     // Provide QueryClient for components using TanStack Query (useSuspenseQuery, etc.).
     // Must wrap before router in some cases for query + route data.
     (Story) => (
-      <QueryClientProvider client={queryClient}>
+      <StoryQueryClientProvider>
         <Story />
-      </QueryClientProvider>
+      </StoryQueryClientProvider>
     ),
     // Provide a TanStack memory router so components using useRouter()/
     // useNavigate()/useRouterState() (anything via useMutationAction) render.
     RouterDecorator,
-    // Apply the `.dark` class + color-scheme so shadcn primitives render in
-    // the dark theme the product ships with.
-    (Story) => {
-      document.documentElement.classList.add('dark')
-      document.documentElement.style.colorScheme = 'dark'
+    // Apply the theme class + color-scheme so shadcn primitives render in the
+    // right theme. Dark stays the default (the product ships dark-first per
+    // PRODUCT.md, preserving every existing story's baseline); a story opts
+    // into light with `parameters: { theme: 'light' }`.
+    (Story, context) => {
+      const theme = context.parameters.theme === 'light' ? 'light' : 'dark'
+      document.documentElement.classList.remove('light', 'dark')
+      document.documentElement.classList.add(theme)
+      document.documentElement.style.colorScheme = theme
       return Story()
     },
   ],

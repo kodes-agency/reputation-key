@@ -118,7 +118,6 @@ export default meta
 type Story = StoryObj<typeof InboxPageV2>
 
 export const Default: Story = {
-  parameters: { a11y: { disable: true } },
   render: () => (
     <InboxPageHarness
       ctx={orgCtx}
@@ -193,5 +192,71 @@ export const MobileViewport: Story = {
   ),
   parameters: {
     viewport: { defaultViewport: 'mobileStaff' },
+  },
+}
+
+// BQC-6.8 content robustness: 300-char reviewer name, emoji-dense snippet,
+// and a missing reviewer name (null → Anonymous fallback) — truncation and
+// line-clamping must hold with no layout break or horizontal overflow.
+const longContentContainer = createInboxContainer()
+longContentContainer.seed([
+  {
+    ...makeInboxItem({ id: 'long-1', sourceType: 'review', status: 'open', rating: 5 }),
+    reviewerName:
+      'Alexandria Konstantinopolous-Weathersby the Third of Upper Nether Wallop ' +
+      'who wrote this review on behalf of her entire extended family reunion ' +
+      'and wanted every single word of her very long name to be preserved ' +
+      'for posterity in the hotel management dashboard record',
+    snippet: 'Lovely stay! 🎉🏨✨ The staff were amazing 👏👏 and breakfast was 🥐☕',
+  },
+  {
+    ...makeInboxItem({ id: 'long-2', sourceType: 'review', status: 'open', rating: 4 }),
+    reviewerName: 'Emoji Guest 🧳🌍✈️',
+    snippet:
+      '🔥🔥🔥 HOT TAKE: great pool 🏊, terrible wifi 📵, incredible views 🌅, ' +
+      'noisy corridors 🔇, would still return 💯',
+  },
+  {
+    ...makeInboxItem({ id: 'long-3', sourceType: 'review', status: 'open', rating: 2 }),
+    reviewerName: null,
+    snippet: '',
+  },
+])
+
+export const LongContent: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={properties}
+      inboxFns={makeInboxFns(longContentContainer)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // All three rows render: truncated long name, emoji name, Anonymous fallback.
+    // The list loads asynchronously via the real use-case → findAllByRole waits
+    // (same pattern as the Default story).
+    const rows = await canvas.findAllByRole(
+      'button',
+      { name: /open review from/i },
+      { timeout: 10_000 },
+    )
+    const names = rows.map((r) => r.getAttribute('aria-label') ?? '')
+    expect(names.length, `row aria-labels: ${JSON.stringify(names)}`).toBe(3)
+    const longRow = rows.find((r) =>
+      r.getAttribute('aria-label')?.toLowerCase().includes('alexandria'),
+    )!
+    expect(rows.some((r) => r.getAttribute('aria-label')?.includes('Emoji Guest'))).toBe(
+      true,
+    )
+    expect(rows.some((r) => r.getAttribute('aria-label')?.includes('Anonymous'))).toBe(
+      true,
+    )
+    // The long name is visibly truncated (its box clips the text), not wrapped.
+    const nameEl = longRow.querySelector('.truncate')
+    expect(nameEl).not.toBeNull()
+    expect(nameEl!.scrollWidth).toBeGreaterThan(nameEl!.clientWidth)
+    // No horizontal overflow anywhere in the story canvas.
+    expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }

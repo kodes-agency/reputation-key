@@ -48,7 +48,8 @@ export function InboxActivityTimeline({
 
   return (
     <div className="border-t pt-4">
-      <h3 className="text-sm font-semibold text-muted-foreground mb-3">Activity</h3>
+      {/* BQC-6.8: h2 — page outline is h1 → h2 (see inbox-notes-thread). */}
+      <h2 className="text-sm font-semibold text-muted-foreground mb-3">Activity</h2>
       <div className="relative ml-1.5">
         <div className="absolute left-[11px] top-1.5 bottom-1.5 w-px bg-border" />
         <div className="space-y-4">

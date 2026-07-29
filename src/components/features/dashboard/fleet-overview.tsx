@@ -81,7 +81,12 @@ export function FleetOverview({ data }: FleetOverviewProps) {
   const { entries, totals } = data
   return (
     <Shell>
-      <div className="grid grid-cols-3 gap-3">
+      {/*
+        BQC-6.8 reflow: single-column on narrow/zoomed viewports (the 3-up
+        strip could not shrink below its min-content at 400% zoom / 320 CSS px
+        — WCAG 1.4.10), sm+ keeps the original 3-up layout.
+      */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StripStat
           icon={Building2}
           label="Properties"
@@ -140,7 +145,9 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
     <Link
       to="/properties/$propertyId"
       params={{ propertyId: entry.propertyId }}
-      className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent"
+      // BQC-6.8 reflow: flex-wrap lets the attention badge drop below the
+      // property stats instead of forcing horizontal overflow at 400% zoom.
+      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border p-4 transition-colors hover:bg-accent"
     >
       <div className="flex flex-col gap-1">
         <p className="font-semibold">{entry.name}</p>

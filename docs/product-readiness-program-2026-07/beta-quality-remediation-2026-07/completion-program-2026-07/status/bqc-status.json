@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T07:00:23Z",
+  "updatedAt": "2026-07-29T10:53:48Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite. 6.6: dark browser promotion. 6.7 implementation_complete: residual full suite hardened — all 6 pre-existing failures fixed at root (hydration-safe interactions; fake mail outbox via production-honest RESEND_BASE_URL + stub asserting delivery intent + classification, zero Resend calls; F-PEOPLE loader now degrades the dark portals query so the enabled People tabs always render); dark positives dispositioned (guest-portal to post-beta suite); full project is now a HARD gate (continue-on-error removed) — full 23/23 + critical 33/33 green. Slices 6.8, 6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite. 6.6: dark browser promotion. 6.7: residual hardening (full suite hard gate). 6.8 implementation_complete: accessibility/responsive/theme/performance — e2e axe layer on all enabled workflows (zero violations, zero suppressions; the 6 page-structure rules storybook disables now enforced at page level); the 20 a11y-opt-out stories burned to ZERO (violations fixed at root incl. shell landmark structure); keyboard proofs (inbox j/k/Enter/Escape, tab-walk with visible focus, dialog focus trap); light-theme verified in storybook + e2e (high-contrast registered unsupported); reduced-motion global rule + hook removed; zoom/reflow proven (fleet grid fixed); mobile variants proven (touch-target convention registered as a user design question); long-content/emoji/missing-value variants (RTL registered unsupported); bundle budgets wired into CI; web-vitals WIRED (LCP+CLS via PerformanceObserver; INP + reporting destination registered for BQC-7). Slice 6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.8",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Accessibility, responsive, theme, and performance",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) E2e axe layer (axe-core via the addon-a11y dependency chain, full wcag2a/aa+best-practice incl. the 6 page-structure rules that APPLY to real pages): scans on fleet dashboard (dark+light), property dashboard, inbox (+detail), people, members, staff home — ZERO violations, ZERO suppressions. Root fixes: nested duplicate <main> in _authenticated shell (SidebarInset wrapped the shell's own main — landmarks now textbook on every page), sidebars' content inside named <nav> landmarks, members role-select accessible name. (2) The 20 a11y-opt-out stories burned to ZERO (heading-order fixes; a preview QueryClient-per-story leak fixed en route). Gate now axe-enforces every story, 75f/394t. (3) Keyboard: inbox j/k/Enter/Escape proven end-to-end; members tab-walk reaches primary actions with a visible indicator; invite dialog focus trap + escape-return asserted. (4) Theme: storybook theme parameter (default dark; 3 light variants axe-verified); e2e light-mode scan clean. High-contrast registered unsupported-by-design. (5) Reduced motion: global prefers-reduced-motion rule; the unused hook REMOVED (CSS covers the surface; computed-duration e2e proof). (6) Zoom/reflow: 200%/400% no-hscroll on fluid pages + 320px-viewport reflow (fleet grid fixed at root; the style.zoom fixed-position artifact documented). (7) Mobile 390×844 variants (rows full-width, nav drawer works); touch-target convention (36/32px < 44px) registered as a USER design-system question, not changed. (8) Long-content/emoji/missing-value story variants (truncation proven); RTL registered unsupported. (9) Performance: check-bundle-budget script wired into CI (budgets = measured actuals + ~11–13% headroom, dated header; entry 112.5K/130K, initial 132.1K/155K, lazy 110.8K/125K gzip); web-vitals WIRED (moved to components/hooks for the client boundary; PerformanceObserver LCP+CLS flushed on visibilitychange, privacy-safe route-only, 13 tests; INP + reporting destination registered for BQC-7). Incidental root fixes: /home no-property SSR abort (hook mounted unconditionally — now the empty state skips the hook), auth rate limiting disabled on Playwright-launched servers ONLY (E2E=1 discriminator; production/local-dev unchanged). Gates: critical e2e 49/49 ×3 + once by parent, full 23/23, storybook 394/394, build+budget, unit 388f/4284t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.7",
