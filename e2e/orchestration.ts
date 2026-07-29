@@ -5,6 +5,7 @@ import { type ChildProcess } from 'node:child_process'
 import { rmSync, existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { GbpStub } from './fixtures/gbp-stub'
+import type { MailStub } from './fixtures/mail-stub'
 
 export const WORKER_READY_LINE = 'BullMQ worker started on default queue'
 export const WORKER_READY_TIMEOUT_MS = 120_000
@@ -13,10 +14,12 @@ export const STATE_PATH = resolve(process.cwd(), 'e2e/.orchestration-state.json'
 export type OrchestrationState = {
   workerPid: number
   stubPort: number
+  mailStubPort: number
 }
 
 export type SetupHandles = {
   stub: GbpStub
+  mailStub: MailStub
   worker: ChildProcess
 }
 

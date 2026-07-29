@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-29T05:23:54Z  
+**Manifest updated:** 2026-07-29T07:00:23Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -90,6 +90,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-5.3 | slice | Runtime-neutral domain decisions | `implementation_complete` | engineering | — | — | — |
 | BQC-5.2 | slice | Non-worker context composition cleanup | `implementation_complete` | engineering | — | — | — |
 | BQC-5.1 | slice | Make architecture policy executable | `implementation_complete` | engineering | — | — | — |
+| BQC-6.7 | slice | Residual full suite hardening | `implementation_complete` | engineering | — | — | — |
 | BQC-6.6 | slice | Dark-context browser promotion | `implementation_complete` | engineering | — | — | — |
 | BQC-6.5 | slice | Critical enabled workflow suite | `implementation_complete` | engineering | — | — | — |
 | BQC-6.4 | slice | Correct Playwright diagnostics | `implementation_complete` | engineering | — | — | — |

@@ -28,6 +28,9 @@ interface StaffTabProps {
   memberOptions: MemberLike[]
   teamOptions: TeamLike[]
   portalOptions: PortalOption[]
+  /** F-PEOPLE: portal.read denied (dark) — hide the portal-dependent
+   * affordances (Assign Staff portal selector, per-row portal Edit). */
+  portalsDenied: boolean
   assignedUserIds: Set<string>
   assignMutation: Action<{ data: CreateStaffAssignmentInput }>
   removeMutation: Action<{ data: { assignmentId: string } }>
@@ -44,6 +47,7 @@ export function StaffTab({
   memberOptions,
   teamOptions,
   portalOptions,
+  portalsDenied,
   assignedUserIds,
   assignMutation,
   removeMutation,
@@ -87,7 +91,9 @@ export function StaffTab({
             <DialogHeader>
               <DialogTitle>Assign Staff</DialogTitle>
               <DialogDescription>
-                Select staff members and portals to assign to this property.
+                {portalsDenied
+                  ? 'Select staff members to assign to this property.'
+                  : 'Select staff members and portals to assign to this property.'}
               </DialogDescription>
             </DialogHeader>
             <AssignStaffForm
@@ -96,6 +102,7 @@ export function StaffTab({
               members={memberOptions}
               teams={teamOptions}
               portals={portalOptions}
+              portalsUnavailable={portalsDenied}
               assignedUserIds={assignedUserIds}
             />
           </DialogContent>
@@ -108,9 +115,10 @@ export function StaffTab({
         teams={teamOptions}
         removeAction={removeMutation}
         onEditUser={setEditingUserId}
+        canEditPortals={!portalsDenied}
       />
 
-      {editingUserId != null && (
+      {editingUserId != null && !portalsDenied && (
         <EditStaffPortalsModal
           key={editingUserId}
           userId={editingUserId}

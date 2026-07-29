@@ -27,9 +27,11 @@ type Props = Readonly<{
   propertyId: string
   mutation: Action<{ data: CreateTeamInput }>
   members?: ReadonlyArray<MemberOption>
+  /** Called after a successful create (e.g. to close the hosting dialog). */
+  onSuccess?: () => void
 }>
 
-export function CreateTeamForm({ propertyId, mutation, members }: Props) {
+export function CreateTeamForm({ propertyId, mutation, members, onSuccess }: Props) {
   const form = useForm({
     defaultValues: {
       propertyId,
@@ -48,6 +50,8 @@ export function CreateTeamForm({ propertyId, mutation, members }: Props) {
           teamLeadId: value.teamLeadId || undefined,
         },
       })
+      // useAction rejects on failure — reaching here means the create landed.
+      onSuccess?.()
     },
   })
 

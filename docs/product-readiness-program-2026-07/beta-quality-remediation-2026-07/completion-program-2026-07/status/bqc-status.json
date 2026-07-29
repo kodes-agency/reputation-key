@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T05:23:54Z",
+  "updatedAt": "2026-07-29T07:00:23Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite (24/24). 6.6 implementation_complete: dark-context browser promotion — every dark surface direct-navigated (Team, Portal, Guest, Goal, Badge, Leaderboard, outbound email, auto-publish, AI) in the locked posture: intentional /unavailable UX everywhere, zero browser-initiated mutations or external calls; portal.write/upload proven BLOCKED even in the permissive posture; guest portal deny now renders the intentional PortalUnavailable UX (fixed here); loader-granularity hazards on /people and staff /home registered to owners. Slices 6.7–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite. 6.6: dark browser promotion. 6.7 implementation_complete: residual full suite hardened — all 6 pre-existing failures fixed at root (hydration-safe interactions; fake mail outbox via production-honest RESEND_BASE_URL + stub asserting delivery intent + classification, zero Resend calls; F-PEOPLE loader now degrades the dark portals query so the enabled People tabs always render); dark positives dispositioned (guest-portal to post-beta suite); full project is now a HARD gate (continue-on-error removed) — full 23/23 + critical 33/33 green. Slices 6.8, 6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.7",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Residual full suite hardening",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "All 6 residual failures fixed at root, expectations rewritten to the declared beta posture. (1) Fake mail outbox: production-honest RESEND_BASE_URL seam (optional, absent = byte-identical default) + a dep-free mail stub (records sends, scripted failure) wired into both webServers + worker; specs now assert delivery intent + content classification (verification/reset/invitation subjects + recipients, exactly-one-send) with ZERO Resend calls — and the 3 placeholder-Resend allowlist entries from 6.2 are DELETED (their own removal path). (2) Root-cause-A killed: hydration-safe interaction helpers (waitForHydration + clickWhenReady) replace the pre-hydration clicks that caused native-submit reloads. (3) F-PEOPLE resolved: the People loader's dark portals query degrades via isDarkCapabilityDenial (pure predicate + unit test; real errors still fail the loader) — tabs/staff/teams/directory always render; portal-affordances hide with honest beta copy (PortalsDenied story added). F-HOME stays registered (different owner decision). (4) Posture rewrites: register (positive under the CI override, paired with 6.5's locked negative) + reset + invitation assert via the outbox; navigation/staff/team expectations aligned to posture; guest-portal moved to e2e/post-beta/ (testIgnore'd, marker header — denial covered by 6.6); team-management KEPT in full (team.use is the e2e job's declared preview posture; denial pinned by locked specs). Latent bugs fixed en route: register helper's org-slug collision (never passed twice on one DB), sign-in password mismatch, and the Create Team dialog never closing on success (production-visible enabled-surface fix). (5) CI: continue-on-error REMOVED from the full step + soft-gate warning deleted — the full browser suite is now a HARD gate (required for release-candidate promotion); artifact uploads kept. Determinism: full 23/23 ×2 (cold + warm) + once by parent; critical 33/33. Gates: full e2e 23/23, critical 33/33, storybook 75f/388t (incl. PortalsDenied), unit 388f/4279t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.6",

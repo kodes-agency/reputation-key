@@ -43,6 +43,9 @@ type Props = Readonly<{
   memberEmail: string | undefined
   teamDisplay: string | null
   onEdit: (userId: string) => void
+  /** False when portal.read is dark — Edit opens the portal-assignment modal,
+   * so the affordance hides (F-PEOPLE). */
+  canEditPortals?: boolean
   removeAction: Action<{ data: { assignmentId: string } }>
 }>
 
@@ -52,6 +55,7 @@ export function UserAssignmentRow({
   memberEmail,
   teamDisplay,
   onEdit,
+  canEditPortals = true,
   removeAction,
 }: Props) {
   const unassignDesc =
@@ -77,9 +81,11 @@ export function UserAssignmentRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => onEdit(row.userId)}>
-            <Pencil /> Edit
-          </Button>
+          {canEditPortals && (
+            <Button variant="outline" size="sm" onClick={() => onEdit(row.userId)}>
+              <Pencil /> Edit
+            </Button>
+          )}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button

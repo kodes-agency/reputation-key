@@ -18,6 +18,9 @@ type Props = Readonly<{
   teams: ReadonlyArray<TeamLike>
   removeAction: Action<{ data: { assignmentId: string } }>
   onEditUser: (userId: string) => void
+  /** False when portal.read is dark — the per-row portal Edit affordance
+   * hides (F-PEOPLE). Defaults to true. */
+  canEditPortals?: boolean
 }>
 
 interface UserRow {
@@ -33,6 +36,7 @@ export function StaffAssignmentList({
   teams,
   removeAction,
   onEditUser,
+  canEditPortals = true,
 }: Props) {
   const memberLookup = buildMemberLookup(members)
   const teamLookup = buildTeamLookup(teams)
@@ -100,6 +104,7 @@ export function StaffAssignmentList({
             memberEmail={memberLookup.get(row.userId)?.email}
             teamDisplay={resolveTeamDisplay(row.teamIds, teamLookup)}
             onEdit={onEditUser}
+            canEditPortals={canEditPortals}
             removeAction={removeAction}
           />
         ))}
