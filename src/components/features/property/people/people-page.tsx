@@ -27,6 +27,10 @@ interface PeoplePageProps {
   members: Awaited<ReturnType<typeof listMembers>>['members']
   teams: Awaited<ReturnType<typeof listTeams>>['teams']
   portals: Awaited<ReturnType<typeof listPortals>>['portals']
+  /** F-PEOPLE: true when the portals query denied with a dark-capability
+   * posture (portal.read off). Portal-dependent affordances (portal selector
+   * in Assign Staff, per-row portal Edit) hide; everything else works. */
+  portalsDenied: boolean
   tab: string | undefined
   onTabChange: (tab: string) => void
   assignMutation: Action<{ data: CreateStaffAssignmentInput }>
@@ -45,6 +49,7 @@ export function PeoplePage({
   members,
   teams,
   portals,
+  portalsDenied,
   tab,
   onTabChange,
   assignMutation,
@@ -87,6 +92,7 @@ export function PeoplePage({
           memberOptions={memberOptions}
           teamOptions={teamOptions}
           portalOptions={portalOptions}
+          portalsDenied={portalsDenied}
           assignedUserIds={assignedUserIds}
           assignMutation={assignMutation}
           removeMutation={removeMutation}

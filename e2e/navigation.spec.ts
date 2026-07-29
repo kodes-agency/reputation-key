@@ -1,5 +1,10 @@
-// E2E: Navigation between authenticated manager surfaces (BQR-5.2).
-// Single-property orgs redirect /dashboard → property deep-dive (product behavior).
+// E2E: Navigation between authenticated manager surfaces (BQR-5.2, hardened
+// BQC-6.7). Single-property orgs redirect /dashboard → property deep-dive
+// (product behavior).
+//
+// Posture note: the People surface renders in the beta posture — the F-PEOPLE
+// fix (BQC-6.7) degrades the dark portals query instead of sinking the whole
+// loader, so the Staff/Teams/Directory tabs are the honest expectation.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
@@ -33,6 +38,10 @@ test.describe('Navigation', () => {
 
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
+    // The enabled People surface renders all three tabs even with portal.read
+    // dark (F-PEOPLE degradation).
+    await expect(page.getByRole('tab', { name: /staff/i })).toBeVisible()
     await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
   })
 })

@@ -13,6 +13,7 @@ import {
 import { listTeams, createTeam, deleteTeam } from '#/contexts/team/server/teams'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { listPortals } from '#/contexts/portal/server/portals'
+import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   PeoplePage,
   peopleSearchSchema,
@@ -49,7 +50,22 @@ const teamsQuery = (propertyId: string) =>
 const portalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.list(propertyId),
-    queryFn: () => listPortals({ data: { propertyId } }),
+    // F-PEOPLE (BQC-6.7): portal.read is dark in the beta posture, and this
+    // query's denial must not sink the ENABLED Staff/Teams/Directory surface
+    // (Promise.all on the raw query rejected the whole loader → route 500).
+    // Degrade to "no portals, portal affordances hidden" on a deliberate
+    // dark-capability denial; REAL errors still throw and fail the loader.
+    queryFn: async () => {
+      try {
+        const { portals } = await listPortals({ data: { propertyId } })
+        return { portals, portalsDenied: false }
+      } catch (e) {
+        if (isDarkCapabilityDenial(e)) {
+          return { portals: [], portalsDenied: true }
+        }
+        throw e
+      }
+    },
     staleTime: 30_000,
   })
 
@@ -61,13 +77,14 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId }, context }) => {
-    const [{ assignments }, { members }, { teams }, { portals }] = await Promise.all([
-      context.queryClient.ensureQueryData(assignmentsQuery(propertyId)),
-      context.queryClient.ensureQueryData(membersQuery),
-      context.queryClient.ensureQueryData(teamsQuery(propertyId)),
-      context.queryClient.ensureQueryData(portalsQuery(propertyId)),
-    ])
-    return { assignments, members, teams, portals }
+    const [{ assignments }, { members }, { teams }, { portals, portalsDenied }] =
+      await Promise.all([
+        context.queryClient.ensureQueryData(assignmentsQuery(propertyId)),
+        context.queryClient.ensureQueryData(membersQuery),
+        context.queryClient.ensureQueryData(teamsQuery(propertyId)),
+        context.queryClient.ensureQueryData(portalsQuery(propertyId)),
+      ])
+    return { assignments, members, teams, portals, portalsDenied }
   },
   component: PeopleRoute,
 })
@@ -82,7 +99,7 @@ function PeopleRoute() {
   const { assignments } = assignmentsData
   const { members } = membersData
   const { teams } = teamsData
-  const { portals } = portalsData
+  const { portals, portalsDenied } = portalsData
   const search = Route.useSearch() as { tab?: string }
   const navigate = Route.useNavigate()
 
@@ -102,9 +119,6 @@ function PeopleRoute() {
   const createTeamMutation = useActionMutation(createTeam, {
     successMessage: 'Team created',
     invalidateKeys,
-    onSuccess: async () => {
-      // handled in component or here; for now pass
-    },
   })
   const deleteTeamMutation = useActionMutation(deleteTeam, {
     successMessage: 'Team deleted',
@@ -122,6 +136,7 @@ function PeopleRoute() {
       members={members}
       teams={teams}
       portals={portals}
+      portalsDenied={portalsDenied}
       tab={search.tab}
       onTabChange={(t) => navigate({ search: { tab: t } })}
       assignMutation={assignMutation}

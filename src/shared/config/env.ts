@@ -18,6 +18,13 @@ const envSchema = z.object({
 
   // Email — Resend
   RESEND_API_KEY: z.string().min(1),
+  // BQC-6.7: operator sandbox seam for identity mail — optional Resend API
+  // endpoint override (same pattern as the GBP_*_BASE_URL overrides below).
+  // Legitimate use: point a sandbox/e2e deployment at a mail stub instead of
+  // production Resend. ABSENT = the SDK default (https://api.resend.com),
+  // byte-identical to the pre-seam behavior. The app still runs its REAL
+  // Resend client against whatever this points at (no fake injection).
+  RESEND_BASE_URL: z.url().optional(),
 
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),

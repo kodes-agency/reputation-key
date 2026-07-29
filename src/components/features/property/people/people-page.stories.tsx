@@ -72,3 +72,31 @@ export const TeamsTab: Story = {
     await expect(canvas.getByText('Front Desk')).toBeInTheDocument()
   },
 }
+
+// F-PEOPLE (BQC-6.7): portal.read dark — the portals query denied and degraded
+// to `portalsDenied: true`. The enabled surface (tabs, staff list, teams,
+// directory) still renders; exactly the portal-dependent affordances hide:
+// the per-row portal Edit button and the Assign Staff portal selector
+// (replaced by the beta-posture explanation; submit stays unavailable).
+export const PortalsDenied: Story = {
+  args: { ...seededArgs, portals: [], portalsDenied: true, tab: 'staff' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // All three tabs render (the enabled surface works).
+    await expect(canvas.getByRole('tab', { name: /staff/i })).toBeInTheDocument()
+    await expect(canvas.getByRole('tab', { name: /teams/i })).toBeInTheDocument()
+    await expect(canvas.getByRole('tab', { name: /directory/i })).toBeInTheDocument()
+    // The staff list still renders; the portal Edit affordance is gone.
+    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument()
+    // Unassign (not portal-dependent) stays.
+    await expect(
+      canvas.getAllByRole('button', { name: /unassign/i }).length,
+    ).toBeGreaterThan(0)
+    // Assign Staff dialog: beta-posture explanation instead of portal selector.
+    await userEvent.click(canvas.getByRole('button', { name: /assign staff/i }))
+    await expect(
+      await within(document.body).findByText(/portals are not available in the beta/i),
+    ).toBeInTheDocument()
+  },
+}

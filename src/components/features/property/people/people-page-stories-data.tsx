@@ -107,6 +107,7 @@ export const seededArgs = {
     { id: 'p1', name: 'Main Portal' },
     { id: 'p2', name: 'Guest Portal' },
   ],
+  portalsDenied: false,
   tab: 'staff',
   onTabChange: () => {},
   assignMutation,

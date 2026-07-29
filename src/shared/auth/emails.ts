@@ -18,12 +18,23 @@ const emailError = createErrorFactory('EmailError')
 
 // ── Resend client ────────────────────────────────────────────────────
 
-function getResend(): Resend {
+// Exported for tests (the seam's default-vs-override contract is pinned in
+// emails.test.ts); production callers use the send* functions below.
+export function getResend(): Resend {
   if (!_resend) {
     const env = getEnv()
-    _resend = new Resend(env.RESEND_API_KEY)
+    // RESEND_BASE_URL is the optional sandbox seam (see env.ts). Absent → the
+    // SDK's default base URL — byte-identical to the pre-seam construction.
+    _resend = env.RESEND_BASE_URL
+      ? new Resend(env.RESEND_API_KEY, { baseUrl: env.RESEND_BASE_URL })
+      : new Resend(env.RESEND_API_KEY)
   }
   return _resend
+}
+
+/** Reset cached client — useful for tests (pair with resetEnv). */
+export function resetEmailClient(): void {
+  _resend = undefined
 }
 
 type SendEmailParams = Readonly<{

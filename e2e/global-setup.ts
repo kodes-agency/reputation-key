@@ -8,7 +8,12 @@
 //      sandbox env overrides (GBP_API_BASE_URL & friends); specs script and
 //      interrogate it through its HTTP control surface. The Playwright runner
 //      process stays alive for the whole run, so the in-process stub does too.
-//   2. The BullMQ worker (pnpm dev:worker) as a child process — there is no
+//   2. Mail stub server (e2e/fixtures/mail-stub.ts) — in-process on port 4101.
+//      The web servers' real Resend client reaches it over HTTP through the
+//      BQC-6.7 RESEND_BASE_URL sandbox seam; specs assert delivery intent +
+//      content classification through its control surface. No Resend API call
+//      ever leaves the run.
+//   3. The BullMQ worker (pnpm dev:worker) as a child process — there is no
 //      inline-process mode in the real app, so the suite runs the real
 //      worker: review sync, reply publish, import, and activity/notification
 //      insert jobs all execute here. Env = the BQC-6.1 test-environment floor
@@ -26,6 +31,7 @@ import { writeFileSync, createWriteStream, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { testEnvironment } from '../src/shared/testing/test-environment'
 import { startGbpStub, GBP_SANDBOX_ENV } from './fixtures/gbp-stub'
+import { startMailStub, MAIL_SANDBOX_ENV } from './fixtures/mail-stub'
 import {
   WORKER_READY_LINE,
   WORKER_READY_TIMEOUT_MS,
@@ -42,7 +48,10 @@ export default async function globalSetup(): Promise<void> {
   // 1. GBP stub.
   const stub = await startGbpStub()
 
-  // 2. Worker child process. dotenv/config inside src/worker/index.ts does
+  // 2. Mail stub (BQC-6.7 fake outbox).
+  const mailStub = await startMailStub()
+
+  // 3. Worker child process. dotenv/config inside src/worker/index.ts does
   //    NOT override existing env, so everything set here wins over .env.
   const worker = spawn('pnpm', ['dev:worker'], {
     cwd: process.cwd(),
@@ -52,6 +61,9 @@ export default async function globalSetup(): Promise<void> {
       // After the spreads so nothing can unset them: the sandbox seam pins
       // every Google endpoint at the stub for the worker process.
       ...GBP_SANDBOX_ENV,
+      // The worker sends notification mail through the same real Resend
+      // client — pin it at the mail stub too.
+      ...MAIL_SANDBOX_ENV,
       E2E: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -96,6 +108,7 @@ export default async function globalSetup(): Promise<void> {
   }).catch((err: unknown) => {
     if (worker.pid) void killWorker(worker.pid)
     void stub.stop()
+    void mailStub.stop()
     throw err
   })
 
@@ -103,8 +116,8 @@ export default async function globalSetup(): Promise<void> {
 
   writeFileSync(
     STATE_PATH,
-    `${JSON.stringify({ workerPid: worker.pid, stubPort: stub.port })}\n`,
+    `${JSON.stringify({ workerPid: worker.pid, stubPort: stub.port, mailStubPort: mailStub.port })}\n`,
   )
 
-  setHandles({ stub, worker })
+  setHandles({ stub, mailStub, worker })
 }

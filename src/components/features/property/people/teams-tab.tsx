@@ -72,6 +72,7 @@ export function TeamsTab({
                 propertyId={propertyId}
                 mutation={createTeamMutation}
                 members={memberOptions}
+                onSuccess={() => onCreateTeamOpenChange(false)}
               />
             </DialogContent>
           </Dialog>

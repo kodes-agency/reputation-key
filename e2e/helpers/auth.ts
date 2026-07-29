@@ -1,6 +1,7 @@
 // E2E auth helpers — shared login/registration utilities
 
 import { expect, type Page } from '@playwright/test'
+import { clickWhenReady, waitForHydration } from './interaction'
 
 export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
@@ -83,7 +84,13 @@ export async function registerAccount(
   password = 'Password123!',
 ) {
   // Unique org name avoids better-auth slug collisions with the seeded "E2E Test Org".
-  const orgSuffix = email.replace(/[^a-z0-9]/gi, '').slice(-10)
+  // Derive the suffix from the email's LOCAL PART (the unique segment) — the
+  // alnum tail of the full address is always "examplecom", which collided on
+  // slug for every registration after the first (latent helper bug).
+  const orgSuffix = email
+    .split('@')[0]
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(-10)
   const organizationName = `E2E Org ${orgSuffix}`
 
   await page.goto('/register')
@@ -96,6 +103,10 @@ export async function registerAccount(
         'BETA_E2E_EXECUTION_IDENTITY=local-e2e set (test-only guard).',
     )
   }
+  // BQC-6.7: wait out the pre-hydration window BEFORE touching the controlled
+  // inputs (hydration would reset them / a pre-hydration submit click would
+  // native-submit the form and reload the document).
+  await waitForHydration(page)
   await page.locator('form').first().waitFor({ state: 'visible' })
   await page.getByLabel('Full name').fill('E2E Test User')
   await page.getByLabel('Email').fill(email)
@@ -103,12 +114,15 @@ export async function registerAccount(
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm password').fill(password)
   // Register form primary CTA is "Create account & organization" (not "Create account").
-  await page.getByRole('button', { name: /create account/i }).click()
+  await clickWhenReady(page.getByRole('button', { name: /create account/i }))
 
   // Success renders on /register — no redirect. AuthCard title is a div (not a heading role).
   const success = page.getByText(/account created/i)
   const errorBanner = page.locator('[role="alert"]')
-  await expect(success.or(errorBanner)).toBeVisible({ timeout: 20_000 })
+  // .first(): the failure banner's own copy can match /account created/i
+  // ("Account created, but organization setup failed") — without it the .or()
+  // locator resolves to 2 elements and strict mode masks the real error.
+  await expect(success.or(errorBanner).first()).toBeVisible({ timeout: 20_000 })
   if (await errorBanner.isVisible().catch(() => false)) {
     const msg = (await errorBanner.innerText().catch(() => '')).trim()
     throw new Error(`Registration failed with UI error: ${msg || '(empty alert)'}`)

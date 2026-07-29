@@ -30,6 +30,11 @@ type Props = Readonly<{
   members: ReadonlyArray<MemberOption>
   teams: ReadonlyArray<TeamOption>
   portals: ReadonlyArray<PortalOption>
+  /** F-PEOPLE: true when the portals query denied with a dark-capability
+   * posture — assignments require a portal, so the form explains the beta
+   * posture instead of prompting to create a portal (portal.write is dark
+   * too). Defaults to false. */
+  portalsUnavailable?: boolean
   assignedUserIds: ReadonlySet<string>
   onSuccess?: (count: number) => void
 }>
@@ -40,6 +45,7 @@ export function AssignStaffForm({
   members,
   teams,
   portals,
+  portalsUnavailable = false,
   assignedUserIds,
   onSuccess,
 }: Props) {
@@ -124,7 +130,9 @@ export function AssignStaffForm({
           </form.Field>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No portals configured for this property. Create a portal first.
+            {portalsUnavailable
+              ? 'Portals are not available in the beta, so staff assignment is unavailable.'
+              : 'No portals configured for this property. Create a portal first.'}
           </p>
         )}
       </FieldGroup>

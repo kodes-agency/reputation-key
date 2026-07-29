@@ -172,7 +172,9 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     # BQR-5.1: critical Playwright project is a hard gate (auth + properties shell).
-    # Residual full suite remains soft until product/UI drift is cleared (BQR-5.2).
+    # BQC-6.7: the full suite is a hard gate too — deterministic and green
+    # (fake mail outbox, hydration-safe specs, F-PEOPLE fix); required for
+    # release-candidate promotion.
     timeout-minutes: 25
 
     services:
@@ -257,15 +259,13 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
-      - name: Run full e2e suite (soft residual — BQR-5.2)
+      - name: Run full e2e suite (hard gate — BQC-6.7)
         id: e2e_full
-        continue-on-error: true
         run: pnpm test:e2e --project=full
-      # BQC-6.4: the full suite has continue-on-error, so its failure does NOT
-      # fail the job and `if: failure()` would never fire — gate on the step
-      # outcome instead. (If the critical gate already failed, the full run is
-      # skipped, outcome is not 'failure', and the critical upload above owns
-      # the artifacts.)
+      # BQC-6.7: the full suite is a hard gate — its failure fails the job, so
+      # `if: failure()` would also fire; gating on the step outcome stays more
+      # precise (a skipped full run after a critical-gate failure does not
+      # upload here — the critical upload above owns those artifacts).
       - name: Upload full e2e failure artifacts
         if: steps.e2e_full.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -274,10 +274,3 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
-      - name: Soft-gate residual e2e
-        run: |
-          if [ "${{ steps.e2e_full.outcome }}" = "success" ]; then
-            echo "Full e2e suite passed"
-          else
-            echo "::warning::Full e2e residual soft-failed (BQR-5.2). Critical path is hard-gated above."
-          fi

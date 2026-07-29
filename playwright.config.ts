@@ -1,10 +1,13 @@
 import { defineConfig, devices } from '@playwright/test'
 import { testEnvironment } from './src/shared/testing/test-environment'
 import { GBP_SANDBOX_ENV } from './e2e/fixtures/gbp-stub'
+import { MAIL_SANDBOX_ENV } from './e2e/fixtures/mail-stub'
 
 // CI previously used retries: 2. With a missing seed user every test timed out
 // at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e.
-// BQR-5.1: critical project is a hard gate; residual stays soft in CI.
+// BQR-5.1: critical project is a hard gate. BQC-6.7: the full project is a
+// hard gate too (deterministic — fake mail outbox, hydration-safe specs,
+// F-PEOPLE fix — and green).
 //
 // BQC-6.4 — retries: 0 is the INTENTIONAL choice: the suite is deterministic
 // (6.1 env floor, 6.2 error-injection proofs) and there is no independently
@@ -23,6 +26,9 @@ import { GBP_SANDBOX_ENV } from './e2e/fixtures/gbp-stub'
 //   - Both servers get the GBP sandbox overrides (the operator seam from
 //     composition.ts) so web-side inline paths (retryPublish reconcile,
 //     disconnect revoke) hit the stub, never the network.
+//   - Both servers also get the BQC-6.7 RESEND_BASE_URL mail-stub override so
+//     identity mail (verification / reset / invitation) is recorded by the
+//     fake outbox instead of calling the real Resend API.
 //   - globalSetup boots the GBP stub + the real BullMQ worker (see
 //     e2e/global-setup.ts); globalTeardown stops them.
 
@@ -54,6 +60,8 @@ export default defineConfig({
         ...process.env,
         // BQC-6.5: provider sandbox seam — real adapters against the GBP stub.
         ...GBP_SANDBOX_ENV,
+        // BQC-6.7: mail sandbox seam — real Resend client against the stub.
+        ...MAIL_SANDBOX_ENV,
         // After the spreads so nothing can unset it: only Playwright-launched
         // dev servers run with the console-pipe disabled (see above).
         E2E: '1',
@@ -76,6 +84,7 @@ export default defineConfig({
         BETA_E2E_GLOBAL_CAPABILITIES: '',
         BETTER_AUTH_URL: 'http://localhost:3001',
         ...GBP_SANDBOX_ENV,
+        ...MAIL_SANDBOX_ENV,
         E2E: '1',
       },
     },
@@ -101,11 +110,14 @@ export default defineConfig({
     {
       name: 'critical',
       testMatch: /critical\/.*\.spec\.ts/,
+      // BQC-6.7: post-beta feature suites are excluded everywhere (dark
+      // capabilities resume positive coverage when the posture changes).
+      testIgnore: /post-beta\/.*/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'full',
-      testIgnore: /critical\/.*/,
+      testIgnore: [/critical\/.*/, /post-beta\/.*/],
       use: { ...devices['Desktop Chrome'] },
     },
   ],
