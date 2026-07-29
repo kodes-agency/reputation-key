@@ -2,6 +2,10 @@
   "name": "reputation-key",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.6.5",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "imports": {
     "#/*": "./src/*"
   },
@@ -28,6 +32,7 @@
     "simulate": "tsx scripts/simulate.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate-deploy": "tsx scripts/migrate-deploy.ts",
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
     "db:studio": "drizzle-kit studio",

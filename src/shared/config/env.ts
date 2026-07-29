@@ -128,6 +128,12 @@ const envSchema = z.object({
   // the only APPROVED beta cell; a worker declaring any other cell
   // quarantines every routed job it receives (wrong-cell, fail closed).
   PROCESSING_CELL: z.string().min(1).default('us'),
+  // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
+  // resolves only when in-flight jobs finish — a hung job would otherwise hang
+  // the deploy window until the platform's SIGKILL. On budget expiry the
+  // worker logs the stuck resources and exits 1 (unclean stop is recorded).
+  // Must stay below Railway's drainingSeconds (30s, railway.worker.json).
+  DRAIN_BUDGET_MS: z.coerce.number().int().min(1000).default(25_000),
   // ── BQC-6.5: operator sandbox seam (optional provider endpoint overrides) ──
   // Explicit per-endpoint overrides applied ONCE at container build on top of
   // the cell's approved provider endpoints (composition.ts

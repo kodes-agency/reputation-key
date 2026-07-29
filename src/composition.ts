@@ -27,7 +27,7 @@ import { createNoopCache } from '#/shared/cache/noop-cache'
 import type { Cache } from '#/shared/cache/cache.port'
 import { createRateLimiter } from '#/shared/rate-limit/middleware'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
-import { createJobQueue } from '#/shared/jobs/queue'
+import { createJobQueue, closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
@@ -663,14 +663,45 @@ export function createContainer(options?: {
 
 export type Container = ReturnType<typeof createContainer>
 
-let _container: Container | undefined
+// BQC-7.1: the production build bundles this module twice (nitro app chunk +
+// lazy SSR chunk) — a module-level singleton would give each copy its own
+// container (and its own BullMQ queue connections). The Symbol.for key
+// shares one container process-wide so the graceful-shutdown plugin closes
+// the queues the request path actually created.
+const CONTAINER_KEY = Symbol.for('repkey.composition.container')
+type ContainerStore = { [CONTAINER_KEY]?: Container }
+
+function containerStore(): ContainerStore {
+  return globalThis as ContainerStore
+}
 
 /** Get or create the singleton container. */
 export function getContainer(): Container {
-  if (!_container) {
-    _container = createContainer()
+  const store = containerStore()
+  if (!store[CONTAINER_KEY]) {
+    store[CONTAINER_KEY] = createContainer()
   }
-  return _container
+  return store[CONTAINER_KEY]
+}
+
+/**
+ * Close the singleton container's owned queue connections (BQC-7.1 graceful
+ * shutdown). Only the getContainer() singleton is affected — containers built
+ * directly via createContainer() (worker process, simulations, tests) own
+ * their lifecycle. BullMQ queues hold dedicated Redis connections that would
+ * otherwise keep the web process's event loop alive past SIGTERM; BullMQ
+ * treats user-supplied connections as shared and does not close them on
+ * queue.close(), so the tracked connections are quit explicitly after the
+ * queues detach. No-op when the container was never built; resets the
+ * singleton so a later getContainer() recreates it.
+ */
+export async function closeContainer(): Promise<void> {
+  const store = containerStore()
+  const container = store[CONTAINER_KEY]
+  store[CONTAINER_KEY] = undefined
+  if (!container) return
+  await Promise.all([container.jobQueue?.close(), container.backgroundQueue?.close()])
+  await closeJobQueueConnections()
 }
 
 // Cold-boot race fix: the policy singletons (interactive + delayed) are

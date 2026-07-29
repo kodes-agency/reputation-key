@@ -2407,6 +2407,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
   }),
+  ops('scripts/migrate-deploy.ts', 'scripts/migrate-deploy.ts', 'tenant_cross', {
+    notes:
+      'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
+  }),
   ops(
     'scripts/verify-auth-schema.mjs',
     'scripts/verify-auth-schema.mjs',

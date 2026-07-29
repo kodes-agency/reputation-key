@@ -93,6 +93,24 @@ jobs:
           pnpm db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
+      # BQC-7.1: predeploy migration parity — the deploy runner
+      # (scripts/migrate-deploy.ts, the Railway preDeployCommand) must
+      # converge instantly against the DB the manual trio just migrated.
+      # Exit 0 = the deploy path and the documented manual path reach the
+      # same end state; guards drift between the two on every PR.
+      - name: Predeploy migration parity
+        env:
+          NODE_ENV: test
+          DEPLOY_MIGRATE: '1'
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm db:migrate-deploy
+
       - name: Test
         env:
           NODE_ENV: test
@@ -138,6 +156,55 @@ jobs:
 
       - name: Worker build
         run: pnpm build:worker
+
+      # BQC-7.1: artifact digest — deterministic tarball of the deploy
+      # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
+      # the step output and job summary as build evidence.
+      - name: Artifact digest
+        run: |
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - .output dist-worker \
+            | gzip -n > /tmp/artifact.tgz
+          DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
+          echo "sha256:$DIGEST  (.output + dist-worker)"
+          {
+            echo "### Build artifact digest"
+            echo "\`sha256:$DIGEST\` — .output + dist-worker (deterministic tar)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # BQC-7.1: source SBOM (SPDX JSON) retained as a build artifact.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-spdx
+          path: sbom.spdx.json
+          retention-days: 30
+
+  # BQC-7.1: the production containers are the single deploy build path
+  # (nixpacks removed) — prove both images build reproducibly on every PR
+  # and run as the non-root node user.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Build web image
+        run: docker build -f Dockerfile -t repkey-web:ci .
+
+      - name: Build worker image
+        run: docker build -f Dockerfile.worker -t repkey-worker:ci .
+
+      - name: Smoke images (boot + non-root)
+        run: |
+          docker run --rm repkey-web:ci node -e "process.exit(0)"
+          docker run --rm repkey-worker:ci node -e "process.exit(0)"
+          test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
 
   storybook:
     runs-on: ubuntu-latest

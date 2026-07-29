@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T12:34:01Z",
+  "updatedAt": "2026-07-29T15:04:58Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -976,11 +976,24 @@
       "id": "BQC-7",
       "kind": "phase",
       "title": "Production operations, security, and observability",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "7.1 implementation_complete: production containers + deployment contract — digest-pinned multi-stage Dockerfiles (web + worker, non-root, frozen lockfile, one build path; nixpacks removed), Railway topology with predeploy advisory-locked migration (idempotent trio, proven pg_dump-identical to manual), healthcheck + replicas + drain windows, worker drain budget (25s), web resource shutdown via nitro plugin, SBOM + deterministic artifact digest + docker-build CI job. Real bug fixed en route: Nitro inlined pool/redis/composition singletons into two chunks (shutdown closed the never-used copies) — moved to globalThis Symbol.for keys + a process-wide queue-connection registry. Slices 7.2–7.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-7.1",
+      "kind": "slice",
+      "parentId": "BQC-7",
+      "title": "Production containers and deployment contract",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) One build path: multi-stage Dockerfile (web) + Dockerfile.worker (shared base→deps→build→prod-deps stages; Railway has no target field) — base node:22-slim pinned by digest, pnpm pinned via packageManager (10.6.5 from the lockfile), engines node>=22, EVERY install frozen-lockfile; nixpacks.toml deleted. Non-root `node` user; documented --read-only --tmpfs /tmp posture (verified zero runtime disk writes); no secrets in image (inert CI placeholders at build, real config via service vars); .dockerignore never ships env/deps/docs. (2) Railway topology: railway.json web (DOCKERFILE, preDeployCommand node dist-worker/migrate-deploy.js, healthcheck /api/health/live 30s, replicas 1, ON_FAILURE×10, drainingSeconds 30) + railway.worker.json (no HTTP healthcheck — documented, replicas 1 = singleton scheduler, drainingSeconds 30); both validated against the fetched schema; region deliberately unpinned (ADR 0048 us-cell: us-west2/us-east4-eqdc4a documented). (3) Predeploy migration (scripts/migrate-deploy.ts, tsup-bundled so the image needs no tsx): production/DEPLOY_MIGRATE-guarded, session-scoped pg_advisory_lock (two parallel runs strictly serialize), the trio in-process with the SAME engines the CLIs wrap (better-auth getMigrations, drizzle migrate(), sidecar SQL) + self-verification vs on-disk journal (17). Proven: fresh DB → 8+68 tables + 17 journal, 0.94s; instant idempotent rerun; pg_dump --schema-only diff vs the manual trio IDENTICAL. (4) Graceful shutdown: worker drain extracted to worker/drain.ts racing DRAIN_BUDGET_MS (default 25s < 30s window; budget expiry logs stuck + exit 1; happy path byte-identical; 4 tests). Web: nitro runtime plugin (explicit plugins entry — serverDir scanning stays off per STD-P1-07) closing queues → Redis → pg pool, 3s budgets, tested orchestrator. REAL BUG fixed: Nitro inlines pool/redis/composition singletons into BOTH the nitro-app and SSR chunks — the plugin was closing never-used copies (request sockets lingered, proven via _getActiveHandles dumps): all three singletons moved to globalThis Symbol.for keys + BullMQ shared-connection never-closed behavior fixed via a process-wide connection registry in queue.ts. (5) Evidence wiring: docker CI job (builds+smokes both images per PR), predeploy-migration parity step (converges vs the trio-migrated DB), deterministic artifact digest (tar --sort=name --mtime=@0 | gzip -n → sha256 in job summary), SBOM via SHA-pinned anchore/sbom-action (SPDX JSON, 30d artifact). Proven in-container (docker network, pg16+redis7): predeploy migration → boot → health 200s → docker stop → all resources closed, exit 0 in 1.24s (web) / 0.16s (worker). Gates: unit 394f/4325t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-8",
