@@ -9,23 +9,33 @@ export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
  * Sign in via better-auth HTTP API (Set-Cookie on the browser context), then
  * set the first organization active. Server-fn UI login historically left
  * sessions without cookies / without active org, which made e2e hang ~18m.
+ *
+ * `origin` overrides the CSRF origin/referer headers for non-default servers
+ * (BQC-6.5's locked server on :3001); relative request URLs already follow
+ * the Playwright context baseURL.
  */
 const ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 
-function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+function apiHeaders(extra: Record<string, string> = {}, origin: string = ORIGIN) {
   // better-auth CSRF/origin checks require Origin on mutating org routes
   return {
     'content-type': 'application/json',
-    origin: ORIGIN,
-    referer: `${ORIGIN}/`,
+    origin,
+    referer: `${origin}/`,
     ...extra,
   }
 }
 
-export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PASSWORD) {
+export async function signIn(
+  page: Page,
+  email = TEST_EMAIL,
+  password = TEST_PASSWORD,
+  origin?: string,
+  landingPath?: string,
+) {
   const response = await page.request.post('/api/auth/sign-in/email', {
     data: { email, password },
-    headers: apiHeaders(),
+    headers: apiHeaders({}, origin),
   })
   if (!response.ok()) {
     const body = await response.text()
@@ -36,7 +46,7 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
   }
 
   const orgsRes = await page.request.get('/api/auth/organization/list', {
-    headers: apiHeaders(),
+    headers: apiHeaders({}, origin),
   })
   if (orgsRes.ok()) {
     const orgs = (await orgsRes.json()) as unknown
@@ -45,7 +55,7 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
     if (first?.id) {
       const active = await page.request.post('/api/auth/organization/set-active', {
         data: { organizationId: first.id },
-        headers: apiHeaders(),
+        headers: apiHeaders({}, origin),
       })
       if (!active.ok()) {
         const body = await active.text()
@@ -56,8 +66,14 @@ export async function signIn(page: Page, email = TEST_EMAIL, password = TEST_PAS
     }
   }
 
-  await page.goto('/dashboard')
-  await page.waitForURL(/\/(dashboard|properties|home|inbox)/, { timeout: 20_000 })
+  // BQC-6.5: staff land on a clean authenticated surface — every
+  // manager-gated route redirects them to /home, which is manager-shaped
+  // today (its portals query requires staff_assignment.read, a permission
+  // the built-in Staff role lacks — see slice report).
+  await page.goto(landingPath ?? '/dashboard')
+  await page.waitForURL(/\/(dashboard|properties|home|inbox|settings)/, {
+    timeout: 20_000,
+  })
 }
 
 /** Register a new account with a unique email. Returns the email used. */

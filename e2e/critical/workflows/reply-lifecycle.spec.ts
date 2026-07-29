@@ -1,0 +1,379 @@
+// BQC-6.5 item 6 — manual reply draft/edit/approve/publish with success,
+// transient failure, terminal rejection, and ambiguous reconciliation.
+//
+// All four scenarios run the REAL chain: web server fns (synchronous
+// lifecycle) → BullMQ publish-reply job in the worker → the real GBP reply
+// adapter against the stub's scripted provider modes. Scenario (a) drives the
+// reply UX in the inbox detail panel; (b)-(d) use RPC for setup and assert
+// durable state + stub-recorded provider calls.
+//
+// Transitions verified:
+//   (a) draft → edit → submit → approve → published (stub records the upsert)
+//   (b) approve → transient 500 → retryQueued → BullMQ retry → published
+//       (failure recovery with the recovered state asserted)
+//   (c) approve → terminal 403 → publish_failed/terminal; retry does NOT heal
+//   (d) ambiguous publication + provider shows the reply → retryPublish
+//       reconcile-before-retry heals to published with ZERO re-sends
+
+import { test, expect } from '../../helpers/error-detection'
+import { signIn } from '../../helpers/auth'
+import { requireE2eSeedState } from '../../helpers/seed-state'
+import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
+import {
+  e2eRunId,
+  cleanupE2eData,
+  seedGoogleConnection,
+  seedProperty,
+  seedReview,
+  seedInboxItemForReview,
+  seedAmbiguousReply,
+  getUserByEmail,
+  getReplyForReview,
+  callServerFn,
+  waitFor,
+} from '../../helpers/fixtures'
+
+const PREFIX = 'e2e-rep-'
+const seed = requireE2eSeedState()
+const ACCOUNT = `e2e-rep-${e2eRunId}`
+const ACCOUNT_NAME = `accounts/${ACCOUNT}`
+
+const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
+const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
+
+type Scenario = Readonly<{
+  connectionId: string
+  propertyId: string
+  reviewId: string
+  inboxItemId: string
+  locationName: string
+  reviewName: string
+}>
+
+test.describe('Critical workflow: reply lifecycle', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  test.beforeEach(async () => {
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
+  /** Isolated provider + data landscape for one scenario. */
+  async function setupScenario(
+    name: string,
+    opts: {
+      reviews: StubReview[]
+      replyBehavior?: Parameters<typeof gbpStubControl.putScope>[0]['replyBehavior']
+    },
+  ): Promise<Scenario> {
+    const locationName = `${ACCOUNT_NAME}/locations/${name}-loc`
+    const reviewName = `${locationName}/reviews/${name}-r1`
+    await gbpStubControl.putScope({
+      account: {
+        name: ACCOUNT_NAME,
+        type: 'LOCATION_GROUP',
+        roleInfo: { name: 'OWNER' },
+      },
+      locations: [
+        {
+          name: locationName,
+          title: `E2E Reply Hotel ${name} ${e2eRunId}`,
+          storefrontAddress: { regionCode: 'US' },
+        },
+      ],
+      reviews: { [locationName]: opts.reviews },
+      replyBehavior: opts.replyBehavior,
+    })
+    const admin = await getUserByEmail(seed.email)
+    const { connectionId } = await seedGoogleConnection({
+      organizationId: seed.organizationId,
+      connectedBy: admin!.id,
+      googleAccountId: ACCOUNT,
+    })
+    const { propertyId } = await seedProperty({
+      organizationId: seed.organizationId,
+      name: `E2E Reply Hotel ${name} ${e2eRunId}`,
+      slug: `${PREFIX}${name}-${e2eRunId}`,
+      gbpPlaceId: `${name}-loc`,
+      googleConnectionId: connectionId,
+    })
+    const { reviewId } = await seedReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      externalId: `${name}-r1`,
+      rating: 5,
+      text: `Reply scenario ${name} review body`,
+      reviewerName: `Reply Reviewer ${name}`,
+      googleConnectionId: connectionId,
+      externalLocationId: locationName,
+    })
+    const { inboxItemId } = await seedInboxItemForReview({
+      organizationId: seed.organizationId,
+      propertyId,
+      reviewId,
+    })
+    return { connectionId, propertyId, reviewId, inboxItemId, locationName, reviewName }
+  }
+
+  const stubReview = (name: string): StubReview => ({
+    name: `${ACCOUNT_NAME}/locations/${name}-loc/reviews/${name}-r1`,
+    starRating: 'FIVE',
+    comment: `Reply scenario ${name} review body`,
+    reviewer: { displayName: `Reply Reviewer ${name}` },
+    createTime: '2026-07-27T12:00:00Z',
+  })
+
+  test('(a) draft → edit → submit → approve → published (UI-driven)', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000)
+    const s = await setupScenario('happy', { reviews: [stubReview('happy')] })
+    await signIn(page)
+    await page.goto(`/inbox?itemId=${s.inboxItemId}`)
+    await expect(page.getByText('Reply Reviewer happy').first()).toBeVisible({
+      timeout: 15_000,
+    })
+
+    // Draft.
+    await page.getByPlaceholder('Write a reply...').fill('First draft wording')
+    await page.getByRole('button', { name: 'Save Draft' }).click()
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'draft' ? reply : null
+      },
+      { timeoutMs: 10_000, description: 'reply draft persisted' },
+    )
+
+    // Edit the draft.
+    await page
+      .getByPlaceholder('Write a reply...')
+      .fill('Final reply wording — thank you!')
+    await page.getByRole('button', { name: 'Save Draft' }).click()
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.text === 'Final reply wording — thank you!' ? reply : null
+      },
+      { timeoutMs: 10_000, description: 'edited draft persisted' },
+    )
+
+    // Submit for approval.
+    await page.getByRole('button', { name: 'Submit for Approval' }).click()
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'pending_approval' ? reply : null
+      },
+      { timeoutMs: 10_000, description: 'reply pending approval' },
+    )
+    await expect(page.getByText('Awaiting Approval').first()).toBeVisible()
+
+    // Approve → the publish job runs (worker) → published.
+    await page.getByRole('button', { name: 'Approve', exact: true }).click()
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'published' ? reply : null
+      },
+      { timeoutMs: 25_000, description: 'reply published by the worker' },
+    )
+    // The published badge, rendered from persisted state. Publishing
+    // auto-closes the inbox item (inbox's reply-published handler), so the
+    // detail opens from the Closed folder.
+    await page.goto(`/inbox?folder=closed&itemId=${s.inboxItemId}`)
+    await expect(page.getByText('Published').first()).toBeVisible({ timeout: 15_000 })
+
+    // The provider recorded exactly one reply upsert with the final wording.
+    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    expect(puts).toHaveLength(1)
+    expect(puts[0].path).toContain(`/reviews/happy-r1/reply`)
+    expect(puts[0].body).toContain('Final reply wording — thank you!')
+  })
+
+  test('(b) transient 500 heals through the retryQueued path (failure recovery)', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000)
+    const s = await setupScenario('transient', {
+      reviews: [stubReview('transient')],
+      replyBehavior: { mode: 'fail-then-success', status: 500, failures: 1 },
+    })
+    await signIn(page)
+
+    // Drive the lifecycle to approved via the synchronous server fns.
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'draftReplyFn',
+      data: { reviewId: s.reviewId, text: 'Transient retry reply text' },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'submitReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'approveReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+
+    // Attempt 1 hits the scripted 500 → classified retryable →
+    // markPublicationRetryQueued + BullMQ retry → attempt 2 succeeds. This is
+    // the taxonomy's transient failure-recovery path; the recovered state is
+    // asserted (published, not merely "a retry was attempted").
+    const healed = await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'published' ? reply : null
+      },
+      { timeoutMs: 45_000, description: 'reply published after the transient retry' },
+    )
+    expect(healed.publication_state).toBe('published')
+    expect(healed.publication_attempts).toBe(2)
+
+    // Exactly 2 provider upserts: one transient failure + one recovered success.
+    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    expect(puts).toHaveLength(2)
+
+    // NOTE (gap reported in the slice summary): when ALL BullMQ attempts are
+    // exhausted by transient failures the reply sits at status 'approved' /
+    // publication_state 'authorized', and retryPublish cannot recover it —
+    // the transition authority rejects approved→approved (verified:
+    // 'Cannot transition reply from approved to approved'). The only
+    // recovery left is the ops quarantine redrive. Operator retryPublish IS
+    // covered for the states it supports: terminal (c) and ambiguous (d).
+  })
+
+  test('(c) terminal 403 → publish_failed; retry does NOT heal', async ({ page }) => {
+    test.setTimeout(90_000)
+    const s = await setupScenario('terminal', {
+      reviews: [stubReview('terminal')],
+      replyBehavior: { mode: 'always-fail', status: 403 },
+    })
+    await signIn(page)
+
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'draftReplyFn',
+      data: { reviewId: s.reviewId, text: 'Terminal rejection reply text' },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'submitReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+    await callServerFn(page, {
+      file: REPLY_FILE,
+      exportName: 'approveReplyFn',
+      data: { reviewId: s.reviewId },
+    })
+
+    // Terminal 4xx: one attempt, marked publish_failed/terminal, NO retry burn.
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'publish_failed' &&
+          reply?.publication_state === 'terminal'
+          ? reply
+          : null
+      },
+      { timeoutMs: 30_000, description: 'reply terminally publish_failed' },
+    )
+    const putsAfterTerminal = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: s.locationName,
+    })
+    expect(putsAfterTerminal).toHaveLength(1)
+
+    // The UI shows the terminal state.
+    await page.goto(`/inbox?itemId=${s.inboxItemId}`)
+    await expect(page.getByText('Publish Failed').first()).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(
+      page.getByText('Failed to publish to Google. You can retry.').first(),
+    ).toBeVisible()
+
+    // Retry is offered but does NOT heal against a still-403 provider — the
+    // terminal state persists (no retry-affordance success).
+    await callServerFn(page, {
+      file: REPLY_FILE_OPS,
+      exportName: 'retryPublishFn',
+      data: { reviewId: s.reviewId },
+    })
+    await waitFor(
+      async () => {
+        const puts = await gbpStubControl.calls({
+          method: 'PUT',
+          pathPrefix: s.locationName,
+        })
+        return puts.length === 2 ? puts : null
+      },
+      { timeoutMs: 30_000, description: 'retry re-attempted the provider once' },
+    )
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'publish_failed' &&
+          reply?.publication_state === 'terminal'
+          ? reply
+          : null
+      },
+      { timeoutMs: 15_000, description: 'reply stays terminally failed after retry' },
+    )
+  })
+
+  test('(d) ambiguous + provider shows the reply → reconcile heals without resend', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000)
+    // The provider copy carries the reply (the ambiguous send DID land).
+    const landed = stubReview('ambig')
+    const s = await setupScenario('ambig', {
+      reviews: [
+        {
+          ...landed,
+          reviewReply: {
+            comment: 'The ambiguous send actually landed',
+            updateTime: '2026-07-28T08:00:00Z',
+          },
+        },
+      ],
+    })
+    await seedAmbiguousReply({
+      organizationId: seed.organizationId,
+      reviewId: s.reviewId,
+      text: 'The ambiguous send actually landed',
+    })
+    await signIn(page)
+
+    // retryPublish runs reconcile-before-retry INLINE (worker-free): the
+    // provider shows the reply → heal to published, no re-enqueue, no resend.
+    await callServerFn(page, {
+      file: REPLY_FILE_OPS,
+      exportName: 'retryPublishFn',
+      data: { reviewId: s.reviewId },
+    })
+    const healed = await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'published' ? reply : null
+      },
+      {
+        timeoutMs: 20_000,
+        description: 'ambiguous reply healed to published by reconcile',
+      },
+    )
+    expect(healed.publication_state).toBe('published')
+
+    // Reconciliation is read-only at the provider: ZERO reply upserts.
+    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    expect(puts).toHaveLength(0)
+    // …and it did re-read provider state through the real adapter.
+    const gets = await gbpStubControl.calls({
+      method: 'GET',
+      pathPrefix: `${s.locationName}/reviews`,
+    })
+    expect(gets.length).toBeGreaterThan(0)
+  })
+})

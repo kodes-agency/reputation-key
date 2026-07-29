@@ -151,6 +151,29 @@ export function providerConfigFor(ref: string | undefined): ProviderEndpoints {
   return endpoints
 }
 
+/**
+ * BQC-6.5: operator sandbox seam. Explicit per-endpoint env overrides applied
+ * ONCE at container build on top of the cell's approved provider endpoints.
+ * A sandbox deployment can point the REAL adapters at a provider stub/sandbox
+ * (e.g. GBP_API_BASE_URL=http://localhost:4100) without touching code. Every
+ * override absent = the resolved endpoints pass through byte-identical — this
+ * function changes nothing unless an operator explicitly set a variable.
+ */
+export function applyProviderEndpointOverrides(
+  endpoints: ProviderEndpoints,
+  env: Env,
+): ProviderEndpoints {
+  return {
+    gbpApiBaseUrl: env.GBP_API_BASE_URL ?? endpoints.gbpApiBaseUrl,
+    reviewsApiBaseUrl: env.GBP_REVIEWS_API_BASE_URL ?? endpoints.reviewsApiBaseUrl,
+    notificationsApiBaseUrl:
+      env.GBP_NOTIFICATIONS_API_BASE_URL ?? endpoints.notificationsApiBaseUrl,
+    oauthTokenUrl: env.GOOGLE_OAUTH_TOKEN_URL ?? endpoints.oauthTokenUrl,
+    oauthUserInfoUrl: env.GOOGLE_OAUTH_USERINFO_URL ?? endpoints.oauthUserInfoUrl,
+    oauthRevokeUrl: env.GOOGLE_OAUTH_REVOKE_URL ?? endpoints.oauthRevokeUrl,
+  }
+}
+
 // ── Identity infrastructure helpers ────────────────────────────────
 
 async function setActiveOrg(orgId: string): Promise<void> {
@@ -232,7 +255,12 @@ export function createContainer(options?: {
   // router's cell config (PROCESSING_CELL → logical provider ref → endpoint
   // construction config). Fails closed at startup for a cell with no approved
   // provider — unavailability is never papered over by another endpoint.
-  const providerEndpoints = providerConfigFor(providerRefForCell(env.PROCESSING_CELL))
+  // BQC-6.5: explicit operator env overrides (sandbox seam) applied once here;
+  // all absent = byte-identical passthrough.
+  const providerEndpoints = applyProviderEndpointOverrides(
+    providerConfigFor(providerRefForCell(env.PROCESSING_CELL)),
+    env,
+  )
 
   // Infrastructure
   const infra = buildInfrastructure({
