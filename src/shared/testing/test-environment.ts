@@ -30,6 +30,9 @@ export const DEFAULT_TEST_DATABASE_URL = 'postgresql://test:test@localhost:5432/
 /** Default Redis for test runs (local, disposable). */
 export const DEFAULT_TEST_REDIS_URL = 'redis://localhost:6379'
 
+/** Deterministic operator token for the /api/health/metrics gate (BQC-7.2). */
+export const DEFAULT_TEST_OPS_METRICS_TOKEN = 'e2e-ops-metrics-token-0123456789abcdef'
+
 export type TestEnvironment = Readonly<{
   NODE_ENV: 'test'
   DATABASE_URL: string
@@ -41,6 +44,7 @@ export type TestEnvironment = Readonly<{
   ENCRYPTION_KEY: string
   OAUTH_STATE_SECRET: string
   REDIS_URL: string
+  OPS_METRICS_TOKEN: string
 }>
 
 /**
@@ -64,5 +68,6 @@ export function testEnvironment(
     ENCRYPTION_KEY: readEnv.ENCRYPTION_KEY ?? 'a'.repeat(64),
     OAUTH_STATE_SECRET: 'ab'.repeat(32),
     REDIS_URL: readEnv.REDIS_URL ?? DEFAULT_TEST_REDIS_URL,
+    OPS_METRICS_TOKEN: readEnv.OPS_METRICS_TOKEN ?? DEFAULT_TEST_OPS_METRICS_TOKEN,
   }
 }
