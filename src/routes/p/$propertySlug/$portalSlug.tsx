@@ -66,6 +66,15 @@ export const Route = createFileRoute('/p/$propertySlug/$portalSlug')({
     }
   },
   notFoundComponent: PortalUnavailable,
+  // BQC-6.6: a dark portal (portal.read off) fails the loader exactly like any
+  // server error — tracedHandler's catchUntagged masks the BetaCapabilityError
+  // as a generic 500 so internals never leak, and only the message string
+  // survives SSR dehydration, so a capability denial is indistinguishable from
+  // a genuine failure by the time it reaches the browser. This is a PUBLIC
+  // guest surface: any load failure renders the intentional unavailable UX
+  // (the same one notFound renders) instead of the raw 500 alert. The real
+  // error is already logged server-side with full detail by catchUntagged.
+  errorComponent: PortalUnavailable,
   component: PublicPortalPage,
 })
 

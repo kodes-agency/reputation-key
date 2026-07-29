@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T04:20:12Z",
+  "updatedAt": "2026-07-29T05:23:54Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics corrected. 6.5 implementation_complete: critical enabled workflow suite — all 10 workflow items verified as meaningful transitions (24/24 critical green, 3+1 consecutive runs, ~56s) against a scripted GBP stub driven by the app's REAL adapters (production-honest endpoint-override seam, no fake adapters) with the real worker running. Five latent production defects surfaced and registered to owners (NOT fixed per ownership rules). Slices 6.6–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite (24/24). 6.6 implementation_complete: dark-context browser promotion — every dark surface direct-navigated (Team, Portal, Guest, Goal, Badge, Leaderboard, outbound email, auto-publish, AI) in the locked posture: intentional /unavailable UX everywhere, zero browser-initiated mutations or external calls; portal.write/upload proven BLOCKED even in the permissive posture; guest portal deny now renders the intentional PortalUnavailable UX (fixed here); loader-granularity hazards on /people and staff /home registered to owners. Slices 6.7–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.6",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Dark-context browser promotion",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Browser/direct-navigation coverage for every dark surface, PROMOTING the lower-level matrices (cited, not recreated: dark-context-matrix, dark-capability-enforcement, portal-capability-taxonomy, dark-consumer-gating, context-acceptance-matrix, no-auto-publish). (1) Locked posture (:3001, zero capabilities): /leaderboard, /team, /progress, /properties/$pid/teams/$tid, /portals, /portals/$id, /goals(+new), /settings/recognition all land on /unavailable?feature=<label> (intentional UX, no error component) via direct nav AND sidebar clicks (sidebars render dark links unconditionally — the gate is the backstop). (2) portal.write/upload proven BLOCKED in BOTH postures: /portals/new redirects before the form mounts even with the permissive override set. (3) Guest public portal deny now renders the intentional PortalUnavailable UX — the slice's one behavior fix: errorComponent on /p/$propertySlug/$portalSlug maps ALL loader errors to it (byte-level proof that BetaCapabilityError is deliberately masked to an indistinguishable 'Internal server error' by catchUntagged — error-shape matching would be fiction; on a public QR surface 'any failure → unavailable UX' is also the better product behavior; real error stays logged server-side). Registered follow-up: the SSR document still answers 500 on the deny path (route-level status semantics; two narrow page-scoped allowlist entries cover the dev-only SSR-status echo + React boundary notice until then, owner+expiry). (4) Absence proofs via a new request-log helper: ZERO browser-initiated mutations and ZERO non-app-origin requests on every dark path (font CDNs are the only default-allowed static hosts, documented). (5) Outbound email: notification Email switches are preference-writes only (no send/test control exists; worker-job gating cited). (6) Auto-publish: manual actions only in the reply UI (absence scan). (7) AI: no affordance anywhere in the shell; zero external AI calls. Determinism: full critical 33/33 ×2 consecutive (plus spec-only runs), retries:0. Registered findings (NOT fixed): F-PEOPLE /properties/$pid/people has no dark gate — listTeams (team.use) shares one loader Promise.all with the ENABLED staff-assignment tab and 403s the whole page in locked posture [Inbox/Team]; F-HOME staff /home breaks identically via listStaffGoals + getStaffVisibleBadges in one loader [Staff/Goal/Badge]. Gates: critical e2e 33/33, unit 386f/4274t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.5",

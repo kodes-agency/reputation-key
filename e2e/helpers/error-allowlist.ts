@@ -101,4 +101,40 @@ export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = [
       'follow-up for the forms hardening pass.',
     expires: '2026-10-26',
   },
+  {
+    id: 'guest-portal-denied-ssr-status-console',
+    kind: 'console-error',
+    pattern: 'Failed to load resource: the server responded with a status of 500',
+    pagePattern: /\/p\/[^/?#]+\/[^/?#]+/,
+    owner: 'engineering',
+    reason:
+      'BQC-6.6: a dark public portal (portal.read off) denies in the loader; ' +
+      'the /p route errorComponent intentionally renders PortalUnavailable ' +
+      '(asserted directly by dark-promotion.spec.ts), but SSR still answers ' +
+      'the document with the error status (500) and Chromium echoes that ' +
+      'status to the console. The tolerated signal is only the browser echo ' +
+      'of the deliberate error-boundary SSR status on the two-segment public ' +
+      'portal path — the UX, the zero-mutation proof, and the server-side ' +
+      'error log all still gate. Follow-up: a non-500 status for the public ' +
+      'deny path (route-level status semantics) removes this entry.',
+    expires: '2026-10-27',
+  },
+  {
+    id: 'guest-portal-denied-react-boundary-console',
+    kind: 'console-error',
+    pattern: 'The above error occurred in the <MatchInnerImpl> component',
+    pagePattern: /\/p\/[^/?#]+\/[^/?#]+/,
+    owner: 'engineering',
+    reason:
+      'BQC-6.6: sibling of guest-portal-denied-ssr-status-console — same ' +
+      'deliberate /p error boundary, second echo. When the client router ' +
+      're-runs the denied loader after hydration, MatchInnerImpl rethrows the ' +
+      'dehydrated loader error and React DEV logs its standard error-boundary ' +
+      'notice before rendering the intentional PortalUnavailable (asserted ' +
+      'directly by dark-promotion.spec.ts). Dev-only React output for the ' +
+      'intended boundary on the two-segment public portal path; whether the ' +
+      'client revalidates post-hydration is timing-dependent, hence ' +
+      'intermittent. Removed by the same status-semantics follow-up.',
+    expires: '2026-10-27',
+  },
 ]
