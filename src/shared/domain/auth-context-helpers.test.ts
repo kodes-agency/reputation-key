@@ -1,6 +1,7 @@
 // AuthContext helper tests — canForContext + scopeForPermission (DAC Stage 2 foundation).
 // Verifies the additive fallback (uses role when the dynamic fields are absent) and
-// the populated path (uses the dynamic fields when present).
+// the populated path (uses the dynamic fields when present). Also covers
+// serializeClientAuthz — the client-safe authz snapshot (ADR 0001 §7).
 
 import { describe, it, expect, afterEach } from 'vitest'
 import {
@@ -10,7 +11,7 @@ import {
   resetPermissionLookup,
   type Permission,
 } from './permissions'
-import type { AuthContext } from './auth-context'
+import { serializeClientAuthz, type AuthContext } from './auth-context'
 import type { DataScope } from './data-scope'
 import { userId, organizationId } from './ids'
 
@@ -71,5 +72,45 @@ describe('scopeForPermission', () => {
     expect(scopeForPermission(ctx({ scopeByPermission: map }), 'property.delete')).toBe(
       'none',
     )
+  })
+})
+
+describe('serializeClientAuthz', () => {
+  it('serializes populated dynamic fields to plain JSON shapes', () => {
+    const perms = new Set<Permission>(['property.read', 'property.create'])
+    const scopes = new Map<Permission, DataScope>([['property.read', 'organization']])
+
+    const snapshot = serializeClientAuthz(
+      ctx({ effectivePermissions: perms, scopeByPermission: scopes }),
+    )
+
+    expect([...snapshot.effectivePermissions].sort()).toEqual([
+      'property.create',
+      'property.read',
+    ])
+    expect(snapshot.scopeByPermission).toEqual({ 'property.read': 'organization' })
+  })
+
+  it('emits empty shapes when the dynamic fields are absent (Stage 1 fallback)', () => {
+    expect(serializeClientAuthz(ctx())).toEqual({
+      effectivePermissions: [],
+      scopeByPermission: {},
+    })
+  })
+
+  it('handles a permissions set without a scope map (and vice versa)', () => {
+    const withPermsOnly = serializeClientAuthz(
+      ctx({ effectivePermissions: new Set<Permission>(['property.read']) }),
+    )
+    expect(withPermsOnly.effectivePermissions).toEqual(['property.read'])
+    expect(withPermsOnly.scopeByPermission).toEqual({})
+
+    const withScopesOnly = serializeClientAuthz(
+      ctx({
+        scopeByPermission: new Map<Permission, DataScope>([['inbox.read', 'none']]),
+      }),
+    )
+    expect(withScopesOnly.effectivePermissions).toEqual([])
+    expect(withScopesOnly.scopeByPermission).toEqual({ 'inbox.read': 'none' })
   })
 })

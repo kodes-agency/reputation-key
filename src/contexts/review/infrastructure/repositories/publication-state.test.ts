@@ -358,7 +358,9 @@ describe.sequential('publication state machine (integration, migration 0015)', (
           now: NOW,
         },
       ]),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type review\.reply\.ghost:v1 is not registered for the outbox/,
+    )
 
     // Rollback: BOTH replies keep their pre-batch state; no outbox row exists.
     const rows = await pool.query(

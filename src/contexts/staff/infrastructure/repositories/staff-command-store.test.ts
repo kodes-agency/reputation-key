@@ -170,7 +170,9 @@ describe.sequential('staffCommandStore (integration)', () => {
       _tag: 'staff.ghost',
     } as unknown as Parameters<typeof store.assignStaff>[0]['event']
 
-    await expect(store.assignStaff({ assignment, event: ghost })).rejects.toThrow()
+    await expect(store.assignStaff({ assignment, event: ghost })).rejects.toThrow(
+      /Event type staff\.ghost:v1 is not registered for the outbox/,
+    )
 
     const rows = await pool.query(
       'SELECT id FROM staff_assignments WHERE organization_id = $1',
@@ -297,7 +299,7 @@ describe.sequential('staffCommandStore (integration)', () => {
           { assignmentId: existing.id, organizationId: ORG_ID, event: ghostRemoval },
         ],
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Event type staff\.ghost:v1 is not registered for the outbox/)
 
     // The create rolled back AND the soft-delete rolled back
     const rows = await pool.query(

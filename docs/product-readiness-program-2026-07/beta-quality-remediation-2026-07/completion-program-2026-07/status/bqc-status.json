@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T10:53:48Z",
+  "updatedAt": "2026-07-29T12:34:01Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -857,12 +857,24 @@
       "id": "BQC-6",
       "kind": "phase",
       "title": "Trustworthy verification and experience gates",
-      "state": "implementation_in_progress",
+      "state": "evidence_pending",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics. 6.5: critical workflow suite. 6.6: dark browser promotion. 6.7: residual hardening (full suite hard gate). 6.8 implementation_complete: accessibility/responsive/theme/performance — e2e axe layer on all enabled workflows (zero violations, zero suppressions; the 6 page-structure rules storybook disables now enforced at page level); the 20 a11y-opt-out stories burned to ZERO (violations fixed at root incl. shell landmark structure); keyboard proofs (inbox j/k/Enter/Escape, tab-walk with visible focus, dialog focus trap); light-theme verified in storybook + e2e (high-contrast registered unsupported); reduced-motion global rule + hook removed; zoom/reflow proven (fleet grid fixed); mobile variants proven (touch-target convention registered as a user design question); long-content/emoji/missing-value variants (RTL registered unsupported); bundle budgets wired into CI; web-vitals WIRED (LCP+CLS via PerformanceObserver; INP + reporting destination registered for BQC-7). Slice 6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "All nine slices implementation_complete. 6.1 hermetic test environment (one builder, localhost guards, ephemeral DB, provider DI). 6.2 client/runtime error detection (global listeners, owned expiring allowlist, injection proof). 6.3 one authoritative component gate (legacy runner justified by measured a11y incompatibility; --failOnConsole; 4 named defects fixed; first critical stories). 6.4 Playwright diagnostics (failure-retained artifacts; bounded logs; CI uploads). 6.5 critical workflow suite (all 10 items as meaningful transitions; GBP stub + real worker; 5 latent defects registered incl. BQC-3.8 disconnect-cancellation denial). 6.6 dark browser promotion (every dark surface's intentional unavailable UX + zero browser-initiated calls; guest-portal UX fixed; 2 loader hazards registered). 6.7 residual hardening (fake mail outbox; F-PEOPLE resolved; full suite HARD gate). 6.8 a11y/responsive/theme/perf (e2e axe zero-violation; 20 opt-outs burned to zero; keyboard/theme/motion/zoom/mobile proven; bundle budgets in CI; web-vitals wired). 6.9 coverage/quality gates (pure domain rules at 100% lines/branches/statements/functions across 28 files; baseline ratchet floors; changed-code budget; fast-check property tests — found F-69-1 prototype-key untagged TypeError in transition maps (registered, not patched); 5/5 mutation sample caught; 62 generic-error acceptances fixed; flaky quarantine register policy). Phase at evidence_pending — acceptance is the user's independent review of the full exit matrix."
+    },
+    {
+      "id": "BQC-6.9",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Coverage and test-quality gates",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) Two-tier coverage gate (scripts/check-coverage.mjs, runs the unit suite with v8 itself; CI step): tier-1 = 28 pure-domain-rule files at 100% lines/branches/statements/functions with an EMPTY exemption register — 9 files reached 100% by ADDING tests (goal-type-rules assertNever, inbox/portal/review status fallbacks, auth-context-helpers serializeClientAuthz, response-sla NEW 8-test file (was 33%), period-range this_week Sunday, roles assertNever, errors no-captureStackTrace host path). Tier-2 = baseline ratchet floors recorded with date (overall 47.20/42.61/39.93/46.77; domain 96.04/89.79/97.92/95.80 — the doc's 100%-domain line is the tier-1 set, scoped honestly; floors only move up). (2) Changed-code budget (check-changed-code.mjs, CI with fetch-depth 0): every added production source file carries a colocated test or a registered exemption (empty register; detection proven both ways). (3) Property testing (fast-check, the only new devDep): goal-type-rules decision table (never-throws + tagged + first-match-wins vs the declared table) and reply-publication-workflow state machine (tagged-denial, terminal-never-exits, partition, persisted-vs-exported maps). REAL FINDING F-69-1 (registered, not patched): prototype-chain keys ('toString','valueOf','__proto__') resolve through Object.prototype on the transition maps in review/reply-publication-workflow, review/rules, inbox/rules, goal-type-rules — map[from]?.includes(to) throws an UNTAGGED TypeError instead of the documented fail-closed false/tagged error (deny invariant holds; error tagging breaks for untyped input only). Recommended: Object.hasOwn guard on the 4 lookups. (4) Mutation sample: 5/5 seeded mutants caught by existing suites (eligibility boundary, transition-map entry, permission path, goal off-by-one, region fail-closed); a 6th exploratory mutant escapes (computeElapsedFraction's toBeCloseTo tolerance — noted for exact-fraction pins). (5) Test-quality detection (check-test-quality.mjs, wired into pnpm lint): zero .only; skips register-of-2 with owner+reason+stale-check; 62 bare-throw generic-error acceptances fixed across 26 files (tagged {_tag,code}, ZodError, BetaCapabilityError, pg-cause specifics); unasserted .rejects family covered. (6) Flaky quarantine register: policy artifact (empty today) + validation test (all fields, future expiry, releaseBlocking:false, nothing quarantined in required workflows; expiry probe proven). Gates: unit 392f/4318t, integration 52f/315t, check:coverage/changed-code/test-quality all green with negative probes, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.8",

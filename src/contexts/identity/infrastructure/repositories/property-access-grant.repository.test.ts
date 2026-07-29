@@ -108,7 +108,14 @@ describe('PropertyAccessGrant persistence (BQC-2.2)', () => {
         userId: USER_1,
         source: 'operator',
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /insert or update on table "property_access_grant" violates foreign key constraint "property_access_grant_tenant_fk"/.test(
+          e.cause.message,
+        ),
+    )
   })
 
   it('rejects a duplicate active grant for the same (org, property, user)', async () => {
@@ -119,7 +126,14 @@ describe('PropertyAccessGrant persistence (BQC-2.2)', () => {
         userId: USER_1,
         source: 'operator',
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /duplicate key value violates unique constraint "property_access_grant_active_unique"/.test(
+          e.cause.message,
+        ),
+    )
   })
 
   it('revokes, then allows re-grant', async () => {

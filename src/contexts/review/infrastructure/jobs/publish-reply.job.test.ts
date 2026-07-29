@@ -250,7 +250,10 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpRateLimited())
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'gbp_api_rate_limited',
+    })
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
@@ -258,7 +261,10 @@ describe('publish-reply job handler', () => {
     // Final attempt: a retryable failure is still retry-queued, never
     // marked failed — the exhausted job lands in quarantine with the row
     // back in 'authorized' for a redrive.
-    await expect(handler(makeJob(2))).rejects.toThrow()
+    await expect(handler(makeJob(2))).rejects.toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'gbp_api_rate_limited',
+    })
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(2)
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
@@ -269,10 +275,16 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpApiError(500))
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'gbp_api_error',
+    })
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
 
-    await expect(handler(makeJob(2))).rejects.toThrow()
+    await expect(handler(makeJob(2))).rejects.toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'gbp_api_error',
+    })
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(2)
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
@@ -282,7 +294,7 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(new TypeError('fetch failed'))
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toThrow(TypeError)
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
   })
 
@@ -291,7 +303,10 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(tokenRefreshFailed())
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toMatchObject({
+      _tag: 'IntegrationError',
+      code: 'token_refresh_failed',
+    })
     expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -310,7 +325,7 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(abortError())
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toThrow('The operation was aborted')
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
@@ -321,7 +336,7 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(abortError())
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(2))).rejects.toThrow()
+    await expect(handler(makeJob(2))).rejects.toThrow('The operation was aborted')
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledTimes(1)
     const event = deps.replyCommandStore.markPublicationAmbiguous.mock.calls[0]![1] as {
       _tag: string
@@ -335,10 +350,10 @@ describe('publish-reply job handler', () => {
     deps.googleReviewApi.replyToReview.mockRejectedValue(new Error('socket hangup'))
     const handler = createPublishReplyHandler(deps as never)
 
-    await expect(handler(makeJob(0))).rejects.toThrow()
+    await expect(handler(makeJob(0))).rejects.toThrow('socket hangup')
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
 
-    await expect(handler(makeJob(2))).rejects.toThrow()
+    await expect(handler(makeJob(2))).rejects.toThrow('socket hangup')
     expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledTimes(1)
   })
 

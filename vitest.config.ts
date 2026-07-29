@@ -51,6 +51,28 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    // BQC-6.9: coverage is OFF by default (bare `vitest run` / `pnpm test`
+    // stay fast). The coverage gate (scripts/check-coverage.mjs →
+    // `pnpm check:coverage`) runs the unit project itself with
+    // `--coverage.enabled=true`; these defaults shape that run.
+    coverage: {
+      provider: 'v8',
+      // Count every included source file, not just the ones tests import —
+      // an untested file must lower the baseline, not vanish from it.
+      all: true,
+      include: ['src/**'],
+      exclude: [
+        'src/**/*.test.ts',
+        'src/**/*.test.tsx',
+        'src/**/*.stories.tsx',
+        'src/routeTree.gen.ts',
+        'src/test-setup.ts',
+        // Test-only helpers (fixtures/builders) are not production code.
+        'src/shared/testing/**',
+      ],
+      reporter: ['text', 'json-summary'],
+      reportsDirectory: 'coverage',
+    },
     // Two isolated projects: `unit` (node integration tests, scoped via
     // `pnpm test` → `vitest run --project=unit`) and `storybook` (browser
     // component tests via @storybook/addon-vitest, scoped by the addon when

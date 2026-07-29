@@ -1,5 +1,6 @@
 // Dashboard context — DTO validation tests
 import { describe, it, expect } from 'vitest'
+import { ZodError } from 'zod'
 import {
   getDashboardDataDto,
   getPortalAnalyticsDto,
@@ -12,8 +13,8 @@ describe('timeRangePreset', () => {
   })
 
   it('rejects invalid time range', () => {
-    expect(() => timeRangePreset.parse('1d')).toThrow()
-    expect(() => timeRangePreset.parse('')).toThrow()
+    expect(() => timeRangePreset.parse('1d')).toThrow(ZodError)
+    expect(() => timeRangePreset.parse('')).toThrow(ZodError)
   })
 })
 
@@ -37,11 +38,13 @@ describe('getDashboardDataDto', () => {
   })
 
   it('rejects missing propertyId', () => {
-    expect(() => getDashboardDataDto.parse({})).toThrow()
+    expect(() => getDashboardDataDto.parse({})).toThrow(ZodError)
   })
 
   it('rejects invalid UUID for propertyId', () => {
-    expect(() => getDashboardDataDto.parse({ propertyId: 'not-a-uuid' })).toThrow()
+    expect(() => getDashboardDataDto.parse({ propertyId: 'not-a-uuid' })).toThrow(
+      ZodError,
+    )
   })
 })
 
@@ -61,7 +64,7 @@ describe('getPortalAnalyticsDto', () => {
       getPortalAnalyticsDto.parse({
         propertyId: 'a0000000-0000-0000-0000-000000000001',
       }),
-    ).toThrow()
+    ).toThrow(ZodError)
   })
 
   it('defaults timeRange to all', () => {

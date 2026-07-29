@@ -2361,8 +2361,20 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
   }),
+  ops('scripts/check-changed-code.mjs', 'scripts/check-changed-code.mjs', 'none', {
+    notes:
+      'check:changed-code — CI gate (BQC-6.9): every added src production file must carry a colocated test (or a registered exemption)',
+  }),
+  ops('scripts/check-coverage.mjs', 'scripts/check-coverage.mjs', 'none', {
+    notes:
+      'check:coverage — CI gate (BQC-6.9): runs the unit suite with v8 coverage; enforces 100% on pure domain rules + the baseline ratchet floors',
+  }),
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
+  }),
+  ops('scripts/check-test-quality.mjs', 'scripts/check-test-quality.mjs', 'none', {
+    notes:
+      'check:test-quality — lint gate (BQC-6.9): focused/skipped tests, generic-error acceptance, unasserted async failures; registered skips only',
   }),
   ops('scripts/cleanup-all.ts', 'scripts/cleanup-all.ts', 'tenant_cross', {
     notes: 'DIRECT-DB: deletes ALL reviews/replies/inbox items/properties — dev-only',

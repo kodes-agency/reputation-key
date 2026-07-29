@@ -105,12 +105,28 @@ describe('property-lifecycle (B1.5)', () => {
       }
     })
 
-    it('throws for archived', () => {
-      expect(() => assertCanPerformExternalEffect('archived')).toThrow()
+    it('throws tagged PropertyError for archived', () => {
+      try {
+        assertCanPerformExternalEffect('archived')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'PropertyError',
+          code: 'property_not_active',
+        })
+      }
     })
 
-    it('throws for purged', () => {
-      expect(() => assertCanPerformExternalEffect('purged')).toThrow()
+    it('throws tagged PropertyError for purged', () => {
+      try {
+        assertCanPerformExternalEffect('purged')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'PropertyError',
+          code: 'property_not_active',
+        })
+      }
     })
   })
 

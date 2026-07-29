@@ -181,7 +181,9 @@ describe('createAtomicMetricCommandStore', () => {
 
       await expect(
         store.recordMetric({ reading: makeReading(), event: ghost }),
-      ).rejects.toThrow()
+      ).rejects.toThrowError(
+        /Event type metric\.ghost:v1 is not registered for the outbox/,
+      )
 
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()

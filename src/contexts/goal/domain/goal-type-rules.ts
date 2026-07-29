@@ -65,7 +65,9 @@ export type GoalTypeRule = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-const GOAL_TYPE_RULES: Readonly<Record<GoalType, ReadonlyArray<GoalTypeRule>>> = {
+// Exported (read-only) as the declared oracle for the BQC-6.9 property tests —
+// the first-match-wins invariant is verified against this exact table.
+export const GOAL_TYPE_RULES: Readonly<Record<GoalType, ReadonlyArray<GoalTypeRule>>> = {
   open: [
     {
       name: 'period-forbidden',

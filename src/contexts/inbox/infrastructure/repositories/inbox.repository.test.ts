@@ -542,7 +542,7 @@ describe('inbox repository — tenant isolation', () => {
     // ORG_B tries to update ORG_A's item — should throw not_found
     await expect(
       repo.updateStatus(item.id, ORG_B, 'closed', { closedAt: new Date() }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ _tag: 'InboxError', code: 'not_found' })
   })
 
   it('countByStatus returns 0 for different org', async () => {
@@ -557,6 +557,9 @@ describe('inbox repository — tenant isolation', () => {
 
   it('create rejects tenant mismatch', async () => {
     const item = makeInboxItem({ organizationId: ORG_A })
-    await expect(repo.create(item, ORG_B)).rejects.toThrow()
+    await expect(repo.create(item, ORG_B)).rejects.toMatchObject({
+      _tag: 'InboxError',
+      code: 'forbidden',
+    })
   })
 })

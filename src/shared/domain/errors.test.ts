@@ -40,6 +40,20 @@ describe('domainError', () => {
     const err = domainError('assertion_failed', 'boom')
     expect(isDomainError(err)).toBe(true)
   })
+
+  it('still builds a tagged error when Error.captureStackTrace is unavailable', () => {
+    // Non-V8 hosts lack Error.captureStackTrace — the guard must skip, not throw.
+    const original = Object.getOwnPropertyDescriptor(Error, 'captureStackTrace')
+    delete (Error as { captureStackTrace?: unknown }).captureStackTrace
+    try {
+      const err = domainError('unknown_role', 'boom')
+      expect(err).toBeInstanceOf(Error)
+      expect(err._tag).toBe('DomainError')
+      expect(err.code).toBe('unknown_role')
+    } finally {
+      if (original) Object.defineProperty(Error, 'captureStackTrace', original)
+    }
+  })
 })
 
 describe('isDomainError', () => {

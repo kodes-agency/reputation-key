@@ -32,6 +32,12 @@ describe('canTransition', () => {
       expect(canTransition(from, to)).toBe(false)
     })
   })
+
+  // Unknown status — the `?? false` fallback for input the type system forbids
+  // (e.g. an unvalidated DB row cast to InboxStatus).
+  it('rejects a transition from an unknown status', () => {
+    expect(canTransition('archived' as InboxStatus, 'open')).toBe(false)
+  })
 })
 
 // ─── validateTransition ─────────────────────────────────────────────

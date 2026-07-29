@@ -21,6 +21,7 @@ import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { createDelayedExecutionPolicy } from './system-execution-policy'
 import {
   assertGlobalCapability,
+  BetaCapabilityError,
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
@@ -92,12 +93,12 @@ describe('BQC-2.6 dark-context containment matrix', () => {
 
   describe('public handlers: guest surface denies while portal.read is dark', () => {
     it('assertGlobalCapability(portal.read) throws — guest fns deny', () => {
-      expect(() => assertGlobalCapability('portal.read')).toThrow()
+      expect(() => assertGlobalCapability('portal.read')).toThrow(BetaCapabilityError)
     })
 
     it('blocked portal.write/upload throw at the global gate too', () => {
-      expect(() => assertGlobalCapability('portal.write')).toThrow()
-      expect(() => assertGlobalCapability('portal.upload')).toThrow()
+      expect(() => assertGlobalCapability('portal.write')).toThrow(BetaCapabilityError)
+      expect(() => assertGlobalCapability('portal.upload')).toThrow(BetaCapabilityError)
     })
   })
 
@@ -131,7 +132,7 @@ describe('BQC-2.6 dark-context containment matrix', () => {
         'ai.generate_reply',
         'ai.detect_trends',
       ] as const) {
-        expect(() => assertGlobalCapability(cap), cap).toThrow()
+        expect(() => assertGlobalCapability(cap), cap).toThrow(BetaCapabilityError)
       }
     })
   })

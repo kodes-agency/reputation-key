@@ -188,6 +188,25 @@ describe('validatePortalTheme', () => {
       expect(result.error.code).toBe('invalid_theme')
     }
   })
+
+  it('rejects invalid backgroundColor', () => {
+    const result = validatePortalTheme({
+      primaryColor: '#FF5500',
+      backgroundColor: 'blue',
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
+  })
+
+  it('rejects invalid textColor', () => {
+    const result = validatePortalTheme({ primaryColor: '#FF5500', textColor: '#12345' })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_theme')
+    }
+  })
 })
 
 // ── validateSmartRoutingThreshold ──────────────────────────────────

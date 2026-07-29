@@ -25,6 +25,15 @@ describe('periodToRange', () => {
     expect(start!.getHours()).toBe(0)
   })
 
+  it('this_week starts on the previous Monday when run on a Sunday', () => {
+    // 2026-06-21 is a Sunday (getDay() === 0) — the week starts 6 days back.
+    const SUNDAY = new Date('2026-06-21T14:30:00.000Z')
+    const { start } = periodToRange('this_week', SUNDAY)
+    expect(start!.getDay()).toBe(1)
+    expect(start!.getDate()).toBe(15)
+    expect(start!.getHours()).toBe(0)
+  })
+
   it('this_month starts on day 1', () => {
     const { start } = periodToRange('this_month', REF)
     expect(start!.getDate()).toBe(1)

@@ -61,7 +61,14 @@ describe('policy consent records (BQC-2.2)', () => {
         subjectId: 'prop-consent-1',
         purpose: 'ai.analyze',
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /duplicate key value violates unique constraint "policy_consent_active_unique"/.test(
+          e.cause.message,
+        ),
+    )
   })
 
   it('revokes, then allows a fresh record', async () => {
@@ -118,6 +125,13 @@ describe('policy consent records (BQC-2.2)', () => {
         subjectId: 'x',
         purpose: 'ai.analyze',
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /new row for relation "policy_consent" violates check constraint "policy_consent_subject_check"/.test(
+          e.cause.message,
+        ),
+    )
   })
 })

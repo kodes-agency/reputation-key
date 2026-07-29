@@ -90,6 +90,13 @@ describe('policy decision audit (BQC-2.2)', () => {
         policyVersion: 'bqc-2.2',
         correlationId: null,
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /new row for relation "policy_decision_audit" violates check constraint "policy_decision_audit_actor_check"/.test(
+          e.cause.message,
+        ),
+    )
   })
 })

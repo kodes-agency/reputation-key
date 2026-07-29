@@ -23,7 +23,7 @@ describe('Auth configuration', () => {
     delete process.env.RESEND_API_KEY
 
     const { getEnv } = await import('#/shared/config/env')
-    expect(() => getEnv()).toThrow()
+    expect(() => getEnv()).toThrow(/RESEND_API_KEY/)
 
     process.env.RESEND_API_KEY = original ?? 're_test_key'
   })

@@ -144,7 +144,7 @@ describe.sequential('propertyCommandStore (integration)', () => {
         property: makeProperty({ slug: 'propcmd-ghost' }),
         event: ghost,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Event type property\.ghost:v1 is not registered for the outbox/)
 
     const rows = await pool.query(
       'SELECT id FROM properties WHERE organization_id = $1',

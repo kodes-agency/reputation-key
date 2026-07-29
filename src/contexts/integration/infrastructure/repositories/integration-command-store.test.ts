@@ -134,7 +134,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     await expect(
       store.connectGoogleAccount({ connection: makeConnection(), event: ghost }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
 
     const rows = await pool.query(
       'SELECT id FROM google_connections WHERE organization_id = $1',
@@ -254,7 +254,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
         connectionId: CONN_ID,
         event: ghost,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
 
     // The pre-BQC-3.5 crash window is closed: no status flip, no redaction.
     const rows = await pool.query(
