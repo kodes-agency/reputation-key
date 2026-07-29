@@ -125,7 +125,7 @@ describe('property-access-policy (B1.4)', () => {
     it('throws when access is denied', () => {
       expect(() =>
         assertPropertyAccess({ ...baseInput, isPropertyBlocked: true }),
-      ).toThrow()
+      ).toThrow({ code: 'property_blocked' })
     })
   })
 })

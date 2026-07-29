@@ -180,7 +180,9 @@ describe.sequential('replyCommandStore (integration)', () => {
         event as never,
         NOW,
       ),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type review\.reply\.ghost:v1 is not registered for the outbox/,
+    )
 
     // Rollback: the reply status is unchanged AND no outbox row exists.
     const persisted = await replyRepo.findById(REPLY_A, ORG_A)
@@ -228,7 +230,9 @@ describe.sequential('replyCommandStore (integration)', () => {
         event: event as never,
         now: NOW,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type review\.reply\.ghost:v1 is not registered for the outbox/,
+    )
 
     const rows = await pool.query('SELECT id FROM replies WHERE organization_id = $1', [
       ORG_A,

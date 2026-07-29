@@ -47,8 +47,8 @@ const ACTIVE_PUBLICATION_STATES: ReadonlySet<ReplyPublicationState> = new Set([
   'retryable',
 ])
 
-/** Valid transitions. */
-const VALID_PUBLICATION_TRANSITIONS: Readonly<
+/** Valid transitions. Exported (read-only) as the declared oracle for the BQC-6.9 property tests. */
+export const VALID_PUBLICATION_TRANSITIONS: Readonly<
   Record<ReplyPublicationState, readonly ReplyPublicationState[]>
 > = {
   idle: ['publish_requested'],
@@ -200,7 +200,8 @@ export type PublicationStateEvent =
   | 'requeue' // classified retryable — back to 'authorized' for the next attempt
   | 'cancel' // policy/disconnect cancellation
 
-const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
+// Exported (read-only) as the declared oracle for the BQC-6.9 property tests.
+export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
   Record<
     PersistedPublicationState,
     Readonly<Partial<Record<PublicationStateEvent, PersistedPublicationState>>>

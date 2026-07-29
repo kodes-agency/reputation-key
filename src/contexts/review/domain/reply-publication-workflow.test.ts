@@ -92,8 +92,16 @@ describe('reply-publication-workflow (B1.10)', () => {
       ).not.toThrow()
     })
 
-    it('throws for invalid transitions', () => {
-      expect(() => assertValidPublicationTransition('published', 'publishing')).toThrow()
+    it('throws tagged ReviewError for invalid transitions', () => {
+      try {
+        assertValidPublicationTransition('published', 'publishing')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'ReviewError',
+          code: 'invalid_transition',
+        })
+      }
     })
   })
 

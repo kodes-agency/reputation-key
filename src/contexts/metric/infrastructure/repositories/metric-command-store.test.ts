@@ -133,7 +133,7 @@ describe.sequential('metricCommandStore (integration)', () => {
 
     await expect(
       store.recordMetric({ reading: makeReading(), event: ghost }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Event type metric\.ghost:v1 is not registered for the outbox/)
 
     const rows = await pool.query(
       'SELECT id FROM metric_readings WHERE organization_id = $1',

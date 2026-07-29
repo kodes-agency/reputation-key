@@ -76,7 +76,14 @@ describe('policy state persistence (BQC-2.2)', () => {
     await addOrganizationCapability(db, ORG, 'team.use', 'op-test')
     await expect(
       addOrganizationCapability(db, ORG, 'team.use', 'op-test'),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /duplicate key value violates unique constraint "organization_capability_pkey"/.test(
+          e.cause.message,
+        ),
+    )
 
     let snapshot = await loadPolicySnapshot(db)
     expect(

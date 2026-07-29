@@ -2,8 +2,9 @@
 // Tests for toDomainRole/toBetterAuthRole which live in shared/domain/roles.ts.
 
 import { describe, it, expect } from 'vitest'
-import { toDomainRole, toDomainRoleStrict, toBetterAuthRole } from './roles'
+import { toDomainRole, toDomainRoleStrict, toBetterAuthRole, type Role } from './roles'
 import { isDomainError } from './errors'
+import { UnreachableError } from './assert'
 
 describe('toDomainRole', () => {
   it('maps better-auth owner to AccountAdmin', () => {
@@ -79,5 +80,10 @@ describe('toBetterAuthRole', () => {
     for (const role of domainRoles) {
       expect(toDomainRole(toBetterAuthRole(role))).toBe(role)
     }
+  })
+
+  it('throws UnreachableError for an untypable role (exhaustiveness guard)', () => {
+    // Only reachable when a value bypasses the Role union — fail loudly.
+    expect(() => toBetterAuthRole('SuperUser' as Role)).toThrowError(UnreachableError)
   })
 })

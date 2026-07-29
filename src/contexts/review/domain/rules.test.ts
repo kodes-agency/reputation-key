@@ -9,7 +9,7 @@ import {
   transitionReply,
   MAX_REPLY_LENGTH,
 } from './rules'
-import type { Reply } from './types'
+import type { Reply, ReplyStatus } from './types'
 import { organizationId, replyId, reviewId } from '#/shared/domain/ids'
 
 describe('isValidRating', () => {
@@ -156,6 +156,11 @@ describe('canTransitionReply', () => {
 
   it('allows approved → draft (BQC-3.8 publication cancellation returns the reply for re-approval)', () => {
     expect(canTransitionReply('approved', 'draft')).toBe(true)
+  })
+
+  it('rejects a transition from an unknown status (defensive `?? false` fallback)', () => {
+    // Untypable at compile time; reachable via an unvalidated DB row cast.
+    expect(canTransitionReply('archived' as ReplyStatus, 'draft')).toBe(false)
   })
 })
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { identityOrganizationCreated, identityMemberInvited } from './events'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
+import { isDomainError } from '#/shared/domain/errors'
 import type { Role } from '#/shared/domain/roles'
 
 const ORG_ID = organizationId('org-1')
@@ -36,14 +37,23 @@ describe('identity events', () => {
   })
 
   it('throws/asserts for invalid occurredAt', () => {
-    expect(() =>
+    let caught: unknown
+    try {
       identityOrganizationCreated({
         organizationId: ORG_ID,
         organizationName: 'Test',
         slug: 'test',
         ownerId: USER_ID,
         occurredAt: 'not-date' as unknown as Date,
-      }),
-    ).toThrow()
+      })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    if (isDomainError(caught)) {
+      expect(caught.code).toBe('assertion_failed')
+    } else {
+      expect.fail('expected a DomainError')
+    }
   })
 })

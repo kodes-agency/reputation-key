@@ -304,7 +304,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         item: makeItem(),
         fact: ghost,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type inbox\.inbox_item\.ghost:v1 is not registered for the outbox/,
+    )
 
     const items = await pool.query(
       'SELECT id FROM inbox_items WHERE organization_id = $1',
@@ -331,7 +333,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         item: makeItem(),
         fact: createdFact(makeItem()),
       }),
-    ).rejects.toThrow()
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.cause instanceof Error &&
+        /insert or update on table "event_consumer_receipts" violates foreign key constraint "event_consumer_receipts_event_id_fkey"/.test(
+          e.cause.message,
+        ),
+    )
 
     const items = await pool.query(
       'SELECT id FROM inbox_items WHERE organization_id = $1',

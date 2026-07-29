@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { firstGoalTypeRuleViolation, type GoalTemporalInput } from './goal-type-rules'
+import { UnreachableError } from '#/shared/domain/assert'
 import type { GoalErrorCode } from './errors'
 import type { GoalType } from './types'
 import { goalId } from '#/shared/domain/ids'
@@ -261,5 +262,13 @@ describe('firstGoalTypeRuleViolation (goal-type decision table)', () => {
       periodEnd: D_START,
     })
     expect(violation?.context).toBeUndefined()
+  })
+
+  it('throws UnreachableError for an untypable goalType (assertNever guard)', () => {
+    // The table lookup misses only when a value bypasses the GoalType union
+    // (e.g. an unvalidated DB row) — the guard must fail loudly.
+    expect(() =>
+      firstGoalTypeRuleViolation({ ...BASE, goalType: 'fortnightly' as GoalType }),
+    ).toThrowError(UnreachableError)
   })
 })

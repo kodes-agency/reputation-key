@@ -21,7 +21,7 @@ import {
 } from '#/shared/events/schema-registry'
 import { registerConsumer, clearConsumers, type ConsumerEvent } from './dispatcher'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
-import { z } from 'zod'
+import { z, ZodError } from 'zod'
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 
 // ── Test setup ──────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ describe('outbox crash boundaries', () => {
     it('rejects an invalid payload', () => {
       expect(() =>
         validateEventPayload(TEST_EVENT_TYPE, TEST_EVENT_VERSION, { resourceId: 123 }),
-      ).toThrow()
+      ).toThrow(ZodError)
     })
 
     it('rejects unknown event type', () => {

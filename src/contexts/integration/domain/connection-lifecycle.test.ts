@@ -63,8 +63,16 @@ describe('connection-lifecycle (B1.6)', () => {
       expect(() => assertValidConnectionTransition('pending', 'active')).not.toThrow()
     })
 
-    it('throws for invalid transitions', () => {
-      expect(() => assertValidConnectionTransition('disconnected', 'active')).toThrow()
+    it('throws tagged IntegrationError for invalid transitions', () => {
+      try {
+        assertValidConnectionTransition('disconnected', 'active')
+        expect.fail('expected throw')
+      } catch (e) {
+        expect(e).toMatchObject({
+          _tag: 'IntegrationError',
+          code: 'invalid_transition',
+        })
+      }
     })
   })
 

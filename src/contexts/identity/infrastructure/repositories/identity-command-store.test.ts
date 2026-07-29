@@ -179,7 +179,9 @@ describe.sequential('identityCommandStore (integration)', () => {
         expiresAt: new Date('2026-06-08T12:00:00.000Z'),
         event: ghost,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type identity\.member\.ghost:v1 is not registered for the outbox/,
+    )
 
     const invitations = await pool.query(
       'SELECT id FROM invitation WHERE "organizationId" = $1',
@@ -449,7 +451,9 @@ describe.sequential('identityCommandStore (integration)', () => {
         now: NOW,
         event: ghost,
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(
+      /Event type identity\.organization\.ghost:v1 is not registered for the outbox/,
+    )
 
     const ghostOrgs = await pool.query('SELECT id FROM organization WHERE id = $1', [
       ghostOrgId,

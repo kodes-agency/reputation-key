@@ -192,7 +192,8 @@ describe('event constructors validate occurredAt', () => {
   })
 
   it('rejects a null occurredAt across the import-completed constructor', () => {
-    expect(() =>
+    let caught: unknown
+    try {
       integrationPropertyImportCompleted({
         importJobId: gbpImportJobId('job-1'),
         organizationId: organizationId('org-1'),
@@ -201,7 +202,15 @@ describe('event constructors validate occurredAt', () => {
         skippedCount: 0,
         failedCount: 0,
         occurredAt: null as unknown as Date,
-      }),
-    ).toThrow()
+      })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    if (isDomainError(caught)) {
+      expect(caught.code).toBe('assertion_failed')
+    } else {
+      expect.fail('expected a DomainError')
+    }
   })
 })

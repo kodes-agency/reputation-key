@@ -314,21 +314,21 @@ describe('draftReply', () => {
     const deps = makeDeps()
     await expect(
       draftReply(deps)({ reviewId: REVIEW_ID, text: '' }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_reply', _tag: 'ReviewError' })
   })
 
   it('rejects text exceeding max length', async () => {
     const deps = makeDeps()
     await expect(
       draftReply(deps)({ reviewId: REVIEW_ID, text: 'x'.repeat(4097) }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_reply', _tag: 'ReviewError' })
   })
 
   it('blocks staff role', async () => {
     const deps = makeDeps()
     await expect(
       draftReply(deps)({ reviewId: REVIEW_ID, text: 'Hi' }, STAFF_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'unauthorized', _tag: 'ReviewError' })
   })
 
   it('allows AccountAdmin role', async () => {
@@ -350,7 +350,7 @@ describe('draftReply', () => {
     })
     await expect(
       draftReply(deps)({ reviewId: REVIEW_ID, text: 'Edit' }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
   it('validates the re-draft transition via transitionReply (not an inline guard)', async () => {
@@ -496,7 +496,7 @@ describe('submitReply', () => {
     const deps = makeDeps()
     await expect(
       submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'reply_not_found', _tag: 'ReviewError' })
   })
 
   it('rejects submit from published status', async () => {
@@ -509,7 +509,7 @@ describe('submitReply', () => {
     })
     await expect(
       submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
   it('emits reviewReplySubmitted event with correct data', async () => {
@@ -605,7 +605,7 @@ describe('approveReply', () => {
     })
     await expect(
       approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
   it('emits reviewReplyApproved event with correct data', async () => {
@@ -858,7 +858,7 @@ describe('deleteReply', () => {
     })
     await expect(
       deleteReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 })
 
@@ -885,7 +885,12 @@ describe('getReply', () => {
 
   it('blocks staff role', async () => {
     const deps = makeDeps()
-    await expect(getReply(deps)({ reviewId: REVIEW_ID }, STAFF_CTX)).rejects.toThrow()
+    await expect(
+      getReply(deps)({ reviewId: REVIEW_ID }, STAFF_CTX),
+    ).rejects.toMatchObject({
+      code: 'unauthorized',
+      _tag: 'ReviewError',
+    })
   })
 
   // ── Tenant isolation ──────────────────────────────────────────────
@@ -963,7 +968,7 @@ describe('markReplyPublished', () => {
     })
     await expect(
       markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
   it('rejects if review not found', async () => {
@@ -979,7 +984,7 @@ describe('markReplyPublished', () => {
     })
     await expect(
       markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'review_not_found', _tag: 'ReviewError' })
   })
 })
 
@@ -1012,7 +1017,7 @@ describe('retryPublish', () => {
     })
     await expect(
       retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
   // BQC-3.8 §6: reconcile-before-retry — an ambiguous publication may have
