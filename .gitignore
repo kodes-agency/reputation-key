@@ -69,3 +69,5 @@ drizzle.bak/
 
 # Playwright E2E seed state (written by scripts/seed-e2e-user.ts)
 e2e/.seed-state.json
+# Playwright E2E worker/stub orchestration state (written by e2e/global-setup.ts)
+e2e/.orchestration-state.json

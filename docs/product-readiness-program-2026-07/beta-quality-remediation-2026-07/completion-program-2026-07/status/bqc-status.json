@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T00:39:36Z",
+  "updatedAt": "2026-07-29T04:20:12Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4 implementation_complete: Playwright diagnostics corrected — failure-retained trace/screenshot/video on the FIRST failing run (retries: 0 documented as the intentional choice, the on-first-retry mismatch resolved); CI uploads artifacts for critical and full failures; colocated route test renamed with the supported '-' opt-out; devtools console-pipe disabled in the e2e webServer so one client error cannot flood CI output (dev DX unchanged). Slices 6.5–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4: Playwright diagnostics corrected. 6.5 implementation_complete: critical enabled workflow suite — all 10 workflow items verified as meaningful transitions (24/24 critical green, 3+1 consecutive runs, ~56s) against a scripted GBP stub driven by the app's REAL adapters (production-honest endpoint-override seam, no fake adapters) with the real worker running. Five latent production defects surfaced and registered to owners (NOT fixed per ownership rules). Slices 6.6–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.5",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Critical enabled workflow suite",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "All 10 workflow items verified as MEANINGFUL transitions with persisted state (17 new specs + existing 7 = 24/24 critical green; determinism proven ×3 + once by the parent; ~56s). Architecture: (a) scripted GBP stub (e2e/fixtures/gbp-stub.ts, dep-free) serving the exact adapter surface with programmable reply modes + call recording; (b) production-honest override seam — 6 optional endpoint env vars (GBP_API_BASE_URL et al.) applied once at container build, byte-identical passthrough when absent, composition.test.ts +3; the app runs its REAL adapters against the stub (no fake adapters, no test-only code in the bundle); (c) globalSetup spawns stub + real worker (dev:worker) + a second locked-posture webServer (:3001, BETA_E2E_GLOBAL_CAPABILITIES empty = beta's invite-only posture) — zero CI workflow changes; (d) fixtures (AES-256-GCM connection seeds matching the encryption adapter, staff+grant seeds with operator provenance, seroval RPC codec for server fns, prefix-scoped cleanup). Items: (1) locked posture: unauth→/login, /register→/login AND registerUserAndOrg denies with no user row; (2) staff scoped to granted property, wrong-property 403 without leak, grant source='operator'; (3) import→worker creates properties→initial sync lands reviews + inbox items; (4) SLO DEFINED in-test (none existed): projection ≤10s from enqueue, linked source_id, content-free at rest (snippet/rating/reviewer NULL); (5) UI triage status/assign/note/escalate/resolve persisted across reload; (6) reply lifecycle: (a) draft→edit→submit→approve→published (1 upsert, final text), (b) transient 500→retryQueued→BullMQ retry→published (2 PUTs, recovered state asserted), (c) terminal 403→publish_failed, 1 PUT, retry does NOT heal, (d) ambiguous + provider-truth→inline reconcile heals with zero resends; (7) disconnect→review+reply purged, zero stub upserts after drain (queued publish dies at claim guard); (8) expired content unavailable in list/detail/dashboard, purge job removes rows (replies cascade, inbox item closes); (9) staff dashboard governed + expiry-clean + reply-redacted vs admin control; (10) activity/notification facts without review text/reviewer name at rest and in the UI. REGISTERED FINDINGS (owners, NOT fixed): F-3.8a disconnect cancellation never executes — the BQC-3.2 consumer gate denies review.event-handlers missing_scope on the propertyId-less integration.google_account.disconnected event, so cancelPublicationsForConnection never runs (safety holds only via the BQC-1.7 purge + claim guard) [BQC-3]; F-REV retryPublish cannot recover an exhausted-transient reply (approved→approved transition rejected; only ops quarantine redrive recovers) [BQC-1/Review]; F-STAFF the member role has no working governed UI surface (/properties/* property.admin-gated; /home breaks on staff_assignment.read absent from memberRole + dark capabilities) [Identity/Staff/Dashboard]; F-UI integrations-page Disconnect button produces no mutation request [Integration]; F-INBOX assignInboxItemFn validates assignedToUserId as uuid but better-auth user ids are nanoids — real users can never be assignment targets [Inbox/Identity]. Gates: critical e2e 24/24 ×4, unit 386f/4274t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.4",

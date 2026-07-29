@@ -121,6 +121,20 @@ const envSchema = z.object({
   // the only APPROVED beta cell; a worker declaring any other cell
   // quarantines every routed job it receives (wrong-cell, fail closed).
   PROCESSING_CELL: z.string().min(1).default('us'),
+  // ── BQC-6.5: operator sandbox seam (optional provider endpoint overrides) ──
+  // Explicit per-endpoint overrides applied ONCE at container build on top of
+  // the cell's approved provider endpoints (composition.ts
+  // applyProviderEndpointOverrides). Legitimate operator use: point a sandbox
+  // deployment at a provider stub/sandbox instead of production Google. Every
+  // override ABSENT = the approved 'gbp-default' endpoints, byte-identical to
+  // the pre-seam behavior. These are endpoint URLs only — the app still runs
+  // its REAL adapters against whatever they point at (no fake injection).
+  GBP_API_BASE_URL: z.url().optional(),
+  GBP_REVIEWS_API_BASE_URL: z.url().optional(),
+  GBP_NOTIFICATIONS_API_BASE_URL: z.url().optional(),
+  GOOGLE_OAUTH_TOKEN_URL: z.url().optional(),
+  GOOGLE_OAUTH_USERINFO_URL: z.url().optional(),
+  GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
