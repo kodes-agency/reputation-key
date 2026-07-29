@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T00:16:03Z",
+  "updatedAt": "2026-07-29T00:39:36Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -862,7 +862,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["STD-P1-05", "SPEC-P1-03", "STD-P2-06"],
       "exceptions": [],
-      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3 implementation_complete: one authoritative component gate — the legacy test-runner (the ONLY runner that can enforce the a11y test:'error' config — measured: addon-a11y's hard throw is gated on VITEST_STORYBOOK==='false', which this repo's vitest script must set to true; the doc's escape clause) now runs with --failOnConsole; the vitest browser project stays as dev/MCP tooling, not a gate. All 4 named defects fixed at root (InboxDetailContent mock crash, state-during-render, 395 circular story args, CSS import order). New critical stories: staff-home (populated/loading/empty/error — was zero-story), inbox detail expired/not_found, fleet denied-redirect. Slices 6.4–6.9 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "6.1: hermetic test environment. 6.2: client/runtime error detection. 6.3: one authoritative component gate. 6.4 implementation_complete: Playwright diagnostics corrected — failure-retained trace/screenshot/video on the FIRST failing run (retries: 0 documented as the intentional choice, the on-first-retry mismatch resolved); CI uploads artifacts for critical and full failures; colocated route test renamed with the supported '-' opt-out; devtools console-pipe disabled in the e2e webServer so one client error cannot flood CI output (dev DX unchanged). Slices 6.5–6.9 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-6.4",
+      "kind": "slice",
+      "parentId": "BQC-6",
+      "title": "Correct Playwright diagnostics",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) retries: 0 kept as the DOCUMENTED intentional choice (suite deterministic per 6.1/6.2; no independently-justified infra instability; a retry would mask real defects) with the on-first-retry mismatch resolved: trace/screenshot/video now 'retain-on-failure'/'only-on-failure' with explicit outputDir test-results. Deliberate-failure proof: trace.zip + test-failed-1.png + video.webm + error-context.md on the FIRST and only attempt; green runs leave only .last-run.json. (2) CI uploads artifacts for BOTH projects: e2e-artifacts-critical (if: failure(), placed before the full run because Playwright empties outputDir at run start) and e2e-artifacts-full (keyed off the step outcome — if: failure() never fires under continue-on-error; commented). (3) Colocated route test renamed notifications.test.ts → -notifications.test.ts (supported '-' opt-out, explicit; vitest still matches, 6/6 green; routeTree was already clean). (4) Web-server logs finite/non-recursive: the @tanstack/devtools-vite console-pipe (browser console → server stdout mirror; accidentally injected via the createRootRouteWithContext name match — verified) is disabled under E2E=1 via the supported consolePiping option; the Playwright webServer sets E2E=1 itself. Proof: pipe ON → POST /__tsd/console-pipe + [Client] lines; pipe OFF → zero __tsd traffic, zero [Client] lines, whole green-run output 49 lines. Dev DX unchanged (plain pnpm dev keeps the pipe). Gates: unit 386f/4271t, renamed-test 6/6, green critical e2e 7/7 (local, seeded), typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-6.3",

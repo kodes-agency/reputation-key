@@ -244,10 +244,36 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - name: Run critical e2e (hard gate — BQR-5.1)
         run: pnpm test:e2e --project=critical
+      # BQC-6.4: retain failure diagnostics (trace/screenshot/video, written to
+      # test-results/ only by failed tests). `if: failure()` is correct HERE:
+      # the critical run has no continue-on-error, so its failure fails the job
+      # and this fires. Playwright empties outputDir at the start of each run,
+      # so this must upload before the full suite runs.
+      - name: Upload critical e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-artifacts-critical
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Run full e2e suite (soft residual — BQR-5.2)
         id: e2e_full
         continue-on-error: true
         run: pnpm test:e2e --project=full
+      # BQC-6.4: the full suite has continue-on-error, so its failure does NOT
+      # fail the job and `if: failure()` would never fire — gate on the step
+      # outcome instead. (If the critical gate already failed, the full run is
+      # skipped, outcome is not 'failure', and the critical upload above owns
+      # the artifacts.)
+      - name: Upload full e2e failure artifacts
+        if: steps.e2e_full.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-artifacts-full
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Soft-gate residual e2e
         run: |
           if [ "${{ steps.e2e_full.outcome }}" = "success" ]; then
