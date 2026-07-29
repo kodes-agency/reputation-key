@@ -1818,7 +1818,10 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:health.check',
     'none',
     'none',
-    { notes: 'combined DB+Redis readiness (legacy-compatible)' },
+    {
+      notes:
+        'combined DB+Redis+migrations+policy readiness (legacy-compatible shape — fields added, never removed)',
+    },
   ),
   api(
     '/api/health/live',
@@ -1826,7 +1829,7 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:health.check',
     'none',
     'none',
-    { notes: 'process liveness probe' },
+    { notes: 'process liveness probe — dependency-free by pin test' },
   ),
   api(
     '/api/health/ready',
@@ -1834,7 +1837,21 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:health.check',
     'none',
     'none',
-    { notes: 'DB+Redis readiness probe' },
+    {
+      notes:
+        'DB+Redis+migration-journal+policy readiness probe; 2s per-probe budget; 503 on any degradation; worker heartbeat deliberately excluded (BQC-7.2)',
+    },
+  ),
+  api(
+    '/api/health/started',
+    `${ROUTES}/api/health/started.ts`,
+    'system:health.check',
+    'none',
+    'none',
+    {
+      notes:
+        'startup probe: container built + migrations match + policy readable; platform activation gate (railway.json healthcheckPath; activation ≠ liveness)',
+    },
   ),
   api(
     '/api/health/metrics',
@@ -1842,7 +1859,11 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:health.check',
     'none',
     'none',
-    { notes: 'ops metrics: outbox lag, queue depths, worker heartbeat; no-store' },
+    {
+      principals: ['operator'],
+      notes:
+        'ops metrics: outbox lag, queue depths, worker heartbeat; no-store; PRIVATE — OPS_METRICS_TOKEN gate (x-ops-token / Bearer), 404 not 403 on absent env or wrong/missing token (BQC-7.2)',
+    },
   ),
   api(
     '/api/portals/$id/qr',

@@ -29,6 +29,13 @@ const envSchema = z.object({
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
 
+  // BQC-7.2: operator token gating /api/health/metrics (private ops
+  // diagnostics). Optional in the SCHEMA on purpose — the fail-closed posture
+  // lives at the route: absent env → the endpoint 404s (stays dark) instead
+  // of crashing boot. Operationally REQUIRED in production (Railway service
+  // variable). Generate: openssl rand -hex 32
+  OPS_METRICS_TOKEN: z.string().min(32).optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 

@@ -22,7 +22,12 @@
 # Deploy contract (railway.json):
 #   - preDeployCommand: `node dist-worker/migrate-deploy.js` (advisory-locked,
 #     idempotent migration trio; see scripts/migrate-deploy.ts header)
-#   - healthcheck: GET /api/health/live (healthcheckTimeout 30s)
+#   - healthcheck: GET /api/health/started (healthcheckTimeout 30s) — BQC-7.2:
+#     the platform activation gate consumes STARTUP semantics (container +
+#     migrations + policy complete), NOT liveness. Activation ≠ liveness:
+#     /api/health/live stays dependency-free and backs the container-level
+#     HEALTHCHECK below (a post-activation dependency flap degrades readiness
+#     but must never restart the process).
 #   - numReplicas 1, restart ON_FAILURE×10, drainingSeconds 30 (> web drain)
 #   - region: platform/dashboard setting, deliberately not pinned in code
 #     (ADR 0048 single 'us' cell: us-west2 / us-east4-eqdc4a)
@@ -82,12 +87,16 @@ COPY --from=build /app/.output ./.output
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY package.json ./
-# Predeploy migration inputs (read by dist-worker/migrate-deploy.js):
+# Predeploy migration inputs (read by dist-worker/migrate-deploy.js); the
+# journal is ALSO read at runtime by the readiness/startup migration check
+# (src/shared/health/readiness.ts anchors it at cwd = /app here):
 COPY drizzle ./drizzle
 COPY scripts/migrations/2026-07-06-permission-version-triggers.sql \
      scripts/migrations/2026-07-06-permission-version-triggers.sql
 USER node
 EXPOSE 3000
+# Container-level HEALTHCHECK stays on /api/health/live (continuous LIVENESS
+# → restart posture); the platform activation gate is /api/health/started.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.NITRO_PORT||process.env.PORT||3000)+'/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", ".output/server/index.mjs"]

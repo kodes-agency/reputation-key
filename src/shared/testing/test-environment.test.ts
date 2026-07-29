@@ -9,6 +9,7 @@ import { getEnv, resetEnv } from '#/shared/config/env'
 import {
   testEnvironment,
   DEFAULT_TEST_DATABASE_URL,
+  DEFAULT_TEST_OPS_METRICS_TOKEN,
   DEFAULT_TEST_REDIS_URL,
 } from './test-environment'
 
@@ -35,6 +36,7 @@ describe('testEnvironment (BQC-6.1)', () => {
       ENCRYPTION_KEY: 'a'.repeat(64),
       OAUTH_STATE_SECRET: 'ab'.repeat(32),
       REDIS_URL: DEFAULT_TEST_REDIS_URL,
+      OPS_METRICS_TOKEN: DEFAULT_TEST_OPS_METRICS_TOKEN,
     })
   })
 
@@ -70,11 +72,13 @@ describe('testEnvironment (BQC-6.1)', () => {
       GOOGLE_CLIENT_ID: 'real-dev-client-id',
       GOOGLE_CLIENT_SECRET: 'real-dev-client-secret',
       ENCRYPTION_KEY: 'b'.repeat(64),
+      OPS_METRICS_TOKEN: 'shell-provided-ops-token-0123456789abcdef',
     })
     expect(env.REDIS_URL).toBe('redis://localhost:6380')
     expect(env.GOOGLE_CLIENT_ID).toBe('real-dev-client-id')
     expect(env.GOOGLE_CLIENT_SECRET).toBe('real-dev-client-secret')
     expect(env.ENCRYPTION_KEY).toBe('b'.repeat(64))
+    expect(env.OPS_METRICS_TOKEN).toBe('shell-provided-ops-token-0123456789abcdef')
   })
 })
 
