@@ -42,6 +42,13 @@ const envSchema = z.object({
   RELEASE_SHA: z.string().min(1).optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
 
+  // BQC-7.4: optional operator webhook for alert dispatch (the alert
+  // routing wiring point — e.g. an incident-management inbound hook).
+  // ABSENT = log-only dispatch: the schema-conformant error-level ALERT log
+  // line is the always-on durable signal; the webhook is best-effort on top
+  // (3s timeout, fire-and-log-on-failure, never throws into the evaluator).
+  ALERT_WEBHOOK_URL: z.url().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 

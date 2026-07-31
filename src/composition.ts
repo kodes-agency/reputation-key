@@ -32,6 +32,7 @@ import { createJobRegistry } from '#/shared/jobs/registry'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
@@ -601,6 +602,14 @@ export function createContainer(options?: {
     clock,
     opsQueues,
     operationsSnapshot,
+    // BQC-7.4: the alert dispatch port — composition-owned so the
+    // health-check job (and any future evaluation point) shares the ONE
+    // dispatcher (error-level ALERT log + optional ALERT_WEBHOOK_URL POST).
+    alertDispatcher: createAlertDispatcher({
+      logger,
+      clock,
+      webhookUrl: env.ALERT_WEBHOOK_URL,
+    }),
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,

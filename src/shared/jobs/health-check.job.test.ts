@@ -1,11 +1,6 @@
 // Tests for health-check background job
 import { describe, it, expect, vi } from 'vitest'
-import {
-  createHealthCheckHandler,
-  OLDEST_UNPUBLISHED_WARN_MS,
-  OLDEST_QUARANTINED_WARN_MS,
-  type HealthCheckDeps,
-} from './health-check.job'
+import { createHealthCheckHandler, type HealthCheckDeps } from './health-check.job'
 import pino from 'pino'
 
 function createMockDeps(
@@ -116,98 +111,6 @@ describe('createHealthCheckHandler', () => {
     expect(result.db).toBe(true)
     expect(result.redis).toBe(true)
   })
-})
-
-describe('health-check ops thresholds (BQC-3.7)', () => {
-  it('declares the alert thresholds as named constants', () => {
-    // Relay polls every 5s — 15min unpublished means relay down or backlog.
-    expect(OLDEST_UNPUBLISHED_WARN_MS).toBe(15 * 60 * 1000)
-    // Operator redrive SLA for the dead-letter quarantine.
-    expect(OLDEST_QUARANTINED_WARN_MS).toBe(24 * 60 * 60 * 1000)
-  })
-
-  function depsWithSample(sample: {
-    oldestUnpublishedAgeMs: number | null
-    stalledLeaseCount: number
-    quarantineCount: number
-    oldestQuarantinedAgeMs: number | null
-  }) {
-    const logger = pino({ level: 'silent' })
-    const warn = vi.spyOn(logger, 'warn')
-    const deps: HealthCheckDeps = {
-      ...createMockDeps(),
-      logger,
-      sampleOpsMetrics: vi.fn(async () => sample),
-    }
-    return { deps, warn }
-  }
-
-  it('warns when every threshold is breached', async () => {
-    const { deps, warn } = depsWithSample({
-      oldestUnpublishedAgeMs: 16 * 60 * 1000,
-      stalledLeaseCount: 2,
-      quarantineCount: 1,
-      oldestQuarantinedAgeMs: 25 * 60 * 60 * 1000,
-    })
-    const handler = createHealthCheckHandler(deps)
-    const result = await handler({ id: '1', data: {} } as never)
-
-    const metrics = warn.mock.calls.map((c) => (c[0] as { metric?: string }).metric)
-    expect(metrics).toEqual(
-      expect.arrayContaining([
-        'oldestUnpublishedAgeMs',
-        'stalledLeaseCount',
-        'quarantineCount',
-        'oldestQuarantinedAgeMs',
-      ]),
-    )
-    expect(result.opsMetrics).toBeDefined()
-  })
-
-  it('stays quiet when all metrics are under threshold', async () => {
-    const { deps, warn } = depsWithSample({
-      oldestUnpublishedAgeMs: 60 * 1000,
-      stalledLeaseCount: 0,
-      quarantineCount: 0,
-      oldestQuarantinedAgeMs: null,
-    })
-    const handler = createHealthCheckHandler(deps)
-    await handler({ id: '1', data: {} } as never)
-
-    expect(warn).not.toHaveBeenCalled()
-  })
-
-  it('warns only for the breached threshold (boundary inclusive of null ages)', async () => {
-    const { deps, warn } = depsWithSample({
-      oldestUnpublishedAgeMs: null, // nothing unpublished — no age warning
-      stalledLeaseCount: 1,
-      quarantineCount: 0,
-      oldestQuarantinedAgeMs: 60 * 1000,
-    })
-    const handler = createHealthCheckHandler(deps)
-    await handler({ id: '1', data: {} } as never)
-
-    const metrics = warn.mock.calls.map((c) => (c[0] as { metric?: string }).metric)
-    expect(metrics).toEqual(['stalledLeaseCount'])
-  })
-
-  it('survives a sampling failure (warns, still reports healthy)', async () => {
-    const logger = pino({ level: 'silent' })
-    const warn = vi.spyOn(logger, 'warn')
-    const deps: HealthCheckDeps = {
-      ...createMockDeps(),
-      logger,
-      sampleOpsMetrics: vi.fn(async () => {
-        throw new Error('db read failed')
-      }),
-    }
-    const handler = createHealthCheckHandler(deps)
-    const result = await handler({ id: '1', data: {} } as never)
-
-    expect(result.db).toBe(true)
-    expect(warn).toHaveBeenCalledOnce()
-    expect(warn.mock.calls[0]![1]).toMatch(/ops metrics/i)
-  })
 
   it('logs queue depths when the reader is wired (domain-events + quarantine included)', async () => {
     const logger = pino({ level: 'silent' })
@@ -238,5 +141,24 @@ describe('health-check ops thresholds (BQC-3.7)', () => {
     )
     expect(names).toContain('domain-events')
     expect(names).toContain('quarantine')
+  })
+
+  it('skips alert evaluation when the 7.4 wiring is only partially present', async () => {
+    // All four 7.4 deps are required; a partial wiring must not evaluate.
+    const logger = pino({ level: 'silent' })
+    const warn = vi.spyOn(logger, 'warn')
+    const deps: HealthCheckDeps = {
+      ...createMockDeps(),
+      logger,
+      readOperationsSnapshot: vi.fn(async () => {
+        throw new Error('must not be called')
+      }),
+    }
+    const handler = createHealthCheckHandler(deps)
+    const result = await handler({ id: '1', data: {} } as never)
+
+    expect(result.db).toBe(true)
+    expect(result.alerts).toBeUndefined()
+    expect(warn).not.toHaveBeenCalled()
   })
 })

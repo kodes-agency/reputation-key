@@ -1,0 +1,474 @@
+// BQC-7.4 — alert definitions: the ONE registry of operational alerts.
+//
+// Every alert the platform can raise is defined here with owner, severity
+// (ADR 0038's P0–P3 taxonomy), threshold/window, and a runbook link (the
+// ADR 0038 rule: "every alert links to a runbook"). `evaluate` is a PURE
+// function over the OperationsSnapshot (BQC-7.3) plus a narrow aux-reads
+// object — unit-testable without DB/Redis; the health-check job gathers the
+// inputs and owns all I/O (state store, dispatch).
+//
+// Scope honesty (phase doc: "Every alert must be injected at least once
+// before BQC-8 acceptance"):
+//   - Signals the platform cannot observe about itself are REGISTERED here
+//     with `implemented: false` and `evaluate: null` — web.availability (a
+//     self-reported availability probe is circular; the external synthetic
+//     probe that also covers the latency SLO is BQC-8's staging concern),
+//     backup.pitr (BQC-7.8 owns backup/PITR), security.scan (BQC-7.7 owns
+//     the scan gates). Their injection happens when those slices land.
+//   - "Multi-window/burn-rate where traffic supports it": beta traffic does
+//     not support burn-rate math. Windows here are the honest impact proxies
+//     (age thresholds, a 1h denial window, sustained-waiting pool pressure)
+//     — no alert pages on a raw count without an impact reading.
+//
+// Thresholds are named exported constants so the injection suite pins the
+// exact contract.
+
+import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+
+// ── Types ──────────────────────────────────────────────────────────
+
+/** ADR 0038 severity taxonomy. */
+export type AlertSeverity = 'P0' | 'P1' | 'P2' | 'P3'
+
+/**
+ * The dispatch payload contract — every field is content-free (ADR 0030):
+ * stable names, enums, numbers, and the runbook anchor. No tenant or entity
+ * identifiers ever appear here (the 7.3 banned-key policy is asserted over
+ * every dispatched field in the injection suite).
+ */
+export type AlertEvent = Readonly<{
+  name: string
+  severity: AlertSeverity
+  owner: string
+  /** runbooks.md section anchor (§N). */
+  runbook: string
+  /** The measured signal at evaluation time (units per definition). */
+  value: number
+  /** The breached threshold (same units as value). */
+  threshold: number
+  /** The window the threshold is judged over (ms). */
+  windowMs: number
+  /** Content-free human summary for the log line / webhook payload. */
+  detail: string
+}>
+
+/**
+ * Auxiliary reads the OperationsSnapshot does not carry — gathered once per
+ * health-check run (5-min cadence) by the job wiring (observability
+ * alert-aux-reads.ts). All content-free aggregates.
+ */
+export type AlertAuxReads = Readonly<{
+  /** retention_runs subjects whose LATEST run failed (subject names only). */
+  retentionFailedSubjects: readonly string[]
+  /** policy_decision_audit denials in the trailing drift window, by reason. */
+  policyDenialsByReason: Readonly<Record<string, number>>
+  /** Quarantined envelopes carrying a region-attempt policyReason, by reason. */
+  routingBlockedByReason: Readonly<Record<string, number>>
+}>
+
+export type AlertDefinition = Readonly<{
+  name: string
+  owner: string
+  severity: AlertSeverity
+  /** runbooks.md anchor (§N). */
+  runbook: string
+  /** Window the threshold is judged over (ms). */
+  windowMs: number
+  /** Breach threshold in the definition's value units. */
+  threshold: number
+  /**
+   * false = registered with owner/severity/runbook but the signal source
+   * lands in a later slice (evaluate: null — nothing may dispatch it).
+   */
+  implemented: boolean
+  /** Pure evaluation; null exactly when implemented is false. */
+  evaluate:
+    | ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null)
+    | null
+}>
+
+// ── Thresholds (named, deliberate) ─────────────────────────────────
+
+/**
+ * Stale = missing or older than 2× the 5-min health-check cadence — the same
+ * semantic as the worker-heartbeat reader (BQR-6.2). Evaluated inside the
+ * worker's own health-check run, this catches Redis loss / heartbeat-write
+ * failure (the read degrades to stale); a fully-dead worker runs no
+ * evaluation at all — that case is the external probe's job (BQC-8, see
+ * web.availability + the /api/health/metrics heartbeat field, BQC-7.2).
+ */
+export const WORKER_HEARTBEAT_STALE_ALERT_MS = 10 * 60 * 1000
+
+/** The relay polls every 5s; an unpublished event older than 15min means the
+ *  relay is down, Redis is unreachable, or a backlog is growing. */
+export const OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS = 15 * 60 * 1000
+
+/** A quarantined (dead-lettered) job should get an operator redrive decision
+ *  within a day; older than 24h means the dead letter is being ignored. */
+export const QUARANTINE_REDRIVE_SLA_ALERT_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Source freshness approaching the policy deadline: fire when the nearest
+ * hard expiry among refresh-due rows is under 2 days away — the operator
+ * still has room to act before content hard-expires (BQC-1.5 signal).
+ */
+export const SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS = 2 * 24 * 60 * 60
+
+/** An ambiguous reply publication past reconcile_due by more than 15min —
+ *  the 30-min reconcile sweep should have picked it up. */
+export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
+
+/**
+ * Deployment-drift signal: denials in the trailing hour above this count
+ * indicate a mis-deployed policy/config, not organic traffic. STARTING POINT
+ * — tune with real beta traffic (the 1h window + threshold is the impact
+ * proxy; the phase doc forbids paging on raw counts without impact).
+ */
+export const POLICY_DENIAL_DRIFT_THRESHOLD = 50
+export const POLICY_DENIAL_DRIFT_WINDOW_MS = 60 * 60 * 1000
+
+/** The health-check evaluation cadence (the job's 5-min schedule). */
+const EVAL_CADENCE_MS = 5 * 60 * 1000
+
+/** The one escalation owner (runbooks.md). */
+const OWNER = 'Bozhidar Denev'
+
+/**
+ * Wrong/unresolved region attempts (phase doc): the delayed-execution gate's
+ * region-deny quarantine reasons. `routing_blocked:property_missing` is a
+ * data problem, not a region attempt, and stays out of this alert.
+ */
+export const REGION_ATTEMPT_REASONS = [
+  'routing_blocked:region_denied',
+  'routing_blocked:region_unresolved',
+  'wrong_cell',
+] as const
+
+// ── Definition helper ──────────────────────────────────────────────
+
+/** The per-evaluation reading a definition produces when it breaches. */
+type AlertReading = Readonly<{ value: number; detail: string }>
+
+/**
+ * Build an implemented definition: the static identity (name/severity/
+ * runbook/threshold/window) is declared once; `read` returns only the
+ * measured value + detail on breach. The wrapped evaluate assembles the
+ * full dispatch event.
+ */
+function define(
+  def: Readonly<{
+    name: string
+    severity: AlertSeverity
+    runbook: string
+    windowMs: number
+    threshold: number
+    read: (snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertReading | null
+  }>,
+): AlertDefinition {
+  const { read, ...statics } = def
+  return {
+    ...statics,
+    owner: OWNER,
+    implemented: true,
+    evaluate: (snapshot, aux) => {
+      const reading = read(snapshot, aux)
+      if (reading === null) return null
+      return { ...statics, owner: OWNER, value: reading.value, detail: reading.detail }
+    },
+  }
+}
+
+/** Registered-but-not-yet-implemented definition (later-slice signal). */
+function registered(
+  def: Readonly<{
+    name: string
+    severity: AlertSeverity
+    runbook: string
+    windowMs: number
+    threshold: number
+  }>,
+): AlertDefinition {
+  return { ...def, owner: OWNER, implemented: false, evaluate: null }
+}
+
+function sumReasons(byReason: Readonly<Record<string, number>>): number {
+  return Object.values(byReason).reduce((a, b) => a + b, 0)
+}
+
+function reasonSplit(byReason: Readonly<Record<string, number>>): string {
+  return Object.entries(byReason)
+    .map(([reason, count]) => `${reason}=${count}`)
+    .join(', ')
+}
+
+// ── Definitions ────────────────────────────────────────────────────
+
+export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
+  // ── web/worker availability and latency ──
+  define({
+    name: 'worker.heartbeat.stale',
+    severity: 'P1',
+    runbook: 'runbooks.md §7',
+    windowMs: WORKER_HEARTBEAT_STALE_ALERT_MS,
+    threshold: WORKER_HEARTBEAT_STALE_ALERT_MS,
+    read: (snapshot) => {
+      const hb = snapshot.workers.heartbeat
+      if (
+        !hb.stale &&
+        (hb.ageMs == null || hb.ageMs <= WORKER_HEARTBEAT_STALE_ALERT_MS)
+      ) {
+        return null
+      }
+      // -1 marks "no heartbeat recorded" (the value stays a finite number).
+      return {
+        value: hb.ageMs ?? -1,
+        detail:
+          hb.ageMs == null
+            ? 'worker heartbeat missing — worker down or Redis unreachable'
+            : `worker heartbeat age ${hb.ageMs}ms exceeds ${WORKER_HEARTBEAT_STALE_ALERT_MS}ms`,
+      }
+    },
+  }),
+  // NOT self-reportable: a process reporting its own availability is
+  // circular. The external synthetic probe (uptime monitor hitting the
+  // deployed web service — it also measures the ADR 0038 p95 ≤ 750ms
+  // latency SLO from outside) is BQC-8's staging concern. Registered here
+  // so the alert surface is complete and honest about the signal source.
+  registered({
+    name: 'web.availability',
+    severity: 'P1',
+    runbook: 'runbooks.md §12',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+  }),
+
+  // ── queue oldest age and stalled/quarantine growth ──
+  define({
+    name: 'queue.oldest-age',
+    severity: 'P2',
+    runbook: 'runbooks.md §7',
+    windowMs: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
+    threshold: OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
+    read: (snapshot) => {
+      const age = snapshot.outbox.oldestUnpublishedAgeMs
+      if (age == null || age <= OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS) return null
+      return {
+        value: age,
+        detail: `oldest unpublished outbox event is ${age}ms old (threshold ${OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS}ms) — relay down or backlog growing`,
+      }
+    },
+  }),
+  // Single-evaluation honesty: a stalled lease (claim held beyond 2× its
+  // lease without publishing) IS the impact — work stopped mid-flight — not
+  // a raw count. No multi-eval sustainment required.
+  define({
+    name: 'queue.stalled',
+    severity: 'P2',
+    runbook: 'runbooks.md §7',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const count = snapshot.outbox.stalledLeaseCount
+      if (count <= 0) return null
+      return {
+        value: count,
+        detail: `${count} stalled outbox lease(s) — claim(s) held beyond 2x lease without publishing`,
+      }
+    },
+  }),
+  define({
+    name: 'queue.quarantine-growth',
+    severity: 'P2',
+    runbook: 'runbooks.md §4',
+    windowMs: QUARANTINE_REDRIVE_SLA_ALERT_MS,
+    threshold: QUARANTINE_REDRIVE_SLA_ALERT_MS,
+    read: (snapshot) => {
+      const q = snapshot.quarantine
+      if (q == null || q.count <= 0) return null
+      if (q.oldestAgeMs == null || q.oldestAgeMs <= QUARANTINE_REDRIVE_SLA_ALERT_MS)
+        return null
+      return {
+        value: q.oldestAgeMs,
+        detail: `oldest of ${q.count} quarantined job(s) is ${q.oldestAgeMs}ms old — past the 24h operator redrive SLA`,
+      }
+    },
+  }),
+
+  // ── Google/source freshness approaching the policy deadline ──
+  define({
+    name: 'source.freshness-deadline',
+    severity: 'P1',
+    runbook: 'runbooks.md §3',
+    windowMs: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS * 1000,
+    threshold: SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
+    read: (snapshot) => {
+      const { refreshDueCount, oldestDueAgeSeconds } = snapshot.reviews
+      // oldestDueAgeSeconds counts DOWN toward the hard expiry — the breach
+      // direction is reversed (below the mark = approaching the deadline).
+      if (refreshDueCount <= 0) return null
+      if (oldestDueAgeSeconds == null) return null
+      if (oldestDueAgeSeconds >= SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS) return null
+      return {
+        value: oldestDueAgeSeconds,
+        detail: `${refreshDueCount} refresh-due review(s); nearest hard expiry in ${oldestDueAgeSeconds}s — under the ${SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS}s action mark`,
+      }
+    },
+  }),
+
+  // ── purge/retention failure ──
+  // The retention sweep runs daily; the signal is the LATEST run per
+  // subject — one failed sweep must page before the next one is due.
+  define({
+    name: 'retention.failure',
+    severity: 'P1',
+    runbook: 'runbooks.md §8',
+    windowMs: 24 * 60 * 60 * 1000,
+    threshold: 0,
+    read: (_snapshot, aux) => {
+      const failed = aux.retentionFailedSubjects
+      if (failed.length === 0) return null
+      return {
+        value: failed.length,
+        detail: `latest retention run failed for: ${failed.join(', ')}`,
+      }
+    },
+  }),
+
+  // ── publication ambiguity ──
+  define({
+    name: 'reply.ambiguous-aging',
+    severity: 'P2',
+    runbook: 'runbooks.md §6',
+    windowMs: REPLY_AMBIGUOUS_ALERT_MS,
+    threshold: REPLY_AMBIGUOUS_ALERT_MS,
+    read: (snapshot) => {
+      const { counts, oldestAmbiguousAgeMs } = snapshot.replyPublication
+      if ((counts.ambiguous ?? 0) <= 0) return null
+      if (
+        oldestAmbiguousAgeMs == null ||
+        oldestAmbiguousAgeMs <= REPLY_AMBIGUOUS_ALERT_MS
+      ) {
+        return null
+      }
+      return {
+        value: oldestAmbiguousAgeMs,
+        detail: `oldest ambiguous reply publication is ${oldestAmbiguousAgeMs}ms past reconcile_due — the 30-min reconcile sweep is not keeping up`,
+      }
+    },
+  }),
+
+  // ── wrong/unresolved region attempts ──
+  // Point-in-time read of the quarantine content at each evaluation; the
+  // quarantine is operator-drained, so presence = an unactioned attempt.
+  define({
+    name: 'routing.region-attempts',
+    severity: 'P2',
+    runbook: 'runbooks.md §12',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (_snapshot, aux) => {
+      const total = sumReasons(aux.routingBlockedByReason)
+      if (total <= 0) return null
+      return {
+        value: total,
+        detail: `${total} wrong/unresolved region attempt(s) quarantined (${reasonSplit(aux.routingBlockedByReason)})`,
+      }
+    },
+  }),
+
+  // ── repeated policy/config denial indicating deployment drift ──
+  define({
+    name: 'policy.denial-drift',
+    severity: 'P2',
+    runbook: 'runbooks.md §9',
+    windowMs: POLICY_DENIAL_DRIFT_WINDOW_MS,
+    threshold: POLICY_DENIAL_DRIFT_THRESHOLD,
+    read: (_snapshot, aux) => {
+      const total = sumReasons(aux.policyDenialsByReason)
+      if (total <= POLICY_DENIAL_DRIFT_THRESHOLD) return null
+      return {
+        value: total,
+        detail: `${total} policy denials in the last hour (threshold ${POLICY_DENIAL_DRIFT_THRESHOLD}) — possible deployment drift (${reasonSplit(aux.policyDenialsByReason)})`,
+      }
+    },
+  }),
+
+  // ── DB/Redis capacity/connection exhaustion ──
+  // Sustained waiting = requests queue behind a saturated pool — the
+  // connection-exhaustion impact signal (evaluated each cadence). Redis
+  // capacity/loss surfaces through worker.heartbeat.stale (§7).
+  define({
+    name: 'db.pool-exhaustion',
+    severity: 'P1',
+    runbook: 'runbooks.md §8',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const pool = snapshot.db.pool
+      if (pool == null || pool.waitingCount <= 0) return null
+      return {
+        value: pool.waitingCount,
+        detail: `${pool.waitingCount} connection request(s) queued behind a saturated pool (${pool.totalCount}/${pool.max} in use)`,
+      }
+    },
+  }),
+
+  // ── backup/PITR failure + security scan/secret detection failure ──
+  // BQC-7.8 owns the backup/PITR signal source (platform-side backup status
+  // is not readable from the app today; RPO ≤ 15min per ADR 0038).
+  // Registered so the alert surface is complete; injection lands with 7.8.
+  registered({
+    name: 'backup.pitr',
+    severity: 'P3',
+    runbook: 'runbooks.md §8',
+    windowMs: 24 * 60 * 60 * 1000,
+    threshold: 0,
+  }),
+  // BQC-7.7 owns the supply-chain/secret-detection hard gates; a scan
+  // failure signal is not emitted into the app's evaluation path today.
+  // Registered so the alert surface is complete; injection lands with 7.7.
+  registered({
+    name: 'security.scan',
+    severity: 'P2',
+    runbook: 'runbooks.md §9',
+    windowMs: 24 * 60 * 60 * 1000,
+    threshold: 0,
+  }),
+]
+
+/** Names of the alerts the health-check job evaluates and tracks state for. */
+export function implementedAlertNames(): readonly string[] {
+  return ALERT_DEFINITIONS.filter((d) => d.implemented).map((d) => d.name)
+}
+
+export type AlertEvaluation = Readonly<{
+  /** Newly-firing alerts (ok→firing edge) to dispatch now. */
+  toDispatch: readonly AlertEvent[]
+  /** All currently-firing alert names (state-store reconciliation input). */
+  firing: readonly string[]
+}>
+
+/**
+ * Pure evaluation pass: run every implemented definition against the
+ * snapshot + aux reads. Edge-trigger hysteresis is expressed through
+ * `previouslyFiring`: an alert already in the firing state does NOT
+ * re-dispatch. The caller persists the state (Redis, 24h TTL) — a
+ * continuously-firing alert re-notifies only after its state key expires,
+ * and the caller clears state on recovery (name absent from `firing`).
+ */
+export function evaluateAlerts(
+  snapshot: OperationsSnapshot,
+  aux: AlertAuxReads,
+  previouslyFiring: ReadonlySet<string>,
+): AlertEvaluation {
+  const toDispatch: AlertEvent[] = []
+  const firing: string[] = []
+  for (const def of ALERT_DEFINITIONS) {
+    if (!def.implemented || def.evaluate === null) continue
+    const event = def.evaluate(snapshot, aux)
+    if (event === null) continue
+    firing.push(def.name)
+    if (!previouslyFiring.has(def.name)) toDispatch.push(event)
+  }
+  return { toDispatch, firing }
+}

@@ -2,47 +2,42 @@
 // Per architecture: "Sample health-check background job that runs every 5 minutes."
 // Idempotent: running twice produces the same output.
 //
-// BQC-3.7: the job now also evaluates outbox/quarantine alert thresholds and
-// emits structured warn logs (alert substrate). No alert-dispatch infra
-// exists yet — BQC-7 owns real alerting; these logs are the signal source.
+// BQC-7.4: the job is the alert EVALUATION point. Each run it reads the full
+// OperationsSnapshot (BQC-7.3) plus the aux alert reads, evaluates every
+// implemented alert definition (shared/observability/alert-definitions.ts —
+// pure), and dispatches newly-firing alerts through the container-owned
+// AlertDispatcher (shared/observability/alert-dispatcher.ts). Hysteresis is
+// edge-trigger + 24h re-notify via the Redis firing-state store
+// (shared/health/alert-state.ts); recovery clears the state. This supersedes
+// the BQC-3.7 warn-only threshold logs (warnOnOpsThresholds), whose four
+// signals are now formal definitions (queue.oldest-age, queue.stalled,
+// queue.quarantine-growth).
 
 import type { Job } from 'bullmq'
 import pino from 'pino'
 import type { QueueDepth } from '#/shared/health/queue-depth'
+import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
+import {
+  evaluateAlerts,
+  implementedAlertNames,
+  type AlertAuxReads,
+} from '#/shared/observability/alert-definitions'
+import type { AlertDispatcher } from '#/shared/observability/alert-dispatcher'
+import type { AlertStateStore } from '#/shared/health/alert-state'
 
 export const JOB_NAME = 'health-check' as const
-
-// ── BQC-3.7 alert thresholds (named, deliberate) ────────────────────
-
-/**
- * The relay polls every 5s; an unpublished event older than 15min means the
- * relay is down, Redis is unreachable, or a backlog is growing.
- */
-export const OLDEST_UNPUBLISHED_WARN_MS = 15 * 60 * 1000
-
-/**
- * A quarantined (dead-lettered) job should get an operator redrive decision
- * within a day; older than 24h means the dead letter is being ignored.
- */
-export const OLDEST_QUARANTINED_WARN_MS = 24 * 60 * 60 * 1000
-
-// stalledLeaseCount > 0 and quarantineCount > 0 warn at ANY nonzero value:
-// a stalled lease means a claim stopped mid-flight beyond 2× its lease, and
-// quarantined work always needs an operator decision.
-
-export type OpsMetricsSample = Readonly<{
-  oldestUnpublishedAgeMs: number | null
-  stalledLeaseCount: number
-  quarantineCount: number
-  oldestQuarantinedAgeMs: number | null
-}>
 
 export type HealthCheckResult = Readonly<{
   db: boolean
   redis: boolean
   timestamp: string
-  /** BQC-3.7: present when the ops sampler is wired (worker). */
-  opsMetrics?: OpsMetricsSample
+  /** BQC-7.4: present when the alert evaluation wiring is in place (worker). */
+  alerts?: Readonly<{
+    /** All alerts currently firing (dispatched or already notified). */
+    firing: readonly string[]
+    /** Alerts dispatched on THIS run (ok→firing edges). */
+    dispatched: readonly string[]
+  }>
 }>
 
 export type HealthCheckDeps = Readonly<{
@@ -52,52 +47,72 @@ export type HealthCheckDeps = Readonly<{
   clock: () => Date
   /** BQR-6.2: optional Redis heartbeat so metrics can detect worker stalls. */
   recordHeartbeat?: () => Promise<void>
-  /** BQC-3.7: outbox/quarantine metric sample for threshold evaluation. */
-  sampleOpsMetrics?: () => Promise<OpsMetricsSample>
   /** BQC-3.7: queue-depth read incl. domain-events + quarantine. */
   readQueueDepths?: () => Promise<ReadonlyArray<QueueDepth>>
+  /** BQC-7.4: the full operations snapshot read (container-owned reader). */
+  readOperationsSnapshot?: () => Promise<OperationsSnapshot>
+  /** BQC-7.4: aux alert reads (retention / policy denials / region attempts). */
+  readAlertAux?: () => Promise<AlertAuxReads>
+  /** BQC-7.4: firing-state store (edge-trigger + 24h re-notify hysteresis). */
+  alertState?: AlertStateStore
+  /** BQC-7.4: dispatch destination (container-owned port). */
+  alertDispatcher?: AlertDispatcher
 }>
 
-/** Structured warn per breached threshold — BQC-7 turns these into alerts. */
-function warnOnOpsThresholds(logger: pino.Logger, m: OpsMetricsSample): void {
-  if (
-    m.oldestUnpublishedAgeMs != null &&
-    m.oldestUnpublishedAgeMs > OLDEST_UNPUBLISHED_WARN_MS
-  ) {
-    logger.warn(
-      {
-        metric: 'oldestUnpublishedAgeMs',
-        value: m.oldestUnpublishedAgeMs,
-        thresholdMs: OLDEST_UNPUBLISHED_WARN_MS,
-      },
-      '[health-check] outbox backlog: oldest unpublished event exceeds threshold',
-    )
+/**
+ * BQC-7.4 alert evaluation pass: evaluate every implemented definition
+ * against the snapshot + aux reads, dispatch the newly-firing edges, then
+ * reconcile the firing-state store (mark dispatched, clear recovered).
+ * Dispatch and state writes never throw into the job — the health check's
+ * own result is never hostage to the alerting path.
+ */
+async function evaluateAndDispatch(
+  deps: Readonly<{
+    logger: pino.Logger
+    readOperationsSnapshot: () => Promise<OperationsSnapshot>
+    readAlertAux: () => Promise<AlertAuxReads>
+    alertState: AlertStateStore
+    alertDispatcher: AlertDispatcher
+  }>,
+): Promise<HealthCheckResult['alerts']> {
+  const [snapshot, aux] = await Promise.all([
+    deps.readOperationsSnapshot(),
+    deps.readAlertAux(),
+  ])
+
+  // The 7.3 per-reason denial split, emitted on the evaluation cadence
+  // (routing.denials / policy.denials — metrics-schema).
+  deps.logger.info(
+    {
+      policyDenialsByReason: aux.policyDenialsByReason,
+      routingBlockedByReason: aux.routingBlockedByReason,
+    },
+    '[health-check] policy/routing denial split',
+  )
+
+  const previouslyFiring = await deps.alertState.currentlyFiring(implementedAlertNames())
+  const { toDispatch, firing } = evaluateAlerts(snapshot, aux, previouslyFiring)
+
+  const dispatched: string[] = []
+  for (const event of toDispatch) {
+    try {
+      await deps.alertDispatcher.dispatch(event)
+    } catch (err) {
+      // The production dispatcher never throws; foreign implementations get
+      // one more containment layer here so the state store still marks the
+      // edge (no 5-min re-page loop while a webhook is down).
+      deps.logger.warn({ err, alert: event.name }, '[health-check] alert dispatch failed')
+    }
+    await deps.alertState.markFiring(event.name)
+    dispatched.push(event.name)
   }
-  if (m.stalledLeaseCount > 0) {
-    logger.warn(
-      { metric: 'stalledLeaseCount', value: m.stalledLeaseCount },
-      '[health-check] stalled outbox leases detected (claim held beyond 2x lease)',
-    )
+
+  const firingSet = new Set(firing)
+  for (const name of previouslyFiring) {
+    if (!firingSet.has(name)) await deps.alertState.clearFiring(name)
   }
-  if (m.quarantineCount > 0) {
-    logger.warn(
-      { metric: 'quarantineCount', value: m.quarantineCount },
-      '[health-check] quarantined jobs await operator redrive',
-    )
-  }
-  if (
-    m.oldestQuarantinedAgeMs != null &&
-    m.oldestQuarantinedAgeMs > OLDEST_QUARANTINED_WARN_MS
-  ) {
-    logger.warn(
-      {
-        metric: 'oldestQuarantinedAgeMs',
-        value: m.oldestQuarantinedAgeMs,
-        thresholdMs: OLDEST_QUARANTINED_WARN_MS,
-      },
-      '[health-check] oldest quarantined job exceeds 24h redrive SLA',
-    )
-  }
+
+  return { firing, dispatched }
 }
 
 export function createHealthCheckHandler(deps: HealthCheckDeps) {
@@ -121,14 +136,22 @@ export function createHealthCheckHandler(deps: HealthCheckDeps) {
       }
     }
 
-    // BQC-3.7: ops metric sample + threshold evaluation (warn-only substrate).
-    let opsMetrics: OpsMetricsSample | undefined
-    if (deps.sampleOpsMetrics) {
+    // BQC-7.4: alert evaluation (supersedes the 3.7 warn-only thresholds).
+    // Runs only when the worker wired all four deps (snapshot reader, aux
+    // reader, state store, dispatcher).
+    let alerts: HealthCheckResult['alerts']
+    const { readOperationsSnapshot, readAlertAux, alertState, alertDispatcher } = deps
+    if (readOperationsSnapshot && readAlertAux && alertState && alertDispatcher) {
       try {
-        opsMetrics = await deps.sampleOpsMetrics()
-        warnOnOpsThresholds(deps.logger, opsMetrics)
+        alerts = await evaluateAndDispatch({
+          logger: deps.logger,
+          readOperationsSnapshot,
+          readAlertAux,
+          alertState,
+          alertDispatcher,
+        })
       } catch (err) {
-        deps.logger.warn({ err }, '[health-check] ops metrics sampling failed')
+        deps.logger.warn({ err }, '[health-check] alert evaluation failed')
       }
     }
 
@@ -145,7 +168,7 @@ export function createHealthCheckHandler(deps: HealthCheckDeps) {
       db,
       redis,
       timestamp: deps.clock().toISOString(),
-      ...(opsMetrics ? { opsMetrics } : {}),
+      ...(alerts ? { alerts } : {}),
     }
 
     deps.logger.info(result, '[health-check] status')

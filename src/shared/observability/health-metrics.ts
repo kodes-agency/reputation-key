@@ -6,8 +6,9 @@
 // no review content, PII, or provider data in any metric value (ADR 0030).
 //
 // BQC-3.7 alert substrate: claimed/stalled lease counters and quarantine
-// depth join the existing unpublished/expired-lease signals; the health-check
-// job evaluates thresholds against them (BQC-7 owns real alert dispatch).
+// depth join the existing unpublished/expired-lease signals; BQC-7.4 turns
+// them into dispatched alerts (the health-check job evaluates the
+// alert-definitions registry against this snapshot).
 //
 // Queries use the canonical Drizzle schema tables (single persistence model).
 // Raw SQL fragments remain only for aggregate expressions; table/column
