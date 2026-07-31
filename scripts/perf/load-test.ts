@@ -1,224 +1,59 @@
-// PRE17C §9.2-9.3: Load test and fault injection harness.
+// BQC-8.1: executable load/fault scenario harness (was: catalogue printer).
 //
-// Defines the test scenarios from the PRE17C plan as runnable scripts.
-// Each scenario produces a structured result with pass/fail against SLOs.
+// The SLO/scenario/fault inventory lives in
+// src/shared/testing/scenarios/catalogue.ts (single source of truth); the
+// runnable executors in src/shared/testing/scenarios/executors.ts. This CLI
+// is wiring only (scripts/ sits outside tsconfig/eslint):
 //
-// Usage:
-//   tsx scripts/perf/load-test.ts --scenario=steady
-//   tsx scripts/perf/load-test.ts --scenario=burst
-//   tsx scripts/perf/load-test.ts --scenario=fleet-dispatch
+//   pnpm perf:catalog                                   — print the catalogue
+//   pnpm perf:run -- --scenario=steady [--duration-s=30] [--rate=20] [--out=dir]
+//   pnpm perf:run -- --scenario=burst  [--duration-s=60]
+//   pnpm perf:run -- --scenario=dashboardMix [--duration-s=15]
+//   pnpm perf:run -- --scenario=drain  [--backlog=100] [--timeout-s=600]
+//   pnpm perf:run -- --fault=redisUnavailable           — fails closed (8.4/8.5)
 //
-// Requires: DATABASE_URL pointing to a seeded staging database,
-// REDIS_URL pointing to the staging BullMQ Redis.
+// Environment (--env=local, the only mode today):
+//   DATABASE_URL / REDIS_URL + the app env (getEnv) — the CLI boots the real
+//   composition container, so monitoring reads the same OperationsSnapshot
+//   the /api/health/metrics route serves.
+//   --base-url=http://host:3000 switches monitoring to HTTP mode and then
+//   REQUIRES OPS_METRICS_TOKEN (the BQC-7.2 gate).
+//
+// Exit codes: 0 scenario passed · 1 scenario failed / environment or env-var
+// failure · 2 usage, unknown scenario/fault, or a catalogue entry with no
+// executor in this environment.
 
-// ── SLO definitions (from PRE17C plan §2.1, §9.2) ──────────────────
+import { performance } from 'node:perf_hooks'
+import { execSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { resolve, join } from 'node:path'
+import { sql } from 'drizzle-orm'
+import { getEnv } from '../../src/shared/config/env'
+// NOTE: the composition root is imported DYNAMICALLY inside runScenario,
+// after env validation — its import chain touches getEnv() at module scope
+// (observability logger), which would otherwise dump a raw stack instead of
+// the clean "required env missing" failure.
+import { closePool } from '../../src/shared/db/pool'
+import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
+import { organizationId, propertyId } from '../../src/shared/domain/ids'
+import {
+  SLOS,
+  SCENARIOS,
+  FAULTS,
+  serializeResult,
+} from '../../src/shared/testing/scenarios/catalogue'
+import {
+  getScenarioExecutor,
+  getFaultExecutor,
+  type ScenarioRunEnv,
+  type ScenarioRunOptions,
+} from '../../src/shared/testing/scenarios/executors'
+import { viaContainer, viaHttp } from '../../src/shared/testing/ops-snapshot-capture'
 
-export const SLOS = {
-  // Throughput targets
-  steadyReviewRate: 20, // reviews/sec sustained
-  burstReviewRate: 100, // reviews/sec for 60s
-  burstDuration: 60, // seconds
+// ── Catalogue print (perf:catalog) ──────────────────────────────────
 
-  // Recovery targets
-  drainTimeout: 600, // 10 minutes after burst
-  rpoTarget: 900, // ≤ 15 minutes data loss tolerance
-  rtoTarget: 14_400, // ≤ 4 hours recovery time
-
-  // Dashboard query budgets
-  dashboardP95: 500, // ms, warm cache
-  dashboardColdP95: 2000, // ms, cold cache
-
-  // Queue health
-  maxQueueDepth: 10_000, // alerts above this
-  outboxLagP95: 5000, // ms, relay must process within this
-
-  // Fleet scheduling
-  fleetProperties: 5000,
-  fleetWindow: 4, // hours to dispatch all
-} as const
-
-// ── Scenario definitions ───────────────────────────────────────────
-
-export type ScenarioResult = {
-  scenario: string
-  startedAt: string
-  durationMs: number
-  passed: boolean
-  metrics: Record<string, number | string>
-  assertions: Array<{ check: string; passed: boolean; detail?: string }>
-}
-
-export const SCENARIOS = {
-  steady: {
-    name: 'Steady arrival',
-    description: '20 review facts/sec for 30 minutes',
-    slo: {
-      rate: SLOS.steadyReviewRate,
-      duration: 30 * 60, // 30 minutes
-      noLoss: true,
-    },
-  },
-  burst: {
-    name: 'Burst',
-    description: '100 reviews/sec for 60 seconds',
-    slo: {
-      rate: SLOS.burstReviewRate,
-      duration: SLOS.burstDuration,
-      expectedAccepted: 6000,
-      noDuplicates: true,
-      drainTimeout: SLOS.drainTimeout,
-    },
-  },
-  singlePropertyBurst: {
-    name: 'Single-property burst',
-    description: 'Concentrated updates with timestamp ties',
-    slo: {
-      cursorSafety: true,
-      orderPreservation: true,
-    },
-  },
-  reconnect: {
-    name: 'Reconnect/import',
-    description: '100 properties with paged histories, staggered',
-    slo: {
-      interactiveProtection: true,
-      resumable: true,
-    },
-  },
-  fleetDispatch: {
-    name: 'Fleet dispatch',
-    description: '5,000 due properties over 4 hours',
-    slo: {
-      noHerd: true,
-      boundedRedisEntries: true,
-    },
-  },
-  dashboardMix: {
-    name: 'Dashboard mix',
-    description: 'Warm/cold 1/7/30/90-day property views',
-    slo: {
-      warmP95: SLOS.dashboardP95,
-      coldP95: SLOS.dashboardColdP95,
-      noLeakage: true,
-    },
-  },
-  retention: {
-    name: 'Retention/deletion',
-    description: 'Expire and disconnect large properties during arrival',
-    slo: {
-      completePurge: true,
-      noResurrection: true,
-    },
-  },
-  reconciliation: {
-    name: 'Reconciliation',
-    description: '35-day rollup repair while traffic continues',
-    slo: {
-      boundedImpact: true,
-      exactRepair: true,
-    },
-  },
-} as const
-
-// ── Fault injection definitions (§9.3) ─────────────────────────────
-
-export const FAULTS = {
-  dbFailurePreCommit: {
-    name: 'Database failure before source commit',
-    trigger: 'Kill PostgreSQL during outbox transaction',
-    invariant: 'No orphan outbox rows; all commits are atomic',
-    expectedRecovery: 'Retry from outbox; no data loss',
-  },
-  dbFailurePostCommit: {
-    name: 'Database failure after source commit',
-    trigger: 'Kill PostgreSQL after INSERT but before outbox publish',
-    invariant: 'Outbox relay catches up on restart',
-    expectedRecovery: 'RPO ≤ 15 minutes',
-  },
-  relayCrashAfterClaim: {
-    name: 'Relay crash after claim',
-    trigger: 'SIGKILL relay after claiming outbox rows',
-    invariant: 'Lease expires; rows re-claimed by next relay',
-    expectedRecovery: 'No lost events; idempotent delivery',
-  },
-  relayCrashAfterRedis: {
-    name: 'Relay crash after Redis add',
-    trigger: 'SIGKILL relay after enqueueing to BullMQ',
-    invariant: 'Duplicate possible but receipt dedup handles it',
-    expectedRecovery: 'No duplicate side effects',
-  },
-  redisUnavailable: {
-    name: 'Redis unavailable',
-    trigger: 'Block Redis port for 30 seconds',
-    invariant: 'Outbox accumulates; web stays healthy',
-    expectedRecovery: 'Relay drains backlog on Redis recovery',
-  },
-  workerSigterm: {
-    name: 'Worker SIGTERM during handler',
-    trigger: 'Send SIGTERM during active review processing',
-    invariant: 'Job re-queued; outbox intact',
-    expectedRecovery: 'Clean drain within deadline',
-  },
-  workerForceKill: {
-    name: 'Worker forced termination',
-    trigger: 'SIGKILL during handler execution',
-    invariant: 'Outbox row unclaimed; job retried',
-    expectedRecovery: 'Idempotent retry; no corruption',
-  },
-  duplicateEvents: {
-    name: 'Duplicate/out-of-order events',
-    trigger: 'Send same event twice with different timestamps',
-    invariant: 'Receipt dedup prevents duplicate processing',
-    expectedRecovery: 'Exactly-once side effects',
-  },
-  poisonPayload: {
-    name: 'Poison payload',
-    trigger: 'Send malformed event to dispatcher',
-    invariant: 'Dead-lettered; other events unaffected',
-    expectedRecovery: 'Quarantine + alert; pipeline continues',
-  },
-  gbpRateLimit: {
-    name: 'GBP 429 rate limit',
-    trigger: 'Mock GBP API returning 429 with Retry-After',
-    invariant: 'Backoff; no hammering',
-    expectedRecovery: 'Retries with delay; sync paused',
-  },
-  cacheOutage: {
-    name: 'Cache outage and stampede',
-    trigger: 'Flush Redis cache during burst',
-    invariant: 'Fallback to DB; bounded query load',
-    expectedRecovery: 'Cache warms; no cascade failure',
-  },
-  lifecyclePurgeRace: {
-    name: 'Lifecycle purge racing sync',
-    trigger: 'Trigger content expiry during active sync',
-    invariant: 'No resurrection of purged content',
-    expectedRecovery: 'Sync detects missing content; skips',
-  },
-} as const
-
-// ── Result reporting ───────────────────────────────────────────────
-
-export function createResult(
-  scenario: string,
-  durationMs: number,
-  metrics: Record<string, number | string>,
-  assertions: Array<{ check: string; passed: boolean; detail?: string }>,
-): ScenarioResult {
-  return {
-    scenario,
-    startedAt: new Date().toISOString(),
-    durationMs,
-    passed: assertions.every((a) => a.passed),
-    metrics,
-    assertions,
-  }
-}
-
-// ── Main: print scenario/fault catalog ─────────────────────────────
-
-function main() {
-  console.log('PRE17C Load Test & Fault Injection Harness')
+function printCatalogue(): void {
+  console.log('BQC-8.1 Load Test & Fault Injection Harness')
   console.log('═'.repeat(60))
 
   console.log('\n## SLOs')
@@ -228,27 +63,293 @@ function main() {
 
   console.log('\n## Scenarios (§9.2)')
   for (const [key, s] of Object.entries(SCENARIOS)) {
-    console.log(`  ${key}: ${s.name} — ${s.description}`)
+    const executable = getScenarioExecutor(key)
+      ? 'executable'
+      : 'catalogue-only (later slice)'
+    console.log(`  ${key}: ${s.name} — ${s.description} [${executable}]`)
   }
 
   console.log('\n## Fault injections (§9.3)')
   for (const [key, f] of Object.entries(FAULTS)) {
-    console.log(`  ${key}:`)
-    console.log(`    Trigger:    ${f.trigger}`)
+    const executable = getFaultExecutor(key)
+      ? 'executable'
+      : 'no executor in this environment (BQC-8.4/8.5)'
+    console.log(`  ${key}: ${f.name} [${executable}]`)
     console.log(`    Invariant:  ${f.invariant}`)
-    console.log(`    Recovery:   ${f.expectedRecovery}`)
   }
 
-  console.log('\n═'.repeat(60))
-  console.log(
-    'Run a specific scenario with --scenario=<name>\n' +
-      'Requires seeded staging database (scripts/perf/seed-scale.ts)',
-  )
+  console.log('\n' + '═'.repeat(60))
+  console.log('Execute: pnpm perf:run -- --scenario=<name> [--duration-s=N] [--out=dir]')
 }
 
-// tsx / node entry — compare file URLs so the catalog prints when invoked
-// as `pnpm perf:catalog` / `tsx scripts/perf/load-test.ts`.
-import { pathToFileURL } from 'node:url'
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
+// ── Args / env ───────────────────────────────────────────────────────
+
+function argValue(flag: string): string | undefined {
+  const hit = process.argv.find((a) => a.startsWith(`${flag}=`))
+  return hit?.slice(flag.length + 1)
 }
+
+function numericArg(flag: string): number | undefined {
+  const raw = argValue(flag)
+  if (raw == null) return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`Invalid ${flag}='${raw}' — expected a positive number`)
+    process.exit(2)
+  }
+  return n
+}
+
+function failUsage(message: string): never {
+  console.error(message)
+  process.exit(2)
+}
+
+function gitSha(): string {
+  try {
+    return execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+// ── Scenario run ─────────────────────────────────────────────────────
+
+async function runScenario(name: string): Promise<number> {
+  const executor = getScenarioExecutor(name)
+  if (!executor) {
+    if (name in SCENARIOS) {
+      return failUsage(
+        `scenario '${name}' is catalogued but has no executor in this environment ` +
+          `(executable: ${Object.keys(SCENARIOS)
+            .filter((k) => getScenarioExecutor(k))
+            .join(', ')})`,
+      )
+    }
+    return failUsage(
+      `unknown scenario '${name}' — catalogue: ${Object.keys(SCENARIOS).join(', ')}`,
+    )
+  }
+
+  // Fail closed on missing/invalid env (getEnv throws a zod error listing
+  // every offending variable).
+  let env
+  try {
+    env = getEnv()
+  } catch (err) {
+    console.error('Required env missing/invalid — cannot boot the harness:')
+    console.error(err instanceof Error ? err.message : String(err))
+    return 1
+  }
+  if (!env.REDIS_URL) {
+    console.error('REDIS_URL is required for scenario runs (BullMQ producer seam).')
+    return 1
+  }
+
+  const baseUrl = argValue('--base-url')
+  if (baseUrl && !env.OPS_METRICS_TOKEN) {
+    console.error('OPS_METRICS_TOKEN is required with --base-url (HTTP monitoring mode).')
+    return 1
+  }
+  if (argValue('--env') && argValue('--env') !== 'local') {
+    return failUsage(`unknown --env='${argValue('--env')}' — only 'local' exists today`)
+  }
+
+  const options: ScenarioRunOptions = {
+    durationS: numericArg('--duration-s'),
+    ratePerSec: numericArg('--rate'),
+    backlogSize: numericArg('--backlog'),
+    timeoutS: numericArg('--timeout-s'),
+    concurrency: numericArg('--concurrency'),
+    pollIntervalMs: numericArg('--poll-ms'),
+  }
+  const outDir = resolve(
+    process.cwd(),
+    argValue('--out') ?? 'docs/release-evidence/beta/local-draft/raw',
+  )
+
+  console.log(`Booting harness environment (composition container)…`)
+  const { getContainer, closeContainer } = await import('../../src/composition')
+  const container = getContainer()
+
+  // Identity as the app itself reports it: one live snapshot read.
+  const identitySnapshot = await container.operationsSnapshot.read()
+  const identity = {
+    environment: 'local',
+    releaseSha:
+      identitySnapshot.release.sha !== 'unknown'
+        ? identitySnapshot.release.sha
+        : gitSha(),
+    versions: {
+      capabilityPolicy: identitySnapshot.versions.capabilityPolicy,
+      policyStore: identitySnapshot.versions.policyStore,
+      routingPolicy: identitySnapshot.versions.routingPolicy,
+      sourceContentPolicy: identitySnapshot.versions.sourceContentPolicy,
+    },
+  }
+
+  const queue = container.jobQueue
+  if (!queue) {
+    console.error('BullMQ default queue unavailable — cannot reach the producer seam.')
+    return 1
+  }
+
+  // dashboardMix needs a real property to read through the governed path.
+  let dashboardProbe: (() => Promise<void>) | undefined
+  if (name === 'dashboardMix') {
+    const hottest = await container.db.execute(
+      sql`SELECT p.id, p.organization_id
+          FROM properties p
+          LEFT JOIN reviews r ON r.property_id = p.id
+          WHERE p.deleted_at IS NULL
+          GROUP BY p.id, p.organization_id
+          ORDER BY count(r.id) DESC
+          LIMIT 1`,
+    )
+    const row = hottest.rows[0] as { id: string; organization_id: string } | undefined
+    if (!row) {
+      console.error(
+        'dashboardMix: no properties in this database — seed first (pnpm perf:seed-scale).',
+      )
+      return 1
+    }
+    const oid = organizationId(row.organization_id)
+    const pid = propertyId(row.id)
+    dashboardProbe = async () => {
+      const end = container.clock()
+      const start = new Date(end.getTime() - 30 * 86_400_000)
+      await container.useCases.getDashboardData({
+        organizationId: oid,
+        propertyId: pid,
+        portalId: null,
+        startDate: start,
+        endDate: end,
+        timeRange: '30d',
+      })
+    }
+  }
+
+  const runEnv: ScenarioRunEnv = {
+    enqueue: async (jobName, data, jobId) => {
+      await queue.add(jobName, data, { ...jobEnqueueOptions(jobName), jobId })
+    },
+    removeJobs: async (jobIds) => {
+      let removed = 0
+      let missing = 0
+      for (const id of jobIds) {
+        try {
+          await queue.remove(id)
+          removed += 1
+        } catch {
+          missing += 1 // already consumed/completed — nothing to remove
+        }
+      }
+      return { removed, missing }
+    },
+    snapshotSource: baseUrl
+      ? viaHttp(baseUrl, env.OPS_METRICS_TOKEN as string)
+      : viaContainer(container.operationsSnapshot),
+    arrivalJob: {
+      name: 'sync-property-reviews',
+      // Synthetic identifier-only payloads (ADR 0030). 8.2 points this seam
+      // at real seeded properties for the staging execution.
+      data: (seq) => ({
+        propertyId: `00000000-0000-4000-8000-${String(seq % 0xffffffffffff).padStart(12, '0')}`,
+        organizationId: 'perf-harness',
+        connectionId: `00000000-0000-4000-9000-${String(seq % 0xffffffffffff).padStart(12, '0')}`,
+        locationName: 'perf-probe',
+      }),
+    },
+    dashboardProbe,
+    clock: () => new Date(),
+    now: () => performance.now(),
+    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    identity,
+  }
+
+  console.log(
+    `Running '${name}' (release ${identity.releaseSha.slice(0, 12)}, monitoring: ${baseUrl ? `http ${baseUrl}` : 'container'})…`,
+  )
+  try {
+    const outcome = await executor(runEnv, options)
+    const { record, raw } = outcome
+
+    mkdirSync(outDir, { recursive: true })
+    const resultPath = join(outDir, `${name}.result.json`)
+    const rawPath = join(outDir, `${name}.raw.json`)
+    writeFileSync(resultPath, serializeResult(record), 'utf8')
+    writeFileSync(
+      rawPath,
+      JSON.stringify(
+        { version: 1, scenario: name, samples: raw.samples, monitoring: raw.monitoring },
+        null,
+        2,
+      ),
+      'utf8',
+    )
+
+    console.log('─'.repeat(60))
+    console.log(
+      `${record.passed ? 'PASS' : 'FAIL'} ${name} — ${(record.durationMs / 1000).toFixed(1)}s, ` +
+        `${record.samples.count} samples (${record.samples.errors} errors), ` +
+        `${record.monitoring.points} monitoring points`,
+    )
+    for (const a of record.assertions) {
+      console.log(
+        `  ${a.passed ? '✓' : '✗'} ${a.check}${a.detail ? ` — ${a.detail}` : ''}`,
+      )
+    }
+    console.log(`  result: ${resultPath}`)
+    console.log(`  raw:    ${rawPath}`)
+    return record.passed ? 0 : 1
+  } finally {
+    await closeContainer()
+    await closePool()
+  }
+}
+
+// ── Fault dispatch (fails closed until 8.4/8.5 register executors) ──
+
+function dispatchFault(name: string): number {
+  if (!(name in FAULTS)) {
+    return failUsage(
+      `unknown fault '${name}' — catalogue: ${Object.keys(FAULTS).join(', ')}`,
+    )
+  }
+  if (!getFaultExecutor(name)) {
+    console.error(
+      `fault '${name}' is catalogued but has no executor in this environment —\n` +
+        'BQC-8.4 (runtime fault matrix) / BQC-8.5 (region fault matrix) register fault executors.\n' +
+        'Not executed.',
+    )
+    return 2
+  }
+  // Unreachable today (registry is empty); kept for the 8.4/8.5 wiring point.
+  return failUsage(`fault '${name}' executor wiring is incomplete`)
+}
+
+// ── Main ─────────────────────────────────────────────────────────────
+
+async function main(): Promise<void> {
+  const scenario = argValue('--scenario')
+  const fault = argValue('--fault')
+  const list = process.argv.includes('--list')
+
+  if (list || (!scenario && !fault)) {
+    printCatalogue()
+    return
+  }
+  if (fault) {
+    process.exit(dispatchFault(fault))
+  }
+  if (scenario) {
+    process.exit(await runScenario(scenario))
+  }
+}
+
+main().catch((err) => {
+  console.error('perf harness failed:', err)
+  process.exit(1)
+})

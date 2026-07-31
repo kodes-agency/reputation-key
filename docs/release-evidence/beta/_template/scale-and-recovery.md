@@ -1,8 +1,15 @@
 # Scale and recovery evidence
 
 **Release id:** _TBD_  
+**Release sha:** _TBD_  
+**Policy versions:** capability=_TBD_ · policyStore=_TBD_ · routing=_TBD_ · sourceContent=_TBD_  
+**Dataset hash:** _TBD_  
 **Owner:** _TBD_  
 **Date:** _TBD_
+
+> Generated packs are produced by `pnpm perf:evidence` from measured scenario
+> results (`pnpm perf:run -- --scenario=…`) — rows without an executed run
+> read "not executed in this environment", never a templated status.
 
 ## Local scale (required)
 

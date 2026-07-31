@@ -2662,16 +2662,21 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   // ── perf ──────────────────────────────────────────────────────────
   ops('scripts/perf/load-test.ts', 'scripts/perf/load-test.ts', 'none', {
-    notes: 'perf:catalog — prints SLO/scenario/fault catalog; no execution',
+    notes:
+      'perf:catalog prints the SLO/scenario/fault catalogue; perf:run executes scenario harnesses via the BQC-3 producer seam (BQC-8.1)',
   }),
   ops('scripts/perf/seed-scale.ts', 'scripts/perf/seed-scale.ts', 'tenant_cross', {
-    notes: 'DIRECT-DB: synthetic scale seed (raw pg bulk INSERT)',
+    notes:
+      'DIRECT-DB: deterministic scale dataset load/verify/clean (raw pg bulk INSERT, manifest hash, BQC-8.1)',
   }),
   ops(
     'scripts/perf/write-scale-evidence.ts',
     'scripts/perf/write-scale-evidence.ts',
     'none',
-    { notes: 'perf:evidence — writes scale-and-recovery evidence markdown' },
+    {
+      notes:
+        'perf:evidence — ingests measured scenario results into scale-and-recovery evidence; fails closed on missing samples/identity (BQC-8.1)',
+    },
   ),
   // ── package.json-only commands (CLI tools, no repo script file) ───
   ops('db:generate', 'package.json', 'none', {

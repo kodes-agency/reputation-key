@@ -1,0 +1,11 @@
+{
+  "seed": "parent-probe",
+  "version": 1,
+  "shape": {
+    "orgs": 2,
+    "properties": 10,
+    "reviews": 100
+  },
+  "hash": "5eacebffd817138826eb27e4ddf2f33fffbde62474637290e5c7298a2eb360b8",
+  "createdAt": "2026-07-31T21:11:08.872Z"
+}
