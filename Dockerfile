@@ -38,8 +38,9 @@
 # naturally well inside drainingSeconds (verified: ~1.3s after traffic).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# node:22-slim (bookworm) — digest resolved 2026-07-29 (created 2026-07-14).
-FROM node:22-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3 AS base
+# node:22-slim (bookworm) — digest resolved 2026-07-31 (created 2026-07-29;
+# BQC-7.7: bumped from the 2026-07-14 build to clear base-image CVE findings).
+FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     # Husky's `prepare` must not try to install git hooks in the image.
@@ -80,6 +81,10 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 # ── Web runtime ──────────────────────────────────────────────────────────────
 FROM base AS web
 ENV NODE_ENV=production
+# BQC-7.7: the runtime never installs packages — strip the npm CLI shipped in
+# the base image (its bundled deps carry known CVEs: grype container gate).
+# node itself is untouched; corepack/pnpm shims stay for operator tooling.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # .output is fully traced by Nitro (no node_modules needed to serve);
 # prod node_modules is here for the worker/migrate externals (pg, ioredis,
 # bullmq, pino, better-auth, drizzle-orm) used by dist-worker/migrate-deploy.js.

@@ -1,0 +1,65 @@
+# BQC-7.7 — grype ignore rules for the container scanning gate (ci.yml
+# `docker` job, anchore/scan-action with fail-build: true,
+# severity-cutoff: high; policy: docs/operations/security-ci-policy.md).
+#
+# Zero exceptions is the target — before any entry below was written, the
+# fixable classes were FIXED: the node:22-slim base digest was bumped to the
+# newest build (2026-07-29) and the npm CLI was stripped from the runtime
+# stages (cleared all 6 npm-bundled findings incl. a Critical tar GHSA).
+# What remains has NO available fix today. Every entry/group carries
+# owner/reason/expiresAt and is re-justified at the quarterly review and on
+# every base-image bump. grype has no native expiry — the dates are enforced
+# by the documented review cadence, not by the tool.
+
+ignore:
+  # ── Debian bookworm base packages, perl (11 CVEs) ─────────────────────
+  # owner: platform — reason: Debian upstream marks these wont-fix/not-fixed;
+  # no patched bookworm package exists to upgrade to (base image is already
+  # the newest node:22-slim build). perl-base is unused by the app at runtime
+  # (dpkg infrastructure only; the CMD is node). expiresAt: 2026-10-31
+  - vulnerability: CVE-2026-12087 # not-fixed
+  - vulnerability: CVE-2026-13221 # not-fixed
+  - vulnerability: CVE-2026-42496 # wont-fix
+  - vulnerability: CVE-2026-42497 # wont-fix
+  - vulnerability: CVE-2026-48959 # not-fixed
+  - vulnerability: CVE-2026-48962 # not-fixed
+  - vulnerability: CVE-2026-57432 # not-fixed
+  - vulnerability: CVE-2026-57433 # not-fixed
+  - vulnerability: CVE-2026-7017 # not-fixed
+  - vulnerability: CVE-2026-8376 # wont-fix
+  - vulnerability: CVE-2026-9538 # wont-fix
+
+  # ── Debian bookworm base packages, glibc (3 CVEs) ─────────────────────
+  # owner: platform — reason: wont-fix by Debian triage (assessed not
+  # exploitable in practice); no patched package exists. expiresAt: 2026-10-31
+  - vulnerability: CVE-2026-5450 # wont-fix (critical per NVD, wont-fix per Debian)
+  - vulnerability: CVE-2026-5435 # wont-fix
+  - vulnerability: CVE-2026-5928 # wont-fix
+
+  # ── Debian bookworm base packages, misc (5 CVEs) ──────────────────────
+  # owner: platform — reason: wont-fix by Debian triage; binaries/libs unused
+  # by the app runtime (no gzip/ncurses/libacl/libtasn1 calls from node).
+  # expiresAt: 2026-10-31
+  - vulnerability: CVE-2026-41992 # gzip, wont-fix
+  - vulnerability: CVE-2025-69720 # ncurses, wont-fix
+  - vulnerability: CVE-2026-54369 # libacl1, wont-fix
+  - vulnerability: CVE-2026-54370 # libacl1, wont-fix
+  - vulnerability: CVE-2025-13151 # libtasn1-6, wont-fix
+
+  # ── Go stdlib inside esbuild CLI binaries (prod node_modules) ─────────
+  # owner: platform — reason: the esbuild@0.18.20 (go1.20.7) and
+  # esbuild@0.25.12 (go1.23.12) binaries sit in prod node_modules only
+  # because better-auth declares drizzle-kit as a runtime dependency. Nothing
+  # executes esbuild in the image: the CMD is `node` on pre-built bundles and
+  # migrations run the bundled dist-worker/migrate-deploy.js (drizzle-orm
+  # migrator, not the drizzle-kit CLI). The findings are in an unreachable
+  # binary. Fix-forward: better-auth dropping the drizzle-kit runtime dep
+  # (tracked at the quarterly review). expiresAt: 2026-10-31
+  - package:
+      name: stdlib
+      version: go1.20.7
+      type: go-module
+  - package:
+      name: stdlib
+      version: go1.23.12
+      type: go-module

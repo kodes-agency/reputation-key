@@ -2467,6 +2467,23 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:test-quality — lint gate (BQC-6.9): focused/skipped tests, generic-error acceptance, unasserted async failures; registered skips only',
   }),
+  ops(
+    'scripts/check-dependency-audit.mjs',
+    'scripts/check-dependency-audit.mjs',
+    'none',
+    {
+      notes:
+        'check:dependency-audit — CI gate (BQC-7.7): pnpm audit prod (fail ≥high) + full tree (fail ≥critical, highs reported); dated/owned exceptions in security/audit-exceptions.json, expired/stale fail',
+    },
+  ),
+  ops('scripts/check-licenses.mjs', 'scripts/check-licenses.mjs', 'none', {
+    notes:
+      'check:licenses — CI gate (BQC-7.7): prod+dev license inventory vs security/license-policy.json allow-list; reviewed exceptions with owner/reason/expiry (expired fails)',
+  }),
+  ops('scripts/check-action-pins.mjs', 'scripts/check-action-pins.mjs', 'none', {
+    notes:
+      'check:action-pins — CI gate (BQC-7.7): every workflow uses: is full-SHA pinned with # v… comment; every image: is digest-pinned',
+  }),
   ops('scripts/cleanup-all.ts', 'scripts/cleanup-all.ts', 'tenant_cross', {
     notes: 'DIRECT-DB: deletes ALL reviews/replies/inbox items/properties — dev-only',
   }),

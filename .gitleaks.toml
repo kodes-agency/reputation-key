@@ -1,0 +1,26 @@
+# BQC-7.7 — gitleaks configuration (secret scanning gate, ci.yml `secrets` job).
+#
+# The gate scans FULL git history on every PR/push. The path allowlist below
+# exists for RUNTIME, not for silencing findings: the listed files are large
+# committed binary/generated artifacts (a dead-code-tool cache and a graph
+# dump) that made the full-history scan take >15 minutes; every one is
+# machine-generated, contains no credentials, and is scanned again if its
+# content ever changes class. Each entry carries owner/reason/expiry —
+# review at the quarterly security-gate review (docs/operations/security-ci-policy.md).
+# A real secret hit anywhere else FAILS the gate; do not add allowlist entries
+# to silence real findings.
+
+title = "rep-key gitleaks config (BQC-7.7)"
+
+[allowlist]
+description = "BQC-7.7 performance allowlist — generated/binary artifacts only"
+paths = [
+  # owner: platform — reason: fallow dead-code analysis cache (binary gob
+  # encoding, machine-generated, no credentials); committed repeatedly at
+  # 1–4 MB, dominates full-history scan time — expiresAt: 2026-10-31
+  '''^\.fallow/cache\.bin$''',
+  # owner: platform — reason: generated dependency-graph dump (graphify
+  # tooling output, JSON, no credentials); ~0.75 MB per commit —
+  # expiresAt: 2026-10-31
+  '''^graphify-out/graph\.json$''',
+]

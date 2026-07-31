@@ -17,7 +17,8 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test

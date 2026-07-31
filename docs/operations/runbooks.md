@@ -312,3 +312,13 @@ Defined but not yet implemented (registered with owner/severity/runbook; the sig
 | `web.availability` | P1  | External synthetic probe (self-report is circular; the probe also covers the p95 ≤ 750ms latency SLO) — BQC-8 staging | §12     |
 | `backup.pitr`      | P3  | Backup/PITR status + restore drill — BQC-7.8                                                                          | §8      |
 | `security.scan`    | P2  | Supply-chain/secret-detection gate failure — BQC-7.7                                                                  | §9      |
+
+**`security.scan` signal note (BQC-7.7):** the supply-chain/secret gates now
+exist — as CI hard gates, not app-level alert injection. The signal path is:
+any red gate (dependency audit, gitleaks, license, action-pins, grype,
+CodeQL analysis failure) fails the GitHub check → branch protection blocks
+merge and the check failure notifies on-call via the repository's GitHub
+notification routing. There is deliberately no runtime `security.scan`
+dispatcher at app level (a CI gate red state is pre-deploy evidence, not a
+production signal) — the row above stays "not implemented at app level" by
+design. Gate inventory + thresholds: `docs/operations/security-ci-policy.md`.
