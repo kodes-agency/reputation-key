@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-31T09:02:50Z",
+  "updatedAt": "2026-07-31T11:13:28Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -981,7 +981,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
       "exceptions": [],
-      "notes": "7.1: production containers + deployment contract. 7.2: health semantics. 7.3: observability schema + central redaction. 7.4 implementation_complete: alerts and SLOs — 13 alert definitions (owner, severity, threshold/window, runbook) covering every doc family, evaluated purely over the OperationsSnapshot + 3 new aux reads (retention latest-per-subject, denial counts by reason, quarantine reasons); dispatch = schema-conformant alert log + optional ALERT_WEBHOOK_URL (never throws); edge-trigger hysteresis in Redis (no re-fire while firing, 24h re-notify, recovery clears). Every implemented alert injected at least once (51 unit + 3 real-DB integration injections). 3 alerts defined-but-not-implemented (web external probe → BQC-8; backup → 7.8; security scan → 7.7). Slices 7.5–7.8 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "7.1: containers + deployment contract. 7.2: health semantics. 7.3: observability schema. 7.4: alerts + injection. 7.5 implementation_complete: operator commands — ExecutionPolicy gained the operator branch (named-operator allowlist via OPS_OPERATOR_IDENTITIES, fail-closed; capability/suspension gate; audit allow AND deny); a single harness enforces authentication/reason/ticket/dry-run-default/typed-confirmation/content-free audit + correlation on all 13 ops commands (4 migrated, 9 new incl. rebuild-projection, reconcile-publication, bounded refresh/purge enqueue via the BQC-3 producer contract, suspend/restore-property, inspect region/policy, disconnect-connection, restore-preflight); CLI audit-durability fixed via flushAudits. Registered: metric watermark reset, key rotation, PITR executor (platform-owned). Slices 7.6–7.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-7.5",
+      "kind": "slice",
+      "parentId": "BQC-7",
+      "title": "Operator commands and runbooks",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The 'unused operator-command module' question is resolved: the 5.8-removed validator's successor is the real command layer. (1) ExecutionPolicy operator branch (INTEGRATE, not duplicate): decideOperator — kind match (operator kind only), then named-operator identity via OPS_OPERATOR_IDENTITIES (new env; absent = every operator command denies operator_not_registered, fail-closed), then the capability/suspension gate (synthetic permissionless AccountAdmin ctx for the capability machinery; operators hold no role/grants), purpose/consent when declared. Audit on allow AND deny (DecisionRequest.reason recorded on allow rows, sliced 200, the policyAdmin convention); EXECUTION_POLICY_VERSION bumped bqc-2.4→bqc-7.5 (literal pins updated to the constant). CLI durability fix: fire-and-forget audit raced process.exit — new flushAudits() awaited by the ops shim (app path unchanged). (2) The harness (src/shared/ops/operator-command.ts, injected-runtime pure orchestration; scripts/ops shim is wiring-only): --operator required+allowlisted, mutations dry-run by default with --apply + --reason (+--ticket where required), destructive additionally requires typed --yes, --batch-size spec-clamped; every invocation (reads too) evaluated + audited with a generated correlationId. Capability declared only where the work is meaningless under a kill; containment/diagnostic commands declare none (documented). (3) 13 commands: 4 migrated unchanged-underneath (queue, quarantine, reconcile-regions, reconcile-grants — now authenticated/audited/report-first), 9 new: rebuild-projection (inbox use case, batch ≤1000), reconcile-publication (single or bounded due-batch, provider re-read never a send), refresh/purge (enqueue via createJobQueue + jobEnqueueOptions — the BQC-3 producer contract, dispatch re-authorizes; purge typed-confirm), suspend/restore-property (policyAdmin reason+ticket), inspect region/policy (audited reads), disconnect-connection (revoke+redact+purge, typed-confirm), restore-preflight (guided runbook §8 checklist; refuses non-localhost targets; explicitly NOT a PITR executor). Registered gaps: metric-rollup watermark reset (Metric owner), key rotation (platform), PITR executor (platform). (4) Catalogue: 4 rows updated + 9 new operator_command rows (sf/sfPublic factories deduped for fallow); runbooks.md gained the Operator commands section + inline refs in §2/§4/§6/§8/§10. (5) Tests: 11 policy-branch unit + 19 harness unit + an integration proof (real DB+Redis: list audits allow/read; redrive --apply --reason moves the seeded quarantined job with redriveMetadata and audits the operator reason; dry-run moves nothing; unregistered denies with a deny row) + full per-command smokes (suspend→restore round-trip rows verified in policy_decision_audit). Gates: unit 406f/4481t, integration 54f/322t, typecheck, lint, format:check, check:coverage (floors held, overall improved), fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-7.4",

@@ -7,25 +7,15 @@
 // Audit rows deliberately have no tenant FKs: evidence survives tenant
 // deletion (BQC-1.7).
 //
-// The writer is used by the ExecutionPolicy (BQC-2.3+); fields are plain
-// strings here — the engine's own types narrow them at the call site.
+// The writer is used by the ExecutionPolicy (BQC-2.3+); the entry shape IS
+// the engine's DecisionAuditEntry (aliased — BQC-7.5 dedupe): actorType /
+// executionKind / decision are CHECK-constrained at the table.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { DecisionAuditEntry } from '#/shared/auth/execution-policy'
 
-export type PolicyDecisionEntry = Readonly<{
-  actorType: string // user | system | operator | public (CHECK-enforced)
-  actorId: string | null
-  organizationId: string | null
-  propertyId: string | null
-  action: string
-  capability: string | null
-  executionKind: string // interactive | worker | consumer | schedule | operator | public
-  decision: string // allow | deny
-  reason: string
-  policyVersion: string
-  correlationId: string | null
-}>
+export type PolicyDecisionEntry = DecisionAuditEntry
 
 export async function writePolicyDecision(
   db: Database,

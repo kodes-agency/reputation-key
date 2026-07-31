@@ -13,6 +13,7 @@ import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
 import {
   requireExecutionAllowed,
   resetExecutionPolicy,
+  EXECUTION_POLICY_VERSION,
 } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
@@ -129,7 +130,7 @@ describe('ExecutionPolicy composition wiring (BQC-2.4)', () => {
     expect(decisions).toContainEqual([PM, 'allow', 'allowed'])
     for (const r of rows) {
       expect(r.execution_kind).toBe('interactive')
-      expect(r.policy_version).toBe('bqc-2.4')
+      expect(r.policy_version).toBe(EXECUTION_POLICY_VERSION)
     }
   })
 })

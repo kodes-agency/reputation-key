@@ -15,6 +15,7 @@ import {
   getDelayedExecutionPolicy,
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
@@ -51,7 +52,7 @@ describe('delayed policy contract wiring (BQC-2.5)', () => {
       organizationId: ORG,
       propertyId: PROP,
       executionKind: 'worker' as const,
-      policyVersionAtEnqueue: 'bqc-2.4',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     }
 
     // Current policy allows (capability core, no suspension).
@@ -85,7 +86,7 @@ describe('delayed policy contract wiring (BQC-2.5)', () => {
       execution_kind: 'worker',
       decision: 'allow',
       reason: 'allowed',
-      policy_version: 'bqc-2.4',
+      policy_version: EXECUTION_POLICY_VERSION,
     })
     expect(rows[rows.length - 1]).toMatchObject({
       decision: 'deny',

@@ -185,39 +185,30 @@ function row(
   }
 }
 
+/** Server function factory, parameterized by principal. */
+const sfFor =
+  (principal: 'user' | 'public') =>
+  (
+    name: string,
+    file: string,
+    action: EntryPointAction,
+    capability: Capability | 'none',
+    resourceScope: ResourceScope,
+    opts: RowOpts = {},
+  ): EntryPointRow =>
+    row(
+      'server_function',
+      name,
+      file,
+      { action, capability, resourceScope, principals: [principal] },
+      opts,
+    )
+
 /** Server function (default: authenticated user principal). */
-const sf = (
-  name: string,
-  file: string,
-  action: EntryPointAction,
-  capability: Capability | 'none',
-  resourceScope: ResourceScope,
-  opts: RowOpts = {},
-): EntryPointRow =>
-  row(
-    'server_function',
-    name,
-    file,
-    { action, capability, resourceScope, principals: ['user'] },
-    opts,
-  )
+const sf = sfFor('user')
 
 /** Public server function (unauthenticated principal). */
-const sfPublic = (
-  name: string,
-  file: string,
-  action: EntryPointAction,
-  capability: Capability | 'none',
-  resourceScope: ResourceScope,
-  opts: RowOpts = {},
-): EntryPointRow =>
-  row(
-    'server_function',
-    name,
-    file,
-    { action, capability, resourceScope, principals: ['public'] },
-    opts,
-  )
+const sfPublic = sfFor('public')
 
 /** UI route (default: authenticated user; override principals for public pages). */
 const ui = (
@@ -2328,11 +2319,24 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
 
 const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── ops ───────────────────────────────────────────────────────────
+  // BQC-7.5: every ops:* command runs through the operator-command harness
+  // (scripts/ops/operator-command.ts) — named operator (--operator, matched
+  // against OPS_OPERATOR_IDENTITIES) + target scope evaluated through the
+  // ExecutionPolicy operator branch, content-free decision audit for allow
+  // AND deny, dry-run default for mutations, typed --yes confirmation for
+  // destructive commands.
+  ops('scripts/ops/operator-command.ts', 'scripts/ops/operator-command.ts', 'none', {
+    notes:
+      'BQC-7.5: operator-command harness wiring (boots the policy store + ExecutionPolicy, binds OPS_OPERATOR_IDENTITIES) — the module every ops:* command imports; contract + tests in src/shared/ops/operator-command.ts; not a command itself',
+  }),
   ops(
     'scripts/ops/queue-quarantine.ts',
     'scripts/ops/queue-quarantine.ts',
     'tenant_cross',
-    { notes: 'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5)' },
+    {
+      notes:
+        'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5); pause/resume report-first + --reason/--apply (BQC-7.5)',
+    },
   ),
   ops(
     'scripts/ops/quarantine-redrive.ts',
@@ -2340,7 +2344,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:quarantine — list/redrive exhausted jobs from the BQC-3.6 failure quarantine; report-first, --apply to redrive',
+        'ops:quarantine — list/redrive exhausted jobs from the BQC-3.6 failure quarantine via createRedriveJob (the BQC-3 contract); report-first, --apply + --reason to redrive (BQC-7.5)',
     },
   ),
   ops(
@@ -2349,7 +2353,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:reconcile-grants — report/apply staff→grant reconciliation (BQC-2.3); anomalies never auto-converted',
+        'ops:reconcile-grants — report/apply staff→grant reconciliation (BQC-2.3); anomalies never auto-converted; --apply + --reason audited (BQC-7.5)',
     },
   ),
   ops(
@@ -2358,9 +2362,66 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:reconcile-regions — report/apply property region reconciliation (BQC-4.1, ADR 0048); conflict/ambiguous/missing never auto-converted',
+        'ops:reconcile-regions — report/apply property region reconciliation (BQC-4.1, ADR 0048); conflict/ambiguous/missing never auto-converted; --apply + --reason audited (BQC-7.5)',
     },
   ),
+  ops(
+    'scripts/ops/rebuild-projection.ts',
+    'scripts/ops/rebuild-projection.ts',
+    'organization',
+    {
+      notes:
+        'ops:rebuild-projection — repair/rebuild the inbox projection via the rebuildInboxProjection use case (bounded, dry-run default); metric-rollup watermark reset deliberately NOT built (BQC-7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/reconcile-publication.ts',
+    'scripts/ops/reconcile-publication.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-publication — reconcile ambiguous Google reply publication (single reply, or one ≤500-row due batch via the sweep bound); provider re-read only, never a send (BQC-3.8/7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/enqueue-refresh.ts',
+    'scripts/ops/enqueue-refresh.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:refresh — bounded re-run of a refresh sweep (reviews / metrics-*) by enqueueing via jobEnqueueOptions (BQC-3 producer contract; dispatch re-authorizes) (BQC-7.5)',
+    },
+  ),
+  ops('scripts/ops/enqueue-purge.ts', 'scripts/ops/enqueue-purge.ts', 'tenant_cross', {
+    notes:
+      'ops:purge — bounded re-run of purge-expired-reviews / retention-sweep via the BQC-3 producer contract; destructive: typed --yes confirmation (BQC-7.5)',
+  }),
+  ops(
+    'scripts/ops/property-suspension.ts',
+    'scripts/ops/property-suspension.ts',
+    'property',
+    {
+      notes:
+        'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension (reason+ticket; own audit row + harness row) (BQC-7.5)',
+    },
+  ),
+  ops('scripts/ops/inspect-decision.ts', 'scripts/ops/inspect-decision.ts', 'property', {
+    notes:
+      'ops:inspect — read-only routing/policy decision inspection: region diagnostic (org+property scope) or policy-decision explanation (org scope); audited per read (BQC-7.5)',
+  }),
+  ops(
+    'scripts/ops/disconnect-connection.ts',
+    'scripts/ops/disconnect-connection.ts',
+    'organization',
+    {
+      notes:
+        'ops:disconnect-connection — revoke Google connection credentials via disconnectGoogleAccount (revoke+redact+purge; reconnect rotates); destructive: typed --yes; key rotation stays runbook-manual (BQC-7.5)',
+    },
+  ),
+  ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
+    notes:
+      'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',
+  }),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',

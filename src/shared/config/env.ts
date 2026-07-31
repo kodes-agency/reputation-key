@@ -49,6 +49,14 @@ const envSchema = z.object({
   // (3s timeout, fire-and-log-on-failure, never throws into the evaluator).
   ALERT_WEBHOOK_URL: z.url().optional(),
 
+  // BQC-7.5: named-operator allowlist for operator commands (scripts/ops/*).
+  // Comma-separated operator identities (e.g. emails). The ExecutionPolicy
+  // operator branch fails closed when an operator id is absent from this
+  // list (operator_not_registered); absent/empty env = NO operator command
+  // evaluates allow. Every invocation still needs --operator <id> matching
+  // an entry here.
+  OPS_OPERATOR_IDENTITIES: z.string().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 

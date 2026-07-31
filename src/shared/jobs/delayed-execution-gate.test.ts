@@ -27,6 +27,7 @@ import {
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
 import { DELAYED_CONTRACT_FIXTURES } from '#/shared/auth/system-execution-policy.fixtures'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -367,7 +368,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policy: { policyVersionAtEnqueue: 'bqc-2.4' },
+        policy: { policyVersionAtEnqueue: EXECUTION_POLICY_VERSION },
       },
       'worker:default',
       'worker',
@@ -408,7 +409,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policy: { policyVersionAtEnqueue: 'bqc-2.4' },
+        policy: { policyVersionAtEnqueue: EXECUTION_POLICY_VERSION },
       },
       'worker:default',
       'worker',
