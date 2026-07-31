@@ -39,6 +39,14 @@ import {
 } from '#/shared/db/role-definitions'
 import { getDb } from '#/shared/db'
 
+import {
+  recordTenantCacheEviction,
+  recordTenantCacheHit,
+  recordTenantCacheMiss,
+  registerTenantCacheSizeReader,
+  resetTenantCacheStats,
+} from './tenant-cache-stats'
+
 // ── Request-scoped tenant cache ───────────────────────────────
 // Within a single page load, multiple server functions call resolveTenantContext
 // with identical sessions. This cache deduplicates the getActiveMember() DB call.
@@ -58,6 +66,10 @@ export type TenantCacheEntry = Readonly<{
 }>
 
 const tenantCache = new Map<string, TenantCacheEntry>()
+
+// BQC-7.3: the health side reads cache.tenant.* via the light stats module —
+// it never imports this module (the auth stack stays out of health).
+registerTenantCacheSizeReader(() => tenantCache.size)
 
 function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
   const cookie = headers.get('cookie')
@@ -80,6 +92,7 @@ function evictOldestIfNeeded(): void {
     const firstKey = tenantCache.keys().next().value
     if (firstKey) {
       tenantCache.delete(firstKey)
+      recordTenantCacheEviction()
     }
   }
 }
@@ -87,6 +100,7 @@ function evictOldestIfNeeded(): void {
 /** Reset the tenant cache completely. Test-only. */
 export function resetTenantResolutionCache(): void {
   tenantCache.clear()
+  resetTenantCacheStats()
 }
 
 // ── Freshness decision table (pure) ────────────────────────────
@@ -123,11 +137,7 @@ export function versionedEntryIsFresh(
 // ── Cache serve path ───────────────────────────────────────────
 
 function serveEntry(entry: TenantCacheEntry): AuthContext {
-  enrichSpan({
-    organizationId: entry.ctx.organizationId,
-    userId: entry.ctx.userId,
-    role: entry.ctx.role,
-  })
+  enrichSpan({ role: entry.ctx.role })
   return entry.ctx
 }
 
@@ -156,6 +166,7 @@ async function versionedEntryStillCurrent(
     return true
   }
   tenantCache.delete(key)
+  recordTenantCacheEviction()
   return false
 }
 
@@ -164,11 +175,14 @@ async function tryServeFromCache(key: string): Promise<AuthContext | null> {
   const entry = tenantCache.get(key)
   const action = decideTenantCacheAction(entry, Date.now())
   if (action === 'resolve-fresh' || !entry) {
+    recordTenantCacheMiss()
     return null
   }
   if (action === 'check-version' && !(await versionedEntryStillCurrent(key, entry))) {
+    recordTenantCacheMiss()
     return null
   }
+  recordTenantCacheHit()
   return serveEntry(entry)
 }
 
@@ -192,17 +206,12 @@ type MemberAuthorization = Readonly<{
 function resolveBuiltInAuthorization(
   memberRole: string,
   domainRole: Role | null,
-  context: { activeOrgId: string; userId: string },
 ): MemberAuthorization {
   if (domainRole === null) {
     // Stage 1 fail-closed: a non-built-in role (custom or comma-delimited multi-role)
     // while custom roles are disabled. The warn log is the alerting anchor.
     getLogger().warn(
-      {
-        memberRole,
-        organizationId: context.activeOrgId,
-        userId: context.userId,
-      },
+      { memberRole },
       'auth.unsupported_member_role: custom role rejected while custom roles are disabled',
     )
     throwAuthError('forbidden', 'Member role is not supported')
@@ -244,8 +253,6 @@ async function resolveDynamicAuthorization(
     getLogger().error(
       {
         err,
-        organizationId: context.activeOrgId,
-        userId: context.userId,
         memberRole,
       },
       'auth.authorization_unavailable: dynamic resolver failed; fail-closed',
@@ -264,9 +271,7 @@ function resolveMemberAuthorization(input: {
   if (selectRoleStrategy(getEnv().ENABLE_CUSTOM_ROLES) === 'dynamic') {
     return resolveDynamicAuthorization(input.memberRole, domainRole, context)
   }
-  return Promise.resolve(
-    resolveBuiltInAuthorization(input.memberRole, domainRole, context),
-  )
+  return Promise.resolve(resolveBuiltInAuthorization(input.memberRole, domainRole))
 }
 
 function buildAuthContext(
@@ -350,10 +355,6 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   if (reqCtx2) {
     reqCtx2.resolvedTenantCtx = ctx
   }
-  enrichSpan({
-    organizationId: ctx.organizationId,
-    userId: ctx.userId,
-    role: ctx.role,
-  })
+  enrichSpan({ role: ctx.role })
   return ctx
 }

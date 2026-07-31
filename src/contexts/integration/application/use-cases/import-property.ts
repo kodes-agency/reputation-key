@@ -162,16 +162,8 @@ async function processImportLocation(
     }
 
     if (!treatAsSkip) {
-      deps.logger.error(
-        {
-          jobId: input.jobId,
-          organizationId: input.organizationId,
-          gbpPlaceId: location.gbpPlaceId,
-          businessName: location.businessName,
-          err,
-        },
-        'GBP property import failed',
-      )
+      // BQC-7.3: no tenant ids / provider identifiers / business names in logs.
+      deps.logger.error({ err }, 'GBP property import failed')
     }
 
     if (treatAsSkip) {
@@ -273,22 +265,12 @@ export const importProperty =
         try {
           await deps.onFirstPropertyImported(orgId, input.connectionId)
         } catch (err) {
-          logger.warn(
-            {
-              err,
-              organizationId: input.organizationId,
-              connectionId: input.connectionId,
-            },
-            'onFirstPropertyImported hook failed — continuing',
-          )
+          logger.warn({ err }, 'onFirstPropertyImported hook failed — continuing')
         }
       }
       return { created: createdProperties, status: finalStatus }
     } catch (err) {
-      logger.error(
-        { err, jobId: input.jobId, organizationId: input.organizationId },
-        'Import handler crashed unexpectedly',
-      )
+      logger.error({ err }, 'Import handler crashed unexpectedly')
       await deps.importRepo.updateStatus(orgId, jobId, 'failed')
       return { created: createdProperties, status: 'failed' }
     }

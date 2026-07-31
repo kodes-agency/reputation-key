@@ -113,7 +113,7 @@ describe('onInboxItemCreated (notification)', () => {
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      { propertyId: NOTIF_TEST_IDS.propId, eventId: NOTIF_TEST_IDS.eventId },
+      { correlationId: undefined },
       'onInboxItemCreated: no recipients found',
     )
   })

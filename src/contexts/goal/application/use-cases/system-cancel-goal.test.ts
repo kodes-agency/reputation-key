@@ -224,9 +224,7 @@ describe('systemCancelGoal', () => {
 
     expect(fakes.logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
-        goalId: goal.id,
         reason: 'portal_deleted',
-        organizationId: ORG,
       }),
       'goal: system-initiated cancellation',
     )

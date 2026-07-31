@@ -76,7 +76,7 @@ describe('onReplySubmitted (notification)', () => {
     await onReplySubmitted(deps)(submittedEvent)
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      { organizationId: NOTIF_TEST_IDS.orgId, eventId: NOTIF_TEST_IDS.eventId },
+      { correlationId: undefined },
       'onReplySubmitted: no recipients found, skipping',
     )
   })

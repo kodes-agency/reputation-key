@@ -73,7 +73,7 @@ export const disconnectGoogleAccount =
         await deps.unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
       } catch (e) {
         deps.logger.warn(
-          { connectionId: input.connectionId, err: e },
+          { err: e },
           'GBP notifications unsubscribe failed — disconnecting anyway',
         )
       }
@@ -84,7 +84,7 @@ export const disconnectGoogleAccount =
       await deps.oauth.revokeToken(refreshToken)
     } catch (e) {
       deps.logger.warn(
-        { connectionId: input.connectionId, err: e },
+        { err: e },
         'Google token revocation failed — disconnecting locally anyway',
       )
     }

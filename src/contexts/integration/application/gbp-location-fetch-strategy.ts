@@ -15,7 +15,11 @@ export type GbpLocationFetchDeps = Readonly<{
   logger: LoggerPort
 }>
 
-/** Observability context for the wildcard-failure warn log. */
+/**
+ * Observability context accepted by the fetch port. BQC-7.3: retained for
+ * signature stability — tenant identifiers are never logged (the wildcard
+ * failure warn is content-free).
+ */
 export type FetchLogContext = Readonly<{
   connectionId: string
   organizationId: string
@@ -106,32 +110,26 @@ export const createGbpLocationFetchStrategy = (
   const fetchViaWildcard = async (
     accessToken: string,
     originalErr: unknown,
-    logContext: FetchLogContext,
   ): Promise<ReadonlyArray<GbpLocation>> => {
     try {
       return await deps.gbpApi.listLocations(accessToken, WILDCARD_ACCOUNT)
     } catch (err) {
-      deps.logger.warn(
-        {
-          err,
-          connectionId: logContext.connectionId,
-          organizationId: logContext.organizationId,
-        },
-        'Wildcard GBP location listing also failed',
-      )
+      deps.logger.warn({ err }, 'Wildcard GBP location listing also failed')
       throw originalErr
     }
   }
 
   return {
-    fetchLocations: async (accessToken, logContext) => {
+    // BQC-7.3: the log context (tenant identifiers) is accepted for signature
+    // stability but never logged — the wildcard warn is content-free.
+    fetchLocations: async (accessToken, _logContext) => {
       try {
         return await fetchViaAccounts(accessToken)
       } catch (originalErr) {
         if (decideFetchRecovery(originalErr) === 'propagate') {
           throw originalErr
         }
-        return fetchViaWildcard(accessToken, originalErr, logContext)
+        return fetchViaWildcard(accessToken, originalErr)
       }
     },
   }

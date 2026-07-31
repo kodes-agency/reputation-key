@@ -109,9 +109,10 @@ export function createShadowCompareCollector(deps: {
   return {
     record(result) {
       results.push(result)
+      // BQC-7.3: eventId stays in the in-memory summary (operator diagnostic)
+      // but never reaches the log line — family/outcome/fields are the log.
       const line = {
         family: result.family,
-        eventId: result.eventId,
         outcome: result.outcome,
         mismatchFields: result.mismatchFields,
       }

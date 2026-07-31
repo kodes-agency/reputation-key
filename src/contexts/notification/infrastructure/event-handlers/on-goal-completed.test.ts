@@ -144,7 +144,7 @@ describe('onGoalCompleted (notification)', () => {
 
     expect(deps.queue.add).not.toHaveBeenCalled()
     expect(deps.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ propertyId: PROP_ID, eventId: 'evt-goal-completed-1' }),
+      expect.objectContaining({ correlationId: undefined }),
       'onGoalCompleted: no recipients found, skipping',
     )
   })

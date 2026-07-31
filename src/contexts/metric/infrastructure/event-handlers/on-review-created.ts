@@ -40,8 +40,6 @@ export const onReviewCreated =
           {
             err,
             event: event._tag,
-            propertyId: event.propertyId,
-            organizationId: event.organizationId,
           },
           'metric: failed to record property.review',
         )

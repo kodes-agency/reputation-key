@@ -688,13 +688,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     for (const line of shadowLogLines) {
       expect(line.outcome).toBe('match')
       expect(line.mismatchFields).toEqual([])
-      // Content-free: only family/eventId/outcome/field-names are logged.
-      expect(Object.keys(line).sort()).toEqual([
-        'eventId',
-        'family',
-        'mismatchFields',
-        'outcome',
-      ])
+      // Content-free (BQC-7.3): only family/outcome/field-names are logged —
+      // the eventId stays in the in-memory summary, never the log line.
+      expect(Object.keys(line).sort()).toEqual(['family', 'mismatchFields', 'outcome'])
     }
 
     // ── Receipts: exactly one per consumer per event ──────────────────

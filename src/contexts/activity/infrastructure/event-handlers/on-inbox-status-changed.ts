@@ -25,7 +25,7 @@ export const onInboxStatusChanged =
       },
     }
     getLogger().info(
-      { resourceId: event.inboxItemId, from: event.oldStatus, to: event.newStatus },
+      { from: event.oldStatus, to: event.newStatus },
       'Enqueue insert-activity-log job',
     )
     await deps.queue.add('insert-activity-log', payload)

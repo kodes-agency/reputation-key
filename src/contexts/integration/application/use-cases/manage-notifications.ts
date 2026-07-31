@@ -63,10 +63,7 @@ export const manageNotifications = (
       }
       return deps.encryption.decrypt(connection.encryptedAccessToken)
     } catch (err) {
-      deps.logger.warn(
-        { err, organizationId, connectionId },
-        'GBP notifications: token resolution failed',
-      )
+      deps.logger.warn({ err }, 'GBP notifications: token resolution failed')
       return null
     }
   }
@@ -116,15 +113,9 @@ export const manageNotifications = (
         pubsubTopic: deps.pubsubTopic,
         notificationTypes: deps.notificationTypes,
       })
-      deps.logger.info(
-        { organizationId, connectionId, gbpAccountId },
-        'GBP notifications: subscribed',
-      )
+      deps.logger.info('GBP notifications: subscribed')
     } catch (err) {
-      deps.logger.warn(
-        { err, organizationId, connectionId },
-        'GBP notifications subscribe failed — continuing',
-      )
+      deps.logger.warn({ err }, 'GBP notifications subscribe failed — continuing')
     }
   }
 
@@ -150,15 +141,9 @@ export const manageNotifications = (
       if (!gbpAccountId) return
 
       await deps.notifications.unsubscribe({ accessToken, gbpAccountId })
-      deps.logger.info(
-        { organizationId, connectionId, gbpAccountId },
-        'GBP notifications: unsubscribed',
-      )
+      deps.logger.info('GBP notifications: unsubscribed')
     } catch (err) {
-      deps.logger.warn(
-        { err, organizationId, connectionId },
-        'GBP notifications unsubscribe failed — continuing',
-      )
+      deps.logger.warn({ err }, 'GBP notifications unsubscribe failed — continuing')
     }
   }
 

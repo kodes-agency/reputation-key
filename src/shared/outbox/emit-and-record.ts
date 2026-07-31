@@ -32,7 +32,7 @@ export async function emitAndRecord(
   const row = tryToOutboxEvent(event)
   if (!row) {
     getLogger().debug(
-      { eventType: event._tag, eventId: event.eventId },
+      { eventType: event._tag, correlationId: event.correlationId ?? undefined },
       'BQR-2.5: skipping outbox insert for unregistered event type',
     )
     return

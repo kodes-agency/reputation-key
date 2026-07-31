@@ -250,7 +250,7 @@ export const rebuildInboxProjection =
       })
       if (built.isErr()) {
         deps.logger.warn(
-          { reviewId: src.id as string, err: built.error },
+          { err: built.error },
           'rebuildInboxProjection: skipping review — item construction failed',
         )
         continue

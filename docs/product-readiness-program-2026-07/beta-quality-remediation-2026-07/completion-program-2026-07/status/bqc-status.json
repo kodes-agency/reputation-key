@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-29T16:52:09Z",
+  "updatedAt": "2026-07-31T07:39:04Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -981,7 +981,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
       "exceptions": [],
-      "notes": "7.1: production containers + deployment contract. 7.2 implementation_complete: health semantics — liveness pinned dependency-free; readiness upgraded to budgeted 4-probe semantics (DB + Redis + migration-journal match + policy strong-read, 2s each); new startup endpoint (200 only when boot/migration/config init complete — Railway's activation gate now consumes it); metrics is now a private operator surface (OPS_METRICS_TOKEN, 404-not-403 fail-closed). Worker heartbeat deliberately kept OUT of web readiness (a degraded non-critical worker must not take web traffic down — 7.4 alerts it via the snapshot). Slices 7.3–7.8 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "7.1: production containers + deployment contract. 7.2: health semantics. 7.3 implementation_complete: observability schema — a typed metric registry with an executable label policy (approved correlation: requestId/correlationId only); central redaction at the pino mixin (organizationId/userId/resource REMOVED from SpanAttrs — role + useCase stay); the 73 banned-ID log call-sites swept; new content-free families (pool gauges, migration version number, publication-state counts + ambiguity age, tenant-cache counters, release SHA, policy/routing/capability/source versions); architecture scan gate + canary test. Slices 7.4–7.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-7.3",
+      "kind": "slice",
+      "parentId": "BQC-7",
+      "title": "Observability schema",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) The schema module (src/shared/observability/metrics-schema.ts): a typed registry of metric definitions across the doc's families (request/db/queue/worker/sync/source/reply.publication/policy/routing/cache/release/versions) with closed low-cardinality label sets (queue names, stable reason enums, version names, useCase route classes) and an executable label policy: APPROVED_CORRELATION_FIELDS = requestId + correlationId; BANNED_LOG_KEYS = every ID/content-bearing key found in the sweep. (2) Central redaction at the one choke point (the pino mixin reads SpanAttrs): organizationId, userId, and resource REMOVED from SpanAttrs (request-context.ts) — role (3 values) and useCase (route class) stay; tenant-resolver enriches role only; requestId stays the approved per-trace correlation. (3) The call-site sweep: 73 banned-ID log call-sites across 37 files cleaned (incl. the raw jobData dump with provider-derived locationName in sync-property-reviews.job — the one content-adjacent log path); safe content-free fields (jobName, queue, reason, duration, counts, ages) kept; emails/provider bodies were already masked/suppressed. (4) New content-free families in the OperationsSnapshot: db.pool gauges (max/total/idle/waiting), db.migration.version (number, via migration-version.ts), reply.publication counts + oldestAmbiguousAgeMs, cache.tenant hit/miss/eviction counters (tenant-cache-stats.ts), release.sha (RELEASE_SHA ?? RAILWAY_GIT_COMMIT_SHA), and the versions block (capability policy, policy store, routing policy, source-content policy). Request rate/error/latency metric NAMES registered for 7.4's alert wiring (logs already carry durations). (5) Gates: observability-schema.test.ts (every snapshot field registered; SpanAttrs banned-key-free; the logger call-site scan fails on any banned key — the sweep is proven BY it, not by the banlist weakened) + observability-canary.test.ts (seeded canary appears in no log field value; snapshot deep-walk finds no org/property/user-shaped identifiers beyond the approved correlation fields). Quota cut hit before the coder's report; the full verify set was run by the parent: unit 401f/4387t, integration 52f/315t, typecheck, lint (incl. test-quality), format, check:coverage (floors held — actually improved: overall branches 43.01 vs floor 42.61), fallow v3.5.0 verdict warn with ZERO introduced dead-code/complexity (2 complexity findings surfaced by the sweep were pre-existing and carry narrow ignore comments with reasons on separate lines). NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-7.2",

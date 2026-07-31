@@ -87,7 +87,7 @@ describe('onInboxNoteAdded (notification)', () => {
     await onInboxNoteAdded(deps)(noteAddedEvent)
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      { propertyId: NOTIF_TEST_IDS.propId, eventId: NOTIF_TEST_IDS.eventId },
+      { correlationId: undefined },
       'onInboxNoteAdded: no recipients after filtering, skipping',
     )
   })

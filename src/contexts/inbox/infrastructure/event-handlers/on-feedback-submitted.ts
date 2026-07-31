@@ -27,10 +27,7 @@ export const onFeedbackSubmitted =
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return
-        getLogger().error(
-          { err, feedbackId: event.feedbackId },
-          'inbox: failed to handle feedback.submitted',
-        )
+        getLogger().error({ err }, 'inbox: failed to handle feedback.submitted')
       }
     })
   }

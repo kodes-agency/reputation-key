@@ -122,7 +122,7 @@ async function enqueueSyncGroups(
       state.enqueued++
     } catch (err) {
       state.enqueueFailed++
-      logger.warn({ err, propertyId: data.propertyId }, 'Failed to enqueue refresh job')
+      logger.warn({ err }, 'Failed to enqueue refresh job')
     }
   }
 }

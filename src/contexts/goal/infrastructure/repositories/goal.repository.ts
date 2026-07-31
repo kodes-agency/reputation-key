@@ -31,7 +31,7 @@ function safeMapGoals(rows: ReadonlyArray<typeof goals.$inferSelect>): Goal[] {
     try {
       return [goalFromRow(row)]
     } catch (e) {
-      log.warn({ err: e, goalId: row.id }, 'Skipping goal with invalid DB data')
+      log.warn({ err: e }, 'Skipping goal with invalid DB data')
       return []
     }
   })
@@ -102,16 +102,13 @@ export const createGoalRepository = (
   insert: async (goal) => {
     return trace('goal.insert', async () => {
       const start = Date.now()
-      log.debug({ organizationId: goal.organizationId as string }, 'goal insert start')
+      log.debug('goal insert start')
       const row = goalToInsertRow(goal)
       const result = await db.insert(goals).values(row).returning()
       if (!result[0]) {
         throw goalError('repo_insert_failed', 'Goal insert failed — no row returned')
       }
-      log.debug(
-        { goalId: result[0].id, duration: Date.now() - start },
-        'goal insert complete',
-      )
+      log.debug({ duration: Date.now() - start }, 'goal insert complete')
       return goalFromRow(result[0])
     })
   },
@@ -141,7 +138,7 @@ export const createGoalRepository = (
   list: async (filter: GoalListFilter) => {
     return trace('goal.list', async () => {
       const start = Date.now()
-      log.debug({ organizationId: filter.organizationId as string }, 'goal list start')
+      log.debug('goal list start')
       const conditions = [eq(goals.organizationId, filter.organizationId)]
       if (filter.propertyId)
         conditions.push(eq(goals.propertyId, filter.propertyId as string))
@@ -398,10 +395,7 @@ export const createGoalRepository = (
   ) => {
     return trace('goal.findActiveGoalsByMetric', async () => {
       const start = Date.now()
-      log.debug(
-        { metricKey, organizationId: organizationId as string },
-        'goal findActiveGoalsByMetric start',
-      )
+      log.debug({ metricKey }, 'goal findActiveGoalsByMetric start')
       const conditions = [
         eq(goals.status, 'active'),
         eq(goals.metricKey, metricKey),

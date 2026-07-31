@@ -22,10 +22,7 @@ export const onReplySubmitted =
           event.organizationId,
         )
         if (!inboxItem) {
-          getLogger().warn(
-            { reviewId: event.reviewId },
-            'inbox: reply.submitted but no inbox item found',
-          )
+          getLogger().warn('inbox: reply.submitted but no inbox item found')
           return
         }
 
@@ -42,10 +39,7 @@ export const onReplySubmitted =
           event.occurredAt,
         )
       } catch (err) {
-        getLogger().error(
-          { err, replyId: event.replyId },
-          'inbox: failed to handle reply.submitted',
-        )
+        getLogger().error({ err }, 'inbox: failed to handle reply.submitted')
       }
     })
   }

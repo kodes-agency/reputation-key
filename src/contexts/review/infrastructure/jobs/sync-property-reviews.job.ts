@@ -23,15 +23,14 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
       // BQC-3.2: capability authorization happens at dispatch in the delayed
       // execution gate — job handlers no longer re-check capabilities.
 
-      logger.info(
-        { jobId: job.id, propertyId: job.data.propertyId },
-        'Syncing property reviews',
-      )
+      logger.info('Syncing property reviews')
 
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
       for (const id of [job.data.propertyId, job.data.connectionId]) {
         if (!UUID_RE.test(id)) {
-          logger.error({ jobData: job.data }, 'Invalid UUID in job data, skipping')
+          // BQC-7.3: the raw job payload (provider-derived locationName) must
+          // never reach logs — jobName + the failure class carry the context.
+          logger.error({ jobName: job.name }, 'Invalid UUID in job data, skipping')
           return
         }
       }
@@ -46,10 +45,7 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
 
         if (result.isErr()) {
           const e = result.error
-          logger.error(
-            { err: e, jobId: job.id, propertyId: job.data.propertyId },
-            'Property reviews sync failed',
-          )
+          logger.error({ err: e }, 'Property reviews sync failed')
           throw e // Re-throw so BullMQ retries
         }
 
@@ -57,8 +53,6 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
         if (syncResult.partialFailure) {
           logger.warn(
             {
-              jobId: job.id,
-              propertyId: job.data.propertyId,
               fetched: syncResult.fetched,
               created: syncResult.created,
               updated: syncResult.updated,
@@ -70,8 +64,6 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
         } else {
           logger.info(
             {
-              jobId: job.id,
-              propertyId: job.data.propertyId,
               fetched: syncResult.fetched,
               created: syncResult.created,
               updated: syncResult.updated,
@@ -82,10 +74,7 @@ export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
           )
         }
       } catch (err) {
-        logger.error(
-          { err, jobId: job.id, propertyId: job.data.propertyId },
-          'Failed to sync property reviews',
-        )
+        logger.error({ err }, 'Failed to sync property reviews')
         throw err
       }
     })

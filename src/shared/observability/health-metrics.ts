@@ -18,7 +18,7 @@ import { DEFAULT_LEASE_DURATION_MS } from '#/shared/outbox/infrastructure/outbox
 import type { Database } from '#/shared/db'
 import { sql } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import { reviews } from '#/shared/db/schema/review.schema'
+import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
 import { trace } from '#/shared/observability/trace'
 
@@ -77,6 +77,19 @@ export type HealthSnapshot = Readonly<{
   sync: Readonly<{
     dueForIncrementalCount: number
     failedSyncCount: number
+  }>
+  /**
+   * BQC-7.3 (reply.publication.*): durable publication-state counts (the
+   * migration-0015 state machine) + the reconciliation backlog age. Counts
+   * cover the full CHECK-constraint state set; NULL publication_state rows
+   * (drafts / pre-0015 legacy) are not a publication workflow and are not
+   * counted.
+   */
+  replyPublication: Readonly<{
+    counts: Readonly<Record<string, number>>
+    /** Age of the oldest ambiguous row past its reconcile_due_at (null when
+     *  no ambiguous row is due — the sweep is keeping up). */
+    oldestAmbiguousAgeMs: number | null
   }>
   workers: Readonly<{
     defaultQueueName: string
@@ -193,6 +206,67 @@ async function readQuarantineMetrics(
   return { count, oldestAgeMs }
 }
 
+type ReplyPublicationMetrics = HealthSnapshot['replyPublication']
+
+/**
+ * BQC-7.3: reply publication-state counts + ambiguity reconciliation age
+ * (replies table, migration 0015). NULL publication_state rows (drafts /
+ * pre-0015 legacy) are not a publication workflow and are not counted.
+ */
+async function readReplyPublicationMetrics(
+  db: Database,
+): Promise<ReplyPublicationMetrics> {
+  const result = await db
+    .select({
+      requested: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'requested')::int
+      `,
+      authorized: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'authorized')::int
+      `,
+      sending: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'sending')::int
+      `,
+      published: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'published')::int
+      `,
+      terminal: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'terminal')::int
+      `,
+      ambiguous: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'ambiguous')::int
+      `,
+      cancelled: sql<number>`
+        count(*) FILTER (WHERE ${replies.publicationState} = 'cancelled')::int
+      `,
+      oldest_ambiguous_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${replies.reconcileDueAt}) FILTER (
+          WHERE ${replies.publicationState} = 'ambiguous'
+            AND ${replies.reconcileDueAt} IS NOT NULL
+            AND ${replies.reconcileDueAt} < NOW()
+        ))) * 1000
+      `,
+    })
+    .from(replies)
+
+  const row = result[0]
+  return {
+    counts: {
+      requested: row?.requested ?? 0,
+      authorized: row?.authorized ?? 0,
+      sending: row?.sending ?? 0,
+      published: row?.published ?? 0,
+      terminal: row?.terminal ?? 0,
+      ambiguous: row?.ambiguous ?? 0,
+      cancelled: row?.cancelled ?? 0,
+    },
+    oldestAmbiguousAgeMs:
+      row?.oldest_ambiguous_age_ms != null
+        ? Math.round(Number(row.oldest_ambiguous_age_ms))
+        : null,
+  }
+}
+
 /**
  * Create a health checker that queries operational metrics from the database.
  */
@@ -284,6 +358,9 @@ export function createHealthChecker(
 
         const syncRow = syncResult[0]
 
+        // BQC-7.3: reply publication-state counts + ambiguity age (0015).
+        const replyPublication = await readReplyPublicationMetrics(db)
+
         return {
           timestamp: now.toISOString(),
           outbox: outboxMetrics,
@@ -300,6 +377,7 @@ export function createHealthChecker(
             dueForIncrementalCount: syncRow?.due ?? 0,
             failedSyncCount: syncRow?.failed ?? 0,
           },
+          replyPublication,
           workers: {
             defaultQueueName: 'default',
             backgroundQueueName: 'background',

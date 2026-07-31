@@ -44,14 +44,10 @@ import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { readyProbe, startupProbe, type ReadyProbe, type StartupProbe } from './probes'
 import { withBudget } from './operations-snapshot'
+import { MIGRATION_COUNT_SQL } from './migration-version'
 
 /** Hard per-probe budget. A probe slower than this reports false. */
 export const READINESS_PROBE_BUDGET_MS = 2000
-
-// drizzle.__drizzle_migrations row count — the cheap form of the 5.4
-// comparator's journal query (schema-drift.ts fetchCatalog).
-const MIGRATION_COUNT_SQL =
-  'SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations'
 
 // BQC-2.2's version-gated strong read (policy-state.repository getPolicyVersion).
 const POLICY_VERSION_SQL = "SELECT version FROM policy_version WHERE scope = 'global'"

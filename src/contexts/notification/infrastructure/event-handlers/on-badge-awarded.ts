@@ -18,7 +18,7 @@ export const onBadgeAwarded =
 
     if (managerIds.length === 0) {
       deps.logger.info(
-        { propertyId: event.propertyId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onBadgeAwarded: no recipients found, skipping',
       )
       return

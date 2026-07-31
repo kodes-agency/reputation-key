@@ -204,8 +204,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         if (!processable) {
           getLogger().info(
             {
-              propertyId: property.id,
-              organizationId: property.organizationId,
               processingRegion: property.processingRegion,
             },
             'import: initial review sync blocked — property region not processable',

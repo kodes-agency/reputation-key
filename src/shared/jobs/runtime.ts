@@ -126,7 +126,7 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
   const dispatch = async (job: Job) => {
     const handler = handlers.get(job.name)
     if (!handler) {
-      logger.warn({ jobName: job.name, jobId: job.id }, 'no handler registered for job')
+      logger.warn({ jobName: job.name }, 'no handler registered for job')
       return
     }
     await handler(job)

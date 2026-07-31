@@ -51,10 +51,7 @@ export const ensureActiveOrg = createServerFn({ method: 'POST' }).handler(
           })
         } else {
           const logger = getLogger()
-          logger.warn(
-            { userId: session.user.id },
-            'User has no organizations — cannot set active org',
-          )
+          logger.warn('User has no organizations — cannot set active org')
         }
       } catch (e) {
         catchUntagged(e)

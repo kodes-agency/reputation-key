@@ -138,7 +138,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       }
     } catch (err) {
       input.logger.warn(
-        { err, propertyId, workloadClass },
+        { err, workloadClass },
         'routing envelope stamp failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
       )
       return undefined
@@ -157,7 +157,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       propertyId = await resolvePublishPropertyId(PUBLISH_REPLY_JOB_NAME, data)
     } catch (err) {
       input.logger.warn(
-        { err, replyId: data.replyId },
+        { err },
         'publish routing scope lookup failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
       )
       return undefined

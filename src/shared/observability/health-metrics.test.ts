@@ -25,6 +25,19 @@ const REVIEW_ROW = [
   { total: 0, refresh_due: 0, expired: 0, oldest_due_age_seconds: null },
 ]
 const SYNC_ROW = [{ due: 0, failed: 0 }]
+/** BQC-7.3: reply publication aggregate (one row, all states + age). */
+const PUBLICATION_ROW = [
+  {
+    requested: 0,
+    authorized: 0,
+    sending: 0,
+    published: 0,
+    terminal: 0,
+    ambiguous: 0,
+    cancelled: 0,
+    oldest_ambiguous_age_ms: null,
+  },
+]
 
 function fakeOutboxRepo(expiredRows: unknown[]): OutboxRepository {
   return {
@@ -49,6 +62,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
       [{ claimed: 2, oldest_claimed_age_ms: 45_000, stalled: 1 }], // claimed/stalled
       REVIEW_ROW,
       SYNC_ROW,
+      PUBLICATION_ROW,
     ])
     const repo = fakeOutboxRepo([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }])
 
@@ -70,6 +84,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
       [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
+      PUBLICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([])).check()
@@ -81,7 +96,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
   })
 
   it('zeroes outbox metrics when no outbox repo is available', async () => {
-    const db = fakeDb([REVIEW_ROW, SYNC_ROW])
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW])
     const snapshot = await createHealthChecker(db).check()
 
     expect(snapshot.outbox).toEqual({
@@ -108,6 +123,7 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
       [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
+      PUBLICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
@@ -127,6 +143,7 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
       [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       REVIEW_ROW,
       SYNC_ROW,
+      PUBLICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
@@ -174,6 +191,19 @@ describe('health checker content safety (BQC-4.3)', () => {
         },
       ],
       [{ due: 3, failed: 1, lastError: 'SECRET_REPLY_TEXT' }],
+      [
+        {
+          requested: 1,
+          authorized: 0,
+          sending: 1,
+          published: 5,
+          terminal: 2,
+          ambiguous: 1,
+          cancelled: 0,
+          oldest_ambiguous_age_ms: 120_000,
+          text: 'SECRET_REPLY_TEXT',
+        },
+      ],
     ])
     const repo = fakeOutboxRepo([{ id: 'x', payload: 'SECRET_REVIEW_TEXT' }])
     const quarantine = fakeQuarantine({ waiting: 1 }, [
@@ -213,6 +243,18 @@ describe('health checker content safety (BQC-4.3)', () => {
         oldestDueAgeSeconds: 3600,
       },
       sync: { dueForIncrementalCount: 3, failedSyncCount: 1 },
+      replyPublication: {
+        counts: {
+          requested: 1,
+          authorized: 0,
+          sending: 1,
+          published: 5,
+          terminal: 2,
+          ambiguous: 1,
+          cancelled: 0,
+        },
+        oldestAmbiguousAgeMs: 120_000,
+      },
       workers: {
         defaultQueueName: 'default',
         backgroundQueueName: 'background',

@@ -280,6 +280,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // BQC-2.2: version-gated strong read of persisted policy state
       // (readiness contribution — the worker awaits it before starting).
       refreshPolicyStore: policyStore.refresh,
+      // BQC-7.3 (versions.policy_store): cheap in-memory read of the current
+      // persisted policy_version for the OperationsSnapshot (null when only
+      // the env seed is present — no DB round-trip).
+      policyStoreVersion: policyStore.currentVersion,
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
     },

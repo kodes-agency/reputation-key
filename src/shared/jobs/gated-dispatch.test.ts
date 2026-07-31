@@ -126,7 +126,7 @@ describe('createGatedJobHandler', () => {
     await expect(dispatch(job)).rejects.toThrow(/unregistered-job/)
 
     expect(loggerMocks.error).toHaveBeenCalledWith(
-      expect.objectContaining({ jobName: 'unregistered-job', jobId: 'job-unknown-1' }),
+      expect.objectContaining({ jobName: 'unregistered-job' }),
       expect.stringMatching(/no handler registered/),
     )
     expect(decideMock).not.toHaveBeenCalled()

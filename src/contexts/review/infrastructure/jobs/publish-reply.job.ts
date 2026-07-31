@@ -38,7 +38,6 @@ import type { ReviewRepository } from '../../application/ports/review.repository
 import type { ReplyCommandStore } from '../../application/ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../../application/ports/google-review-api.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { ReplyId } from '#/shared/domain/ids'
 import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
@@ -101,19 +100,16 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       const rId = replyId(job.data.replyId)
       const orgId = organizationId(job.data.organizationId)
 
-      logger.info({ jobId: job.id, replyId: rId }, 'Publishing reply to Google')
+      logger.info('Publishing reply to Google')
 
       const reply = await deps.replyRepo.findById(rId, orgId)
       if (!reply) {
-        logger.error({ replyId: rId }, 'Reply not found, skipping')
+        logger.error('Reply not found, skipping')
         return
       }
 
       if (reply.status !== 'approved') {
-        logger.warn(
-          { replyId: rId, status: reply.status },
-          'Reply not in approved status, skipping',
-        )
+        logger.warn({ status: reply.status }, 'Reply not in approved status, skipping')
         return
       }
 
@@ -124,24 +120,18 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       // Null = cancelled meanwhile (disconnect/policy) or no longer claimable.
       const claimed = await deps.replyCommandStore.markPublicationSending(reply)
       if (!claimed) {
-        logger.warn(
-          { replyId: rId },
-          'Publication claim lost — cancelled or no longer claimable, skipping',
-        )
+        logger.warn('Publication claim lost — cancelled or no longer claimable, skipping')
         return
       }
 
       const review = await deps.reviewRepo.findById(reply.reviewId, orgId)
       if (!review) {
-        logger.error({ reviewId: reply.reviewId }, 'Review not found for reply')
+        logger.error('Review not found for reply')
         return
       }
 
       if (!review.googleConnectionId) {
-        logger.error(
-          { reviewId: review.id },
-          'Review has no Google connection, cannot publish',
-        )
+        logger.error('Review has no Google connection, cannot publish')
         // A missing connection can never succeed — terminal, no retry burn.
         await deps.replyCommandStore.markPublicationTerminal(
           claimed,
@@ -166,23 +156,21 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
         const current = await deps.replyRepo.findById(rId, orgId)
         if (!current) {
           logger.error(
-            { replyId: rId },
             'Reply purged during the Google call — provider-visible reply has no local evidence; NOT marking published (provider-side cleanup is out of scope)',
           )
           return
         }
         if (current.publicationState === 'cancelled') {
           logger.warn(
-            { replyId: rId },
             'Publication cancelled during the Google call — the local truth is cancelled; NOT marking published',
           )
           return
         }
 
         await doMarkPublished({ replyId: rId, organizationId: orgId })
-        logger.info({ replyId: rId }, 'Reply published to Google')
+        logger.info('Reply published to Google')
       } catch (err) {
-        await handlePublishFailure(deps, job, claimed, review, rId, err)
+        await handlePublishFailure(deps, job, claimed, review, err)
       }
     })
   }
@@ -194,7 +182,6 @@ async function handlePublishFailure(
   job: Job<PublishReplyJobData>,
   claimed: Reply,
   review: Review,
-  rId: ReplyId,
   err: unknown,
 ): Promise<void> {
   const logger = getLogger()
@@ -206,7 +193,7 @@ async function handlePublishFailure(
     // Permanent provider answer (4xx / connection gone): retrying cannot
     // succeed. Mark terminal and resolve — remaining attempts must not burn.
     logger.error(
-      { err, replyId: rId, attempt },
+      { err, attempt },
       'Reply rejected terminally by Google — marked publish_failed without retry',
     )
     await deps.replyCommandStore.markPublicationTerminal(
@@ -221,7 +208,7 @@ async function handlePublishFailure(
     // Transient (429/5xx/token refresh/pre-response network): back to
     // 'authorized' so the next BullMQ attempt (or a quarantine redrive)
     // re-claims; last_error_class and attempts are preserved. Then rethrow.
-    logger.error({ err, replyId: rId, attempt }, 'Reply publish failed (retryable)')
+    logger.error({ err, attempt }, 'Reply publish failed (retryable)')
     await deps.replyCommandStore.markPublicationRetryQueued(claimed)
     throw err
   }
@@ -234,7 +221,7 @@ async function handlePublishFailure(
     // reconcileReplyPublication / retryPublish reconcile-before-retry)
     // re-reads provider state before any new publish.
     logger.error(
-      { err, replyId: rId, attempt, reconcile: 'reconcileReplyPublication' },
+      { err, attempt, reconcile: 'reconcileReplyPublication' },
       'Ambiguous publish outcome on final attempt — marked publish_failed; reconcile before retrying',
     )
     await deps.replyCommandStore.markPublicationAmbiguous(
@@ -249,9 +236,6 @@ async function handlePublishFailure(
   // in-flight workflow; jobId idempotency serializes attempts, so no second
   // worker can race the claim). Marking anything here would lie about an
   // outcome we do not know.
-  logger.error(
-    { err, replyId: rId, attempt },
-    'Reply publish outcome ambiguous — retrying',
-  )
+  logger.error({ err, attempt }, 'Reply publish outcome ambiguous — retrying')
   throw err
 }

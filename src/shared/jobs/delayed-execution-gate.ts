@@ -277,7 +277,7 @@ async function enforceJobRouting(
     // Fail closed: a routed job whose property scope cannot be established
     // must never run unrouted (the 3.2 policy gate normally denies first).
     logger.warn(
-      { jobName: job.name, jobId: job.id },
+      { jobName: job.name },
       'job routing scope unresolved — quarantining (fail closed)',
     )
     await routing.quarantine(job, 'routing_blocked:property_missing')
@@ -289,8 +289,6 @@ async function enforceJobRouting(
     logger.warn(
       {
         jobName: job.name,
-        jobId: job.id,
-        propertyId,
         reason: decision.reason,
         region: decision.region,
       },
@@ -303,8 +301,6 @@ async function enforceJobRouting(
     logger.warn(
       {
         jobName: job.name,
-        jobId: job.id,
-        propertyId,
         targetCell: decision.cell,
         workerCell: routing.cell,
       },
@@ -325,8 +321,6 @@ async function enforceJobRouting(
     logger.info(
       {
         jobName: job.name,
-        jobId: job.id,
-        propertyId,
         stampedVersion: envelope.routingPolicyVersion,
         resolvedVersion: decision.routingPolicyVersion,
       },
@@ -396,7 +390,7 @@ export function createGatedJobHandler(
       // silent ack — throw so the job fails, burns attempts, and lands in the
       // failure quarantine (§4). Boot-time readiness catches the static form.
       logger.error(
-        { jobName: job.name, jobId: job.id },
+        { jobName: job.name },
         'no handler registered for job — failing as deployment/config error',
       )
       throw new UnknownJobError(job.name, job.id)

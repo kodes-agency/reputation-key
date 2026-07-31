@@ -32,6 +32,33 @@ const UNPUBLISHED_ROW = [{ cnt: 3, age_ms: 1500 }]
 const CLAIMED_ROW = [{ claimed: 1, oldest_claimed_age_ms: 500, stalled: 0 }]
 const REVIEW_ROW = [{ total: 2, refresh_due: 1, expired: 0, oldest_due_age_seconds: 60 }]
 const SYNC_ROW = [{ due: 1, failed: 0 }]
+/** BQC-7.3: reply publication aggregate (one row, all states + age). */
+const PUBLICATION_ROW = [
+  {
+    requested: 0,
+    authorized: 1,
+    sending: 0,
+    published: 4,
+    terminal: 0,
+    ambiguous: 1,
+    cancelled: 0,
+    oldest_ambiguous_age_ms: 30_000,
+  },
+]
+
+/** BQC-7.3: hermetic version identity + runtime readers (no real pool/env). */
+const VERSIONS = {
+  capabilityPolicy: 'test-cap',
+  policyStore: () => 11,
+  routingPolicy: 1,
+  sourceContentPolicy: 1,
+} as const
+const RUNTIME = {
+  poolStats: () => ({ max: 10, totalCount: 3, idleCount: 2, waitingCount: 0 }),
+  migrationVersion: async () => 17,
+  releaseSha: () => 'abc1234',
+  tenantCache: () => ({ hits: 5, misses: 2, evictions: 1, size: 3 }),
+} as const
 
 function fakeOutboxRepo(): OutboxRepository {
   return { findExpiredLeases: vi.fn(async () => []) } as unknown as OutboxRepository
@@ -84,7 +111,7 @@ describe('withBudget', () => {
 describe('createOperationsSnapshot', () => {
   it('assembles health + queues + heartbeat into one snapshot with no degraded sections', async () => {
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       queues: {
         default: fakeQueue(2),
@@ -94,6 +121,8 @@ describe('createOperationsSnapshot', () => {
       },
       redis: fakeRedis,
       clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
     })
 
     const snapshot = await reader.read()
@@ -103,6 +132,18 @@ describe('createOperationsSnapshot', () => {
     expect(Number.isNaN(Date.parse(snapshot.timestamp))).toBe(false)
     expect(snapshot.outbox.unpublishedCount).toBe(3)
     expect(snapshot.reviews.refreshDueCount).toBe(1)
+    expect(snapshot.replyPublication).toEqual({
+      counts: {
+        requested: 0,
+        authorized: 1,
+        sending: 0,
+        published: 4,
+        terminal: 0,
+        ambiguous: 1,
+        cancelled: 0,
+      },
+      oldestAmbiguousAgeMs: 30_000,
+    })
     expect(snapshot.queues).toHaveLength(4)
     expect(snapshot.queues.map((q) => q.name)).toEqual([
       'default',
@@ -115,6 +156,21 @@ describe('createOperationsSnapshot', () => {
       at: FIXED_NOW.toISOString(),
       ageMs: 0,
       stale: false,
+    })
+    // BQC-7.3 runtime section: pool gauges, migration version, cache
+    // counters, release + policy identity.
+    expect(snapshot.db).toEqual({
+      pool: { max: 10, totalCount: 3, idleCount: 2, waitingCount: 0 },
+      migrationVersion: 17,
+    })
+    expect(snapshot.cache.tenant).toEqual({ hits: 5, misses: 2, evictions: 1, size: 3 })
+    expect(snapshot.release).toEqual({ sha: 'abc1234' })
+    expect(snapshot.versions).toEqual({
+      capabilityPolicy: 'test-cap',
+      policyStore: 11,
+      routingPolicy: 1,
+      sourceContentPolicy: 1,
+      runtime: process.version,
     })
     expect(snapshot.degraded).toEqual([])
   })
@@ -132,6 +188,8 @@ describe('createOperationsSnapshot', () => {
       queues: { default: null, background: null, domainEvents: null, quarantine: null },
       redis: null,
       clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
     })
 
     const snapshot = await reader.read()
@@ -142,6 +200,8 @@ describe('createOperationsSnapshot', () => {
     // Null handles are absent, not degraded: queues [] and stale heartbeat.
     expect(snapshot.queues).toEqual([])
     expect(snapshot.workers.heartbeat).toEqual({ at: null, ageMs: null, stale: true })
+    // The runtime section is unaffected by a degraded health read.
+    expect(snapshot.versions.policyStore).toBe(11)
   })
 
   it('degrades the queues and heartbeat sections when their reads throw', async () => {
@@ -159,7 +219,7 @@ describe('createOperationsSnapshot', () => {
     }
 
     const reader = createOperationsSnapshot({
-      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW]),
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
       outboxRepo: fakeOutboxRepo(),
       // Quarantine null so the health section's quarantine metrics skip the
       // throwing queue and only the depth read degrades.
@@ -171,12 +231,46 @@ describe('createOperationsSnapshot', () => {
       },
       redis: throwingRedis,
       clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
     })
 
     const snapshot = await reader.read()
 
     expect(snapshot.degraded).toEqual(['queues', 'workers.heartbeat'])
     expect(snapshot.queues).toEqual([])
+    expect(snapshot.outbox.unpublishedCount).toBe(3)
+  })
+
+  it('degrades the runtime section when a runtime read rejects', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: {
+        ...RUNTIME,
+        migrationVersion: async () => {
+          throw new Error('pool down')
+        },
+      },
+    })
+
+    const snapshot = await reader.read()
+
+    expect(snapshot.degraded).toEqual(['runtime'])
+    expect(snapshot.db).toEqual({ pool: null, migrationVersion: null })
+    expect(snapshot.release).toEqual({ sha: 'unknown' })
+    // Static version identity survives (policy store read nulled).
+    expect(snapshot.versions).toEqual({
+      capabilityPolicy: 'test-cap',
+      policyStore: null,
+      routingPolicy: 1,
+      sourceContentPolicy: 1,
+      runtime: process.version,
+    })
     expect(snapshot.outbox.unpublishedCount).toBe(3)
   })
 

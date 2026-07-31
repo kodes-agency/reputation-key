@@ -74,7 +74,7 @@ const enqueueUrgentEmailBestEffort = async (
     })
   } catch (enqueueErr) {
     deps.logger.error(
-      { err: enqueueErr, notificationId: notification.id },
+      { err: enqueueErr },
       'Failed to enqueue urgent email — will be picked up by digest fallback',
     )
   }
@@ -98,10 +98,7 @@ const enqueueEmailEntry = async (
   )
 
   if (emailResult.isErr()) {
-    deps.logger.warn(
-      { error: emailResult.error, notificationId: notification.id },
-      'Failed to create email queue entry',
-    )
+    deps.logger.warn({ error: emailResult.error }, 'Failed to create email queue entry')
     return
   }
 
@@ -124,7 +121,8 @@ export const insertNotification =
     // 1. Construct + validate the domain entity
     const result = createNotification({ ...input, id: deps.idGen() }, deps.clock)
     if (result.isErr()) {
-      logger.warn({ error: result.error, input }, 'Failed to construct notification')
+      // BQC-7.3: the raw input (tenant/entity ids) is never logged.
+      logger.warn({ error: result.error }, 'Failed to construct notification')
       throw result.error
     }
 
@@ -133,7 +131,7 @@ export const insertNotification =
 
     if (!inAppEnabled && !emailEnabled) {
       logger.info(
-        { userId: input.userId, type: input.type },
+        { type: input.type },
         'Notification skipped — both in-app and email disabled by preference',
       )
       return null
@@ -174,7 +172,6 @@ export const insertNotification =
     // 5. Return notification only if in-app channel is enabled
     if (!inAppEnabled) {
       logger.info(
-        { notificationId: inserted.id },
         'Notification persisted for email only — not returned for in-app display',
       )
       return null

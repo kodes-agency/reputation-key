@@ -31,10 +31,7 @@ export const onReplyPublished =
           event.organizationId,
         )
         if (!inboxItem) {
-          getLogger().warn(
-            { reviewId: event.reviewId },
-            'inbox: reply.published but no inbox item found',
-          )
+          getLogger().warn('inbox: reply.published but no inbox item found')
           return
         }
 
@@ -83,10 +80,7 @@ export const onReplyPublished =
           )
         }
       } catch (err) {
-        getLogger().error(
-          { err, replyId: event.replyId },
-          'inbox: failed to handle reply.published',
-        )
+        getLogger().error({ err }, 'inbox: failed to handle reply.published')
       }
     })
   }

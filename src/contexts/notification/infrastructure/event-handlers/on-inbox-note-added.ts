@@ -21,7 +21,7 @@ export const onInboxNoteAdded =
   async (event: InboxNoteAdded): Promise<void> => {
     if (!event.propertyId) {
       deps.logger.debug('onInboxNoteAdded: no propertyId, skipping', {
-        eventId: event.eventId,
+        correlationId: event.correlationId ?? undefined,
       })
       return
     }
@@ -36,7 +36,7 @@ export const onInboxNoteAdded =
 
     if (filtered.length === 0) {
       deps.logger.warn(
-        { propertyId: event.propertyId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onInboxNoteAdded: no recipients after filtering, skipping',
       )
       return

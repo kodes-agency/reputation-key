@@ -28,10 +28,7 @@ export const onReviewCreated =
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return
-        getLogger().error(
-          { err, reviewId: event.reviewId },
-          'inbox: failed to handle review.created',
-        )
+        getLogger().error({ err }, 'inbox: failed to handle review.created')
       }
     })
   }

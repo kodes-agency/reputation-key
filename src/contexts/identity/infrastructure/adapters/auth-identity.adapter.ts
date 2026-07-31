@@ -297,7 +297,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         await handler(ctx)
       } catch (e) {
         getLogger().warn(
-          { err: e, userId: ctx.userId },
+          { err: e },
           'Failed to auto-assign property on invitation acceptance',
         )
       }

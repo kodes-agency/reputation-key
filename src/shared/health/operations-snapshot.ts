@@ -30,6 +30,13 @@ import {
   type RedisHeartbeatPort,
   type WorkerHeartbeat,
 } from './worker-heartbeat'
+import { getPoolStats } from '#/shared/db/pool'
+import { appliedMigrationCount } from './migration-version'
+import {
+  getTenantCacheStats,
+  type TenantCacheStats,
+} from '#/shared/auth/tenant-cache-stats'
+import { getReleaseSha } from '#/shared/config/env'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -49,12 +56,64 @@ export type OperationsSnapshotDeps = Readonly<{
   queues: OperationsQueueHandles
   redis: RedisHeartbeatPort | null | undefined
   clock: Clock
+  /**
+   * BQC-7.3: version identity injected by the composition root (the shared
+   * zone cannot import context domain — the root reads the constants).
+   */
+  versions: Readonly<{
+    /** CAPABILITY_POLICY_VERSION (boot manifest). */
+    capabilityPolicy: string
+    /** Persisted policy_version reader (null when only the env seed exists). */
+    policyStore: () => number | null
+    /** ROUTING_POLICY_VERSION (processing-routing). */
+    routingPolicy: number
+    /** SourceContentPolicy.policyVersion. */
+    sourceContentPolicy: number
+  }>
+  /**
+   * BQC-7.3 runtime-section readers. Optional — production defaults read the
+   * real pool / migration table / env / cache stats; tests inject hermetic
+   * fakes so a metrics read never cold-starts the database.
+   */
+  runtime?: Readonly<{
+    poolStats?: () => OperationsDbSection['pool']
+    migrationVersion?: () => Promise<number | null>
+    releaseSha?: () => string
+    tenantCache?: () => TenantCacheStats
+  }>
+}>
+
+/** BQC-7.3 (db.*): pool gauges + the applied migration version. */
+export type OperationsDbSection = Readonly<{
+  /** Null when the pool was never initialized in this process. */
+  pool: Readonly<{
+    max: number
+    totalCount: number
+    idleCount: number
+    waitingCount: number
+  }> | null
+  /** Applied migration journal count (null when the read failed). */
+  migrationVersion: number | null
+}>
+
+/** BQC-7.3 (versions.*): deploy + policy identity. All content-free. */
+export type OperationsVersions = Readonly<{
+  capabilityPolicy: string
+  policyStore: number | null
+  routingPolicy: number
+  sourceContentPolicy: number
+  /** Node runtime version (worker.runtime.version — process.version). */
+  runtime: string
 }>
 
 export type OperationsSnapshot = Readonly<
   Omit<HealthSnapshot, 'workers'> & {
     queues: readonly QueueDepth[]
     workers: HealthSnapshot['workers'] & Readonly<{ heartbeat: WorkerHeartbeat }>
+    db: OperationsDbSection
+    cache: Readonly<{ tenant: TenantCacheStats }>
+    release: Readonly<{ sha: string }>
+    versions: OperationsVersions
     /** Sections whose read failed or exceeded the budget (fallback values). */
     degraded: readonly string[]
   }
@@ -109,10 +168,66 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
       oldestDueAgeSeconds: null,
     },
     sync: { dueForIncrementalCount: 0, failedSyncCount: 0 },
+    replyPublication: {
+      counts: {
+        requested: 0,
+        authorized: 0,
+        sending: 0,
+        published: 0,
+        terminal: 0,
+        ambiguous: 0,
+        cancelled: 0,
+      },
+      oldestAmbiguousAgeMs: null,
+    },
     workers: {
       defaultQueueName: 'default',
       backgroundQueueName: 'background',
       domainEventsQueueName: 'domain-events',
+    },
+  }
+}
+
+type RuntimeSection = Readonly<{
+  db: OperationsDbSection
+  cache: Readonly<{ tenant: TenantCacheStats }>
+  release: Readonly<{ sha: string }>
+  versions: OperationsVersions
+}>
+
+/** BQC-7.3 runtime section: pool/migration gauges, cache counters, identity. */
+async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<RuntimeSection> {
+  return {
+    db: {
+      pool: (deps.runtime?.poolStats ?? getPoolStats)(),
+      migrationVersion: await (deps.runtime?.migrationVersion ?? appliedMigrationCount)(),
+    },
+    cache: { tenant: (deps.runtime?.tenantCache ?? getTenantCacheStats)() },
+    release: { sha: (deps.runtime?.releaseSha ?? getReleaseSha)() },
+    versions: {
+      capabilityPolicy: deps.versions.capabilityPolicy,
+      policyStore: deps.versions.policyStore(),
+      routingPolicy: deps.versions.routingPolicy,
+      sourceContentPolicy: deps.versions.sourceContentPolicy,
+      runtime: process.version,
+    },
+  }
+}
+
+/** Fallback runtime payload when the section degrades (shape intact). */
+function zeroRuntimeSection(
+  versions: OperationsSnapshotDeps['versions'],
+): RuntimeSection {
+  return {
+    db: { pool: null, migrationVersion: null },
+    cache: { tenant: { hits: 0, misses: 0, evictions: 0, size: 0 } },
+    release: { sha: 'unknown' },
+    versions: {
+      capabilityPolicy: versions.capabilityPolicy,
+      policyStore: null,
+      routingPolicy: versions.routingPolicy,
+      sourceContentPolicy: versions.sourceContentPolicy,
+      runtime: process.version,
     },
   }
 }
@@ -131,8 +246,8 @@ export function createOperationsSnapshot(
     read: async () => {
       // Flags (not push order) so `degraded` is deterministic regardless of
       // which section settles first.
-      const flags = { health: false, queues: false, heartbeat: false }
-      const [health, queues, heartbeat] = await Promise.all([
+      const flags = { health: false, queues: false, heartbeat: false, runtime: false }
+      const [health, queues, heartbeat, runtime] = await Promise.all([
         withBudget(checker.check(), OPS_SECTION_BUDGET_MS, () => {
           flags.health = true
           return zeroHealthSnapshot(deps.clock())
@@ -158,17 +273,26 @@ export function createOperationsSnapshot(
             return STALE_HEARTBEAT
           },
         ),
+        withBudget(readRuntimeSection(deps), OPS_SECTION_BUDGET_MS, () => {
+          flags.runtime = true
+          return zeroRuntimeSection(deps.versions)
+        }),
       ])
 
       const degraded: string[] = []
       if (flags.health) degraded.push('health')
       if (flags.queues) degraded.push('queues')
       if (flags.heartbeat) degraded.push('workers.heartbeat')
+      if (flags.runtime) degraded.push('runtime')
 
       return {
         ...health,
         queues,
         workers: { ...health.workers, heartbeat },
+        db: runtime.db,
+        cache: runtime.cache,
+        release: runtime.release,
+        versions: runtime.versions,
         degraded,
       }
     },

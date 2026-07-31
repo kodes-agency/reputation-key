@@ -39,10 +39,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     const entry = await emailRepo.findById(emailId, orgId)
 
     if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) {
-      logger.warn(
-        { notificationEmailId: emailId },
-        'Urgent email entry not found or not retryable',
-      )
+      logger.warn('Urgent email entry not found or not retryable')
       return
     }
 
@@ -52,10 +49,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       entry.organizationId as Parameters<typeof notifRepo.findById>[1],
     )
     if (!notif) {
-      logger.warn(
-        { notificationId: entry.notificationId },
-        'Notification not found for urgent email',
-      )
+      logger.warn('Notification not found for urgent email')
       if (entry.status === 'failed') {
         const now = clock()
         await emailRepo.markFailed(emailId, orgId, now, now)
@@ -71,7 +65,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       entry.userId as Parameters<typeof userLookup.getEmail>[0],
     )
     if (!userEmail) {
-      logger.warn({ userId: entry.userId }, 'User email not found, skipping urgent email')
+      logger.warn('User email not found, skipping urgent email')
       if (entry.status === 'failed') {
         const now = clock()
         await emailRepo.markFailed(emailId, orgId, now, now)
@@ -100,7 +94,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       await emailRepo.markSent(emailId, orgId, sentNow, sentNow)
       // State machine: only 'pending'/'failed' → 'sent'. Enforced at DB level by the repo WHERE clause.
     } catch (err) {
-      logger.error({ err, notificationEmailId: emailId }, 'Urgent email send failed')
+      logger.error({ err }, 'Urgent email send failed')
       const failNow = clock()
       await emailRepo.markFailed(emailId, orgId, failNow, failNow)
       // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.

@@ -186,7 +186,7 @@ describe('GbpLocationFetchStrategy.fetchLocations', () => {
         e.operation === 'listAccounts',
     )
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ connectionId: 'conn-1', organizationId: 'org-1' }),
+      expect.objectContaining({ err: expect.anything() }),
       'Wildcard GBP location listing also failed',
     )
   })

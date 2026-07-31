@@ -36,6 +36,12 @@ const envSchema = z.object({
   // variable). Generate: openssl rand -hex 32
   OPS_METRICS_TOKEN: z.string().min(32).optional(),
 
+  // BQC-7.3 (release.sha): deploy identity for boot logs + the ops snapshot.
+  // RELEASE_SHA wins; Railway injects RAILWAY_GIT_COMMIT_SHA at build time.
+  // Both optional — local/dev boots report 'unknown'.
+  RELEASE_SHA: z.string().min(1).optional(),
+  RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
+
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
@@ -180,4 +186,13 @@ export function getEnv(): Env {
 /** Reset cached env — useful for tests */
 export function resetEnv(): void {
   _env = undefined
+}
+
+/**
+ * BQC-7.3 (release.sha): the deploy identity — RELEASE_SHA, else Railway's
+ * injected commit SHA, else 'unknown'. Logged at boot and exposed in the
+ * OperationsSnapshot.
+ */
+export function getReleaseSha(env: Env = getEnv()): string {
+  return env.RELEASE_SHA ?? env.RAILWAY_GIT_COMMIT_SHA ?? 'unknown'
 }

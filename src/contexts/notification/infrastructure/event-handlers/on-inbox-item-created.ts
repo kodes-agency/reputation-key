@@ -28,7 +28,7 @@ export const onInboxItemCreated =
 
     if (!event.propertyId) {
       deps.logger.debug('onInboxItemCreated: no propertyId, skipping', {
-        eventId: event.eventId,
+        correlationId: event.correlationId ?? undefined,
       })
       return
     }
@@ -40,7 +40,7 @@ export const onInboxItemCreated =
 
     if (recipients.length === 0) {
       deps.logger.warn(
-        { propertyId: event.propertyId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onInboxItemCreated: no recipients found',
       )
       return
