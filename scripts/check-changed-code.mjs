@@ -31,7 +31,32 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** @type {ReadonlyArray<{ file: string, owner: string, reason: string }>} */
 const EXEMPT = [
-  // { file: 'src/path/to/file.ts', owner: '@handle', reason: 'why no colocated test is correct' },
+  // BQC-7.4 alert family — covered by the family injection suites (unit +
+  // integration) rather than per-file colocated tests:
+  {
+    file: 'src/shared/observability/alert-definitions.ts',
+    owner: 'engineering',
+    reason:
+      'covered by src/shared/jobs/alert-injection.test.ts (51 tests: per-alert fire/no-fire table, boundaries, registry shape)',
+  },
+  {
+    file: 'src/shared/observability/alert-dispatcher.ts',
+    owner: 'engineering',
+    reason:
+      'covered by src/shared/jobs/alert-injection.test.ts (dispatch contract, payload fields, webhook failure semantics, banned-key walk)',
+  },
+  {
+    file: 'src/shared/health/alert-state.ts',
+    owner: 'engineering',
+    reason:
+      'covered by src/shared/jobs/alert-injection.test.ts (hysteresis: edge, no-refire, refire-after-expiry, recovery-clears) + the integration injection suite',
+  },
+  {
+    file: 'src/shared/observability/alert-aux-reads.ts',
+    owner: 'engineering',
+    reason:
+      'SQL needs real PG — covered by src/shared/jobs/infrastructure/repositories/alert-injection.test.ts (integration project, real-schema assertions)',
+  },
 ]
 
 const EXCLUDED = (file) =>
