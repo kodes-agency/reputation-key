@@ -152,6 +152,11 @@ const envSchema = z.object({
   // Number of trusted reverse proxies in front of the app (B0.7).
   // Used to derive the real client IP from X-Forwarded-For safely.
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
+  // BQC-7.6: maximum accepted request body size in bytes (declared
+  // content-length), enforced by the request-guard nitro plugin before
+  // routing. Default 1 MiB — the largest legitimate payloads (portal image
+  // uploads go through presigned S3 URLs, not this server).
+  REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
   // BQC-4.2 / ADR 0048: the processing cell this process belongs to. 'us' is
   // the only APPROVED beta cell; a worker declaring any other cell
   // quarantines every routed job it receives (wrong-cell, fail closed).

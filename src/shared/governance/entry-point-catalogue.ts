@@ -2454,6 +2454,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
   }),
+  ops(
+    'scripts/check-security-headers.mjs',
+    'scripts/check-security-headers.mjs',
+    'none',
+    {
+      notes:
+        'check:security-headers — CI gate (BQC-7.6, STD-P1-07): boots the built production server and asserts the full B0.7 header set on 200 AND 404 responses, x-request-id behavior, and the 413 body limit; exits 1 listing missing headers',
+    },
+  ),
   ops('scripts/check-test-quality.mjs', 'scripts/check-test-quality.mjs', 'none', {
     notes:
       'check:test-quality — lint gate (BQC-6.9): focused/skipped tests, generic-error acceptance, unasserted async failures; registered skips only',

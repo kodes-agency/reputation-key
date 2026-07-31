@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest'
-import { getClientIpFromForwardedFor, deriveClientIp } from './client-ip'
+import { describe, it, expect, afterEach } from 'vitest'
+import {
+  getClientIpFromForwardedFor,
+  deriveClientIp,
+  clientIpFromHeaders,
+} from './client-ip'
+import { resetEnv } from '#/shared/config/env'
 
 describe('client-ip (B0.7)', () => {
   describe('getClientIpFromForwardedFor', () => {
@@ -53,6 +58,46 @@ describe('client-ip (B0.7)', () => {
     it('returns unknown when no information available', () => {
       const result = deriveClientIp(undefined, undefined, 0)
       expect(result).toBe('unknown')
+    })
+  })
+
+  describe('clientIpFromHeaders (wired call-site seam, BQC-7.6)', () => {
+    afterEach(() => {
+      delete process.env.TRUSTED_PROXY_COUNT
+      resetEnv()
+    })
+
+    it('spoofed leftmost XFF yields the trusted hop, not the spoofed value', () => {
+      // TRUSTED_PROXY_COUNT defaults to 1: the rightmost hop is the one our
+      // edge proxy appended; the client-visible IP is one position left.
+      delete process.env.TRUSTED_PROXY_COUNT
+      resetEnv()
+      const headers = new Headers({
+        'x-forwarded-for': '6.6.6.6, 203.0.113.5, 10.0.0.1',
+      })
+      expect(clientIpFromHeaders(headers)).toBe('203.0.113.5')
+    })
+
+    it('honors a multi-proxy chain when TRUSTED_PROXY_COUNT=2', () => {
+      process.env.TRUSTED_PROXY_COUNT = '2'
+      resetEnv()
+      const headers = new Headers({
+        'x-forwarded-for': '6.6.6.6, 203.0.113.5, 10.0.0.1, 10.0.0.2',
+      })
+      expect(clientIpFromHeaders(headers)).toBe('203.0.113.5')
+    })
+
+    it('never trusts XFF when TRUSTED_PROXY_COUNT=0', () => {
+      process.env.TRUSTED_PROXY_COUNT = '0'
+      resetEnv()
+      const headers = new Headers({ 'x-forwarded-for': '203.0.113.5' })
+      expect(clientIpFromHeaders(headers)).toBe('unknown')
+    })
+
+    it('returns unknown when XFF is absent', () => {
+      delete process.env.TRUSTED_PROXY_COUNT
+      resetEnv()
+      expect(clientIpFromHeaders(new Headers())).toBe('unknown')
     })
   })
 })

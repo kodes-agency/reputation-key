@@ -7,6 +7,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { publicErrorMessage } from '#/shared/security/error-display'
 
 /** Default pending component — shown while route loaders are resolving. */
 function DefaultPendingComponent() {
@@ -30,7 +31,9 @@ function DefaultErrorComponent({ error }: { error: Error }) {
       <Alert variant="destructive">
         <AlertCircle />
         <AlertDescription>
-          {error.message || 'Something went wrong loading this page.'}
+          {/* BQC-7.6: production never renders raw error text (SQL/stack/
+              secret leakage); development keeps it for debuggability. */}
+          {publicErrorMessage(error, import.meta.env.PROD)}
         </AlertDescription>
       </Alert>
       <Button variant="outline" className="mt-4" onClick={() => router.invalidate()}>

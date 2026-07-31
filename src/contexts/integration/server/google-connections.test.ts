@@ -53,6 +53,7 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
       ['import_not_found', 404],
       ['oauth_failed', 400],
       ['oauth_denied', 400],
+      ['oauth_state_invalid', 400],
       ['token_refresh_failed', 400],
       ['gbp_api_error', 400],
       ['invalid_visibility', 400],
@@ -111,6 +112,7 @@ describe('connectGoogleInputSchema', () => {
     const result = connectGoogleInputSchema.safeParse({
       code: 'auth-code-123',
       visibility: 'organization',
+      stateNonce: 'state-nonce-1',
     })
     expect(result.success).toBe(true)
   })
@@ -118,11 +120,20 @@ describe('connectGoogleInputSchema', () => {
   it('accepts input with code only (visibility defaults to private)', () => {
     const result = connectGoogleInputSchema.safeParse({
       code: 'auth-code-123',
+      stateNonce: 'state-nonce-1',
     })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.visibility).toBe('private')
     }
+  })
+
+  it('rejects a missing state nonce (BQC-7.6: PKCE redeem key is mandatory)', () => {
+    const result = connectGoogleInputSchema.safeParse({
+      code: 'auth-code-123',
+      visibility: 'private',
+    })
+    expect(result.success).toBe(false)
   })
 
   it('rejects missing code', () => {

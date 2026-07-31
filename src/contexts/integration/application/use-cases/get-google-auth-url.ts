@@ -2,8 +2,19 @@
 // Extracted from the server fn (D8-006): OAuth state-signing (HMAC + nonce +
 // base64) and URL construction now live in a use case, testable independently.
 // Per ADR 0017: clock + idGen are injected for deterministic testing.
+//
+// BQC-7.6 hardening: the state is bound to the initiating user (`sub`) and
+// the flow runs PKCE S256 — the verifier is stored server-side under the
+// state nonce (TTL = state TTL, one-time use) and only the challenge leaves
+// the process. Codec + primitives: ../oauth-state.
 
-import { createHmac } from 'crypto'
+import {
+  encodeOAuthState,
+  generateCodeVerifier,
+  s256Challenge,
+  OAUTH_STATE_TTL_SECONDS,
+  type PkceVerifierStore,
+} from '../oauth-state'
 
 export type GetGoogleAuthUrlDeps = Readonly<{
   clientId: string
@@ -11,10 +22,14 @@ export type GetGoogleAuthUrlDeps = Readonly<{
   stateSecret: string
   clock: () => Date
   idGen: () => string
+  /** Server-side PKCE verifier store (BQC-7.6). */
+  pkceStore: PkceVerifierStore
 }>
 
 export type GetGoogleAuthUrlInput = Readonly<{
   visibility: 'private' | 'organization'
+  /** The authenticated user initiating the flow (state session binding). */
+  userId: string
 }>
 
 export type GetGoogleAuthUrlResult = Readonly<{
@@ -28,14 +43,6 @@ const GBP_OAUTH_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile',
 ]
 
-/** HMAC-sign OAuth state to prevent forgery. */
-function signState(
-  secret: string,
-  payload: { visibility: string; nonce: string; ts: number },
-): string {
-  return createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex')
-}
-
 /** Concrete use case instance type — named, not derived via ReturnType. */
 export type GetGoogleAuthUrl = (
   input: GetGoogleAuthUrlInput,
@@ -45,18 +52,29 @@ export type GetGoogleAuthUrl = (
  * Build a signed Google OAuth authorization URL.
  *
  * The caller resolves auth + permission (integration.manage). This use case
- * owns state construction (visibility preference + CSRF nonce + HMAC signature)
- * and URL assembly — all pure, injectable-clock/idGen logic.
+ * owns state construction (visibility preference + CSRF nonce + initiating
+ * user binding + HMAC signature), PKCE verifier storage, and URL assembly.
+ * Fails closed: no URL is issued when the verifier cannot be stored.
  */
 export const getGoogleAuthUrl =
   (deps: GetGoogleAuthUrlDeps): GetGoogleAuthUrl =>
   async (input) => {
-    // Build state with visibility preference, CSRF nonce, and HMAC signature
+    // PKCE first: no authorization URL exists without its server-side
+    // verifier — a store outage must not mint unredeemable flows.
     const nonce = deps.idGen()
-    const payload = { visibility: input.visibility, nonce, ts: deps.clock().getTime() }
-    const signature = signState(deps.stateSecret, payload)
-    const state = Buffer.from(JSON.stringify({ ...payload, signature })).toString(
-      'base64',
+    const codeVerifier = generateCodeVerifier()
+    await deps.pkceStore.save(nonce, codeVerifier, OAUTH_STATE_TTL_SECONDS)
+
+    // State: visibility preference + CSRF nonce + initiating-user binding,
+    // HMAC-signed (codec owns the canonical form).
+    const state = encodeOAuthState(
+      {
+        visibility: input.visibility,
+        nonce,
+        ts: deps.clock().getTime(),
+        sub: input.userId,
+      },
+      deps.stateSecret,
     )
 
     // Build OAuth URL
@@ -68,6 +86,8 @@ export const getGoogleAuthUrl =
       state,
       access_type: 'offline',
       prompt: 'consent',
+      code_challenge: s256Challenge(codeVerifier),
+      code_challenge_method: 'S256',
     })
 
     const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`

@@ -6,6 +6,7 @@ import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-g
 import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
+import { createInMemoryPkceVerifierStore } from '#/shared/testing/in-memory-pkce-verifier-store'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   buildTestAuthContext,
@@ -16,11 +17,19 @@ import { organizationId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
+/** State nonce seeded with a PKCE verifier in every setup (BQC-7.6). */
+const NONCE = 'test-state-nonce'
+const VERIFIER = 'test-code-verifier'
+
 const setup = () => {
   const connectionRepo = createInMemoryGoogleConnectionRepo()
   const oauth = createInMemoryGoogleOAuthPort()
   const encryption = createInMemoryTokenEncryption()
   const events = createCapturingEventBus()
+  const pkceStore = createInMemoryPkceVerifierStore()
+  // The fake applies synchronously — the verifier is in place before any
+  // awaited use-case call below.
+  void pkceStore.save(NONCE, VERIFIER, 600)
   const deps = {
     connectionRepo,
     oauth,
@@ -29,9 +38,10 @@ const setup = () => {
     clock: () => FIXED_TIME,
     idGen: () => 'test-connection-id',
     callbackUrl: 'http://localhost:3000/api/auth/google/callback',
+    pkceStore,
   }
   const useCase = connectGoogleAccount(deps)
-  return { useCase, connectionRepo, oauth, encryption, events }
+  return { useCase, connectionRepo, oauth, encryption, events, pkceStore }
 }
 
 describe('connectGoogleAccount', () => {
@@ -39,7 +49,10 @@ describe('connectGoogleAccount', () => {
     const { useCase, connectionRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    const result = await useCase({ code: 'valid-auth-code', visibility: 'private' }, ctx)
+    const result = await useCase(
+      { code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE },
+      ctx,
+    )
 
     expect(connectionRepo.all()).toHaveLength(1)
     expect(result.googleEmail).toBe('test@gmail.com')
@@ -57,7 +70,7 @@ describe('connectGoogleAccount', () => {
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     await expect(
-      useCase({ code: 'valid-auth-code', visibility: 'private' }, ctx),
+      useCase({ code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE }, ctx),
     ).rejects.toSatisfy(
       (e: unknown) =>
         isIntegrationError(e) && (e as { code: string }).code === 'forbidden',
@@ -70,7 +83,7 @@ describe('connectGoogleAccount', () => {
     oauth.setExchangeError(new Error('OAuth provider unreachable'))
 
     await expect(
-      useCase({ code: 'bad-code', visibility: 'private' }, ctx),
+      useCase({ code: 'bad-code', visibility: 'private', stateNonce: NONCE }, ctx),
     ).rejects.toThrow('OAuth provider unreachable')
   })
 
@@ -87,7 +100,7 @@ describe('connectGoogleAccount', () => {
     connectionRepo.seed([existing])
 
     const result = await useCase(
-      { code: 'valid-auth-code', visibility: 'organization' },
+      { code: 'valid-auth-code', visibility: 'organization', stateNonce: NONCE },
       ctx,
     )
 
@@ -114,7 +127,7 @@ describe('connectGoogleAccount', () => {
     connectionRepo.seed([claimedElsewhere])
 
     await expect(
-      useCase({ code: 'valid-auth-code', visibility: 'private' }, ctx),
+      useCase({ code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE }, ctx),
     ).rejects.toSatisfy(
       (e: unknown) =>
         isIntegrationError(e) &&
@@ -136,7 +149,10 @@ describe('connectGoogleAccount', () => {
       scopes: ['https://www.googleapis.com/auth/business.manage'],
     })
 
-    await useCase({ code: 'valid-auth-code', visibility: 'private' }, ctx)
+    await useCase(
+      { code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE },
+      ctx,
+    )
 
     const connection = connectionRepo.all()[0]
     // FIXED_TIME + 7200 * 1000 = 2026-04-10T14:00:00Z
@@ -147,9 +163,62 @@ describe('connectGoogleAccount', () => {
     const { useCase, connectionRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ code: 'valid-auth-code', visibility: 'organization' }, ctx)
+    await useCase(
+      { code: 'valid-auth-code', visibility: 'organization', stateNonce: NONCE },
+      ctx,
+    )
 
     const connection = connectionRepo.all()[0]
     expect(connection.visibility).toBe('organization')
+  })
+
+  // ── PKCE (BQC-7.6) ────────────────────────────────────────────────
+
+  it('redeems the verifier and forwards it to the token exchange', async () => {
+    const { useCase, oauth } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase(
+      { code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE },
+      ctx,
+    )
+
+    expect(oauth.exchangeVerifierCalls()).toEqual([VERIFIER])
+  })
+
+  it('fails closed when the nonce has no stored verifier', async () => {
+    const { useCase, oauth } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      useCase(
+        { code: 'valid-auth-code', visibility: 'private', stateNonce: 'unknown-nonce' },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isIntegrationError(e) && (e as { code: string }).code === 'oauth_state_invalid',
+    )
+    // The exchange must never run without a redeemed verifier.
+    expect(oauth.exchangeVerifierCalls()).toEqual([])
+  })
+
+  it('verifier redemption is one-time (state replay fails closed)', async () => {
+    const { useCase, pkceStore } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase(
+      { code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE },
+      ctx,
+    )
+
+    // The nonce was consumed by the first connect.
+    expect(await pkceStore.redeem(NONCE)).toBeUndefined()
+    await expect(
+      useCase({ code: 'valid-auth-code', visibility: 'private', stateNonce: NONCE }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isIntegrationError(e) && (e as { code: string }).code === 'oauth_state_invalid',
+    )
   })
 })

@@ -8,6 +8,8 @@
 //   const ip = getClientIp(event, trustedProxyCount)
 //   // → "203.0.113.5"
 
+import { getEnv } from '#/shared/config/env'
+
 /** Parse X-Forwarded-For and extract the client IP at the trusted position. */
 export function getClientIpFromForwardedFor(
   forwardedFor: string | undefined,
@@ -50,4 +52,23 @@ export function deriveClientIp(
 
   // Fallback to direct socket address
   return remoteAddress ?? 'unknown'
+}
+
+/**
+ * Derive the client IP from server-function request headers using the
+ * configured trusted proxy count (env TRUSTED_PROXY_COUNT, default 1).
+ *
+ * This is the ONLY sanctioned way to read a client IP at the server-fn
+ * boundary (BQC-7.6): the previous call-site pattern trusted the leftmost
+ * X-Forwarded-For hop, which any client can spoof — with N trusted proxies
+ * the client IP sits at position length-(N+1), never at the left edge.
+ * Server functions have no socket address, so the fallback is 'unknown'
+ * (never a spoofable header value).
+ */
+export function clientIpFromHeaders(headers: Headers): string {
+  return deriveClientIp(
+    undefined,
+    headers.get('x-forwarded-for') ?? undefined,
+    getEnv().TRUSTED_PROXY_COUNT,
+  )
 }

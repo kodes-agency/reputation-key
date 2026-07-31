@@ -121,4 +121,50 @@ describe('createRateLimiter', () => {
       expect(result.allowed).toBe(true)
     })
   })
+
+  describe('production posture (BQC-7.6)', () => {
+    it('fails closed when Redis is absent and failClosed is set', async () => {
+      const limiter = createRateLimiter(undefined, { ...defaultOpts, failClosed: true })
+      const result = await limiter.check('user-1')
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
+      expect(result.resetAt.getTime()).toBeGreaterThan(Date.now() - 1000)
+    })
+
+    it('fails closed on Redis errors when failClosed is set', async () => {
+      const brokenRedis = createMockRedis()
+      brokenRedis.eval.mockRejectedValue(new Error('connection refused'))
+      const limiter = createRateLimiter(brokenRedis as unknown as Redis, {
+        ...defaultOpts,
+        failClosed: true,
+      })
+      const result = await limiter.check('user-1')
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
+    })
+
+    it('still serves normally with a healthy Redis when failClosed is set', async () => {
+      const limiter = createRateLimiter(createMockRedis() as unknown as Redis, {
+        ...defaultOpts,
+        failClosed: true,
+      })
+      const result = await limiter.check('user-1')
+      expect(result.allowed).toBe(true)
+    })
+
+    it('defaults to fail-closed when NODE_ENV=production, fail-open otherwise', async () => {
+      const original = process.env.NODE_ENV
+      try {
+        process.env.NODE_ENV = 'production'
+        const prodLimiter = createRateLimiter(undefined, defaultOpts)
+        expect((await prodLimiter.check('user-1')).allowed).toBe(false)
+
+        process.env.NODE_ENV = 'development'
+        const devLimiter = createRateLimiter(undefined, defaultOpts)
+        expect((await devLimiter.check('user-1')).allowed).toBe(true)
+      } finally {
+        process.env.NODE_ENV = original
+      }
+    })
+  })
 })

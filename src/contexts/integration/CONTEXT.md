@@ -12,7 +12,7 @@ Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and P
 - **GbpImportJob** — A batch import of GBP locations. Tracks `importedCount`, `skippedCount`, `failedCount`. Status: `'queued'` → `'in_progress'` → `'completed'` \| `'completed_with_skips'` \| `'completed_with_failures'` \| `'failed'`.
 - **PropertyImport** — Creates a `Property` entity from a successfully imported GBP location. Links the new property back to the originating GoogleConnection.
 - **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
-- **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent.
+- **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent. The HMAC-signed state is bound to the initiating user (`sub`) and the flow runs PKCE S256 (BQC-7.6): the verifier lives server-side in the `PkceVerifierStore` (Redis; keyed by the state nonce, one-time use, TTL = the 10-minute state TTL), only the challenge leaves the process. Codec + port: `application/oauth-state.ts`.
 
 ## Relationships
 
@@ -65,11 +65,14 @@ integration/
                        refresh-google-token.ts, list-gbp-locations.ts,
                        start-property-import.ts, get-import-status.ts,
                        import-property.ts, handle-gbp-notification.ts
+    oauth-state.ts     OAuth state codec (HMAC sign/verify, user binding) + PKCE
+                       primitives + PkceVerifierStore port (BQC-7.6)
     constants.ts       application-level constants
     public-api.ts      re-exports DTO types, domain types
   infrastructure/
     repositories/      google-connection.repository.ts, gbp-cache.repository.ts,
-                       gbp-import.repository.ts, property-import.repository.ts
+                       gbp-import.repository.ts, property-import.repository.ts,
+                       pkce-verifier-store.repository.ts (Redis + in-memory, BQC-7.6)
     integration-command-store.ts  atomic state+fact store (BQC-3.5)
     adapters/          google-oauth.adapter.ts, token-encryption.adapter.ts,
                        gbp-api.adapter.ts, google-review-api.adapter.ts
@@ -84,7 +87,8 @@ integration/
 
 ## Use cases
 
-- **`connectGoogleAccount`** — OAuth code exchange, encrypt tokens, store connection. Emits `integration.google_account.connected`.
+- **`connectGoogleAccount`** — Redeem the PKCE verifier (one-time, fail closed), OAuth code exchange with `code_verifier`, encrypt tokens, store connection. Emits `integration.google_account.connected`.
+- **`getGoogleAuthUrl`** — Build the signed authorization URL: stores the PKCE verifier, binds the HMAC state to the initiating user (BQC-7.6).
 - **`disconnectGoogleAccount`** — Revoke tokens, clear caches, set connection status to `'disconnected'`. Emits `integration.google_account.disconnected`. (FK nulling does NOT happen on disconnect — only on delete.)
 - **`listGoogleConnections`** — List connections for an org.
 - **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `integration.google_connection.visibility_changed`.

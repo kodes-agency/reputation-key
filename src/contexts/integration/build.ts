@@ -16,6 +16,7 @@ import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import type { GbpQueuePort } from './application/ports/gbp-queue.port'
 import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
 import type { GoogleOAuthPort } from './application/ports/google-oauth.port'
+import type { PkceVerifierStore } from './application/oauth-state'
 import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { PropertyQueryPort } from './application/ports/property-query.port'
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
@@ -80,6 +81,9 @@ type IntegrationContextDeps = Readonly<{
    * inject in-memory providers; absent = the real env-driven HTTP adapters). */
   googleOAuth?: GoogleOAuthPort
   gbpApi?: GbpApiPort
+  /** BQC-7.6: server-side PKCE verifier store for the OAuth flow. Constructed
+   * by the composition root (Redis in production; in-memory dev fallback). */
+  pkceStore: PkceVerifierStore
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -208,6 +212,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       idGen: () => randomUUID(),
       callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
+      pkceStore: deps.pkceStore,
     }),
 
     disconnectGoogleAccount: disconnectGoogleAccount({
@@ -275,6 +280,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       stateSecret: getEnv().OAUTH_STATE_SECRET,
       clock: deps.clock,
       idGen: () => randomUUID(),
+      pkceStore: deps.pkceStore,
     }),
   } as const
 

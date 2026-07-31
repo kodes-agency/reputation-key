@@ -1,6 +1,10 @@
 // Rate limiting middleware — uses Redis for sliding window counting.
 // Per architecture: shared rate-limit middleware for public and API endpoints.
-// Fails open when Redis is unavailable (rate limiting is a nice-to-have, not critical).
+//
+// Unavailability posture (BQC-7.6): when Redis is absent or erroring the
+// limiter FAILS CLOSED in production (deny + error log — a degraded limiter
+// must not become an open brute-force/abuse window) and fails open with a
+// warn elsewhere (dev/test DX). Override per-instance via `failClosed`.
 //
 // Issue 13 fix: Uses atomic Lua script (INCR + conditional EXPIRE) to prevent
 // the race condition where a process crash between INCR and EXPIRE could leave
@@ -16,6 +20,8 @@ export type RateLimiterOptions = Readonly<{
   maxRequests: number
   /** Window duration in seconds */
   windowSeconds: number
+  /** Deny when Redis is absent/erroring. Defaults to NODE_ENV === 'production'. */
+  failClosed?: boolean
 }>
 
 export type RateLimitResult = Readonly<{
@@ -46,18 +52,33 @@ export function createRateLimiter(
   redis: Redis | undefined,
   opts: RateLimiterOptions,
 ): RateLimiter {
+  // BQC-7.6: production denies guarded traffic when the limiter backend is
+  // down; non-production keeps the fail-open + warn DX posture.
+  const failClosed = opts.failClosed ?? process.env.NODE_ENV === 'production'
+
+  /** Result when the backend cannot answer. */
+  const degraded = (): RateLimitResult => {
+    const base = {
+      resetAt: new Date(Date.now() + opts.windowSeconds * 1000),
+    }
+    return failClosed
+      ? { allowed: false, remaining: 0, ...base }
+      : { allowed: true, remaining: opts.maxRequests, ...base }
+  }
+
   return {
     async check(key: string): Promise<RateLimitResult> {
-      // Fail open: if no Redis, allow everything but warn
       if (!redis) {
-        getLogger().warn(
-          '[rate-limit] Redis unavailable — failing open (all requests allowed)',
-        )
-        return {
-          allowed: true,
-          remaining: opts.maxRequests,
-          resetAt: new Date(Date.now() + opts.windowSeconds * 1000),
+        if (failClosed) {
+          getLogger().error(
+            '[rate-limit] Redis unavailable — failing CLOSED (requests denied)',
+          )
+        } else {
+          getLogger().warn(
+            '[rate-limit] Redis unavailable — failing open (all requests allowed)',
+          )
         }
+        return degraded()
       }
 
       try {
@@ -83,13 +104,13 @@ export function createRateLimiter(
           resetAt,
         }
       } catch (err) {
-        // Fail open on Redis errors, but log for monitoring
-        getLogger().warn({ err }, '[rate-limit] Redis error — failing open')
-        return {
-          allowed: true,
-          remaining: opts.maxRequests,
-          resetAt: new Date(Date.now() + opts.windowSeconds * 1000),
+        if (failClosed) {
+          getLogger().error({ err }, '[rate-limit] Redis error — failing CLOSED')
+        } else {
+          // Fail open on Redis errors, but log for monitoring
+          getLogger().warn({ err }, '[rate-limit] Redis error — failing open')
         }
+        return degraded()
       }
     },
   }

@@ -53,6 +53,18 @@ describe('Auth configuration', () => {
     expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 30)
     expect(auth.options.session?.updateAge).toBe(60 * 60 * 24)
   })
+
+  it('trusts only the configured app origin (BQC-7.6)', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    // Origin checks fail closed to the configured app URL — cross-origin
+    // form posts / redirects to any other origin are rejected.
+    expect(auth.options.trustedOrigins).toEqual(['http://localhost:3000'])
+  })
 })
 
 describe('Auth context and role helpers', () => {

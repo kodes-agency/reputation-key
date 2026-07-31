@@ -12,6 +12,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 import { portalId, portalLinkId } from '#/shared/domain/ids'
+import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { hashIp } from './hash-ip.server'
 import { resolveGuestSession, guestRateLimitKey } from './guest-session'
 
@@ -54,7 +55,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(headers)
         const ipHash = hashIp(ip)
         // recordScan is a public unauthenticated write (fires on every portal
         // page mount), so it gets the same throttling + session-cookie

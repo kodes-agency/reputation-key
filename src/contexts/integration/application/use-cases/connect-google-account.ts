@@ -5,6 +5,7 @@ import type { GoogleConnectionRepository } from '../ports/google-connection.repo
 import { isUniqueViolationError } from '../ports/google-connection.repository'
 import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
+import type { PkceVerifierStore } from '../oauth-state'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -24,6 +25,8 @@ export type ConnectGoogleAccountDeps = Readonly<{
   clock: () => Date
   idGen: () => string
   callbackUrl: string
+  /** Server-side PKCE verifier store (BQC-7.6). */
+  pkceStore: PkceVerifierStore
 }>
 
 export const connectGoogleAccount =
@@ -37,16 +40,32 @@ export const connectGoogleAccount =
       )
     }
 
-    // 2. Exchange OAuth code
-    const oauthResult = await deps.oauth.exchangeCode(input.code, deps.callbackUrl)
+    // 2. Redeem the PKCE verifier bound to the state nonce (BQC-7.6).
+    //    One-time use; missing/expired/replayed nonces fail closed — the
+    //    callback maps this to the same 'invalid_state' redirect as a bad
+    //    state signature.
+    const codeVerifier = await deps.pkceStore.redeem(input.stateNonce)
+    if (!codeVerifier) {
+      throw integrationError(
+        'oauth_state_invalid',
+        'OAuth flow state is missing, expired, or already used — restart the connection flow',
+      )
+    }
+
+    // 3. Exchange OAuth code (PKCE verifier proves flow ownership)
+    const oauthResult = await deps.oauth.exchangeCode(
+      input.code,
+      deps.callbackUrl,
+      codeVerifier,
+    )
     const now = deps.clock()
     const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1000)
 
-    // 3. Encrypt tokens
+    // 4. Encrypt tokens
     const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
     const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
 
-    // 4. Check if connection already exists (GLOBAL — one Google account belongs
+    // 5. Check if connection already exists (GLOBAL — one Google account belongs
     //    to exactly one org per the global-uniqueness invariant).
     const existingConnection = await deps.connectionRepo.findByGoogleAccountIdGlobal(
       oauthResult.googleAccountId,
@@ -81,7 +100,7 @@ export const connectGoogleAccount =
       return updatedConnection
     }
 
-    // 5. Build new connection
+    // 6. Build new connection
     const connectionId = googleConnectionId(deps.idGen())
 
     const buildResult = buildGoogleConnection({
@@ -104,7 +123,7 @@ export const connectGoogleAccount =
 
     const connection = buildResult.value
 
-    // 6. Persist + fact — atomic via the command store. The global unique
+    // 7. Persist + fact — atomic via the command store. The global unique
     //    index still backstops a raced insert between our check and this write.
     try {
       await deps.commandStore.connectGoogleAccount({

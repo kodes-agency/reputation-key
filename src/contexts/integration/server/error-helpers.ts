@@ -4,6 +4,7 @@
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import type { IntegrationErrorCode } from '../domain/errors'
+import { isIntegrationError } from '../domain/errors'
 
 export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
   match(code)
@@ -12,6 +13,7 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
     .with(
       'oauth_failed',
       'oauth_denied',
+      'oauth_state_invalid',
       'token_refresh_failed',
       'gbp_api_error',
       'invalid_visibility',
@@ -30,3 +32,11 @@ export const integrationErrorStatus = (code: IntegrationErrorCode): number =>
       () => HTTP_STATUS.CONFLICT,
     )
     .exhaustive()
+
+/**
+ * BQC-7.6: true when an error is the PKCE/state redeem failure. Routes
+ * (which may not import the domain layer — boundaries) use this to map the
+ * failure to the fail-closed 'invalid_state' redirect.
+ */
+export const isOAuthStateInvalidError = (e: unknown): boolean =>
+  isIntegrationError(e) && e.code === 'oauth_state_invalid'
