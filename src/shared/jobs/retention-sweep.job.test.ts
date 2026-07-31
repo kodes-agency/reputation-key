@@ -155,4 +155,28 @@ describe('retention rule registry (BQC-3.7)', () => {
     // 7d/90d — is documented at the rule; applied migrations are immutable).
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
   })
+
+  it('covers the audit-evidence tables at the 365d beta audit horizon (BQC-7.8)', () => {
+    const audit = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')
+    expect(audit).toMatchObject({
+      table: 'policy_decision_audit',
+      keyColumns: ['id'],
+      tsColumn: 'occurred_at',
+      olderThanMs: 365 * 24 * 60 * 60 * 1000,
+    })
+    const logs = RETENTION_RULES.find((r) => r.subject === 'audit_logs')
+    expect(logs).toMatchObject({
+      table: 'audit_logs',
+      keyColumns: ['id'],
+      tsColumn: 'created_at',
+      olderThanMs: 365 * 24 * 60 * 60 * 1000,
+    })
+  })
+
+  it('deliberately has NO rule for retention_runs — the evidence chain is indefinite (BQC-7.8)', () => {
+    // retention_runs rows are the content-free evidence FOR deletions —
+    // deleting them would erase the proof of erasure. Indefinite-by-design;
+    // documented in docs/operations/backup-and-lifecycle.md.
+    expect(RETENTION_RULES.some((r) => r.table === 'retention_runs')).toBe(false)
+  })
 })

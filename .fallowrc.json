@@ -179,6 +179,7 @@
     {
       "files": [
         "server/plugins/production-secret-guard.ts",
+        "server/plugins/restore-mode-guard.ts",
         "server/plugins/security-headers.ts",
         "server/plugins/request-guard.ts",
         "server/plugins/graceful-shutdown.ts",

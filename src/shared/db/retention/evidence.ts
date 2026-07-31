@@ -4,7 +4,14 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 
-const RETENTION_POLICY_VERSION = 1
+/**
+ * Retention policy version stamped on every evidence row.
+ *   1 (BQC-1.6): initial 9-rule registry + reviews.purge lifecycle purges.
+ *   2 (BQC-7.8): + policy_decision_audit / audit_logs at the 365d audit
+ *      horizon; + quarantine.ttl sweep subject; retention_runs documented
+ *      indefinite-by-design (docs/operations/backup-and-lifecycle.md).
+ */
+const RETENTION_POLICY_VERSION = 2
 
 export async function openRetentionRun(
   db: Database,
@@ -41,4 +48,22 @@ export async function closeRetentionRun(
       policy_version = ${RETENTION_POLICY_VERSION}
     WHERE id = ${id}
   `)
+}
+
+/**
+ * Close a run as failed, best-effort (BQC-7.8, factored from the purge /
+ * sweep call sites): the evidence write must never throw into the caller's
+ * error path — the original error is the one that matters.
+ */
+export async function failRetentionRun(
+  db: Database,
+  id: string,
+  finishedAt: Date,
+  err: unknown,
+): Promise<void> {
+  await closeRetentionRun(db, id, {
+    finishedAt,
+    outcome: 'failed',
+    errorCode: (err instanceof Error ? err.message : String(err)).slice(0, 200),
+  }).catch(() => {})
 }

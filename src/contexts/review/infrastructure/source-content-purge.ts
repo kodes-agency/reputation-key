@@ -15,7 +15,11 @@ import {
   executeRetentionRule,
   type RetentionRule,
 } from '#/shared/db/retention/execute-retention-rule'
-import { closeRetentionRun, openRetentionRun } from '#/shared/db/retention/evidence'
+import {
+  closeRetentionRun,
+  failRetentionRun,
+  openRetentionRun,
+} from '#/shared/db/retention/evidence'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   SourceContentPurge,
@@ -62,11 +66,7 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
       })
       return { subject, ...result }
     } catch (err) {
-      await closeRetentionRun(deps.db, runId, {
-        finishedAt: deps.clock(),
-        outcome: 'failed',
-        errorCode: (err instanceof Error ? err.message : String(err)).slice(0, 200),
-      }).catch(() => {})
+      await failRetentionRun(deps.db, runId, deps.clock(), err)
       throw err
     }
   }

@@ -58,6 +58,13 @@ export async function bootOperatorRuntime(): Promise<OperatorBoot> {
  * DESIGN in the long-lived app process, but a CLI exits right after the
  * decision — without the flush, process.exit would race the INSERT and the
  * command's compliance record could be lost.
+ *
+ * The flush targets the BOOT-TIME instance (captured before runCore): an
+ * action that calls getContainer() re-installs the ExecutionPolicy
+ * singleton (identity build), so getExecutionPolicy() in the finally would
+ * return the NEW instance (empty pending set) and the invocation's audit
+ * write on the boot instance would race exit — observed as a missing
+ * compliance row on fast-refusing commands (BQC-7.8 drill).
  */
 export async function runOperatorCommand(
   spec: OperatorCommandSpec,
@@ -65,11 +72,14 @@ export async function runOperatorCommand(
   argv: ReadonlyArray<string> = process.argv.slice(2),
 ): Promise<OperatorCommandResult> {
   const boot = await bootOperatorRuntime()
+  // The instance the runtime closure decides on (no re-install happens
+  // between boot and the decision).
+  const decidingPolicy = getExecutionPolicy()
   try {
     return await runCore(spec, action, boot.runtime, argv)
   } finally {
     boot.cleanup()
-    await getExecutionPolicy().flushAudits()
+    await decidingPolicy.flushAudits()
     await closePool()
   }
 }

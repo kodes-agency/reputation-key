@@ -89,6 +89,7 @@ export type SystemAction =
   | 'system:metric.refresh'
   | 'system:metric.record'
   | 'system:retention.sweep'
+  | 'system:quarantine.ttl'
   | 'system:goal.reconcile'
   | 'system:goal.spawn'
   | 'system:goal.progress'
@@ -2009,7 +2010,21 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:retention.sweep',
     'none',
     'tenant_cross',
-    { notes: 'BQC-1.6: 9 rules; evidence in retention_runs; throws on any rule failure' },
+    {
+      notes:
+        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure',
+    },
+  ),
+  job(
+    'quarantine-ttl-sweep',
+    'src/shared/jobs/quarantine-ttl-sweep.job.ts',
+    'system:quarantine.ttl',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'BQC-7.8: dead-letter TTL bound (QUARANTINE_TTL_DAYS, default 30d); per-entry job.remove(), capped, evidence subject quarantine.ttl',
+    },
   ),
   job(
     'reconcile-goal-progress',
@@ -2260,6 +2275,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'daily, offset 3h (after purge)' },
   ),
   schedule(
+    'quarantine-ttl-sweep-recurring',
+    'system:quarantine.ttl',
+    'none',
+    'tenant_cross',
+    { notes: 'daily, offset 4h (after retention sweep)' },
+  ),
+  schedule(
     'refresh-daily-metrics-recurring',
     'system:metric.refresh',
     'none',
@@ -2421,6 +2443,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
     notes:
       'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',
+  }),
+  ops('scripts/ops/restore-verify.ts', 'scripts/ops/restore-verify.ts', 'tenant_cross', {
+    notes:
+      'ops:restore-verify — restore-drill purge-before-serving proof (BQC-7.8): hard-requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process (job core, not BullMQ), asserts zero expired rows, prints retention_runs evidence; destructive: typed --yes',
   }),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {

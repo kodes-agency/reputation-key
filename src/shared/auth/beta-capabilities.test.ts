@@ -293,4 +293,53 @@ describe('BetaCapabilities', () => {
       expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
     })
   })
+
+  describe('restore-isolated mode (BQC-7.8)', () => {
+    afterEach(() => {
+      delete process.env.RESTORE_MODE
+    })
+
+    it('denies a CORE capability even when the installed store allows it', () => {
+      process.env.RESTORE_MODE = 'isolated'
+      const ctx = buildTestAuthContext()
+      const decision = checkBetaCapability(ctx, 'identity.invite')
+      expect(decision.allowed).toBe(false)
+      expect(decision.reason).toBe('capability_disabled')
+    })
+
+    it('denies a NON-CORE capability even when the installed store allowlists the org', () => {
+      process.env.RESTORE_MODE = 'isolated'
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => false,
+          isOrgAllowlisted: () => true,
+        }),
+      )
+      const decision = checkBetaCapability(ctx, 'goal.use')
+      expect(decision.allowed).toBe(false)
+    })
+
+    it('denies the global check and the job gate (schedules stay dark)', () => {
+      process.env.RESTORE_MODE = 'isolated'
+      expect(checkGlobalCapability('identity.invite').allowed).toBe(false)
+      expect(isCapabilityJobEnabled('identity.invite')).toBe(false)
+    })
+
+    it('keeps blocked capabilities denied with the blocked reason', () => {
+      process.env.RESTORE_MODE = 'isolated'
+      const ctx = buildTestAuthContext()
+      const decision = checkBetaCapability(ctx, 'gbp.reply.auto_publish')
+      expect(decision.allowed).toBe(false)
+      expect(decision.reason).toBe('capability_blocked')
+    })
+
+    it('restores the installed store the moment RESTORE_MODE is unset', () => {
+      process.env.RESTORE_MODE = 'isolated'
+      const ctx = buildTestAuthContext()
+      expect(checkBetaCapability(ctx, 'identity.invite').allowed).toBe(false)
+      delete process.env.RESTORE_MODE
+      expect(checkBetaCapability(ctx, 'identity.invite').allowed).toBe(true)
+    })
+  })
 })

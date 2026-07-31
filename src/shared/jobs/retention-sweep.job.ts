@@ -23,9 +23,25 @@ export const JOB_NAME = 'retention-sweep' as const
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
+ * BQC-7.8: audit-evidence retention horizon — 365 days. The beta audit
+ * trail (operator/policy decisions in policy_decision_audit, significant
+ * actions in audit_logs) is compliance-adjacent evidence: long enough to
+ * cover the beta audit window plus investigation lag, bounded so the tables
+ * do not grow forever. Distinct from retention_runs, which is
+ * indefinite-by-design (see the registry comment below).
+ */
+const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
+
+/**
  * The retention rule registry. Durations per table docs:
  * outbox/sync/webhook ~30d operational history; notifications/activity 90d
- * (documented in their CONTEXT docs); cache expires per-entry.
+ * (documented in their CONTEXT docs); cache expires per-entry; audit
+ * evidence 365d (AUDIT_EVIDENCE_RETENTION_MS, BQC-7.8).
+ *
+ * DELIBERATELY ABSENT — retention_runs: the evidence chain FOR deletions is
+ * indefinite-by-design (BQC-7.8). Deleting the evidence rows would erase the
+ * proof of erasure; table size is monitored via the metrics snapshot
+ * instead. Documented in docs/operations/backup-and-lifecycle.md.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {
@@ -97,6 +113,23 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['id'],
     tsColumn: 'expires_at',
     olderThanMs: 0,
+  },
+  {
+    // BQC-7.8: operator/policy decision audit — the beta audit trail
+    // horizon (365d from the decision timestamp).
+    subject: 'policy_decision_audit',
+    table: 'policy_decision_audit',
+    keyColumns: ['id'],
+    tsColumn: 'occurred_at',
+    olderThanMs: AUDIT_EVIDENCE_RETENTION_MS,
+  },
+  {
+    // BQC-7.8: significant-action audit log — same 365d horizon.
+    subject: 'audit_logs',
+    table: 'audit_logs',
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMs: AUDIT_EVIDENCE_RETENTION_MS,
   },
 ]
 

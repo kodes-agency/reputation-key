@@ -155,10 +155,16 @@ describe('alert registry contract (BQC-7.4)', () => {
     }
   })
 
-  it('implemented definitions have a pure evaluate; the later-slice ones do not', () => {
+  it('implemented definitions have a pure evaluate; the externally-signalled ones do not', () => {
     const unimplemented = ALERT_DEFINITIONS.filter((d) => !d.implemented).map(
       (d) => d.name,
     )
+    // Deliberate dispositions, NOT pending work: backup.pitr's signal is the
+    // platform backup schedule + the BQC-8 timed restore drill (BQC-7.8 —
+    // platform backup status is not app-readable); security.scan's is the CI
+    // hard-gate chain (BQC-7.7); web.availability's is the BQC-8 external
+    // synthetic probe. The phase-doc injection requirement is satisfied by
+    // that external evidence — these must NEVER gain an app-level evaluate.
     expect(unimplemented.sort()).toEqual([
       'backup.pitr',
       'security.scan',

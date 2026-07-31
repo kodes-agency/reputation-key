@@ -6,6 +6,11 @@ import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
+import {
+  assertRestoreModeCompatible,
+  isRestoreIsolated,
+  RESTORE_ISOLATED_LOG_LINE,
+} from '#/shared/config/restore-mode'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
@@ -30,6 +35,7 @@ import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materia
 import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.job'
 import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
 import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
 import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
 import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
@@ -52,6 +58,15 @@ async function main() {
   // BQC-7.6: refuse boot when a known placeholder/test secret leaks into
   // production (web process runs the same assertion as a nitro plugin).
   assertProductionSecrets(env)
+
+  // BQC-7.8: the restore drill is web + ops commands only — in
+  // restore-isolated mode the worker REFUSES to boot (no schedules, no
+  // BullMQ consumers, no outbox relay, no external effects, by
+  // construction). Web runs the same assertion as a nitro plugin.
+  if (isRestoreIsolated(env)) {
+    logger.warn(RESTORE_ISOLATED_LOG_LINE)
+  }
+  assertRestoreModeCompatible(env, 'worker')
 
   // Build the dependency container
   const container = createContainer({ enableJobs: true })
@@ -253,6 +268,26 @@ async function main() {
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule retention-sweep job')
+      })
+
+    // BQC-7.8: dead-letter quarantine TTL bound, daily (offset after the
+    // retention sweep). Removes quarantined entries older than
+    // QUARANTINE_TTL_DAYS via job.remove() — never obliterate/clean.
+    container.backgroundQueue
+      .add(
+        QUARANTINE_TTL_SWEEP_JOB_NAME,
+        {},
+        {
+          repeat: { every: 24 * 60 * 60 * 1000, offset: 4 * 60 * 60 * 1000 },
+          jobId: 'quarantine-ttl-sweep-recurring',
+          ...jobEnqueueOptions(QUARANTINE_TTL_SWEEP_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Quarantine TTL sweep job scheduled (daily)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule quarantine-ttl-sweep job')
       })
 
     // ── Metric materialized view refresh jobs ──────────────────────────

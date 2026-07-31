@@ -15,8 +15,13 @@
 // (dependency-injected adapters). The BETA_E2E_GLOBAL_CAPABILITIES environment
 // backdoor exists only for browser E2E, where the app runs as a separate
 // process; it is guarded at boot by capability-boot-guard.ts.
+//
+// BQC-7.8: RESTORE_MODE=isolated (restore drills) overrides every installed
+// or configured store at the getStore() seam below — all capabilities deny
+// fail-closed while the mode is set.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { isRestoreIsolated } from '#/shared/config/restore-mode'
 
 /**
  * Capability-policy version. Bump when CORE_CAPABILITIES or
@@ -302,6 +307,23 @@ export function assertBlockedCapabilitiesContained(store: CapabilityPolicyStore)
 
 let _store: CapabilityPolicyStore | undefined
 
+/**
+ * BQC-7.8: the restore-isolated policy store — every capability globally
+ * disabled, no org/property allowlisted. Core capabilities deny
+ * 'capability_disabled', non-core 'org_not_allowlisted', blocked
+ * 'capability_blocked' (the blocked check runs first in checkBetaCapability).
+ * The effect: every capability-gated server function, job gate, and operator
+ * command that declares a capability denies fail-closed while reads stay
+ * available — the restore drill's verification posture.
+ */
+const RESTORE_ISOLATED_STORE: CapabilityPolicyStore = {
+  isCapabilityGloballyEnabled: () => false,
+  isOrgAllowlisted: () => false,
+  isPropertyAllowlisted: () => false,
+  isOrgSuspended: () => false,
+  isPropertySuspended: () => false,
+}
+
 /** Initialize the capability policy store. Call once at startup. */
 export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
   _store = store
@@ -309,6 +331,12 @@ export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
 
 /** Get the current policy store, initializing from env if not yet set. */
 function getStore(): CapabilityPolicyStore {
+  // BQC-7.8: restore-isolated mode wins over ANY installed/configured store
+  // (env, composite env+persisted, or test-injected) — read per evaluation so
+  // the posture holds in every process shape (built server, vite dev, worker)
+  // and lifts the moment RESTORE_MODE is unset. See src/shared/config/
+  // restore-mode.ts.
+  if (isRestoreIsolated(process.env)) return RESTORE_ISOLATED_STORE
   if (!_store) {
     // BQC-0.3: this lazy env fallback is the backdoor SPEC-P0-03 warns about.
     // Fail closed when the test-only override leaks outside an explicit

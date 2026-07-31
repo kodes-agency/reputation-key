@@ -1443,7 +1443,23 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       timeoutMs: 900_000,
       notes:
-        'BQC-1.6: 9 rules; evidence in retention_runs; throws on any rule failure; 15m bounds the full daily sweep',
+        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure; 15m bounds the full daily sweep',
+    },
+  ),
+  job(
+    'quarantine-ttl-sweep',
+    'src/shared/jobs/quarantine-ttl-sweep.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:quarantine.ttl',
+      schedule: 'every:86400000,offset:14400000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'BQC-7.8: dead-letter lifecycle bound — job.remove() per expired entry (never obliterate/clean), capped per run, evidence subject quarantine.ttl',
     },
   ),
   job(

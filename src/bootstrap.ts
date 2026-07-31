@@ -275,6 +275,36 @@ export async function bootstrap(container: Container): Promise<void> {
   })
   logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')
 
+  // ── Quarantine TTL sweep (BQC-7.8: dead-letter lifecycle bound, daily) ──
+  // The quarantine queue is absent when Redis is — the schedule that would
+  // dispatch this job is Redis-backed too, so an absent queue is unreachable
+  // in practice; the guard keeps registration unconditional like neighbors.
+  const { createQuarantineTtlSweepHandler, JOB_NAME: QUARANTINE_TTL_JOB_NAME } =
+    await import('#/shared/jobs/quarantine-ttl-sweep.job')
+  const { getEnv } = await import('#/shared/config/env')
+  const quarantineTtlHandler = container.opsQueues.quarantine
+    ? createQuarantineTtlSweepHandler({
+        queue: container.opsQueues.quarantine,
+        clock: container.clock,
+        ttlMs: getEnv().QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1000,
+        db: container.db,
+      })
+    : null
+  container.jobRegistry.register(QUARANTINE_TTL_JOB_NAME, async (job) => {
+    if (!quarantineTtlHandler) {
+      logger.warn(
+        { job: QUARANTINE_TTL_JOB_NAME },
+        'quarantine queue unavailable — skipping TTL sweep',
+      )
+      return
+    }
+    await quarantineTtlHandler(job)
+  })
+  logger.info(
+    { job: QUARANTINE_TTL_JOB_NAME },
+    'registered quarantine TTL sweep job handler',
+  )
+
   // ── Goal event handlers ────────────────────────────────────────────
   // NOTE: Goal event handlers are now registered inside buildGoalContext
   // (composition.ts) so they're available in both web server and worker.
