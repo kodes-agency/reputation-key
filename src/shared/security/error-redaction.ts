@@ -42,6 +42,7 @@ function buildPatterns(): readonly { pattern: RegExp; label: string }[] {
     },
     {
       // Phone numbers — run AFTER UUID so hex digit groups aren't matched
+      // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): bounded quantifiers only (≤10 digits), no unbounded nesting; safe-regex star-height false positive
       pattern: /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
       label: '[redacted-phone]',
     },

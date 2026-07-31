@@ -322,6 +322,7 @@ function parseColorString(value: string): ColorValue | null {
 
   // Parse rgb/rgba colors
   const rgbMatch = trimmed.match(
+    // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): anchored bounded-digit parse, no nested quantifiers; safe-regex star-height false positive
     /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)$/,
   )
   if (rgbMatch) {
@@ -335,6 +336,7 @@ function parseColorString(value: string): ColorValue | null {
 
   // Parse hsl/hsla colors
   const hslMatch = trimmed.match(
+    // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): anchored bounded-digit parse, no nested quantifiers; safe-regex star-height false positive
     /^hsla?\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*(?:,\s*([\d.]+))?\s*\)$/,
   )
   if (hslMatch) {
@@ -388,6 +390,7 @@ function parseColorString(value: string): ColorValue | null {
 
   // Parse hsb/hsba colors
   const hsbMatch = trimmed.match(
+    // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): anchored bounded-digit parse, no nested quantifiers; safe-regex star-height false positive
     /^hsba?\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*(?:,\s*([\d.]+))?\s*\)$/,
   )
   if (hsbMatch) {

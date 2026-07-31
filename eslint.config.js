@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import boundaries from 'eslint-plugin-boundaries'
+import security from 'eslint-plugin-security'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 
 // BQC-5.1: local rules enforcing what eslint-plugin-boundaries cannot express.
@@ -799,6 +800,39 @@ export default tseslint.config(
             'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of Date.now().',
         },
       ],
+    },
+  },
+
+  // ─── BQC-7.7: static security analysis (eslint-plugin-security) ────
+  // Recommended ruleset as ERRORS on production code — a red lint blocks the
+  // PR (no continue-on-error). Deliberate, documented deviations (full triage
+  // + rationale in docs/operations/security-ci-policy.md):
+  //  - detect-object-injection OFF: the rule cannot distinguish typed-union
+  //    record lookups / numeric array indices from user-controlled keys — all
+  //    222 findings were sampled false positives (e.g.
+  //    PERMISSION_CAPABILITY[permission], hops[clientIndex]). Prototype-
+  //    pollution mitigation here is zod-validated boundaries + exhaustive-map
+  //    guards (Object.hasOwn), not this rule.
+  //  - test files + src/shared/testing: the whole ruleset is OFF — test code
+  //    processes no untrusted input (227 findings, all false positives:
+  //    fixture fs walks, in-memory repo indexers).
+  //  - the handful of remaining production findings (bounded regexes flagged
+  //    by safe-regex star-height, server-controlled fs paths) carry inline
+  //    per-line disable comments with owner+reason at each site.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'src/test-setup.ts',
+      'src/shared/testing/**',
+    ],
+    plugins: { security },
+    rules: {
+      ...Object.fromEntries(
+        Object.keys(security.configs.recommended.rules).map((rule) => [rule, 'error']),
+      ),
+      'security/detect-object-injection': 'off',
     },
   },
 

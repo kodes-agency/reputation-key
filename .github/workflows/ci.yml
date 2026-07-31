@@ -18,7 +18,8 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -31,7 +32,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
         ports:
           - 6379:6379
         options: >-
@@ -56,6 +58,17 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # BQC-7.7: supply-chain gates — hard failures (no continue-on-error).
+      # Thresholds + exception policy: docs/operations/security-ci-policy.md
+      - name: Dependency vulnerability audit
+        run: pnpm check:dependency-audit
+
+      - name: License policy
+        run: pnpm check:licenses
+
+      - name: Action/image pin policy
+        run: pnpm check:action-pins
 
       - name: Format check
         run: pnpm format:check
@@ -109,6 +122,21 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm db:migrate-deploy
+
+      # BQC-7.7: migration artifact consistency as a NAMED gate — the semantic
+      # model↔catalog comparator (src/shared/db/schema-drift.ts) against the DB
+      # the migration steps just brought to deploy state.
+      - name: Schema drift (model ↔ migrated catalog)
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm check:schema-drift
 
       - name: Test
         env:
@@ -205,12 +233,101 @@ jobs:
       - name: Build worker image
         run: docker build -f Dockerfile.worker -t repkey-worker:ci .
 
-      - name: Smoke images (boot + non-root)
+      - name: Smoke images (boot + non-root + prod-deps purity)
         run: |
           docker run --rm repkey-web:ci node -e "process.exit(0)"
           docker run --rm repkey-worker:ci node -e "process.exit(0)"
           test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
+          # BQC-7.7: production dependency/prune verification — the runtime
+          # node_modules must be the prod-only install: sentinel DIRECT
+          # devDependencies (vitest, typescript, eslint, prettier — see
+          # package.json devDependencies) must be absent, the prod tree present.
+          for img in repkey-web:ci repkey-worker:ci; do
+            docker run --rm "$img" test -e /app/node_modules/pg
+            for sentinel in vitest typescript eslint prettier; do
+              if docker run --rm "$img" test -e "/app/node_modules/$sentinel"; then
+                echo "::error::devDependency $sentinel leaked into $img prod node_modules"
+                exit 1
+              fi
+            done
+          done
+
+      # BQC-7.7: image SBOMs (SPDX JSON, 30d retention). The images contain
+      # the build outputs (.output / dist-worker), so this is ALSO the
+      # artifact-content inventory scanned by grype below.
+      - name: SBOM web image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-web:ci
+          format: spdx-json
+          output-file: sbom-web.spdx.json
+
+      - name: SBOM worker image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-worker:ci
+          format: spdx-json
+          output-file: sbom-worker.spdx.json
+
+      - name: Upload image SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-images-spdx
+          path: sbom-*.spdx.json
+          retention-days: 30
+
+      # BQC-7.7: container scanning (grype) — hard fail on HIGH+ findings
+      # (fail-build: true). Reviewed exceptions live in .grype.yaml with
+      # owner/reason/expiry (wont-fix Debian triage + never-executed esbuild
+      # CLI binaries — policy: docs/operations/security-ci-policy.md).
+      # SARIF results upload to code scanning (security-events: write above).
+      - name: Vulnerability scan web image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-web:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+
+      - name: Vulnerability scan worker image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-worker:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+
+  # BQC-7.7: secret scanning incl. full git history (gitleaks). Separate job:
+  # runs in parallel with check (no pnpm install needed) and its failure is a
+  # distinct required check. gitleaks-action is deliberately NOT used (org
+  # license requirement) — the official image is pinned by digest instead.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history — gitleaks scans every commit, not just the PR diff.
+          fetch-depth: 0
+
+      - name: Gitleaks
+        # BQC-7.7: PRs scan the PR range (sub-second-to-minutes); pushes to
+        # main scan ALL refs — the full-history net (measured 8m25s for 1960
+        # commits / 7.7 GB locally, acceptable on the merge path; ~2 min per
+        # PR is not achievable with this history size, hence the split — see
+        # docs/operations/security-ci-policy.md).
+        # --config: committed .gitleaks.toml (performance allowlist for the
+        # committed binary caches — see its header; NOT finding suppression).
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            OPTS="origin/${{ github.base_ref }}..HEAD"
+          else
+            OPTS="--all"
+          fi
+          echo "gitleaks log-opts: $OPTS"
+          docker run --rm -v "$PWD:/repo" \
+            zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --config /repo/.gitleaks.toml --redact --log-opts="$OPTS"
 
   storybook:
     runs-on: ubuntu-latest
@@ -271,7 +388,8 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -286,7 +404,8 @@ jobs:
       # Required: composition root needs Redis to build jobQueue; without it
       # /api/auth/* rate-limit path throws jobQueue required → sign-in 500s.
       redis:
-        image: redis:7
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
         ports:
           - 6379:6379
         options: >-

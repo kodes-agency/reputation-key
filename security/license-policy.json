@@ -1,0 +1,50 @@
+{
+  "allowed": [
+    "0BSD",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Python-2.0",
+    "Unlicense",
+    "WTFPL"
+  ],
+  "exceptions": [
+    {
+      "package": "lightningcss*",
+      "license": "MPL-2.0",
+      "scope": "both",
+      "owner": "platform",
+      "reason": "Build-time CSS transformer in the vite/tailwind pipeline (incl. its os/cpu-specific binary packages). Used unmodified as a build plugin; MPL-2.0 §3.3 explicitly permits Larger Works under different terms and the covered source stays available on npm. No MPL-licensed file is modified.",
+      "expiresAt": "2026-10-31"
+    },
+    {
+      "package": "caniuse-lite",
+      "license": "CC-BY-4.0",
+      "scope": "both",
+      "owner": "platform",
+      "reason": "Browser-compatibility DATA (not executable code) consumed at build time by browserslist/@babel for transpile targeting. Data is unmodified and attribution ships with the package's own license file in node_modules.",
+      "expiresAt": "2026-10-31"
+    },
+    {
+      "package": "axe-core",
+      "license": "MPL-2.0",
+      "scope": "dev",
+      "owner": "platform",
+      "reason": "Accessibility audit engine loaded by @storybook/addon-a11y and the Storybook test-runner — CI/dev a11y tooling only, never bundled into production images (devDependency tree; the docker prod-deps sentinel gate proves devDeps are absent). Used unmodified; MPL-2.0 §3.3 permits Larger Works under different terms.",
+      "expiresAt": "2026-10-31"
+    },
+    {
+      "package": "@img/sharp-libvips-*",
+      "license": "LGPL-3.0-or-later",
+      "scope": "dev",
+      "owner": "platform",
+      "reason": "Prebuilt libvips binaries for sharp, a devDependency (test/tooling image processing) — never present in production images: prod node_modules are installed with --prod and the docker prod-deps sentinel gate proves devDeps are absent. Dynamically linked and unmodified; LGPL-3.0 §4 permits unmodified combined use with the source available on npm.",
+      "expiresAt": "2026-10-31"
+    }
+  ]
+}

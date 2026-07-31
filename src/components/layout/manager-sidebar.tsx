@@ -35,6 +35,7 @@ function useActiveSection(): string {
         s.location.pathname.startsWith('/import')
       )
         return ''
+      // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): char-class-only pattern, no nested quantifiers; safe-regex star-height false positive
       const m = s.location.pathname.match(/\/properties\/[^/]+(?:\/([^/]+))?/)
       if (!m) return 'dashboard'
       if (m[1] === 'portals') return 'portals'

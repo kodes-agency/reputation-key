@@ -92,6 +92,7 @@ export const SNAPSHOT_SECTIONS = [
 ] as const
 
 /** Route-class label: dotted server-fn / use-case names (e.g. review.syncReviews). */
+// eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): each outer-group iteration must consume a literal dot, so repetitions cannot overlap; safe-regex star-height false positive
 const USE_CASE_PATTERN = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9_-]+)*$/
 /** Release identity: a git SHA (short or full) or the explicit unknown marker. */
 const RELEASE_SHA_PATTERN = /^([0-9a-f]{7,40}|unknown)$/

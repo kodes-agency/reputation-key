@@ -29,6 +29,7 @@ export const bqcEntrySchema = z
     id: z
       .string()
       .min(1)
+      // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): anchored id pattern, no nested quantifiers; safe-regex star-height false positive
       .regex(/^BQC-\d+(\.\d+)?$|^BQR-\d+(\.\d+)?$/, 'id must look like BQC-0 or BQR-5.1'),
     kind: z.enum(['phase', 'slice']),
     parentId: z.string().optional(),

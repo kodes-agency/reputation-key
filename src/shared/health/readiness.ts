@@ -56,6 +56,7 @@ const POLICY_VERSION_SQL = "SELECT version FROM policy_version WHERE scope = 'gl
 function journalEntryCount(
   journalPath = join(process.cwd(), 'drizzle', 'meta', '_journal.json'),
 ): number {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): default param is a server-constant path (process.cwd()/drizzle), never request input
   const raw = readFileSync(journalPath, 'utf8')
   return (JSON.parse(raw) as { entries: readonly unknown[] }).entries.length
 }

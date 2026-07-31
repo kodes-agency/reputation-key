@@ -160,6 +160,7 @@ const FK_ACTION: Record<string, string> = {
 
 const MULTIWORD_CAST =
   /::\s*(timestamp with(?:out)? time zone|character varying|double precision)/g
+// eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): char-class-only cast stripper, no nested quantifiers; safe-regex star-height false positive
 const SIMPLE_CAST = /::\s*"?[a-z0-9_]+"?(\s*\[\s*\])?/g
 const TABLE_QUALIFIER = /\b[a-z_][a-z0-9_]*\.(?=[a-z_])/g
 const NOT_IN_LIST = /(\w+)\s+not\s+in\s*\(([^()]*?)\)/g
@@ -1012,11 +1013,13 @@ const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 type JournalEntry = Readonly<{ idx: number; tag: string; when: number }>
 
 function readJournal(): readonly JournalEntry[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): repo-constant path (REPO_ROOT/drizzle/meta), no request input; CI/operator tool
   const raw = readFileSync(join(REPO_ROOT, 'drizzle', 'meta', '_journal.json'), 'utf8')
   return (JSON.parse(raw) as { entries: JournalEntry[] }).entries
 }
 
 function sqlFileHash(tag: string): string {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- BQC-7.7 (owner: platform): tag comes from the committed drizzle journal, not request input; CI/operator tool
   const sql = readFileSync(join(REPO_ROOT, 'drizzle', `${tag}.sql`), 'utf8')
   return createHash('sha256').update(sql).digest('hex')
 }
