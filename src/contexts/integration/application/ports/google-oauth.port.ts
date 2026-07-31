@@ -12,7 +12,16 @@ export type GoogleOAuthResult = Readonly<{
 }>
 
 export type GoogleOAuthPort = Readonly<{
-  exchangeCode: (code: string, redirectUri: string) => Promise<GoogleOAuthResult>
+  /**
+   * Exchange an authorization code for tokens. `codeVerifier` is the PKCE
+   * (RFC 7636) verifier whose challenge was sent on the authorization URL —
+   * required since BQC-7.6 (the flow always issues a challenge).
+   */
+  exchangeCode: (
+    code: string,
+    redirectUri: string,
+    codeVerifier: string,
+  ) => Promise<GoogleOAuthResult>
   refreshAccessToken: (
     refreshToken: string,
   ) => Promise<{ accessToken: string; expiresIn: number }>

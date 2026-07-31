@@ -14,6 +14,7 @@ import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
+import { createInMemoryPkceVerifierStore } from '#/shared/testing/in-memory-pkce-verifier-store'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIntegrationContext } from './build'
 
@@ -51,6 +52,7 @@ function buildDeps(overrides: {
     logger: createMockLogger(),
     sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
+    pkceStore: createInMemoryPkceVerifierStore(),
     ...overrides,
   }
 }

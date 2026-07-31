@@ -47,11 +47,25 @@ const config = defineConfig(({ mode }) => {
         ? [
             nitro({
               rollupConfig: { external: [/^@sentry\//] },
-              // BQC-7.1: wire the graceful-shutdown runtime plugin. serverDir
-              // scanning stays off (default false under TanStack Start), so
-              // this explicit list is the ONLY plugin registration path — the
-              // inert security-headers plugin is unaffected (STD-P1-07).
-              plugins: ['server/plugins/graceful-shutdown.ts'],
+              // serverDir scanning stays off (default false under TanStack
+              // Start), so this explicit list is the ONLY plugin registration
+              // path. Wired plugins (init order):
+              //   - production-secret-guard (BQC-7.6): refuse boot when a
+              //     known placeholder/test secret leaks into production.
+              //   - graceful-shutdown (BQC-7.1): close pg/Redis/BullMQ on
+              //     SIGTERM so the process exits inside the drain window.
+              //   - security-headers (BQC-7.6, STD-P1-07): the B0.7 header set
+              //     on every response; the previous nitropack-v2 version of
+              //     this plugin was inert. Proven against the booted artifact
+              //     by scripts/check-security-headers.mjs (CI).
+              //   - request-guard (BQC-7.6): 413 body-size limit (fail before
+              //     routing) + x-request-id on every response.
+              plugins: [
+                'server/plugins/production-secret-guard.ts',
+                'server/plugins/graceful-shutdown.ts',
+                'server/plugins/security-headers.ts',
+                'server/plugins/request-guard.ts',
+              ],
             }),
           ]
         : []),

@@ -10,6 +10,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { ratingInputSchema } from '../application/dto/rating.dto'
 import { feedbackInputSchema } from '../application/dto/feedback.dto'
 import { isGuestError } from '../domain/errors'
+import { clientIpFromHeaders } from '#/shared/security/client-ip'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 import { portalId, ratingId } from '#/shared/domain/ids'
 import { guestErrorStatus } from './guest-scans'
@@ -32,7 +33,7 @@ export const submitRatingFn = createServerFn({ method: 'POST' })
         // a fresh id AND set it as an HttpOnly cookie so the client carries it on
         // subsequent requests (cannot be done client-side; HttpOnly is required by
         // the guest CONTEXT.md invariant).
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(headers)
         const ipHash = hashIp(ip)
         const session = resolveGuestSession(cookieHeader)
 
@@ -93,7 +94,7 @@ export const submitFeedbackFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
 
         const cookieHeader = headers?.get('cookie') ?? ''
-        const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(headers)
         const ipHash = hashIp(ip)
         // Reuse the cookie session if present, otherwise mint a fresh id AND
         // set it as an HttpOnly cookie (see submitRating for full rationale).

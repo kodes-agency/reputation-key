@@ -67,6 +67,11 @@ import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { providerRefForCell } from '#/shared/routing/processing-router'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { buildIntegrationContext } from '#/contexts/integration/build'
+import {
+  createRedisPkceVerifierStore,
+  createInMemoryPkceVerifierStore,
+} from '#/contexts/integration/infrastructure/repositories/pkce-verifier-store.repository'
+import type { PkceVerifierStore } from '#/contexts/integration/application/oauth-state'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
@@ -237,6 +242,10 @@ export function createContainer(options?: {
   opsQuarantineQueue?: Queue
   /** Override the identity port (simulations use the in-memory identity fake). */
   identityPort?: IdentityPort
+  /** Override the PKCE verifier store (BQC-7.6; simulations/tests inject an
+   * in-memory store). Absent = Redis-backed, or the in-memory dev fallback
+   * when Redis is unavailable. */
+  pkceStore?: PkceVerifierStore
   /** Override the email sender (simulations capture emails instead of sending). */
   email?: typeof sendInvitationEmail
   /** Override external provider adapters (BQC-6.1: deterministic Google/GBP/
@@ -428,6 +437,25 @@ export function createContainer(options?: {
     sourceContentPurge,
     googleOAuth: options?.providers?.googleOAuth,
     gbpApi: options?.providers?.gbpApi,
+    // BQC-7.6: PKCE verifier store. Redis-backed in real deployments; the
+    // in-memory fallback keeps single-process dev/e2e working without Redis
+    // (a Redis-less PRODUCTION process degrades OAuth connect to this process
+    // only — logged at error level; readiness/alerting own Redis absence).
+    pkceStore:
+      options?.pkceStore ??
+      (() => {
+        if (redis) return createRedisPkceVerifierStore(redis)
+        if (env.NODE_ENV === 'production') {
+          logger.error(
+            '[oauth] PKCE verifier store is in-memory — REDIS_URL absent in production',
+          )
+        } else {
+          logger.warn(
+            '[oauth] PKCE verifier store in-memory (no Redis) — single-process only',
+          )
+        }
+        return createInMemoryPkceVerifierStore()
+      })(),
   })
 
   const review = buildReviewContext({

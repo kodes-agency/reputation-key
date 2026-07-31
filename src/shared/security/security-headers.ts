@@ -71,13 +71,15 @@ export function applySecurityHeaders(
  * Nitro plugin that sets security headers on every response via the `response`
  * lifecycle hook. Compatible with TanStack Start's production Nitro server.
  *
- * Register in `nitro/plugins/` or wire explicitly. For dev mode (where Nitro
- * is not active), call {@link applySecurityHeaders} from TanStack Start router
- * middleware instead.
+ * Wired explicitly: server/plugins/security-headers.ts (registered in the
+ * vite.config.ts nitro `plugins` array — serverDir scanning stays off under
+ * TanStack Start). For dev mode (where Nitro is not active), call
+ * {@link applySecurityHeaders} from TanStack Start router middleware instead.
  *
- * BQC-5.8 classification: B — one wiring seam kept for BQC-7 (B0.7 control;
- * the auto-discovered plugin in server/plugins/ is inert, STD-P1-07).
- * Suppressed via .fallowrc.json ignoreExports. Owner: BQC-7. Expiry: BQC-7 close.
+ * STD-P1-07 (BQC-7.6): the previous nitropack-v2 plugin was inert; this v3
+ * plugin is the repaired mechanism, pinned by
+ * src/shared/architecture/security-headers-wiring.test.ts and proven against
+ * the booted artifact by scripts/check-security-headers.mjs.
  */
 export const securityHeadersPlugin: NitroAppPlugin = (nitroApp) => {
   nitroApp.hooks.hook('response', (res) => {
@@ -86,5 +88,3 @@ export const securityHeadersPlugin: NitroAppPlugin = (nitroApp) => {
     }
   })
 }
-
-export default securityHeadersPlugin

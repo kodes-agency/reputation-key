@@ -148,6 +148,13 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
 
+      # BQC-7.6 / STD-P1-07: booted-artifact security gate — boots the built
+      # server and asserts the full B0.7 header set on 200 AND 404 responses
+      # (plus x-request-id and the 413 body limit). The script generates its
+      # own per-run secrets; no placeholder env is passed to the boot.
+      - name: Security headers (booted artifact)
+        run: pnpm check:security-headers
+
       # BQC-6.8: client bundle budgets on the production output (main entry /
       # initial payload / lazy chunks — see scripts/check-bundle-budget.mjs).
       - name: Bundle budget

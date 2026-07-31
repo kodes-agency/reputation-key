@@ -48,6 +48,100 @@ ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution
 
 ---
 
+## Security posture (BQC-7.6)
+
+Request-boundary and OAuth hardening controls, how they are wired, and how
+each is verified. Unless noted, the mechanism lives in `src/shared/security/**`
+(unit-tested) with thin nitro-plugin wiring in `server/plugins/**`.
+
+**Security response headers (B0.7, STD-P1-07).** The full set (default-deny
+CSP, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, restrictive
+`Permissions-Policy`, plus HSTS in production only) is applied to every
+response by the nitro v3 `response` hook in
+`src/shared/security/security-headers.ts`, wired via
+`server/plugins/security-headers.ts` through the explicit `plugins` array in
+`vite.config.ts` (nitro serverDir scanning stays off under TanStack Start —
+the array is the ONLY registration path; the original nitropack-v2 plugin was
+inert, STD-P1-07). **Proof:** CI boots the built production artifact and
+asserts every header on 200, 404, and 413 responses
+(`pnpm check:security-headers` → `scripts/check-security-headers.mjs`, check
+job after "Web build"; the script generates per-run random secrets, so the
+placeholder-secret guard below does not refuse the probe boot). The wiring is
+additionally pinned by `src/shared/architecture/security-headers-wiring.test.ts`.
+The BQC-7.1 deployment contract (Dockerfile + railway.json + this runbook)
+therefore serves the verified header set on every response.
+
+**Trusted proxy model.** Client IPs are derived from `X-Forwarded-For` by
+trusted position, never the spoofable leftmost hop:
+`TRUSTED_PROXY_COUNT` (default 1 — one edge proxy, the platform load
+balancer) selects the hop at `length − (N+1)`; with 0 the header is not
+trusted at all. All rate-limit/IP call-sites (registration, sign-in, guest
+rating/feedback/scan, the better-auth catch-all) go through
+`clientIpFromHeaders` (`src/shared/security/client-ip.ts`). Set the count to
+the real proxy chain length when the fronting topology changes.
+
+**Body-size limit + request IDs.** The request-guard plugin
+(`server/plugins/request-guard.ts` → `src/shared/security/request-guard.ts`)
+rejects requests whose declared `content-length` exceeds
+`REQUEST_BODY_LIMIT_BYTES` (default 1 MiB) with a content-free 413 before
+routing (chunked bodies without a declared length cannot be pre-empted — the
+platform gateway is the backstop). Every response carries `x-request-id`:
+a sane inbound id (≤128 chars, token charset) is echoed, otherwise one is
+generated. `requestId` is an approved correlation field (BQC-7.3 schema).
+**Time limits:** there is deliberately no server-boundary timeout mechanism —
+adapter-level timeouts exist where hangs are possible (e.g. the alert webhook
+POST at 3s) and the platform gateway owns the outer request deadline.
+
+**Rate controls.** better-auth's built-in limiter guards its native endpoints
+(disabled only under `E2E=1`). The shared Redis limiter
+(`src/shared/rate-limit/middleware.ts`) guards registration, sign-in, guest
+submissions, and the auth catch-all; when Redis is absent or erroring it
+**fails closed in production** (deny + error log) and fails open with a warn
+elsewhere.
+
+**Origin checks.** better-auth is configured with
+`trustedOrigins: [BETTER_AUTH_URL]` — origin/host validation fails closed to
+the configured app URL. Cookies: `Secure` in production, `HttpOnly`,
+`SameSite=Lax`; sessions 30d expiry / 24h rolling update.
+
+**OAuth (custom Google flow).** State is HMAC-signed
+(`OAUTH_STATE_SECRET`) and bound to the initiating user (`sub` claim — the
+callback rejects a state redeemed by a different session, fail closed to the
+generic `invalid_state` redirect); 10-minute freshness window;
+constant-time signature comparison. PKCE S256: the verifier is stored
+server-side in Redis under the state nonce (TTL = state TTL, one-time use via
+atomic GETDEL) and only the challenge leaves the process; a missing/expired/
+replayed verifier fails closed. **Redirect allowlist:** the OAuth redirect URI
+is the fixed `${BETTER_AUTH_URL}/api/auth/google/callback` and post-callback
+redirects are fixed app paths (`/import?…`) — no request-derived redirect
+target is ever honored. Tokens are AES-256-GCM encrypted at rest
+(`ENCRYPTION_KEY`); refresh runs through the single refresh use case; revoke
+on disconnect. Key rotation remains runbook-manual (§2) and is a registered
+platform finding — do not improvise rotation in an incident.
+
+**Error sanitization.** Server-fn errors map to generic tagged errors
+(`catchUntagged`); the root error boundary renders a generic message in
+production (raw only in dev); the 413/429/404 guard responses are
+content-free JSON. No stack, SQL, or secret material reaches a client.
+
+**Placeholder-secret boot guard.** Production processes refuse to boot when a
+secret matches the known test/CI/`.env.example` placeholder family
+(`src/shared/config/production-secrets.ts`): the web process via the
+first-registered nitro plugin (`production-secret-guard.ts`), the worker via
+`assertProductionSecrets` in `src/worker/index.ts`. The error names offending
+FIELDS only, never values.
+
+**Health/metrics exposure.** `/api/health/metrics` is token-gated
+(`OPS_METRICS_TOKEN`, BQC-7.2 — absent or wrong credential 404s, keeping the
+surface dark); network-level restriction of the ops surface is platform-owned
+(Railway private networking). Liveness/readiness carry no dependency detail.
+
+**Dependencies.** `nitropack` (v2) was removed — the build runs nitro v3
+(`nitro` devDependency, build-time only); nothing references the v2 API.
+
+---
+
 ## 1. Account Compromise and Session Revoke
 
 **Trigger:** Suspected account compromise, reported credential leak, unauthorized access detected.

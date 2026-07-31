@@ -12,6 +12,8 @@ export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
     setRefreshResult: (result: { accessToken: string; expiresIn: number }) => void
     setExchangeError: (error: Error) => void
     revokeTokenCalls: () => string[]
+    /** The PKCE verifiers received by exchangeCode, in call order (BQC-7.6). */
+    exchangeVerifierCalls: () => ReadonlyArray<string>
   }>
 
 export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
@@ -26,9 +28,11 @@ export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
   let refreshResult = { accessToken: 'refreshed-access-token', expiresIn: 3600 }
   let exchangeError: Error | null = null
   const revokedTokens: string[] = []
+  const exchangeVerifiers: string[] = []
 
   return {
-    exchangeCode: async (_code, _redirectUri) => {
+    exchangeCode: async (_code, _redirectUri, codeVerifier) => {
+      exchangeVerifiers.push(codeVerifier)
       if (exchangeError) throw exchangeError
       return exchangeResult
     },
@@ -46,5 +50,6 @@ export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
       exchangeError = error
     },
     revokeTokenCalls: () => [...revokedTokens],
+    exchangeVerifierCalls: () => [...exchangeVerifiers],
   }
 }

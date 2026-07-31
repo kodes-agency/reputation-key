@@ -6,6 +6,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
@@ -56,7 +57,7 @@ export const registerMember = createServerFn({ method: 'POST' })
         // default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
         assertGlobalCapability('identity.register')
         const reqHeaders = await headersFromContext()
-        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(reqHeaders)
         const { rateLimiter: rl } = getContainer()
         const rlResult = await rl.check(`auth:register:${ip}`)
         if (!rlResult.allowed) {
@@ -89,7 +90,7 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
         // by default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
         assertGlobalCapability('organization.create')
         const reqHeaders = await headersFromContext()
-        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(reqHeaders)
         const { rateLimiter: rl } = getContainer()
         const rlResult = await rl.check(`auth:register:${ip}`)
         if (!rlResult.allowed) {
@@ -121,7 +122,7 @@ export const signInUser = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const reqHeaders = await headersFromContext()
-        const ip = reqHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+        const ip = clientIpFromHeaders(reqHeaders)
         const { rateLimiter: rl } = getContainer()
         const rlResult = await rl.check(`auth:signin:${ip}`)
         if (!rlResult.allowed) {

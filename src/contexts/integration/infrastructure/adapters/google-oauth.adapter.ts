@@ -46,6 +46,7 @@ export const createGoogleOAuthAdapter = (config: {
   const exchangeCode = async (
     code: string,
     redirectUriParam: string,
+    codeVerifier: string,
   ): Promise<{
     googleAccountId: string
     googleEmail: string
@@ -66,6 +67,9 @@ export const createGoogleOAuthAdapter = (config: {
           client_secret: clientSecret,
           redirect_uri: redirectUriParam,
           grant_type: 'authorization_code',
+          // BQC-7.6: PKCE — proves this exchange owns the flow that issued
+          // the challenge; an intercepted code alone cannot be redeemed.
+          code_verifier: codeVerifier,
         }),
       }),
     )

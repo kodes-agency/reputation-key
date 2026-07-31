@@ -5,6 +5,7 @@ import 'dotenv/config'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
+import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
 import { createJobWorker } from '#/shared/jobs/worker'
@@ -47,6 +48,10 @@ async function main() {
   // BQC-0.3: refuse boot if test-only capability overrides leak outside an
   // explicit test/CI identity; assert blocked caps; record policy manifest.
   runCapabilityBootGuard(env, logger)
+
+  // BQC-7.6: refuse boot when a known placeholder/test secret leaks into
+  // production (web process runs the same assertion as a nitro plugin).
+  assertProductionSecrets(env)
 
   // Build the dependency container
   const container = createContainer({ enableJobs: true })

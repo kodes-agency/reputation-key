@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
+import { clientIpFromHeaders } from '#/shared/security/client-ip'
 
 // Raw better-auth organization write endpoints PERMANENTLY blocked at the HTTP
 // boundary — app-owned services are the only write path (ADR 0001, DAC Stage 1).
@@ -51,7 +52,7 @@ async function handleAuthRequest(
   }
 
   if (opts.rateLimit && !process.env.E2E) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = clientIpFromHeaders(request.headers)
     const { rateLimiter } = getContainer()
     const rlResult = await rateLimiter.check(`auth:native:${ip}`)
     if (!rlResult.allowed) {

@@ -3,15 +3,34 @@
 // Exchanges the authorization code server-side so it never appears in
 // browser history or client logs. Creates/updates the Google connection,
 // then redirects to the import page with only a connection reference.
+//
+// BQC-7.6 hardening (state/PKCE/user-binding):
+//   - The session is resolved FIRST: the HMAC-signed state carries the
+//     initiating user's id (`sub`) and is rejected when the callback session
+//     belongs to anyone else (login-CSRF / account-confusion fails closed to
+//     the same 'invalid_state' redirect as a forged signature).
+//   - The state codec (sign/verify) lives in the application layer
+//     (contexts/integration/application/oauth-state.ts) — single source for
+//     issuer (use case) and redeemer (this route).
+//   - PKCE: the use case redeems the verifier stored under the state nonce
+//     (one-time use) and forwards it on the token exchange; a missing/
+//     expired/replayed verifier throws 'oauth_state_invalid', mapped here to
+//     the same fail-closed 'invalid_state' redirect.
+//   - Redirect allowlist: the only outbound redirects are the FIXED app paths
+//     below (built from BETTER_AUTH_URL) — no request-derived redirect target
+//     is ever honored.
 
-import { createHmac, timingSafeEqual } from 'crypto'
 import { createFileRoute } from '@tanstack/react-router'
-import { err, ok, type Result } from '#/shared/domain'
 import { getEnv } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import {
+  verifyOAuthState,
+  type OAuthStateRejection,
+} from '#/contexts/integration/application/oauth-state'
+import { isOAuthStateInvalidError } from '#/contexts/integration/server/error-helpers'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,69 +43,13 @@ const redirectWithError = (env: ReturnType<typeof getEnv>, errorParam: string) =
     headers: { Location: `${env.BETTER_AUTH_URL}/import?error=${errorParam}` },
   })
 
-type ValidatedState = {
-  visibility: 'private' | 'organization'
-  nonce: string
-  ts: number
-}
-
-/** Parse base64-encoded JSON state, verify HMAC signature & freshness. */
-const parseAndValidateState = (
-  rawState: string,
+/** Log a state rejection (content-free) and map it to the redirect. */
+const rejectState = (
   env: ReturnType<typeof getEnv>,
-): Result<ValidatedState, Response> => {
-  const logger = getLogger()
-  const reject = (reason: string) => {
-    logger.warn({ security: true }, reason)
-    return err(redirectWithError(env, 'invalid_state'))
-  }
-
-  // Decode base64 → JSON
-  let parsed: { visibility?: string; nonce?: string; ts?: number; signature?: string }
-  try {
-    parsed = JSON.parse(Buffer.from(rawState, 'base64').toString())
-  } catch {
-    logger.warn(
-      { security: true, rawState: rawState.substring(0, 100) },
-      'OAuth state is not valid base64+JSON',
-    )
-    return err(redirectWithError(env, 'invalid_state'))
-  }
-
-  // Required fields present?
-  if (!parsed.signature || !parsed.nonce || !parsed.ts) {
-    return reject('OAuth state missing signature, nonce, or timestamp')
-  }
-
-  // Timestamp freshness — 10-minute window
-  const STATE_MAX_AGE_MS = 10 * 60 * 1000
-  if (Date.now() - parsed.ts > STATE_MAX_AGE_MS) {
-    return reject('OAuth state expired')
-  }
-
-  // Visibility enum
-  if (parsed.visibility !== 'private' && parsed.visibility !== 'organization') {
-    return reject('OAuth state missing or invalid visibility')
-  }
-
-  // HMAC verification
-  const payload = { visibility: parsed.visibility, nonce: parsed.nonce, ts: parsed.ts }
-  const expectedSig = createHmac('sha256', env.OAUTH_STATE_SECRET)
-    .update(JSON.stringify(payload))
-    .digest('hex')
-
-  if (
-    parsed.signature.length !== expectedSig.length ||
-    !timingSafeEqual(Buffer.from(parsed.signature), Buffer.from(expectedSig))
-  ) {
-    return reject('OAuth state HMAC verification failed — possible CSRF')
-  }
-
-  return ok({
-    visibility: parsed.visibility === 'organization' ? 'organization' : 'private',
-    nonce: parsed.nonce,
-    ts: parsed.ts,
-  })
+  reason: OAuthStateRejection | 'missing' | 'pkce_redeem_failed',
+): Response => {
+  getLogger().warn({ security: true, reason }, 'OAuth state rejected')
+  return redirectWithError(env, 'invalid_state')
 }
 
 /** Classify a caught error as session-related or generic connection failure. */
@@ -124,26 +87,42 @@ export const Route = createFileRoute('/api/auth/google/callback')({
 
           // State parameter is required for CSRF protection
           if (!state) {
-            getLogger().warn({ security: true }, 'OAuth callback missing state parameter')
-            return redirectWithError(env, 'invalid_state')
+            return rejectState(env, 'missing')
           }
 
-          // Validate state signature & contents
-          const stateResult = parseAndValidateState(state, env)
-          if (stateResult.isErr()) return stateResult.error
+          // Resolve the session FIRST — the signed state is bound to the
+          // initiating user, so the verifier needs the session user id.
+          const headers = new Headers()
+          const cookie = request.headers.get('cookie')
+          if (cookie) headers.set('cookie', cookie)
 
-          const { visibility } = stateResult.value
-
-          // Exchange code → connection via use case
+          let ctx: Awaited<ReturnType<typeof resolveTenantContext>>
           try {
-            const headers = new Headers()
-            const cookie = request.headers.get('cookie')
-            if (cookie) headers.set('cookie', cookie)
+            ctx = await resolveTenantContext(headers)
+          } catch (e) {
+            getLogger().error(
+              { err: e },
+              'Google OAuth callback session resolution failed',
+            )
+            return redirectWithError(env, classifyError(e))
+          }
 
-            const ctx = await resolveTenantContext(headers)
+          // Validate state signature, freshness, and the user binding.
+          const stateResult = verifyOAuthState(state, {
+            secret: env.OAUTH_STATE_SECRET,
+            expectedUserId: ctx.userId,
+            nowMs: Date.now(),
+          })
+          if (stateResult.isErr()) return rejectState(env, stateResult.error)
+
+          const { visibility, nonce } = stateResult.value
+
+          // Exchange code → connection via use case (redeems the PKCE
+          // verifier under the state nonce — one-time use, fail closed).
+          try {
             const { useCases } = getContainer()
             const connection = await useCases.connectGoogleAccount(
-              { code, visibility },
+              { code, visibility, stateNonce: nonce },
               ctx,
             )
 
@@ -154,6 +133,11 @@ export const Route = createFileRoute('/api/auth/google/callback')({
               headers: { Location: importUrl.toString() },
             })
           } catch (e) {
+            // PKCE/state redeem failures are the same fail-closed path as a
+            // bad state signature — no distinction leaks to the client.
+            if (isOAuthStateInvalidError(e)) {
+              return rejectState(env, 'pkce_redeem_failed')
+            }
             getLogger().error({ err: e }, 'Google OAuth connection failed')
             return redirectWithError(env, classifyError(e))
           }

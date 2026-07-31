@@ -31,7 +31,6 @@
     "@better-auth/cli",
     "@tanstack/start-server-core",
     "eslint-import-resolver-typescript",
-    "nitro",
     "shadcn",
     "@tailwindcss/typography"
   ],
@@ -116,10 +115,6 @@
       "exports": ["initObservability"]
     },
     {
-      "file": "src/shared/security/security-headers.ts",
-      "exports": ["securityHeadersPlugin", "default"]
-    },
-    {
       "file": "src/shared/bqc/status-schema.ts",
       "exports": [
         "BQC_STATES",
@@ -183,7 +178,9 @@
   "overrides": [
     {
       "files": [
+        "server/plugins/production-secret-guard.ts",
         "server/plugins/security-headers.ts",
+        "server/plugins/request-guard.ts",
         "server/plugins/graceful-shutdown.ts",
         "src/contexts/identity/server/auth-settings.org.ts",
         "src/contexts/identity/server/organizations.roles.ts",

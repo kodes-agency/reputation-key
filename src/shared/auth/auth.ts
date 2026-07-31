@@ -60,6 +60,11 @@ export function createAuth() {
     database: pool,
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    // BQC-7.6: origin checks fail closed to the configured app URL — requests
+    // whose Origin/Host do not match are rejected (CSRF / cross-origin posting
+    // protection for the auth surface). The single trusted origin is the
+    // deployment's own BETTER_AUTH_URL.
+    trustedOrigins: [env.BETTER_AUTH_URL],
     emailAndPassword: {
       enabled: true,
       // Enable email verification in production

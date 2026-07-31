@@ -32,7 +32,12 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
           const { useCases } = getContainer()
-          return await useCases.getGoogleAuthUrl({ visibility: data.visibility })
+          // BQC-7.6: the state is bound to the initiating user (sub) — the
+          // callback rejects a state redeemed by any other session.
+          return await useCases.getGoogleAuthUrl({
+            visibility: data.visibility,
+            userId: ctx.userId,
+          })
         } catch (e) {
           throw catchUntagged(e)
         }
