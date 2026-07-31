@@ -10,7 +10,8 @@ import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.j
 import { isDbHealthy } from '#/shared/health/db-probe'
 import { isRedisHealthy } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
-import { createHealthChecker } from '#/shared/observability/health-metrics'
+import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
+import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import { readAllQueueDepths } from '#/shared/health/queue-depth'
 import { isCapabilityJobEnabled, type Capability } from '#/shared/auth/beta-capabilities'
@@ -80,6 +81,14 @@ export async function bootstrap(container: Container): Promise<void> {
   }
 
   // ── Register background job handlers ─────────────────────────────
+  // BQC-7.4: the alert evaluation wiring — the container-owned snapshot
+  // reader and dispatcher, the aux reads (retention/policy denials/region
+  // attempts), and the Redis firing-state store (edge-trigger hysteresis).
+  const alertAuxReader = createAlertAuxReader({
+    db: container.db,
+    quarantineQueue: container.opsQueues.quarantine ?? null,
+    logger,
+  })
   const healthCheckHandler = createHealthCheckHandler({
     dbHealthy: isDbHealthy,
     redisHealthy: isRedisHealthy,
@@ -91,18 +100,12 @@ export async function bootstrap(container: Container): Promise<void> {
       const { writeWorkerHeartbeat } = await import('#/shared/health/worker-heartbeat')
       await writeWorkerHeartbeat(getRedis() ?? undefined, container.clock)
     },
-    // BQC-3.7: outbox/quarantine metric sample for the threshold evaluation.
-    sampleOpsMetrics: async () => {
-      const snapshot = await createHealthChecker(container.db, container.outboxRepo, {
-        quarantineQueue: container.opsQueues.quarantine ?? null,
-      }).check()
-      return {
-        oldestUnpublishedAgeMs: snapshot.outbox.oldestUnpublishedAgeMs,
-        stalledLeaseCount: snapshot.outbox.stalledLeaseCount,
-        quarantineCount: snapshot.quarantine?.count ?? 0,
-        oldestQuarantinedAgeMs: snapshot.quarantine?.oldestAgeMs ?? null,
-      }
-    },
+    // BQC-7.4: alert evaluation inputs + dispatch (supersedes the 3.7
+    // warn-only threshold sample).
+    readOperationsSnapshot: () => container.operationsSnapshot.read(),
+    readAlertAux: () => alertAuxReader.read(),
+    alertState: container.redis ? createRedisAlertStateStore(container.redis) : undefined,
+    alertDispatcher: container.alertDispatcher,
     // BQC-3.7: queue-depth read incl. domain-events + quarantine.
     readQueueDepths: () =>
       readAllQueueDepths([

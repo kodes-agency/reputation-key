@@ -37,6 +37,7 @@ const dbStub = new Proxy(
 const EXPECTED_TOP_LEVEL_KEYS = [
   'activityPublicApi',
   'activityRepo',
+  'alertDispatcher',
   'backgroundQueue',
   'badgePublicApi',
   'cache',

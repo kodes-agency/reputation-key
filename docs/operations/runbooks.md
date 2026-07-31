@@ -148,3 +148,34 @@ Each runbook follows the structure:
 **Recovery:** Wait for provider recovery. Outbox accumulates events (no data loss). Resume normally when infrastructure recovers.
 **Verification:** All dependencies healthy. Backlog drained. Freshness indicators return to normal.
 **Escalation:** Bozhidar Denev. Provider support tickets (Neon, Redis provider, Google Cloud).
+
+---
+
+## Alerts (BQC-7.4)
+
+Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, policy denials, quarantine region-attempts).
+
+**Dispatch:** every firing alert emits a schema-conformant structured `error` log line (`[alert] <name> firing`, fields: alert/severity/owner/runbook/value/threshold/windowMs/detail/firedAt — content-free) and, when `ALERT_WEBHOOK_URL` is set, POSTs the same payload to that operator webhook (3s timeout, best-effort — the log line is the durable record).
+
+**Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately.
+
+| Alert                       | Sev | Threshold / window                                                                                                        | Runbook |
+| --------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `worker.heartbeat.stale`    | P1  | heartbeat missing or age > 10min                                                                                          | §7      |
+| `queue.oldest-age`          | P2  | oldest unpublished outbox event > 15min                                                                                   | §7      |
+| `queue.stalled`             | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                  | §7      |
+| `queue.quarantine-growth`   | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                | §4      |
+| `source.freshness-deadline` | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                   | §3      |
+| `retention.failure`         | P1  | latest retention run failed for any subject                                                                               | §8      |
+| `reply.ambiguous-aging`     | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                   | §6      |
+| `routing.region-attempts`   | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                    | §12     |
+| `policy.denial-drift`       | P2  | > 50 policy denials in the trailing hour (starting point — tune with real traffic; §11 for containment if drift confirms) | §9      |
+| `db.pool-exhaustion`        | P1  | any connection request queued behind a saturated pool                                                                     | §8      |
+
+Defined but not yet implemented (registered with owner/severity/runbook; the signal source lands in a later slice — injection happens there, before BQC-8 acceptance):
+
+| Alert              | Sev | Signal source                                                                                                         | Runbook |
+| ------------------ | --- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+| `web.availability` | P1  | External synthetic probe (self-report is circular; the probe also covers the p95 ≤ 750ms latency SLO) — BQC-8 staging | §12     |
+| `backup.pitr`      | P3  | Backup/PITR status + restore drill — BQC-7.8                                                                          | §8      |
+| `security.scan`    | P2  | Supply-chain/secret-detection gate failure — BQC-7.7                                                                  | §9      |

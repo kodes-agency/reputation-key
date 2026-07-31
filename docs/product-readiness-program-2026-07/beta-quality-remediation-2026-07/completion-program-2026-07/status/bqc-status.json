@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-31T07:39:04Z",
+  "updatedAt": "2026-07-31T09:02:50Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -981,7 +981,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-05", "SPEC-P1-06", "STD-P1-07"],
       "exceptions": [],
-      "notes": "7.1: production containers + deployment contract. 7.2: health semantics. 7.3 implementation_complete: observability schema — a typed metric registry with an executable label policy (approved correlation: requestId/correlationId only); central redaction at the pino mixin (organizationId/userId/resource REMOVED from SpanAttrs — role + useCase stay); the 73 banned-ID log call-sites swept; new content-free families (pool gauges, migration version number, publication-state counts + ambiguity age, tenant-cache counters, release SHA, policy/routing/capability/source versions); architecture scan gate + canary test. Slices 7.4–7.8 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "7.1: production containers + deployment contract. 7.2: health semantics. 7.3: observability schema + central redaction. 7.4 implementation_complete: alerts and SLOs — 13 alert definitions (owner, severity, threshold/window, runbook) covering every doc family, evaluated purely over the OperationsSnapshot + 3 new aux reads (retention latest-per-subject, denial counts by reason, quarantine reasons); dispatch = schema-conformant alert log + optional ALERT_WEBHOOK_URL (never throws); edge-trigger hysteresis in Redis (no re-fire while firing, 24h re-notify, recovery clears). Every implemented alert injected at least once (51 unit + 3 real-DB integration injections). 3 alerts defined-but-not-implemented (web external probe → BQC-8; backup → 7.8; security scan → 7.7). Slices 7.5–7.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-7.4",
+      "kind": "slice",
+      "parentId": "BQC-7",
+      "title": "Alerts and SLOs",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "(1) Alert definitions (src/shared/observability/alert-definitions.ts): 13 alerts, each with owner (Bozhidar Denev — the one escalation owner), severity P0–P3, threshold+window, runbook anchor, and a PURE evaluate(snapshot, aux): worker.heartbeat.stale P1, queue.oldest-age P2 (outbox 15min), queue.stalled P2 (>0 — stalled = impact, not raw count), queue.quarantine-growth P2 (aged >24h), source.freshness-deadline P1 (oldestDueAgeSeconds < 2d), retention.failure P1 (latest-per-subject retention_runs), reply.ambiguous-aging P2 (>15min past reconcile_due), routing.region-attempts P2 (quarantine policyReason split: region_denied/region_unresolved/wrong_cell), policy.denial-drift P2 (>50 denials/1h, threshold documented as tune-with-traffic), db.pool-exhaustion P1 (waitingCount>0); plus 3 defined-NOT-implemented (web.availability — external probe is BQC-8 staging, self-report is circular; backup.pitr → 7.8; security.scan → 7.7) pinned as exactly the implemented:false set so they can't silently pretend. The 3 new aux reads (alert-aux-reads.ts) are first production readers of retention_runs + policy_decision_audit + quarantine policyReason. (2) Dispatch (alert-dispatcher.ts): container-owned port (additive, characterization updated); schema-conformant error log {alert,severity,owner,runbook,value,threshold,windowMs,detail,firedAt} walked through isBannedLogKey in tests + optional ALERT_WEBHOOK_URL POST (same payload, 3s timeout, failure warns, never throws into evaluation). (3) Hysteresis (alert-state.ts): edge-trigger via ops:alert:firing:<name> (24h TTL) — no re-dispatch while firing, re-notify after expiry, recovery clears; all transitions pinned. (4) Wiring: the health-check job (5min) replaces warnOnOpsThresholds (deleted with its 3.7 constants) with evaluateAlerts over the full snapshot + aux; metrics-schema routing.denials + policy.denials flipped emitted:true (per-reason split info line on cadence). (5) Injection (the doc's requirement): 51 unit tests (per-alert fire/no-fire table, boundary ==-threshold, hysteresis, dispatcher contract, banned-key walk) + 3 REAL-DB integrations (seeded stalled outbox lease → queue.stalled + queue.oldest-age dispatched to a fake webhook via the real snapshot read, second run dispatches nothing; failed retention_runs latest → retention.failure naming the subject; 51 real denials → policy.denial-drift) — aux SQL proven real by zero degradation warns. (6) Runbooks: new Alerts section in docs/operations/runbooks.md (dispatch note, hysteresis, alert→§N mapping, defined-not-implemented table). Gates: unit 405f/4451t, integration 53f/318t, typecheck, lint, format:check, check:coverage (floors held, overall improved), fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
     },
     {
       "id": "BQC-7.3",

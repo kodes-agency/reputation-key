@@ -441,24 +441,24 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Age of the oldest ambiguous row past reconcile_due_at.',
   }),
 
-  // ── policy.* / routing.* — denials by stable reason (7.4) ──
+  // ── policy.* / routing.* — denials by stable reason ──
   def({
     name: 'policy.denials',
     kind: 'counter',
     unit: 'count',
     labels: { reason: { values: POLICY_DENY_REASONS } },
-    emitted: false,
+    emitted: true,
     description:
-      'Policy denials/suspensions by stable reason. Log/audit-sourced today; 7.4 wires the metric split.',
+      'Policy denials/suspensions by stable reason. Audit-sourced (policy_decision_audit, trailing hour); BQC-7.4 emits the per-reason split on the health-check cadence.',
   }),
   def({
     name: 'routing.denials',
     kind: 'counter',
     unit: 'count',
     labels: { reason: { values: ROUTING_DENY_REASONS } },
-    emitted: false,
+    emitted: true,
     description:
-      'Region-routing failures by stable reason. Quarantine-envelope sourced today; 7.4 wires the metric split.',
+      'Region-routing failures by stable reason. Quarantine-envelope sourced; BQC-7.4 emits the per-reason split on the health-check cadence.',
   }),
 
   // ── cache.* — tenant-resolution cache ──
