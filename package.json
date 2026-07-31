@@ -62,7 +62,16 @@
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
     "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",
     "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts",
-    "ops:reconcile-regions": "tsx scripts/ops/reconcile-regions.ts"
+    "ops:reconcile-regions": "tsx scripts/ops/reconcile-regions.ts",
+    "ops:rebuild-projection": "tsx scripts/ops/rebuild-projection.ts",
+    "ops:reconcile-publication": "tsx scripts/ops/reconcile-publication.ts",
+    "ops:refresh": "tsx scripts/ops/enqueue-refresh.ts",
+    "ops:purge": "tsx scripts/ops/enqueue-purge.ts",
+    "ops:suspend-property": "tsx scripts/ops/property-suspension.ts suspend",
+    "ops:restore-property": "tsx scripts/ops/property-suspension.ts restore",
+    "ops:inspect": "tsx scripts/ops/inspect-decision.ts",
+    "ops:disconnect-connection": "tsx scripts/ops/disconnect-connection.ts",
+    "ops:restore-preflight": "tsx scripts/ops/restore-preflight.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1039.0",

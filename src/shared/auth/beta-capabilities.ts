@@ -221,6 +221,9 @@ export type CapabilityPolicyEnv = Readonly<{
   BETA_CAPABILITIES_OFF?: string
   BETA_ALLOWLIST_ORGS?: string
   BETA_SUSPENDED_ORGS?: string
+  // BQC-7.5: named-operator allowlist — read by the policy-store init when
+  // binding the ExecutionPolicy operator branch (parseOperatorIdentities).
+  OPS_OPERATOR_IDENTITIES?: string
 }>
 
 /** Parse the override variable into non-empty, blocked-filtered capabilities. */

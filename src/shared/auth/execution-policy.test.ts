@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createExecutionPolicy,
   initExecutionPolicy,
+  parseOperatorIdentities,
   requireExecutionAllowed,
   registerExecutionPolicyInit,
   resetExecutionPolicy,
@@ -230,16 +231,13 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(allowCore.allowed).toBe(true)
   })
 
-  it('system/operator principals deny as unsupported until the BQC-2.5 contract', async () => {
+  it('system principal denies as unsupported (BQC-2.5 contract lives in the delayed policy)', async () => {
     const policy = createExecutionPolicy(deps())
-    for (const principal of [
-      { kind: 'system', id: 'worker' } as const,
-      { kind: 'operator', id: 'op-1' } as const,
-    ]) {
-      const decision = await policy.decide(request({ principal }))
-      expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('unsupported_principal')
-    }
+    const decision = await policy.decide(
+      request({ principal: { kind: 'system', id: 'worker' } }),
+    )
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('unsupported_principal')
   })
 
   it('denies when request organization differs from the principal org', async () => {
@@ -272,6 +270,164 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
       correlationId: 'corr-test',
     })
     await vi.waitFor(() => expect(onAuditError).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('operator principal (BQC-7.5)', () => {
+  const OPERATOR = 'op-1@example.com'
+
+  function operatorRequest(overrides: Partial<DecisionRequest> = {}): DecisionRequest {
+    return request({
+      principal: { kind: 'operator', id: OPERATOR },
+      action: 'system:ops',
+      capability: undefined,
+      executionKind: 'operator',
+      ...overrides,
+    })
+  }
+
+  it('allows a registered operator and audits the allow with the operator reason', async () => {
+    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
+    const policy = createExecutionPolicy(
+      deps({ isRegisteredOperator: () => true, writeDecisionAudit }),
+    )
+    const decision = await policy.decide(operatorRequest({ reason: 'read' }))
+    expect(decision.allowed).toBe(true)
+    expect(decision.reason).toBe('allowed')
+    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
+    expect(writeDecisionAudit.mock.calls[0][0]).toMatchObject({
+      actorType: 'operator',
+      actorId: OPERATOR,
+      organizationId: ORG,
+      action: 'system:ops',
+      executionKind: 'operator',
+      decision: 'allow',
+      reason: 'read',
+      policyVersion: EXECUTION_POLICY_VERSION,
+      correlationId: 'corr-test',
+    })
+  })
+
+  it('denies an unregistered operator BEFORE any capability evaluation', async () => {
+    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
+    const policy = createExecutionPolicy(
+      deps({
+        isRegisteredOperator: (id) => id === 'someone-else',
+        writeDecisionAudit,
+      }),
+    )
+    // The capability would deny too (blocked) — the identity deny comes first.
+    const decision = await policy.decide(operatorRequest({ capability: 'portal.write' }))
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('operator_not_registered')
+    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
+    expect(writeDecisionAudit.mock.calls[0][0]).toMatchObject({
+      actorType: 'operator',
+      actorId: OPERATOR,
+      decision: 'deny',
+      reason: 'operator_not_registered',
+    })
+  })
+
+  it('fails closed when no operator allowlist dep is bound', async () => {
+    const policy = createExecutionPolicy(deps())
+    const decision = await policy.decide(operatorRequest())
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('operator_not_registered')
+  })
+
+  it('denies an operator principal executing as a non-operator kind', async () => {
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    const decision = await policy.decide(operatorRequest({ executionKind: 'worker' }))
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('unsupported_principal')
+  })
+
+  it('denies when the declared capability is blocked (org-scoped)', async () => {
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    const decision = await policy.decide(operatorRequest({ capability: 'portal.write' }))
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('capability_blocked')
+  })
+
+  it('denies when the org is suspended (org-scoped capability check)', async () => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_SUSPENDED_ORGS: ORG }),
+    )
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    const decision = await policy.decide(operatorRequest({ capability: 'review.use' }))
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toBe('org_suspended')
+  })
+
+  it('global scope (no org) evaluates the global capability gate only', async () => {
+    const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    const deny = await policy.decide(
+      operatorRequest({ organizationId: undefined, capability: 'team.use' }),
+    )
+    expect(deny.allowed).toBe(false)
+    // team.use is non-core → globally off without an e2e override.
+    expect(deny.reason).toBe('capability_disabled')
+
+    const allow = await policy.decide(
+      operatorRequest({ organizationId: undefined, capability: 'review.use' }),
+    )
+    expect(allow.allowed).toBe(true)
+  })
+
+  it('deny rows keep the typed deny reason even when the operator supplied one', async () => {
+    const writeDecisionAudit = vi.fn(async (_entry: DecisionAuditEntry) => {})
+    const policy = createExecutionPolicy(deps({ writeDecisionAudit }))
+    const decision = await policy.decide(operatorRequest({ reason: 'cleanup run' }))
+    expect(decision.reason).toBe('operator_not_registered')
+    await vi.waitFor(() => expect(writeDecisionAudit).toHaveBeenCalledTimes(1))
+    expect(writeDecisionAudit.mock.calls[0][0].reason).toBe('operator_not_registered')
+  })
+
+  it('purpose declared: consent active → allow; no consent reader → consent_required', async () => {
+    const withConsent = createExecutionPolicy(
+      deps({ isRegisteredOperator: () => true, hasActiveConsent: async () => true }),
+    )
+    const allow = await withConsent.decide(operatorRequest({ purpose: 'ai.analyze' }))
+    expect(allow.allowed).toBe(true)
+
+    const without = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
+    const deny = await without.decide(operatorRequest({ purpose: 'ai.analyze' }))
+    expect(deny.allowed).toBe(false)
+    expect(deny.reason).toBe('consent_required')
+  })
+
+  it('flushAudits awaits pending audit writes (CLI durability, BQC-7.5)', async () => {
+    let resolveSink: () => void = () => {}
+    const writeDecisionAudit = vi.fn(
+      (_entry: DecisionAuditEntry) =>
+        new Promise<void>((resolve) => {
+          resolveSink = resolve
+        }),
+    )
+    const policy = createExecutionPolicy(deps({ writeDecisionAudit }))
+    await policy.decide(operatorRequest({ reason: 'read' }))
+
+    let flushed = false
+    const flush = policy.flushAudits().then(() => {
+      flushed = true
+    })
+    // The sink has not resolved — the flush must still be waiting.
+    await Promise.resolve()
+    expect(flushed).toBe(false)
+
+    resolveSink()
+    await flush
+    expect(flushed).toBe(true)
+    expect(writeDecisionAudit).toHaveBeenCalledTimes(1)
+  })
+
+  it('parseOperatorIdentities parses the comma-separated allowlist', () => {
+    expect(
+      parseOperatorIdentities({ OPS_OPERATOR_IDENTITIES: ' a@x.io , b@x.io ,, ' }),
+    ).toEqual(new Set(['a@x.io', 'b@x.io']))
+    expect(parseOperatorIdentities({})).toEqual(new Set())
+    expect(parseOperatorIdentities({ OPS_OPERATOR_IDENTITIES: '' })).toEqual(new Set())
   })
 })
 

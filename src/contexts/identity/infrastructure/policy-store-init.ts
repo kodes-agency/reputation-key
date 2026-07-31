@@ -31,6 +31,7 @@ import {
 import {
   createExecutionPolicy,
   initExecutionPolicy,
+  parseOperatorIdentities,
 } from '#/shared/auth/execution-policy'
 import {
   createDelayedExecutionPolicy,
@@ -78,7 +79,10 @@ export function initPersistedCapabilityPolicyStore(deps: {
   // adapter (property scope), the consent reader (purpose classes), and the
   // content-free decision-audit writer. Decisions consult the capability
   // store installed above, so tenant state stays consistent across both.
+  // BQC-7.5: the operator branch's named-operator allowlist binds from
+  // OPS_OPERATOR_IDENTITIES (absent/empty = every operator command denies).
   const grantLookup = createGrantAccessLookup(deps.db)
+  const operatorIdentities = parseOperatorIdentities(deps.env)
   initExecutionPolicy(
     createExecutionPolicy({
       listAccessiblePropertyIds: async (orgId, uid) => {
@@ -91,6 +95,7 @@ export function initPersistedCapabilityPolicyStore(deps: {
       },
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
       onAuditError: (err) => logger.warn({ err }, 'policy decision audit write failed'),
+      isRegisteredOperator: (id) => operatorIdentities.has(id),
     }),
   )
 

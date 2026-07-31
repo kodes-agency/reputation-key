@@ -17,6 +17,7 @@ import {
   type DelayedPolicyDeps,
 } from './system-execution-policy'
 import type { DecisionAuditEntry } from './execution-policy'
+import { EXECUTION_POLICY_VERSION } from './execution-policy'
 import { DELAYED_CONTRACT_FIXTURES } from './system-execution-policy.fixtures'
 import {
   createEnvCapabilityPolicyStore,
@@ -105,7 +106,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       action: 'system:metric.refresh',
       organizationId: 'org-fixture',
       executionKind: 'schedule',
-      policyVersionAtEnqueue: 'bqc-2.4',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       correlationId: 'corr-delayed-1',
       now: new Date(),
     })
@@ -118,7 +119,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       action: 'system:metric.refresh',
       executionKind: 'schedule',
       decision: 'allow',
-      policyVersion: 'bqc-2.4',
+      policyVersion: EXECUTION_POLICY_VERSION,
       correlationId: 'corr-delayed-1',
     })
   })

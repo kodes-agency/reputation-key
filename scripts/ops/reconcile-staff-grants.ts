@@ -1,13 +1,15 @@
-// Operator CLI (BQC-2.3): reconcile legacy staff assignments to proposed
-// PropertyAccessGrants with a reviewable report (phase BQC-2 §2.3/§5).
+// Operator CLI (BQC-2.3; harness BQC-7.5): reconcile legacy staff assignments
+// to proposed PropertyAccessGrants with a reviewable report (phase BQC-2 §2.3/§5).
 //
 // Usage:
-//   pnpm ops:reconcile-grants                        — report only (review first)
-//   pnpm ops:reconcile-grants --apply                — convert clean rows (source 'migration')
-//   pnpm ops:reconcile-grants [--org <id> ...]       — scope to specific orgs
+//   pnpm ops:reconcile-grants --operator <id>                          — report only (review first)
+//   pnpm ops:reconcile-grants --operator <id> --reason <text> --apply  — convert clean rows (source 'migration')
+//   pnpm ops:reconcile-grants --operator <id> [--org <id> ...]         — scope to specific orgs
 //
 // Requires DATABASE_URL. Anomaly rows (org mismatch, inactive property,
 // missing user) are reported and NEVER auto-converted. Apply is idempotent.
+// Every invocation is policy-evaluated + audited (the decision row records
+// the last --org when given; the createdBy marker stays 'ops:reconcile-grants').
 
 import { getDb } from '../../src/shared/db'
 import {
@@ -15,6 +17,10 @@ import {
   applyReconciliation,
   type ReconcileReport,
 } from '../../src/contexts/identity/infrastructure/repositories/reconcile-staff-grants.repository'
+import { runOperatorCommand } from './operator-command'
+
+const USAGE =
+  'pnpm ops:reconcile-grants --operator <id> [--org <id> ...] [--reason <text> --apply]'
 
 function printReport(report: ReconcileReport): void {
   console.log(
@@ -50,39 +56,37 @@ function printReport(report: ReconcileReport): void {
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  const apply = args.includes('--apply')
-  const orgs: string[] = []
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--org') {
-      const id = args[i + 1]
-      if (!id) {
-        console.error('--org requires a value')
-        process.exit(1)
+  const result = await runOperatorCommand(
+    {
+      name: 'ops:reconcile-grants',
+      scope: 'global', // --org optional (repeatable; narrows the report + policy scope)
+      mutation: true,
+      usage: USAGE,
+    },
+    async (ctx, args, io) => {
+      const db = getDb()
+      const scope =
+        args.organizations.length > 0
+          ? { organizationIds: args.organizations }
+          : undefined
+      const report = await buildReconcileReport(db, scope)
+      printReport(report)
+
+      if (ctx.dryRun) {
+        io.out(`report only — re-run with --apply to convert clean rows\n`)
+        return
       }
-      orgs.push(id)
-      i++
-    }
-  }
-  const scope = orgs.length > 0 ? { organizationIds: orgs } : undefined
-
-  const db = getDb()
-  const report = await buildReconcileReport(db, scope)
-  printReport(report)
-
-  if (apply) {
-    const result = await applyReconciliation(db, report, {
-      createdBy: 'ops:reconcile-grants',
-      scope,
-    })
-    console.log(`applied: ${result.created} grant(s) created (source 'migration')\n`)
-  } else {
-    console.log(`report only — re-run with --apply to convert clean rows\n`)
-  }
-  process.exit(0)
+      const applied = await applyReconciliation(db, report, {
+        createdBy: 'ops:reconcile-grants',
+        scope,
+      })
+      io.out(`applied: ${applied.created} grant(s) created (source 'migration')\n`)
+    },
+  )
+  process.exit(result.exitCode)
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err)
+  console.error('ops:reconcile-grants failed', err)
   process.exit(1)
 })

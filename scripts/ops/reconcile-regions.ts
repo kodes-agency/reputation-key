@@ -1,15 +1,17 @@
-// Operator CLI (BQC-4.1): reconcile property processing regions from
-// authoritative country data with a reviewable report (phase BQC-4 §3/§4.1,
-// ADR 0048).
+// Operator CLI (BQC-4.1; harness BQC-7.5): reconcile property processing
+// regions from authoritative country data with a reviewable report
+// (phase BQC-4 §3/§4.1, ADR 0048).
 //
 // Usage:
-//   pnpm ops:reconcile-regions                    — report only (review first)
-//   pnpm ops:reconcile-regions --apply            — resolve `resolvable` rows
-//   pnpm ops:reconcile-regions [--org <id>]       — scope to one org
+//   pnpm ops:reconcile-regions --operator <id>                          — report only (review first)
+//   pnpm ops:reconcile-regions --operator <id> --reason <text> --apply  — resolve `resolvable` rows
+//   pnpm ops:reconcile-regions --operator <id> [--org <id>]             — scope to one org
 //
 // Requires DATABASE_URL. missing/conflict/ambiguous rows are reported and
 // NEVER auto-converted — they need operator action (country correction via
-// the property edit path, then re-run). Apply is idempotent.
+// the property edit path, then re-run). Apply is idempotent. Every
+// invocation is policy-evaluated + audited (decision row via the BQC-7.5
+// harness; the audit row records the org scope when --org is given).
 
 import { getDb } from '../../src/shared/db'
 import {
@@ -17,6 +19,10 @@ import {
   applyRegionReconciliation,
   type RegionReconcileReport,
 } from '../../src/contexts/property/infrastructure/repositories/reconcile-regions.repository'
+import { runOperatorCommand } from './operator-command'
+
+const USAGE =
+  'pnpm ops:reconcile-regions --operator <id> [--org <id>] [--reason <text> --apply]'
 
 function printReport(report: RegionReconcileReport): void {
   console.log(
@@ -54,40 +60,33 @@ function printReport(report: RegionReconcileReport): void {
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2)
-  const apply = args.includes('--apply')
-  let organizationId: string | undefined
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--org') {
-      const id = args[i + 1]
-      if (!id) {
-        console.error('--org requires a value')
-        process.exit(1)
-      }
-      if (organizationId) {
-        console.error('--org may be given only once')
-        process.exit(1)
-      }
-      organizationId = id
-      i++
-    }
-  }
-  const scope = organizationId ? { organizationId } : undefined
+  const result = await runOperatorCommand(
+    {
+      name: 'ops:reconcile-regions',
+      scope: 'global', // --org optional (narrows the report + the policy scope)
+      mutation: true,
+      usage: USAGE,
+    },
+    async (ctx, args, io) => {
+      const db = getDb()
+      const scope = args.organizationId
+        ? { organizationId: args.organizationId }
+        : undefined
+      const report = await buildRegionReconcileReport(db, scope)
+      printReport(report)
 
-  const db = getDb()
-  const report = await buildRegionReconcileReport(db, scope)
-  printReport(report)
-
-  if (apply) {
-    const result = await applyRegionReconciliation(db, report, { scope })
-    console.log(`applied: ${result.applied} propert(ies) region-resolved\n`)
-  } else {
-    console.log(`report only — re-run with --apply to resolve clean rows\n`)
-  }
-  process.exit(0)
+      if (ctx.dryRun) {
+        io.out(`report only — re-run with --apply to resolve clean rows\n`)
+        return
+      }
+      const applied = await applyRegionReconciliation(db, report, { scope })
+      io.out(`applied: ${applied.applied} propert(ies) region-resolved\n`)
+    },
+  )
+  process.exit(result.exitCode)
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err)
+  console.error('ops:reconcile-regions failed', err)
   process.exit(1)
 })

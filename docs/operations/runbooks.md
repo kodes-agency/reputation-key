@@ -9,6 +9,45 @@ Each runbook follows the structure:
 
 ---
 
+## Operator commands (BQC-7.5)
+
+Every `ops:*` command runs through the operator-command harness
+(`scripts/ops/operator-command.ts`). The invocation contract:
+
+- `--operator <id>` — REQUIRED named operator; must be registered in
+  `OPS_OPERATOR_IDENTITIES` (unregistered → `operator_not_registered` deny).
+- Every invocation (reads included) is evaluated through the ExecutionPolicy
+  operator branch and lands in `policy_decision_audit` (allow AND deny —
+  content-free: actor/action/scope/decision/reason + correlation id, printed
+  on every run).
+- Mutations are DRY-RUN by default; `--apply` executes and requires
+  `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
+  commands additionally require the typed confirmation `--yes <command>`.
+- Commands that enqueue or redrive work go through the BQC-3 contract
+  (`jobEnqueueOptions` / `createRedriveJob`) — never direct handler calls;
+  dispatch re-authorizes at execution.
+
+The commands:
+
+- `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
+- `ops:quarantine <list|redrive <id>>` — failure-quarantine inspection + redrive to the original queue. §4/§7
+- `ops:refresh <reviews|metrics-daily|metrics-weekly|metrics-inbox>` — enqueue one bounded refresh-sweep run. §3/§4
+- `ops:purge <reviews|retention>` — enqueue one bounded purge/retention run (destructive, typed confirmation). §10
+- `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
+- `ops:reconcile-publication <replyId> | --all-ambiguous` — reconcile ambiguous Google reply publication (provider re-read; never a send). §6
+- `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
+- `ops:suspend-property` / `ops:restore-property --org <id> --property <id> --ticket <ref>` — suspend/restore property processing. §10
+- `ops:inspect region|policy ...` — read-only routing/policy decision explanation. §12
+- `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
+- `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. §8
+
+Registered gaps (owned elsewhere, do NOT improvise in an incident): metric-rollup
+watermark reset (metric owner — use `ops:refresh metrics-*` for a bounded re-run),
+ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution
+(platform owner — `ops:restore-preflight` only).
+
+---
+
 ## 1. Account Compromise and Session Revoke
 
 **Trigger:** Suspected account compromise, reported credential leak, unauthorized access detected.
@@ -26,7 +65,7 @@ Each runbook follows the structure:
 **Trigger:** Google OAuth token leak suspected, encryption key exposure detected.
 **Impact:** P0 — unauthorized Google API access possible.
 **Diagnostics:** Check `google_connections` for the affected connection. Identify `encryption_key_id` version.
-**Containment:** Revoke the Google refresh token via Google API. Set connection status to `disconnected`. If encryption key compromised: begin key rotation — new tokens encrypted with new key, old tokens re-encrypted.
+**Containment:** Revoke the Google refresh token via Google API (`ops:disconnect-connection <connectionId> --org <id>` — revoke + redact + purge; destructive, typed confirmation). If encryption key compromised: begin key rotation — new tokens encrypted with new key, old tokens re-encrypted (runbook-manual, platform owner).
 **Recovery:** User must re-authenticate via Google OAuth. New tokens encrypted with new key version.
 **Verification:** Confirm old tokens are revoked at Google. Confirm no API calls succeed with old tokens.
 **Escalation:** Page Bozhidar Denev. Notify Google if API abuse detected.
@@ -51,7 +90,7 @@ Each runbook follows the structure:
 **Impact:** P1 — delayed review visibility.
 **Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check `inbound_webhook_receipts` for duplicate/missing messages.
 **Containment:** Increase worker concurrency temporarily. Pause non-urgent jobs to free capacity.
-**Recovery:** Process backlog. Redrive dead-lettered messages via operator command. Reconcile any gaps via bounded reconciliation.
+**Recovery:** Process backlog. Redrive dead-lettered messages via `ops:quarantine redrive <id> --reason <text> --apply` (list first with `ops:quarantine list`). Reconcile any gaps via bounded reconciliation (`ops:refresh reviews`).
 **Verification:** Queue depth returns to normal. `review_sync_state.watermark_updated_at` advances.
 **Escalation:** Bozhidar Denev if backlog exceeds 1 hour.
 
@@ -73,7 +112,7 @@ Each runbook follows the structure:
 
 **Trigger:** Possible duplicate reply published to Google, or publish outcome unknown.
 **Impact:** P0 if duplicate confirmed — duplicate externally visible effect.
-**Diagnostics:** Check reply `publication_state`. If `outcome_unknown`, run reconciliation: query Google API for the reply. Check `event_consumer_receipts` for duplicate processing.
+**Diagnostics:** Check reply `publication_state`. If `outcome_unknown`/`ambiguous`, run reconciliation: `ops:reconcile-publication <replyId> --org <id>` (dry-run first, then `--apply`; `--all-ambiguous` reconciles one bounded due batch) — queries Google API for the reply, never sends. Check `event_consumer_receipts` for duplicate processing.
 **Containment:** If duplicate found, do NOT delete from Google (may confuse the reviewer). Document the duplicate. If `outcome_unknown`, prevent retry until reconciliation completes.
 **Recovery:** Reconciliation determines actual state → `published`, `retryable`, or `manual_review`. If duplicate, file incident report.
 **Verification:** Exactly one reply visible on Google. Publication workflow in terminal state.
@@ -99,7 +138,7 @@ Each runbook follows the structure:
 **Impact:** P0 for migration failure or data loss. P1 for saturation.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check Neon dashboard for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → PITR to isolated project, verify, cutover (the only rollback path, reserved for data loss).
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → start with `ops:restore-preflight` (verifies the isolated target, journal readability, and the backup-window checklist), then PITR to isolated project (platform-owned), verify, cutover (the only rollback path, reserved for data loss).
 **Verification:** Connection count under budget. Migration journal consistent. Restore passes integrity checks.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Neon support if platform issue.
 
@@ -122,8 +161,8 @@ Each runbook follows the structure:
 **Trigger:** Operator needs to suspend, disconnect, archive, or purge a property.
 **Impact:** Varies — P2 for archive, P1 for disconnect, P0 for purge (irreversible).
 **Diagnostics:** Check property `lifecycle_state`. Check for active sync jobs, pending publications, inbox items.
-**Containment:** Suspend → set lifecycle to `suspended` (blocks new jobs). Disconnect → revoke Google tokens, set connection `disconnected`.
-**Recovery:** Archive → data preserved, can restore to `active`. Purge → irreversible, confirm via typed property name. Purge propagates to reviews, replies, inbox, metrics, notifications, cache, queue jobs.
+**Containment:** Suspend → `ops:suspend-property --org <id> --property <id> --reason <text> --ticket <ref> --apply` (blocks new processing via the capability store; restore with `ops:restore-property`). Disconnect → `ops:disconnect-connection <connectionId> --org <id>` (revokes Google tokens, sets connection `disconnected`).
+**Recovery:** Archive → data preserved, can restore to `active`. Purge → irreversible, confirm via typed property name; bounded purge/retention sweeps re-run via `ops:purge <reviews|retention>` (destructive — typed confirmation). Purge propagates to reviews, replies, inbox, metrics, notifications, cache, queue jobs.
 **Verification:** Lifecycle state correct. No active jobs for the property. Purge evidence report generated.
 **Escalation:** Purge requires operator confirmation + evidence report. Bozhidar Denev signs off.
 
