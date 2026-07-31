@@ -1,8 +1,8 @@
 # BQR-6.5 — Recovery rehearsal (RPO / RTO)
 
-**Status:** Procedure ready — **execution blocked on backup/restore access**  
+**Status:** Procedure ready — **timed execution is BQC-8's** (configuration + app-side restore surface delivered by BQC-7.8)  
 **Targets (ADR 0038):** RPO ≤ 15 minutes · RTO ≤ 4 hours  
-**Related:** [runbooks § DB](runbooks.md), [staging checklist](bqr6-staging-load-fault-checklist.md)
+**Related:** [runbooks § DB](runbooks.md), [backup-and-lifecycle](backup-and-lifecycle.md) (BQC-7.8 — the configuration + procedure this rehearsal times), [staging checklist](bqr6-staging-load-fault-checklist.md)
 
 ## Goals
 
@@ -10,10 +10,11 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 
 ## Preconditions
 
-- [ ] Provider PITR / backup enabled on staging Postgres (e.g. Neon PITR)
-- [ ] Redis is disposable or restore policy documented (queues rebuild from outbox)
-- [ ] Documented restore contact / provider console access
+- [ ] Provider PITR / backup enabled on the target Postgres (Railway — configuration documented in backup-and-lifecycle.md §1; console verification at drill time, BQC-8)
+- [x] Redis is disposable or restore policy documented (queues rebuild from outbox — backup-and-lifecycle.md §2, BQC-7.8)
+- [x] Documented restore contact / provider console access (platform owner: Bozhidar Denev — backup-and-lifecycle.md §7, BQC-7.8)
 - [ ] Release candidate SHA known
+- [x] Isolated restore boot + purge-before-serving verification surface (`RESTORE_MODE=isolated`, `ops:restore-preflight`, `ops:restore-verify` — BQC-7.8; locally drilled)
 
 ## Rehearsal steps
 
@@ -31,10 +32,11 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 
 ### 3. Restore
 
-1. Restore DB per provider docs.
-2. Redeploy or restart web + worker at the same SHA.
-3. Verify `/api/health/ready` → 200.
-4. Allow outbox relay (if enabled under ticketed window) or document that dispatcher remains off and backlog is observed only.
+1. Restore DB per provider docs (Railway PITR to an ISOLATED project — platform owner; `ops:restore-preflight` first).
+2. Migration parity, then boot ISOLATED at the same SHA with `RESTORE_MODE=isolated` (worker refuses to boot by design; web capabilities deny fail-closed).
+3. Run `ops:restore-verify --apply` (source-policy purge in-process; zero expired-content proof; `retention_runs` evidence).
+4. Cut over (UNSET `RESTORE_MODE`, redeploy web + worker) and verify `/api/health/ready` → 200.
+5. Allow outbox relay (if enabled under ticketed window) or document that dispatcher remains off and backlog is observed only.
 
 ### 4. Measure
 

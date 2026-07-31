@@ -13,8 +13,11 @@
 //     with `implemented: false` and `evaluate: null` — web.availability (a
 //     self-reported availability probe is circular; the external synthetic
 //     probe that also covers the latency SLO is BQC-8's staging concern),
-//     backup.pitr (BQC-7.8 owns backup/PITR), security.scan (BQC-7.7 owns
-//     the scan gates). Their injection happens when those slices land.
+//     backup.pitr (platform backup status is not app-readable — BQC-7.8's
+//     disposition is the platform schedule + the BQC-8 timed restore drill,
+//     see the registry entry below), security.scan (CI hard gates — the
+//     BQC-7.7 disposition in runbooks.md §9). Their phase-doc injection
+//     requirement is satisfied by that external evidence, not app dispatch.
 //   - "Multi-window/burn-rate where traffic supports it": beta traffic does
 //     not support burn-rate math. Windows here are the honest impact proxies
 //     (age thresholds, a 1h denial window, sustained-waiting pool pressure)
@@ -414,9 +417,15 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   }),
 
   // ── backup/PITR failure + security scan/secret detection failure ──
-  // BQC-7.8 owns the backup/PITR signal source (platform-side backup status
-  // is not readable from the app today; RPO ≤ 15min per ADR 0038).
-  // Registered so the alert surface is complete; injection lands with 7.8.
+  // BQC-7.8 disposition — deliberately NOT implemented at app level: the
+  // platform's backup/PITR status is not readable from the app (Railway
+  // Postgres backups are console/provider state; there is no app-readable
+  // signal to evaluate, so no aux-read seam exists for it). The signal
+  // source is the platform backup schedule + restore drill evidence:
+  // configuration + procedure live in docs/operations/backup-and-lifecycle.md,
+  // and the phase-doc injection requirement is satisfied by the BQC-8 TIMED
+  // restore drill (RPO ≤ 15min per ADR 0038), not by app dispatch. Registered
+  // so the alert surface is complete.
   registered({
     name: 'backup.pitr',
     severity: 'P3',
@@ -424,9 +433,12 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     windowMs: 24 * 60 * 60 * 1000,
     threshold: 0,
   }),
-  // BQC-7.7 owns the supply-chain/secret-detection hard gates; a scan
-  // failure signal is not emitted into the app's evaluation path today.
-  // Registered so the alert surface is complete; injection lands with 7.7.
+  // BQC-7.7 disposition — deliberately NOT implemented at app level: the
+  // supply-chain/secret-detection gates are CI HARD GATES (a red gate fails
+  // the GitHub check and blocks merge — pre-deploy evidence, not a
+  // production signal). Documented in runbooks.md §9 +
+  // docs/operations/security-ci-policy.md. Registered so the alert surface
+  // is complete.
   registered({
     name: 'security.scan',
     severity: 'P2',

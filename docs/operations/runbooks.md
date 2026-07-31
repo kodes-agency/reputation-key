@@ -40,11 +40,13 @@ The commands:
 - `ops:inspect region|policy ...` — read-only routing/policy decision explanation. §12
 - `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
 - `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. §8
+- `ops:restore-verify` — restore-drill purge-before-serving proof (requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process, asserts zero expired rows, prints retention_runs evidence); destructive, typed confirmation. §8
 
 Registered gaps (owned elsewhere, do NOT improvise in an incident): metric-rollup
 watermark reset (metric owner — use `ops:refresh metrics-*` for a bounded re-run),
 ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution
-(platform owner — `ops:restore-preflight` only).
+(platform owner — `ops:restore-preflight` + `ops:restore-verify` are the app-side
+checklist/verify surface only; procedure: docs/operations/backup-and-lifecycle.md).
 
 ---
 
@@ -223,6 +225,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Recovery:** Redis restore → relay drains backlog. Poison job → fix handler code, redrive from DLQ.
 **Verification:** Queue depth normal. No repeated failures. Outbox `published_at` advances.
 **Escalation:** Bozhidar Denev if backlog > 30 minutes.
+**Durability posture:** Redis is disposable-and-rebuild — the Postgres outbox is the durable fact store, no AOF is required for correctness (backup-and-lifecycle.md §2). BullMQ history prunes by count; dead-letter quarantine entries expire after `QUARANTINE_TTL_DAYS` (default 30d) via the daily `quarantine-ttl-sweep` (per-entry `job.remove()`, evidence subject `quarantine.ttl`) — the 24h `queue.quarantine-growth` redrive SLA is unchanged.
 
 ---
 
@@ -230,11 +233,11 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Connection pool exhausted, slow queries, migration failure, or restore needed.
 **Impact:** P0 for migration failure or data loss. P1 for saturation.
-**Diagnostics:** Check `pg_stat_activity` for connection count. Check Neon dashboard for compute/storage. Check migration logs.
+**Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → start with `ops:restore-preflight` (verifies the isolated target, journal readability, and the backup-window checklist), then PITR to isolated project (platform-owned), verify, cutover (the only rollback path, reserved for data loss).
-**Verification:** Connection count under budget. Migration journal consistent. Restore passes integrity checks.
-**Escalation:** P0 — page Bozhidar Denev for migration/restore. Neon support if platform issue.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → the full procedure is [backup-and-lifecycle.md](backup-and-lifecycle.md) §1: `ops:restore-preflight` (isolated target, journal readability, backup-window checklist) → PITR to an isolated project (Railway console, platform-owned) → migration parity → boot ISOLATED (`RESTORE_MODE=isolated` — worker refuses, web capabilities deny fail-closed) → `ops:restore-verify` (in-process source-policy purge + zero-expired proof + evidence) → cutover (UNSET `RESTORE_MODE` + redeploy). Restore is the only rollback path, reserved for data loss.
+**Verification:** Connection count under budget. Migration journal consistent. Restore passes `ops:restore-verify` (zero expired-content rows, `retention_runs` evidence) before cutover.
+**Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 
 ---
 
@@ -275,12 +278,12 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ## 12. Region Outage (No Cross-Region Failover)
 
-**Trigger:** US region infrastructure unavailable (Neon, Redis, or Google API).
+**Trigger:** US region infrastructure unavailable (Railway Postgres, Redis, or Google API).
 **Impact:** P1 — service degraded or unavailable for US properties.
 **Containment:** Do NOT fail over to another region (policy: no silent cross-region data movement). Set readiness to 503. Show honest "service unavailable" state.
 **Recovery:** Wait for provider recovery. Outbox accumulates events (no data loss). Resume normally when infrastructure recovers.
 **Verification:** All dependencies healthy. Backlog drained. Freshness indicators return to normal.
-**Escalation:** Bozhidar Denev. Provider support tickets (Neon, Redis provider, Google Cloud).
+**Escalation:** Bozhidar Denev. Provider support tickets (Railway, Redis provider, Google Cloud).
 
 ---
 
@@ -310,8 +313,18 @@ Defined but not yet implemented (registered with owner/severity/runbook; the sig
 | Alert              | Sev | Signal source                                                                                                         | Runbook |
 | ------------------ | --- | --------------------------------------------------------------------------------------------------------------------- | ------- |
 | `web.availability` | P1  | External synthetic probe (self-report is circular; the probe also covers the p95 ≤ 750ms latency SLO) — BQC-8 staging | §12     |
-| `backup.pitr`      | P3  | Backup/PITR status + restore drill — BQC-7.8                                                                          | §8      |
+| `backup.pitr`      | P3  | Platform backup schedule + BQC-8 timed restore drill (not app-readable) — BQC-7.8                                     | §8      |
 | `security.scan`    | P2  | Supply-chain/secret-detection gate failure — BQC-7.7                                                                  | §9      |
+
+**`backup.pitr` signal note (BQC-7.8):** the platform's backup/PITR status is
+not readable from the app (Railway Postgres backups are console/provider
+state), so there is deliberately no runtime `backup.pitr` dispatcher at app
+level. The signal path is: the platform backup schedule (configuration +
+verification: `docs/operations/backup-and-lifecycle.md` §1) plus the BQC-8
+TIMED restore drill — the phase-doc "inject every alert" requirement is
+satisfied by that drill evidence, not app dispatch. The row above stays "not
+implemented at app level" by design, mirroring the `security.scan`
+disposition below.
 
 **`security.scan` signal note (BQC-7.7):** the supply-chain/secret gates now
 exist — as CI hard gates, not app-level alert injection. The signal path is:

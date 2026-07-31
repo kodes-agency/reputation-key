@@ -1,6 +1,6 @@
 // Operator CLI (BQC-7.5): restore/rollback PREFLIGHT — the honest "start
 // restore according to runbook §8" surface. This is a guided checklist, NOT
-// a PITR executor: point-in-time restore is platform-owned (Neon console /
+// a PITR executor: point-in-time restore is platform-owned (Railway console /
 // provider tooling); this command verifies the prerequisites an operator must
 // confirm before starting it:
 //
@@ -10,31 +10,24 @@
 //   2. The migration journal (drizzle.__drizzle_migrations) is readable on
 //      the target — the restored instance's schema state is inspectable.
 //   3. The backup/PITR window is noted — confirm the restore point is inside
-//      the platform's retention window (Neon console) BEFORE starting.
+//      the platform's retention window (Railway console) BEFORE starting.
 //
 // Usage:
 //   pnpm ops:restore-preflight --operator <id>
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target). Read-only;
 // policy-evaluated + audited like every operator command. Runbook §8:
-// restore → PITR to isolated project, verify, cutover — the only rollback
-// path, reserved for data loss.
+// restore → PITR to isolated project, boot isolated (RESTORE_MODE=isolated),
+// verify with ops:restore-verify, cutover — the only rollback path, reserved
+// for data loss. Full procedure: docs/operations/backup-and-lifecycle.md.
 
 import { sql } from 'drizzle-orm'
 import { getDb } from '../../src/shared/db'
 import { getEnv } from '../../src/shared/config/env'
+import { isIsolatedRestoreTarget } from '../../src/shared/config/restore-mode'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE = 'pnpm ops:restore-preflight --operator <id>'
-
-function isIsolatedTarget(databaseUrl: string): boolean {
-  try {
-    const host = new URL(databaseUrl).hostname
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1'
-  } catch {
-    return false
-  }
-}
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(
@@ -50,7 +43,7 @@ async function main(): Promise<void> {
       )
 
       // 1. Isolated target.
-      if (!isIsolatedTarget(env.DATABASE_URL)) {
+      if (!isIsolatedRestoreTarget(env.DATABASE_URL)) {
         io.err(
           'REFUSED: DATABASE_URL is not an isolated/local target — never restore into a live or shared database. ' +
             'Point DATABASE_URL at the isolated restore instance (PITR target) and re-run.',
@@ -70,18 +63,22 @@ async function main(): Promise<void> {
 
       // 3. Backup window + the runbook path.
       io.out(
-        '· backup window: confirm the restore point is inside the platform PITR retention window (Neon console) BEFORE starting',
+        '· backup window: confirm the restore point is inside the platform PITR retention window (Railway console) BEFORE starting',
       )
-      io.out('\nnext steps (runbook §8):')
+      io.out('\nnext steps (runbook §8, docs/operations/backup-and-lifecycle.md):')
       io.out(
-        '  1. PITR to an isolated project (Neon console / provider tooling — platform-owned)',
+        '  1. PITR to an isolated project (Railway console / provider tooling — platform-owned)',
       )
       io.out('  2. Point DATABASE_URL at the restored instance; re-run this preflight')
       io.out(
-        '  3. Verify: journal consistent (above), row counts, app smoke against the isolated instance',
+        '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
       io.out(
-        '  4. Cut over only after verification — restore is the ONLY rollback path, reserved for data loss',
+        '  4. Run pnpm ops:restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify',
+      )
+      io.out('     — runs the source-policy purge and proves zero expired rows remain')
+      io.out(
+        '  5. Cut over only after verification (UNSET RESTORE_MODE + redeploy) — restore is the ONLY rollback path, reserved for data loss',
       )
       io.out('')
     },

@@ -52,6 +52,10 @@ const config = defineConfig(({ mode }) => {
               // path. Wired plugins (init order):
               //   - production-secret-guard (BQC-7.6): refuse boot when a
               //     known placeholder/test secret leaks into production.
+              //   - restore-mode-guard (BQC-7.8): restore-isolated boot
+              //     assertion + the loud RESTORE MODE ISOLATED log line; the
+              //     capability fail-closed enforcement itself lives at the
+              //     beta-capabilities evaluation seam (per-request).
               //   - graceful-shutdown (BQC-7.1): close pg/Redis/BullMQ on
               //     SIGTERM so the process exits inside the drain window.
               //   - security-headers (BQC-7.6, STD-P1-07): the B0.7 header set
@@ -62,6 +66,7 @@ const config = defineConfig(({ mode }) => {
               //     routing) + x-request-id on every response.
               plugins: [
                 'server/plugins/production-secret-guard.ts',
+                'server/plugins/restore-mode-guard.ts',
                 'server/plugins/graceful-shutdown.ts',
                 'server/plugins/security-headers.ts',
                 'server/plugins/request-guard.ts',

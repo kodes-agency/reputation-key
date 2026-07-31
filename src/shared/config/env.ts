@@ -5,7 +5,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
 
-  // Database — Neon PostgreSQL
+  // Database — Railway PostgreSQL
   DATABASE_URL: z.url(),
   DATABASE_URL_POOLER: z.url().optional(),
 
@@ -167,6 +167,22 @@ const envSchema = z.object({
   // worker logs the stuck resources and exits 1 (unclean stop is recorded).
   // Must stay below Railway's drainingSeconds (30s, railway.worker.json).
   DRAIN_BUDGET_MS: z.coerce.number().int().min(1000).default(25_000),
+  // BQC-7.8: isolated restore mode — restore drills ONLY, never set in
+  // normal service. The ONLY accepted non-empty value is 'isolated' (any
+  // other value fails boot). In restore-isolated mode: the web process boots
+  // with every capability evaluation denying fail-closed (the beta-capabilities
+  // seam — reads stay up for verification) and the worker refuses to boot
+  // (no schedules/consumers/relay). Cutover = unset this and redeploy.
+  // See docs/operations/backup-and-lifecycle.md.
+  RESTORE_MODE: z.literal('isolated').optional(),
+  // BQC-7.8: dead-letter quarantine entry TTL (days). The quarantine queue
+  // has no consumer by design — without a TTL, redacted envelopes accumulate
+  // forever. The quarantine-ttl-sweep job (daily) removes entries older than
+  // this via job.remove() (never obliterate/clean), one content-free log line
+  // + a retention_runs evidence row (subject 'quarantine.ttl') per run. The
+  // 24h queue.quarantine-growth alert (operator redrive SLA) is orthogonal
+  // and unchanged — the TTL is the last-resort bound, not the SLA.
+  QUARANTINE_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   // ── BQC-6.5: operator sandbox seam (optional provider endpoint overrides) ──
   // Explicit per-endpoint overrides applied ONCE at container build on top of
   // the cell's approved provider endpoints (composition.ts

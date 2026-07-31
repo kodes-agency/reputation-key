@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { executeRetentionRule } from '../../../../shared/db/retention/execute-retention-rule'
+import { RETENTION_RULES } from '../../../../shared/jobs/retention-sweep.job'
 
 const db = getDb()
 const NOW = Date.now()
@@ -186,5 +187,84 @@ describe('outbox retention — published_at keying + per-run cap (BQC-3.7)', () 
     })
     expect(resumed.rowsDeleted).toBe(2)
     expect(resumed.capped).toBe(false)
+  })
+})
+
+// BQC-7.8 — audit-evidence retention rules (365d horizon) executed against
+// the REAL registry entries + real tables: policy_decision_audit (keyed on
+// occurred_at) and audit_logs (created_at). Marker-scoped counts — the
+// shared scratch DB carries other suites' recent audit rows, which a 365d
+// cutoff must leave untouched.
+describe('audit-evidence retention rules (BQC-7.8, integration)', () => {
+  const MARKER = 'org-bqc78-audit-retention'
+  const HORIZON = 365 * DAY
+
+  const policyRule = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')!
+  const logsRule = RETENTION_RULES.find((r) => r.subject === 'audit_logs')!
+
+  async function seedPolicyRow(occurredAt: Date): Promise<void> {
+    await db.execute(sql`
+      INSERT INTO policy_decision_audit
+        (actor_type, action, execution_kind, decision, reason, policy_version, organization_id, occurred_at)
+      VALUES
+        ('operator', 'test.bqc78', 'operator', 'allow', 'seed', 'bqc78', ${MARKER}, ${occurredAt})
+    `)
+  }
+
+  async function seedAuditLog(createdAt: Date): Promise<void> {
+    await db.execute(sql`
+      INSERT INTO audit_logs (id, organization_id, user_id, action, resource_type, created_at, updated_at)
+      VALUES (gen_random_uuid()::text, ${MARKER}, 'user-bqc78', 'test.bqc78', 'test', ${createdAt}, ${createdAt})
+    `)
+  }
+
+  async function markerCount(table: string): Promise<number> {
+    const r = await db.execute(
+      sql.raw(
+        `SELECT count(*)::int AS c FROM ${table} WHERE organization_id = '${MARKER}'`,
+      ),
+    )
+    return (r.rows[0] as { c: number }).c
+  }
+
+  beforeEach(async () => {
+    await db.execute(
+      sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER}`,
+    )
+    await db.execute(sql`DELETE FROM audit_logs WHERE organization_id = ${MARKER}`)
+  })
+
+  afterAll(async () => {
+    await db.execute(
+      sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER}`,
+    )
+    await db.execute(sql`DELETE FROM audit_logs WHERE organization_id = ${MARKER}`)
+  })
+
+  it('policy_decision_audit: deletes rows past the 365d horizon, keeps recent', async () => {
+    await seedPolicyRow(new Date(NOW - 400 * DAY))
+    await seedPolicyRow(new Date(NOW - 400 * DAY))
+    await seedPolicyRow(new Date(NOW - 10 * DAY))
+
+    const result = await executeRetentionRule(db, policyRule, {
+      cutoff: new Date(NOW - HORIZON),
+      batchSize: 500,
+    })
+
+    expect(result.rowsDeleted).toBe(2)
+    expect(await markerCount('policy_decision_audit')).toBe(1)
+  })
+
+  it('audit_logs: deletes rows past the 365d horizon, keeps recent', async () => {
+    await seedAuditLog(new Date(NOW - 400 * DAY))
+    await seedAuditLog(new Date(NOW - 5 * DAY))
+
+    const result = await executeRetentionRule(db, logsRule, {
+      cutoff: new Date(NOW - HORIZON),
+      batchSize: 500,
+    })
+
+    expect(result.rowsDeleted).toBe(1)
+    expect(await markerCount('audit_logs')).toBe(1)
   })
 })
