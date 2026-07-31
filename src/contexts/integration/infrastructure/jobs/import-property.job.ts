@@ -24,10 +24,7 @@ export const createImportPropertyHandler = (
       // BQC-3.2: capability authorization happens at dispatch in the delayed
       // execution gate — job handlers no longer re-check capabilities.
 
-      logger.info(
-        { jobId, organizationId, connectionId, locationCount: locations.length },
-        'Importing properties',
-      )
+      logger.info({ locationCount: locations.length }, 'Importing properties')
 
       try {
         await deps.importPropertyUseCase({
@@ -42,12 +39,9 @@ export const createImportPropertyHandler = (
           })),
         })
 
-        logger.info({ jobId, organizationId }, 'Import properties completed')
+        logger.info('Import properties completed')
       } catch (err) {
-        logger.error(
-          { err, jobId, organizationId, connectionId },
-          'Import properties failed',
-        )
+        logger.error({ err }, 'Import properties failed')
         throw err
       }
     })

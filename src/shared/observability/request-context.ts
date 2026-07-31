@@ -17,13 +17,15 @@ import { randomUUID } from 'node:crypto'
  * (trace.ts) and pino child logger can't be mutated post-creation, these live
  * on the ALS store and are read dynamically — by the pino `mixin` (logger.ts)
  * on every log call, and by span-end logging (trace.ts).
+ *
+ * BQC-7.3 (observability schema): only content-free, low-cardinality attrs
+ * live here — `role` (3 values) and `useCase` (the route class). Tenant
+ * identifiers (organizationId/userId) are NEVER span/log attrs; the approved
+ * per-trace correlation is `requestId` (attached by trace.ts, not the mixin).
  */
 export interface SpanAttrs {
-  organizationId?: string
-  userId?: string
   role?: string
   useCase?: string
-  resource?: string
 }
 
 export interface RequestContext {
@@ -43,8 +45,8 @@ export function getRequestContext(): RequestContext | undefined {
  * Enrich the current request's span attributes. Merges into the ALS store
  * so every subsequent log line and span-end carries them.
  *
- * Called from `resolveTenantContext` (identity attrs) and optionally from
- * handler bodies (useCase/resource). No-op when called outside a request.
+ * Called from `resolveTenantContext` (role) and optionally from handler
+ * bodies (useCase). No-op when called outside a request.
  */
 export function enrichSpan(attrs: Partial<SpanAttrs>): void {
   const store = asyncLocalStorage.getStore()

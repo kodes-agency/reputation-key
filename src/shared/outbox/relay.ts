@@ -80,7 +80,10 @@ export function createOutboxRelay(
 
   async function publishEvent(event: UnpublishedEvent): Promise<boolean> {
     if (!queue) {
-      logger.warn({ eventId: event.id }, 'No domain-events queue — skipping publish')
+      logger.warn(
+        { eventType: event.eventType },
+        'No domain-events queue — skipping publish',
+      )
       return false
     }
 
@@ -105,7 +108,7 @@ export function createOutboxRelay(
       // Redis failure — the lease expires and the row is reclaimed (jobId
       // dedup + receipts make the re-publish safe).
       logger.error(
-        { err, eventId: event.id, eventType: event.eventType },
+        { err, eventType: event.eventType },
         'Failed to publish outbox event to BullMQ',
       )
       return false

@@ -76,7 +76,7 @@ describe('onInboxItemEscalated (notification)', () => {
     await onInboxItemEscalated(deps)(escalatedEvent)
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      { organizationId: NOTIF_TEST_IDS.orgId, eventId: NOTIF_TEST_IDS.eventId },
+      { correlationId: undefined },
       'onInboxItemEscalated: no recipients found, skipping',
     )
   })

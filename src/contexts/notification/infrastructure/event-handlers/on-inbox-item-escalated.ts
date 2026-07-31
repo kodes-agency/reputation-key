@@ -23,7 +23,7 @@ export const onInboxItemEscalated =
 
     if (recipients.length === 0) {
       deps.logger.warn(
-        { organizationId: event.organizationId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onInboxItemEscalated: no recipients found, skipping',
       )
       return

@@ -152,6 +152,27 @@ export function getPool(): Pool {
 }
 
 /**
+ * BQC-7.3 (db.pool.*): current pool gauges for the OperationsSnapshot.
+ * Reads the EXISTING pool only — never creates one (a metrics read must not
+ * cold-start the database). Returns null when the pool was never initialized.
+ */
+export function getPoolStats(): Readonly<{
+  max: number
+  totalCount: number
+  idleCount: number
+  waitingCount: number
+} | null> {
+  const pool = poolStore()[POOL_KEY]
+  if (!pool) return null
+  return {
+    max: pool.options.max ?? 10,
+    totalCount: pool.totalCount,
+    idleCount: pool.idleCount,
+    waitingCount: pool.waitingCount,
+  }
+}
+
+/**
  * End the shared pool if it was created (BQC-7.1 graceful shutdown). No-op
  * when the pool was never initialized, so the shutdown path runs regardless
  * of whether any request touched the database. pool.end() waits for

@@ -126,7 +126,6 @@ describe('insertNotification', () => {
     expect(result).toBeNull()
     // Logger should note email-only persistence
     expect(deps.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ notificationId: NOTIF_ID }),
       'Notification persisted for email only — not returned for in-app display',
     )
   })
@@ -153,7 +152,7 @@ describe('insertNotification', () => {
     expect(result).toBeNull()
     // Logger should have logged the skip
     expect(deps.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: USER_ID, type: 'review.created' }),
+      expect.objectContaining({ type: 'review.created' }),
       'Notification skipped — both in-app and email disabled by preference',
     )
   })
@@ -168,7 +167,7 @@ describe('insertNotification', () => {
     })
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ input: badInput }),
+      expect.objectContaining({ error: expect.anything() }),
       'Failed to construct notification',
     )
   })

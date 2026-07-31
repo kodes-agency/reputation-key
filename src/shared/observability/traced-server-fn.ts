@@ -43,8 +43,8 @@ export function tracedHandler<TInput, TOutput>(
 
     return runWithContext(requestId, async () => {
       // Seed the span with the operation name so trace() spans and handler-body
-      // log calls carry it even before resolveTenantContext enriches identity.
-      // Tenant identity (org/user/role) is enriched by resolveTenantContext.
+      // log calls carry it even before resolveTenantContext enriches the role.
+      // BQC-7.3: tenant identifiers are never span attrs — role only.
       enrichSpan({ useCase: name ?? 'serverFn' })
       try {
         const result = await fn(ctx)

@@ -24,10 +24,7 @@ export const createGuestInteractionRepository = (
   recordScan: async (scan) => {
     return trace('guestInteraction.recordScan', async () => {
       const start = Date.now()
-      log.debug(
-        { organizationId: scan.organizationId as string },
-        'guest recordScan start',
-      )
+      log.debug('guest recordScan start')
       await db.insert(scanEvents).values(scanEventToRow(scan))
       log.debug({ duration: Date.now() - start }, 'guest recordScan complete')
     })
@@ -111,7 +108,7 @@ export const createGuestInteractionRepository = (
   getLatestScanBySession: async (organizationId, sessionId) => {
     return trace('guestInteraction.getLatestScanBySession', async () => {
       const start = Date.now()
-      log.debug({ sessionId }, 'guest getLatestScanBySession start')
+      log.debug('guest getLatestScanBySession start')
       const [row] = await db
         .select()
         .from(scanEvents)
@@ -124,7 +121,7 @@ export const createGuestInteractionRepository = (
         .orderBy(desc(scanEvents.createdAt))
         .limit(1)
       log.debug(
-        { sessionId, found: !!row, duration: Date.now() - start },
+        { found: !!row, duration: Date.now() - start },
         'guest getLatestScanBySession complete',
       )
       return row ? scanEventFromRow(row) : null

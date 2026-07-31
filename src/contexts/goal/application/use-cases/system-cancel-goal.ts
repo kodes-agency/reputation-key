@@ -73,8 +73,6 @@ export const systemCancelGoal =
     // typed `reason` tag is the record of origin.
     deps.getLogger().info(
       {
-        goalId: goal.id,
-        organizationId: input.organizationId,
         reason: input.reason,
         goalType: goal.goalType,
       },

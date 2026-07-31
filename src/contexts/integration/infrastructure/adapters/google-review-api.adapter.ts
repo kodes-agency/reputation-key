@@ -90,7 +90,7 @@ export const createGoogleReviewApiAdapter = (
 
     if (!rating) {
       deps.logger.warn(
-        { starRating: raw.starRating, reviewId },
+        { starRating: raw.starRating },
         'Unknown star rating, skipping review',
       )
       return null

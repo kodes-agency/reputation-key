@@ -134,10 +134,7 @@ const markEntriesFailed = async (
       )
       // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.
     } catch (markErr) {
-      deps.logger.error(
-        { markErr, notificationEmailId: entry.id },
-        'Failed to mark digest email as failed',
-      )
+      deps.logger.error({ markErr }, 'Failed to mark digest email as failed')
     }
   }
 }
@@ -168,7 +165,7 @@ const sendUserDigest = async (
     })
     await markEntriesSent(deps, organizationId, entries)
   } catch (err) {
-    deps.logger.error({ err, uid, orgId: organizationId }, 'Digest email send failed')
+    deps.logger.error({ err }, 'Digest email send failed')
     await markEntriesFailed(deps, organizationId, entries)
   }
 }
@@ -191,7 +188,7 @@ const sendOrgDigest = async (
       await sendUserDigest(deps, organizationId, uid, entries)
     } catch (err) {
       deps.logger.error(
-        { err, organizationId, userId: uid },
+        { err },
         'digest-notification: sendUserDigest failed — continuing to next user',
       )
     }
@@ -216,7 +213,7 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
         await sendOrgDigest(deps, orgId(rawOrgId))
       } catch (err) {
         deps.logger.error(
-          { err, organizationId: rawOrgId },
+          { err },
           'digest-notification: org digest failed — continuing to next org',
         )
       }

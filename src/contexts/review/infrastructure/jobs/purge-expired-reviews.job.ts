@@ -70,7 +70,7 @@ export const createPurgeExpiredReviewsHandler = (deps: PurgeHandlerDeps) => {
           purged++
         } catch (err) {
           failed++
-          logger.warn({ err, reviewId: review.id }, 'Failed to purge expired review')
+          logger.warn({ err }, 'Failed to purge expired review')
         }
       }
 

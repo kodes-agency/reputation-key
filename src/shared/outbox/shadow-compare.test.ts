@@ -129,7 +129,6 @@ describe('shadow-compare collector (BQC-3.9)', () => {
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({
         family: 'review.created',
-        eventId: 'evt-1',
         outcome: 'match',
       }),
       'shadow.compare',
@@ -137,7 +136,6 @@ describe('shadow-compare collector (BQC-3.9)', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({
         family: 'review.expired',
-        eventId: 'evt-2',
         outcome: 'mismatch',
         mismatchFields: ['exists'],
       }),

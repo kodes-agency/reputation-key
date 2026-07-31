@@ -24,7 +24,7 @@ export const onGoalCompleted =
 
     if (recipientIds.length === 0) {
       deps.logger.info(
-        { propertyId: event.propertyId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onGoalCompleted: no recipients found, skipping',
       )
       return

@@ -59,10 +59,7 @@ export const onReviewExpired =
           }),
         )
       } catch (err) {
-        getLogger().error(
-          { err, reviewId: event.reviewId },
-          'inbox: failed to handle review.expired',
-        )
+        getLogger().error({ err }, 'inbox: failed to handle review.expired')
       }
     })
   }

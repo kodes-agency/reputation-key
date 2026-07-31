@@ -161,7 +161,10 @@ export const signInUser = createServerFn({ method: 'POST' })
         } catch (e) {
           const { getLogger } = await import('#/shared/observability/logger')
           const { maskEmail } = await import('#/shared/observability/pii')
-          getLogger().warn({ email: maskEmail(data.email), err: e }, 'Sign-in failed')
+          getLogger().warn(
+            { emailPrefix: maskEmail(data.email), err: e },
+            'Sign-in failed',
+          )
           // Distinguish infrastructure errors (5xx) from auth errors (401).
           // better-auth APIError carries a statusCode property.
           const statusCode = (e as { statusCode?: number }).statusCode

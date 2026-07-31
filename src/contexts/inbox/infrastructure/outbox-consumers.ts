@@ -119,7 +119,7 @@ export async function handleInboxReviewCreated(
 
   if (result.status === 'not_found') {
     logger.warn(
-      { reviewId: payload.reviewId, eventId: event.eventId },
+      { correlationId: event.correlationId ?? undefined },
       'inbox.on-review-created: review not found — marking obsolete',
     )
     await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_CREATED, 'obsolete')

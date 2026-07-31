@@ -19,7 +19,7 @@ export const createInsertNotificationHandler = (deps: InsertNotificationDeps) =>
 
   return async (job: Job<InsertNotificationJobData>): Promise<void> => {
     return trace('job.insertNotification', async () => {
-      const logger = getLogger().child({ jobId: job.id, type: job.data.type })
+      const logger = getLogger().child({ type: job.data.type })
 
       logger.info('Processing insert-notification job')
 

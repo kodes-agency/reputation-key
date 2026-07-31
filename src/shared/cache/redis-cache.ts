@@ -14,7 +14,8 @@ export function createRedisCache(redis: Redis): Cache {
         if (raw === null) return null
         return JSON.parse(raw) as T
       } catch (err) {
-        getLogger().warn({ err, key }, '[cache] get failed')
+        // BQC-7.3: cache keys may embed tenant identifiers — never logged.
+        getLogger().warn({ err }, '[cache] get failed')
         return null
       }
     },
@@ -28,7 +29,7 @@ export function createRedisCache(redis: Redis): Cache {
           await redis.set(key, serialized)
         }
       } catch (err) {
-        getLogger().warn({ err, key }, '[cache] set failed')
+        getLogger().warn({ err }, '[cache] set failed')
       }
     },
 
@@ -36,7 +37,7 @@ export function createRedisCache(redis: Redis): Cache {
       try {
         await redis.del(key)
       } catch (err) {
-        getLogger().warn({ err, key }, '[cache] delete failed')
+        getLogger().warn({ err }, '[cache] delete failed')
       }
     },
 
@@ -45,7 +46,7 @@ export function createRedisCache(redis: Redis): Cache {
         const result = await redis.exists(key)
         return result === 1
       } catch (err) {
-        getLogger().warn({ err, key }, '[cache] exists check failed')
+        getLogger().warn({ err }, '[cache] exists check failed')
         return false
       }
     },

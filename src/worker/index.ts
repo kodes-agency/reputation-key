@@ -2,7 +2,7 @@
 // Built separately with tsup, runs as: node dist/worker.js
 
 import 'dotenv/config'
-import { getEnv } from '#/shared/config/env'
+import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { createContainer } from '#/composition'
@@ -42,7 +42,7 @@ async function main() {
   const env = getEnv()
   const logger = getLogger()
 
-  logger.info({ env: env.NODE_ENV }, 'Worker starting')
+  logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
 
   // BQC-0.3: refuse boot if test-only capability overrides leak outside an
   // explicit test/CI identity; assert blocked caps; record policy manifest.
@@ -73,6 +73,13 @@ async function main() {
   let backgroundWorker: Worker | undefined
 
   const registry = container.jobRegistry
+
+  // BQC-7.3 (worker.*): registered-job count + runtime version at boot —
+  // deployment/config drift shows up here before any job runs.
+  logger.info(
+    { registeredJobs: registry.getAll().size, runtimeVersion: process.version },
+    'worker runtime ready',
+  )
 
   // BQC-3.6: fail the boot on catalogue/runtime mismatch — a missing handler
   // for an enabled job, a stale registered handler, or (only when the durable

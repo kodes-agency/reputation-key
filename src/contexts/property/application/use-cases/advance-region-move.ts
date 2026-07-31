@@ -106,7 +106,7 @@ async function applyStepEffect(
       for (const { name, queue } of deps.queues) {
         if (!queue) continue
         await pauseQueueForQuarantine(queue)
-        logger.info({ moveId: move.id, queue: name }, 'region move: queue paused')
+        logger.info({ queue: name }, 'region move: queue paused')
       }
       return null
     case 'queues_drained':
@@ -115,7 +115,7 @@ async function applyStepEffect(
       for (const { name, queue } of deps.queues) {
         if (!queue) continue
         await resumeQueueFromQuarantine(queue)
-        logger.info({ moveId: move.id, queue: name }, 'region move: queue resumed')
+        logger.info({ queue: name }, 'region move: queue resumed')
       }
       // Restore the source when activation had committed (guarded — a
       // pre-activation failure reports already_active and changes nothing).

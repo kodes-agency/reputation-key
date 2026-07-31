@@ -26,16 +26,13 @@ export const onPropertyCreated =
         !isRegionProcessable(event.processingRegion)
       ) {
         logger.info(
-          { propertyId: event.propertyId, processingRegion: event.processingRegion },
+          { processingRegion: event.processingRegion },
           'property.created: initial review sync blocked — region not processable',
         )
         return
       }
 
-      logger.info(
-        { propertyId: event.propertyId, gbpLocationName: event.gbpLocationName },
-        'property.created: enqueuing initial review sync',
-      )
+      logger.info('property.created: enqueuing initial review sync')
 
       try {
         await deps.queue.addSyncJob({
@@ -45,10 +42,7 @@ export const onPropertyCreated =
           locationName: event.gbpLocationName,
         })
       } catch (err) {
-        logger.error(
-          { err, propertyId: event.propertyId },
-          'property.created: failed to enqueue review sync',
-        )
+        logger.error({ err }, 'property.created: failed to enqueue review sync')
       }
     })
   }

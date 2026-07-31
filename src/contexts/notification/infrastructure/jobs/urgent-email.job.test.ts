@@ -179,7 +179,6 @@ describe('createUrgentEmailJobHandler', () => {
     expectNoEmailSent(deps)
     expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ notificationEmailId: EMAIL_ENTRY_ID }),
       'Urgent email entry not found or not retryable',
     )
   })
@@ -238,7 +237,7 @@ describe('createUrgentEmailJobHandler', () => {
       expect.any(Date),
     )
     expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ notificationEmailId: EMAIL_ENTRY_ID }),
+      expect.objectContaining({ err: expect.anything() }),
       'Urgent email send failed',
     )
     expect(deps.emailRepo.markSent).not.toHaveBeenCalled()

@@ -30,7 +30,7 @@ export async function emitAfterCommit(
     await events.emit(event)
   } catch (err) {
     getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
+      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
       'in-process emit failed after atomic outbox commit — durable row retained',
     )
   }

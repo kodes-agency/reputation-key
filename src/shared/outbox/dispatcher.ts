@@ -124,12 +124,15 @@ async function invokeConsumer(
   }>,
 ): Promise<ConsumerOutcome> {
   const { repo, logger, eventId, event, consumer } = deps
+  // BQC-7.3: correlationId is the only approved identifier correlation
+  // field (ADR 0030); the event/job id itself is never logged.
+  const correlationId = event.correlationId ?? undefined
   try {
     // Check receipt — skip if already processed
     const hasReceipt = await repo.hasReceipt(eventId, consumer.consumerName)
     if (hasReceipt) {
       logger.debug(
-        { eventId, consumerName: consumer.consumerName },
+        { correlationId, consumerName: consumer.consumerName },
         'Consumer already has receipt — skipping',
       )
       return { kind: 'ok' }
@@ -149,7 +152,11 @@ async function invokeConsumer(
       // short-circuits on the receipt instead of re-evaluating forever.
       await repo.insertReceipt(eventId, consumer.consumerName, 'obsolete')
       logger.warn(
-        { eventId, consumerName: consumer.consumerName, reason: gate.decision.reason },
+        {
+          correlationId,
+          consumerName: consumer.consumerName,
+          reason: gate.decision.reason,
+        },
         'delayed execution denied — terminal (consumer skipped, obsolete receipt written)',
       )
       return { kind: 'ok' }
@@ -166,7 +173,7 @@ async function invokeConsumer(
     const result = await consumer.handler(event)
 
     logger.debug(
-      { eventId, consumerName: consumer.consumerName, status: result.status },
+      { correlationId, consumerName: consumer.consumerName, status: result.status },
       'Consumer completed',
     )
     return { kind: 'ok' }
@@ -177,7 +184,7 @@ async function invokeConsumer(
     // configured attempts apply — receipts protect consumers that already
     // committed (they short-circuit on redelivery).
     logger.error(
-      { err, eventId, consumerName: consumer.consumerName },
+      { err, correlationId, consumerName: consumer.consumerName },
       'Consumer handler failed — job will fail after remaining consumers run',
     )
     return { kind: 'failed', consumerName: consumer.consumerName, err }
@@ -192,6 +199,8 @@ export function createDispatcherHandler(repo: OutboxRepository) {
   const logger = getLogger()
 
   return async (job: Job) => {
+    // Pre-existing marginal finding (cognitive 16); the 7.3 sweep only stripped banned log fields.
+    // fallow-ignore-next-line complexity
     await trace('outbox.dispatch', async () => {
       const { id: jobId, name: jobName, data } = job
       if (!jobId) {
@@ -207,13 +216,14 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       if (!event) {
         // BQC-3.6: malformed envelopes are unrecoverable — the job lands in
         // BullMQ failed state immediately (quarantine substrate; 3.7 alerting
-        // picks it up). Reason is content-free: job name + id only.
+        // picks it up). Reason is content-free: job name only (BQC-7.3 — no
+        // job/event ids in logs or failure reasons).
         logger.error(
-          { jobId, jobName },
+          { jobName },
           'Job data is not a ConsumerEvent envelope — unrecoverable (BQC-3.6)',
         )
         throw new UnrecoverableError(
-          `outbox envelope malformed (job '${jobName}', id ${jobId}) — schema/envelope mismatch, no retry`,
+          `outbox envelope malformed (job '${jobName}') — schema/envelope mismatch, no retry`,
         )
       }
 
@@ -226,13 +236,13 @@ export function createDispatcherHandler(repo: OutboxRepository) {
         validateEventPayload(event.eventType, event.eventVersion, event.payload)
       } catch (err) {
         // BQC-3.6: schema failures are unrecoverable. The reason carries the
-        // type/version fingerprint only — never payload content.
+        // type/version fingerprint only — never payload content or ids.
         logger.error(
-          { err, eventId, eventType },
+          { err, eventType, correlationId: event.correlationId ?? undefined },
           'Event payload failed schema validation — unrecoverable (BQC-3.6)',
         )
         throw new UnrecoverableError(
-          `event payload failed schema validation (${eventType}:v${event.eventVersion}, id ${eventId}) — no retry`,
+          `event payload failed schema validation (${eventType}:v${event.eventVersion}) — no retry`,
         )
       }
 
@@ -246,7 +256,7 @@ export function createDispatcherHandler(repo: OutboxRepository) {
         // family (no durable dispatch expected → complete).
         if (durableConsumersFor(eventType).length > 0) {
           logger.error(
-            { eventId, eventType },
+            { eventType, correlationId: event.correlationId ?? undefined },
             'No consumers registered for catalogued durable event type — deployment/config failure',
           )
           throw new Error(
@@ -254,14 +264,18 @@ export function createDispatcherHandler(repo: OutboxRepository) {
           )
         }
         logger.debug(
-          { eventId, eventType },
+          { eventType, correlationId: event.correlationId ?? undefined },
           'No durable consumers for event type (bus-only family) — completing',
         )
         return
       }
 
       logger.info(
-        { eventId, eventType, consumers: consumers.length },
+        {
+          eventType,
+          consumers: consumers.length,
+          correlationId: event.correlationId ?? undefined,
+        },
         'Dispatching event to consumers',
       )
 
@@ -278,7 +292,7 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       if (failures.length > 0) {
         throw new AggregateError(
           failures.map((f) => f.err),
-          `${failures.length} consumer(s) failed for event ${eventId}: ${failures
+          `${failures.length} consumer(s) failed: ${failures
             .map((f) => f.consumerName)
             .join(', ')}`,
         )

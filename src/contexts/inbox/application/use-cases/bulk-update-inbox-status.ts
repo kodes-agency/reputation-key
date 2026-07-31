@@ -62,7 +62,7 @@ const resolveAccessiblePropertyIds = async (
     }
   } catch (err) {
     deps.logger.warn(
-      { err, organizationId: ctx.organizationId },
+      { err },
       'Access check for property IDs failed, treating as no access',
     )
     return { ok: false }

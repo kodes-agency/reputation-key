@@ -65,15 +65,12 @@ async function reconcileRow(
       organizationId: reply.organizationId,
     })
     if (result.isErr()) {
-      logger.warn(
-        { replyId: reply.id, err: result.error },
-        'reconcile sweep: row reconcile failed',
-      )
+      logger.warn({ err: result.error }, 'reconcile sweep: row reconcile failed')
       return 'failed'
     }
     return result.value.outcome === 'published' ? 'healed' : 'still_failed'
   } catch (err) {
-    logger.warn({ replyId: reply.id, err }, 'reconcile sweep: row threw')
+    logger.warn({ err }, 'reconcile sweep: row threw')
     return 'failed'
   }
 }

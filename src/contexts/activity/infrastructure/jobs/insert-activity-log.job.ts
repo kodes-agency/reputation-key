@@ -17,7 +17,8 @@ export type InsertActivityLogJobData = InsertActivityLogInput
 export const createInsertActivityLogHandler = (deps: InsertActivityLogDeps) => {
   const useCase = insertActivityLog(deps)
   return async (job: Job<InsertActivityLogJobData>): Promise<void> => {
-    const log = getLogger().child({ jobId: job.id, resourceId: job.data.resourceId })
+    // BQC-7.3: no jobId/resourceId in log bindings — jobName is implicit.
+    const log = getLogger()
     log.info('Processing insert-activity-log job')
     await useCase(job.data)
     log.info('Inserted activity log')

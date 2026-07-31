@@ -26,7 +26,7 @@ export const onReplySubmitted =
 
     if (recipients.length === 0) {
       deps.logger.warn(
-        { organizationId: event.organizationId, eventId: event.eventId },
+        { correlationId: event.correlationId ?? undefined },
         'onReplySubmitted: no recipients found, skipping',
       )
       return

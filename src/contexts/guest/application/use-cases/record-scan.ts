@@ -43,7 +43,7 @@ export const recordScan =
       })
       if (scanResult.isErr()) {
         deps.logger.warn(
-          { err: scanResult.error, propertyId: input.propertyId },
+          { err: scanResult.error },
           'Scan event construction failed — suppressed per I10',
         )
         return
@@ -64,10 +64,7 @@ export const recordScan =
       )
     } catch (e) {
       // Silent failure per I10 — scan is analytics, not critical path
-      deps.logger.warn(
-        { err: e, propertyId: input.propertyId },
-        'Scan recording failed — suppressed per I10',
-      )
+      deps.logger.warn({ err: e }, 'Scan recording failed — suppressed per I10')
     }
   }
 

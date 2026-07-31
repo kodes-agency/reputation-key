@@ -21,7 +21,7 @@ async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<vo
     await events.emit(event)
   } catch (err) {
     getLogger().warn(
-      { err, eventType: event._tag, eventId: event.eventId },
+      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
       'BQC-3.5: in-process emit failed after sequential store state write',
     )
   }

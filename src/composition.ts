@@ -43,6 +43,9 @@ import type { GoogleOAuthPort } from '#/contexts/integration/application/ports/g
 import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-api.port'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { buildIdentityContext } from '#/contexts/identity/build'
+import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
+import { ROUTING_POLICY_VERSION } from '#/contexts/property/domain/processing-routing'
+import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
   getAuth,
   setOnAcceptInvitation,
@@ -50,7 +53,7 @@ import {
 } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
-import { getEnv } from '#/shared/config/env'
+import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { Env } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
@@ -189,7 +192,7 @@ async function setActiveOrg(orgId: string): Promise<void> {
     // If headers don't carry a valid session (e.g., during registration
     // where cookies aren't yet available), this is non-fatal — the user
     // will set their active org on first login.
-    logger.warn({ err: e, orgId }, 'Failed to set active organization during setup')
+    logger.warn({ err: e }, 'Failed to set active organization during setup')
   }
 }
 
@@ -250,6 +253,10 @@ export function createContainer(options?: {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
+
+  // BQC-7.3 (release.sha): deploy identity at boot — one line per container
+  // build (singleton in prod; simulations/tests build per scenario).
+  logger.info({ releaseSha: getReleaseSha(env) }, 'composition root boot')
 
   // BQC-4.3: resolve the cell's approved provider endpoints ONCE from the
   // router's cell config (PROCESSING_CELL → logical provider ref → endpoint
@@ -546,10 +553,7 @@ export function createContainer(options?: {
           { organizationId: oid },
         )
       } catch {
-        logger.warn(
-          { userId, propertyId: pid },
-          'Failed to auto-assign property on invitation acceptance',
-        )
+        logger.warn('Failed to auto-assign property on invitation acceptance')
       }
     }
   })
@@ -578,6 +582,14 @@ export function createContainer(options?: {
     },
     redis: redis ?? null,
     clock,
+    // BQC-7.3: version identity — the root reads the constants (the shared
+    // zone cannot import context domain).
+    versions: {
+      capabilityPolicy: CAPABILITY_POLICY_VERSION,
+      policyStore: identity.internal.policyStoreVersion,
+      routingPolicy: ROUTING_POLICY_VERSION,
+      sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
+    },
   })
 
   return {

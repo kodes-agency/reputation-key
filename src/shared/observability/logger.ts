@@ -21,10 +21,11 @@ export function getLogger(): pino.Logger {
     const usePretty = env.NODE_ENV === 'development' && isPrettyTransportAvailable()
     _logger = pino({
       level: env.LOG_LEVEL,
-      // Mixin merges request-scoped span attrs (organizationId/userId/role/
-      // useCase/resource) into every log line — including child loggers.
-      // Read dynamically from ALS at log-call time, so attrs enriched after
-      // logger creation (e.g. after resolveTenantContext) still appear.
+      // Mixin merges request-scoped span attrs (role/useCase — content-free,
+      // low-cardinality per BQC-7.3) into every log line — including child
+      // loggers. Read dynamically from ALS at log-call time, so attrs
+      // enriched after logger creation (e.g. after resolveTenantContext)
+      // still appear.
       mixin: () => getSpanAttrs(),
       ...(usePretty
         ? {

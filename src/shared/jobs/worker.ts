@@ -58,14 +58,14 @@ export function createJobWorker<T>(
   })
 
   worker.on('completed', (job: Job<T>) => {
-    logger.info({ jobId: job.id, queue: name }, 'job completed')
+    logger.info({ queue: name, jobName: job.name }, 'job completed')
   })
 
   worker.on('failed', (job: Job<T> | undefined, err: Error) => {
     logger.error(
       {
-        jobId: job?.id,
         queue: name,
+        jobName: job?.name,
         attemptsMade: job?.attemptsMade,
         err: { message: err.message, stack: err.stack },
       },
@@ -79,14 +79,14 @@ export function createJobWorker<T>(
         .then((outcome) => {
           if (outcome.quarantined) {
             logger.error(
-              { jobId: job.id, queue: name, quarantineJobId: outcome.quarantineJobId },
+              { queue: name, jobName: job.name },
               'job exhausted attempts — moved to quarantine',
             )
           }
         })
         .catch((quarantineErr: unknown) => {
           logger.error(
-            { err: quarantineErr, jobId: job.id, queue: name },
+            { err: quarantineErr, queue: name, jobName: job.name },
             'failed to quarantine exhausted job',
           )
         })

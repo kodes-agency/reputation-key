@@ -151,7 +151,6 @@ describe('dispatcher gate (BQC-3.2)', () => {
     expect(repo.insertReceipt).toHaveBeenCalledWith('evt-gate-1', 'c-deny', 'obsolete')
     expect(loggerMocks.warn).toHaveBeenCalledWith(
       expect.objectContaining({
-        eventId: 'evt-gate-1',
         consumerName: 'c-deny',
         reason: 'org_suspended',
       }),

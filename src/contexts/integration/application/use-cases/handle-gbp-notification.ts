@@ -64,10 +64,7 @@ export const handleGbpNotification =
     )
 
     logger.info(
-      {
-        propertyId: property.id,
-        messageId: input.messageId,
-      },
+      { correlationId: `webhook:${input.messageId}` },
       'Webhook enqueued review sync',
     )
 

@@ -97,16 +97,13 @@ export const createInboxRepository = (
   findById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findById', async () => {
       const start = Date.now()
-      log.debug({ id: id as string, orgId: orgId as string }, 'querying inbox findById')
+      log.debug('querying inbox findById')
       const rows = await db
         .select()
         .from(inboxItems)
         .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
         .limit(1)
-      log.debug(
-        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
-        'inbox findById complete',
-      )
+      log.debug({ duration: Date.now() - start }, 'inbox findById complete')
       return rows[0] ? withDefaults(rows[0]) : null
     })
   },
@@ -156,7 +153,7 @@ export const createInboxRepository = (
   ) => {
     return trace('inbox.findFilteredPaginated', async () => {
       const start = Date.now()
-      log.debug({ orgId: orgId as string, limit }, 'querying inbox findFilteredPaginated')
+      log.debug({ limit }, 'querying inbox findFilteredPaginated')
       const conditions = buildFilterConditions(filters, orgId)
       if (conditions === null) return { items: [], nextCursor: null } as PaginatedResult
 
@@ -231,7 +228,6 @@ export const createInboxRepository = (
 
       log.debug(
         {
-          orgId: orgId as string,
           itemCount: items.length,
           hasNext,
           duration: Date.now() - start,
@@ -452,10 +448,7 @@ export const createInboxRepository = (
   findDetailById: async (id: InboxItemId, orgId: OrganizationId) => {
     return trace('inbox.findDetailById', async () => {
       const start = Date.now()
-      log.debug(
-        { id: id as string, orgId: orgId as string },
-        'querying inbox findDetailById',
-      )
+      log.debug('querying inbox findDetailById')
       const rows = await db
         .select()
         .from(inboxItems)
@@ -482,8 +475,6 @@ export const createInboxRepository = (
         const snippet = result.status === 'available' ? result.snippet : null
         log.debug(
           {
-            id: id as string,
-            orgId: orgId as string,
             contentStatus: result.status,
             duration: Date.now() - start,
           },
@@ -504,10 +495,7 @@ export const createInboxRepository = (
         feedbackId(item.sourceId),
         orgId,
       )
-      log.debug(
-        { id: id as string, orgId: orgId as string, duration: Date.now() - start },
-        'inbox findDetailById complete',
-      )
+      log.debug({ duration: Date.now() - start }, 'inbox findDetailById complete')
       return {
         item: { ...item, propertyName, reviewerName: null },
         reviewText: null,

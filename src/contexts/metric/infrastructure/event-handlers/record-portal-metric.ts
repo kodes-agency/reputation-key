@@ -69,8 +69,6 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
             {
               err,
               event: event._tag,
-              portalId: event.portalId,
-              organizationId: event.organizationId,
             },
             `metric: failed to record ${opts.metricKey}`,
           )

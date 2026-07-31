@@ -74,7 +74,7 @@ export const insertActivityLog =
         actorRole = user.role ?? 'Staff'
       } catch (e) {
         deps.logger.warn(
-          { error: e, userId },
+          { error: e },
           'Activity user lookup failed, using system defaults',
         )
         resolvedUserId = null
@@ -96,10 +96,8 @@ export const insertActivityLog =
     )
 
     if (result.isErr()) {
-      deps.logger.warn(
-        { error: result.error, input },
-        'Failed to construct activity log entry',
-      )
+      // BQC-7.3: the raw input (tenant/entity ids) is never logged.
+      deps.logger.warn({ error: result.error }, 'Failed to construct activity log entry')
       return
     }
 
@@ -107,7 +105,7 @@ export const insertActivityLog =
     try {
       await deps.repo.insert(result.value)
     } catch (error) {
-      deps.logger.error({ error, input }, 'Failed to persist activity log entry')
+      deps.logger.error({ error }, 'Failed to persist activity log entry')
       throw error // re-throw so BullMQ retries
     }
   }

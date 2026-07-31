@@ -26,10 +26,6 @@ export const onGoogleAccountDisconnected =
     return trace('event.review.onGoogleAccountDisconnected', async () => {
       const logger = getLogger()
       logger.info(
-        {
-          connectionId: event.connectionId,
-          organizationId: event.organizationId,
-        },
         'integration.google_account.disconnected: cancelling in-flight reply publications',
       )
       const result = await deps.cancelPublicationsForConnection({
@@ -38,7 +34,7 @@ export const onGoogleAccountDisconnected =
         cause: 'disconnect',
       })
       logger.info(
-        { connectionId: event.connectionId, ...result },
+        { ...result },
         'integration.google_account.disconnected: reply publication cancellation complete',
       )
     })

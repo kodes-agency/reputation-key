@@ -30,10 +30,7 @@ export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
       const logger = getLogger()
       const { key, portalId: pid, organizationId: orgId } = job.data
 
-      logger.info(
-        { key, portalId: pid, organizationId: orgId, jobId: job.id },
-        'Processing portal hero image',
-      )
+      logger.info('Processing portal hero image')
 
       try {
         // Dynamically import sharp to avoid loading it in the web bundle
@@ -75,12 +72,9 @@ export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
           updatedAt: deps.clock(),
         })
 
-        logger.info(
-          { key, heroKey, thumbKey, portalId: pid },
-          'Image processing completed',
-        )
+        logger.info('Image processing completed')
       } catch (err) {
-        logger.error({ err, key, portalId: pid }, 'Image processing failed')
+        logger.error({ err }, 'Image processing failed')
         throw err
       }
     })
