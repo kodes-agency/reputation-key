@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-31T19:31:42Z",
+  "updatedAt": "2026-07-31T21:11:55Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -1083,11 +1083,24 @@
       "id": "BQC-8",
       "kind": "phase",
       "title": "Scale, recovery, and release evidence",
-      "state": "not_started",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-04", "SPEC-P2-02"],
-      "exceptions": []
+      "exceptions": [],
+      "notes": "8.1 implementation_complete: executable harnesses — measurement lib + monitoring capture + steady/burst/dashboardMix/drain executors (BQC-3 producer contract, run-scoped cleanup, fail-closed assertions), deterministic scale dataset (seed/shape/hash, verify + exact clean), fail-closed evidence ingestion (no unexecuted row labeled evidence; release-identity bound). Fault + remaining scenario executors deferred to 8.2–8.5 (registry + fail-closed dispatch ready). Slices 8.2–8.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-8.1",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Convert scenario catalogues into executable harnesses",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The catalogue prints are now executable, fail-closed harnesses; nothing labels an unexecuted row as evidence. (1) Measurement lib (src/shared/testing/perf.ts): injected-clock percentile/throughput/runner (linear interpolation documented; bounded-concurrency probe pool; versioned JSON that fails closed on drift). (2) Monitoring capture (ops-snapshot-capture.ts): viaContainer + viaHttp (x-ops-token) poller producing a whitelisted content-free SnapshotSeries (outbox/reviews/queues/heartbeat/db/degraded; read errors recorded, never silent; ADR-0030 canary test). (3) Executors (testing/scenarios/): SLOS/SCENARIOS/FAULTS moved verbatim to the catalogue module (pinned by test; drain added as a 9th first-class scenario — the old inventory lacked it). Runnable now: steady/burst (paced enqueue via the BQC-3 producer contract container.jobQueue.add + jobEnqueueOptions, run-scoped job-id cleanup in finally), dashboardMix (concurrent real use-case read probes, warm p95 budget), drain (inject→poll-to-empty, honestly FAILS when nothing drains). Assertions: required_samples, error-free seam, rate_achieved ≥80%, monitoring_captured (+no_duplicates/drained_within_timeout/warm_p95). Fault registry shape for 8.4/8.5: FAULT_EXECUTORS map deliberately empty — dispatch prints 'catalogued but has no executor in this environment' and exits 2 (same fail-closed path for unimplemented scenarios + unknown names). CLI boots the real container with env validated BEFORE the static import chain (clean Required-env error, no raw stack). (4) Dataset tool (testing/scale-dataset.ts): deterministic sha256-derived ids + per-(seed,stream) Park-Miller LCG distributions (same skew 30%/top-5%, US-heavy regions + denied europe/global cells for the routing proofs); manifest {seed,version,shape,hash}; --verify checks exact counts, org/region integrity, EXACT per-property distribution, skew bounds, manifest hash; --clean deletes exactly the recomputed ids in FK order (dry-run counts; never indiscriminate). 500k-row plan+hash in 1.6s; pinned regression-anchor hash in unit tests. (5) Evidence ingestion (testing/scale-evidence.ts): ingests <scenario>.result.json + validates sibling .raw.json (non-empty samples AND monitoring); HARD FAILS on zero samples, empty monitoring, unknown/duplicate scenario, mixed release shas/versions (one candidate per pack), missing dataset manifest, identity gaps, sha mismatch; SLO violation → written FAIL + exit 1; non-executed rows read exactly 'not executed in this environment' — 'pending staging' is gone from generated artifacts (grep-proven). Template header extended: Release id/sha/Policy versions/Dataset hash/Owner/Date; raw JSON under raw/. local-draft pack REGENERATED FROM ACTUAL EXECUTIONS: steady 10s @20/s (200 samples, 19.94/s PASS), burst 5s @100/s (500 samples, 99.03/s PASS), dataset manifest seed perf-scale-v1 hash e58684b3. (6) docs/performance/scale-harness.md usage doc; catalogue row notes made honest. Parent-verified independently: two loads → identical hashes; --verify green; --clean exactly the dataset. Deferred (by design): fault + remaining scenario executors (8.2–8.5 — registry ready); no docker-compose (via-container covers local, --base-url covers booted envs); no new CI jobs (proposal recorded: determinism tripwire in simulation.yml). Local gates: unit 421f/4636t, integration 59f/338t, lint/typecheck/format clean, coverage floors held, fallow exit 0."
     },
     {
       "id": "BQC-9",

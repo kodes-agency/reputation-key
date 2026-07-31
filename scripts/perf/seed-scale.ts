@@ -1,313 +1,165 @@
-// PRE17C §9.1: Deterministic production-shaped dataset generator.
+// BQC-8.1: deterministic scale dataset tool (was: non-deterministic SQL generator).
 //
-// Creates a synthetic dataset and inserts into PostgreSQL.
-// No real personal data — uses deterministic UUIDs and synthetic content.
+// All logic lives in src/shared/testing/scale-dataset.ts (deterministic plan,
+// manifest, load/verify/clean with colocated tests) — this CLI is wiring only.
 //
 // Usage:
-//   DATABASE_URL=... tsx scripts/perf/seed-scale.ts [options]
+//   pnpm perf:seed-scale -- --orgs=100 --properties=5000 --reviews=500000
+//   pnpm perf:seed-scale -- --seed=my-seed --orgs=2 --properties=20 --reviews=500
+//   pnpm perf:seed-scale -- --dry-run               (plan + hash, no DB)
+//   pnpm perf:seed-scale -- --verify                (prove DB == plan; exit 1 on drift)
+//   pnpm perf:seed-scale -- --clean [--dry-run]     (delete EXACTLY this dataset)
 //
 // Options:
-//   --orgs=N         Number of organizations (default: 50)
-//   --properties=N   Total properties (default: 500)
-//   --reviews=N      Total reviews (default: 50000)
-//   --dry-run        Print plan without inserting
+//   --seed=<string>      dataset seed (default: perf-scale-v1)
+//   --base-time=<iso>    wall-clock anchor for reviewed_at/expires_at
+//                        (default: now; NOT part of the manifest hash)
+//   --manifest=<path>    manifest JSON path (default: docs/release-evidence/beta/local-draft/scale-dataset.json)
+//   --routing-policy-version=N  (default: ROUTING_POLICY_VERSION from the property domain)
+//
+// Same seed + same shape ⇒ byte-identical manifest hash. Requires DATABASE_URL.
 
-import { randomUUID } from 'node:crypto'
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { Pool } from 'pg'
-import { config } from 'dotenv'
+import {
+  planScaleDataset,
+  loadScaleDataset,
+  verifyScaleDataset,
+  cleanScaleDataset,
+  createManifest,
+  serializeManifest,
+  parseManifest,
+} from '../../src/shared/testing/scale-dataset'
+import { ROUTING_POLICY_VERSION } from '../../src/contexts/property/domain/processing-routing'
 
-config({ path: ['.env.local', '.env'], override: true })
-
-const DAYS = 86_400_000
-
-// ── Types ──────────────────────────────────────────────────────────
-
-type Org = { id: string; name: string; slug: string }
-type Property = {
-  id: string
-  orgId: string
-  name: string
-  slug: string
-  timezone: string
-  countryCode: string
-  processingRegion: string
-}
-type Review = {
-  id: string
-  orgId: string
-  propertyId: string
-  externalId: string
-  rating: number
-  reviewedAt: Date
-  expiresAt: Date
+function argValue(flag: string): string | undefined {
+  const hit = process.argv.find((a) => a.startsWith(`${flag}=`))
+  return hit?.slice(flag.length + 1)
 }
 
-// ── Deterministic ID generation ────────────────────────────────────
-
-let _counter = 0
-function nextId(): string {
-  return randomUUID()
-}
-
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, '-')
-}
-
-// ── Country/region/timezone distribution ───────────────────────────
-
-const REGIONS = [
-  { code: 'US', region: 'us', tz: 'America/New_York', weight: 0.6 },
-  { code: 'GB', region: 'europe', tz: 'Europe/London', weight: 0.1 },
-  { code: 'DE', region: 'europe', tz: 'Europe/Berlin', weight: 0.08 },
-  { code: 'FR', region: 'europe', tz: 'Europe/Paris', weight: 0.07 },
-  { code: 'JP', region: 'global', tz: 'Asia/Tokyo', weight: 0.07 },
-] as const
-
-function pickRegion(seed: number): (typeof REGIONS)[number] {
-  const r = ((seed * 9301 + 49297) % 233280) / 233280
-  let cumulative = 0
-  for (const c of REGIONS) {
-    cumulative += c.weight
-    if (r < cumulative) return c
+function numericArg(flag: string, fallback: number): number {
+  const raw = argValue(flag)
+  if (raw == null) return fallback
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n <= 0) {
+    console.error(`Invalid ${flag}='${raw}' — expected a positive integer`)
+    process.exit(2)
   }
-  return REGIONS[0]
+  return n
 }
 
-// ── Dataset generators ─────────────────────────────────────────────
+const DEFAULT_MANIFEST = 'docs/release-evidence/beta/local-draft/scale-dataset.json'
 
-function generateOrgs(count: number): Org[] {
-  return Array.from({ length: count }, (_, i) => ({
-    id: nextId(),
-    name: `Organization ${i + 1}`,
-    slug: `org-${i + 1}-${randomUUID().slice(0, 8)}`,
-  }))
-}
-
-function generateProperties(orgs: Org[], total: number): Property[] {
-  const props: Property[] = []
-  for (let i = 0; i < total; i++) {
-    const orgIdx = Math.floor((i / total) * orgs.length)
-    const org = orgs[Math.min(orgIdx, orgs.length - 1)]
-    const region = pickRegion(i + 1000)
-    props.push({
-      id: nextId(),
-      orgId: org.id,
-      name: `Property ${i + 1}`,
-      slug: `prop-${i + 1}-${randomUUID().slice(0, 8)}`,
-      timezone: region.tz,
-      countryCode: region.code,
-      processingRegion: region.region,
-    })
+async function main(): Promise<number> {
+  const seed = argValue('--seed') ?? 'perf-scale-v1'
+  const shape = {
+    orgs: numericArg('--orgs', 50),
+    properties: numericArg('--properties', 500),
+    reviews: numericArg('--reviews', 50_000),
   }
-  return props
-}
-
-function generateReviews(properties: Property[], total: number): Review[] {
-  const reviews: Review[] = []
-  const highVolThreshold = Math.max(1, Math.floor(properties.length * 0.05))
-
-  for (let i = 0; i < total; i++) {
-    let propIdx: number
-    if (i < total * 0.3) {
-      propIdx = Math.floor(Math.random() * highVolThreshold)
-    } else {
-      propIdx =
-        highVolThreshold +
-        Math.floor(Math.random() * (properties.length - highVolThreshold))
-    }
-    propIdx = Math.min(propIdx, properties.length - 1)
-    const prop = properties[propIdx]
-    const daysAgo = Math.floor(Math.random() * 180)
-    const reviewedAt = new Date(Date.now() - daysAgo * DAYS)
-
-    reviews.push({
-      id: nextId(),
-      orgId: prop.orgId,
-      propertyId: prop.id,
-      externalId: `R${randomUUID()}`,
-      rating: 1 + Math.floor(Math.random() * 5),
-      reviewedAt,
-      expiresAt: new Date(reviewedAt.getTime() + 30 * DAYS),
-    })
+  const dryRun = process.argv.includes('--dry-run')
+  const verify = process.argv.includes('--verify')
+  const clean = process.argv.includes('--clean')
+  const baseTimeArg = argValue('--base-time')
+  const baseTime = baseTimeArg ? new Date(baseTimeArg) : new Date()
+  if (Number.isNaN(baseTime.getTime())) {
+    console.error(`Invalid --base-time='${baseTimeArg}' — expected an ISO date`)
+    return 2
   }
-  return reviews
-}
-
-// ── Batched insertion ──────────────────────────────────────────────
-
-const BATCH_SIZE = 1000
-
-async function batchInsert(
-  pool: Pool,
-  table: string,
-  columns: string[],
-  rows: ReadonlyArray<readonly unknown[]>,
-) {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE)
-    const placeholders = batch
-      .map(
-        (_, rowIdx) =>
-          `(${columns.map((_, colIdx) => `$${rowIdx * columns.length + colIdx + 1}`).join(', ')})`,
-      )
-      .join(', ')
-    const values = batch.flat()
-    await pool.query(
-      `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${placeholders} ON CONFLICT DO NOTHING`,
-      values,
-    )
-  }
-}
-
-// ── Main ───────────────────────────────────────────────────────────
-
-async function main() {
-  const args = process.argv.slice(2)
-  const opts = {
-    orgs: Number(args.find((a) => a.startsWith('--orgs='))?.split('=')[1]) || 50,
-    properties:
-      Number(args.find((a) => a.startsWith('--properties='))?.split('=')[1]) || 500,
-    reviews:
-      Number(args.find((a) => a.startsWith('--reviews='))?.split('=')[1]) || 50_000,
-    dryRun: args.includes('--dry-run'),
-  }
-
-  console.log('PRE17C scale dataset generator')
-  console.log('═'.repeat(60))
-  console.log(
-    `  Organizations: ${opts.orgs.toLocaleString()}\n` +
-      `  Properties:    ${opts.properties.toLocaleString()}\n` +
-      `  Reviews:       ${opts.reviews.toLocaleString()}\n` +
-      `  Mode:          ${opts.dryRun ? 'DRY RUN' : 'INSERT'}`,
+  const manifestPath = resolve(process.cwd(), argValue('--manifest') ?? DEFAULT_MANIFEST)
+  const routingPolicyVersion = numericArg(
+    '--routing-policy-version',
+    ROUTING_POLICY_VERSION,
   )
 
-  // Generate
-  const t0 = performance.now()
-  const orgs = generateOrgs(opts.orgs)
-  const properties = generateProperties(orgs, opts.properties)
-  const reviews = generateReviews(properties, opts.reviews)
-  console.log(`Dataset generated in ${((performance.now() - t0) / 1000).toFixed(1)}s`)
+  const plan = planScaleDataset({ seed, shape, routingPolicyVersion })
 
-  if (opts.dryRun) {
-    console.log('\nDRY RUN — no data inserted.')
-    return
+  console.log('BQC-8.1 deterministic scale dataset')
+  console.log('═'.repeat(60))
+  console.log(`  Seed:        ${seed}`)
+  console.log(`  Version:     ${plan.version}`)
+  console.log(
+    `  Shape:       ${shape.orgs} orgs / ${shape.properties} properties / ${shape.reviews} reviews`,
+  )
+  console.log(`  Plan hash:   ${plan.hash}`)
+  console.log(`  Routing ver: ${routingPolicyVersion}`)
+
+  if (dryRun && !clean) {
+    console.log('\nDRY RUN — no data touched.')
+    return 0
   }
 
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
     console.error('DATABASE_URL not set')
-    process.exit(1)
+    return 1
   }
-  console.log(`\nConnecting to: ${databaseUrl.replace(/:[^:@]+@/, ':***@')}`)
+  console.log(`  Database:    ${databaseUrl.replace(/:[^:@]+@/, ':***@')}`)
   const pool = new Pool({ connectionString: databaseUrl, max: 10 })
 
   try {
-    // Phase 1: Organizations
-    const t1 = performance.now()
-    process.stdout.write('Inserting organizations… ')
-    await batchInsert(
-      pool,
-      'organization',
-      ['id', 'name', 'slug', '"createdAt"'],
-      orgs.map((o) => [o.id, o.name, o.slug, new Date()]),
-    )
-    console.log(`${orgs.length} in ${((performance.now() - t1) / 1000).toFixed(1)}s`)
+    if (clean) {
+      const result = await cleanScaleDataset(pool, plan, { dryRun })
+      console.log(
+        `\n${dryRun ? 'Would delete' : 'Deleted'}: ${result.orgs} orgs / ${result.properties} properties / ${result.reviews} reviews (exact dataset ids only)`,
+      )
+      return 0
+    }
 
-    // Phase 2: Properties
-    const t2 = performance.now()
-    process.stdout.write('Inserting properties… ')
-    await batchInsert(
-      pool,
-      'properties',
-      [
-        'id',
-        'organization_id',
-        'name',
-        'slug',
-        'timezone',
-        'country_code',
-        'processing_region',
-      ],
-      properties.map((p) => [
-        p.id,
-        p.orgId,
-        p.name,
-        p.slug,
-        p.timezone,
-        p.countryCode,
-        p.processingRegion,
-      ]),
-    )
+    if (verify) {
+      let expectedHash: string | undefined
+      if (existsSync(manifestPath)) {
+        expectedHash = parseManifest(readFileSync(manifestPath, 'utf8')).hash
+        console.log(`  Manifest:    ${manifestPath} (${expectedHash.slice(0, 16)}…)`)
+      } else {
+        console.log('  Manifest:    (none — recomputing hash from seed+shape)')
+      }
+      const report = await verifyScaleDataset(pool, plan, { expectedHash })
+      console.log('\nVerify:')
+      for (const check of report.checks) {
+        console.log(`  ${check.passed ? '✓' : '✗'} ${check.check} — ${check.detail}`)
+      }
+      if (!report.ok) {
+        console.error('\nVERIFY FAILED — the database does not hold this exact dataset.')
+        return 1
+      }
+      console.log('\nVERIFY OK')
+      return 0
+    }
+
+    // Load.
+    const result = await loadScaleDataset(pool, plan, {
+      baseTime,
+      now: () => performance.now(),
+    })
+    const seconds = (result.durationMs / 1000).toFixed(1)
     console.log(
-      `${properties.length} in ${((performance.now() - t2) / 1000).toFixed(1)}s`,
+      `\nLoaded ${result.orgs} orgs / ${result.properties} properties / ${result.reviews} reviews in ${seconds}s` +
+        (result.reviews > 0
+          ? ` (${Math.round(result.reviews / (result.durationMs / 1000)).toLocaleString()} reviews/s)`
+          : ''),
     )
 
-    // Phase 3: Reviews
-    const t3 = performance.now()
-    process.stdout.write('Inserting reviews… ')
-    await batchInsert(
-      pool,
-      'reviews',
-      [
-        'id',
-        'organization_id',
-        'property_id',
-        'platform',
-        'external_id',
-        'external_location_id',
-        'rating',
-        'reviewed_at',
-        'expires_at',
-      ],
-      reviews.map((r) => [
-        r.id,
-        r.orgId,
-        r.propertyId,
-        'google',
-        r.externalId,
-        r.propertyId,
-        r.rating,
-        r.reviewedAt,
-        r.expiresAt,
-      ]),
-    )
-    const reviewSec = parseFloat(((performance.now() - t3) / 1000).toFixed(1))
-    const rate = Math.round(reviews.length / reviewSec)
-    console.log(`${reviews.length} in ${reviewSec}s (${rate.toLocaleString()}/s)`)
-
-    // Verify
-    const counts = await pool.query(`
-      SELECT
-        (SELECT count(*)::bigint FROM organization) AS orgs,
-        (SELECT count(*)::bigint FROM properties) AS properties,
-        (SELECT count(*)::bigint FROM reviews) AS reviews
-    `)
-    console.log('\n' + '═'.repeat(60))
-    console.log('Database verification:')
-    console.log(`  Organizations: ${Number(counts.rows[0].orgs).toLocaleString()}`)
-    console.log(`  Properties:    ${Number(counts.rows[0].properties).toLocaleString()}`)
-    console.log(`  Reviews:       ${Number(counts.rows[0].reviews).toLocaleString()}`)
-
-    // Query performance test: filter reviews by property
-    const propId = properties[0].id
-    const qt = performance.now()
-    const qr = await pool.query(
-      `SELECT count(*), avg(rating) FROM reviews WHERE property_id = $1`,
-      [propId],
-    )
-    const queryMs = (performance.now() - qt).toFixed(1)
-    console.log(`\nQuery test (property ${propId.slice(0, 12)}…):`)
-    console.log(
-      `  count=${qr.rows[0].count}, avg_rating=${Number(qr.rows[0].avg).toFixed(2)}, ${queryMs}ms`,
-    )
+    const manifest = createManifest(plan, baseTime)
+    mkdirSync(dirname(manifestPath), { recursive: true })
+    writeFileSync(manifestPath, serializeManifest(manifest), 'utf8')
+    console.log(`Manifest: ${manifestPath}`)
+    console.log(`Hash:     ${manifest.hash}`)
     console.log('═'.repeat(60))
+    console.log(
+      'Next: --verify to prove the load, --clean to remove exactly this dataset.',
+    )
+    return 0
   } finally {
     await pool.end()
   }
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+main()
+  .then((code) => process.exit(code))
+  .catch((err) => {
+    console.error('seed-scale failed:', err)
+    process.exit(1)
+  })
