@@ -615,8 +615,13 @@ export default tseslint.config(
 
   // ─── Allow drizzle-orm in shared/observability/health-metrics (PRE17C) ──
   // Health metrics queries raw SQL via Drizzle for operational monitoring.
+  // BQC-7.4: alert-aux-reads is the same operational-monitoring seam
+  // (aggregate reads feeding the alert evaluation).
   {
-    files: ['src/shared/observability/health-metrics.ts'],
+    files: [
+      'src/shared/observability/health-metrics.ts',
+      'src/shared/observability/alert-aux-reads.ts',
+    ],
     rules: {
       'no-restricted-imports': 'off',
     },
