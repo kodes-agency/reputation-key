@@ -372,6 +372,7 @@ describe('upCell', () => {
     const rig = fakeRig()
     const result = await upCell(rig.effects, {
       dbName: 'repkey_bqc8_cell',
+      databaseUrl: DB_URL, // pinned — the default derives from the ambient OS user
       skipBuild: true,
       releaseSha: 'deadbeef'.repeat(8),
     })
