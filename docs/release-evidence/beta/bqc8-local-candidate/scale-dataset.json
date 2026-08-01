@@ -1,0 +1,11 @@
+{
+  "seed": "perf-scale-v1",
+  "version": 1,
+  "shape": {
+    "orgs": 100,
+    "properties": 5000,
+    "reviews": 500000
+  },
+  "hash": "5501350a55aab0a5f4a8ddd744e6eab437ada1c8bae2e2dc57beeeabe030e96b",
+  "createdAt": "2026-08-01T09:03:53.843Z"
+}

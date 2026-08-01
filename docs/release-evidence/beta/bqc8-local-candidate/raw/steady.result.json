@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "scenario": "steady",
+  "startedAt": "2026-08-01T09:05:28.230Z",
+  "durationMs": 300458.457125,
+  "passed": true,
+  "metrics": {
+    "targetRatePerSec": 20,
+    "achievedRatePerSec": 19.97,
+    "executedDurationS": 300.458,
+    "enqueued": 6000,
+    "enqueueErrors": 0,
+    "enqueueP50": 0.96,
+    "enqueueP95": 1.47,
+    "enqueueP99": 1.77,
+    "removedOnCleanup": 6000,
+    "cleanupMissed": 0
+  },
+  "assertions": [
+    {
+      "check": "required_samples",
+      "passed": true,
+      "detail": "6000 samples collected"
+    },
+    {
+      "check": "enqueue_error_free",
+      "passed": true,
+      "detail": "0 enqueue failures"
+    },
+    {
+      "check": "rate_achieved",
+      "passed": true,
+      "detail": "achieved 20.0/s vs target 20/s"
+    },
+    {
+      "check": "monitoring_captured",
+      "passed": true,
+      "detail": "300 points, 0 read errors"
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f5d5f6ed9ca096239983a0507bcce9dba742781d",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "rate": 20,
+    "duration": 1800,
+    "noLoss": true
+  },
+  "samples": {
+    "count": 6000,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 300,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

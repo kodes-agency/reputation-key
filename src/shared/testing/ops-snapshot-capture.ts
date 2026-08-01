@@ -23,6 +23,8 @@ import type {
 import type { HealthSnapshot } from '#/shared/observability/health-metrics'
 import type { QueueDepth } from '#/shared/health/queue-depth'
 import type { WorkerHeartbeat } from '#/shared/health/worker-heartbeat'
+import type { TenantCacheStats } from '#/shared/auth/tenant-cache-stats'
+import type { ExternalCollector, ExternalCollectorSeries } from './external-collectors'
 
 /** One captured monitoring point — the whitelisted SLO-relevant sections. */
 export type SnapshotSeriesPoint = Readonly<{
@@ -34,6 +36,10 @@ export type SnapshotSeriesPoint = Readonly<{
   heartbeat: WorkerHeartbeat
   db: OperationsDbSection
   degraded: readonly string[]
+  /** BQC-8.2: cache hit-rate evidence (tenant cache counters). */
+  cache: { tenant: TenantCacheStats }
+  /** BQC-8.2: reply-publication saga counts (replyBurst monitoring). */
+  replyPublication: HealthSnapshot['replyPublication']
 }>
 
 /** A completed capture: points plus the reads that failed (never silent). */
@@ -44,6 +50,15 @@ export type SnapshotSeries = Readonly<{
   points: readonly SnapshotSeriesPoint[]
   readErrors: ReadonlyArray<Readonly<{ at: string; message: string }>>
 }>
+
+/**
+ * The capture result: the snapshot series plus, when an external collector
+ * was wired (BQC-8.2 redis-cli), its platform-side series. `external` is
+ * absent when nothing was collected — the run record's collectors section
+ * states the gap explicitly.
+ */
+export type CaptureResult = SnapshotSeries &
+  Readonly<{ external?: ExternalCollectorSeries }>
 
 /** The minimal read contract both modes satisfy. */
 export type OpsSnapshotSource = Readonly<{
@@ -86,6 +101,8 @@ export function toPoint(snapshot: OperationsSnapshot, at: Date): SnapshotSeriesP
     heartbeat: snapshot.workers.heartbeat,
     db: snapshot.db,
     degraded: snapshot.degraded,
+    cache: snapshot.cache,
+    replyPublication: snapshot.replyPublication,
   }
 }
 
@@ -94,20 +111,23 @@ export type SnapshotCapture = Readonly<{
    * Take one read now and return the captured point (null when the read
    * failed or a previous read is still in flight). Executors drive ticks
    * from their own pacing so monitoring works on injected/virtual clocks.
+   * A wired external collector (BQC-8.2) ticks alongside — same pacing.
    */
   tick: () => Promise<SnapshotSeriesPoint | null>
   /** Immediate tick + interval ticks (real timers) until stop(). */
   start: () => void
-  /** Stop pacing, settle the in-flight read, return the series. */
-  stop: () => Promise<SnapshotSeries>
+  /** Stop pacing, settle the in-flight read, return the series (+ external). */
+  stop: () => Promise<CaptureResult>
 }>
 
 export function createCapture(deps: {
   source: OpsSnapshotSource
   intervalMs: number
   clock: Clock
+  /** Optional BQC-8.2 external collector — ticked/stopped with the capture. */
+  external?: ExternalCollector
 }): SnapshotCapture {
-  const { source, intervalMs, clock } = deps
+  const { source, intervalMs, clock, external } = deps
   const startedAt = clock().toISOString()
   const points: SnapshotSeriesPoint[] = []
   const readErrors: Array<{ at: string; message: string }> = []
@@ -132,6 +152,9 @@ export function createCapture(deps: {
         inFlight = null
       }
     })()
+    // The external collector piggybacks on the capture's pacing (its own
+    // in-flight guard makes this cheap when the snapshot read was slow).
+    void external?.tick()
     return inFlight
   }
 
@@ -151,12 +174,14 @@ export function createCapture(deps: {
         timer = null
       }
       if (inFlight) await inFlight
+      const externalSeries = external ? await external.stop() : undefined
       return {
         startedAt,
         stoppedAt: clock().toISOString(),
         intervalMs,
         points,
         readErrors,
+        ...(externalSeries ? { external: externalSeries } : {}),
       }
     },
   }
@@ -165,7 +190,7 @@ export function createCapture(deps: {
 // ── Raw series store (JSON) ──────────────────────────────────────────
 
 /** Series store format version — bump on any shape change; parsers fail closed. */
-export const SNAPSHOT_SERIES_VERSION = 1 as const
+export const SNAPSHOT_SERIES_VERSION = 2 as const
 
 export function serializeSeries(series: SnapshotSeries): string {
   return JSON.stringify({ version: SNAPSHOT_SERIES_VERSION, ...series }, null, 2)
@@ -183,7 +208,11 @@ function isPoint(value: unknown): value is SnapshotSeriesPoint {
     v.heartbeat != null &&
     typeof v.db === 'object' &&
     v.db != null &&
-    Array.isArray(v.degraded)
+    Array.isArray(v.degraded) &&
+    typeof v.cache === 'object' &&
+    v.cache != null &&
+    typeof v.replyPublication === 'object' &&
+    v.replyPublication != null
   )
 }
 

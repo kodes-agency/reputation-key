@@ -83,6 +83,15 @@ const KEY_METRICS = [
   'backlogSize',
   'drainMs',
   'remainingWaiting',
+  // BQC-8.2 capacity metrics.
+  'backgroundAchievedRatePerSec',
+  'hotAchievedRatePerSec',
+  'catchUpDrainMs',
+  'dispatchRatePerSec',
+  'projectedWindowS',
+  'publishP95',
+  'published',
+  'maxQueueWaiting',
 ] as const
 
 const METRIC_UNITS: Record<string, string> = {
@@ -90,13 +99,22 @@ const METRIC_UNITS: Record<string, string> = {
   targetRatePerSec: '/s',
   readRatePerSec: '/s',
   injectionRatePerSec: '/s',
+  backgroundAchievedRatePerSec: '/s',
+  hotAchievedRatePerSec: '/s',
+  catchUpRatePerSec: '/s',
+  dispatchRatePerSec: '/s',
   enqueueP50: 'ms',
   enqueueP95: 'ms',
   enqueueP99: 'ms',
   readP50: 'ms',
   readP95: 'ms',
   readP99: 'ms',
+  publishP50: 'ms',
+  publishP95: 'ms',
+  publishP99: 'ms',
   drainMs: 'ms',
+  catchUpDrainMs: 'ms',
+  projectedWindowS: 's',
 }
 
 function metricSummary(record: ScenarioRunRecord): string {

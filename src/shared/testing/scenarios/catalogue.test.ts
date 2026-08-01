@@ -30,6 +30,12 @@ describe('SLO inventory', () => {
       outboxLagP95: 5000,
       fleetProperties: 5000,
       fleetWindow: 4,
+      // BQC-8.2: capacity-execution thresholds (ADR 0038 + §8.2).
+      replyPublishTerminalP95: 10_000,
+      replyBurstSize: 25,
+      reconnectOutage: 30,
+      hotPropertyBurstRate: 100,
+      backgroundRateFloor: 0.8,
     })
   })
 })
@@ -39,11 +45,13 @@ describe('scenario inventory', () => {
     expect(Object.keys(SCENARIOS).sort()).toEqual(
       [
         'burst',
+        'dashboardCold',
         'dashboardMix',
         'drain',
         'fleetDispatch',
         'reconciliation',
         'reconnect',
+        'replyBurst',
         'retention',
         'singlePropertyBurst',
         'steady',
@@ -91,6 +99,10 @@ describe('run record store', () => {
     slo: { rate: 20, duration: 1800, noLoss: true },
     samples: { count: 200, errors: 0 },
     monitoring: { points: 10, readErrors: 0 },
+    collectors: {
+      redisInfo: 'redis-cli',
+      dbCpuLocks: 'not-collected-in-this-environment',
+    },
   }
 
   it('serializes and parses back the identical record', () => {
@@ -100,7 +112,7 @@ describe('run record store', () => {
   it('rejects malformed or version-drifted records (fail closed)', () => {
     expect(() => parseResult('nope')).toThrow(SyntaxError)
     expect(() => parseResult('{"version":99}')).toThrow(/version/)
-    expect(() => parseResult(JSON.stringify({ version: 1, scenario: 'steady' }))).toThrow(
+    expect(() => parseResult(JSON.stringify({ version: 2, scenario: 'steady' }))).toThrow(
       /shape/,
     )
     // Zero-sample records PARSE (they are well-formed) — the evidence

@@ -4,7 +4,7 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-07-31T21:11:55Z  
+**Manifest updated:** 2026-08-01T09:36:52Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
 **Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
@@ -107,6 +107,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-7.3 | slice | Observability schema | `implementation_complete` | engineering | — | — | — |
 | BQC-7.2 | slice | Health semantics | `implementation_complete` | engineering | — | — | — |
 | BQC-7.1 | slice | Production containers and deployment contract | `implementation_complete` | engineering | — | — | — |
+| BQC-8.2 | slice | Steady-state and burst capacity | `implementation_complete` | engineering | — | — | — |
 | BQC-8.1 | slice | Convert scenario catalogues into executable harnesses | `implementation_complete` | engineering | — | — | — |
 
 ## Historical BQR work

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-07-31T21:11:55Z",
+  "updatedAt": "2026-08-01T09:36:52Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
@@ -1088,7 +1088,19 @@
       "requiredEvidenceIds": [],
       "openFindings": ["SPEC-P1-04", "SPEC-P2-02"],
       "exceptions": [],
-      "notes": "8.1 implementation_complete: executable harnesses — measurement lib + monitoring capture + steady/burst/dashboardMix/drain executors (BQC-3 producer contract, run-scoped cleanup, fail-closed assertions), deterministic scale dataset (seed/shape/hash, verify + exact clean), fail-closed evidence ingestion (no unexecuted row labeled evidence; release-identity bound). Fault + remaining scenario executors deferred to 8.2–8.5 (registry + fail-closed dispatch ready). Slices 8.2–8.8 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "8.1 implementation_complete: executable harnesses — measurement lib + monitoring capture + steady/burst/dashboardMix/drain executors (BQC-3 producer contract, run-scoped cleanup, fail-closed assertions), deterministic scale dataset (seed/shape/hash, verify + exact clean), fail-closed evidence ingestion (no unexecuted row labeled evidence; release-identity bound). Fault + remaining scenario executors deferred to 8.2–8.5 (registry + fail-closed dispatch ready).  8.2 implementation_complete: capacity matrix executed against the local production-shaped cell (perf:cell harness + 5 new executors) — all 9 scenarios PASS with measured numbers (steady 20.0/s, burst 6000 unique, tenant-fairness bounded, reconnect 220s, fleet 45210/s + labeled projection, dashboard warm 3.4ms/cold 4.7ms, reply publish p95 4833ms, drain 94.8s scale-down/up). Pack bqc8-local-candidate with NOTES.md fidelity contract (dispatch-path measured; provider-ingest fidelity = staging gap, recorded not hidden). Slices 8.3–8.8 not started. NOT accepted — acceptance is the user's independent review."
+    },
+    {
+      "id": "BQC-8.2",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Steady-state and burst capacity",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "RE_EXECUTES the capacity matrix against a LOCAL production-shaped cell — the first measured pack with real numbers (acceptance-level staging execution remains the owner's environment scheduling). (1) CELL HARNESS (src/shared/testing/staging-cell.ts + pnpm perf:cell): dedicated repkey_bqc8_* database only (prefix guard + shared denylist), migration trio to deploy state, isolated Redis logical db 9, GBP/mail sandbox stubs as processes, production web+worker builds (NODE_ENV=production, deterministic non-placeholder sha256 secrets — passes the 7.6 boot guard), hermetic boot (dotenv neutralized), readiness gates, PID state file, idempotent up, cleanup-on-failure, SIGTERM→SIGKILL teardown (worker first). 32 unit tests + the live boot as the integration smoke. (2) EXECUTORS: singlePropertyBurst (100/s hot + 20/s background; fairness via bounded queue depth), reconnect (outage window → catch-up drain vs SLO), fleetDispatch (dispatch rate + LABELED projection, never measured-window), dashboardCold (in-process container reset — required making registerAllEventSchemas idempotent, registry probe, duplicate-guard intact), replyBurst (real publication path: run-scoped connection + GBP stub, publish→terminal p95 vs ADR 0038 10s; fails closed without the seam). Collector seam: redis-cli INFO when present; DB CPU/locks stated not-collected in every record (platform surface). (3) EXECUTIONS (cell, dataset 100 orgs/5000 properties/500000 reviews seed perf-scale-v1 hash 5501350a, verify 7/7): steady 300s @20/s achieved 20.0/s PASS; burst 6000 unique/6000 PASS; singlePropertyBurst max waiting 6946 vs 10k PASS; reconnect catch-up drain 220s vs 600s PASS; fleetDispatch 45210/s dispatch, PROJECTION labeled PASS; dashboardMix p95 3.4ms vs 500ms PASS; dashboardCold p95 4.7ms vs 2000ms PASS; replyBurst 25/25 terminal, publish→terminal p95 4833ms vs 10000ms PASS; drain scale-down/up variant (worker stopped, backlog 500, restarted mid-run) 94.8s vs 600s PASS. Pack docs/release-evidence/beta/bqc8-local-candidate/ (9 executed PASS rows; retention/reconciliation + 12 faults honestly not-executed) + NOTES.md fidelity contract: synthetic orgs have no provider connections — arrival jobs fail fast at connection lookup and exercise the dispatch/retry path (measured), NOT provider ingest (registered gap for the staging acceptance run; dashboard + reply paths are full-fidelity). Harness fixes proven by the run: registerAllEventSchemas idempotent; reply-seam text[]/uuid[] binds via Postgres array literals (sql templates expand JS arrays to records); perf:cell pnpm `--` separator handling. Machine: no instability during the 500k runs. Teardown clean (0 leftover processes, DB kept). Local gates: unit 423f/4687t, integration 59f/338t, lint/typecheck/format clean, coverage floors held, fallow exit 0."
     },
     {
       "id": "BQC-8.1",

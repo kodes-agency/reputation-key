@@ -39,6 +39,13 @@ export const SLOS = {
   // Fleet scheduling
   fleetProperties: 5000,
   fleetWindow: 4, // hours to dispatch all
+
+  // BQC-8.2 capacity executions (ADR 0038 + phase doc §8.2)
+  replyPublishTerminalP95: 10_000, // ms — "Reply publish → terminal status visible p95 ≤ 10s" (ADR 0038)
+  replyBurstSize: 25, // replies — a burst within human-use expectations
+  reconnectOutage: 30, // s — simulated provider outage window before catch-up
+  hotPropertyBurstRate: 100, // reviews/s concentrated on ONE hot property
+  backgroundRateFloor: 0.8, // tenant fairness: background ≥ 80% of target under a hot burst
 } as const
 
 // ── Scenario definitions ───────────────────────────────────────────
@@ -83,26 +90,36 @@ export const SCENARIOS = {
   },
   singlePropertyBurst: {
     name: 'Single-property burst',
-    description: 'Concentrated updates with timestamp ties',
+    description:
+      'Burst concentrated on ONE hot property while steady background arrival continues on the fleet',
     slo: {
-      cursorSafety: true,
-      orderPreservation: true,
+      backgroundRate: SLOS.steadyReviewRate,
+      hotRate: SLOS.hotPropertyBurstRate,
+      duration: SLOS.burstDuration,
+      backgroundRateFloor: SLOS.backgroundRateFloor,
+      boundedDepth: SLOS.maxQueueDepth,
     },
   },
   reconnect: {
     name: 'Reconnect/import',
-    description: '100 properties with paged histories, staggered',
+    description:
+      'Simulated provider outage (injection paused, worker live), then reconnect catch-up burst and drain',
     slo: {
-      interactiveProtection: true,
-      resumable: true,
+      outageDuration: SLOS.reconnectOutage,
+      catchUpRate: SLOS.burstReviewRate,
+      drainTimeout: SLOS.drainTimeout,
+      noDuplicates: true,
+      noLoss: true,
     },
   },
   fleetDispatch: {
     name: 'Fleet dispatch',
-    description: '5,000 due properties over 4 hours',
+    description:
+      'Dispatch refresh-due work for the whole seeded fleet; measured rate + LABELED 4h-window projection',
     slo: {
-      noHerd: true,
-      boundedRedisEntries: true,
+      fleetProperties: SLOS.fleetProperties,
+      fleetWindowHours: SLOS.fleetWindow,
+      projectionLabeled: true,
     },
   },
   dashboardMix: {
@@ -112,6 +129,23 @@ export const SCENARIOS = {
       warmP95: SLOS.dashboardP95,
       coldP95: SLOS.dashboardColdP95,
       noLeakage: true,
+    },
+  },
+  dashboardCold: {
+    name: 'Dashboard cold start',
+    description: 'First-N reads through a freshly restarted read path (cache cold start)',
+    slo: {
+      coldP95: SLOS.dashboardColdP95,
+      firstReads: 20,
+    },
+  },
+  replyBurst: {
+    name: 'Reply publication burst',
+    description:
+      'A human-use burst of reply publications; publish → terminal p95 (ADR 0038)',
+    slo: {
+      burstSize: SLOS.replyBurstSize,
+      publishTerminalP95: SLOS.replyPublishTerminalP95,
     },
   },
   retention: {
@@ -224,6 +258,17 @@ export type RunVersions = Readonly<{
 }>
 
 /**
+ * BQC-8.2: what the run captured from OUTSIDE the app-readable snapshot.
+ * Never a silent gap: every record states exactly which platform surfaces
+ * were collected and which were not (DB CPU/locks are platform-observability
+ * acceptance surfaces, not app-readable).
+ */
+export type CollectorCoverage = Readonly<{
+  redisInfo: 'redis-cli' | 'not-collected-in-this-environment'
+  dbCpuLocks: 'not-collected-in-this-environment'
+}>
+
+/**
  * What an executed scenario writes to `<scenario>.result.json`. Extends the
  * catalogue ScenarioResult with the environment/identity/threshold context
  * the evidence ingester needs to review a run without re-derivation.
@@ -238,6 +283,8 @@ export type ScenarioRunRecord = ScenarioResult &
     slo: Record<string, number | string | boolean>
     samples: Readonly<{ count: number; errors: number }>
     monitoring: Readonly<{ points: number; readErrors: number }>
+    /** External collector coverage statement (BQC-8.2) — always present. */
+    collectors: CollectorCoverage
   }>
 
 export function createResult(
@@ -260,7 +307,7 @@ export function createResult(
 // ── Result record store (JSON) ─────────────────────────────────────
 
 /** Result store format version — bump on any shape change; parsers fail closed. */
-export const RESULT_STORE_VERSION = 1 as const
+export const RESULT_STORE_VERSION = 2 as const
 
 export function serializeResult(record: ScenarioRunRecord): string {
   return JSON.stringify({ version: RESULT_STORE_VERSION, ...record }, null, 2)
@@ -277,6 +324,7 @@ export function parseResult(json: string): ScenarioRunRecord {
   const samples = r.samples as Record<string, unknown> | undefined
   const monitoring = r.monitoring as Record<string, unknown> | undefined
   const versions = r.versions as Record<string, unknown> | undefined
+  const collectors = r.collectors as Record<string, unknown> | undefined
   if (
     typeof r.scenario !== 'string' ||
     typeof r.startedAt !== 'string' ||
@@ -295,7 +343,9 @@ export function parseResult(json: string): ScenarioRunRecord {
     typeof monitoring?.readErrors !== 'number' ||
     typeof versions?.capabilityPolicy !== 'string' ||
     typeof versions?.routingPolicy !== 'number' ||
-    typeof versions?.sourceContentPolicy !== 'number'
+    typeof versions?.sourceContentPolicy !== 'number' ||
+    typeof collectors?.redisInfo !== 'string' ||
+    collectors?.dbCpuLocks !== 'not-collected-in-this-environment'
   )
     throw new Error('scenario result: shape mismatch')
   const { version: _version, ...record } = r
