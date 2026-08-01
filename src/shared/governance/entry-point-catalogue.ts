@@ -2678,6 +2678,14 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'perf:evidence — ingests measured scenario results into scale-and-recovery evidence; fails closed on missing samples/identity (BQC-8.1)',
     },
   ),
+  ops('scripts/perf/staging-cell.ts', 'scripts/perf/staging-cell.ts', 'tenant_cross', {
+    notes:
+      'perf:cell — local production-shaped cell orchestration: creates/migrates/drops ONLY repkey_bqc8_* databases, spawns web/worker/stub processes (BQC-8.2)',
+  }),
+  ops('scripts/perf/cell-stub-server.ts', 'scripts/perf/cell-stub-server.ts', 'none', {
+    notes:
+      'perf:cell stub process — GBP/mail sandbox fixtures serving the cell (no DB; provider endpoints pinned here, BQC-8.2)',
+  }),
   // ── package.json-only commands (CLI tools, no repo script file) ───
   ops('db:generate', 'package.json', 'none', {
     notes: 'drizzle-kit generate — writes migration SQL (broken meta chain: STD-P2-02)',

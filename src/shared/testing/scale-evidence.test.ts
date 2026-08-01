@@ -62,6 +62,10 @@ function runRecord(overrides: Partial<ScenarioRunRecord> = {}): ScenarioRunRecor
     slo: { rate: 20, duration: 1800, noLoss: true },
     samples: { count: 500, errors: 0 },
     monitoring: { points: 10, readErrors: 0 },
+    collectors: {
+      redisInfo: 'not-collected-in-this-environment',
+      dbCpuLocks: 'not-collected-in-this-environment',
+    },
     ...overrides,
   }
 }

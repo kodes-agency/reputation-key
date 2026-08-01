@@ -53,6 +53,7 @@
     "perf:run": "tsx scripts/perf/load-test.ts",
     "perf:seed-scale": "tsx scripts/perf/seed-scale.ts",
     "perf:evidence": "tsx scripts/perf/write-scale-evidence.ts",
+    "perf:cell": "tsx scripts/perf/staging-cell.ts",
     "bqc:validate-status": "tsx scripts/bqc/validate-status.ts",
     "bqc:generate-status": "tsx scripts/bqc/generate-status.ts",
     "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",

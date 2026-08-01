@@ -12,7 +12,7 @@
 // They will be removed from producers in a follow-up cleanup.
 
 import { z } from 'zod'
-import { registerEventSchema } from './schema-registry'
+import { registerEventSchema, isEventRegistered } from './schema-registry'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -362,8 +362,16 @@ const EVENT_VERSION = 1
 /**
  * Register all outbox event schemas. Called once during application startup
  * (before the relay or dispatcher starts processing events).
+ *
+ * Idempotent: composition may build more than one container in a process
+ * (the dashboardCold in-process restart seam, tests). The registration set
+ * is fixed constants, so a repeat call is definitionally identical and is
+ * skipped — the registry's own duplicate guard still catches a conflicting
+ * registration under an existing key. Tests that clearEventSchemas() get a
+ * fresh registration on the next call.
  */
 export function registerAllEventSchemas(): void {
+  if (isEventRegistered('review.created', EVENT_VERSION)) return
   // Review events
   registerEventSchema({
     type: 'review.created',

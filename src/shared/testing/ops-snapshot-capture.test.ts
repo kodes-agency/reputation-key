@@ -79,14 +79,26 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
 const clockAt = (t: number) => () => new Date(T0 + t)
 
 describe('toPoint projection', () => {
-  it('keeps exactly the whitelisted SLO-relevant fields', () => {
+  it('keeps exactly the whitelisted SLO-relevant fields (incl. cache + reply publication, BQC-8.2)', () => {
     const point = toPoint(fakeSnapshot(), new Date(T0))
     expect(Object.keys(point).sort()).toEqual(
-      ['at', 'db', 'degraded', 'heartbeat', 'outbox', 'queues', 'reviews'].sort(),
+      [
+        'at',
+        'cache',
+        'db',
+        'degraded',
+        'heartbeat',
+        'outbox',
+        'queues',
+        'replyPublication',
+        'reviews',
+      ].sort(),
     )
     expect(point.outbox.unpublishedCount).toBe(3)
     expect(point.queues[0]).toMatchObject({ name: 'default', waiting: 7 })
     expect(point.db.pool?.totalCount).toBe(4)
+    expect(point.cache.tenant).toMatchObject({ hits: 9, misses: 1 })
+    expect(point.replyPublication.counts.published).toBe(5)
   })
 
   it('never serializes protected-content keys (ADR 0030 canary)', () => {
