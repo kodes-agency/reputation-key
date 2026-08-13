@@ -372,6 +372,8 @@ function psql(container: string, sql: string): string {
       '-X',
       '-v',
       'ON_ERROR_STOP=1',
+      '--tuples-only',
+      '--no-align',
       '-U',
       'repkey',
       '-d',
