@@ -28,6 +28,20 @@ export function assertGoogleImportReleaseImageIdentity(
   if (proof.user !== 'node') throw new Error(`${proof.tag} does not run as node`)
 }
 
+export type GoogleImportRuntimePackageProof = Readonly<{
+  tag: string
+  hasScripts: boolean
+}>
+
+export function assertGoogleImportRuntimePackagePurity(
+  proof: GoogleImportRuntimePackageProof,
+  options: Readonly<{ allowHistoricalScripts?: boolean }> = {},
+): void {
+  if (proof.hasScripts && options.allowHistoricalScripts !== true) {
+    throw new Error(`${proof.tag} contains package scripts`)
+  }
+}
+
 function assertFullCommit(value: string, field: string): void {
   if (!FULL_GIT_COMMIT.test(value)) {
     throw new Error(`${field} must be a full lowercase 40-character Git commit`)

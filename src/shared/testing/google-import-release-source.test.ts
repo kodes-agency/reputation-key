@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assertGoogleImportReleaseImageIdentity,
+  assertGoogleImportRuntimePackagePurity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
 } from './google-import-release-source'
@@ -104,5 +105,33 @@ describe('Google import release image identity', () => {
         BASELINE,
       ),
     ).toThrow('does not run as node')
+  })
+})
+
+describe('Google import release runtime package purity', () => {
+  const scriptBearingBaseline = {
+    tag: 'repkey-release-baseline-web:baseline',
+    hasScripts: true,
+  }
+
+  it('allows scripts only for an explicitly historical baseline image', () => {
+    expect(() =>
+      assertGoogleImportRuntimePackagePurity(scriptBearingBaseline, {
+        allowHistoricalScripts: true,
+      }),
+    ).not.toThrow()
+
+    expect(() => assertGoogleImportRuntimePackagePurity(scriptBearingBaseline)).toThrow(
+      'contains package scripts',
+    )
+  })
+
+  it('accepts a script-free runtime package', () => {
+    expect(() =>
+      assertGoogleImportRuntimePackagePurity({
+        tag: 'repkey-release-final-web:final',
+        hasScripts: false,
+      }),
+    ).not.toThrow()
   })
 })

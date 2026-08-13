@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import {
   assertGoogleImportReleaseImageIdentity,
+  assertGoogleImportRuntimePackagePurity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
   type GoogleImportReleaseSourcePlan,
@@ -280,16 +281,27 @@ function inspectImage(tag: string): ImageProof {
   }
 }
 
-function imageSmoke(tag: string): CommandResult {
-  return run('docker', [
+function imageSmoke(
+  tag: string,
+  options: Readonly<{ allowHistoricalScripts?: boolean }> = {},
+): CommandResult {
+  const result = run('docker', [
     'run',
     '--rm',
     '--entrypoint',
     'node',
     tag,
     '-e',
-    "const p=require('/app/package.json');process.exit('scripts' in p?1:0)",
+    "const p=require('/app/package.json');process.stdout.write(String('scripts' in p))",
   ])
+  if (result.stdout !== 'true' && result.stdout !== 'false') {
+    throw new Error(`${tag} returned an invalid runtime package inspection`)
+  }
+  assertGoogleImportRuntimePackagePurity(
+    { tag, hasScripts: result.stdout === 'true' },
+    options,
+  )
+  return result
 }
 
 function migrationEnvironment(databaseUrl: string): readonly string[] {
@@ -568,7 +580,15 @@ async function main(): Promise<void> {
         throw new Error(`${proof.tag} is not a serving-final contract image`)
       }
     }
-    const smokes = Object.values(tags).map(imageSmoke)
+    const smokes = [
+      imageSmoke(tags.baselineWeb, { allowHistoricalScripts: true }),
+      imageSmoke(tags.baselineWorker, { allowHistoricalScripts: true }),
+      imageSmoke(tags.compatibility),
+      imageSmoke(tags.finalWeb),
+      imageSmoke(tags.finalWorker),
+      imageSmoke(tags.admission),
+      imageSmoke(tags.gateway),
+    ]
 
     run('docker', ['network', 'create', '--internal', network], { quiet: true })
     run(
