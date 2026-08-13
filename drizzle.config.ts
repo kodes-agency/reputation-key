@@ -27,16 +27,16 @@ export default defineConfig({
   // Drizzle model is verified semantically against the migrated metadata by
   // src/shared/db/migration-verification.test.ts. Migrate-based workflow:
   // edit schema -> `pnpm db:generate` -> commit drizzle/ -> `pnpm db:migrate`
-  // (compatibility preflight + deploy). Do NOT use db:push — it bypasses the
-  // cause of the prior schema drift. Deploy apply order:
-  //   `pnpm auth:migrate` -> `pnpm db:migrate` (preflight + journal) -> registered raw-SQL sidecars
+  // (staged journal runner + deploy). Do NOT use db:push — it bypasses the
+  // journal and caused the prior schema drift. Deploy apply order:
+  //   `pnpm auth:migrate` -> `pnpm db:migrate` (0033 commit boundary + journal) -> registered raw-SQL sidecars
   // (currently scripts/migrations/2026-07-06-permission-version-triggers.sql
   // — functions/triggers/BA-table index that Drizzle cannot express; see
   // src/shared/db/schema/db-only-constructs.ts and src/shared/db/CONTEXT.md).
   // BQC-7.1: at deploy time this trio runs inside the Railway
   // preDeployCommand via scripts/migrate-deploy.ts (advisory-locked,
   // idempotent, forward-recovery) — the better-auth track runs through
-  // better-auth's getMigrations and the Drizzle track through the same
-  // compatibility preflight + drizzle-orm migrator used by `pnpm db:migrate`;
-  // CI's "Predeploy migration parity" step proves end-state equivalence.
+  // better-auth's getMigrations and the same staged Drizzle journal runner
+  // used by `pnpm db:migrate`; CI's "Predeploy migration parity" step proves
+  // end-state equivalence.
 })

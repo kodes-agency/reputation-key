@@ -7,17 +7,15 @@
 //   1. Better Auth track — getMigrations() from better-auth (the same code
 //      `pnpm auth:migrate` wraps; the CLI only adds an interactive prompt).
 //      Idempotent: creates only missing tables/columns.
-//   2. Drizzle compatibility preflight — when upgrading from migration 0033,
-//      commits the cleanup_required enum label before Drizzle opens its
-//      all-pending-migrations transaction. Fresh databases need no preflight.
-//   3. Drizzle journal track — drizzle-orm's node-postgres migrator over
-//      drizzle/ (the same runner `pnpm db:migrate` wraps; same journal format,
-//      same drizzle.__drizzle_migrations bookkeeping).
-//      Idempotent: applied journal entries are skipped.
-//   4. Google Property binding unique-index sidecar — duplicate-audited,
+//   2. Staged Drizzle journal track — apply through immutable migration 0033,
+//      commit, autocommit cleanup_required, then apply 0034 onward. PostgreSQL
+//      forbids using a new enum label in the transaction that added it.
+//      `pnpm db:migrate` uses the same staged runner and journal bookkeeping.
+//      Idempotent: applied journal entries and the enum label are skipped.
+//   3. Google Property binding unique-index sidecar — duplicate-audited,
 //      advisory-locked CREATE UNIQUE INDEX CONCURRENTLY outside Drizzle's
-//      transaction.
-//   5. Registered deploy SQL sidecar — scripts/migrations/
+//      transactions.
+//   4. Registered deploy SQL sidecar — scripts/migrations/
 //      2026-07-06-permission-version-triggers.sql (idempotent by design;
 //      plain SQL, no psql meta-commands, applied in-process via pg — the
 //      same mechanism as src/shared/testing/test-db-setup.ts).
@@ -53,10 +51,8 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
-import { prepareDrizzleMigrationPrerequisites } from './drizzle-migration-preflight'
+import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migrator'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -134,15 +130,12 @@ async function main(): Promise<void> {
       await authMigrations.runMigrations()
       log('auth track applied')
 
-      // 2. Commit compatibility prerequisites before Drizzle's transaction.
-      const preflight = await prepareDrizzleMigrationPrerequisites(client)
-      log('drizzle compatibility preflight', preflight)
+      // 2. Apply through 0033, commit the enum prerequisite, then apply the
+      // remaining Drizzle journal entries.
+      const stagedMigration = await runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)
+      log('staged drizzle track applied', stagedMigration)
 
-      // 3. Drizzle journal track
-      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER })
-      log('drizzle track applied')
-
-      // 4. Autocommit-only Google Property binding index gate
+      // 3. Autocommit-only Google Property binding index gate
       const googlePropertyBindingIndex = await buildGooglePropertyBindingIndex(client)
       log('google property binding index', googlePropertyBindingIndex)
       if (!googlePropertyBindingIndex.ok) {
@@ -151,7 +144,7 @@ async function main(): Promise<void> {
         )
       }
 
-      // 5. Registered deploy SQL sidecar
+      // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
 
