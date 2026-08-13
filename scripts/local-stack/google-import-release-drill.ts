@@ -285,15 +285,19 @@ function imageSmoke(
   tag: string,
   options: Readonly<{ allowHistoricalScripts?: boolean }> = {},
 ): CommandResult {
-  const result = run('docker', [
-    'run',
-    '--rm',
-    '--entrypoint',
-    'node',
-    tag,
-    '-e',
-    "const p=require('/app/package.json');process.stdout.write(String('scripts' in p))",
-  ])
+  const result = run(
+    'docker',
+    [
+      'run',
+      '--rm',
+      '--entrypoint',
+      'node',
+      tag,
+      '-e',
+      "const p=require('/app/package.json');process.stdout.write(String('scripts' in p))",
+    ],
+    { quiet: true },
+  )
   if (result.stdout !== 'true' && result.stdout !== 'false') {
     throw new Error(`${tag} returned an invalid runtime package inspection`)
   }
