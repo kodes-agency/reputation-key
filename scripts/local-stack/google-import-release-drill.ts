@@ -283,7 +283,7 @@ function inspectImage(tag: string): ImageProof {
 
 function imageSmoke(
   tag: string,
-  options: Readonly<{ allowHistoricalScripts?: boolean }> = {},
+  options: Readonly<{ scriptPolicy?: 'forbid' | 'allow' }> = {},
 ): CommandResult {
   const result = run(
     'docker',
@@ -585,13 +585,13 @@ async function main(): Promise<void> {
       }
     }
     const smokes = [
-      imageSmoke(tags.baselineWeb, { allowHistoricalScripts: true }),
-      imageSmoke(tags.baselineWorker, { allowHistoricalScripts: true }),
+      imageSmoke(tags.baselineWeb, { scriptPolicy: 'allow' }),
+      imageSmoke(tags.baselineWorker, { scriptPolicy: 'allow' }),
       imageSmoke(tags.compatibility),
       imageSmoke(tags.finalWeb),
       imageSmoke(tags.finalWorker),
-      imageSmoke(tags.admission),
-      imageSmoke(tags.gateway),
+      imageSmoke(tags.admission, { scriptPolicy: 'allow' }),
+      imageSmoke(tags.gateway, { scriptPolicy: 'allow' }),
     ]
 
     run('docker', ['network', 'create', '--internal', network], { quiet: true })

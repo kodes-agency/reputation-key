@@ -114,10 +114,10 @@ describe('Google import release runtime package purity', () => {
     hasScripts: true,
   }
 
-  it('allows scripts only for an explicitly historical baseline image', () => {
+  it('allows scripts only under an explicit image policy', () => {
     expect(() =>
       assertGoogleImportRuntimePackagePurity(scriptBearingBaseline, {
-        allowHistoricalScripts: true,
+        scriptPolicy: 'allow',
       }),
     ).not.toThrow()
 

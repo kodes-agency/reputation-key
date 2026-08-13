@@ -35,9 +35,9 @@ export type GoogleImportRuntimePackageProof = Readonly<{
 
 export function assertGoogleImportRuntimePackagePurity(
   proof: GoogleImportRuntimePackageProof,
-  options: Readonly<{ allowHistoricalScripts?: boolean }> = {},
+  options: Readonly<{ scriptPolicy?: 'forbid' | 'allow' }> = {},
 ): void {
-  if (proof.hasScripts && options.allowHistoricalScripts !== true) {
+  if (proof.hasScripts && options.scriptPolicy !== 'allow') {
     throw new Error(`${proof.tag} contains package scripts`)
   }
 }
