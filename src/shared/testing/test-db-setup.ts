@@ -6,7 +6,7 @@
 // Apply sequence mirrors the ci.yml "Run migrations" trio (deploy order, see
 // src/shared/db/CONTEXT.md):
 //   1. pnpm auth:migrate  — Better Auth tables (the CLI prompts; fed "y")
-//   2. pnpm db:migrate    — the Drizzle journal track
+//   2. pnpm db:migrate    — compatibility preflight + Drizzle journal track
 //   3. Google Property binding concurrent-index sidecar
 //   4. registered SQL sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
 // Both sidecars run outside the Drizzle migration transaction.

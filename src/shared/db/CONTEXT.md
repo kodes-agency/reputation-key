@@ -34,17 +34,19 @@ migrated DB). The comparator lives in `schema-drift.ts` and is also runnable
 standalone: `pnpm check:schema-drift` (see `scripts/check-schema-drift.ts`).
 
 **Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` →
-`pnpm db:google-property-binding-index` → the registered SQL sidecar. CI
-applies the same order, so the tested DB matches the deploy state. BQC-7.1:
-production deploys run the sequence via the Railway `preDeployCommand`
-(`node dist-worker/migrate-deploy.js`, source `scripts/migrate-deploy.ts`).
-A deployment advisory lock serializes the full sequence; the Property index
-sidecar takes its own session lock and runs its concurrent DDL outside the
-Drizzle transaction. Every step is convergent and the recovery policy is
-fix-forward-and-rerun (never hand-roll partial schema). The script drives
-better-auth's `getMigrations` and drizzle-orm's migrator — the same engines
-the two CLIs wrap; CI's “Predeploy migration parity” step proves it converges
-to the manual sequence's end state on every PR.
+`pnpm db:google-property-binding-index` → the registered SQL sidecar. The
+`db:migrate` wrapper first autocommits the prerequisite enum label needed by
+immutable migration 0034, then invokes the Drizzle journal migrator. This is a
+no-op on fresh and already-current databases. CI applies the same order, so the
+tested DB matches deploy state. BQC-7.1: production deploys run the sequence via
+the Railway `preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
+`scripts/migrate-deploy.ts`). A deployment advisory lock serializes the full
+sequence; the Property index sidecar takes its own session lock and runs its
+concurrent DDL outside the Drizzle transaction. Every step is convergent and the
+recovery policy is fix-forward-and-rerun (never hand-roll partial schema). The
+script drives better-auth's `getMigrations`, the same compatibility preflight,
+and drizzle-orm's migrator. CI's “Predeploy migration parity” step proves the
+manual and production runners converge to the same end state on every PR.
 
 ## How to change the schema
 
