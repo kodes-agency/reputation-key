@@ -26,7 +26,14 @@ export const removePortalFromGroup =
   ): Promise<void> => {
     const { gid, pid } = await loadGroupAndPortalForMembership(deps, ctx, input)
 
-    const removed = await deps.portalGroupRepo.removePortal(ctx.organizationId, gid, pid)
+    const now = deps.clock()
+    const removed = await deps.portalGroupRepo.removePortal(
+      ctx.organizationId,
+      gid,
+      pid,
+      now,
+      'removed_from_group',
+    )
     if (!removed) {
       throw portalError('portal_not_in_group', 'portal is not a member of this group')
     }
@@ -38,7 +45,7 @@ export const removePortalFromGroup =
         portalGroupId: gid,
         portalId: pid,
         organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
+        occurredAt: now,
       }),
     )
   }

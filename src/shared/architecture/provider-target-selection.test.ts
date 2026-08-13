@@ -63,7 +63,8 @@ const ALL_SOURCE = walkSource(SRC).filter(
   (f) => !rel(f).startsWith('src/shared/testing/'),
 )
 
-const GOOGLE_HOST = /googleapis\.com/
+// Font CSS is a browser stylesheet, not a provider execution endpoint.
+const GOOGLE_PROVIDER_HOST = /(?<!fonts\.)googleapis\.com/
 
 describe('BQC-4.3: Google endpoint URLs live only in the composition provider mapping', () => {
   it('no source file outside the approved exceptions contains a Google endpoint URL', () => {
@@ -73,13 +74,21 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
       // OAuth SCOPE identifiers (https://www.googleapis.com/auth/...) — permission
       // grant names, not endpoints an adapter could fall back to.
       'src/contexts/integration/application/use-cases/get-google-auth-url.ts',
+      // OAuth scopes and OIDC issuer identifiers are validation contracts, not
+      // executable provider endpoints.
+      'src/contexts/integration/application/google-provider-contract.ts',
+      // The egress gateway's frozen route compiler owns the exact approved
+      // methods, origins, paths, and queries for every provider route key.
+      'src/shared/google-provider-control/route-catalogue.ts',
       // JWKS URI for INBOUND Pub/Sub webhook signature verification — not
       // outbound provider execution; shared/auth cannot import the composition
       // root (zone boundary), documented in the data-flow map.
       'src/shared/auth/pubsub-jwt.verifier.ts',
     ])
 
-    const offenders = ALL_SOURCE.filter((f) => GOOGLE_HOST.test(readFileSync(f, 'utf-8')))
+    const offenders = ALL_SOURCE.filter((f) =>
+      GOOGLE_PROVIDER_HOST.test(readFileSync(f, 'utf-8')),
+    )
       .map(rel)
       .filter((path) => !APPROVED_EXCEPTIONS.has(path))
 
@@ -126,7 +135,8 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     const violations: string[] = []
     for (const file of adapterFiles) {
       const body = stripComments(readFileSync(file, 'utf-8'))
-      if (GOOGLE_HOST.test(body)) violations.push(`${rel(file)}: hardcoded Google URL`)
+      if (GOOGLE_PROVIDER_HOST.test(body))
+        violations.push(`${rel(file)}: hardcoded Google URL`)
       if (/fallback/i.test(body)) violations.push(`${rel(file)}: 'fallback' identifier`)
       if (ALTERNATE_ENDPOINT.test(body))
         violations.push(`${rel(file)}: alternate-endpoint constant`)

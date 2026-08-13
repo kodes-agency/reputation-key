@@ -88,6 +88,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
       Array.from(memberships.entries())
         .filter(([, gid]) => String(gid) === String(groupId))
         .map(([pid]) => portalId(pid)),
+    findGroupIdsByPortalIds: async () => [],
     findGroupForPortal: async (_orgId, pid) => {
       const gid = memberships.get(String(pid))
       return gid ? (store.get(String(gid)) ?? null) : null

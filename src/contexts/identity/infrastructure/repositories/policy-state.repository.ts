@@ -20,12 +20,23 @@ import type {
 
 // ── Version ──────────────────────────────────────────────────────────
 
-export async function getPolicyVersion(db: Database): Promise<number> {
+export async function getPolicyControlVersion(
+  db: Database,
+): Promise<Readonly<{ version: number; emergencyKillVersion: number }>> {
   const rows = await db.execute(
-    sql`SELECT version FROM policy_version WHERE scope = 'global'`,
+    sql`SELECT version, emergency_kill_version FROM policy_version WHERE scope = 'global'`,
   )
-  const row = rows.rows[0] as { version: number | string } | undefined
-  return Number(row?.version ?? 0)
+  const row = rows.rows[0] as
+    | { version: number | string; emergency_kill_version: number | string }
+    | undefined
+  return {
+    version: Number(row?.version ?? 0),
+    emergencyKillVersion: Number(row?.emergency_kill_version ?? 0),
+  }
+}
+
+export async function getPolicyVersion(db: Database): Promise<number> {
+  return (await getPolicyControlVersion(db)).version
 }
 
 /** Membership check for policy administration (grants require org membership). */
@@ -190,21 +201,32 @@ function toDate(v: unknown): Date | null {
 }
 
 export async function loadPolicySnapshot(db: Database): Promise<PolicySnapshot> {
-  const [version, orgPolicies, orgCapabilities, propertyPolicies, propertyCapabilities] =
-    await Promise.all([
-      getPolicyVersion(db),
-      db.execute(
-        sql`SELECT organization_id, cohort, suspended_at, suspended_reason FROM organization_policy`,
-      ),
-      db.execute(sql`SELECT organization_id, capability FROM organization_capability`),
-      db.execute(
-        sql`SELECT property_id, suspended_at, suspended_reason FROM property_policy`,
-      ),
-      db.execute(sql`SELECT property_id, capability FROM property_capability`),
-    ])
+  const [
+    control,
+    killedCapabilities,
+    orgPolicies,
+    orgCapabilities,
+    propertyPolicies,
+    propertyCapabilities,
+  ] = await Promise.all([
+    getPolicyControlVersion(db),
+    db.execute(
+      sql`SELECT capability FROM capability_execution_control WHERE denied = true`,
+    ),
+    db.execute(
+      sql`SELECT organization_id, cohort, suspended_at, suspended_reason FROM organization_policy`,
+    ),
+    db.execute(sql`SELECT organization_id, capability FROM organization_capability`),
+    db.execute(
+      sql`SELECT property_id, suspended_at, suspended_reason FROM property_policy`,
+    ),
+    db.execute(sql`SELECT property_id, capability FROM property_capability`),
+  ])
 
   return {
-    version,
+    version: control.version,
+    emergencyKillVersion: control.emergencyKillVersion,
+    killedCapabilities: killedCapabilities.rows.map((row) => row.capability as string),
     orgPolicies: orgPolicies.rows.map(
       (r): OrgPolicyRecord => ({
         organizationId: r.organization_id as string,

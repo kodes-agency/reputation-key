@@ -1,10 +1,9 @@
-// Team settings — edit name, description, and team lead
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { updateTeam } from '#/contexts/team/server/teams'
-import { EditTeamForm } from '#/components/features/team'
-import { useTeamLayout } from '../$teamId'
+import { clearTeamLead, setTeamLead, updateTeam } from '#/contexts/team/server/teams'
+import { EditTeamForm, TeamLeadControls } from '#/components/features/team'
+import { useTeamLayout, teamMembershipsQueryKey } from '../$teamId'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { teamKeys, identityKeys } from '#/shared/queries/query-keys'
+import { teamKeys } from '#/shared/queries/query-keys'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId/',
@@ -13,29 +12,40 @@ export const Route = createFileRoute(
 })
 
 function TeamSettingsPage() {
-  const { team, memberOptions, propertyId } = useTeamLayout()
+  const { team, memberships, propertyId, teamId } = useTeamLayout()
   const navigate = useNavigate()
+  const invalidationKeys = [teamKeys.list(propertyId), teamMembershipsQueryKey(teamId)]
 
-  const mutation = useActionMutation(updateTeam, {
+  const updateMutation = useActionMutation(updateTeam, {
     successMessage: 'Team updated',
-    invalidateKeys: [teamKeys.list(propertyId), identityKeys.members()],
+    invalidateKeys: invalidationKeys,
+  })
+  const setLeadMutation = useActionMutation(setTeamLead, {
+    successMessage: 'Team lead updated',
+    invalidateKeys: invalidationKeys,
+  })
+  const clearLeadMutation = useActionMutation(clearTeamLead, {
+    successMessage: 'Team lead cleared',
+    invalidateKeys: invalidationKeys,
   })
 
   return (
-    <EditTeamForm
-      teamId={team.id}
-      initialName={team.name}
-      initialDescription={team.description}
-      initialTeamLeadId={team.teamLeadId}
-      members={memberOptions.map((m) => ({
-        userId: m.userId,
-        name: m.name,
-        email: m.email,
-      }))}
-      mutation={mutation}
-      onCancel={() =>
-        navigate({ to: '/properties/$propertyId/people', params: { propertyId } })
-      }
-    />
+    <div className="grid gap-6 lg:grid-cols-2">
+      <EditTeamForm
+        teamId={team.id}
+        initialName={team.name}
+        initialDescription={team.description}
+        mutation={updateMutation}
+        onCancel={() =>
+          navigate({ to: '/properties/$propertyId/people', params: { propertyId } })
+        }
+      />
+      <TeamLeadControls
+        teamId={teamId}
+        memberships={memberships}
+        setLeadAction={setLeadMutation}
+        clearLeadAction={clearLeadMutation}
+      />
+    </div>
   )
 }

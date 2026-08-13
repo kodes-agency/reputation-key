@@ -15,6 +15,7 @@ export const onInboxItemAssigned =
     const data = {
       userId: event.assignedTo,
       organizationId: event.organizationId,
+      propertyId: event.propertyId,
       type: 'inbox.assigned' as const,
       resourceType: 'inbox_item' as const,
       resourceId: event.inboxItemId,

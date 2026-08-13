@@ -17,13 +17,15 @@ import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { timeRangeToDates } from '../application/utils'
 import { isDashboardError } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
+import { scopeForPermission } from '#/shared/domain/permissions'
+import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { standardErrorStatus as fleetOverviewErrorStatus } from '#/shared/http/status'
 
 /** Local error constructor — server must not import domain error constructors. */
 
 const getFleetOverviewDto = z.object({
-  // Operational default — the fleet overview answers "what needs my eye today".
   timeRange: timeRangePreset.default('30d'),
+  cursor: z.string().min(1).max(512).optional(),
 })
 
 export const getFleetOverviewFn = createServerFn({ method: 'GET' })
@@ -49,22 +51,22 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           const { useCases, clock } = getContainer()
           const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
 
-          // Role-aware property enumeration (AccountAdmin sees all; managers/staff
-          // see only assigned). Dashboard never queries property tables directly.
-          const properties = await useCases.listProperties(ctx)
-
+          const capabilityScope = { organizationId: ctx.organizationId }
           return await useCases.getFleetOverview({
             organizationId: ctx.organizationId,
-            properties: properties.map((p) => ({
-              propertyId: p.id,
-              name: p.name,
-              slug: p.slug,
-              timezone: p.timezone,
-            })),
+            scope: {
+              userId: ctx.userId,
+              organizationWide:
+                scopeForPermission(ctx, 'dashboard.fleet_read') === 'organization',
+            },
+            portalReadEnabled: checkScopedCapability(capabilityScope, 'portal.read')
+              .allowed,
+            goalReadEnabled: checkScopedCapability(capabilityScope, 'goal.use').allowed,
             slaHours,
             startDate,
             endDate,
             timeRange: data.timeRange,
+            cursor: data.cursor,
           })
         } catch (e) {
           if (isDashboardError(e))

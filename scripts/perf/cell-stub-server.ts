@@ -24,8 +24,10 @@ async function main(): Promise<void> {
     process.exit(2)
   }
 
-  const stub = kind === 'gbp' ? await startGbpStub(port) : await startMailStub(port)
-  console.log(`${kind} stub listening on :${stub.port}`)
+  const host = process.env.BQC_STUB_HOST ?? '127.0.0.1'
+  const stub =
+    kind === 'gbp' ? await startGbpStub(port, host) : await startMailStub(port, host)
+  console.log(`${kind} stub listening on ${stub.host}:${stub.port}`)
 
   const shutdown = async () => {
     await stub.stop()

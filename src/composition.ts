@@ -21,7 +21,10 @@ import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { createEventBus } from '#/shared/events/event-bus'
 import type { EventBus } from '#/shared/events/event-bus'
-import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import {
+  createBusAuthorizer,
+  createScheduledScopeAuthorizer,
+} from '#/shared/jobs/delayed-execution-gate'
 import { createRedisCache } from '#/shared/cache/redis-cache'
 import { createNoopCache } from '#/shared/cache/noop-cache'
 import type { Cache } from '#/shared/cache/cache.port'
@@ -42,13 +45,19 @@ import { registerDelayedExecutionPolicyInit } from '#/shared/auth/system-executi
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { GoogleOAuthPort } from '#/contexts/integration/application/ports/google-oauth.port'
 import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-api.port'
+import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
+import type { GoogleImportReferenceStore } from '#/contexts/integration/application/ports/google-import-reference-store.port'
+import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
+import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { buildIdentityContext } from '#/contexts/identity/build'
 import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { ROUTING_POLICY_VERSION } from '#/contexts/property/domain/processing-routing'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
 import {
   getAuth,
+  setMembershipRemovalLifecycle,
   setOnAcceptInvitation,
   INVITATION_EXPIRY_SECONDS,
 } from '#/shared/auth/auth'
@@ -59,6 +68,7 @@ import type { Env } from '#/shared/config/env'
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
@@ -67,11 +77,31 @@ import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { providerRefForCell } from '#/shared/routing/processing-router'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { buildIntegrationContext } from '#/contexts/integration/build'
+import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
+import { createOAuthStateHandleService } from '#/contexts/integration/application/oauth-state-handle'
 import {
-  createRedisPkceVerifierStore,
-  createInMemoryPkceVerifierStore,
-} from '#/contexts/integration/infrastructure/repositories/pkce-verifier-store.repository'
-import type { PkceVerifierStore } from '#/contexts/integration/application/oauth-state'
+  createVersionedHmacKeyring,
+  type VersionedHmacKeyring,
+} from '#/shared/security/versioned-hmac-keyring'
+import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
+import { createRedisProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
+import { createProviderEphemeralRedis } from '#/shared/provider-ephemeral/redis-client'
+import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
+import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
+import {
+  validateProviderEphemeralRedisUrls,
+  verifyProviderEphemeralRedisRuntime,
+  type ProviderRedisReadiness,
+} from '#/shared/provider-ephemeral/runtime-verification'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
+import {
+  createInMemoryOAuthCallbackQuotaCounter,
+  createOAuthCallbackAbuseGate,
+  type OAuthCallbackQuotaCounter,
+} from '#/contexts/integration/application/oauth-callback-abuse-gate'
+import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
@@ -88,11 +118,6 @@ import { buildActivityContext } from '#/contexts/activity/build'
 import { buildNotificationContext } from '#/contexts/notification/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
-import {
-  propertyId,
-  organizationId as toOrgId,
-  userId as toUserId,
-} from '#/shared/domain/ids'
 
 // ── Infrastructure ─────────────────────────────────────────────────
 
@@ -137,10 +162,12 @@ function buildInfrastructure(options: {
 const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
   'gbp-default': {
     gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
+    gbpAccountManagementBaseUrl: 'https://mybusinessaccountmanagement.googleapis.com/v1',
+    gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
     reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
     notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
     oauthTokenUrl: 'https://oauth2.googleapis.com/token',
-    oauthUserInfoUrl: 'https://www.googleapis.com/oauth2/v2/userinfo',
+    oauthJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
     oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
   },
 }
@@ -172,13 +199,36 @@ export function applyProviderEndpointOverrides(
   endpoints: ProviderEndpoints,
   env: Env,
 ): ProviderEndpoints {
+  const overrides = [
+    env.GBP_API_BASE_URL,
+    env.GBP_ACCOUNT_MANAGEMENT_BASE_URL,
+    env.GBP_PERFORMANCE_BASE_URL,
+    env.GBP_REVIEWS_API_BASE_URL,
+    env.GBP_NOTIFICATIONS_API_BASE_URL,
+    env.GOOGLE_OAUTH_TOKEN_URL,
+    env.GOOGLE_OAUTH_JWKS_URL,
+    env.GOOGLE_OAUTH_REVOKE_URL,
+  ]
+  if (
+    env.NODE_ENV === 'production' &&
+    env.GOOGLE_PROVIDER_ENDPOINT_PROFILE !== 'local-sandbox' &&
+    overrides.some((value) => value !== undefined)
+  ) {
+    throw new Error(
+      'provider endpoint overrides require the attested local-sandbox profile',
+    )
+  }
   return {
     gbpApiBaseUrl: env.GBP_API_BASE_URL ?? endpoints.gbpApiBaseUrl,
+    gbpAccountManagementBaseUrl:
+      env.GBP_ACCOUNT_MANAGEMENT_BASE_URL ?? endpoints.gbpAccountManagementBaseUrl,
+    gbpPerformanceBaseUrl:
+      env.GBP_PERFORMANCE_BASE_URL ?? endpoints.gbpPerformanceBaseUrl,
     reviewsApiBaseUrl: env.GBP_REVIEWS_API_BASE_URL ?? endpoints.reviewsApiBaseUrl,
     notificationsApiBaseUrl:
       env.GBP_NOTIFICATIONS_API_BASE_URL ?? endpoints.notificationsApiBaseUrl,
     oauthTokenUrl: env.GOOGLE_OAUTH_TOKEN_URL ?? endpoints.oauthTokenUrl,
-    oauthUserInfoUrl: env.GOOGLE_OAUTH_USERINFO_URL ?? endpoints.oauthUserInfoUrl,
+    oauthJwksUrl: env.GOOGLE_OAUTH_JWKS_URL ?? endpoints.oauthJwksUrl,
     oauthRevokeUrl: env.GOOGLE_OAUTH_REVOKE_URL ?? endpoints.oauthRevokeUrl,
   }
 }
@@ -212,6 +262,18 @@ export type ProviderOverrides = Readonly<{
   googleOAuth?: GoogleOAuthPort
   /** Google Business Profile API adapter (integration context). */
   gbpApi?: GbpApiPort
+  /** Authorized Google provider execution seam (local acceptance/tests). */
+  googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
+  /** Opaque import reference store backed by provider-ephemeral storage. */
+  googleImportReferences?: GoogleImportReferenceStore
+  /** Fresh Google Content approval/kill authorization seam. */
+  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
+  /** Fresh approval/kill authorization for live Performance reads. */
+  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
+  /** Principal-binding keyring for volatile Performance authorization leases. */
+  googlePerformancePrincipalKeys?: VersionedHmacKeyring
+  /** Provider-ephemeral Performance lease service. */
+  providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   /** Object storage adapter (portal context). */
   storage?: StoragePort
 }>
@@ -242,10 +304,8 @@ export function createContainer(options?: {
   opsQuarantineQueue?: Queue
   /** Override the identity port (simulations use the in-memory identity fake). */
   identityPort?: IdentityPort
-  /** Override the PKCE verifier store (BQC-7.6; simulations/tests inject an
-   * in-memory store). Absent = Redis-backed, or the in-memory dev fallback
-   * when Redis is unavailable. */
-  pkceStore?: PkceVerifierStore
+  /** Dedicated non-persistent provider store override for simulations/tests. */
+  providerEphemeralStore?: ProviderEphemeralStore
   /** Override the email sender (simulations capture emails instead of sending). */
   email?: typeof sendInvitationEmail
   /** Override external provider adapters (BQC-6.1: deterministic Google/GBP/
@@ -278,6 +338,99 @@ export function createContainer(options?: {
     providerConfigFor(providerRefForCell(env.PROCESSING_CELL)),
     env,
   )
+  if (env.NODE_ENV === 'production') {
+    if (
+      !env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON ||
+      !env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION
+    ) {
+      throw new Error(
+        'Opaque OAuth state requires runtime-isolation profile and live attestation',
+      )
+    }
+    const expectedGoogleOrigins = [
+      ...new Set(
+        Object.values(providerEndpoints).map((endpoint) => new URL(endpoint).origin),
+      ),
+    ]
+    validateGoogleRuntimeIsolationReadiness({
+      profileRaw: env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON,
+      attestationRaw: readFileSync('/run/repkey/google-egress-attestation.json', 'utf8'),
+      expectedControlPlanePolicyGeneration: env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION,
+      expectedGoogleOrigins,
+      expectedTargetEnvironment: 'production',
+      now: clock(),
+    })
+  }
+  let providerEphemeralRedis: Redis | undefined
+  let providerEphemeralStore = options?.providerEphemeralStore
+  let oauthStateHandles: ReturnType<typeof createOAuthStateHandleService> | undefined
+  let providerEphemeralReadiness: Promise<ProviderRedisReadiness> | undefined
+  let googleImportReplayKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
+  {
+    if (!providerEphemeralStore && env.PROVIDER_EPHEMERAL_REDIS_URL) {
+      if (env.NODE_ENV === 'production') {
+        const urlFailure = validateProviderEphemeralRedisUrls(
+          env.PROVIDER_EPHEMERAL_REDIS_URL,
+          env.REDIS_URL,
+        )
+        if (urlFailure) {
+          throw new Error(`Provider-ephemeral Redis denied: ${urlFailure.code}`)
+        }
+      }
+      providerEphemeralRedis = createProviderEphemeralRedis(
+        env.PROVIDER_EPHEMERAL_REDIS_URL,
+      )
+      providerEphemeralStore = createRedisProviderEphemeralStore(providerEphemeralRedis)
+      providerEphemeralReadiness =
+        verifyProviderEphemeralRedisRuntime(providerEphemeralRedis)
+    }
+    if (!providerEphemeralStore) {
+      if (env.NODE_ENV === 'production') {
+        throw new Error('Opaque OAuth state requires provider-ephemeral Redis')
+      }
+      providerEphemeralStore = createInMemoryProviderEphemeralStore()
+    }
+    const fallbackKey = createHash('sha256').update(env.OAUTH_STATE_SECRET).digest('hex')
+    const requiredKeyring = (raw: string | undefined, name: string): string => {
+      if (raw) return raw
+      if (env.NODE_ENV === 'production') {
+        throw new Error(`${name} is required for opaque OAuth state`)
+      }
+      return `local:${fallbackKey}`
+    }
+    createVersionedHmacKeyring(
+      requiredKeyring(
+        env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS,
+        'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
+      ),
+    )
+    googleImportReplayKeys = createVersionedHmacKeyring(
+      requiredKeyring(env.GOOGLE_REPLAY_HMAC_KEYS, 'GOOGLE_REPLAY_HMAC_KEYS'),
+    )
+    oauthStateHandles = createOAuthStateHandleService({
+      store: providerEphemeralStore,
+      handleKeys: createVersionedHmacKeyring(
+        requiredKeyring(
+          env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS,
+          'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
+        ),
+      ),
+      sessionKeys: createVersionedHmacKeyring(
+        requiredKeyring(
+          env.GOOGLE_SESSION_BINDING_HMAC_KEYS,
+          'GOOGLE_SESSION_BINDING_HMAC_KEYS',
+        ),
+      ),
+      ensureRuntimeReady: providerEphemeralReadiness
+        ? async () => {
+            const readiness = await providerEphemeralReadiness!
+            if (!readiness.ok) {
+              throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
+            }
+          }
+        : undefined,
+    })
+  }
 
   // Infrastructure
   const infra = buildInfrastructure({
@@ -294,6 +447,7 @@ export function createContainer(options?: {
   // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
   const processingRouter = createProcessingRouter({
     loadPropertyRouting: createPropertyRoutingLoader({ db }),
+    loadImportItemRouting: createImportItemRoutingLoader({ db }),
     cell: env.PROCESSING_CELL,
   })
 
@@ -355,9 +509,19 @@ export function createContainer(options?: {
     policy: {
       env,
       loadPropertyRegion: createPropertyRegionLoader({ db }),
-      resolveRouting: (pid) => processingRouter.resolve(pid, 'review.sync'),
+      // Late-bound because identity is constructed before the property context.
+      // The callback runs only after the container is fully composed.
+      propertyBelongsToOrganization: (orgId, pid) =>
+        property.publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
+      resolveRouting: (pid) =>
+        processingRouter.resolve({ kind: 'property', propertyId: pid }, 'review.sync'),
       cell: env.PROCESSING_CELL,
       providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
+    },
+    cancelGoogleImportsForUser: (orgId, userIdValue) => {
+      const cancel = integration.internal.useCases.cancelGoogleImportV2ForUser
+      if (!cancel) throw new Error('Google import lifecycle unavailable')
+      return cancel(orgId, userIdValue).then(() => undefined)
     },
   })
 
@@ -386,6 +550,21 @@ export function createContainer(options?: {
         { name: 'background', queue: infra.backgroundQueue },
       ],
     },
+    googleImportLifecycle: {
+      prepareDeletion: async (orgId, propertyIdValue) => {
+        const prepare =
+          integration.internal.useCases.prepareGoogleImportV2PropertyDeletion
+        if (!prepare) throw new Error('Google import lifecycle unavailable')
+        const result = await prepare(orgId, propertyIdValue)
+        return { itemIds: result.itemIds }
+      },
+      finalizeDeletion: async (orgId, itemIds) => {
+        const finalize =
+          integration.internal.useCases.finalizeGoogleImportV2PropertyDeletion
+        if (!finalize) throw new Error('Google import lifecycle unavailable')
+        await finalize(orgId, itemIds)
+      },
+    },
   })
 
   const team = buildTeamContext({
@@ -406,6 +585,7 @@ export function createContainer(options?: {
     staffPublicApi: staff.publicApi,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
+    tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
     queue: infra.jobQueue,
     storage: options?.providers?.storage,
     storageConfig: {
@@ -413,6 +593,9 @@ export function createContainer(options?: {
       secretKey: env.AWS_S3_SECRET_ACCESS_KEY ?? '',
       bucketName: env.AWS_S3_BUCKET_NAME ?? '',
       region: env.AWS_S3_REGION ?? '',
+      internalEndpoint: env.S3_INTERNAL_ENDPOINT,
+      presignEndpoint: env.S3_PRESIGN_ENDPOINT,
+      forcePathStyle: env.S3_FORCE_PATH_STYLE,
     },
   })
 
@@ -421,9 +604,22 @@ export function createContainer(options?: {
     events: eventBus,
     outboxRepo,
     clock,
-    linkResolver: portal.internal.repos.linkResolver,
     portalApi: portal.publicApi.portal,
     logger,
+    storage: portal.internal.storage,
+    sessionSecret: env.GUEST_SESSION_SALT,
+    secureCookies: env.NODE_ENV === 'production',
+  })
+
+  const oauthCallbackQuotaCounter: OAuthCallbackQuotaCounter = redis
+    ? createRedisOAuthCallbackQuotaCounter(redis)
+    : env.NODE_ENV === 'production'
+      ? Object.freeze({ consume: async () => false })
+      : createInMemoryOAuthCallbackQuotaCounter()
+  const oauthCallbackAbuseGate = createOAuthCallbackAbuseGate({
+    counter: oauthCallbackQuotaCounter,
+    hmacSecret: env.OAUTH_STATE_SECRET,
+    projectIdentity: env.GOOGLE_CLIENT_ID,
   })
 
   const integration = buildIntegrationContext({
@@ -432,30 +628,36 @@ export function createContainer(options?: {
     clock,
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
+    propertyBindingApi: property.bindingApi,
     logger: getLogger(),
     providerEndpoints,
     sourceContentPurge,
     googleOAuth: options?.providers?.googleOAuth,
     gbpApi: options?.providers?.gbpApi,
-    // BQC-7.6: PKCE verifier store. Redis-backed in real deployments; the
-    // in-memory fallback keeps single-process dev/e2e working without Redis
-    // (a Redis-less PRODUCTION process degrades OAuth connect to this process
-    // only — logged at error level; readiness/alerting own Redis absence).
-    pkceStore:
-      options?.pkceStore ??
-      (() => {
-        if (redis) return createRedisPkceVerifierStore(redis)
-        if (env.NODE_ENV === 'production') {
-          logger.error(
-            '[oauth] PKCE verifier store is in-memory — REDIS_URL absent in production',
-          )
-        } else {
-          logger.warn(
-            '[oauth] PKCE verifier store in-memory (no Redis) — single-process only',
-          )
-        }
-        return createInMemoryPkceVerifierStore()
-      })(),
+    googleAuthorizedProviderExecutor:
+      options?.providers?.googleAuthorizedProviderExecutor,
+    googleImportReplayKeys,
+    authorizeGoogleImportContent: options?.providers?.authorizeGoogleImportContent,
+    authorizeGooglePerformanceContent:
+      options?.providers?.authorizeGooglePerformanceContent,
+    googlePerformancePrincipalKeys: options?.providers?.googlePerformancePrincipalKeys,
+    providerAuthorizationLeases: options?.providers?.providerAuthorizationLeases,
+    googleImportReferences: options?.providers?.googleImportReferences,
+    oauthStateHandles,
+    oauthCallbackAbuseGate,
+  })
+
+  setMembershipRemovalLifecycle({
+    beforeRemoveMember: async (orgId, userIdValue) => {
+      const cancel = integration.internal.useCases.cancelGoogleImportV2ForUser
+      if (!cancel) throw new Error('Google import lifecycle unavailable')
+      await cancel(orgId, userIdValue)
+    },
+    beforeDeleteOrganization: async (orgId) => {
+      const cancel = integration.internal.useCases.cancelGoogleImportV2ForOrganization
+      if (!cancel) throw new Error('Google import lifecycle unavailable')
+      await cancel(orgId)
+    },
   })
 
   const review = buildReviewContext({
@@ -498,6 +700,7 @@ export function createContainer(options?: {
     events: eventBus,
     clock,
     portalGroupApi: portal.publicApi.portalGroup,
+    portalApi: portal.publicApi.portal,
     reviewRatingLookup: review.publicApi,
   })
 
@@ -509,6 +712,7 @@ export function createContainer(options?: {
     outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
+    propertyApi: property.publicApi,
     idGen: () => crypto.randomUUID(),
     getLogger,
     portalGroupApi: portal.publicApi.portalGroup,
@@ -543,6 +747,9 @@ export function createContainer(options?: {
     outboxRepo,
     clock,
     metricApi: metricApi.publicApi,
+    authorizeReconciliationScope: createScheduledScopeAuthorizer(
+      'system:badge.reconcile',
+    ),
   })
 
   const leaderboard = buildLeaderboardContext({
@@ -550,6 +757,13 @@ export function createContainer(options?: {
     events: eventBus,
     outboxRepo,
     clock,
+    propertyApi: property.publicApi,
+    authorizeBoardReconciliationScope: createScheduledScopeAuthorizer(
+      'system:leaderboard.reconcile',
+    ),
+    authorizeAwardReconciliationScope: createScheduledScopeAuthorizer(
+      'system:badge.reconcile',
+    ),
   })
 
   // ── Notification context ──────────────────────────────────────────
@@ -562,27 +776,29 @@ export function createContainer(options?: {
     logger,
   })
 
-  // ── Wire invitation acceptance hook ────────────────────────────
-  // The hook creates staff assignments when a member accepts an invite.
-  // This is the only cross-context dependency: identity acceptance
-  // triggers staff creation. Identity context does NOT import staff.
-  //
-  // Privileged SYSTEM write, not a user action: it bootstraps an
-  // assignment for the invitee. The staff build owns the system use case
-  // (skips can(), the membership gate, property-access scoping, and the
-  // self-assignment guard BY DESIGN — deep-review §9 AuthContext forgery);
-  // the root only registers the cross-context lifecycle hook.
-  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
-    const uid = toUserId(userId)
-    const oid = toOrgId(organizationId)
-    for (const pid of propertyIds) {
+  // ── Wire invitation acceptance lifecycle ─────────────────────────
+  // PropertyAccessGrant is the sole authorization input; participation is
+  // separate attribution/profile state. The post-commit hook provisions both
+  // idempotently and never writes the legacy staff_assignments table.
+  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds, displayName }) => {
+    for (const rawPropertyId of propertyIds) {
       try {
-        await staff.internal.systemStaffAssignment(
-          { userId: uid, propertyId: propertyId(pid) },
-          { organizationId: oid },
+        await identity.internal.grantInvitationPropertyAccess({
+          userId,
+          organizationId,
+          propertyId: rawPropertyId,
+        })
+        await staff.internal.systemStaffParticipation({
+          userId,
+          organizationId,
+          propertyId: rawPropertyId,
+          displayName,
+        })
+      } catch (error) {
+        logger.warn(
+          { err: error },
+          'Failed to provision invited property access and participation',
         )
-      } catch {
-        logger.warn('Failed to auto-assign property on invitation acceptance')
       }
     }
   })
@@ -615,6 +831,7 @@ export function createContainer(options?: {
     // zone cannot import context domain).
     versions: {
       capabilityPolicy: CAPABILITY_POLICY_VERSION,
+      executionPolicy: EXECUTION_POLICY_VERSION,
       policyStore: identity.internal.policyStoreVersion,
       routingPolicy: ROUTING_POLICY_VERSION,
       sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
@@ -679,6 +896,7 @@ export function createContainer(options?: {
     portalRepo: portal.internal.repos.portalRepo,
     portalLinkRepo: portal.internal.repos.portalLinkRepo,
     reviewRepo: review.internal.repos.reviewRepo,
+    providerEphemeralReadiness,
     replyRepo: review.internal.repos.replyRepo,
     badgePublicApi: badge.publicApi,
     leaderboardPublicApi: leaderboard.publicApi,
@@ -704,9 +922,14 @@ export function createContainer(options?: {
     // Workers await this before starting; side-effect paths use it for
     // fresh reads (BQC-2.5). Owned by the identity build (readiness).
     refreshPolicyStore: identity.internal.refreshPolicyStore,
-    // BQR-2.2/2.4: worker calls this before optional durable dispatch start.
-    // Owned by the inbox build (runtime contribution).
-    registerOutboxConsumers: inbox.internal.registerOutboxConsumers,
+    // Worker-only durable consumer registration contributed by owning contexts.
+    registerOutboxConsumers: () => {
+      integration.internal.registerOutboxConsumers()
+      property.internal.registerOutboxConsumers()
+      inbox.internal.registerOutboxConsumers()
+      metricApi.internal.registerOutboxConsumers()
+    },
+    providerEphemeralRedis,
   } as const
 }
 
@@ -749,7 +972,11 @@ export async function closeContainer(): Promise<void> {
   const container = store[CONTAINER_KEY]
   store[CONTAINER_KEY] = undefined
   if (!container) return
-  await Promise.all([container.jobQueue?.close(), container.backgroundQueue?.close()])
+  await Promise.all([
+    container.jobQueue?.close(),
+    container.backgroundQueue?.close(),
+    container.providerEphemeralRedis?.quit(),
+  ])
   await closeJobQueueConnections()
 }
 

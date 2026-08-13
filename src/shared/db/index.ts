@@ -2,14 +2,12 @@
 // Uses the shared pool from pool.ts to avoid duplicating connections.
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getPool } from './pool'
-import * as schema from './schema/index'
 
-let _db: ReturnType<typeof drizzle<typeof schema>> | undefined
+let _db: ReturnType<typeof drizzle> | undefined
 
 export function getDb() {
   if (!_db) {
-    const pool = getPool()
-    _db = drizzle(pool, { schema })
+    _db = drizzle(getPool())
   }
   return _db
 }

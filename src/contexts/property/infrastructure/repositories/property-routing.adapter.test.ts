@@ -86,7 +86,10 @@ describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
   })
 
   it('resolves the us property to the us cell target', async () => {
-    const decision = await router.resolve(propUs, 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: propUs },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'target',
@@ -99,7 +102,10 @@ describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
   })
 
   it('fails closed for the unresolved property', async () => {
-    const decision = await router.resolve(propUnresolved, 'reply.publish')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: propUnresolved },
+      'reply.publish',
+    )
 
     expect(decision).toEqual({
       kind: 'blocked',
@@ -109,7 +115,10 @@ describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
   })
 
   it('fails closed for a missing property', async () => {
-    const decision = await router.resolve(MISSING_ID, 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: MISSING_ID },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'blocked',

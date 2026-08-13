@@ -5,11 +5,6 @@
 import type { Portal, PortalId } from '../../domain/types'
 import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
 
-export type PortalQrInfo = Readonly<{
-  slug: string
-  propertySlug: string
-}>
-
 export type PublicPortalResult = Readonly<{
   portal: Readonly<{
     id: string
@@ -18,8 +13,7 @@ export type PublicPortalResult = Readonly<{
     description: string | null
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
-    smartRoutingEnabled: boolean
-    smartRoutingThreshold: number
+
     organizationName: string
   }>
   categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
@@ -60,13 +54,12 @@ export type PortalRepository = Readonly<{
     patch: Readonly<Partial<Portal>>,
   ) => Promise<void>
   softDelete: (orgId: OrganizationId, id: PortalId) => Promise<void>
-  getPortalQrInfo: (orgId: OrganizationId, id: PortalId) => Promise<PortalQrInfo | null>
   resolvePortalContext: (
     portalIdParam: PortalId,
   ) => Promise<ResolvePortalContextResult | null>
-  findPublicPortalBySlug: (
-    propertySlug: string,
-    portalSlug: string,
+  findPublicPortalById: (
+    orgId: OrganizationId,
+    portalId: PortalId,
   ) => Promise<PublicPortalResult | null>
 
   // ── Staff goal resolution ────────────────────────────────────────────

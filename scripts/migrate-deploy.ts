@@ -11,7 +11,10 @@
 //      drizzle/ (the same engine `pnpm db:migrate` / drizzle-kit wraps; same
 //      journal format, same drizzle.__drizzle_migrations bookkeeping).
 //      Idempotent: applied journal entries are skipped.
-//   3. Registered deploy sidecar — scripts/migrations/
+//   3. Google Property binding unique-index sidecar — duplicate-audited,
+//      advisory-locked CREATE UNIQUE INDEX CONCURRENTLY outside Drizzle's
+//      transaction.
+//   4. Registered deploy SQL sidecar — scripts/migrations/
 //      2026-07-06-permission-version-triggers.sql (idempotent by design;
 //      plain SQL, no psql meta-commands, applied in-process via pg — the
 //      same mechanism as src/shared/testing/test-db-setup.ts).
@@ -49,6 +52,7 @@ import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
+import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -130,7 +134,16 @@ async function main(): Promise<void> {
       await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER })
       log('drizzle track applied')
 
-      // 3. Registered deploy sidecar
+      // 3. Autocommit-only Google Property binding index gate
+      const googlePropertyBindingIndex = await buildGooglePropertyBindingIndex(client)
+      log('google property binding index', googlePropertyBindingIndex)
+      if (!googlePropertyBindingIndex.ok) {
+        throw new Error(
+          `Google Property binding index denied: ${googlePropertyBindingIndex.code}`,
+        )
+      }
+
+      // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
 

@@ -70,6 +70,16 @@ export type RestoreVerifyDeps = Readonly<{
   purgeExpired: () => Promise<void>
   /** The latest purge evidence rows (retention_runs, newest first). */
   purgeEvidence: () => Promise<ReadonlyArray<RestoreVerifyEvidenceRow>>
+  /** Bounded Google import lifecycle backlog in the restored database. */
+  inspectGoogleImportLifecycle: () => Promise<
+    Readonly<{
+      expiredItems: number
+      purgeCandidates: number
+      unreleasedExpiredReceipts: number
+    }>
+  >
+  /** Receipt-first expiry/purge/release lifecycle, with retention evidence. */
+  sweepGoogleImportLifecycle: () => Promise<void>
 }>
 
 /**
@@ -105,10 +115,12 @@ export async function runRestoreVerifyAction(
   io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target isolated`)
 
   const eligible = await deps.countExpired()
+  const importLifecycleBefore = await deps.inspectGoogleImportLifecycle()
   if (ctx.dryRun) {
     io.out(
       `dry-run: ${eligible} expired-content row(s) eligible for the source-policy ` +
-        'purge — re-run with --apply --yes ops:restore-verify',
+        `purge; Google import lifecycle backlog=${JSON.stringify(importLifecycleBefore)} ` +
+        '— re-run with --apply --yes ops:restore-verify',
     )
     return 0
   }
@@ -116,8 +128,10 @@ export async function runRestoreVerifyAction(
   // The in-process purge — the same execution path as the scheduled
   // purge-expired-reviews job (bounded, evidence in retention_runs).
   await deps.purgeExpired()
+  await deps.sweepGoogleImportLifecycle()
 
   const remaining = await deps.countExpired()
+  const importLifecycleAfter = await deps.inspectGoogleImportLifecycle()
 
   const evidence = await deps.purgeEvidence()
   io.out('purge evidence (retention_runs, newest first):')
@@ -134,8 +148,19 @@ export async function runRestoreVerifyAction(
     )
     return 1
   }
+  if (
+    importLifecycleAfter.expiredItems > 0 ||
+    importLifecycleAfter.purgeCandidates > 0 ||
+    importLifecycleAfter.unreleasedExpiredReceipts > 0
+  ) {
+    io.err(
+      `FAILED: Google import lifecycle backlog remains after reconciliation: ${JSON.stringify(importLifecycleAfter)}`,
+    )
+    return 1
+  }
 
   io.out('✓ zero expired-content row(s) remain eligible — source policy verified')
+  io.out('✓ zero Google import lifecycle backlog remains — import retention verified')
   io.out('\ncutover checklist:')
   io.out('  1. Verify reads against the restored instance (boot smoke, spot-checks)')
   io.out('  2. UNSET RESTORE_MODE and redeploy web + worker to resume normal service')

@@ -1,6 +1,4 @@
-// Edit team form — inline form for editing team name, description, and team lead
-// Per architecture: receives mutation as a prop, uses DTO schema for validation.
-
+// Edit team details. Lead changes use setTeamLead/clearTeamLead commands.
 import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
@@ -8,28 +6,23 @@ import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
-import { TeamLeadSelect } from './team-lead-select'
 import { Button } from '#/components/ui/button'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import type { UpdateTeamInput } from '#/contexts/team/application/dto/update-team.dto'
-import { updateTeamInputSchema } from '#/contexts/team/application/dto/update-team.dto'
-import type { MemberOption } from '#/components/features/team/shared/types'
-
-const formSchema = updateTeamInputSchema.required().extend({
-  description: z.string().max(500),
-  teamLeadId: z.string(),
-})
-
 import type { Action } from '#/components/hooks/use-action'
+import type { UpdateTeamMutationInput } from '#/components/features/team/shared/types'
+
+const formSchema = z.object({
+  teamId: z.string().min(1),
+  name: z.string().trim().min(1, 'Enter a team name').max(100),
+  description: z.string().max(500),
+})
 
 type Props = Readonly<{
   teamId: string
   initialName: string
   initialDescription: string | null
-  initialTeamLeadId: string | null
-  members?: ReadonlyArray<MemberOption>
-  mutation: Action<{ data: UpdateTeamInput }>
+  mutation: Action<{ data: UpdateTeamMutationInput }>
   onCancel: () => void
 }>
 
@@ -37,8 +30,6 @@ export function EditTeamForm({
   teamId,
   initialName,
   initialDescription,
-  initialTeamLeadId,
-  members,
   mutation,
   onCancel,
 }: Props) {
@@ -47,7 +38,6 @@ export function EditTeamForm({
       teamId,
       name: initialName,
       description: initialDescription ?? '',
-      teamLeadId: initialTeamLeadId ?? '',
     },
     validators: {
       onSubmit: formSchema,
@@ -56,9 +46,8 @@ export function EditTeamForm({
       await mutation({
         data: {
           teamId: value.teamId,
-          name: value.name,
-          description: value.description || null,
-          teamLeadId: value.teamLeadId || null,
+          name: value.name.trim(),
+          description: value.description.trim() || null,
         },
       })
     },
@@ -92,14 +81,6 @@ export function EditTeamForm({
             />
           )}
         </form.Field>
-
-        {members && members.length > 0 && (
-          <form.Field name="teamLeadId">
-            {(field: BaseFieldApi) => (
-              <TeamLeadSelect field={field} members={members} label="Team lead" />
-            )}
-          </form.Field>
-        )}
       </FieldGroup>
 
       <div className="flex gap-2">

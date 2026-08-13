@@ -1,7 +1,12 @@
 // Shared period-range tests — merged from the badge/leaderboard copies (BQC-5.9 E3).
 
 import { describe, it, expect } from 'vitest'
-import { periodToRange, dayKeyInTimezone, PERIOD_PRESETS } from './period-range'
+import {
+  calendarPeriodRange,
+  dayKeyInTimezone,
+  PERIOD_PRESETS,
+  periodToRange,
+} from './period-range'
 
 const REF = new Date('2026-06-15T14:30:00.000Z')
 
@@ -100,5 +105,33 @@ describe('dayKeyInTimezone', () => {
   it('shifts day backward in negative timezone', () => {
     const key = dayKeyInTimezone(new Date('2026-06-15T02:00:00Z'), 'America/Los_Angeles')
     expect(key).toBe('2026_06_14')
+  })
+})
+
+describe('calendarPeriodRange', () => {
+  it('uses property-local month boundaries across a DST transition', () => {
+    expect(
+      calendarPeriodRange(
+        new Date('2026-03-15T12:00:00.000Z'),
+        'America/New_York',
+        'monthly',
+      ),
+    ).toEqual({
+      start: new Date('2026-03-01T05:00:00.000Z'),
+      end: new Date('2026-04-01T04:00:00.000Z'),
+    })
+  })
+
+  it('uses Monday-start property-local weekly boundaries', () => {
+    expect(
+      calendarPeriodRange(
+        new Date('2026-06-21T14:00:00.000Z'),
+        'America/Los_Angeles',
+        'weekly',
+      ),
+    ).toEqual({
+      start: new Date('2026-06-15T07:00:00.000Z'),
+      end: new Date('2026-06-22T07:00:00.000Z'),
+    })
   })
 })

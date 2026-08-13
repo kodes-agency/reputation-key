@@ -50,6 +50,9 @@ for (const r of DELAYED_ROWS) {
 const PROPERTY_SCOPED_ACTIONS: Set<string> = new Set(
   DELAYED_ROWS.filter((r) => r.resourceScope === 'property').map((r) => r.action),
 )
+const TENANT_CROSS_ACTIONS: ReadonlySet<string> = new Set(
+  DELAYED_ROWS.filter((r) => r.resourceScope === 'tenant_cross').map((r) => r.action),
+)
 const FRESH_READ_ACTIONS: Set<string> = new Set(
   DELAYED_ROWS.filter((r) => r.externalEffect).map((r) => r.action),
 )
@@ -73,6 +76,8 @@ export type DelayedDecisionRequest = Readonly<{
   action: string
   organizationId: string
   propertyId?: string
+  /** Capability recorded by the producer; must match the catalogue when present. */
+  capabilityAtEnqueue?: Capability | 'none'
   executionKind: 'worker' | 'consumer' | 'schedule'
   /** Who enqueued the work, when relevant (user or system). */
   initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
@@ -88,6 +93,7 @@ export type DelayedDenyReason =
   | 'missing_scope'
   | 'consent_required'
   | 'policy_unavailable'
+  | 'capability_mismatch'
   | 'unknown_action'
 
 export type DelayedDecision = Readonly<{
@@ -194,8 +200,27 @@ export function createDelayedExecutionPolicy(
         return finish(request, 'none', false, 'missing_scope', freshRead)
       }
 
-      // Rule 5: capability + suspension re-check against CURRENT policy.
       const capability = capabilityForSystemAction(request.action)
+      if (
+        request.capabilityAtEnqueue !== undefined &&
+        request.capabilityAtEnqueue !== capability
+      ) {
+        return finish(request, capability, false, 'capability_mismatch', freshRead)
+      }
+
+      // A tenant-cross schedule is only the enumeration boundary. It may
+      // inspect identifiers across tenants, but every candidate must be
+      // authorized again with its real organization/property before work.
+      // Worker/consumer invocations never receive this exception.
+      if (
+        request.executionKind === 'schedule' &&
+        request.organizationId === 'tenant-cross' &&
+        TENANT_CROSS_ACTIONS.has(request.action)
+      ) {
+        return finish(request, capability, true, 'allowed', freshRead)
+      }
+
+      // Rule 5: capability + suspension re-check against CURRENT policy.
       if (capability !== 'none') {
         const systemCtx: AuthContext = {
           userId: userId(request.principal.id),

@@ -3,6 +3,7 @@
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
+import type { PortalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
@@ -15,12 +16,15 @@ export type ListPortalGroupsDeps = Readonly<{
   staffPublicApi: StaffPublicApi
 }>
 
+export type PortalGroupWithPortals = PortalGroup &
+  Readonly<{ portalIds: ReadonlyArray<PortalId> }>
+
 export const listPortalGroups =
   (deps: ListPortalGroupsDeps) =>
   async (
     input: { propertyId: string },
     ctx: AuthContext,
-  ): Promise<ReadonlyArray<PortalGroup>> => {
+  ): Promise<ReadonlyArray<PortalGroupWithPortals>> => {
     if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
@@ -36,10 +40,19 @@ export const listPortalGroups =
       ctx.organizationId,
       propertyId(input.propertyId),
     )
-    if (accessible === null) {
-      return groups
-    }
-    return groups.filter((g) => accessible.includes(g.propertyId))
+    const visibleGroups =
+      accessible === null
+        ? groups
+        : groups.filter((group) => accessible.includes(group.propertyId))
+    return Promise.all(
+      visibleGroups.map(async (group) => ({
+        ...group,
+        portalIds: await deps.portalGroupRepo.getGroupPortalIds(
+          ctx.organizationId,
+          group.id,
+        ),
+      })),
+    )
   }
 
 export type ListPortalGroups = ReturnType<typeof listPortalGroups>

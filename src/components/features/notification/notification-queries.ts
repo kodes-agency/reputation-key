@@ -24,9 +24,10 @@ const POLL_INTERVAL = 30_000
 
 export function useUnreadNotificationCount(
   getUnreadCount: typeof getUnreadNotificationCountFn,
+  organizationId: string,
 ) {
   const query = useQuery({
-    queryKey: notificationKeys.count(),
+    queryKey: notificationKeys.count(organizationId),
     queryFn: () => getUnreadCount({ data: undefined }),
     refetchInterval: POLL_INTERVAL,
     staleTime: 0,
@@ -36,9 +37,13 @@ export function useUnreadNotificationCount(
 
 // ── Notification list (offset pagination) ───────────────────────────
 
-export function useNotifications(getList: typeof getNotificationsFn, limit = 20) {
+export function useNotifications(
+  getList: typeof getNotificationsFn,
+  organizationId: string,
+  limit = 20,
+) {
   const query = useInfiniteQuery({
-    queryKey: notificationKeys.list(limit),
+    queryKey: notificationKeys.list(organizationId, limit),
     queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam } }),
     initialPageParam: 0,
     // If a full page came back, another page may exist → advance the offset.

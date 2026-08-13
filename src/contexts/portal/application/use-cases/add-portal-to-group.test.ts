@@ -92,6 +92,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
       Array.from(memberships.entries())
         .filter(([, gid]) => String(gid) === String(groupId))
         .map(([pid]) => portalId(pid)),
+    findGroupIdsByPortalIds: async () => [],
     findGroupForPortal: async (_orgId, pid) => {
       const gid = memberships.get(String(pid))
       return gid ? (store.get(String(gid)) ?? null) : null
@@ -115,9 +116,7 @@ const seedPortal = (): Portal => ({
   description: null,
   heroImageUrl: null,
   theme: { primaryColor: '#000000' },
-  smartRoutingEnabled: false,
-  smartRoutingThreshold: 0,
-  isActive: true,
+  publicationState: 'published',
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -203,7 +202,13 @@ describe('addPortalToGroup', () => {
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
 
     // Portal is already a member of the group.
-    await portalGroupRepo.addPortal(ctx.organizationId, GROUP_ID, PORTAL_ID)
+    await portalGroupRepo.addPortal(
+      ctx.organizationId,
+      GROUP_ID,
+      PORTAL_ID,
+      FIXED_TIME,
+      ctx.userId,
+    )
 
     await expect(
       useCase({ portalGroupId: String(GROUP_ID), portalId: String(PORTAL_ID) }, ctx),

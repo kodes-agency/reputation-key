@@ -19,6 +19,8 @@ const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/cancel-invitation',
   '/organization/update-member-role',
   '/organization/remove-member',
+  '/organization/delete',
+  '/organization/leave',
 ] as const
 
 /**

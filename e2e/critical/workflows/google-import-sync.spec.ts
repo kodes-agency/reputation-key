@@ -123,6 +123,7 @@ test.describe('Critical workflow: Google import + initial sync', () => {
             address: '1 Main St, Springfield IL 62701',
             primaryCategory: 'Hotel',
             gbpLocationName: LOC_A,
+            gbpLocationId: 'loc-a',
             countryCode: 'US',
           },
           {
@@ -131,6 +132,7 @@ test.describe('Critical workflow: Google import + initial sync', () => {
             address: '1 Main St, Springfield IL 62701',
             primaryCategory: 'Hotel',
             gbpLocationName: LOC_B,
+            gbpLocationId: 'loc-b',
             countryCode: 'US',
           },
         ],

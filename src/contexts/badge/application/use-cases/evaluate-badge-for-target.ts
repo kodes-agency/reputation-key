@@ -158,6 +158,7 @@ async function criteriaMet(
     portalId: target.targetType === 'portal' ? (target.portalId ?? null) : null,
     groupId: target.targetType === 'portal_group' ? (target.portalGroupId ?? null) : null,
     metricKey: criteria.metricKey,
+    consumer: 'badge',
     periodStart: range.start,
     periodEnd: range.end,
     rollingWindowDays:

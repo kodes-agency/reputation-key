@@ -1,47 +1,34 @@
-// Integration context — get Google auth URL use case
-// Extracted from the server fn (D8-006): OAuth state-signing (HMAC + nonce +
-// base64) and URL construction now live in a use case, testable independently.
-// Per ADR 0017: clock + idGen are injected for deterministic testing.
-//
-// BQC-7.6 hardening: the state is bound to the initiating user (`sub`) and
-// the flow runs PKCE S256 — the verifier is stored server-side under the
-// state nonce (TTL = state TTL, one-time use) and only the challenge leaves
-// the process. Codec + primitives: ../oauth-state.
+// Integration context — issue an opaque, server-bound Google OAuth URL.
 
-import {
-  encodeOAuthState,
-  generateCodeVerifier,
-  s256Challenge,
-  OAUTH_STATE_TTL_SECONDS,
-  type PkceVerifierStore,
-} from '../oauth-state'
+import { generateCodeVerifier, generateOidcNonce, s256Challenge } from '../oauth-pkce'
+import type { OAuthStateHandleService } from '../oauth-state-handle'
+import { GOOGLE_BUSINESS_MANAGE_SCOPE } from '../google-provider-contract'
 
 export type GetGoogleAuthUrlDeps = Readonly<{
   clientId: string
   callbackUrl: string
-  stateSecret: string
   clock: () => Date
-  idGen: () => string
-  /** Server-side PKCE verifier store (BQC-7.6). */
-  pkceStore: PkceVerifierStore
+  stateHandles: OAuthStateHandleService
 }>
 
 export type GetGoogleAuthUrlInput = Readonly<{
   visibility: 'private' | 'organization'
   /** The authenticated user initiating the flow (state session binding). */
   userId: string
+  /** Stable tenant/session bindings required by opaque v2 state. */
+  organizationId?: string
+  sessionId?: string
+  purpose?: 'reviews' | 'import_gbp_v2' | 'performance_reauth'
+  connectionMode?: 'new' | 'reauth' | 'reconnect'
+  targetConnectionId?: string | null
 }>
 
 export type GetGoogleAuthUrlResult = Readonly<{
   url: string
 }>
 
-/** OAuth scopes required for Google Business Profile API + user identity. */
-const GBP_OAUTH_SCOPES = [
-  'https://www.googleapis.com/auth/business.manage',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-]
+/** Exact v2 OAuth contract: signed OIDC identity plus GBP management. */
+const GBP_OAUTH_SCOPES = ['openid', GOOGLE_BUSINESS_MANAGE_SCOPE]
 
 /** Concrete use case instance type — named, not derived via ReturnType. */
 export type GetGoogleAuthUrl = (
@@ -49,33 +36,32 @@ export type GetGoogleAuthUrl = (
 ) => Promise<GetGoogleAuthUrlResult>
 
 /**
- * Build a signed Google OAuth authorization URL.
- *
- * The caller resolves auth + permission (integration.manage). This use case
- * owns state construction (visibility preference + CSRF nonce + initiating
- * user binding + HMAC signature), PKCE verifier storage, and URL assembly.
- * Fails closed: no URL is issued when the verifier cannot be stored.
+ * The caller resolves authorization. This use case creates one-time PKCE and
+ * OIDC material, persists it only behind an opaque state handle, and emits no
+ * tenant, user, provider, or verifier material in the browser-visible state.
  */
 export const getGoogleAuthUrl =
   (deps: GetGoogleAuthUrlDeps): GetGoogleAuthUrl =>
   async (input) => {
-    // PKCE first: no authorization URL exists without its server-side
-    // verifier — a store outage must not mint unredeemable flows.
-    const nonce = deps.idGen()
     const codeVerifier = generateCodeVerifier()
-    await deps.pkceStore.save(nonce, codeVerifier, OAUTH_STATE_TTL_SECONDS)
+    const oidcNonce = generateOidcNonce()
+    const nowMs = deps.clock().getTime()
 
-    // State: visibility preference + CSRF nonce + initiating-user binding,
-    // HMAC-signed (codec owns the canonical form).
-    const state = encodeOAuthState(
-      {
-        visibility: input.visibility,
-        nonce,
-        ts: deps.clock().getTime(),
-        sub: input.userId,
-      },
-      deps.stateSecret,
-    )
+    if (!input.organizationId || !input.sessionId) {
+      throw new Error('Opaque OAuth state dependencies are unavailable')
+    }
+    const state = await deps.stateHandles.issue({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      sessionId: input.sessionId,
+      visibility: input.visibility,
+      purpose: input.purpose ?? 'reviews',
+      connectionMode: input.connectionMode ?? 'new',
+      targetConnectionId: input.targetConnectionId ?? null,
+      nowMs,
+      codeVerifier,
+      oidcNonce,
+    })
 
     // Build OAuth URL
     const params = new URLSearchParams({
@@ -86,6 +72,7 @@ export const getGoogleAuthUrl =
       state,
       access_type: 'offline',
       prompt: 'consent',
+      nonce: oidcNonce,
       code_challenge: s256Challenge(codeVerifier),
       code_challenge_method: 'S256',
     })

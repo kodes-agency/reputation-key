@@ -3,102 +3,171 @@
 
 import type { Job } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { JobPolicyContext } from '#/shared/jobs/delayed-execution-gate'
-import { notificationEmailId, notificationId } from '#/shared/domain/ids'
+import type {
+  JobExecutionEnvelope,
+  ScheduledScopeAuthorizer,
+} from '#/shared/jobs/delayed-execution-gate'
+import {
+  notificationEmailId,
+  notificationId,
+  organizationId,
+  propertyId,
+} from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
+import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
+import { deliveryTiming } from '../../domain/notification-delivery-policy'
+import { getDefaultEnabled } from '../../domain/notification-policy'
 import { emailShell, escapeHtml } from '#/shared/email'
 
 export const URGENT_EMAIL_JOB_NAME = 'urgent-email' as const
 
-export type UrgentEmailJobData = {
-  notificationEmailId: string
-  organizationId: string
-  /** BQC-3.2: content-free policy context stamped at enqueue. */
-  policy?: JobPolicyContext
-}
+export type UrgentEmailJobData = JobExecutionEnvelope &
+  Readonly<{ notificationEmailId: string; propertyId: string }>
 
 type UrgentEmailDeps = Readonly<{
   emailRepo: NotificationEmailRepositoryPort
+  preferenceRepo: NotificationPreferenceRepositoryPort
   notifRepo: NotificationRepositoryPort
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
+  resolvePropertyScope: NotificationPropertyScopeResolver
+  authorizeScope: ScheduledScopeAuthorizer
   logger: LoggerPort
   clock: () => Date
 }>
 
+const retryAt = (now: Date, retryCount: number): Date =>
+  new Date(now.getTime() + Math.min(60 * 60_000, 30_000 * 2 ** retryCount))
+
 export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
-  return async (job: Job<UrgentEmailJobData>): Promise<void> => {
-    const { logger, emailRepo, notifRepo, userLookup, emailSender, clock } = deps
+  return async (job: Pick<Job<UrgentEmailJobData>, 'data'>): Promise<void> => {
+    const rawOrgId = job.data.organizationId
+    const rawPropertyId = job.data.propertyId
+    const resolved = await deps.resolvePropertyScope(rawOrgId, rawPropertyId)
+    if (!resolved) return
+    if (!(await deps.authorizeScope(resolved.organizationId, resolved.propertyId))) return
 
+    const orgId = organizationId(resolved.organizationId)
+    const propId = propertyId(resolved.propertyId)
     const emailId = notificationEmailId(job.data.notificationEmailId)
-    const orgId = job.data.organizationId as Parameters<typeof emailRepo.findById>[1]
-    // 1. Get the email queue entry by ID
-    const entry = await emailRepo.findById(emailId, orgId)
+    const entry = await deps.emailRepo.findById(emailId, orgId, propId)
+    if (!entry || !['pending', 'failed', 'delayed'].includes(entry.status)) return
 
-    if (!entry || (entry.status !== 'pending' && entry.status !== 'failed')) {
-      logger.warn('Urgent email entry not found or not retryable')
+    const preference = await deps.preferenceRepo.findForDelivery(
+      entry.userId,
+      orgId,
+      propId,
+      entry.category,
+      'email',
+    )
+    const enabled = preference?.enabled ?? getDefaultEnabled(entry.category, 'email')
+    if (!enabled) {
+      await deps.emailRepo.markSuppressed(
+        emailId,
+        orgId,
+        propId,
+        'preference_disabled',
+        deps.clock(),
+      )
       return
     }
 
-    // 2. Get the notification
-    const notif = await notifRepo.findById(
+    const timing = deliveryTiming({
+      now: deps.clock(),
+      timezone: resolved.timezone,
+      quietHoursStart: preference?.quietHoursStart ?? null,
+      quietHoursEnd: preference?.quietHoursEnd ?? null,
+      urgent: entry.priority === 'urgent',
+      urgentBypassEnabled: preference?.urgentBypassEnabled ?? false,
+    })
+    if (timing.kind === 'defer') {
+      await deps.emailRepo.markDelayed(emailId, orgId, propId, timing.until, deps.clock())
+      return
+    }
+
+    const notification = await deps.notifRepo.findByIdForProperty(
       notificationId(entry.notificationId as string),
-      entry.organizationId as Parameters<typeof notifRepo.findById>[1],
+      orgId,
+      propId,
     )
-    if (!notif) {
-      logger.warn('Notification not found for urgent email')
-      if (entry.status === 'failed') {
-        const now = clock()
-        await emailRepo.markFailed(emailId, orgId, now, now)
-      } else {
-        const now = clock()
-        await emailRepo.markSkipped(emailId, orgId, now)
-      }
+    if (!notification) {
+      await deps.emailRepo.markSuppressed(
+        emailId,
+        orgId,
+        propId,
+        'notification_unavailable',
+        deps.clock(),
+      )
+      return
+    }
+    const recipient = await deps.userLookup.getEmail(entry.userId)
+    if (!recipient) {
+      await deps.emailRepo.markSuppressed(
+        emailId,
+        orgId,
+        propId,
+        'recipient_unavailable',
+        deps.clock(),
+      )
       return
     }
 
-    // 3. Get the user's email address
-    const userEmail = await userLookup.getEmail(
-      entry.userId as Parameters<typeof userLookup.getEmail>[0],
+    const html = emailShell(
+      `<p><strong>${escapeHtml(notification.title)}</strong></p>` +
+        (notification.body ? `<p>${escapeHtml(notification.body)}</p>` : ''),
     )
-    if (!userEmail) {
-      logger.warn('User email not found, skipping urgent email')
-      if (entry.status === 'failed') {
-        const now = clock()
-        await emailRepo.markFailed(emailId, orgId, now, now)
-      } else {
-        const now = clock()
-        await emailRepo.markSkipped(emailId, orgId, now)
-      }
-      return
-    }
-
-    // 4. Render single-notification email
-    const bodyHtml =
-      `<p><strong>${escapeHtml(notif.title)}</strong></p>` +
-      (notif.body ? `<p>${escapeHtml(notif.body)}</p>` : '')
-
-    const html = emailShell(bodyHtml)
-
-    // 5. Send & mark sent, or mark failed on error
+    const attemptedAt = deps.clock()
     try {
-      await emailSender.send({
-        to: userEmail,
-        subject: `${notif.title} — Reputation Key`,
+      const outcome = await deps.emailSender.send({
+        to: recipient,
+        subject: `${notification.title} — Reputation Key`,
         html,
+        idempotencyKey: entry.idempotencyKey,
       })
-      const sentNow = clock()
-      await emailRepo.markSent(emailId, orgId, sentNow, sentNow)
-      // State machine: only 'pending'/'failed' → 'sent'. Enforced at DB level by the repo WHERE clause.
-    } catch (err) {
-      logger.error({ err }, 'Urgent email send failed')
-      const failNow = clock()
-      await emailRepo.markFailed(emailId, orgId, failNow, failNow)
-      // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.
-      throw err // re-throw for BullMQ retry
+      if (outcome.kind === 'accepted') {
+        await deps.emailRepo.markAccepted(
+          emailId,
+          orgId,
+          propId,
+          outcome.providerMessageId,
+          outcome.acceptedAt,
+        )
+        return
+      }
+
+      await deps.emailRepo.markFailed(
+        emailId,
+        orgId,
+        propId,
+        outcome.classification,
+        outcome.classification === 'transient'
+          ? retryAt(attemptedAt, entry.retryCount)
+          : null,
+        attemptedAt,
+      )
+      if (outcome.classification === 'transient') {
+        throw new Error('Transient email provider rejection')
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Transient email provider rejection'
+      )
+        throw error
+      await deps.emailRepo.markFailed(
+        emailId,
+        orgId,
+        propId,
+        'transient',
+        retryAt(attemptedAt, entry.retryCount),
+        attemptedAt,
+      )
+      deps.logger.error({ error }, 'Immediate email provider call failed')
+      throw error
     }
   }
 }

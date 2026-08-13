@@ -4,6 +4,7 @@
 import type {
   GoogleConnectionRepository,
   ConnectionVisibilityFilter,
+  GoogleConnectionIdentityLookup,
 } from '#/contexts/integration/application/ports/google-connection.repository'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -19,24 +20,27 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
 
   const byOrg = (orgId: OrganizationId) => (c: GoogleConnection) =>
     c.organizationId === orgId
-
+  const matchesIdentity = (
+    connection: GoogleConnection,
+    identity: GoogleConnectionIdentityLookup,
+  ) => connection.googleSubject === identity.googleSubject
   return {
     findById: async (orgId, id) => {
       const connection = store.get(id as string)
       return connection && byOrg(orgId)(connection) ? connection : null
     },
 
-    findByGoogleAccountId: async (orgId, googleAccountId) => {
+    findByGoogleIdentity: async (orgId, identity) => {
       for (const connection of store.values()) {
-        if (byOrg(orgId)(connection) && connection.googleAccountId === googleAccountId) {
+        if (byOrg(orgId)(connection) && matchesIdentity(connection, identity)) {
           return connection
         }
       }
       return null
     },
-    findByGoogleAccountIdGlobal: async (googleAccountId) => {
+    findByGoogleIdentityGlobal: async (identity) => {
       for (const connection of store.values()) {
-        if (connection.googleAccountId === googleAccountId) {
+        if (matchesIdentity(connection, identity)) {
           return connection
         }
       }
@@ -58,7 +62,12 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
     updateStatus: async (orgId, id, status) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
-      store.set(id as string, { ...existing, status, updatedAt: new Date() })
+      store.set(id as string, {
+        ...existing,
+        status,
+        lifecycleVersion: existing.lifecycleVersion + 1,
+        updatedAt: new Date(),
+      })
     },
 
     redactForDisconnect: async (orgId, id) => {
@@ -68,9 +77,13 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         ...existing,
         encryptedAccessToken: 'redacted',
         encryptedRefreshToken: 'redacted',
-        googleEmail: 'redacted',
-        googleAccountId: `redacted:${id}`,
+        googleSubject: null,
         scopes: [],
+        credentialUseState: 'none',
+        cleanupMaterialDeadlineAt: null,
+        lifecycleVersion: existing.lifecycleVersion + 1,
+        accessVersion: existing.accessVersion + 1,
+        credentialGeneration: existing.credentialGeneration + 1,
         updatedAt: new Date(),
       })
     },
@@ -78,7 +91,12 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
     updateVisibility: async (orgId, id, visibility) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
-      store.set(id as string, { ...existing, visibility, updatedAt: new Date() })
+      store.set(id as string, {
+        ...existing,
+        visibility,
+        accessVersion: existing.accessVersion + 1,
+        updatedAt: new Date(),
+      })
     },
 
     updateTokens: async (
@@ -89,14 +107,23 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       tokenExpiresAt,
     ) => {
       const existing = store.get(id as string)
-      if (!existing || !byOrg(orgId)(existing)) return
+      if (
+        !existing ||
+        !byOrg(orgId)(existing) ||
+        existing.credentialUseState !== 'active'
+      ) {
+        return false
+      }
       store.set(id as string, {
         ...existing,
         encryptedAccessToken,
         encryptedRefreshToken,
         tokenExpiresAt,
+        credentialGeneration: existing.credentialGeneration + 1,
+        accessVersion: existing.accessVersion + 1,
         updatedAt: new Date(),
       })
+      return true
     },
 
     updateTokensAndStatus: async (
@@ -115,6 +142,8 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         encryptedRefreshToken,
         tokenExpiresAt,
         status,
+        credentialGeneration: existing.credentialGeneration + 1,
+        accessVersion: existing.accessVersion + 1,
         updatedAt: new Date(),
       })
     },
@@ -136,6 +165,11 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         tokenExpiresAt,
         visibility,
         status: 'active',
+        credentialUseState: 'active',
+        cleanupMaterialDeadlineAt: null,
+        lifecycleVersion: existing.lifecycleVersion + 1,
+        accessVersion: existing.accessVersion + 1,
+        credentialGeneration: existing.credentialGeneration + 1,
         updatedAt: new Date(),
       })
     },

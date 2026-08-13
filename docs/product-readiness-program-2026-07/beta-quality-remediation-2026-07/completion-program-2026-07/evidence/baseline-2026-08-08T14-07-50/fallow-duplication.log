@@ -1,0 +1,98 @@
+$ node_modules/.bin/fallow dupes
+started: 2026-08-08T14:10:49.544Z  durationMs: 372  exit: 0
+
+● Duplicates (769 clone groups)
+
+     90 lines  2 instances  dup:8bb8c343
+    src/contexts/portal/application/use-cases/add-portal-to-group.test.ts:24-105
+    src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts:21-110
+
+     86 lines  2 instances  dup:a6ebc854
+    src/contexts/portal/application/use-cases/remove-portal-from-group.test.ts:23-108
+    src/contexts/portal/application/use-cases/soft-delete-portal-group.test.ts:22-107
+
+     77 lines  2 instances  dup:3012d87a
+    src/contexts/portal/application/use-cases/add-portal-to-group.test.ts:29-105
+    src/contexts/portal/application/use-cases/create-portal-group.test.ts:24-96
+
+     62 lines  2 instances  dup:780aabc9
+    src/contexts/goal/application/use-cases/get-goal.test.ts:24-85
+    src/contexts/goal/application/use-cases/list-goals.test.ts:25-86
+
+     57 lines  2 instances  dup:680d1d83
+    src/contexts/goal/application/use-cases/get-goal.test.ts:90-145
+    src/contexts/goal/application/use-cases/list-goals.test.ts:98-154
+
+     54 lines  2 instances  dup:6b78d778
+    src/contexts/inbox/infrastructure/repositories/inbox-command-store.test.ts:68-121
+    src/contexts/inbox/infrastructure/repositories/inbox.repository.test.ts:35-85
+
+     48 lines  2 instances  dup:ea54e3ed
+    src/contexts/identity/infrastructure/identity-command-store.test.ts:153-200
+    src/contexts/property/infrastructure/property-command-store.test.ts:145-188
+
+     47 lines  2 instances  dup:9a327f6c
+    src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts:28-70
+    src/contexts/inbox/application/use-cases/get-inbox-items.test.ts:21-67
+
+     46 lines  2 instances  dup:6e20f863
+    src/contexts/review/infrastructure/repositories/publication-state.test.ts:214-243
+    src/contexts/review/infrastructure/repositories/publication-state.test.ts:318-363
+
+     44 lines  2 instances  dup:00f63fe1
+    src/contexts/goal/application/use-cases/cancel-goal.test.ts:36-79
+    src/contexts/goal/application/use-cases/update-goal.test.ts:37-80
+
+  ... and 759 more clone groups
+  Identical code blocks detected via suffix-array analysis — https://docs.fallow.tools/explanations/duplication#clone-groups
+
+● Clone families (138 with multiple groups)
+
+  3 groups, 53 lines across src/components/features/identity/login/login-form.stories.tsx, src/components/features/identity/reset-password/reset-password-form.stories.tsx
+    → Extract 3 shared clone groups (53 lines) from login-form.stories.tsx, reset-password-form.stories.tsx into a shared directory
+
+  2 groups, 35 lines across src/components/features/identity/member-directory/invite-member-form.stories.tsx, src/components/features/identity/reset-password/reset-password-form.stories.tsx
+    → Extract shared function (17 lines) from invite-member-form.stories.tsx, reset-password-form.stories.tsx
+    → Extract shared function (18 lines) from invite-member-form.stories.tsx, reset-password-form.stories.tsx
+
+  2 groups, 27 lines across src/components/features/identity/registration/register-form.stories.tsx, src/components/features/identity/security-settings-form.stories.tsx
+    → Extract shared function (11 lines) from register-form.stories.tsx, security-settings-form.stories.tsx
+    → Extract shared function (16 lines) from register-form.stories.tsx, security-settings-form.stories.tsx
+
+  2 groups, 39 lines across src/components/features/identity/registration/register-form.stories.tsx, src/components/layout/manager-sidebar.stories.tsx
+    → Extract shared function (28 lines) from register-form.stories.tsx, manager-sidebar.stories.tsx
+    → Extract shared function (11 lines) from register-form.stories.tsx, manager-sidebar.stories.tsx
+
+  2 groups, 33 lines across src/components/features/notification/notification-panel.stories.tsx
+    → Extract shared function (17 lines) from notification-panel.stories.tsx, notification-panel.stories.tsx
+    → Extract shared function (16 lines) from notification-panel.stories.tsx, notification-panel.stories.tsx
+
+  2 groups, 48 lines across src/components/features/portal/portal-form/edit-portal-form.stories.tsx, src/components/features/portal/portal-settings/portal-settings.stories.tsx
+    → Extract shared function (38 lines) from edit-portal-form.stories.tsx, portal-settings.stories.tsx
+    → Extract shared function (10 lines) from edit-portal-form.stories.tsx, portal-settings.stories.tsx
+
+  2 groups, 11 lines across src/components/features/staff/assign-staff-form.stories.tsx
+    → Extract shared function (6 lines) from assign-staff-form.stories.tsx, assign-staff-form.stories.tsx
+    → Extract shared function (5 lines) from assign-staff-form.stories.tsx, assign-staff-form.stories.tsx
+
+  2 groups, 44 lines across src/components/forms/form-text-field.stories.tsx, src/components/forms/form-textarea.stories.tsx
+    → Extract shared function (30 lines) from form-text-field.stories.tsx, form-textarea.stories.tsx
+    → Extract shared function (14 lines) from form-text-field.stories.tsx, form-textarea.stories.tsx
+
+  2 groups, 11 lines across src/components/inbox/inbox-cache-policy.test.ts
+    → Extract shared function (6 lines) from inbox-cache-policy.test.ts, inbox-cache-policy.test.ts
+    → Extract shared function (5 lines) from inbox-cache-policy.test.ts, inbox-cache-policy.test.ts
+
+  2 groups, 27 lines across src/components/inbox/inbox-detail-content.stories.tsx, src/components/inbox/inbox-detail-panel.stories.tsx, src/components/inbox/inbox-detail-sheet.stories.tsx
+    → Extract shared function (13 lines) from inbox-detail-content.stories.tsx, inbox-detail-panel.stories.tsx, inbox-detail-sheet.stories.tsx
+    → Extract shared function (14 lines) from inbox-detail-content.stories.tsx, inbox-detail-panel.stories.tsx, inbox-detail-sheet.stories.tsx
+
+  ... and 128 more families
+
+  Groups of related clones across the same files — https://docs.fallow.tools/explanations/duplication#clone-families
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+note: module wiring excluded from clone detection (--no-ignore-imports to include it)
+
+✗ 17,537 lines (8.4%) duplicated across 404 files (0.28s)

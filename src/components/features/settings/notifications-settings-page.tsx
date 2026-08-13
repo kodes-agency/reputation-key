@@ -1,128 +1,119 @@
-// Notifications settings page — per-type in-app/email channel toggles.
-// Preferences are sparse: a type with no saved row defaults to both channels on
-// (see notification context, insert-notification use case). Toggles are optimistic
-// and revert on mutation failure.
-
 import { useState } from 'react'
 import { toast } from 'sonner'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
-import { Switch } from '#/components/ui/switch'
-import { Label } from '#/components/ui/label'
 import type { Action } from '#/components/hooks/use-action'
-import type {
-  NotificationType,
-  NotificationPreference,
+import {
+  getDefaultEnabled,
+  type NotificationCadence,
+  type NotificationCategory,
+  type NotificationChannel,
+  type NotificationPreference,
+  type NotificationUserSettings,
 } from '#/contexts/notification/application/public-api'
-import { TYPE_ROWS } from './notifications-type-rows'
+import {
+  NotificationsSettingsView,
+  type NotificationPreferencePatch,
+} from './notifications-settings-view'
 
-type Channels = Readonly<{ emailEnabled: boolean; inAppEnabled: boolean }>
+type PreferenceUpdate = Readonly<{
+  data: Readonly<{
+    propertyId: string
+    category: NotificationCategory
+    channel: NotificationChannel
+    enabled: boolean
+    cadence: NotificationCadence
+    urgentBypassEnabled: boolean
+    quietHoursStart: string | null
+    quietHoursEnd: string | null
+  }>
+}>
 
-type UpdateInput = Readonly<{
-  data: Readonly<{ type: NotificationType; emailEnabled: boolean; inAppEnabled: boolean }>
+type SettingsUpdate = Readonly<{
+  data: Readonly<{ locale: string; timezone: string }>
 }>
 
 type Props = Readonly<{
+  properties: readonly Readonly<{ id: string; name: string }>[]
   preferences: readonly NotificationPreference[]
-  updatePreference: Action<UpdateInput, NotificationPreference>
+  userSettings: NotificationUserSettings | null
+  updatePreference: Action<PreferenceUpdate, NotificationPreference>
+  updateUserSettings: Action<SettingsUpdate, NotificationUserSettings>
 }>
 
-function buildState(
-  preferences: readonly NotificationPreference[],
-): Record<NotificationType, Channels> {
-  return Object.fromEntries(
-    TYPE_ROWS.map(({ type }) => {
-      const saved = preferences.find((p) => p.type === type)
-      return [type, saved ?? { emailEnabled: true, inAppEnabled: true }]
-    }),
-  ) as Record<NotificationType, Channels>
-}
+export function NotificationsSettingsPage({
+  properties,
+  preferences,
+  userSettings,
+  updatePreference,
+  updateUserSettings,
+}: Props) {
+  const [locale, setLocale] = useState(userSettings?.locale ?? 'en')
+  const [timezone, setTimezone] = useState(userSettings?.timezone ?? 'UTC')
+  const [localPreferences, setLocalPreferences] = useState(preferences)
+  const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '')
 
-export function NotificationsSettingsPage({ preferences, updatePreference }: Props) {
-  const [state, setState] = useState<Record<NotificationType, Channels>>(() =>
-    buildState(preferences),
-  )
+  const preferenceFor = (category: NotificationCategory, channel: NotificationChannel) =>
+    localPreferences.find(
+      (preference) =>
+        preference.propertyId === propertyId &&
+        preference.category === category &&
+        preference.channel === channel,
+    )
 
-  const toggle = async (
-    type: NotificationType,
-    channel: keyof Channels,
-    next: boolean,
+  const savePreference = async (
+    category: NotificationCategory,
+    channel: NotificationChannel,
+    patch: NotificationPreferencePatch,
   ) => {
-    const prev = state[type]
-    const updated = { ...prev, [channel]: next }
-    setState((s) => ({ ...s, [type]: updated }))
+    const current = preferenceFor(category, channel)
+    const input = {
+      propertyId,
+      category,
+      channel,
+      enabled: patch.enabled ?? current?.enabled ?? getDefaultEnabled(category, channel),
+      cadence:
+        patch.cadence ??
+        current?.cadence ??
+        (category === 'urgent_operational' ? 'immediate' : 'daily'),
+      urgentBypassEnabled:
+        patch.urgentBypassEnabled ?? current?.urgentBypassEnabled ?? false,
+      quietHoursStart: patch.quietHoursStart ?? current?.quietHoursStart ?? null,
+      quietHoursEnd: patch.quietHoursEnd ?? current?.quietHoursEnd ?? null,
+    } as const
     try {
-      await updatePreference({
-        data: {
-          type,
-          emailEnabled: updated.emailEnabled,
-          inAppEnabled: updated.inAppEnabled,
-        },
-      })
+      const saved = await updatePreference({ data: input })
+      setLocalPreferences((existing) => [
+        ...existing.filter(
+          (preference) =>
+            !(
+              preference.propertyId === propertyId &&
+              preference.category === category &&
+              preference.channel === channel
+            ),
+        ),
+        saved,
+      ])
+      toast.success('Notification preference updated')
     } catch {
-      // Revert optimistic update on failure.
-      setState((s) => ({ ...s, [type]: prev }))
-      toast.error('Failed to update notification preference')
+      toast.error('Could not update notification preference')
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Notification preferences</CardTitle>
-        <CardDescription>
-          Choose which events notify you in-app and by email.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="divide-y">
-        {TYPE_ROWS.map(({ type, label, description }) => {
-          const channels = state[type]
-          return (
-            <div
-              key={type}
-              className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="max-w-sm">
-                <p className="text-sm font-medium">{label}</p>
-                <p className="text-xs text-muted-foreground">{description}</p>
-              </div>
-              <div className="flex items-center gap-5">
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor={`${type}-inapp`}
-                    className="text-xs text-muted-foreground"
-                  >
-                    In-app
-                  </Label>
-                  <Switch
-                    id={`${type}-inapp`}
-                    checked={channels.inAppEnabled}
-                    onCheckedChange={(v) => toggle(type, 'inAppEnabled', v)}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label
-                    htmlFor={`${type}-email`}
-                    className="text-xs text-muted-foreground"
-                  >
-                    Email
-                  </Label>
-                  <Switch
-                    id={`${type}-email`}
-                    checked={channels.emailEnabled}
-                    onCheckedChange={(v) => toggle(type, 'emailEnabled', v)}
-                  />
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
+    <NotificationsSettingsView
+      properties={properties}
+      propertyId={propertyId}
+      locale={locale}
+      timezone={timezone}
+      setPropertyId={setPropertyId}
+      setLocale={setLocale}
+      setTimezone={setTimezone}
+      preferenceFor={preferenceFor}
+      savePreference={savePreference}
+      saveUserSettings={() =>
+        void updateUserSettings({ data: { locale, timezone } })
+          .then(() => toast.success('Notification formatting updated'))
+          .catch(() => toast.error('Could not update notification formatting'))
+      }
+    />
   )
 }

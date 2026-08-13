@@ -8,101 +8,140 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-import type { Role } from '#/shared/domain/roles'
-import { PeoplePage } from './people-page'
 import type { Action } from '#/components/hooks/use-action'
-import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
-import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
+import type { Role } from '#/shared/domain/roles'
+import type {
+  ArchiveStaffParticipationMutationInput,
+  CreateStaffParticipationMutationInput,
+  CreateTeamMutationInput,
+  UpdatePortalResponsibilitiesMutationInput,
+} from '#/components/features/team/shared/types'
+import { PeoplePage } from './people-page'
 
-// Fixtures for people-page.stories.tsx — extracted for line-count compliance.
-// Now provides wrapped Action objects (per QRY-04/05 route pattern) instead of raw server fns.
 type Props = ComponentProps<typeof PeoplePage>
 
-const assignMutation: Action<{ data: CreateStaffAssignmentInput }> = Object.assign(
-  async (_input: { data: CreateStaffAssignmentInput }) => ({
-    assignment: { id: 'a-new' },
+const idle = { isPending: false, error: null, isSuccess: false, data: null }
+
+const createParticipationMutation: Action<{
+  data: CreateStaffParticipationMutationInput
+}> = Object.assign(
+  async ({ data }: { data: CreateStaffParticipationMutationInput }) => ({
+    participation: {
+      id: `sp-${data.userId}`,
+      propertyId: data.propertyId,
+      userId: data.userId,
+    },
   }),
-  { isPending: false, error: null, isSuccess: false, data: null },
+  idle,
 )
 
-const removeMutation: Action<{ data: { assignmentId: string } }> = Object.assign(
-  async (_input: { data: { assignmentId: string } }) => ({}),
-  { isPending: false, error: null, isSuccess: false, data: null },
-)
+const archiveParticipationMutation: Action<{
+  data: ArchiveStaffParticipationMutationInput
+}> = Object.assign(async () => ({ archived: true }), idle)
 
-const updatePortalsMutation: Action<{
-  data: { userId: string; propertyId: string; portalIds: string[] }
-}> = Object.assign(async (_input: { data: unknown }) => ({}), {
-  isPending: false,
-  error: null,
-  isSuccess: false,
-  data: null,
-})
+const updateResponsibilitiesMutation: Action<{
+  data: UpdatePortalResponsibilitiesMutationInput
+}> = Object.assign(async () => ({ updated: true }), idle)
 
-const createTeamMutation: Action<{ data: CreateTeamInput }> = Object.assign(
-  async (_input: { data: CreateTeamInput }) => ({
-    team: { id: 't-new', name: 'New Team' },
+const createTeamMutation: Action<{ data: CreateTeamMutationInput }> = Object.assign(
+  async ({ data }: { data: CreateTeamMutationInput }) => ({
+    team: { id: 't-new', ...data },
   }),
-  { isPending: false, error: null, isSuccess: false, data: null },
+  idle,
 )
 
-const deleteTeamMutation: Action<{ data: { teamId: string } }> = Object.assign(
-  async (_input: { data: { teamId: string } }) => ({}),
-  { isPending: false, error: null, isSuccess: false, data: null },
+const archiveTeamMutation: Action<{ data: { teamId: string } }> = Object.assign(
+  async () => ({ archived: true }),
+  idle,
 )
 
-// Seeded data: 2 members, 1 team, 2 portals, 2 assignments (one team-scoped,
-// one direct). Plain literals cast to the component's prop contract — branded
-// ids / Date fields make a literal-only assignment impossible, so one boundary
-// cast lands the fixtures.
 export const seededArgs = {
   propertyId: 'prop-1',
   propertyName: 'Acme Hotel',
-  assignments: [
+  participations: [
     {
-      id: 'a1',
+      id: 'sp-1',
       organizationId: 'org-1',
-      userId: 'u1',
       propertyId: 'prop-1',
-      teamId: 't1',
-      portalId: 'p1',
-      createdAt: '2024-01-15T00:00:00.000Z',
-      updatedAt: '2024-01-15T00:00:00.000Z',
-      deletedAt: null,
+      userId: 'u1',
+      displayName: 'Alice Adams',
+      status: 'active',
+      startedAt: '2024-01-15T00:00:00.000Z',
+      endedAt: null,
     },
     {
-      id: 'a2',
+      id: 'sp-2',
       organizationId: 'org-1',
-      userId: 'u2',
       propertyId: 'prop-1',
-      teamId: null,
-      portalId: 'p2',
-      createdAt: '2024-02-01T00:00:00.000Z',
-      updatedAt: '2024-02-01T00:00:00.000Z',
-      deletedAt: null,
+      userId: 'u2',
+      displayName: 'Bob Baker',
+      status: 'active',
+      startedAt: '2024-02-01T00:00:00.000Z',
+      endedAt: null,
+    },
+  ],
+  responsibilities: [
+    {
+      staffParticipationId: 'sp-1',
+      primaryPortalId: 'p1',
+      supportingPortalIds: ['p2'],
+    },
+  ],
+  memberships: [
+    {
+      id: 'tm-1',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      teamId: 't1',
+      staffParticipationId: 'sp-1',
+      userId: 'u1',
+      displayName: 'Alice Adams',
+      role: 'lead',
+      effectiveFrom: '2024-01-15T00:00:00.000Z',
+      effectiveTo: null,
+    },
+    {
+      id: 'tm-2',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      teamId: 't1',
+      staffParticipationId: 'sp-2',
+      userId: 'u2',
+      displayName: 'Bob Baker',
+      role: 'member',
+      effectiveFrom: '2024-02-01T00:00:00.000Z',
+      effectiveTo: null,
     },
   ],
   members: [
     {
-      id: 'm1',
       userId: 'u1',
       role: 'admin',
       email: 'alice@acme.com',
       name: 'Alice Adams',
-      image: null,
-      createdAt: '2024-01-01T00:00:00.000Z',
     },
     {
-      id: 'm2',
       userId: 'u2',
       role: 'member',
       email: 'bob@acme.com',
       name: 'Bob Baker',
-      image: null,
-      createdAt: '2024-02-01T00:00:00.000Z',
+    },
+    {
+      userId: 'u3',
+      role: 'member',
+      email: 'chris@acme.com',
+      name: 'Chris Chen',
     },
   ],
-  teams: [{ id: 't1', name: 'Front Desk' }],
+  teams: [
+    {
+      id: 't1',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      name: 'Front Desk',
+      description: 'Guest arrival and service',
+    },
+  ],
   portals: [
     { id: 'p1', name: 'Main Portal' },
     { id: 'p2', name: 'Guest Portal' },
@@ -110,17 +149,13 @@ export const seededArgs = {
   portalsDenied: false,
   tab: 'staff',
   onTabChange: () => {},
-  assignMutation,
-  removeMutation,
+  createParticipationMutation,
+  archiveParticipationMutation,
   createTeamMutation,
-  deleteTeamMutation,
-  updatePortalsMutation,
-} as unknown as Props
+  archiveTeamMutation,
+  updateResponsibilitiesMutation,
+} satisfies Props
 
-// Decorator: provide `/_authenticated` route context with an owner role.
-// Used only by stories whose subtree calls `usePermissions()` (Teams tab).
-// AccountAdmin (the owner role) is granted every permission, so `can(...)`
-// returns true for team.create / team.delete / portal.update etc.
 export function AuthRoleDecorator(Story: () => ReactNode) {
   const storyRef = useRef(Story)
   storyRef.current = Story

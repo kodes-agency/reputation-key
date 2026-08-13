@@ -1,64 +1,175 @@
-// Guest session cookie helpers.
-//
-// The `guest_session` cookie is a 24h HttpOnly cookie that gives anonymous
-// visitors a stable identity for rate-limiting and duplicate-rating dedup
-// (see guest CONTEXT.md § Invariants). The server sets it on the first guest
-// write so direct API callers — who bypass the client-side cookie init in the
-// route component — still receive it and cannot mint a fresh session on every
-// request to evade throttling.
-//
-// Named helpers (no `*.server.ts` suffix) because nothing here imports
-// `node:`-only modules; only `setResponseHeader` is server-context bound and
-// it is only invoked from inside server-function handler bodies.
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import {
+  buildCookieAttributes,
+  buildSetCookieHeader,
+  createSession,
+  isSessionValid,
+  SESSION_COOKIE_NAME,
+  type GuestSession,
+} from '../domain/guest-session'
 
-import { setResponseHeader } from '@tanstack/react-start/server'
-
-export const GUEST_SESSION_COOKIE = 'guest_session'
-/** 24h, per guest CONTEXT.md § Invariants. */
-export const GUEST_SESSION_MAX_AGE = 86_400
-
-/** Parse the guest_session id from a Cookie header, or null when absent. */
-export function parseGuestSessionId(cookieHeader: string): string | null {
-  return cookieHeader.match(/guest_session=([^;]+)/)?.[1] ?? null
-}
-
-/** Build the raw Set-Cookie value for a guest session id. */
-export function buildGuestSessionCookie(sessionId: string): string {
-  return `${GUEST_SESSION_COOKIE}=${sessionId}; HttpOnly; SameSite=Lax; Max-Age=${GUEST_SESSION_MAX_AGE}; Path=/p/`
-}
-
-export type GuestSession = Readonly<{
-  sessionId: string
-  /**
-   * `true` when the cookie was already present (no Set-Cookie issued);
-   * `false` when the id was freshly minted and a Set-Cookie was set.
-   */
-  fromCookie: boolean
+export type GuestSessionScope = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
 }>
 
-/**
- * Resolve the guest session for a public write, server-setting an HttpOnly
- * cookie on first contact. Must be called inside a server-function handler
- * (uses `setResponseHeader`).
- */
-export function resolveGuestSession(cookieHeader: string): GuestSession {
-  const existing = parseGuestSessionId(cookieHeader)
-  if (existing) return { sessionId: existing, fromCookie: true }
-  const sessionId = crypto.randomUUID()
-  setResponseHeader('Set-Cookie', buildGuestSessionCookie(sessionId))
-  return { sessionId, fromCookie: false }
+export type GuestSessionManager = Readonly<{
+  issue(
+    scope: GuestSessionScope,
+  ): Readonly<{ session: GuestSession; cookies: readonly [string, string] }>
+  verify(cookieHeader: string, scope: GuestSessionScope): GuestSession | null
+  verifyCsrf(session: GuestSession, presented: string): boolean
+}>
+
+type SignedSessionPayload = Readonly<{
+  v: 1
+  sid: string
+  csrf: string
+  org: string
+  property: string
+  portal: string
+  issued: string
+  expires: string
+}>
+
+function readCookie(cookieHeader: string): string | null {
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=')
+    if (separator < 0) continue
+    if (part.slice(0, separator).trim() !== SESSION_COOKIE_NAME) continue
+    try {
+      return decodeURIComponent(part.slice(separator + 1).trim())
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
-/**
- * Rate-limit key for a guest public write. Keys on the stable session id when
- * the cookie is present; falls back to the IP hash when the request is
- * cookieless so a client that omits (or rotates) the cookie is still throttled
- * per source IP.
- */
+export function createGuestSessionManager(
+  input: Readonly<{
+    secret: string
+    secureCookies: boolean
+    clock: () => Date
+    randomId?: () => string
+  }>,
+): GuestSessionManager {
+  if (Buffer.byteLength(input.secret, 'utf8') < 16) {
+    throw new Error('Guest session secret must contain at least 16 bytes')
+  }
+  const randomId = input.randomId ?? randomUUID
+  const sign = (payload: string) =>
+    createHmac('sha256', input.secret).update(payload).digest('base64url')
+
+  return {
+    issue: (scope) => {
+      const session = createSession({
+        sessionId: randomId(),
+        csrfNonce: randomId(),
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+        portalId: scope.portalId,
+        tokenVersion: 0,
+        now: input.clock(),
+      })
+      const payload: SignedSessionPayload = {
+        v: 1,
+        sid: session.sessionId,
+        csrf: session.csrfNonce,
+        org: session.organizationId,
+        property: session.propertyId,
+        portal: session.portalId,
+        issued: session.issuedAt.toISOString(),
+        expires: session.expiresAt.toISOString(),
+      }
+      const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+      const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
+      const signedValue = `${encoded}.${sign(encoded)}`
+      return {
+        session,
+        cookies: [
+          buildSetCookieHeader({
+            ...cookieAttrs,
+            value: signedValue,
+          }),
+          buildSetCookieHeader({
+            ...cookieAttrs,
+            value: signedValue,
+            path: '/_serverFn/',
+          }),
+        ],
+      }
+    },
+
+    verify: (cookieHeader, scope) => {
+      const raw = readCookie(cookieHeader)
+      if (!raw) return null
+      const separator = raw.lastIndexOf('.')
+      if (separator < 1) return null
+      const encoded = raw.slice(0, separator)
+      const presented = Buffer.from(raw.slice(separator + 1), 'base64url')
+      const expected = Buffer.from(sign(encoded), 'base64url')
+      if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
+        return null
+      }
+
+      try {
+        const payload = JSON.parse(
+          Buffer.from(encoded, 'base64url').toString('utf8'),
+        ) as Partial<SignedSessionPayload>
+        if (
+          payload.v !== 1 ||
+          typeof payload.sid !== 'string' ||
+          typeof payload.csrf !== 'string' ||
+          typeof payload.org !== 'string' ||
+          typeof payload.property !== 'string' ||
+          typeof payload.portal !== 'string' ||
+          typeof payload.issued !== 'string' ||
+          typeof payload.expires !== 'string'
+        ) {
+          return null
+        }
+        const session: GuestSession = {
+          sessionId: payload.sid,
+          csrfNonce: payload.csrf,
+          organizationId: payload.org,
+          propertyId: payload.property,
+          portalId: payload.portal,
+          tokenVersion: 0,
+          issuedAt: new Date(payload.issued),
+          expiresAt: new Date(payload.expires),
+          campaignMediumHint: null,
+        }
+        if (
+          !Number.isFinite(session.issuedAt.getTime()) ||
+          !Number.isFinite(session.expiresAt.getTime()) ||
+          !isSessionValid(session, input.clock()) ||
+          session.organizationId !== scope.organizationId ||
+          session.propertyId !== scope.propertyId ||
+          session.portalId !== scope.portalId
+        ) {
+          return null
+        }
+        return session
+      } catch {
+        return null
+      }
+    },
+
+    verifyCsrf: (session, presented) => {
+      const expected = createHmac('sha256', input.secret)
+        .update(session.csrfNonce)
+        .digest()
+      const actual = createHmac('sha256', input.secret).update(presented).digest()
+      return timingSafeEqual(expected, actual)
+    },
+  }
+}
 export function guestRateLimitKey(
-  kind: 'rating' | 'feedback' | 'scan',
-  session: GuestSession,
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media',
+  sessionId: string | null,
   ipHash: string,
 ): string {
-  return session.fromCookie ? `${kind}:${session.sessionId}` : `${kind}:ip:${ipHash}`
+  return sessionId ? `${kind}:${sessionId}` : `${kind}:ip:${ipHash}`
 }

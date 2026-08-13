@@ -15,8 +15,8 @@ import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
-import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { Property } from '../domain/types'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../domain/types'
 import { propertyCreated, propertyDeleted, propertyUpdated } from '../domain/events'
 import { isPropertyError } from '../domain/errors'
 
@@ -50,8 +50,9 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     name: 'Grand Hotel',
     slug: 'grand-hotel',
     timezone: 'UTC',
-    gbpPlaceId: null,
+    gbpLocationId: null,
     googleConnectionId: null,
+    ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
@@ -80,9 +81,10 @@ function makePropertyRow(overrides: Record<string, unknown> = {}) {
     name: 'Grand Hotel',
     slug: 'grand-hotel',
     timezone: 'UTC',
-    gbpPlaceId: null,
+    gbpLocationId: null,
     googleConnectionId: null,
     createdAt: NOW,
+    ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
     updatedAt: NOW,
     deletedAt: null,
     lifecycleState: 'active',
@@ -104,6 +106,7 @@ function makePropertyRow(overrides: Record<string, unknown> = {}) {
 }
 
 type MockTx = {
+  select: ReturnType<typeof vi.fn>
   insert: ReturnType<typeof vi.fn>
   update: ReturnType<typeof vi.fn>
   delete: ReturnType<typeof vi.fn>
@@ -118,6 +121,24 @@ function createMockDb(opts: {
 }) {
   const { order } = opts
   const tx: MockTx = {
+    select: vi.fn(() => {
+      order.push('tx.state')
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn(() => ({
+              limit: vi.fn(async () => [
+                {
+                  sourceEpoch: 0,
+                  profileVersion: 1,
+                  googleConnectionId: null,
+                },
+              ]),
+            })),
+          })),
+        })),
+      }
+    }),
     insert: vi.fn((table: unknown) => {
       if (table === outboxEvents) {
         order.push('tx.outbox')
@@ -142,7 +163,11 @@ function createMockDb(opts: {
       return {
         set: vi.fn((values: Record<string, unknown>) => {
           opts.updateSets?.push(values)
-          return { where: vi.fn(async () => undefined) }
+          return {
+            where: vi.fn(() => ({
+              returning: vi.fn(async () => [{ id: PROP_ID }]),
+            })),
+          }
         }),
       }
     }),
@@ -265,6 +290,8 @@ describe('createAtomicPropertyCommandStore', () => {
       await store.updateProperty({
         organizationId: ORG_ID,
         propertyId: PROP_ID,
+        expectedSourceEpoch: 0,
+        expectedProfileVersion: 1,
         patch: { name: 'Renamed Hotel', slug: 'renamed-hotel', updatedAt: NOW },
         event,
       })
@@ -291,12 +318,26 @@ describe('createAtomicPropertyCommandStore', () => {
         occurredAt: NOW,
       })
 
-      await store.deleteProperty({ organizationId: ORG_ID, propertyId: PROP_ID, event })
+      await store.deleteProperty({
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        expectedSourceEpoch: 0,
+        expectedProfileVersion: 1,
+        event,
+      })
 
       expect(tx.delete).toHaveBeenCalledTimes(1)
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('property.deleted')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.state',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
     })
   })
 
@@ -328,21 +369,6 @@ describe('createAtomicPropertyCommandStore', () => {
     it('property.created / updated / deleted pass schema validation with real producer payloads', () => {
       const cases: ReadonlyArray<{ tag: string; make: () => DomainEvent }> = [
         { tag: 'property.created', make: () => createdEvent() },
-        {
-          tag: 'property.created',
-          make: () =>
-            propertyCreated({
-              propertyId: PROP_ID,
-              organizationId: ORG_ID,
-              name: 'GBP Hotel',
-              slug: 'gbp-hotel-abc12345',
-              gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-              googleConnectionId: googleConnectionId(
-                '4d000000-0000-0000-0000-0000000000aa',
-              ),
-              occurredAt: NOW,
-            }),
-        },
         {
           tag: 'property.updated',
           make: () =>

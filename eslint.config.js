@@ -21,6 +21,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
+      '**/dist-google-*/**',
+      '**/dist-provider-services/**',
       '**/storybook-static/**',
       '**/node_modules/**',
       '**/.a5c/**',

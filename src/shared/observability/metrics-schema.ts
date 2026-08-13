@@ -521,6 +521,15 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'CAPABILITY_POLICY_VERSION (boot manifest).',
   }),
   def({
+    name: 'versions.execution_policy',
+    kind: 'gauge',
+    unit: 'info',
+    labels: {},
+    snapshotPath: ['versions.executionPolicy'],
+    emitted: true,
+    description: 'EXECUTION_POLICY_VERSION (interactive and delayed policy binding).',
+  }),
+  def({
     name: 'versions.policy_store',
     kind: 'gauge',
     unit: 'info',
@@ -613,7 +622,6 @@ export const BANNED_LOG_KEYS = [
   'locationName',
   'gbpLocationName',
   'businessName',
-  'gbpPlaceId',
   'gbpAccountId',
   'key',
   // Credential / transport material

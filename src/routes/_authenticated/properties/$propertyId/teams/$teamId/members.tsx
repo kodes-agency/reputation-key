@@ -1,13 +1,9 @@
-// Team members — view and manage team membership
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  createStaffAssignment,
-  removeStaffAssignment,
-} from '#/contexts/staff/server/staff-assignments'
+import { addTeamMember, removeTeamMember } from '#/contexts/team/server/teams'
 import { TeamMemberList } from '#/components/features/team'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { teamKeys, identityKeys, staffKeys } from '#/shared/queries/query-keys'
-import { useTeamLayout } from '../$teamId'
+import { teamKeys } from '#/shared/queries/query-keys'
+import { teamMembershipsQueryKey, useTeamLayout } from '../$teamId'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId/members',
@@ -16,32 +12,22 @@ export const Route = createFileRoute(
 })
 
 function TeamMembersPage() {
-  const { team, memberOptions, assignments, propertyId, teamId } = useTeamLayout()
-
-  const addMemberMutation = useActionMutation(createStaffAssignment, {
+  const { memberships, availableParticipations, propertyId, teamId } = useTeamLayout()
+  const addMemberMutation = useActionMutation(addTeamMember, {
     successMessage: 'Member added to team',
-    invalidateKeys: [
-      teamKeys.list(propertyId),
-      identityKeys.members(),
-      staffKeys.assignments(propertyId),
-    ],
+    invalidateKeys: [teamMembershipsQueryKey(teamId), teamKeys.list(propertyId)],
   })
-  const removeMemberMutation = useActionMutation(removeStaffAssignment, {
+  const removeMemberMutation = useActionMutation(removeTeamMember, {
     successMessage: 'Member removed from team',
-    invalidateKeys: [
-      teamKeys.list(propertyId),
-      identityKeys.members(),
-      staffKeys.assignments(propertyId),
-    ],
+    invalidateKeys: [teamMembershipsQueryKey(teamId), teamKeys.list(propertyId)],
   })
 
   return (
     <TeamMemberList
       teamId={teamId}
-      propertyId={propertyId}
-      assignments={assignments}
-      members={memberOptions}
-      teamLeadId={team.teamLeadId}
+      memberships={memberships}
+      availableParticipations={availableParticipations}
+      canManageMembers
       addAction={addMemberMutation}
       removeAction={removeMemberMutation}
     />

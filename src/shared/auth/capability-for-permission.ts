@@ -1,11 +1,9 @@
 // Permission → capability mapping (BQR-4.1; moved from authorization-policy
 // in BQC-2.6 when the ExecutionPolicy superseded the old seam).
 //
-// Maps a role permission to the beta surface capability that must be enabled
-// for the action (ADR 0032/0033). Dark-context permissions map to dark
-// capabilities (fail closed unless allowlisted); portal mutations map to
-// portal.write and media to portal.upload — both hard-blocked for beta
-// (BQC-0.2 / STD-P0-01).
+// Maps role permissions to the capability that must be enabled for the action
+// (ADR 0032/0033/0049). Portal management, guest response/contact, and media
+// are separate promotable controls; all remain off by default.
 
 import type { Permission } from '#/shared/domain/permissions'
 import type { Capability } from './beta-capabilities'
@@ -16,6 +14,8 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'property.delete': 'property.create',
   'property.read': 'property.create',
   'property.admin': 'property.create',
+  'property.import_gbp_v2': 'property.import_gbp_v2',
+  'property.read_gbp_performance': 'property.read_gbp_performance',
   'reply.manage': 'property.publish_reply',
   'review.read': 'review.use',
   'inbox.read': 'inbox.use',
@@ -23,9 +23,8 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'inbox.manage': 'inbox.use',
   'dashboard.read': 'dashboard.use',
   'dashboard.fleet_read': 'dashboard.use',
-  'staff_assignment.create': 'staff.use',
-  'staff_assignment.delete': 'staff.use',
-  'staff_assignment.read': 'staff.use',
+  'staff.read': 'staff.use',
+  'staff.manage': 'staff.use',
   'integration.manage': 'integration.use',
   'policy.admin': 'identity.invite',
   'notification.read': 'notification.in_app',
@@ -44,6 +43,7 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'team.update': 'team.use',
   'team.delete': 'team.use',
   'team.read': 'team.use',
+  'team.membership.manage': 'team.use',
   'goal.read': 'goal.use',
   'goal.create': 'goal.use',
   'goal.update': 'goal.use',
@@ -67,8 +67,9 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'ac.read': 'identity.invite',
   'ac.update': 'identity.invite',
   'ac.delete': 'identity.invite',
-  'feedback.read': 'identity.invite',
-  'feedback.respond': 'identity.invite',
+  'feedback.read': 'portal.guest_response',
+  'feedback.respond': 'portal.guest_response',
+  'feedback.contact_read': 'portal.guest_contact',
 }
 
 export function capabilityForPermission(permission: Permission): Capability {

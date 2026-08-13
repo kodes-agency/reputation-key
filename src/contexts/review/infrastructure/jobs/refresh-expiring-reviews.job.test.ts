@@ -21,14 +21,18 @@ import {
 } from '#/shared/domain/ids'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews.job'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
+  return {
+    ...actual,
+    getLogger: vi.fn(() => ({
+      warn: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    })),
+  }
+})
 
 const ORG_ID = organizationId('org-1')
 const PROP_A = propertyId('prop-a')

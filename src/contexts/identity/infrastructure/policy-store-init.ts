@@ -39,7 +39,7 @@ import {
 } from '#/shared/auth/system-execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
-  getPolicyVersion,
+  getPolicyControlVersion,
   loadPolicySnapshot,
 } from './repositories/policy-state.repository'
 import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
@@ -52,6 +52,9 @@ const POLICY_REFRESH_INTERVAL_MS = 5_000
 export type PolicyStoreHandle = Readonly<{
   /** Version-gated strong read — await before decisions that must be fresh. */
   refresh: PersistedPolicyStore['refresh']
+  /** Required refresh for provider calls and external effects; cache never authorizes failure. */
+  refreshRequired: PersistedPolicyStore['refreshRequired']
+  currentEmergencyKillVersion: PersistedPolicyStore['currentEmergencyKillVersion']
   /** Current DB policy version (null when only the env seed is present). */
   currentVersion: PersistedPolicyStore['currentVersion']
   /** Stop the background poller (shutdown/tests). */
@@ -66,7 +69,7 @@ export function initPersistedCapabilityPolicyStore(deps: {
   const envStore = createEnvCapabilityPolicyStore(deps.env)
   const persisted = createPersistedPolicyStore({
     loadSnapshot: () => loadPolicySnapshot(deps.db),
-    loadVersion: () => getPolicyVersion(deps.db),
+    loadControlVersion: () => getPolicyControlVersion(deps.db),
     initialSnapshot: snapshotFromEnv(deps.env),
     onRefreshError: (err) =>
       logger.warn({ err }, 'policy snapshot refresh failed — keeping previous snapshot'),
@@ -121,6 +124,8 @@ export function initPersistedCapabilityPolicyStore(deps: {
 
   return {
     refresh: () => persisted.refresh(),
+    refreshRequired: () => persisted.refreshRequired(),
+    currentEmergencyKillVersion: () => persisted.currentEmergencyKillVersion(),
     currentVersion: () => persisted.currentVersion(),
     stopPolling,
   }

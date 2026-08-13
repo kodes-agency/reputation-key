@@ -1,11 +1,7 @@
-// BQC-0.2 / STD-P0-01 — portal read must not authorize write or upload.
+// ADR 0049 — portal read, write, and upload are independent controlled capabilities.
 //
-// Invariant: portal.create/update/delete map to portal.write (blocked for beta).
-// portal media maps to portal.upload (blocked). Enabling portal.read alone
-// cannot open mutation paths.
-//
-// BQC-2.6: the proof now runs through the ExecutionPolicy — the production
-// seam — not the deleted requireAuthorized path.
+// Enabling portal.read alone cannot authorize manager mutation or media paths;
+// write and upload can now be promoted only by their own scoped policy.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { capabilityForPermission } from './capability-for-permission'
@@ -69,20 +65,21 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
       expect(capabilityForPermission('portal.delete')).toBe('portal.write')
     })
 
-    it('treats portal.write and portal.upload as hard-blocked', () => {
-      expect(isBlockedCapability('portal.write')).toBe(true)
-      expect(isBlockedCapability('portal.upload')).toBe(true)
+    it('treats portal read, write, and upload as independent promotable controls', () => {
+      expect(isBlockedCapability('portal.write')).toBe(false)
+      expect(isBlockedCapability('portal.upload')).toBe(false)
       expect(isBlockedCapability('portal.read')).toBe(false)
     })
   })
 
   describe('read enablement cannot open mutations', () => {
     beforeEach(() => {
-      // Only portal.read is globally enabled — the broken mapping would have
-      // allowed create/update/delete through this gate.
+      // Only portal.read is globally enabled; the organization and property
+      // are otherwise eligible so denial isolates the independent capability.
       initCapabilityPolicyStore(
         makeStore({
           isCapabilityGloballyEnabled: (cap) => cap === 'portal.read',
+          isOrgAllowlisted: (_orgId, cap) => cap === 'portal.read',
         }),
       )
     })
@@ -95,14 +92,14 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
     it('denies portal.create when only portal.read is enabled', async () => {
       const decision = await decide('portal.create')
       expect(decision.allowed).toBe(false)
-      expect(decision.reason).toBe('capability_blocked')
+      expect(decision.reason).toBe('org_not_allowlisted')
     })
 
     it('denies portal.update and portal.delete when only portal.read is enabled', async () => {
       for (const action of ['portal.update', 'portal.delete'] as const) {
         const decision = await decide(action)
         expect(decision.allowed, action).toBe(false)
-        expect(decision.reason, action).toBe('capability_blocked')
+        expect(decision.reason, action).toBe('org_not_allowlisted')
       }
     })
 
@@ -115,20 +112,20 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
         requireExecutionAllowed({ actor: ctx, action: 'portal.create' }),
       ).rejects.toMatchObject({
         _tag: 'AuthError',
-        code: 'capability_blocked',
+        code: 'org_not_allowlisted',
         status: 403,
       })
     })
   })
 
-  describe('blocked write/upload never globally enabled via env', () => {
-    it('BETA_E2E_GLOBAL_CAPABILITIES cannot enable portal.write or portal.upload', () => {
+  describe('controlled write/upload environment posture', () => {
+    it('can enable each capability independently for isolated E2E execution', () => {
       const store = createEnvCapabilityPolicyStore({
         BETA_E2E_GLOBAL_CAPABILITIES: 'portal.read,portal.write,portal.upload,team.use',
       })
       expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(false)
-      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(true)
     })
   })
 })

@@ -1,0 +1,456 @@
+$ pnpm test:storybook
+started: 2026-08-08T14:10:18.397Z  durationMs: 25452  exit: 1
+
+
+> reputation-key@ test:storybook /Users/bozhidardenev/kodes/projects/rep-key
+> VITEST_STORYBOOK=true vitest run --project='storybook:**'
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+5:10:20 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+ ❯ |storybook:/Users/bozhidardenev/kodes/projects/rep-key/.storybook (chromium)| src/components/inbox/inbox-page.stories.tsx (7 tests | 1 failed) 4615ms
+   × Long Content 505ms
+
+ Test Files  1 failed | 74 passed (75)
+      Tests  1 failed | 393 passed (394)
+   Start at  17:10:20
+   Duration  23.47s (transform 0ms, setup 30.76s, import 24.24s, tests 100.08s, environment 0ms)
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:57146) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:26 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:27 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:28 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:29 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.error] Error: Failed to load staff home data.
+    at http://localhost:63315/Users/bozhidardenev/kodes/projects/rep-key/src/components/features/staff/staff-home.stories.tsx?import&browserv=1786198228154:530:15
+    at Object.getStaffDashboardData (http://localhost:63315/.storybook/mocks/mock-action.ts:10:26)
+    at queryFn (http://localhost:63315/src/components/features/staff/use-staff-home-data.ts:39:23)
+    at Object.fetchFn [as fn] (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:981:11)
+    at run (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:640:46)
+    at Object.start (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:676:20)
+    at Query.fetch (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:1031:37)
+    at QueryObserver.fetchOptimistic (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:1276:16)
+    at fetchOptimistic (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:2625:84)
+    at useBaseQuery (http://localhost:63315/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=1c7a29f9:2707:53)
+
+The above error occurred in the <StaffHomeHarness> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, HomeErrorBoundary.
+
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:30 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:31 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:32 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:33 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:34 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:35 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:36 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:37 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:37 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:37 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:37 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:37 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:38 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:39 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:40 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:41 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:42 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+5:10:43 PM [vite] (client) [console.warn] Couldn't load preload assets:  {"isTrusted":true}
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |storybook:/Users/bozhidardenev/kodes/projects/rep-key/.storybook (chromium)| src/components/inbox/inbox-page.stories.tsx > Long Content
+AssertionError: 
+[34mClick to debug the error directly in Storybook: http://localhost:6006/?path=/story/pages-inbox--long-content&addonPanel=storybook/interactions/panel[39m
+
+expected 0 to be greater than 0
+ ❯ Instrumenter.invoke node_modules/.pnpm/storybook@10.4.6_@testing-library+dom@10.4.1_@types+react@19.2.15_prettier@3.8.3_react@19.2.6/node_modules/storybook/dist/instrumenter/index.js:322:22
+ ❯ Instrumenter.intercept node_modules/.pnpm/storybook@10.4.6_@testing-library+dom@10.4.1_@types+react@19.2.15_prettier@3.8.3_react@19.2.6/node_modules/storybook/dist/instrumenter/index.js:243:139
+ ❯ Instrumenter.track node_modules/.pnpm/storybook@10.4.6_@testing-library+dom@10.4.1_@types+react@19.2.15_prettier@3.8.3_react@19.2.6/node_modules/storybook/dist/instrumenter/index.js:238:378
+ ❯ Proxy.toBeGreaterThan node_modules/.pnpm/storybook@10.4.6_@testing-library+dom@10.4.1_@types+react@19.2.15_prettier@3.8.3_react@19.2.6/node_modules/storybook/dist/instrumenter/index.js:224:263
+ ❯ toBeGreaterThan src/components/inbox/inbox-page.stories.tsx:258:32
+    256|     const nameEl = longRow.querySelector('.truncate')
+    257|     expect(nameEl).not.toBeNull()
+    258|     expect(nameEl!.scrollWidth).toBeGreaterThan(nameEl!.clientWidth)
+       |                                ^
+    259|     // No horizontal overflow anywhere in the story canvas.
+    260|     expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElemen…
+ ❯ runStory node_modules/.pnpm/storybook@10.4.6_@testing-library+dom@10.4.1_@types+react@19.2.15_prettier@3.8.3_react@19.2.6/node_modules/storybook/dist/_browser-chunks/chunk-5WKL7XVT.js:1326:6
+ ❯ node_modules/.pnpm/@storybook+addon-vitest@10.4.6_@vitest+browser-playwright@4.1.10_@vitest+browser@4.1.10_db43c53364fbc0add8c6821609d31102/node_modules/@storybook/addon-vitest/dist/vitest-plugin/test-utils.js:108:184
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

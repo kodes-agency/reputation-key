@@ -34,7 +34,7 @@ export const updateStaffPortals = createServerFn({ method: 'POST' })
         // also enforces this, but every staff server fn guards before delegating.
         await requireExecutionAllowed({
           actor: ctx,
-          action: 'staff_assignment.create',
+          action: 'staff.manage',
           propertyId: data.propertyId,
         })
 

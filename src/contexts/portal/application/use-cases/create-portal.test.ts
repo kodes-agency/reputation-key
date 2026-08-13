@@ -33,16 +33,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
         pid === propertyId('a0000000-0000-0000-0000-000000000001'),
       getPropertyName: async () => null,
       getPropertyNames: async () => [],
-      findByGbpPlaceId: async () => null,
+      findByGbpLocationId: async () => null,
       findBySlug: async () => null,
       getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
-      importProperty: async () => {
-        throw new Error('not implemented')
-      },
-      findExistingGbpPlaceIds: async () => [],
-      existsByGbpPlaceId: async () => false,
     },
     staffPublicApi: staffApiMock(accessible),
     events,
@@ -65,8 +60,7 @@ describe('createPortal', () => {
 
     expect(portal.slug).toBe('my-portal')
     expect(portal.theme.primaryColor).toBe('#6366F1')
-    expect(portal.smartRoutingEnabled).toBe(false)
-    expect(portal.smartRoutingThreshold).toBe(4)
+    expect(portal.publicationState).toBe('draft')
     expect(portalRepo.all()).toHaveLength(1)
   })
 
@@ -80,16 +74,13 @@ describe('createPortal', () => {
         slug: 'custom-slug',
         propertyId: 'a0000000-0000-0000-0000-000000000001',
         theme: { primaryColor: '#FF5500' },
-        smartRoutingEnabled: true,
-        smartRoutingThreshold: 3,
       },
       ctx,
     )
 
     expect(portal.slug).toBe('custom-slug')
     expect(portal.theme.primaryColor).toBe('#FF5500')
-    expect(portal.smartRoutingEnabled).toBe(true)
-    expect(portal.smartRoutingThreshold).toBe(3)
+    expect(portal.publicationState).toBe('draft')
   })
 
   it('rejects users who cannot create portals', async () => {
@@ -176,25 +167,6 @@ describe('createPortal', () => {
     ).rejects.toSatisfy(
       (e: unknown) =>
         isPortalError(e) && (e as { code: string }).code === 'invalid_theme',
-    )
-  })
-
-  it('rejects invalid smart routing threshold', async () => {
-    const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-
-    await expect(
-      useCase(
-        {
-          name: 'Test',
-          propertyId: 'a0000000-0000-0000-0000-000000000001',
-          smartRoutingThreshold: 6,
-        },
-        ctx,
-      ),
-    ).rejects.toSatisfy(
-      (e: unknown) =>
-        isPortalError(e) && (e as { code: string }).code === 'invalid_threshold',
     )
   })
 

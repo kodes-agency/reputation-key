@@ -4,10 +4,9 @@
 // and swallowed — notifications are an optimization over the existing sync/poll,
 // never a correctness gate (ADR-deferred item #2).
 //
-// The GBP account id required by `updateNotificationSetting` is NOT the stored
-// `connection.googleAccountId` (the OAuth userinfo id) — it is resolved from
-// `gbpApi.listAccounts(accessToken)` (first account). v1 assumes one primary
-// GBP account per connection; see the plan's account-ID verification gate.
+// The GBP account suffix required by `updateNotificationSetting` is never a
+// stored OAuth identity. It is resolved from `gbpApi.listAccounts(accessToken)`;
+// a later account-selection contract replaces this v1 first-account behavior.
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { GbpApiPort } from '../ports/gbp-api.port'

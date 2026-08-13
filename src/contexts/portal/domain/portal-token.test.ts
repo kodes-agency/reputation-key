@@ -16,7 +16,9 @@ describe('PortalToken', () => {
     organizationId: 'org-1',
     propertyId: 'prop-1',
     portalId: 'portal-1',
+    tokenIdentifier: 'identifier-one',
     tokenHash: 'hash-abc',
+    tokenKeyVersion: 1,
     version: 1,
     now: NOW,
   }
@@ -33,7 +35,18 @@ describe('PortalToken', () => {
   describe('rotateToken', () => {
     it('creates old (rotating) and new (active) tokens', () => {
       const t = issueToken(baseParams)
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const result = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       if ('oldToken' in result) {
         expect(result.oldToken.status).toBe('rotating')
         expect(result.oldToken.gracePeriodEnds).not.toBeNull()
@@ -45,7 +58,18 @@ describe('PortalToken', () => {
 
     it('both tokens are active during grace period', () => {
       const t = issueToken(baseParams)
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const result = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       if ('oldToken' in result) {
         expect(isActive(result.oldToken, NOW)).toBe(true)
         expect(isActive(result.newToken, NOW)).toBe(true)
@@ -59,7 +83,18 @@ describe('PortalToken', () => {
         'compromised',
         NOW,
       ) as PortalToken
-      const result = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const result = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       expect(result).toHaveProperty('code', 'already_revoked')
     })
   })
@@ -83,7 +118,18 @@ describe('PortalToken', () => {
 
     it('revokes a rotating token', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const rot = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       if ('oldToken' in rot) {
         const result = revokeToken(rot.oldToken, 'admin', 'urgent', NOW)
         expect(result).toHaveProperty('status', 'revoked')
@@ -103,7 +149,18 @@ describe('PortalToken', () => {
 
     it('rotating token within grace period is active', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const rot = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       if ('oldToken' in rot) {
         expect(isActive(rot.oldToken, NOW)).toBe(true)
       }
@@ -112,7 +169,18 @@ describe('PortalToken', () => {
     it('rotating token after grace period is not active', () => {
       const t = issueToken(baseParams)
       // Grace period of 0ms — immediately expired
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 0, NOW)
+      const rot = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        0,
+        NOW,
+      )
       if ('oldToken' in rot) {
         // Add 1ms to ensure we're past the grace end
         expect(isActive(rot.oldToken, new Date(NOW.getTime() + 1000))).toBe(false)
@@ -123,7 +191,18 @@ describe('PortalToken', () => {
   describe('isInGracePeriod', () => {
     it('returns true for rotating token within grace', () => {
       const t = issueToken(baseParams)
-      const rot = rotateToken(t, 'hash-new', 'token-2', 2, 60000, NOW)
+      const rot = rotateToken(
+        t,
+        {
+          id: 'token-2',
+          tokenIdentifier: 'identifier-new',
+          tokenHash: 'hash-new',
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        60000,
+        NOW,
+      )
       if ('oldToken' in rot) {
         expect(isInGracePeriod(rot.oldToken, NOW)).toBe(true)
       }

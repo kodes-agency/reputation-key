@@ -5,16 +5,18 @@ import { notifications } from '#/shared/db/schema/notification.schema'
 import { assertLiteral } from '#/shared/domain/assert'
 import {
   notificationId,
-  userId as toUserId,
   organizationId as toOrgId,
+  propertyId as toPropertyId,
+  userId as toUserId,
 } from '#/shared/domain/ids'
 import {
   NOTIFICATION_TYPES,
   type Notification,
-  type NotificationType,
+  type NotificationCategory,
   type NotificationPriority,
-  type NotificationStatus,
   type NotificationResourceType,
+  type NotificationStatus,
+  type NotificationType,
 } from '../../domain/types'
 
 // ── Row type ───────────────────────────────────────────────────────
@@ -39,6 +41,8 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   id: notificationId(row.id),
   userId: toUserId(row.userId),
   organizationId: toOrgId(row.organizationId),
+  propertyId: toPropertyId(row.propertyId),
+  category: row.category as NotificationCategory,
   type: assertLiteral(row.type, VALID_TYPES, 'notification.type'),
   priority: assertLiteral(row.priority, VALID_PRIORITIES, 'notification.priority'),
   status: assertLiteral(row.status, VALID_STATUSES, 'notification.status'),

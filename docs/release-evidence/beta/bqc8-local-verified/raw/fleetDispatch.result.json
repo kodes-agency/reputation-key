@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "scenario": "fleetDispatch",
+  "startedAt": "2026-08-08T15:05:52.578Z",
+  "durationMs": 5113.574334000001,
+  "passed": true,
+  "metrics": {
+    "fleetTargets": 5000,
+    "dispatched": 5000,
+    "dispatchRatePerSec": 39910.61,
+    "projectedWindowS": 0.1,
+    "projection": "projection — dispatch-rate extrapolation over 5000 catalogue targets, not a measured 4h window",
+    "projectedWithinWindow": "yes",
+    "removedOnCleanup": 5000,
+    "cleanupMissed": 0,
+    "executedDurationS": 5.114
+  },
+  "assertions": [
+    {
+      "check": "required_samples",
+      "passed": true,
+      "detail": "5000/5000 dispatch samples"
+    },
+    {
+      "check": "dispatch_error_free",
+      "passed": true,
+      "detail": "0 dispatch failures"
+    },
+    {
+      "check": "projected_window_within_slo",
+      "passed": true,
+      "detail": "PROJECTION: 5000 targets at measured 39910.6/s → 0.00h vs 4h window (projection from the measured dispatch rate, not a measured wall-clock window)"
+    },
+    {
+      "check": "monitoring_captured",
+      "passed": true,
+      "detail": "4 points, 0 read errors"
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "fleetProperties": 5000,
+    "fleetWindowHours": 4,
+    "projectionLabeled": true
+  },
+  "samples": {
+    "count": 5000,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 4,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

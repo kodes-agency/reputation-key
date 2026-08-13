@@ -95,6 +95,7 @@ function extractApiErrorBody(body: unknown): { message: string; code: string } {
 export function catchUntagged(e: unknown): never {
   const ctx = getRequestContext()
   const logger = getLogger()
+  if (e instanceof ServerFunctionError) throw e
 
   if (e instanceof APIError) {
     const statusName = typeof e.status === 'string' ? e.status : 'INTERNAL_SERVER_ERROR'

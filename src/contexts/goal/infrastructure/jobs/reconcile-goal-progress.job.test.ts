@@ -74,7 +74,14 @@ function createFakeDeps() {
     status: GoalStatus
     completedAt?: Date | null
   }> = []
-  let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }
+  let aggregateResponse: MetricReadingsAggregate = {
+    sum: 0,
+    count: 0,
+    max: 0,
+    available: true,
+    sampleCount: 1,
+    minimumSample: 1,
+  }
 
   const goalRepo: GoalRepository = {
     insert: async () => {
@@ -177,6 +184,7 @@ function createFakeDeps() {
     metricApi: metricApi,
     events,
     clock: () => NOW,
+    authorizeScope: async () => true,
   }
 
   return { deps, goals, progresses, statusUpdates, _setAggregate }
@@ -203,7 +211,14 @@ describe('reconcile-goal-progress job', () => {
       )
 
       // Metric repo says there are 75 scans
-      fakes._setAggregate({ sum: 75, count: 75, max: 1 })
+      fakes._setAggregate({
+        sum: 75,
+        count: 75,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -224,7 +239,14 @@ describe('reconcile-goal-progress job', () => {
         makeProgress({ goalId: goal.id, currentValue: 50 }),
       )
 
-      fakes._setAggregate({ sum: 50, count: 50, max: 1 })
+      fakes._setAggregate({
+        sum: 50,
+        count: 50,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -248,7 +270,14 @@ describe('reconcile-goal-progress job', () => {
         makeProgress({ goalId: goal.id, currentValue: 10 }),
       )
 
-      fakes._setAggregate({ sum: 10, count: 10, max: 1 })
+      fakes._setAggregate({
+        sum: 10,
+        count: 10,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -271,7 +300,14 @@ describe('reconcile-goal-progress job', () => {
         makeProgress({ goalId: goal.id, currentValue: 10 }),
       )
 
-      fakes._setAggregate({ sum: 10, count: 10, max: 1 })
+      fakes._setAggregate({
+        sum: 10,
+        count: 10,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -300,7 +336,14 @@ describe('reconcile-goal-progress job', () => {
       )
 
       // AVG = 20/4 = 5.0 which is >= 4.0 target
-      fakes._setAggregate({ sum: 20, count: 4, max: 5 })
+      fakes._setAggregate({
+        sum: 20,
+        count: 4,
+        max: 5,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -332,7 +375,14 @@ describe('reconcile-goal-progress job', () => {
       )
 
       // AVG = 14/4 = 3.5 which is >= 3.5 target
-      fakes._setAggregate({ sum: 14, count: 4, max: 5 })
+      fakes._setAggregate({
+        sum: 14,
+        count: 4,
+        max: 5,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -356,7 +406,14 @@ describe('reconcile-goal-progress job', () => {
       )
 
       // AVG = 6/3 = 2.0 which is < 4.0 target
-      fakes._setAggregate({ sum: 6, count: 3, max: 3 })
+      fakes._setAggregate({
+        sum: 6,
+        count: 3,
+        max: 3,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -381,7 +438,14 @@ describe('reconcile-goal-progress job', () => {
       )
 
       // Metric repo returns current aggregate (only last 7 days)
-      fakes._setAggregate({ sum: 42, count: 42, max: 1 })
+      fakes._setAggregate({
+        sum: 42,
+        count: 42,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const handler = createReconcileGoalProgressHandler(fakes.deps)
       const summary = await handler({} as Job)
@@ -392,6 +456,20 @@ describe('reconcile-goal-progress job', () => {
       expect(progress.currentValue).toBe(42)
       expect(progress.computedSource).toBe('reconciliation')
     })
+  })
+
+  it('skips a goal whose concrete tenant scope is not eligible', async () => {
+    const goal = makeGoal({ goalType: 'open' })
+    fakes.goals.push(goal)
+
+    const handler = createReconcileGoalProgressHandler({
+      ...fakes.deps,
+      authorizeScope: async () => false,
+    })
+    const summary = await handler({} as Job)
+
+    expect(summary.updated).toBe(0)
+    expect(fakes.progresses.size).toBe(0)
   })
 
   // ── Recurring template skip ──────────────────────────────────────────

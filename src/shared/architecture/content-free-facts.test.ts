@@ -31,11 +31,6 @@ const REGISTER: Readonly<Record<string, string>> = {
   // BQC-1 gap (F2): invitee email persisted into activity audit detail
   // (on-member-invited).
   'IdentityMemberInvited.email': 'BQC-1 gap: invitee PII on the bus',
-  // Provider identity of the connected Google account. Deliberately NOT
-  // allowlisted into the durable outbox schema (schema-registrations.ts);
-  // the activity consumer is content-free and never copies it.
-  'IntegrationGoogleAccountConnected.googleEmail':
-    'provider identity; stripped from every durable path',
   // By-design non-sensitive display names (no PII, no review content).
   'PortalCreated.name': 'by-design non-sensitive display name',
   'PortalUpdated.name': 'by-design non-sensitive display name',

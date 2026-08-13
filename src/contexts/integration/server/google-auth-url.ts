@@ -6,7 +6,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
+import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
@@ -28,6 +28,9 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           // Require authentication — only logged-in users can generate OAuth URLs
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
+          const session = await getSessionFromHeaders(headers)
+          if (!session?.session.id)
+            throw new Error('Authenticated session ID is unavailable')
 
           await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
@@ -37,6 +40,11 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
           return await useCases.getGoogleAuthUrl({
             visibility: data.visibility,
             userId: ctx.userId,
+            organizationId: ctx.organizationId,
+            sessionId: session.session.id,
+            purpose: 'reviews',
+            connectionMode: 'new',
+            targetConnectionId: null,
           })
         } catch (e) {
           throw catchUntagged(e)

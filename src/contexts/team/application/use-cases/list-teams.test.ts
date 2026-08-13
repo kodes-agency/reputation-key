@@ -25,7 +25,6 @@ const makeTeam = (
   organizationId: organizationId(TEST_ORG_ID),
   name: `Team ${overrides.id}`,
   description: null,
-  teamLeadId: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,

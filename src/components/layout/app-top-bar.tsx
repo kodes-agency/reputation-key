@@ -18,6 +18,7 @@ type ThemeMode = 'light' | 'dark' | 'auto'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
+  organizationId: string
   notificationFns: NotificationServerFns
 }>
 
@@ -47,7 +48,7 @@ function useThemeMode() {
   return { mode, applyMode } as const
 }
 
-export function AppTopBar({ user, notificationFns }: Props) {
+export function AppTopBar({ user, organizationId, notificationFns }: Props) {
   const navigate = useNavigate()
   const { mode, applyMode } = useThemeMode()
 
@@ -69,7 +70,10 @@ export function AppTopBar({ user, notificationFns }: Props) {
       <div className="flex-1" />
 
       {/* Notifications + User menu */}
-      <NotificationPanel notificationFns={notificationFns} />
+      <NotificationPanel
+        notificationFns={notificationFns}
+        organizationId={organizationId}
+      />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

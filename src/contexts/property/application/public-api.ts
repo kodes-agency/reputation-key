@@ -3,6 +3,10 @@
 // to query property data. Per ADR-0001.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
+export { buildGoogleImportedProperty } from './build-google-imported-property'
+export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
+export type { PropertyDeleted, PropertyUpdated } from '../domain/events'
 
 /** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
 export type PropertySlugLookupResult = Readonly<{
@@ -17,38 +21,22 @@ export type PropertyLookupResult = Readonly<{
   googleConnectionId: string | null
 }>
 
-/** Result of a property import (GBP bulk import). */
-export type PropertyImportResult = Readonly<{
-  id: string
-  organizationId: string
-  name: string
-  slug: string
-  gbpPlaceId: string | null
-  createdAt: Date | null
-}>
-
-/** Thrown by importProperty when a unique-constraint violation occurs (e.g. duplicate gbpPlaceId). */
-export type PropertyImportConflict = Readonly<{
-  _tag: 'PropertyImportConflict'
-  message: string
-}>
-
-export const propertyImportConflict = (message: string): PropertyImportConflict => ({
-  _tag: 'PropertyImportConflict',
-  message,
-})
-
-export const isPropertyImportConflict = (e: unknown): e is PropertyImportConflict =>
-  typeof e === 'object' &&
-  e !== null &&
-  (e as PropertyImportConflict)._tag === 'PropertyImportConflict'
-
-export { propertyCreated } from '../domain/events'
-export type { PropertyCreated, PropertyUpdated, PropertyDeleted } from '../domain/events'
-
 // Sanctioned fail-closed cell gates for protected workloads (BQC-4.1 / ADR 0048).
-// Cross-context consumers import them here, never from domain/.
-export { isRegionProcessable, assertRegionResolved } from '../domain/processing-routing'
+export {
+  ROUTING_POLICY_VERSION,
+  isRegionProcessable,
+  assertRegionResolved,
+} from '../domain/processing-routing'
+/** Content-free property facts for governed cross-context workflows. */
+export type PropertyFactsPublicApi = Readonly<{
+  getPropertyTimezone: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+}>
+
+/** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */
+export type PropertyGoogleBindingPublicApi = PropertyGoogleBindingStore
 
 export type PropertyPublicApi = Readonly<{
   /**
@@ -75,11 +63,11 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<ReadonlyArray<{ id: string; name: string | null }>>
 
   /**
-   * Find a non-deleted property by its Google Business Profile place ID.
+   * Find a non-deleted property by its Google Business Profile location ID.
    * Used by the integration context for GBP webhook handling (push-based,
    * no organizationId available at call time).
    */
-  findByGbpPlaceId: (gbpPlaceId: string) => Promise<PropertyLookupResult | null>
+  findByGbpLocationId: (gbpLocationId: string) => Promise<PropertyLookupResult | null>
 
   /**
    * Find a non-deleted property by its slug.
@@ -89,7 +77,7 @@ export type PropertyPublicApi = Readonly<{
 
   /**
    * Find all non-deleted property IDs linked to a Google connection within an org.
-   * Used by integration context for GBP cache and connection cleanup.
+   * Used by Integration connection lifecycle handling.
    */
   findIdsByGoogleConnection: (
     connectionId: GoogleConnectionId,
@@ -114,39 +102,15 @@ export type PropertyPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
-
-  /**
-   * Import a property during GBP bulk import. Creates a new property row.
-   * Throws PropertyImportConflict on unique-constraint violations (e.g. duplicate gbpPlaceId).
-   */
-  importProperty: (input: {
-    orgId: OrganizationId
-    name: string
-    slug: string
-    gbpPlaceId: string
-    googleConnectionId: GoogleConnectionId
-    /** ISO country from GBP storefrontAddress.regionCode when known (BQR-3.5). */
-    countryCode?: string | null
-    /**
-     * GBP location resource name — included on property.created as the
-     * initial-sync trigger only when the resolved region is processable
-     * (BQC-4.1 / ADR 0048).
-     */
-    gbpLocationName?: string
-  }) => Promise<PropertyImportResult>
-
-  /**
-   * Find existing non-deleted property gbpPlaceIds for the given organization.
-   * Used by integration context to skip already-imported GBP locations.
-   */
-  findExistingGbpPlaceIds: (
-    orgId: OrganizationId,
-    gbpPlaceIds: ReadonlyArray<string>,
-  ) => Promise<ReadonlyArray<string>>
-
-  /**
-   * Check if a property with this gbpPlaceId exists (for race-condition recovery).
-   * Used by integration context during GBP import error handling.
-   */
-  existsByGbpPlaceId: (orgId: OrganizationId, gbpPlaceId: string) => Promise<boolean>
 }>
+
+export {
+  GOOGLE_BINDING_STATES,
+  PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,
+  isGoogleBindingState,
+} from '../domain/google-binding-contract'
+export type {
+  GoogleBindingState,
+  GoogleLocationBinding,
+  PropertyGoogleBindingChangedV1,
+} from '../domain/google-binding-contract'

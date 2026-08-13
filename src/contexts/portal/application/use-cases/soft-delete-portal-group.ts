@@ -40,7 +40,8 @@ export const softDeletePortalGroup =
       existing.propertyId,
     )
 
-    await deps.portalGroupRepo.softDelete(ctx.organizationId, gid)
+    const now = deps.clock()
+    await deps.portalGroupRepo.softDelete(ctx.organizationId, gid, now)
 
     await emitAndRecord(
       deps.events,
@@ -49,7 +50,7 @@ export const softDeletePortalGroup =
         portalGroupId: gid,
         organizationId: ctx.organizationId,
         propertyId: existing.propertyId,
-        occurredAt: deps.clock(),
+        occurredAt: now,
       }),
     )
   }

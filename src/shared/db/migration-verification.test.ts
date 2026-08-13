@@ -31,6 +31,7 @@ const EXPECTED_TABLES = [
   'invitation',
   // Business tables (created by db:migrate)
   'properties',
+  'property_operation_receipts',
   'permission_version',
   'organization_role_policy',
   'teams',
@@ -44,9 +45,10 @@ const EXPECTED_TABLES = [
   'ratings',
   'scan_events',
   'google_connections',
-  'gbp_cache',
-  'gbp_import_jobs',
-  'reviews',
+  'gbp_import_requests',
+  'gbp_import_request_items',
+  'gbp_import_item_retry_receipts',
+  'property_operation_receipts',
   'replies',
   'inbox_items',
   'inbox_notes',
@@ -77,7 +79,7 @@ const EXPECTED_ROLLUP_TABLES = [
 ] as const
 
 const EXPECTED_INDEXES = [
-  'properties_org_gbp_place_id_unique',
+  'properties_org_gbp_location_id_unique',
   'metric_readings_recorded_at_idx',
   'inbox_items_source_date_idx',
   'properties_lifecycle_state_idx',

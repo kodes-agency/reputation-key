@@ -67,8 +67,8 @@ describe('refreshGoogleToken', () => {
     await expect(
       useCase(ORG_ID, 'nonexistent-0000-0000-0000-000000000001'),
     ).rejects.toSatisfy(
-      (e: unknown) =>
-        isIntegrationError(e) && (e as { code: string }).code === 'connection_not_found',
+      (error: unknown) =>
+        isIntegrationError(error) && error.code === 'connection_not_found',
     )
   })
 
@@ -81,9 +81,8 @@ describe('refreshGoogleToken', () => {
     connectionRepo.seed([connection])
 
     await expect(useCase(ORG_ID, connection.id as string)).rejects.toSatisfy(
-      (e: unknown) =>
-        isIntegrationError(e) &&
-        (e as { code: string }).code === 'connection_disconnected',
+      (error: unknown) =>
+        isIntegrationError(error) && error.code === 'connection_disconnected',
     )
   })
 
@@ -104,5 +103,45 @@ describe('refreshGoogleToken', () => {
     // Refresh token should remain unchanged — only access token changes
     expect(result.encryptedRefreshToken).toBe('enc:original-refresh-token')
     expect(result.encryptedAccessToken).toBe('enc:refreshed-access')
+  })
+
+  it('rejects cleanup-only credentials before decrypting or refreshing', async () => {
+    const { useCase, connectionRepo } = setup()
+    const connection = buildTestGoogleConnection({
+      credentialUseState: 'cleanup_only',
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
+    })
+    connectionRepo.seed([connection])
+
+    await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) && error.code === 'connection_disconnected',
+    )
+  })
+
+  it('discards a provider refresh when credential authority is removed before commit', async () => {
+    const { connectionRepo, oauth, encryption } = setup()
+    const connection = buildTestGoogleConnection({
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
+    })
+    connectionRepo.seed([connection])
+    const racedRepo = {
+      ...connectionRepo,
+      updateTokens: async () => false,
+    }
+    const useCase = refreshGoogleToken({
+      connectionRepo: racedRepo,
+      oauth,
+      encryption,
+      clock,
+    })
+
+    await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) && error.code === 'connection_disconnected',
+    )
+    expect(connectionRepo.all()[0]?.encryptedAccessToken).toBe(
+      connection.encryptedAccessToken,
+    )
   })
 })

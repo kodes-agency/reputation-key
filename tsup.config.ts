@@ -10,6 +10,9 @@ export default defineConfig({
     // image runs it with plain `node dist-worker/migrate-deploy.js` — no tsx
     // or TypeScript toolchain in the runtime container.
     'migrate-deploy': 'scripts/migrate-deploy.ts',
+    // Local Docker stack one-shot seed. Bundled into the production image so
+    // the host controller never runs a database command against the stack.
+    'seed-e2e-user': 'scripts/seed-e2e-user.ts',
   },
   outDir: 'dist-worker',
   format: ['esm'],

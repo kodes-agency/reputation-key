@@ -295,6 +295,28 @@ describe('createRedriveJob (BQC-3.6)', () => {
     expect(quarantine.jobs.size).toBe(1)
   })
 
+  it('refuses generic redrive for fenced domain-owned import items', async () => {
+    const { quarantine, id } = await seedQuarantinedJob({
+      name: 'import-gbp-property-item-v2',
+      data: {
+        organizationId: 'org-1',
+        itemId: '00000000-0000-4000-8000-000000000001',
+        retryRevision: 0,
+      },
+      attemptsMade: 5,
+      opts: { attempts: 5 },
+    })
+    const target = fakeQueue()
+    const redrive = createRedriveJob(quarantine, () => target)
+
+    await expect(redrive(id)).resolves.toEqual({
+      redriven: false,
+      reason: 'domain-redrive-required',
+    })
+    expect(target.add).not.toHaveBeenCalled()
+    expect(quarantine.jobs.size).toBe(1)
+  })
+
   it('reports not-found for an unknown quarantine job id', async () => {
     const quarantine = fakeQueue()
     const redrive = createRedriveJob(quarantine, () => fakeQueue())

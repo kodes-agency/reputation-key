@@ -1,13 +1,12 @@
 // BQC-4.1 — property region reconciliation (real PostgreSQL).
 //
 // Phase BQC-4 §3/§4.1 + ADR 0048: backfill every active property's processing
-// region from authoritative country data with a reviewable report — never a
-// blind conversion. The report classifies each non-deleted property:
+// region from durable, property-owned country data with a reviewable report —
+// never a blind conversion. The report classifies each non-deleted property:
 //   resolved   — region set and consistent with the stored country
 //   resolvable — unresolved + property-level country present (apply converts)
-//   missing    — no country anywhere (stays unresolved; operator action)
-//   conflict   — stored country disagrees with the GBP cache payload country,
-//                or a resolved region disagrees with the stored country
+//   missing    — no property-level country (stays unresolved; operator action)
+//   conflict   — resolved region disagrees with the stored country
 //                (NEVER auto-converted)
 //   ambiguous  — country maps to the denied 'global' placeholder (operator
 //                must decide; NEVER auto-converted)
@@ -28,7 +27,6 @@ const OTHER_ORG = 'org-region-recon-other'
 let propResolvableUs: string
 let propResolvableEurope: string
 let propMissing: string
-let propConflictCache: string
 let propConflictStored: string
 let propAmbiguous: string
 let propResolved: string
@@ -73,9 +71,6 @@ async function regionRow(id: string) {
 
 beforeAll(async () => {
   for (const org of [ORG, OTHER_ORG]) {
-    await db.execute(
-      sql`DELETE FROM gbp_cache WHERE property_id IN (SELECT id FROM properties WHERE organization_id = ${org})`,
-    )
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
     await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
@@ -96,19 +91,6 @@ beforeAll(async () => {
   })
   // missing: no country anywhere
   propMissing = await insertProperty('recon-missing')
-  // conflict: property country disagrees with the gbp_cache location payload
-  propConflictCache = await insertProperty('recon-conflict-cache', {
-    countryCode: 'DE',
-  })
-  await db.execute(sql`
-    INSERT INTO gbp_cache
-      (organization_id, property_id, gbp_place_id, data_type, payload, fetched_at, expires_at)
-    VALUES (
-      ${ORG}, ${propConflictCache}, 'place-conflict-cache', 'location',
-      ${JSON.stringify({ storefrontAddress: { regionCode: 'FR' } })}::jsonb,
-      now(), now() + interval '30 days'
-    )
-  `)
   // conflict: resolved region disagrees with the stored country
   propConflictStored = await insertProperty('recon-conflict-stored', {
     countryCode: 'DE',
@@ -132,9 +114,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const org of [ORG, OTHER_ORG]) {
-    await db.execute(
-      sql`DELETE FROM gbp_cache WHERE property_id IN (SELECT id FROM properties WHERE organization_id = ${org})`,
-    )
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
     await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
@@ -150,7 +129,6 @@ describe('region reconciliation report (BQC-4.1)', () => {
     expect(byId.get(propResolvableUs)?.classification).toBe('resolvable')
     expect(byId.get(propResolvableEurope)?.classification).toBe('resolvable')
     expect(byId.get(propMissing)?.classification).toBe('missing')
-    expect(byId.get(propConflictCache)?.classification).toBe('conflict')
     expect(byId.get(propConflictStored)?.classification).toBe('conflict')
     expect(byId.get(propAmbiguous)?.classification).toBe('ambiguous')
     expect(byId.get(propResolved)?.classification).toBe('resolved')
@@ -163,11 +141,11 @@ describe('region reconciliation report (BQC-4.1)', () => {
     const org = report.organizations.find((o) => o.organizationId === ORG)
     expect(org).toEqual({
       organizationId: ORG,
-      properties: 7,
+      properties: 6,
       resolved: 1,
       resolvable: 2,
       missing: 1,
-      conflicts: 2,
+      conflicts: 1,
       ambiguous: 1,
     })
   })
@@ -175,9 +153,7 @@ describe('region reconciliation report (BQC-4.1)', () => {
   it('separates operator-review rows (missing/conflict/ambiguous)', async () => {
     const report = await buildRegionReconcileReport(db, SCOPE)
     const reviewIds = report.reviewRows.map((r) => r.propertyId).sort()
-    expect(reviewIds).toEqual(
-      [propMissing, propConflictCache, propConflictStored, propAmbiguous].sort(),
-    )
+    expect(reviewIds).toEqual([propMissing, propConflictStored, propAmbiguous].sort())
     for (const row of report.reviewRows) {
       expect(row.detail.length).toBeGreaterThan(0)
     }
@@ -211,8 +187,6 @@ describe('region reconciliation apply (BQC-4.1)', () => {
     // Operator-review rows are NEVER auto-converted
     expect((await regionRow(propMissing)).processing_region).toBe('unresolved')
     expect((await regionRow(propMissing)).routing_policy_version).toBe(1)
-    expect((await regionRow(propConflictCache)).processing_region).toBe('unresolved')
-    expect((await regionRow(propConflictCache)).routing_policy_version).toBe(1)
     expect((await regionRow(propConflictStored)).processing_region).toBe('us')
     expect((await regionRow(propConflictStored)).routing_policy_version).toBe(1)
     expect((await regionRow(propAmbiguous)).processing_region).toBe('unresolved')

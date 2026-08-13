@@ -29,14 +29,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
 export const GBP_STUB_PORT = 4100
-export const GBP_STUB_BASE_URL = `http://localhost:${GBP_STUB_PORT}`
+export const GBP_STUB_BASE_URL =
+  process.env.GBP_STUB_BASE_URL ?? `http://localhost:${GBP_STUB_PORT}`
 
 /**
  * BQC-6.5 sandbox env: point every provider endpoint the app consumes at the
  * stub. Spread into the web + worker process env by the Playwright harness.
  */
 export const GBP_SANDBOX_ENV = {
+  GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'local-sandbox',
+  GBP_ACCOUNT_MANAGEMENT_BASE_URL: GBP_STUB_BASE_URL,
   GBP_API_BASE_URL: GBP_STUB_BASE_URL,
+  GBP_PERFORMANCE_BASE_URL: GBP_STUB_BASE_URL,
   GBP_REVIEWS_API_BASE_URL: GBP_STUB_BASE_URL,
   GBP_NOTIFICATIONS_API_BASE_URL: GBP_STUB_BASE_URL,
   GOOGLE_OAUTH_TOKEN_URL: `${GBP_STUB_BASE_URL}/oauth/token`,
@@ -75,6 +79,16 @@ export type StubAccount = Readonly<{
   roleInfo?: { name: string }
 }>
 
+export type FetchBehavior =
+  | Readonly<{ mode: 'success' }>
+  | Readonly<{
+      mode: 'fail-then-success'
+      status: number
+      failures: number
+      retryAfterSeconds?: number
+    }>
+  | Readonly<{ mode: 'always-fail'; status: number; retryAfterSeconds?: number }>
+
 export type ReplyBehavior =
   | Readonly<{ mode: 'success' }>
   | Readonly<{ mode: 'fail-then-success'; status: number; failures: number }>
@@ -101,6 +115,8 @@ type MutableScope = {
   account: StubAccount
   locations: StubLocation[]
   reviews: Map<string, StubReview[]>
+  fetchBehavior: FetchBehavior
+  fetchBehaviorByLocation: Map<string, FetchBehavior>
   replyBehavior: ReplyBehavior
 }
 
@@ -126,12 +142,79 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8')
 }
 
+function parseFetchBehaviorCommand(
+  body: string,
+):
+  | Readonly<{ accountName: string; locationName?: string; behavior: FetchBehavior }>
+  | undefined {
+  let raw: unknown
+  try {
+    raw = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  if (typeof raw !== 'object' || raw == null || Array.isArray(raw)) return undefined
+
+  const { accountName, locationName, behavior } = raw
+  if (
+    typeof accountName !== 'string' ||
+    (locationName !== undefined && typeof locationName !== 'string') ||
+    typeof behavior !== 'object' ||
+    behavior == null ||
+    Array.isArray(behavior)
+  ) {
+    return undefined
+  }
+
+  const { mode, status, failures, retryAfterSeconds } = behavior
+  if (mode === 'success') {
+    return {
+      accountName,
+      ...(locationName === undefined ? {} : { locationName }),
+      behavior: { mode },
+    }
+  }
+  if (
+    (mode !== 'always-fail' && mode !== 'fail-then-success') ||
+    !Number.isInteger(status) ||
+    status < 100 ||
+    status > 599 ||
+    (retryAfterSeconds !== undefined &&
+      (!Number.isInteger(retryAfterSeconds) || retryAfterSeconds < 0))
+  ) {
+    return undefined
+  }
+  if (mode === 'always-fail') {
+    return {
+      accountName,
+      ...(locationName === undefined ? {} : { locationName }),
+      behavior:
+        retryAfterSeconds === undefined
+          ? { mode, status }
+          : { mode, status, retryAfterSeconds },
+    }
+  }
+  if (!Number.isInteger(failures) || failures < 0) return undefined
+  return {
+    accountName,
+    ...(locationName === undefined ? {} : { locationName }),
+    behavior:
+      retryAfterSeconds === undefined
+        ? { mode, status, failures }
+        : { mode, status, failures, retryAfterSeconds },
+  }
+}
+
 export type GbpStub = Readonly<{
+  host: string
   port: number
   stop: () => Promise<void>
 }>
 
-export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStub> {
+export async function startGbpStub(
+  port: number = GBP_STUB_PORT,
+  host: string = '127.0.0.1',
+): Promise<GbpStub> {
   const scopes = new Map<string, MutableScope>()
   const calls: RecordedCall[] = []
   const MAX_RECORDED = 10_000
@@ -150,6 +233,44 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
     if (calls.length < MAX_RECORDED) {
       calls.push({ at: new Date().toISOString(), method, path, body })
     }
+  }
+
+  const rejectFetch = (
+    res: ServerResponse,
+    behavior: Exclude<FetchBehavior, { mode: 'success' }>,
+  ): void => {
+    if (behavior.retryAfterSeconds !== undefined) {
+      res.setHeader('retry-after', String(behavior.retryAfterSeconds))
+    }
+    json(res, behavior.status, gbpError(behavior.status, 'Scripted fetch failure'))
+  }
+
+  /** Applies the first failing behavior in request order and consumes one
+   * fail-then-success attempt from the matching account or location script. */
+  const applyFetchBehavior = (
+    res: ServerResponse,
+    scope: MutableScope,
+    locationNames: readonly string[],
+  ): boolean => {
+    for (const locationName of locationNames) {
+      const locationOverride = scope.fetchBehaviorByLocation.get(locationName)
+      const behavior = locationOverride ?? scope.fetchBehavior
+      if (behavior.mode === 'success') continue
+      if (behavior.mode === 'fail-then-success' && behavior.failures <= 0) continue
+
+      if (behavior.mode === 'fail-then-success') {
+        const next = { ...behavior, failures: behavior.failures - 1 }
+        if (locationOverride) {
+          scope.fetchBehaviorByLocation.set(locationName, next)
+        } else {
+          scope.fetchBehavior = next
+        }
+      }
+
+      rejectFetch(res, behavior)
+      return true
+    }
+    return false
   }
 
   const handleApi = async (
@@ -214,6 +335,7 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
       }
       const requested =
         (JSON.parse(body || '{}') as { locationNames?: string[] }).locationNames ?? []
+      if (applyFetchBehavior(res, scope, requested)) return
       json(res, 200, {
         locationReviews: requested.map((name) => ({
           name,
@@ -250,6 +372,7 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
         return
       }
       const locationName = `accounts/${reviewsMatch[1]}/locations/${reviewsMatch[2]}`
+      if (applyFetchBehavior(res, scope, [locationName])) return
       json(res, 200, { reviews: scope.reviews.get(locationName) ?? [] })
       return
     }
@@ -327,6 +450,8 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
         account: scope.account,
         locations: [...scope.locations],
         reviews: new Map(Object.entries(scope.reviews).map(([k, v]) => [k, [...v]])),
+        fetchBehavior: { mode: 'success' },
+        fetchBehaviorByLocation: new Map(),
         replyBehavior: scope.replyBehavior ?? { mode: 'success' },
       })
       json(res, 200, { ok: true })
@@ -343,6 +468,26 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
         return
       }
       scope.replyBehavior = behavior
+      json(res, 200, { ok: true })
+      return
+    }
+    if (path === '/__control/fetch-behavior' && method === 'POST') {
+      const command = parseFetchBehaviorCommand(body)
+      if (!command) {
+        json(res, 400, { error: 'Invalid fetch behavior command' })
+        return
+      }
+      const { accountName, locationName, behavior } = command
+      const scope = scopeFor(accountName)
+      if (!scope) {
+        json(res, 404, { error: 'Unknown account scope' })
+        return
+      }
+      if (locationName) {
+        scope.fetchBehaviorByLocation.set(locationName, behavior)
+      } else {
+        scope.fetchBehavior = behavior
+      }
       json(res, 200, { ok: true })
       return
     }
@@ -380,10 +525,11 @@ export async function startGbpStub(port: number = GBP_STUB_PORT): Promise<GbpStu
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '127.0.0.1', () => resolve())
+    server.listen(port, host, () => resolve())
   })
 
   return {
+    host,
     port,
     stop: () =>
       new Promise<void>((resolve) => {

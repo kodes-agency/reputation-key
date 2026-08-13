@@ -74,6 +74,7 @@ export type OnMemberJoined = (ctx: {
   userId: string
   organizationId: string
   propertyIds: ReadonlyArray<string>
+  displayName?: string
 }) => Promise<void>
 
 type IdentityContextDeps = Readonly<{
@@ -118,6 +119,11 @@ type IdentityContextDeps = Readonly<{
       organizationId: string,
       propertyId: string,
     ) => Promise<PropertyRegionRecord | null>
+    /** Suspension recovery bypasses the suspended property gate, then proves tenancy here. */
+    propertyBelongsToOrganization: (
+      organizationId: string,
+      propertyId: string,
+    ) => Promise<boolean>
     /** The ProcessingRouter's fresh routing decision for a property. */
     resolveRouting: (propertyId: string) => Promise<RoutingDecision>
     /** The deployment's processing cell (PROCESSING_CELL). */
@@ -125,6 +131,7 @@ type IdentityContextDeps = Readonly<{
     /** The cell's logical provider reference (CELL_TARGETS) — never a URL. */
     providerRef: string | null
   }>
+  cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
 }>
 
 /**
@@ -179,8 +186,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       cell: deps.policy.cell,
       providerRef: deps.policy.providerRef,
     }),
+    refreshPolicy: () => policyStore.refresh(),
     setOrganizationPolicy: (input) => setOrganizationPolicy(deps.db, input),
     setPropertyPolicy: (input) => setPropertyPolicy(deps.db, input),
+    propertyBelongsToOrganization: deps.policy.propertyBelongsToOrganization,
     addOrganizationCapability: (orgId, cap, by) =>
       addOrganizationCapability(deps.db, orgId, cap, by),
     removeOrganizationCapability: (orgId, cap) =>
@@ -211,6 +220,38 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       correlationId: null,
     })
 
+  const grantInvitationPropertyAccess = async (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+    }>,
+  ): Promise<void> => {
+    const at = deps.clock()
+    if (
+      await hasActiveGrant(deps.db, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.userId,
+        at,
+      })
+    ) {
+      return
+    }
+    try {
+      await grantPropertyAccess(deps.db, {
+        ...input,
+        source: 'invitation',
+        createdBy: `invitation:${input.userId}`,
+      })
+    } catch (error) {
+      // Concurrent/retried invitation acceptance converges on the same active
+      // grant; only suppress the unique race after proving the row exists.
+      const active = await hasActiveGrant(deps.db, { ...input, at: deps.clock() })
+      if (!active) throw error
+    }
+  }
+
   const useCases = {
     inviteMember: inviteMember({
       identity: deps.identityPort,
@@ -231,6 +272,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
+      cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
     }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
     resendInvitation: resendInvitation({
@@ -286,6 +328,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       policyStoreVersion: policyStore.currentVersion,
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
+      grantInvitationPropertyAccess,
     },
   } as const
 }

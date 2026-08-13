@@ -81,7 +81,7 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 
 function stampedEnvelope(over: Partial<RoutingEnvelope> = {}): RoutingEnvelope {
   return {
-    propertyId: 'prop-1',
+    subject: { kind: 'property', propertyId: 'prop-1' },
     region: 'us',
     workloadClass: 'review.sync',
     routingPolicyVersion: 2,
@@ -96,6 +96,7 @@ function setup(decision: DelayedDecision = ALLOW) {
   const handler = vi.fn(async () => {})
   registry.register('sync-property-reviews', handler)
   registry.register('publish-reply', handler)
+  registry.register('import-gbp-property-item-v2', handler)
   registry.register('health-check', handler)
   const resolveMock = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
   const router: ProcessingRouter = { resolve: resolveMock }
@@ -117,9 +118,50 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     const job = fakeJob()
     await dispatch(job)
 
-    expect(resolveMock).toHaveBeenCalledWith('prop-1', 'review.sync')
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()
+  })
+
+  it('routes import items by tenant and item without synthesizing a Property', async () => {
+    const { registry, handler, resolveMock, quarantine, routing } = setup()
+    const dispatch = createGatedJobHandler('default', registry, undefined, routing)
+    const job = fakeJob({
+      name: 'import-gbp-property-item-v2',
+      data: {
+        organizationId: 'org-1',
+        importJobId: 'import-1',
+        itemId: 'item-1',
+        retryRevision: 0,
+      },
+    })
+
+    await dispatch(job)
+
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
+      'property.import',
+    )
+    expect(handler).toHaveBeenCalledWith(job)
+    expect(quarantine).not.toHaveBeenCalled()
+  })
+
+  it('quarantines import work whose tenant-keyed subject is incomplete', async () => {
+    const { registry, handler, resolveMock, quarantine, routing } = setup()
+    const dispatch = createGatedJobHandler('default', registry, undefined, routing)
+    const job = fakeJob({
+      name: 'import-gbp-property-item-v2',
+      data: { organizationId: 'org-1' },
+    })
+
+    await expect(dispatch(job)).resolves.toBeUndefined()
+
+    expect(resolveMock).not.toHaveBeenCalled()
+    expect(handler).not.toHaveBeenCalled()
+    expect(quarantine).toHaveBeenCalledWith(job, 'routing_blocked:import_item_missing')
   })
 
   it.each([
@@ -185,7 +227,10 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     })
     await dispatch(job)
 
-    expect(resolveMock).toHaveBeenCalledWith('prop-1', 'review.sync')
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()
   })
@@ -222,7 +267,10 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     })
     await dispatch(job)
 
-    expect(resolveMock).toHaveBeenCalledWith('prop-from-reply', 'reply.publish')
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-from-reply' },
+      'reply.publish',
+    )
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()
   })

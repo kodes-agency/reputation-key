@@ -57,7 +57,3 @@ GROUP BY organization_id, property_id, date_trunc('day', source_date);
 CREATE UNIQUE INDEX IF NOT EXISTS mv_daily_inbox_metrics_unique
   ON mv_daily_inbox_metrics (organization_id, property_id, date);
 
--- ── Fix M-PROP-003: GBP place ID uniqueness within org ────────────
-CREATE UNIQUE INDEX IF NOT EXISTS properties_org_gbp_place_id_unique
-  ON properties (organization_id, gbp_place_id)
-  WHERE gbp_place_id IS NOT NULL AND deleted_at IS NULL;

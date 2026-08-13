@@ -20,6 +20,7 @@
 export type DbOnlyConstructKind =
   | 'trigger'
   | 'function'
+  | 'index'
   | 'expression-index'
   | 'partial-index'
   | 'check'
@@ -135,6 +136,122 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     kind: 'trigger',
     owner: 'identity',
     source: DAC_TRIGGERS_SIDECAR,
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'tm_no_overlapping_participation_intervals',
+    kind: 'index',
+    owner: 'team',
+    source: 'drizzle/0020_people-team-expansion.sql',
+    reason:
+      'Backing index for an EXCLUDE USING gist constraint; Drizzle has no exclusion-constraint DSL.',
+  },
+  {
+    name: 'pr_no_overlapping_responsibility_intervals',
+    kind: 'index',
+    owner: 'staff',
+    source: 'drizzle/0020_people-team-expansion.sql',
+    reason:
+      'Backing index for an EXCLUDE USING gist constraint; Drizzle has no exclusion-constraint DSL.',
+  },
+  {
+    name: 'tpgs_no_overlapping_scope_intervals',
+    kind: 'index',
+    owner: 'team',
+    source: 'drizzle/0020_people-team-expansion.sql',
+    reason:
+      'Backing index for an EXCLUDE USING gist constraint; Drizzle has no exclusion-constraint DSL.',
+  },
+  {
+    name: 'pgm_no_overlapping_portal_intervals',
+    kind: 'index',
+    owner: 'portal',
+    source: 'drizzle/0020_people-team-expansion.sql',
+    reason:
+      'Backing index for an EXCLUDE USING gist constraint; Drizzle has no exclusion-constraint DSL.',
+  },
+  {
+    name: 'reject_goal_immutable_update',
+    kind: 'function',
+    owner: 'goal',
+    source: 'drizzle/0024_goal-versioning.sql',
+    reason: `${NO_TRIGGER_DSL}; rejects updates and deletes on governed goal facts.`,
+  },
+  {
+    name: 'goal_definition_versions_immutable',
+    kind: 'trigger',
+    owner: 'goal',
+    source: 'drizzle/0024_goal-versioning.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'goal_evaluations_immutable',
+    kind: 'trigger',
+    owner: 'goal',
+    source: 'drizzle/0024_goal-versioning.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'reject_recognition_immutable_mutation',
+    kind: 'function',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: `${NO_TRIGGER_DSL}; rejects updates and deletes on governed recognition facts.`,
+  },
+  {
+    name: 'recognition_board_snapshots_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'recognition_board_entries_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'recognition_reconciliation_events_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'badge_definition_versions_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'recognition_awards_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'recognition_award_status_facts_append_only',
+    kind: 'trigger',
+    owner: 'recognition',
+    source: 'drizzle/0025_recognition-governance.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'reject_capability_compliance_approval_mutation',
+    kind: 'function',
+    owner: 'identity',
+    source: 'drizzle/0029_google-content-control.sql',
+    reason: `${NO_TRIGGER_DSL}; rejects in-place mutation of signed approval bindings.`,
+  },
+  {
+    name: 'capability_compliance_approvals_append_only',
+    kind: 'trigger',
+    owner: 'identity',
+    source: 'drizzle/0029_google-content-control.sql',
     reason: NO_TRIGGER_DSL,
   },
 ]

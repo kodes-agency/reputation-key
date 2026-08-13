@@ -13,7 +13,6 @@ import {
   validateSlug,
   validateDescription,
   validatePortalTheme,
-  validateSmartRoutingThreshold,
 } from '../../domain/rules'
 import { portalError } from '../../domain/errors'
 import { portalUpdated } from '../../domain/events'
@@ -22,6 +21,7 @@ import type { PortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { transitionPortalPublication } from '../../domain/portal-publication'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
@@ -36,9 +36,7 @@ type PortalPatch = {
   slug: string
   description: string | null
   theme: PortalTheme
-  smartRoutingEnabled: boolean
-  smartRoutingThreshold: number
-  isActive: boolean
+  publicationState: Portal['publicationState']
 }
 
 function unwrap<T>(r: Result<T, PortalError>): T {
@@ -64,12 +62,23 @@ async function buildPortalPatch(
       input.theme !== undefined
         ? unwrap(validatePortalTheme(input.theme))
         : existing.theme,
-    smartRoutingEnabled: input.smartRoutingEnabled ?? existing.smartRoutingEnabled,
-    smartRoutingThreshold:
-      input.smartRoutingThreshold !== undefined
-        ? unwrap(validateSmartRoutingThreshold(input.smartRoutingThreshold))
-        : existing.smartRoutingThreshold,
-    isActive: input.isActive ?? existing.isActive,
+    publicationState: existing.publicationState,
+  }
+  if (
+    input.publicationState !== undefined &&
+    input.publicationState !== existing.publicationState
+  ) {
+    const transition = transitionPortalPublication(
+      existing.publicationState,
+      input.publicationState,
+    )
+    if (typeof transition !== 'string') {
+      throw portalError(
+        'invalid_publication_transition',
+        `cannot transition portal from ${transition.from} to ${transition.to}`,
+      )
+    }
+    patch.publicationState = transition
   }
 
   if (input.slug !== undefined && input.slug !== existing.slug) {
@@ -90,9 +99,7 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
     patch.slug !== existing.slug ||
     patch.description !== existing.description ||
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
-    patch.smartRoutingEnabled !== existing.smartRoutingEnabled ||
-    patch.smartRoutingThreshold !== existing.smartRoutingThreshold ||
-    patch.isActive !== existing.isActive
+    patch.publicationState !== existing.publicationState
   )
 }
 

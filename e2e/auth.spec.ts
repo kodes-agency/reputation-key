@@ -7,11 +7,11 @@
 // spec (e2e/critical/workflows/auth-invite-only.spec.ts on :3001). The two
 // pair to pin both sides of the capability.
 //
-// Identity mail is asserted against the fake outbox (e2e/fixtures/mail-stub.ts):
-// exactly one verification-classified send to the registrant. The real Resend
-// API is unreachable in e2e (RESEND_BASE_URL pins the client at the stub), so
-// a recorded send IS the proof of delivery intent + content classification —
-// no placeholder-key failure is tolerated anymore.
+// Identity mail is asserted against the fake outbox: exactly one verification
+// send to the registrant. The real Resend API is unreachable in e2e
+// (RESEND_BASE_URL pins the client at the stub), so the test follows the
+// captured one-time link before sign-in. This proves delivery intent, content
+// classification, and the required verification transition end to end.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn, registerAccount } from './helpers/auth'
@@ -40,6 +40,11 @@ test.describe('Authentication', () => {
     const [send] = await mailStubControl.sends()
     expect(send.to).toBe(uniqueEmail)
     expect(send.subject).toContain('Verify your email')
+
+    const verificationHref = send.html.match(/href="([^"]+)"/)?.[1]
+    expect(verificationHref).toBeTruthy()
+    const verificationUrl = new URL(verificationHref!.replaceAll('&amp;', '&'))
+    await page.goto(`${verificationUrl.pathname}${verificationUrl.search}`)
 
     await signIn(page, uniqueEmail, password)
     await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)

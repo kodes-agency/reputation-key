@@ -7,7 +7,7 @@
 // same section composition the page renders (mirrored in StaffHomeHarness).
 //
 // States: Populated (KPIs + badges + goals + recent activity), Loading
-// (suspense pending), Empty (property selected but no portal assignments →
+// (suspense pending), Empty (property selected but no portal responsibility →
 // StaffEmptyState), Error (a query rejects → error boundary).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
@@ -330,7 +330,7 @@ type Story = StoryObj<typeof StaffHomeHarness>
 
 const SEARCH_PROPERTY_ID = 'prop-00000000-0000-0000-0000-000000000051'
 
-// Populated — assigned portals, KPIs, badges, goals and recent reviews all
+// Populated — responsible portals, KPIs, badges, goals and recent reviews all
 // render through the real hook.
 export const Populated: Story = {
   args: { fns: populatedFns, searchPropertyId: SEARCH_PROPERTY_ID },
@@ -348,7 +348,7 @@ export const Populated: Story = {
     await expect(
       canvas.getByText(/check-in was fast and the front desk team was wonderful/i),
     ).toBeVisible()
-    // Portal filter offers the assigned portals.
+    // Portal filter offers the portals covered by active responsibilities.
     await expect(canvas.getByRole('combobox')).toBeVisible()
   },
 }
@@ -381,7 +381,7 @@ export const Loading: Story = {
   },
 }
 
-// Empty — property selected but no portal assignments → the hook reports
+// Empty — property selected but no portal responsibility → the hook reports
 // 'no-assignments' and the page renders StaffEmptyState.
 export const Empty: Story = {
   args: {
@@ -414,7 +414,7 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      await canvas.findByText(/your manager hasn't assigned you to any portals yet/i),
+      await canvas.findByText(/don't have an active portal responsibility/i),
     ).toBeVisible()
     // The populated sections stay hidden behind the empty state.
     expect(canvas.queryByText('Recent Activity')).toBeNull()

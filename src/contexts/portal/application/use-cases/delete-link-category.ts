@@ -45,6 +45,7 @@ export const deleteLinkCategory =
 
     await deps.portalLinkRepo.deleteCategory(
       ctx.organizationId,
+      existing.portalId,
       portalLinkCategoryId(input.categoryId),
     )
   }

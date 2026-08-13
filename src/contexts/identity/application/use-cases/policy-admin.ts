@@ -50,6 +50,8 @@ export type PolicyAdminDeps = Readonly<{
     organizationId: string
     propertyId: string
   }) => Promise<PolicyAdminRegionDiagnostic>
+  /** Strong-read the persisted capability snapshot after tenant policy mutations. */
+  refreshPolicy: () => Promise<void>
   // Identity repositories.
   setOrganizationPolicy: (input: {
     organizationId: string
@@ -62,6 +64,10 @@ export type PolicyAdminDeps = Readonly<{
     suspendedAt?: Date | null
     suspendedReason?: string | null
   }) => Promise<void>
+  propertyBelongsToOrganization: (
+    organizationId: string,
+    propertyId: string,
+  ) => Promise<boolean>
   addOrganizationCapability: (
     organizationId: string,
     capability: string,
@@ -185,6 +191,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     } else {
       await deps.removeOrganizationCapability(input.organizationId, input.capability)
     }
+    await deps.refreshPolicy()
     await auditOp(deps, {
       organizationId: input.organizationId,
       action: input.enabled ? 'policy.allowlist.set' : 'policy.allowlist.clear',
@@ -211,6 +218,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
     })
+    await deps.refreshPolicy()
     await auditOp(deps, {
       organizationId: input.organizationId,
       action: input.suspend ? 'policy.org.suspend' : 'policy.org.unsuspend',
@@ -232,11 +240,17 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   ): Promise<void> {
     requireReason(input.reason)
     requireTicket(input.ticketRef)
+    if (
+      !(await deps.propertyBelongsToOrganization(input.organizationId, input.propertyId))
+    ) {
+      throw new Error('property not found in organization')
+    }
     await deps.setPropertyPolicy({
       propertyId: input.propertyId,
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
     })
+    await deps.refreshPolicy()
     await auditOp(deps, {
       organizationId: input.organizationId,
       propertyId: input.propertyId,

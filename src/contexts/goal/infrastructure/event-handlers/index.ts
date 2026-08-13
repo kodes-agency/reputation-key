@@ -5,7 +5,7 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal } from '../../domain/types'
-import type { GoalId, OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
+import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import type { Result } from '#/shared/domain'
 import type { SystemCancelReason } from '../../application/use-cases/system-cancel-goal'
@@ -37,10 +37,6 @@ export type RegisterGoalHandlersDeps = Readonly<{
   eventBus: EventBus
   clock: () => Date
   getLogger: typeof getLoggerType
-  findGroupForPortal: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-  ) => Promise<{ portalGroupId: PortalGroupId } | null>
 }>
 
 // ── Registration ──────────────────────────────────────────────────────

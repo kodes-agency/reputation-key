@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { listStaffGoals } from '#/contexts/goal/server/staff-goals'
+import { listGovernedGoals } from '#/contexts/goal/server/governed-goals'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { StaffGoalList } from '#/components/features/staff/staff-goal-list'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
-import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
+import type { GovernedGoalDefinition } from '#/contexts/goal/application/public-api'
+import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
 const progressSearch = z.object({
   propertyId: z.string().uuid().optional(),
@@ -17,19 +17,25 @@ const progressSearch = z.object({
 const staffGoalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.staff(propertyId),
-    queryFn: () => listStaffGoals({ data: { propertyId } }),
+    queryFn: () => listGovernedGoals({ data: { propertyId } }),
     staleTime: 60 * 1000,
   })
 
 export const Route = createFileRoute('/_authenticated/progress')({
-  beforeLoad: async () => {
-    await gateDarkRoute({ data: { capability: 'goal.use', featureLabel: 'Goals' } })
+  beforeLoad: async ({ search }) => {
+    await gateControlledRoute({
+      data: {
+        capability: 'goal.use',
+        featureLabel: 'Goals',
+        propertyId: search.propertyId,
+      },
+    })
   },
   validateSearch: progressSearch,
   loaderDeps: ({ search }) => ({ propertyId: search.propertyId }),
   loader: async ({ context, deps: { propertyId } }) => {
     if (!propertyId) {
-      return { goals: [] as StaffGoalEntry[] }
+      return { goals: [] as GovernedGoalDefinition[] }
     }
 
     const { goals } = await context.queryClient.ensureQueryData(
@@ -42,8 +48,9 @@ export const Route = createFileRoute('/_authenticated/progress')({
 
 function StaffProgressPage() {
   const { propertyId: searchPropertyId } = Route.useSearch()
-  const { data } = useSuspenseQuery({
-    ...staffGoalsQuery(searchPropertyId ?? ''),
+  const { data } = useQuery({
+    ...staffGoalsQuery(searchPropertyId ?? '00000000-0000-4000-8000-000000000000'),
+    enabled: searchPropertyId !== undefined,
   })
   const goals = data?.goals ?? []
   // No property selected — the sidebar defaults ?propertyId= on first load.

@@ -45,15 +45,17 @@ describe('BQR-0: Dark context capability enforcement', () => {
 
         // Skip utility/helper files that don't export server functions
         if (!content.includes('createServerFn')) continue
+        const hasAssert = /assert(Global|Beta)Capability/.test(content)
+        const hasAuthorizeSeam =
+          content.includes('requireExecutionAllowed') ||
+          content.includes('requirePortalResourceScope') ||
+          content.includes('requireMatchingPortalResourceScopes') ||
+          content.includes('decidePublicExecution')
 
         it(`${basename} enforces capability via the ExecutionPolicy seam or assert*Capability`, () => {
-          // BQC-2.6: requireExecutionAllowed (the deleted requireAuthorized path's
-          // replacement). BQR-0 style: explicit assertBeta/GlobalCapability.
-          const hasAssert = /assert(Global|Beta)Capability/.test(content)
-          const hasAuthorizeSeam = content.includes('requireExecutionAllowed')
           expect(
             hasAssert || hasAuthorizeSeam,
-            `${basename} in dark context "${context}" must call requireExecutionAllowed or assertBeta/GlobalCapability`,
+            `${basename} in controlled context "${context}" must use an ExecutionPolicy or capability assertion seam`,
           ).toBe(true)
         })
 
@@ -66,10 +68,12 @@ describe('BQR-0: Dark context capability enforcement', () => {
             .replace(/\.use$/, '')
             .replace(/^portal\..*/, 'portal')
           const hasMappedPermission =
-            content.includes('requireExecutionAllowed') &&
+            hasAuthorizeSeam &&
             (content.includes(`'${permissionPrefix}.`) ||
               content.includes(`"${permissionPrefix}.`) ||
-              allowedCaps.some((cap) => content.includes(`'${cap}'`)))
+              allowedCaps.some((cap) => content.includes(`'${cap}'`)) ||
+              (content.includes('GoalExecutionPolicy') &&
+                content.includes('request.action')))
           expect(
             hasLiteral || hasMappedPermission,
             `${basename} in dark context "${context}" must reference one of [${allowedCaps.join(', ')}] or use requireExecutionAllowed with matching permissions`,
@@ -98,9 +102,7 @@ describe('BQR-0: Dark job / schedule containment', () => {
     expect(workerSrc).toContain('isCapabilityJobEnabled')
   })
 
-  it('worker schedules dark jobs only after capability check', () => {
-    expect(workerSrc).toContain("capability: 'goal.use'")
-    expect(workerSrc).toContain("capability: 'badge.use'")
+  it('worker schedules controlled jobs only after capability check', () => {
     expect(workerSrc).toContain("capability: 'leaderboard.use'")
     expect(workerSrc).toContain("capability: 'notification.send_email'")
     expect(workerSrc).toContain('isCapabilityJobEnabled(capability)')
@@ -116,9 +118,6 @@ describe('BQR-0: Dark job / schedule containment', () => {
       )
       expect(bootstrapSrc, `expected gated job ${job} / ${cap}`).toMatch(re)
     }
-    gated('RECONCILE_GOAL_JOB_NAME', 'goal.use')
-    gated('SPAWN_RECURRING_JOB_NAME', 'goal.use')
-    gated("'badge.reconcile'", 'badge.use')
     gated("'leaderboard.reconcile'", 'leaderboard.use')
     gated('PROCESS_IMAGE_JOB_NAME', 'portal.upload')
     gated('URGENT_EMAIL_JOB_NAME', 'notification.send_email')

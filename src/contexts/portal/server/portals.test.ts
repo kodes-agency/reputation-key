@@ -185,8 +185,6 @@ describe('createPortal input validation', () => {
       entityType: 'property',
       entityId: 'prop-123',
       theme: { primaryColor: '#6366F1', backgroundColor: '#FFFFFF' },
-      smartRoutingEnabled: true,
-      smartRoutingThreshold: 3,
     })
     expect(result.success).toBe(true)
   })
@@ -231,32 +229,17 @@ describe('createPortal input validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects smartRoutingThreshold below 1', () => {
-    const result = createPortalInputSchema.safeParse({
-      name: 'Test',
-      propertyId: 'prop-123',
-      smartRoutingThreshold: 0,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts smartRoutingThreshold of 5 (max per CONTEXT.md invariant)', () => {
-    const result = createPortalInputSchema.safeParse({
-      name: 'Test',
-      propertyId: 'prop-123',
-      smartRoutingThreshold: 5,
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects smartRoutingThreshold above 5', () => {
-    const result = createPortalInputSchema.safeParse({
-      name: 'Test',
-      propertyId: 'prop-123',
-      smartRoutingThreshold: 6,
-    })
-    expect(result.success).toBe(false)
-  })
+  it.each([0, 5, 6])(
+    'rejects obsolete smartRoutingThreshold input (%s)',
+    (smartRoutingThreshold) => {
+      const result = createPortalInputSchema.safeParse({
+        name: 'Test',
+        propertyId: 'prop-123',
+        smartRoutingThreshold,
+      })
+      expect(result.success).toBe(false)
+    },
+  )
 })
 
 describe('updatePortal input validation', () => {
@@ -274,9 +257,7 @@ describe('updatePortal input validation', () => {
       slug: 'updated-slug',
       description: 'Updated description',
       theme: { primaryColor: '#FF5500' },
-      smartRoutingEnabled: false,
-      smartRoutingThreshold: 2,
-      isActive: false,
+      publicationState: 'disabled',
     })
     expect(result.success).toBe(true)
   })

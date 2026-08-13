@@ -1,40 +1,35 @@
-// Leaderboard context — event handler registration
-// Wires metric.recorded → targeted leaderboard snapshot refresh.
-// Per architecture: "Handlers should not throw. Failures are logged, not propagated to the emitter."
-
 import type { EventBus } from '#/shared/events/event-bus'
-import type {
-  LeaderboardRefreshInput,
-  LeaderboardReconcileResult,
-} from '../../domain/types'
-import { LEADERBOARD_METRICS } from '../../domain/scoring'
 
-export type RegisterLeaderboardHandlersDeps = Readonly<{
+export type RegisterRecognitionHandlersDeps = Readonly<{
   eventBus: EventBus
-  refreshLeaderboard: (
-    input: LeaderboardRefreshInput,
-  ) => Promise<LeaderboardReconcileResult>
+  reconcileProperty: (
+    organizationId: string,
+    propertyId: string,
+  ) => Promise<
+    Readonly<{
+      snapshotsReconciled: number
+      entriesUpserted: number
+      sourceFactsRecorded: number
+    }>
+  >
 }>
 
-export const registerLeaderboardEventHandlers = (
-  deps: RegisterLeaderboardHandlersDeps,
-): void => {
+/**
+ * Governed metric facts trigger only a property-scoped reconciliation. The
+ * repository re-authorizes the capability and resolves the installed metric
+ * definition version before reading or writing any recognition facts.
+ */
+export function registerRecognitionEventHandlers(
+  deps: RegisterRecognitionHandlersDeps,
+): void {
   deps.eventBus.on(
     'metric.recorded',
     async (event) => {
-      // Only refresh the current period — full hourly reconcile catches the rest.
-      // Skip metrics the leaderboard doesn't rank (e.g. property-scoped reviews).
-      if (!LEADERBOARD_METRICS.includes(event.metricKey)) return
+      if (!event.permittedConsumers.includes('recognition')) return
       await Promise.allSettled([
-        deps.refreshLeaderboard({
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          period: 'this_month',
-          scope: event.portalId ? 'portal' : 'portal_group',
-          metricKey: event.metricKey,
-        }),
+        deps.reconcileProperty(event.organizationId, event.propertyId),
       ])
     },
-    { consumer: 'leaderboard.event-handlers' },
+    { consumer: 'recognition.event-handlers' },
   )
 }

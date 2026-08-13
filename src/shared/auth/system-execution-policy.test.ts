@@ -24,6 +24,7 @@ import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from './beta-capabilities'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 
 afterEach(() => {
   resetCapabilityPolicyStore()
@@ -77,6 +78,63 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(decision.outcome).toBe('deny')
     expect(decision.reason).toBe('policy_unavailable')
     expect(decision.allowed).toBe(false)
+  })
+
+  it('denies an enqueue capability that disagrees with the catalogue', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+
+    const decision = await policy.decide({
+      principal: { kind: 'system', id: 'worker:default' },
+      action: 'system:metric.refresh',
+      organizationId: 'org-fixture',
+      executionKind: 'worker',
+      capabilityAtEnqueue: 'goal.use',
+      now: new Date(),
+    })
+
+    expect(decision).toMatchObject({
+      allowed: false,
+      outcome: 'deny',
+      reason: 'capability_mismatch',
+    })
+  })
+
+  it('allows an ungated tenant-cross schedule to enumerate targets', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+
+    const decision = await policy.decide({
+      principal: { kind: 'system', id: 'schedule:metrics' },
+      action: 'system:metric.refresh',
+      organizationId: 'tenant-cross',
+      executionKind: 'schedule',
+      now: new Date(),
+    })
+
+    expect(decision).toMatchObject({
+      allowed: true,
+      outcome: 'allow',
+      reason: 'allowed',
+    })
+  })
+
+  it('never aliases one delayed action to different capabilities', () => {
+    const capabilitiesByAction = new Map<string, Set<string>>()
+    for (const row of ENTRY_POINT_CATALOGUE) {
+      if (!['job', 'consumer', 'schedule'].includes(row.kind)) continue
+      const capabilities = capabilitiesByAction.get(row.action) ?? new Set<string>()
+      if (row.capability !== 'none') capabilities.add(row.capability)
+      capabilitiesByAction.set(row.action, capabilities)
+    }
+
+    const conflicts = [...capabilitiesByAction]
+      .filter(([, capabilities]) => capabilities.size > 1)
+      .map(
+        ([action, capabilities]) => `${action}: ${[...capabilities].sort().join(', ')}`,
+      )
+
+    expect(conflicts).toEqual([])
   })
 
   it('catalogue-derived contract data: capability, fresh read, scope per action', () => {

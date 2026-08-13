@@ -15,7 +15,7 @@
 import { Pool } from 'pg'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
-import { createCipheriv, randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
 import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
@@ -147,16 +147,19 @@ async function codec(): Promise<SerovalCodec> {
 }
 
 /**
- * Dev server-fn id (the Playwright webServer runs `pnpm dev`): base64url of
- * JSON { file: '/<repo-relative>?tss-serverfn-split', export: '<name>_createServerFn_handler' }.
+ * TanStack Start server-function URL. Dev uses a base64url module descriptor;
+ * production uses SHA-256 of `<file>--<generated handler export>`.
  */
 export function serverFnUrl(file: string, exportName: string): string {
-  const id = Buffer.from(
-    JSON.stringify({
-      file: `/${file}?tss-serverfn-split`,
-      export: `${exportName}_createServerFn_handler`,
-    }),
-  ).toString('base64url')
+  const handlerExport = `${exportName}_createServerFn_handler`
+  const id = process.env.E2E_EXTERNAL_STACK
+    ? createHash('sha256').update(`${file}--${handlerExport}`).digest('hex')
+    : Buffer.from(
+        JSON.stringify({
+          file: `/${file}?tss-serverfn-split`,
+          export: handlerExport,
+        }),
+      ).toString('base64url')
   return `/_serverFn/${id}`
 }
 
@@ -235,15 +238,50 @@ async function parseServerFnResponse(res: {
   return { httpStatus, result: decoded }
 }
 
+type BrowserServerFnResponse = Readonly<{
+  status: number
+  text: string
+}>
+
+async function browserServerFnRequest(
+  page: Page,
+  input: Readonly<{ url: string; method: 'GET' | 'POST'; body?: string }>,
+): Promise<{ status(): number; text(): Promise<string> }> {
+  const current = new URL(page.url())
+  if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+    throw new Error('Server fn calls require a page loaded from the application origin')
+  }
+  const response = await page.evaluate(
+    async ({ url, method, body }): Promise<BrowserServerFnResponse> => {
+      const result = await fetch(url, {
+        method,
+        body,
+        credentials: 'same-origin',
+        headers: {
+          'x-tsr-serverFn': 'true',
+          ...(body ? { 'content-type': 'application/json' } : {}),
+        },
+      })
+      return { status: result.status, text: await result.text() }
+    },
+    input,
+  )
+  return {
+    status: () => response.status,
+    text: async () => response.text,
+  }
+}
+
 /** POST a server fn; throws when the fn returned a serialized error. */
 export async function callServerFn<T = unknown>(
   page: Page,
   fn: { file: string; exportName: string; data: unknown },
 ): Promise<T> {
   const body = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
-  const res = await page.request.post(serverFnUrl(fn.file, fn.exportName), {
-    headers: { 'content-type': 'application/json', 'x-tsr-serverFn': 'true' },
-    data: body,
+  const res = await browserServerFnRequest(page, {
+    url: serverFnUrl(fn.file, fn.exportName),
+    method: 'POST',
+    body,
   })
   const parsed = await parseServerFnResponse(res)
   if (parsed.error) {
@@ -260,9 +298,10 @@ export async function callServerFnExpectError(
   fn: { file: string; exportName: string; data: unknown },
 ): Promise<ServerFnErrorBody> {
   const body = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
-  const res = await page.request.post(serverFnUrl(fn.file, fn.exportName), {
-    headers: { 'content-type': 'application/json', 'x-tsr-serverFn': 'true' },
-    data: body,
+  const res = await browserServerFnRequest(page, {
+    url: serverFnUrl(fn.file, fn.exportName),
+    method: 'POST',
+    body,
   })
   const parsed = await parseServerFnResponse(res)
   if (!parsed.error) {
@@ -280,9 +319,7 @@ export async function callServerFnGet<T = unknown>(
 ): Promise<T> {
   const serialized = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
   const url = `${serverFnUrl(fn.file, fn.exportName)}?payload=${encodeURIComponent(serialized)}`
-  const res = await page.request.get(url, {
-    headers: { 'x-tsr-serverFn': 'true' },
-  })
+  const res = await browserServerFnRequest(page, { url, method: 'GET' })
   const parsed = await parseServerFnResponse(res)
   if (parsed.error) {
     throw new Error(
@@ -299,9 +336,7 @@ export async function callServerFnGetExpectError(
 ): Promise<ServerFnErrorBody> {
   const serialized = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
   const url = `${serverFnUrl(fn.file, fn.exportName)}?payload=${encodeURIComponent(serialized)}`
-  const res = await page.request.get(url, {
-    headers: { 'x-tsr-serverFn': 'true' },
-  })
+  const res = await browserServerFnRequest(page, { url, method: 'GET' })
   const parsed = await parseServerFnResponse(res)
   if (!parsed.error) {
     throw new Error(

@@ -555,11 +555,11 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     `)
     await db.execute(sql`
       INSERT INTO google_connections
-        (id, organization_id, google_account_id, google_email,
+        (id, organization_id, google_subject,
          encrypted_access_token, encrypted_refresh_token, token_expires_at,
          scopes, connected_by)
       VALUES
-        (${CONN_C}, ${ORG_C}, 'bqc46-google-account-c', 'bqc46-c@example.test',
+        (${CONN_C}, ${ORG_C}, 'bqc46-google-subject-c',
          'enc-access', 'enc-refresh', NOW() + INTERVAL '1 hour',
          ARRAY['https://www.googleapis.com/auth/business.manage'], ${USER_C})
     `)

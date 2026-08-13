@@ -69,12 +69,19 @@ const ops = createPolicyAdminOps({
       createProcessingRouter({
         loadPropertyRouting: createPropertyRoutingLoader({ db }),
         cell: 'us',
-      }).resolve(propertyId, 'review.sync'),
+      }).resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
     cell: 'us',
     providerRef: providerRefForCell('us') ?? null,
   }),
+  refreshPolicy: async () => {},
   setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
   setPropertyPolicy: (input) => setPropertyPolicy(db, input),
+  propertyBelongsToOrganization: async (orgId, propertyId) => {
+    const result = await db.execute(
+      sql`SELECT 1 FROM properties WHERE organization_id = ${orgId} AND id = ${propertyId}`,
+    )
+    return result.rows.length > 0
+  },
   addOrganizationCapability: (orgId, cap, by) =>
     addOrganizationCapability(db, orgId, cap, by),
   removeOrganizationCapability: (orgId, cap) =>
@@ -185,7 +192,7 @@ describe('policy administration (BQC-2.7)', () => {
     await expect(
       ops.setOrgCapability({
         organizationId: ORG,
-        capability: 'portal.write',
+        capability: 'gbp.reply.auto_publish',
         enabled: true,
         reason: 'must stay blocked',
         actorUserId: ADMIN,
@@ -231,6 +238,18 @@ describe('policy administration (BQC-2.7)', () => {
     expect(
       snapshot.propertyPolicies.find((p) => p.propertyId === PROP)?.suspendedReason,
     ).toBe('quality review')
+
+    await expect(
+      ops.setPropertySuspension({
+        organizationId: ORG,
+        propertyId: 'd4000000-0000-4000-8000-000000000099',
+        suspend: true,
+        reason: 'cross-tenant containment probe',
+        ticketRef: 'OPS-102',
+        actorUserId: ADMIN,
+        now: NOW,
+      }),
+    ).rejects.toThrow(/property not found in organization/)
 
     await ops.setOrgSuspension({
       organizationId: ORG,

@@ -50,7 +50,7 @@ export type FakeEventHandlerDeps = Readonly<{
 const createFakeQueue = (): Pick<FakeEventHandlerDeps, 'queue' | 'addMock' | 'jobs'> => {
   const jobs: FakeJob[] = []
   const addMock = vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-    jobs.push({ name, data, opts })
+    jobs.push(opts === undefined ? { name, data } : { name, data, opts })
   })
   return { queue: { add: addMock } as unknown as Queue, addMock, jobs }
 }
@@ -263,6 +263,7 @@ export const buildExpectedJob = (data: ExpectedNotificationJobData) => ({
   data: {
     ...data,
     organizationId: NOTIF_TEST_IDS.orgId,
+    propertyId: NOTIF_TEST_IDS.propId,
     eventId: NOTIF_TEST_IDS.eventId,
   },
 })

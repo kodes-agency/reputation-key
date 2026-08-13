@@ -1,9 +1,9 @@
-// Recognition settings page — per-badge-definition org enablement toggles.
-// Lists every system badge definition with its current org enablement and a
-// switch to enable/disable. Toggles are optimistic and revert on failure.
-
 import { useState } from 'react'
-import { toast } from 'sonner'
+import type {
+  ActivateRecognitionInput,
+  DeactivateRecognitionInput,
+} from '#/contexts/leaderboard/application/dto/leaderboard.dto'
+import type { RecognitionSettings } from '#/contexts/leaderboard/application/public-api'
 import {
   Card,
   CardContent,
@@ -11,96 +11,169 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Switch } from '#/components/ui/switch'
 import { Label } from '#/components/ui/label'
-import type { Action } from '#/components/hooks/use-action'
-import type { OrganizationBadgeEnablement } from '#/contexts/badge/application/public-api'
-import type {
-  BadgeDefinitionWithEnablementOutput,
-  BadgeCriteriaSummary,
-} from '#/contexts/badge/application/dto/badge.dto'
-
-type ToggleInput = Readonly<{
-  data: Readonly<{ badgeDefinitionId: string; enabled: boolean }>
-}>
+import { RecognitionActivationCard } from './recognition-activation-card'
 
 type Props = Readonly<{
-  badges: readonly BadgeDefinitionWithEnablementOutput[]
-  toggleBadge: Action<ToggleInput, OrganizationBadgeEnablement>
+  propertyId: string
+  settings: RecognitionSettings
+  activate: (input: { data: ActivateRecognitionInput }) => Promise<unknown>
+  deactivate: (input: { data: DeactivateRecognitionInput }) => Promise<unknown>
 }>
 
-// Compact human summary of a badge's evaluation criteria.
-function formatCriteria(criteria: BadgeCriteriaSummary): string {
-  if (criteria.type === 'streak') {
-    return `${criteria.streakDays ?? '?'}-day streak`
-  }
-  const base = `${criteria.operator} ${criteria.threshold}`
-  return criteria.period ? `${base} (${criteria.period.replace(/_/g, ' ')})` : base
-}
+export function RecognitionSettingsPage({
+  propertyId,
+  settings,
+  activate,
+  deactivate,
+}: Props) {
+  const current = settings.activation
+  const initialMetric =
+    settings.availableMetrics.find(
+      (metric) => metric.definitionVersionId === current?.metricDefinitionVersionId,
+    ) ?? settings.availableMetrics[0]
+  const [metricVersionId, setMetricVersionId] = useState(
+    initialMetric?.definitionVersionId ?? '',
+  )
+  const [selectedGroups, setSelectedGroups] = useState<string[]>(
+    current ? [...current.selectedPortalGroupIds] : [],
+  )
+  const [jurisdiction, setJurisdiction] = useState(current?.jurisdiction ?? '')
+  const [consultationStatus, setConsultationStatus] = useState<
+    'completed' | 'not_required'
+  >(current?.consultationStatus ?? 'not_required')
+  const [minimumExposure, setMinimumExposure] = useState(current?.minimumExposure ?? 5)
+  const [minimumSample, setMinimumSample] = useState(
+    current?.minimumSample ?? initialMetric?.minimumSample ?? 5,
+  )
+  const [freshnessSeconds, setFreshnessSeconds] = useState(
+    current?.freshnessSeconds ?? 86_400,
+  )
+  const [minimumCompleteness, setMinimumCompleteness] = useState(
+    current?.minimumCompleteness ?? 0.9,
+  )
+  const [periodKind, setPeriodKind] = useState<'weekly' | 'monthly' | 'quarterly'>(
+    current?.periodKind ?? 'monthly',
+  )
+  const [deactivationReason, setDeactivationReason] = useState('')
+  const [pending, setPending] = useState(false)
 
-export function RecognitionSettingsPage({ badges, toggleBadge }: Props) {
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(badges.map((b) => [b.id, b.orgEnabled])),
+  const selectedMetric = settings.availableMetrics.find(
+    (metric) => metric.definitionVersionId === metricVersionId,
   )
 
-  const onToggle = async (id: string, next: boolean) => {
-    const prev = enabled[id]
-    setEnabled((s) => ({ ...s, [id]: next }))
+  const toggleGroup = (groupId: string, checked: boolean) => {
+    setSelectedGroups((groups) =>
+      checked
+        ? [...new Set([...groups, groupId])]
+        : groups.filter((id) => id !== groupId),
+    )
+  }
+
+  const activateRecognition = async () => {
+    if (!selectedMetric || selectedGroups.length === 0 || !jurisdiction.trim()) return
+    setPending(true)
     try {
-      await toggleBadge({ data: { badgeDefinitionId: id, enabled: next } })
-    } catch {
-      setEnabled((s) => ({ ...s, [id]: prev }))
-      toast.error('Failed to update badge setting')
+      await activate({
+        data: {
+          propertyId,
+          policyVersion: 'beta-local-1',
+          jurisdiction: jurisdiction.trim(),
+          noticeStatus: 'completed',
+          consultationStatus,
+          audience: 'property_managers_and_scoped_staff',
+          selectedPortalGroupIds: selectedGroups,
+          metricDefinitionVersionId: selectedMetric.definitionVersionId,
+          aggregation: selectedMetric.aggregation,
+          periodKind,
+          minimumExposure,
+          minimumSample,
+          freshnessSeconds,
+          minimumCompleteness,
+        },
+      })
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const deactivateRecognition = async () => {
+    if (!deactivationReason.trim()) return
+    setPending(true)
+    try {
+      await deactivate({
+        data: { propertyId, reason: deactivationReason.trim() },
+      })
+    } finally {
+      setPending(false)
     }
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Recognition badges</CardTitle>
-        <CardDescription>
-          Choose which achievement badges are active for your organization.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="divide-y">
-        {badges.map((badge) => (
-          <div
-            key={badge.id}
-            className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex items-start gap-3">
-              <span
-                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-base"
-                aria-hidden
-              >
-                {badge.icon}
-              </span>
-              <div className="max-w-sm">
-                <p className="text-sm font-medium">{badge.name}</p>
-                {badge.description && (
-                  <p className="text-xs text-muted-foreground">{badge.description}</p>
-                )}
-                <p className="mt-0.5 text-[11px] font-mono text-muted-foreground">
-                  {formatCriteria(badge.criteria)}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor={`badge-${badge.id}`}
-                className="text-xs text-muted-foreground"
-              >
-                {enabled[badge.id] ? 'Enabled' : 'Disabled'}
-              </Label>
-              <Switch
-                id={`badge-${badge.id}`}
-                checked={enabled[badge.id]}
-                onCheckedChange={(v) => onToggle(badge.id, v)}
-              />
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      <RecognitionActivationCard
+        settings={settings}
+        active={current !== null}
+        selectedMetric={selectedMetric}
+        metricVersionId={metricVersionId}
+        selectedGroups={selectedGroups}
+        jurisdiction={jurisdiction}
+        consultationStatus={consultationStatus}
+        minimumExposure={minimumExposure}
+        minimumSample={minimumSample}
+        freshnessSeconds={freshnessSeconds}
+        minimumCompleteness={minimumCompleteness}
+        periodKind={periodKind}
+        pending={pending}
+        setJurisdiction={setJurisdiction}
+        setConsultationStatus={setConsultationStatus}
+        selectMetric={(versionId) => {
+          setMetricVersionId(versionId)
+          const metric = settings.availableMetrics.find(
+            (candidate) => candidate.definitionVersionId === versionId,
+          )
+          if (metric) setMinimumSample(metric.minimumSample)
+        }}
+        toggleGroup={toggleGroup}
+        setPeriodKind={setPeriodKind}
+        setMinimumExposure={setMinimumExposure}
+        setMinimumSample={setMinimumSample}
+        setFreshnessSeconds={setFreshnessSeconds}
+        setMinimumCompleteness={setMinimumCompleteness}
+        activate={activateRecognition}
+      />
+
+      {current ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Deactivate recognition</CardTitle>
+            <CardDescription>
+              Deactivation immediately removes board visibility and stops future
+              refreshes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row">
+            <Label htmlFor="recognition-deactivation" className="sr-only">
+              Deactivation reason
+            </Label>
+            <input
+              id="recognition-deactivation"
+              className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+              value={deactivationReason}
+              onChange={(event) => setDeactivationReason(event.target.value)}
+              placeholder="Reason for deactivation"
+            />
+            <button
+              type="button"
+              className="rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              disabled={pending || !deactivationReason.trim()}
+              onClick={deactivateRecognition}
+            >
+              Deactivate
+            </button>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
   )
 }

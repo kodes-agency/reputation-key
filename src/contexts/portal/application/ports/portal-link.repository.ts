@@ -17,6 +17,7 @@ export type PortalLinkRepository = Readonly<{
   ) => Promise<ReadonlyArray<PortalLinkCategory>>
   listLinks: (
     orgId: OrganizationId,
+    portalId: PortalId,
     categoryId: PortalLinkCategoryId,
   ) => Promise<ReadonlyArray<PortalLink>>
   listAllLinks: (
@@ -26,23 +27,36 @@ export type PortalLinkRepository = Readonly<{
   insertCategory: (orgId: OrganizationId, cat: PortalLinkCategory) => Promise<void>
   updateCategory: (
     orgId: OrganizationId,
+    portalId: PortalId,
     id: PortalLinkCategoryId,
     patch: Readonly<Partial<PortalLinkCategory>>,
   ) => Promise<void>
-  deleteCategory: (orgId: OrganizationId, id: PortalLinkCategoryId) => Promise<void>
+  deleteCategory: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+    id: PortalLinkCategoryId,
+  ) => Promise<void>
   reorderCategories: (
     orgId: OrganizationId,
+    portalId: PortalId,
     updates: ReadonlyArray<{ id: PortalLinkCategoryId; sortKey: string }>,
   ) => Promise<void>
   insertLink: (orgId: OrganizationId, link: PortalLink) => Promise<void>
   updateLink: (
     orgId: OrganizationId,
+    portalId: PortalId,
     id: PortalLinkId,
     patch: Readonly<Partial<PortalLink>>,
   ) => Promise<void>
-  deleteLink: (orgId: OrganizationId, id: PortalLinkId) => Promise<void>
+  deleteLink: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+    id: PortalLinkId,
+  ) => Promise<void>
   reorderLinks: (
     orgId: OrganizationId,
+    portalId: PortalId,
+    categoryId: PortalLinkCategoryId,
     updates: ReadonlyArray<{ id: PortalLinkId; sortKey: string }>,
   ) => Promise<void>
   findCategoryById: (

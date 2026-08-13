@@ -1,43 +1,35 @@
-// Create team form — used in property teams page
-// Per architecture: receives mutation as a prop, uses DTO schema for validation.
-
+// Create team form — lead appointment is a separate membership command.
 import { useForm } from '@tanstack/react-form'
+import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
-import { TeamLeadSelect } from './team-lead-select'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { z } from 'zod/v4'
-import { createTeamInputSchema } from '#/contexts/team/application/dto/create-team.dto'
-import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
-import type { MemberOption } from '#/components/features/team/shared/types'
 import type { Action } from '#/components/hooks/use-action'
+import type { CreateTeamMutationInput } from '#/components/features/team/shared/types'
 
-const formSchema = createTeamInputSchema
-  .pick({ propertyId: true, name: true, description: true, teamLeadId: true })
-  .required()
-  .extend({
-    teamLeadId: z.string(),
-  })
+const formSchema = z.object({
+  propertyId: z.string().min(1),
+  name: z.string().trim().min(1, 'Enter a team name').max(100),
+  description: z.string().max(500),
+})
 
 type Props = Readonly<{
   propertyId: string
-  mutation: Action<{ data: CreateTeamInput }>
-  members?: ReadonlyArray<MemberOption>
+  mutation: Action<{ data: CreateTeamMutationInput }>
   /** Called after a successful create (e.g. to close the hosting dialog). */
   onSuccess?: () => void
 }>
 
-export function CreateTeamForm({ propertyId, mutation, members, onSuccess }: Props) {
+export function CreateTeamForm({ propertyId, mutation, onSuccess }: Props) {
   const form = useForm({
     defaultValues: {
       propertyId,
       name: '',
-      description: '' as string | undefined,
-      teamLeadId: '' as string | undefined,
+      description: '',
     },
     validators: {
       onSubmit: formSchema,
@@ -45,12 +37,11 @@ export function CreateTeamForm({ propertyId, mutation, members, onSuccess }: Pro
     onSubmit: async ({ value }) => {
       await mutation({
         data: {
-          ...value,
-          description: value.description || undefined,
-          teamLeadId: value.teamLeadId || undefined,
+          propertyId: value.propertyId,
+          name: value.name.trim(),
+          description: value.description.trim() || undefined,
         },
       })
-      // useAction rejects on failure — reaching here means the create landed.
       onSuccess?.()
     },
   })
@@ -89,12 +80,6 @@ export function CreateTeamForm({ propertyId, mutation, members, onSuccess }: Pro
             />
           )}
         </form.Field>
-
-        {members && members.length > 0 && (
-          <form.Field name="teamLeadId">
-            {(field: BaseFieldApi) => <TeamLeadSelect field={field} members={members} />}
-          </form.Field>
-        )}
       </FieldGroup>
 
       <SubmitButton mutation={mutation} form={form}>

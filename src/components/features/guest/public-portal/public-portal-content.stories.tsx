@@ -1,122 +1,122 @@
-// Public portal content stories — brand-critical guest surface that composes
-// StarRating + FeedbackForm over a portal's hero, links, and categories.
-// `submitFeedback` / `submitRating` are optional plain async fn props → mockServerFn.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
-import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
-import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
+import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { PublicPortalContent } from './public-portal-content'
 import type { PublicPortalContentProps } from './public-portal-content'
 
-type FeedbackInput = {
-  data: {
-    portalId: string
-    comment: string
-    source: ScanSource
-    honeypot: string
-    submittedAt: number
-  }
-}
-type RatingInput = { data: { portalId: string; value: number; source: ScanSource } }
-
 const portal = {
-  id: 'portal-1',
-  name: 'Sunset Inn',
-  description: 'Guest services & local recommendations',
-  organizationName: 'Sunset Hospitality',
+  id: '00000000-0000-4000-8000-000000000001',
+  name: 'The Harbor Hotel',
+  description: 'Thank you for visiting. Choose any destination below.',
+  organizationName: 'Harbor Hospitality',
   heroImageUrl: null,
-  theme: null,
+  theme: { primaryColor: '#4f46e5', backgroundColor: '#ffffff', textColor: '#111827' },
 }
-
 const categories = [
-  { id: 'cat-1', title: 'Front Desk' },
-  { id: 'cat-2', title: 'Dining' },
+  { id: '00000000-0000-4000-8000-000000000010', title: 'Share your experience' },
 ]
 const links = [
   {
-    id: 'link-1',
-    label: 'Request late checkout',
-    url: 'https://example.com/checkout',
-    categoryId: 'cat-1',
+    id: '00000000-0000-4000-8000-000000000020',
+    label: 'Google',
+    url: 'https://www.google.com/',
+    categoryId: categories[0].id,
   },
   {
-    id: 'link-2',
-    label: 'Breakfast menu',
-    url: 'https://example.com/menu',
-    categoryId: 'cat-2',
+    id: '00000000-0000-4000-8000-000000000021',
+    label: 'Tripadvisor',
+    url: 'https://www.tripadvisor.com/',
+    categoryId: categories[0].id,
   },
 ]
+const submitted: GuestResponseView = {
+  id: '00000000-0000-4000-8000-000000000030',
+  responseConsent: true,
+  textConsent: false,
+  status: 'submitted',
+  rating: 5,
+  category: null,
+  text: null,
+  mediaConsent: false,
+  submittedAt: '2026-08-09T12:00:00.000Z',
+  correctedAt: null,
+  correctionDeadline: '2026-08-09T13:00:00.000Z',
+  deletedAt: null,
+}
+const deleted: GuestResponseView = {
+  ...submitted,
+  status: 'deleted',
+  rating: null,
+  deletedAt: '2026-08-09T12:30:00.000Z',
+}
 
-const resolvingFeedback = mockServerFn<FeedbackInput, { ok: true }>(async () => ({
-  ok: true,
-}))
-const resolvingRating = mockServerFn<RatingInput, { ok: true }>(async () => ({
-  ok: true,
-}))
+const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
+  csrfNonce: '00000000-0000-4000-8000-000000000040',
+  initialResponse: null,
+  submitResponse: async ({ data }) => ({
+    ...submitted,
+    rating: data.rating,
+    text: data.text,
+    mediaConsent: data.mediaConsent,
+  }),
+  correctResponse: async ({ data }) => ({
+    ...submitted,
+    status: 'corrected',
+    rating: data.rating,
+    text: data.text,
+    mediaConsent: data.mediaConsent,
+    correctedAt: '2026-08-09T12:15:00.000Z',
+  }),
+  withdrawResponse: async () => deleted,
+  issueMedia: async ({ data }) => ({
+    mediaId: '00000000-0000-4000-8000-000000000050',
+    objectKey: 'guest/example.webp',
+    uploadUrl: 'https://uploads.invalid/example',
+    contentType: data.contentType,
+  }),
+  confirmMedia: async ({ data }) => ({ mediaId: data.mediaId, status: 'ready' }),
+}
 
 const baseArgs: PublicPortalContentProps = {
+  token: 'portal-public-token',
   portal,
   categories,
   links,
-  source: 'direct',
-  submitFeedback: resolvingFeedback,
-  submitRating: resolvingRating,
+  responseForm,
 }
 
 const meta: Meta<typeof PublicPortalContent> = {
-  title: 'Guest/PublicPortalContent',
+  title: 'Features/Guest/PublicPortalContent',
   component: PublicPortalContent,
-  tags: ['autodocs'],
-  parameters: { layout: 'fullscreen' },
+  args: baseArgs,
 }
 export default meta
+
 type Story = StoryObj<typeof PublicPortalContent>
 
-// Fresh visit — no rating or feedback submitted yet.
-export const Empty: Story = {
-  args: baseArgs,
-}
+export const Empty: Story = {}
 
-// Rating click is in flight (never resolves) → stars stay in submitting state.
-export const SubmittingRating: Story = {
+export const CorrectionAvailable: Story = {
   args: {
-    ...baseArgs,
-    submitRating: mockServerFn<RatingInput, unknown>(
-      () => new Promise<unknown>(() => {}),
-    ),
+    responseForm: { ...responseForm, initialResponse: submitted },
   },
 }
 
-// Feedback submission is in flight (never resolves) → button shows "Sending...".
-export const SubmittingFeedback: Story = {
+export const Withdrawn: Story = {
   args: {
-    ...baseArgs,
-    submitFeedback: mockServerFn<FeedbackInput, unknown>(
-      () => new Promise<unknown>(() => {}),
-    ),
+    responseForm: { ...responseForm, initialResponse: deleted },
   },
+}
+
+export const DestinationsRemainInvariant: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByRole('textbox'), 'Working on it...')
-    await userEvent.click(canvas.getByRole('button', { name: /send feedback/i }))
-    expect(await canvas.findByRole('button', { name: /sending/i })).toBeInTheDocument()
-  },
-}
-
-// Full happy path: leave a star rating, then submit feedback.
-export const Success: Story = {
-  args: baseArgs,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    // Star rating — click 5 stars, assert the thank-you confirmation.
-    await userEvent.click(canvas.getByRole('radio', { name: /5 stars/i }))
-    expect(await canvas.findByText(/thank you for your feedback/i)).toBeInTheDocument()
-    // Feedback form — type a comment and submit, assert its thank-you state.
-    await userEvent.type(canvas.getByRole('textbox'), 'Wonderful stay!')
-    await userEvent.click(canvas.getByRole('button', { name: /send feedback/i }))
-    // Two "Thank you for your feedback!" confirmations now exist (rating + form).
-    expect(
-      canvas.getAllByText(/thank you for your feedback/i).length,
-    ).toBeGreaterThanOrEqual(2)
+    const before = canvas.getAllByRole('link').map((link) => link.textContent)
+    await userEvent.click(canvas.getByRole('radio', { name: '5 stars' }))
+    await userEvent.click(canvas.getByRole('checkbox', { name: /share this rating/i }))
+    const after = canvas.getAllByRole('link').map((link) => link.textContent)
+    await expect(after).toEqual(before)
+    await expect(canvas.getByRole('link', { name: 'Google' })).toBeVisible()
+    await expect(canvas.getByRole('link', { name: 'Tripadvisor' })).toBeVisible()
   },
 }

@@ -17,6 +17,7 @@ import { Route as JoinRouteImport } from './routes/join'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
@@ -28,7 +29,6 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedImportIndexRouteImport } from './routes/_authenticated/import/index'
-import { Route as PPropertySlugPortalSlugRouteImport } from './routes/p/$propertySlug/$portalSlug'
 import { Route as ApiHealthStartedRouteImport } from './routes/api/health/started'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
 import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
@@ -46,13 +46,12 @@ import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/
 import { Route as AuthenticatedImportImportIdRouteImport } from './routes/_authenticated/import/$importId'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
-import { Route as ApiPublicClickLinkIdRouteImport } from './routes/api/public/click/$linkId'
-import { Route as ApiPortalsIdQrRouteImport } from './routes/api/portals/$id/qr'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
+import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/goals/index'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId'
@@ -61,6 +60,7 @@ import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } 
 import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from './routes/_authenticated/properties/$propertyId/goals/$goalId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
+import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
 
 const UnavailableRoute = UnavailableRouteImport.update({
@@ -100,6 +100,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PTokenRoute = PTokenRouteImport.update({
+  id: '/p/$token',
+  path: '/p/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
@@ -161,11 +166,6 @@ const AuthenticatedImportIndexRoute =
     path: '/import/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const PPropertySlugPortalSlugRoute = PPropertySlugPortalSlugRouteImport.update({
-  id: '/p/$propertySlug/$portalSlug',
-  path: '/p/$propertySlug/$portalSlug',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiHealthStartedRoute = ApiHealthStartedRouteImport.update({
   id: '/api/health/started',
   path: '/api/health/started',
@@ -263,16 +263,6 @@ const ApiWebhooksGbpNotificationsRoute =
     path: '/api/webhooks/gbp/notifications',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicClickLinkIdRoute = ApiPublicClickLinkIdRouteImport.update({
-  id: '/api/public/click/$linkId',
-  path: '/api/public/click/$linkId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPortalsIdQrRoute = ApiPortalsIdQrRouteImport.update({
-  id: '/api/portals/$id/qr',
-  path: '/api/portals/$id/qr',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   id: '/api/auth/google/callback',
   path: '/api/auth/google/callback',
@@ -300,6 +290,12 @@ const AuthenticatedPropertiesPropertyIdGoalsRoute =
   AuthenticatedPropertiesPropertyIdGoalsRouteImport.update({
     id: '/goals',
     path: '/goals',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdTeamsIndexRoute =
+  AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdPortalsIndexRoute =
@@ -350,6 +346,12 @@ const AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
   } as any)
+const ApiPublicPTokenClickLinkIdRoute =
+  ApiPublicPTokenClickLinkIdRouteImport.update({
+    id: '/api/public/p/$token/click/$linkId',
+    path: '/api/public/p/$token/click/$linkId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute =
   AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport.update({
     id: '/members',
@@ -371,6 +373,7 @@ export interface FileRoutesByFullPath {
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/team': typeof AuthenticatedTeamRoute
+  '/p/$token': typeof PTokenRoute
   '/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -386,7 +389,6 @@ export interface FileRoutesByFullPath {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import/': typeof AuthenticatedImportIndexRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
@@ -397,8 +399,6 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
-  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
-  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -408,7 +408,9 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   '/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
   '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
+  '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -424,6 +426,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/team': typeof AuthenticatedTeamRoute
+  '/p/$token': typeof PTokenRoute
   '/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
@@ -438,7 +441,6 @@ export interface FileRoutesByTo {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/import': typeof AuthenticatedImportIndexRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
@@ -448,8 +450,6 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
-  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
-  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -458,7 +458,9 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/properties/$propertyId/teams': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
   '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
+  '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
@@ -477,6 +479,7 @@ export interface FileRoutesById {
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/team': typeof AuthenticatedTeamRoute
+  '/p/$token': typeof PTokenRoute
   '/_authenticated/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -492,7 +495,6 @@ export interface FileRoutesById {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/p/$propertySlug/$portalSlug': typeof PPropertySlugPortalSlugRoute
   '/_authenticated/import/': typeof AuthenticatedImportIndexRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
@@ -503,8 +505,6 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
-  '/api/portals/$id/qr': typeof ApiPortalsIdQrRoute
-  '/api/public/click/$linkId': typeof ApiPublicClickLinkIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -514,7 +514,9 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   '/_authenticated/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  '/_authenticated/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
   '/_authenticated/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
+  '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/_authenticated/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -533,6 +535,7 @@ export interface FileRouteTypes {
     | '/progress'
     | '/settings'
     | '/team'
+    | '/p/$token'
     | '/import/$importId'
     | '/properties/$propertyId'
     | '/settings/integrations'
@@ -548,7 +551,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/p/$propertySlug/$portalSlug'
     | '/import/'
     | '/inbox/'
     | '/properties/'
@@ -559,8 +561,6 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/api/auth/google/callback'
-    | '/api/portals/$id/qr'
-    | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId/'
     | '/properties/$propertyId/goals/$goalId'
@@ -570,7 +570,9 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/teams/$teamId'
     | '/properties/$propertyId/goals/'
     | '/properties/$propertyId/portals/'
+    | '/properties/$propertyId/teams/'
     | '/properties/$propertyId/teams/$teamId/members'
+    | '/api/public/p/$token/click/$linkId'
     | '/properties/$propertyId/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -586,6 +588,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/progress'
     | '/team'
+    | '/p/$token'
     | '/import/$importId'
     | '/settings/integrations'
     | '/settings/members'
@@ -600,7 +603,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/p/$propertySlug/$portalSlug'
     | '/import'
     | '/inbox'
     | '/properties'
@@ -610,8 +612,6 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/api/auth/google/callback'
-    | '/api/portals/$id/qr'
-    | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId'
     | '/properties/$propertyId/goals/$goalId'
@@ -620,7 +620,9 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/goals'
     | '/properties/$propertyId/portals'
+    | '/properties/$propertyId/teams'
     | '/properties/$propertyId/teams/$teamId/members'
+    | '/api/public/p/$token/click/$linkId'
     | '/properties/$propertyId/teams/$teamId'
   id:
     | '__root__'
@@ -638,6 +640,7 @@ export interface FileRouteTypes {
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/_authenticated/team'
+    | '/p/$token'
     | '/_authenticated/import/$importId'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/integrations'
@@ -653,7 +656,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/p/$propertySlug/$portalSlug'
     | '/_authenticated/import/'
     | '/_authenticated/inbox/'
     | '/_authenticated/properties/'
@@ -664,8 +666,6 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
     | '/api/auth/google/callback'
-    | '/api/portals/$id/qr'
-    | '/api/public/click/$linkId'
     | '/api/webhooks/gbp/notifications'
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/$propertyId/goals/$goalId'
@@ -675,7 +675,9 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/teams/$teamId'
     | '/_authenticated/properties/$propertyId/goals/'
     | '/_authenticated/properties/$propertyId/portals/'
+    | '/_authenticated/properties/$propertyId/teams/'
     | '/_authenticated/properties/$propertyId/teams/$teamId/members'
+    | '/api/public/p/$token/click/$linkId'
     | '/_authenticated/properties/$propertyId/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
@@ -688,17 +690,16 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
+  PTokenRoute: typeof PTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiHealthLiveRoute: typeof ApiHealthLiveRoute
   ApiHealthMetricsRoute: typeof ApiHealthMetricsRoute
   ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   ApiHealthStartedRoute: typeof ApiHealthStartedRoute
-  PPropertySlugPortalSlugRoute: typeof PPropertySlugPortalSlugRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
-  ApiPortalsIdQrRoute: typeof ApiPortalsIdQrRoute
-  ApiPublicClickLinkIdRoute: typeof ApiPublicClickLinkIdRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
+  ApiPublicPTokenClickLinkIdRoute: typeof ApiPublicPTokenClickLinkIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -757,6 +758,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/p/$token': {
+      id: '/p/$token'
+      path: '/p/$token'
+      fullPath: '/p/$token'
+      preLoaderRoute: typeof PTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/team': {
@@ -835,13 +843,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/import/'
       preLoaderRoute: typeof AuthenticatedImportIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
-    }
-    '/p/$propertySlug/$portalSlug': {
-      id: '/p/$propertySlug/$portalSlug'
-      path: '/p/$propertySlug/$portalSlug'
-      fullPath: '/p/$propertySlug/$portalSlug'
-      preLoaderRoute: typeof PPropertySlugPortalSlugRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/health/started': {
       id: '/api/health/started'
@@ -962,20 +963,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksGbpNotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/click/$linkId': {
-      id: '/api/public/click/$linkId'
-      path: '/api/public/click/$linkId'
-      fullPath: '/api/public/click/$linkId'
-      preLoaderRoute: typeof ApiPublicClickLinkIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/portals/$id/qr': {
-      id: '/api/portals/$id/qr'
-      path: '/api/portals/$id/qr'
-      fullPath: '/api/portals/$id/qr'
-      preLoaderRoute: typeof ApiPortalsIdQrRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/google/callback': {
       id: '/api/auth/google/callback'
       path: '/api/auth/google/callback'
@@ -1009,6 +996,13 @@ declare module '@tanstack/react-router' {
       path: '/goals'
       fullPath: '/properties/$propertyId/goals'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/teams/': {
+      id: '/_authenticated/properties/$propertyId/teams/'
+      path: '/teams'
+      fullPath: '/properties/$propertyId/teams/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
     '/_authenticated/properties/$propertyId/portals/': {
@@ -1066,6 +1060,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId/teams/$teamId/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
+    }
+    '/api/public/p/$token/click/$linkId': {
+      id: '/api/public/p/$token/click/$linkId'
+      path: '/api/public/p/$token/click/$linkId'
+      fullPath: '/api/public/p/$token/click/$linkId'
+      preLoaderRoute: typeof ApiPublicPTokenClickLinkIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/properties/$propertyId/teams/$teamId/members': {
       id: '/_authenticated/properties/$propertyId/teams/$teamId/members'
@@ -1158,6 +1159,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   AuthenticatedPropertiesPropertyIdPortalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  AuthenticatedPropertiesPropertyIdTeamsIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
 }
 
 const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPropertyIdRouteChildren =
@@ -1180,6 +1182,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren,
     AuthenticatedPropertiesPropertyIdPortalsIndexRoute:
       AuthenticatedPropertiesPropertyIdPortalsIndexRoute,
+    AuthenticatedPropertiesPropertyIdTeamsIndexRoute:
+      AuthenticatedPropertiesPropertyIdTeamsIndexRoute,
   }
 
 const AuthenticatedPropertiesPropertyIdRouteWithChildren =
@@ -1229,17 +1233,16 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
+  PTokenRoute: PTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiHealthLiveRoute: ApiHealthLiveRoute,
   ApiHealthMetricsRoute: ApiHealthMetricsRoute,
   ApiHealthReadyRoute: ApiHealthReadyRoute,
   ApiHealthStartedRoute: ApiHealthStartedRoute,
-  PPropertySlugPortalSlugRoute: PPropertySlugPortalSlugRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
-  ApiPortalsIdQrRoute: ApiPortalsIdQrRoute,
-  ApiPublicClickLinkIdRoute: ApiPublicClickLinkIdRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
+  ApiPublicPTokenClickLinkIdRoute: ApiPublicPTokenClickLinkIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

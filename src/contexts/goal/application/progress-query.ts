@@ -28,6 +28,7 @@ export function progressQueryToMetricReadingsQuery(
     portalId: pq.scopeFilter.portalId,
     groupId: pq.scopeFilter.portalGroupId,
     metricKey: pq.metricKey,
+    consumer: 'goal',
   }
 
   switch (pq.timeFilter.tag) {

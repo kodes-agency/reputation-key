@@ -1,9 +1,3 @@
-// Portal settings — active toggle, EditPortalForm, theme presets, smart routing.
-// Uses usePermissions() (AccountAdmin → controls enabled), so it needs the
-// AuthedRouterDecorator. The active Switch both calls onIsActiveChange and
-// fires the mutation; the Save Changes button triggers the edit form via
-// formRef. Stories cover: active/inactive, toggle interaction, save in flight,
-// smart-routing expanded.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { useRef, type ComponentProps } from 'react'
@@ -12,10 +6,6 @@ import type { Action } from '#/components/hooks/use-action'
 import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
-// Owns the formRef the real page passes in, so stories never put a ref object
-// in args: EditPortalForm assigns itself into the ref during render, and a ref
-// in args becomes a circular structure Storybook cannot serialize ("cycle in
-// arg" warnings).
 function PortalSettingsWithRef(
   props: Omit<ComponentProps<typeof PortalSettings>, 'formRef'>,
 ) {
@@ -41,9 +31,7 @@ const portal: PortalData = {
   description: 'Main guest-facing portal.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
-  smartRoutingEnabled: true,
-  smartRoutingThreshold: 4,
-  isActive: true,
+  publicationState: 'published',
 }
 
 const requestUploadUrl = async (_input: {
@@ -61,41 +49,53 @@ const idleMutation = Object.assign(
 const baseArgs = {
   portal,
   mutation: idleMutation,
-  primaryColor: '#6366f1',
+  primaryColor: portal.theme.primaryColor,
   onPrimaryColorChange: fn(),
-  smartRoutingEnabled: true,
-  onSmartRoutingEnabledChange: fn(),
-  smartRoutingThreshold: 4,
-  onSmartRoutingThresholdChange: fn(),
-  isActive: true,
-  onIsActiveChange: fn(),
   requestUploadUrl,
   finalizeUpload,
 }
 
-// Active portal — toggle on, smart routing expanded.
-export const Active: Story = {
+export const Published: Story = {
   args: { ...baseArgs },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: /disable public page/i }),
+    ).toBeInTheDocument()
+  },
 }
 
-// Inactive portal — guests see "unavailable"; toggle off.
-export const Inactive: Story = {
+export const Disabled: Story = {
   args: {
     ...baseArgs,
-    isActive: false,
+    portal: { ...portal, publicationState: 'disabled' },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/guests will see an/i)).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: /publish portal/i }),
+    ).toBeInTheDocument()
   },
 }
 
-// Toggling active fires onIsActiveChange with the new value AND the mutation.
-export const ToggleActive: Story = {
+export const Archived: Story = {
   args: {
     ...baseArgs,
-    isActive: false,
-    onIsActiveChange: fn(),
+    portal: { ...portal, publicationState: 'archived' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/configuration and history are retained/i),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /publish portal/i })).toBeNull()
+  },
+}
+
+export const PublicationMutation: Story = {
+  args: {
+    ...baseArgs,
+    portal: { ...portal, publicationState: 'disabled' },
     mutation: Object.assign(
       fn(async (_input: UpdatePortalVariables) => ({ success: true })),
       { isPending: false, error: null as unknown, isSuccess: false, data: null },
@@ -103,26 +103,11 @@ export const ToggleActive: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const toggle = canvas.getByRole('switch', { name: /portal active/i })
-    await userEvent.click(toggle)
-    const onIsActiveChange = ToggleActive.args?.onIsActiveChange
-    await waitFor(() => expect(onIsActiveChange).toHaveBeenCalledWith(true))
+    await userEvent.click(canvas.getByRole('button', { name: /publish portal/i }))
+    await waitFor(() => expect(PublicationMutation.args?.mutation).toHaveBeenCalled())
   },
 }
 
-// Smart routing disabled → the threshold panel is hidden.
-export const SmartRoutingDisabled: Story = {
-  args: {
-    ...baseArgs,
-    smartRoutingEnabled: false,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.queryByText(/rating threshold/i)).toBeNull()
-  },
-}
-
-// Save in flight — Save Changes shows "Saving..." and the toggle is disabled.
 export const Saving: Story = {
   args: {
     ...baseArgs,
@@ -136,8 +121,27 @@ export const Saving: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /saving/i })).toBeInTheDocument()
-    // Active toggle is disabled while a save is pending.
-    await expect(canvas.getByRole('switch', { name: /portal active/i })).toBeDisabled()
+    await expect(canvas.getByRole('button', { name: /saving/i })).toBeDisabled()
+  },
+}
+
+export const MutationError: Story = {
+  args: {
+    ...baseArgs,
+    mutation: Object.assign(
+      async (_input: UpdatePortalVariables) => {
+        throw new Error('The portal could not be updated. Try again.')
+      },
+      {
+        isPending: false,
+        error: new Error('The portal could not be updated. Try again.'),
+        isSuccess: false,
+        data: null,
+      },
+    ) as Action<UpdatePortalVariables, never>,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('alert')).toHaveTextContent(/could not be updated/i)
   },
 }

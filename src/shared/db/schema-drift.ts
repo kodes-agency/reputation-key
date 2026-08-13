@@ -25,6 +25,7 @@ import { getTableName, isTable, SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import type { Index, PgColumn } from 'drizzle-orm/pg-core'
 import * as schema from './schema'
+import * as googleImportCompatibilitySchema from './schema/google-import-compatibility.schema'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -169,6 +170,13 @@ const IN_LIST = /(\w+)\s+in\s*\(([^()]*?)\)/g
 // 00:00:00+02'); canonicalize date/time literals so comparison is TZ-stable.
 const BARE_DATE = /'(\d{4}-\d{2}-\d{2})'/g
 const TZ_OFFSET = /(\d{2}:\d{2}:\d{2})\s*[+-]\d{2}(?=')/g
+const BETWEEN_RANGE =
+  // eslint-disable-next-line security/detect-unsafe-regex -- schema-owned SQL only; bounded DDL, never request input
+  /(\w+(?:\([^()]*(?:\([^()]*\)[^()]*)*\))?)\s+between\s+([^\s]+)\s+and\s+([^\s]+)/g
+const INTERVAL_LITERAL = /interval\s+'([^']+)'/g
+const INTERVAL_EQUIVALENTS: Readonly<Record<string, string>> = {
+  '24 hours': '24:00:00',
+}
 
 /**
  * Canonicalize a SQL fragment from either world (drizzle model render or
@@ -185,12 +193,18 @@ function normalizeExpr(raw: string): string {
   s = s.replace(BARE_DATE, "'$1 00:00:00'").replace(TZ_OFFSET, '$1')
   s = s.replace(/"/g, '').replace(TABLE_QUALIFIER, '')
   s = s.replace(NOT_IN_LIST, '$1 <> all array[$2]').replace(IN_LIST, '$1 = any array[$2]')
+  s = s.replace(BETWEEN_RANGE, '$1 >= $2 and $1 <= $3')
+  s = s.replace(
+    INTERVAL_LITERAL,
+    (_match, value: string) => `'${INTERVAL_EQUIVALENTS[value] ?? value}'`,
+  )
   s = s.replace(/\s+/g, ' ').trim()
   s = s.replace(/[()]/g, '')
   return s
     .replace(/\s*,\s*/g, ',')
     .replace(/\s*\[\s*/g, '[')
     .replace(/\s*]\s*/g, ']')
+    .replace(/\s+(and|or)\s+/g, '$1')
     .trim()
 }
 
@@ -364,10 +378,109 @@ function extractModel(): readonly ModelTable[] {
   return tables.map(toModelTable).sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * Expand-schema bridge columns remain queryable only by the compatibility
+ * binary. The contract-ready table definitions deliberately omit them so the
+ * same code runs after contract DDL. While the durable compatibility control
+ * table exists, augment the drift-only model with the exact frozen bridge
+ * shape; this still validates every column, predicate, and identity check.
+ */
+function withGoogleImportExpandBridge(
+  model: readonly ModelTable[],
+  catalog: Catalog,
+): readonly ModelTable[] {
+  if (!catalog.tables.has('legacy_import_control')) return model
+
+  const compatibilityTables = Object.values(googleImportCompatibilitySchema)
+    .filter(isTable)
+    .map((table) => toModelTable(table as Parameters<typeof getTableConfig>[0]))
+
+  return [...model, ...compatibilityTables].map((table): ModelTable => {
+    if (table.name === 'google_connections') {
+      return {
+        ...table,
+        columns: [
+          ...table.columns,
+          {
+            name: 'google_account_id',
+            type: 'varchar(255)',
+            notNull: false,
+            defaultSql: null,
+            primary: false,
+            isUnique: false,
+            enumName: null,
+            enumValues: null,
+          },
+          {
+            name: 'google_email',
+            type: 'varchar(255)',
+            notNull: false,
+            defaultSql: null,
+            primary: false,
+            isUnique: false,
+            enumName: null,
+            enumValues: null,
+          },
+        ],
+        checks: table.checks.map((check) =>
+          check.name === 'google_connections_identity_check'
+            ? {
+                ...check,
+                expr:
+                  'google_subject is not nullandgoogle_account_id is nullandgoogle_email is nullor' +
+                  'google_subject is nullandgoogle_account_id is not nullandgoogle_email is not nullor' +
+                  "status = 'disconnected'andgoogle_subject is nullandgoogle_account_id is nullandgoogle_email is null",
+              }
+            : check,
+        ),
+        indexes: [
+          ...table.indexes,
+          {
+            name: 'google_connections_google_account_idx',
+            unique: true,
+            columns: ['google_account_id'],
+            predicate: 'google_account_id is not null',
+          },
+        ],
+      }
+    }
+
+    if (table.name === 'properties') {
+      return {
+        ...table,
+        columns: [
+          ...table.columns,
+          {
+            name: 'gbp_place_id',
+            type: 'varchar(500)',
+            notNull: false,
+            defaultSql: null,
+            primary: false,
+            isUnique: false,
+            enumName: null,
+            enumValues: null,
+          },
+        ],
+        indexes: [
+          ...table.indexes,
+          {
+            name: 'properties_org_gbp_place_id_unique',
+            unique: true,
+            columns: ['organization_id', 'gbp_place_id'],
+            predicate: 'gbp_place_id is not nullanddeleted_at is null',
+          },
+        ],
+      }
+    }
+
+    return table
+  })
+}
+
 // ─── Catalog extraction ─────────────────────────────────────────────
 
 const COLUMNS_SQL = `SELECT table_name, column_name, udt_name, is_nullable, column_default,
-       character_maximum_length
+       character_maximum_length, numeric_precision, numeric_scale
   FROM information_schema.columns
   WHERE table_schema = 'public'`
 
@@ -426,6 +539,11 @@ function canonicalDbType(row: Record<string, unknown>): string {
     return row.character_maximum_length != null
       ? `varchar(${row.character_maximum_length})`
       : 'varchar'
+  }
+  if (udt === 'numeric') {
+    return row.numeric_precision != null
+      ? `numeric(${row.numeric_precision}, ${row.numeric_scale})`
+      : 'numeric'
   }
   if (udt.startsWith('_')) return `${udt.slice(1)}[]` // pg array types
   const mapped: Record<string, string> = {
@@ -510,7 +628,15 @@ async function fetchCatalog(q: Queryable): Promise<Catalog> {
   const functions = await q.query(
     `SELECT p.proname FROM pg_proc p
        JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname = 'public' AND p.prokind = 'f'`,
+      WHERE n.nspname = 'public' AND p.prokind = 'f'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM pg_depend d
+          JOIN pg_extension e ON e.oid = d.refobjid
+          WHERE d.classid = 'pg_proc'::regclass
+            AND d.objid = p.oid
+            AND d.deptype = 'e'
+        )`,
   )
   const views = await q.query(`SELECT viewname FROM pg_views WHERE schemaname = 'public'`)
   const matviews = await q.query(
@@ -927,6 +1053,7 @@ function registeredKindCatalog(
     case 'expression-index':
     case 'partial-index':
     case 'index-direction':
+    case 'index':
       return catalog.indexNames
     case 'check':
       return new Set(catalog.constraints.filter((c) => c.type === 'c').map((c) => c.name))
@@ -1068,8 +1195,8 @@ function compareJournal(catalog: Catalog): Drift[] {
  * Returns every drift found; an empty array means semantic parity.
  */
 export async function collectSchemaDrift(q: Queryable): Promise<readonly Drift[]> {
-  const model = extractModel()
   const catalog = await fetchCatalog(q)
+  const model = withGoogleImportExpandBridge(extractModel(), catalog)
   const drifts: Drift[] = [...compareTableSets(model, catalog)]
   for (const table of model) {
     if (catalog.tables.has(table.name)) {

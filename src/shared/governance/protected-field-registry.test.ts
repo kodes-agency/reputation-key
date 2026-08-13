@@ -56,7 +56,6 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'notifications',
   'outbox_events',
   'event_consumer_receipts',
-  'gbp_cache',
   'review_sync_state',
   'inbound_webhook_receipts',
   'feedback',
@@ -71,7 +70,6 @@ const REQUIRED_EVENT_FIELDS: ReadonlyArray<
 > = [
   { relation: 'event:review.created', field: 'externalId' },
   { relation: 'event:review.updated', field: 'externalId' },
-  { relation: 'event:property.created', field: 'gbpPlaceId' },
   { relation: 'event:identity.member.invited', field: 'email' },
 ]
 

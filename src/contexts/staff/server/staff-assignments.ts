@@ -32,7 +32,7 @@ export const createStaffAssignment = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
-          action: 'staff_assignment.create',
+          action: 'staff.manage',
           propertyId: data.propertyId,
         })
 
@@ -60,7 +60,7 @@ export const removeStaffAssignment = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'staff_assignment.delete' })
+        await requireExecutionAllowed({ actor: ctx, action: 'staff.manage' })
 
         try {
           const { useCases } = getContainer()
@@ -91,7 +91,7 @@ export const listStaffAssignments = createServerFn({ method: 'GET' })
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
-          action: 'staff_assignment.read',
+          action: 'staff.read',
           propertyId: data.propertyId,
         })
 

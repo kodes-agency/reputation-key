@@ -14,7 +14,6 @@ export type PortalGroupWithPortals = Readonly<{
   group: PortalGroup
   portalIds: ReadonlyArray<PortalId>
 }>
-
 export type PortalGroupRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PortalGroupId) => Promise<PortalGroup | null>
   listByProperty: (
@@ -33,16 +32,20 @@ export type PortalGroupRepository = Readonly<{
     id: PortalGroupId,
     patch: Readonly<Partial<Pick<PortalGroup, 'name' | 'sortKey' | 'updatedAt'>>>,
   ) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PortalGroupId) => Promise<void>
+  softDelete: (orgId: OrganizationId, id: PortalGroupId, at: Date) => Promise<void>
   addPortal: (
     orgId: OrganizationId,
     groupId: PortalGroupId,
     portalId: PortalId,
+    at: Date,
+    createdBy: string,
   ) => Promise<void>
   removePortal: (
     orgId: OrganizationId,
     groupId: PortalGroupId,
     portalId: PortalId,
+    at: Date,
+    reason: string,
   ) => Promise<boolean>
   findPortalMembership: (
     orgId: OrganizationId,
@@ -52,8 +55,13 @@ export type PortalGroupRepository = Readonly<{
     orgId: OrganizationId,
     groupId: PortalGroupId,
   ) => Promise<ReadonlyArray<PortalId>>
+  findGroupIdsByPortalIds: (
+    orgId: OrganizationId,
+    portalIds: ReadonlyArray<PortalId>,
+  ) => Promise<ReadonlyArray<PortalGroupId>>
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
+    asOf?: Date,
   ) => Promise<PortalGroup | null>
 }>

@@ -94,7 +94,6 @@ export function PortalCreationWithPreview({
                 portal={previewPortal}
                 categories={[{ id: 'placeholder', title: 'Your links will appear here' }]}
                 links={[]}
-                source="direct"
               />
             </div>
           </div>

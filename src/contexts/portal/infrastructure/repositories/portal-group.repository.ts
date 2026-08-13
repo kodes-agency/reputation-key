@@ -2,10 +2,11 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lte, not, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
-import { portalGroups, portalGroupMembers } from '#/shared/db/schema/portal.schema'
+import { portalGroups, portals } from '#/shared/db/schema/portal.schema'
+import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import type { PortalGroupRepository } from '../../application/ports/portal-group.repository'
 import { portalGroupFromRow, portalGroupToRow } from '../mappers/portal-group.mapper'
 import { portalError } from '../../domain/errors'
@@ -81,116 +82,256 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     })
   },
 
-  softDelete: async (orgId, id) => {
+  softDelete: async (orgId, id, at) => {
     return trace('portalGroup.softDelete', async () => {
-      const now = new Date()
-      await db
-        .update(portalGroups)
-        .set({ deletedAt: now, updatedAt: now })
-        .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
+      await db.transaction(async (tx) => {
+        const active = await tx
+          .select({
+            id: portalGroupMemberships.id,
+            effectiveFrom: portalGroupMemberships.effectiveFrom,
+          })
+          .from(portalGroupMemberships)
+          .where(
+            and(
+              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+              eq(portalGroupMemberships.portalGroupId, unbrand(id)),
+              isNull(portalGroupMemberships.effectiveTo),
+            ),
+          )
+        const transientIds = active
+          .filter((row) => row.effectiveFrom >= at)
+          .map((row) => row.id)
+        const historicalIds = active
+          .filter((row) => row.effectiveFrom < at)
+          .map((row) => row.id)
+        if (transientIds.length > 0) {
+          await tx
+            .delete(portalGroupMemberships)
+            .where(inArray(portalGroupMemberships.id, transientIds))
+        }
+        if (historicalIds.length > 0) {
+          await tx
+            .update(portalGroupMemberships)
+            .set({ effectiveTo: at, endReason: 'group_archived' })
+            .where(inArray(portalGroupMemberships.id, historicalIds))
+        }
+        await tx
+          .update(portalGroups)
+          .set({ deletedAt: at, updatedAt: at })
+          .where(and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(id))))
+      })
     })
   },
 
-  addPortal: async (orgId, groupId, portalId) => {
+  addPortal: async (orgId, groupId, pid, at, createdBy) => {
     return trace('portalGroup.addPortal', async () => {
       await db.transaction(async (tx) => {
-        // Clean up any stale membership (e.g., from a soft-deleted group)
-        // before inserting. Unique constraint on portalId means only one
-        // active membership per portal.
-        await tx
-          .delete(portalGroupMembers)
-          .where(
+        const [ownership] = await tx
+          .select({
+            groupPropertyId: portalGroups.propertyId,
+            portalPropertyId: portals.propertyId,
+          })
+          .from(portalGroups)
+          .innerJoin(
+            portals,
             and(
-              eq(portalGroupMembers.portalId, unbrand(portalId)),
-              eq(portalGroupMembers.organizationId, unbrand(orgId)),
+              eq(portals.organizationId, portalGroups.organizationId),
+              eq(portals.id, unbrand(pid)),
+              isNull(portals.deletedAt),
             ),
           )
-        await tx.insert(portalGroupMembers).values({
-          portalGroupId: unbrand(groupId),
-          portalId: unbrand(portalId),
+          .where(
+            and(...baseWhere(portalGroups, orgId), eq(portalGroups.id, unbrand(groupId))),
+          )
+          .limit(1)
+        if (!ownership || ownership.groupPropertyId !== ownership.portalPropertyId) {
+          throw portalError(
+            'forbidden',
+            'portal group membership requires an active same-property parent chain',
+          )
+        }
+
+        await tx.execute(sql`
+          SELECT id FROM portal_group_memberships
+          WHERE organization_id = ${unbrand(orgId)}
+            AND portal_id = ${unbrand(pid)}
+            AND effective_to IS NULL
+          FOR UPDATE
+        `)
+        const [existing] = await tx
+          .select({
+            id: portalGroupMemberships.id,
+            portalGroupId: portalGroupMemberships.portalGroupId,
+          })
+          .from(portalGroupMemberships)
+          .where(
+            and(
+              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+              eq(portalGroupMemberships.portalId, unbrand(pid)),
+              isNull(portalGroupMemberships.effectiveTo),
+            ),
+          )
+          .limit(1)
+        if (existing?.portalGroupId === unbrand(groupId)) return
+        if (existing) {
+          throw portalError('portal_already_grouped', 'portal is already in a group')
+        }
+        await tx.insert(portalGroupMemberships).values({
           organizationId: unbrand(orgId),
+          propertyId: ownership.groupPropertyId,
+          portalId: unbrand(pid),
+          portalGroupId: unbrand(groupId),
+          effectiveFrom: at,
+          createdBy,
         })
       })
     })
   },
 
-  removePortal: async (orgId, groupId, portalId) => {
-    return trace('portalGroup.removePortal', async () => {
-      const result = await db
-        .delete(portalGroupMembers)
-        .where(
-          and(
-            eq(portalGroupMembers.organizationId, unbrand(orgId)),
-            eq(portalGroupMembers.portalGroupId, unbrand(groupId)),
-            eq(portalGroupMembers.portalId, unbrand(portalId)),
-          ),
-        )
-        .returning({ id: portalGroupMembers.id })
-      return result.length > 0
-    })
+  removePortal: async (orgId, groupId, pid, at, reason) => {
+    return trace('portalGroup.removePortal', async () =>
+      db.transaction(async (tx) => {
+        await tx.execute(sql`
+          SELECT id FROM portal_group_memberships
+          WHERE organization_id = ${unbrand(orgId)}
+            AND portal_group_id = ${unbrand(groupId)}
+            AND portal_id = ${unbrand(pid)}
+            AND effective_to IS NULL
+          FOR UPDATE
+        `)
+        const [active] = await tx
+          .select()
+          .from(portalGroupMemberships)
+          .where(
+            and(
+              eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+              eq(portalGroupMemberships.portalGroupId, unbrand(groupId)),
+              eq(portalGroupMemberships.portalId, unbrand(pid)),
+              isNull(portalGroupMemberships.effectiveTo),
+            ),
+          )
+          .limit(1)
+        if (!active) return false
+        if (active.effectiveFrom >= at) {
+          await tx
+            .delete(portalGroupMemberships)
+            .where(eq(portalGroupMemberships.id, active.id))
+        } else {
+          await tx
+            .update(portalGroupMemberships)
+            .set({ effectiveTo: at, endReason: reason })
+            .where(eq(portalGroupMemberships.id, active.id))
+        }
+        return true
+      }),
+    )
   },
 
-  findPortalMembership: async (orgId, portalId) => {
+  findPortalMembership: async (orgId, pid) => {
     return trace('portalGroup.findPortalMembership', async () => {
-      const rows = await db
-        .select({ portalGroupId: portalGroupMembers.portalGroupId })
-        .from(portalGroupMembers)
+      const [row] = await db
+        .select({ portalGroupId: portalGroupMemberships.portalGroupId })
+        .from(portalGroupMemberships)
         .innerJoin(
           portalGroups,
           and(
-            eq(portalGroupMembers.portalGroupId, portalGroups.id),
-            sql`${portalGroups.deletedAt} IS NULL`,
+            eq(portalGroupMemberships.organizationId, portalGroups.organizationId),
+            eq(portalGroupMemberships.propertyId, portalGroups.propertyId),
+            eq(portalGroupMemberships.portalGroupId, portalGroups.id),
+            isNull(portalGroups.deletedAt),
           ),
         )
         .where(
           and(
-            eq(portalGroupMembers.organizationId, unbrand(orgId)),
-            eq(portalGroupMembers.portalId, unbrand(portalId)),
+            eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+            eq(portalGroupMemberships.portalId, unbrand(pid)),
+            isNull(portalGroupMemberships.effectiveTo),
           ),
         )
         .limit(1)
-      return rows[0] ? portalGroupId(rows[0].portalGroupId) : null
+      return row ? portalGroupId(row.portalGroupId) : null
     })
   },
 
   getGroupPortalIds: async (orgId, groupId) => {
     return trace('portalGroup.getGroupPortalIds', async () => {
       const rows = await db
-        .select({ portalId: portalGroupMembers.portalId })
-        .from(portalGroupMembers)
+        .select({ portalId: portalGroupMemberships.portalId })
+        .from(portalGroupMemberships)
         .innerJoin(
           portalGroups,
           and(
-            eq(portalGroupMembers.portalGroupId, portalGroups.id),
-            sql`${portalGroups.deletedAt} IS NULL`,
+            eq(portalGroupMemberships.organizationId, portalGroups.organizationId),
+            eq(portalGroupMemberships.propertyId, portalGroups.propertyId),
+            eq(portalGroupMemberships.portalGroupId, portalGroups.id),
+            isNull(portalGroups.deletedAt),
           ),
         )
         .where(
           and(
-            eq(portalGroupMembers.organizationId, unbrand(orgId)),
-            eq(portalGroupMembers.portalGroupId, unbrand(groupId)),
+            eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+            eq(portalGroupMemberships.portalGroupId, unbrand(groupId)),
+            isNull(portalGroupMemberships.effectiveTo),
           ),
         )
-      return rows.map((r: { portalId: string }) => portalId(r.portalId))
+      return rows.map((row) => portalId(row.portalId))
     })
   },
 
-  findGroupForPortal: async (orgId, portalId) => {
+  findGroupIdsByPortalIds: async (orgId, portalIds) => {
+    if (portalIds.length === 0) return []
+    const rows = await db
+      .selectDistinct({ portalGroupId: portalGroupMemberships.portalGroupId })
+      .from(portalGroupMemberships)
+      .innerJoin(
+        portalGroups,
+        and(
+          eq(portalGroupMemberships.organizationId, portalGroups.organizationId),
+          eq(portalGroupMemberships.propertyId, portalGroups.propertyId),
+          eq(portalGroupMemberships.portalGroupId, portalGroups.id),
+          isNull(portalGroups.deletedAt),
+        ),
+      )
+      .where(
+        and(
+          eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+          inArray(
+            portalGroupMemberships.portalId,
+            portalIds.map((id) => unbrand(id)),
+          ),
+          isNull(portalGroupMemberships.effectiveTo),
+        ),
+      )
+    return rows.map((row) => portalGroupId(row.portalGroupId))
+  },
+
+  findGroupForPortal: async (orgId, pid, asOf = new Date()) => {
     return trace('portalGroup.findGroupForPortal', async () => {
-      const rows = await db
-        .select()
+      const [row] = await db
+        .select({ group: portalGroups })
         .from(portalGroups)
         .innerJoin(
-          portalGroupMembers,
+          portalGroupMemberships,
           and(
-            eq(portalGroupMembers.portalGroupId, portalGroups.id),
-            eq(portalGroupMembers.portalId, unbrand(portalId)),
-            eq(portalGroupMembers.organizationId, unbrand(orgId)),
+            eq(portalGroupMemberships.organizationId, portalGroups.organizationId),
+            eq(portalGroupMemberships.propertyId, portalGroups.propertyId),
+            eq(portalGroupMemberships.portalGroupId, portalGroups.id),
+            eq(portalGroupMemberships.portalId, unbrand(pid)),
+            lte(portalGroupMemberships.effectiveFrom, asOf),
+            or(
+              isNull(portalGroupMemberships.effectiveTo),
+              gt(portalGroupMemberships.effectiveTo, asOf),
+            ),
           ),
         )
-        .where(and(...baseWhere(portalGroups, orgId)))
+        .where(
+          and(
+            eq(portalGroups.organizationId, unbrand(orgId)),
+            or(isNull(portalGroups.deletedAt), gt(portalGroups.deletedAt, asOf)),
+          ),
+        )
         .limit(1)
-      return rows[0] ? portalGroupFromRow(rows[0].portal_groups) : null
+      return row ? portalGroupFromRow(row.group) : null
     })
   },
 })

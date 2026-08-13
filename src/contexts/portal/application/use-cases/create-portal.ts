@@ -61,8 +61,6 @@ export const createPortal =
       providedSlug: input.slug,
       description: input.description,
       theme: input.theme,
-      smartRoutingEnabled: input.smartRoutingEnabled,
-      smartRoutingThreshold: input.smartRoutingThreshold,
       now: deps.clock(),
     })
 

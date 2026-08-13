@@ -13,14 +13,19 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import type { GbpQueuePort } from './application/ports/gbp-queue.port'
-import type { ImportPropertyJobData } from './application/ports/gbp-queue.port'
+import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
+import type { GoogleImportV2QueuePort } from './application/ports/gbp-queue.port'
 import type { GoogleOAuthPort } from './application/ports/google-oauth.port'
-import type { PkceVerifierStore } from './application/oauth-state'
+import type { OAuthStateHandleService } from './application/oauth-state-handle'
+import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-gate'
 import type { GbpApiPort } from './application/ports/gbp-api.port'
-import type { PropertyQueryPort } from './application/ports/property-query.port'
+import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
+import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyGoogleBindingPublicApi,
+  PropertyPublicApi,
+} from '#/contexts/property/application/public-api'
 import type {
   GoogleReviewApiPort,
   ReviewQueuePort,
@@ -31,43 +36,63 @@ import {
   listGoogleConnections,
   updateConnectionVisibility,
   refreshGoogleToken,
-  listGbpLocations,
-  startPropertyImport,
-  getImportStatus,
-  importProperty,
   getGoogleAuthUrl,
   manageNotifications,
   handleGbpNotification,
 } from './application/use-cases'
-import type { GetGoogleAuthUrl, HandleGbpNotification } from './application/use-cases'
+import type { HandleGbpNotification } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
-import { createGbpCacheRepository } from './infrastructure/repositories/gbp-cache.repository'
-import { createGbpImportRepository } from './infrastructure/repositories/gbp-import.repository'
-import { createPropertyImportRepository } from './infrastructure/repositories/property-import.repository'
+import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
+import { createImportItemRoutingLoader } from './infrastructure/import-item-routing.adapter'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
+import { registerGoogleImportDispatchConsumer } from './infrastructure/outbox-consumers'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from './application/google-import-v2-contract'
+import { createCredentialLifecycleRepository } from './infrastructure/repositories/credential-lifecycle.repository'
 import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
 import { createTokenEncryptionAdapter } from './infrastructure/adapters/token-encryption.adapter'
 import { createGbpApiAdapter } from './infrastructure/adapters/gbp-api.adapter'
 import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/mybusiness-notifications.adapter'
 import { createGoogleReviewApiAdapter } from './infrastructure/adapters/google-review-api.adapter'
+import { createGoogleAccountManagementAdapter } from './infrastructure/adapters/google-account-management.adapter'
+import { createGoogleBusinessInformationAdapter } from './infrastructure/adapters/google-business-information.adapter'
+import { createActiveConnectionTokenProvider } from './application/active-connection-token-provider'
+import {
+  createGoogleImportCommandAuthorizer,
+  type GoogleImportContentAuthorizer,
+} from './application/google-import-command-authorizer'
+import { createGoogleImportPropertyClassifier } from './application/google-import-property-classifier'
+import { createGoogleImportDiscovery } from './application/google-import-discovery'
+import { createGoogleImportTransaction } from './application/google-import-transaction'
+import {
+  createGoogleImportV2Processor,
+  type GoogleImportV2Processor,
+} from './application/google-import-v2-processor'
+import { createGoogleImportV2Lifecycle } from './application/google-import-v2-lifecycle'
+import { createGetPropertyGooglePerformance } from './application/get-property-google-performance'
+import { createRenewGooglePerformanceLease } from './application/renew-google-performance-lease'
+import {
+  createGooglePerformanceAuthorizer,
+  type PerformanceContentAuthorizer,
+} from './application/google-performance-authorizer'
+import { createGooglePerformanceAdapter } from './infrastructure/adapters/google-performance.adapter'
+import { getExecutionPolicy } from '#/shared/auth/execution-policy'
+import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
-import {
-  gbpImportJobId,
-  organizationId as toOrgId,
-  propertyId as toPropertyId,
-  googleConnectionId as toConnectionId,
-} from '#/shared/domain/ids'
-import { randomUUID, createHash } from 'crypto'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
+import { randomUUID } from 'node:crypto'
 
+import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 type IntegrationContextDeps = Readonly<{
   db: Database
   events: EventBus
   clock: () => Date
   jobQueue: Queue | undefined
   propertyApi: PropertyPublicApi
+  propertyBindingApi?: PropertyGoogleBindingPublicApi
   logger: LoggerPort
   /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
    * content. Constructed once by the composition root (the only layer that
@@ -81,9 +106,15 @@ type IntegrationContextDeps = Readonly<{
    * inject in-memory providers; absent = the real env-driven HTTP adapters). */
   googleOAuth?: GoogleOAuthPort
   gbpApi?: GbpApiPort
-  /** BQC-7.6: server-side PKCE verifier store for the OAuth flow. Constructed
-   * by the composition root (Redis in production; in-memory dev fallback). */
-  pkceStore: PkceVerifierStore
+  googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
+  googleImportReferences?: GoogleImportReferenceStore
+  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
+  googleImportReplayKeys?: VersionedHmacKeyring
+  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
+  googlePerformancePrincipalKeys?: VersionedHmacKeyring
+  providerAuthorizationLeases?: ProviderAuthorizationLeaseService
+  oauthStateHandles?: OAuthStateHandleService
+  oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -95,7 +126,9 @@ export type IntegrationContextApi = Readonly<{
       oauthPort: ReturnType<typeof createGoogleOAuthAdapter>
       /** BQC-6.1: exposed (like oauthPort) so build-level tests can prove
        * provider overrides are honored. */
+      credentialLifecycle: ReturnType<typeof createCredentialLifecycleRepository>
       gbpApiPort: GbpApiPort
+      loadImportItemRouting: ReturnType<typeof createImportItemRoutingLoader>
     }>
     /** BQC-5.2: the Google review API adapter (integration-owned), typed by
      * review's port — consumed by the review context build. */
@@ -105,17 +138,53 @@ export type IntegrationContextApi = Readonly<{
     gbpNotificationHandler: (deps: {
       reviewQueue: ReviewQueuePort
     }) => HandleGbpNotification
+    registerOutboxConsumers: () => void
     useCases: Readonly<{
       connectGoogleAccount: ReturnType<typeof connectGoogleAccount>
       disconnectGoogleAccount: ReturnType<typeof disconnectGoogleAccount>
       listGoogleConnections: ReturnType<typeof listGoogleConnections>
       updateConnectionVisibility: ReturnType<typeof updateConnectionVisibility>
       refreshGoogleToken: ReturnType<typeof refreshGoogleToken>
-      listGbpLocations: ReturnType<typeof listGbpLocations>
-      startPropertyImport: ReturnType<typeof startPropertyImport>
-      getImportStatus: ReturnType<typeof getImportStatus>
-      importProperty: ReturnType<typeof importProperty>
-      getGoogleAuthUrl: GetGoogleAuthUrl
+      googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null
+      googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null
+      processGoogleImportV2Item: GoogleImportV2Processor['process'] | null
+      getPropertyGooglePerformance: ReturnType<
+        typeof createGetPropertyGooglePerformance
+      > | null
+      renewGooglePerformanceLease: ReturnType<
+        typeof createRenewGooglePerformanceLease
+      > | null
+      admitGoogleOAuthCallbackTenant: OAuthCallbackAbuseGate['admitResolvedTenant']
+      sweepGoogleImportV2Lifecycle:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['sweep']
+        | null
+      inspectGoogleImportV2Lifecycle:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectBacklog']
+        | null
+      inspectGoogleImportV2LifecycleScope:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectScope']
+        | null
+      cancelGoogleImportV2ForConnection:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelConnection']
+        | null
+      cancelGoogleImportV2ForUser:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelUser']
+        | null
+      cancelGoogleImportV2ForOrganization:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelOrganization']
+        | null
+      prepareGoogleImportV2PropertyDeletion:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['preparePropertyDeletion']
+        | null
+      finalizeGoogleImportV2PropertyDeletion:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['finalizePropertyDeletion']
+        | null
+      cancelGoogleImportV2Request:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelRequest']
+        | null
+      inspectGoogleImportV2Request:
+        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectRequest']
+        | null
     }>
   }>
 }>
@@ -128,21 +197,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     clearGoogleConnectionRef: deps.propertyApi.clearGoogleConnectionRef,
   }
 
-  const propertyQuery: PropertyQueryPort = {
-    belongsToOrg: async (propertyId, orgId) =>
-      deps.propertyApi.propertyExists(toOrgId(orgId), toPropertyId(propertyId)),
-    findIdsByGoogleConnection: async (connectionId, orgId) =>
-      deps.propertyApi.findIdsByGoogleConnection(
-        toConnectionId(connectionId),
-        toOrgId(orgId),
-      ),
-  }
-
   // ── Repositories ─────────────────────────────────────────────────
   const connectionRepo = createGoogleConnectionRepository(deps.db, propertyFkCleanup)
-  const cacheRepo = createGbpCacheRepository(deps.db, propertyQuery)
-  const importRepo = createGbpImportRepository(deps.db, deps.clock)
   // BQC-3.5: every integration state mutation + fact commits atomically here.
+  const credentialLifecycle = createCredentialLifecycleRepository(deps.db)
   const commandStore = createAtomicIntegrationCommandStore(deps.db, deps.events)
 
   // ── Adapters ──────────────────────────────────────────────────────
@@ -156,32 +214,60 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clientId: getEnv().GOOGLE_CLIENT_ID,
       clientSecret: getEnv().GOOGLE_CLIENT_SECRET,
       tokenUrl: deps.providerEndpoints.oauthTokenUrl,
-      userInfoUrl: deps.providerEndpoints.oauthUserInfoUrl,
+      jwksUrl: deps.providerEndpoints.oauthJwksUrl,
       revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
     })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
   const gbpApiPort =
-    deps.gbpApi ?? createGbpApiAdapter({ baseUrl: deps.providerEndpoints.gbpApiBaseUrl })
+    deps.gbpApi ??
+    createGbpApiAdapter({
+      baseUrl: deps.providerEndpoints.gbpAccountManagementBaseUrl,
+    })
   const notificationsPort = createMyBusinessNotificationsAdapter({
     baseUrl: deps.providerEndpoints.notificationsApiBaseUrl,
   })
-  const propertyImportRepo = createPropertyImportRepository(deps.propertyApi)
+  const loadImportItemRouting = createImportItemRoutingLoader({ db: deps.db })
 
+  const googleImportV2Store = createGoogleImportV2Store(deps.db)
   // ── Queue Port ───────────────────────────────────────────────────
   if (!deps.jobQueue) throw new Error('jobQueue required')
   const jobQueue = deps.jobQueue
 
-  const queuePort: GbpQueuePort = {
-    addBulkImportJob: async (data: ImportPropertyJobData) => {
-      await jobQueue.add('import-property', data, {
-        jobId: data.jobId,
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 50 },
-        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
-        ...jobEnqueueOptions('import-property'),
-      })
+  const googleImportV2Queue: GoogleImportV2QueuePort = {
+    addImportItemJobs: async (jobs) => {
+      if (jobs.length === 0) return
+      const options = jobEnqueueOptions(GOOGLE_PROPERTY_IMPORT_ITEM_JOB)
+      await jobQueue.addBulk(
+        jobs.map((job) => {
+          const execution = createJobExecutionEnvelope({
+            organizationId: job.organizationId,
+            capability: 'property.import_gbp_v2',
+            initiator: {
+              kind: 'system',
+              id: 'outbox:google-property-import-dispatch',
+            },
+          })
+          return {
+            name: GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
+            data: { ...job, ...execution },
+            opts: {
+              jobId: job.jobId,
+              removeOnComplete: { count: 100 },
+              removeOnFail: { count: 50 },
+              ...options,
+            },
+          }
+        }),
+      )
     },
   }
+
+  const registerOutboxConsumers = () =>
+    registerGoogleImportDispatchConsumer({
+      store: googleImportV2Store,
+      queue: googleImportV2Queue,
+      receipts: createOutboxRepository(deps.db),
+    })
 
   // ── Use Cases ────────────────────────────────────────────────────
   const refreshGoogleTokenUseCase = refreshGoogleToken({
@@ -193,14 +279,200 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
   const manageNotificationsUseCase = manageNotifications({
     connectionRepo,
-    gbpApi: gbpApiPort,
     encryption: encryptionPort,
     refreshGoogleToken: refreshGoogleTokenUseCase,
+    gbpApi: gbpApiPort,
     notifications: notificationsPort,
     pubsubTopic: getEnv().GBP_PUBSUB_TOPIC,
     notificationTypes: getEnv().GBP_PUBSUB_NOTIFICATION_TYPES.split(',').filter(Boolean),
     clock: deps.clock,
     logger: deps.logger,
+  })
+
+  let googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null = null
+  let googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null =
+    null
+  let googleImportV2Processor: GoogleImportV2Processor | null = null
+  const googleImportV2Lifecycle = deps.propertyBindingApi
+    ? createGoogleImportV2Lifecycle({
+        store: googleImportV2Store,
+        propertyBindingApi: deps.propertyBindingApi,
+        clock: deps.clock,
+        newEventId: randomUUID,
+        references: deps.googleImportReferences,
+      })
+    : null
+  const sweepGoogleImportV2Lifecycle = googleImportV2Lifecycle?.sweep ?? null
+  if (deps.propertyBindingApi) {
+    const propertyBindingApi = deps.propertyBindingApi
+    const decideGoogleImport = (
+      request: Parameters<ReturnType<typeof getExecutionPolicy>['decide']>[0],
+    ) => getExecutionPolicy().decide(request)
+    const activeConnectionTokenProvider = createActiveConnectionTokenProvider({
+      connectionRepo,
+      encryption: encryptionPort,
+      clock: deps.clock,
+      refreshGoogleToken: refreshGoogleTokenUseCase,
+    })
+    const authorizeGoogleImportCommand = createGoogleImportCommandAuthorizer({
+      connectionRepo,
+      tokenProvider: activeConnectionTokenProvider,
+      decide: decideGoogleImport,
+      authorizeGoogleContent:
+        deps.authorizeGoogleImportContent ??
+        (async () => ({ ok: false as const, code: 'runtime_unavailable' as const })),
+      readProperty: async (organizationId, propertyId) => {
+        const property = await propertyBindingApi.readInternal(organizationId, propertyId)
+        return property
+          ? {
+              propertyId: property.propertyId,
+              sourceEpoch: property.sourceEpoch,
+              profileVersion: property.profileVersion,
+              lifecycleState: property.lifecycleState,
+              deletedAt: property.deletedAt,
+            }
+          : null
+      },
+      clock: deps.clock,
+    })
+    googleImportV2Processor = createGoogleImportV2Processor({
+      store: googleImportV2Store,
+      propertyBindingApi,
+      authorizeGoogleImportCommand,
+      resolveActor: createActiveMemberAuthResolver(deps.db),
+      clock: deps.clock,
+      newClaimFence: randomUUID,
+    })
+    if (deps.googleAuthorizedProviderExecutor && deps.googleImportReferences) {
+      googleImportDiscovery = createGoogleImportDiscovery({
+        authorizeGoogleImportCommand,
+        classifyCandidates: createGoogleImportPropertyClassifier({
+          readByLocationIds: propertyBindingApi.readByLocationIds,
+          isAllowed: async ({ actor, action, propertyId }) =>
+            (
+              await decideGoogleImport({
+                principal: { kind: 'user', ctx: actor },
+                action,
+                capability: 'property.import_gbp_v2',
+                organizationId: actor.organizationId,
+                ...(propertyId ? { propertyId } : {}),
+                executionKind: 'interactive',
+                now: deps.clock(),
+              })
+            ).allowed,
+        }),
+        references: deps.googleImportReferences,
+        accounts: createGoogleAccountManagementAdapter({
+          executor: deps.googleAuthorizedProviderExecutor,
+          nowMs: () => deps.clock().getTime(),
+        }),
+        locations: createGoogleBusinessInformationAdapter({
+          executor: deps.googleAuthorizedProviderExecutor,
+          nowMs: () => deps.clock().getTime(),
+        }),
+        nowMs: () => deps.clock().getTime(),
+      })
+    }
+    if (deps.googleImportReferences && deps.googleImportReplayKeys) {
+      googleImportTransaction = createGoogleImportTransaction({
+        store: googleImportV2Store,
+        references: deps.googleImportReferences,
+        propertyBindingApi,
+        authorizeGoogleImportCommand,
+        replayKeys: deps.googleImportReplayKeys,
+        clock: deps.clock,
+        idGen: randomUUID,
+      })
+    }
+  }
+  let getPropertyGooglePerformance: ReturnType<
+    typeof createGetPropertyGooglePerformance
+  > | null = null
+  let renewGooglePerformanceLease: ReturnType<
+    typeof createRenewGooglePerformanceLease
+  > | null = null
+  if (
+    deps.propertyBindingApi &&
+    deps.googleAuthorizedProviderExecutor &&
+    deps.authorizeGooglePerformanceContent &&
+    deps.googlePerformancePrincipalKeys &&
+    deps.providerAuthorizationLeases
+  ) {
+    const performanceTokenProvider = createActiveConnectionTokenProvider({
+      connectionRepo,
+      encryption: encryptionPort,
+      clock: deps.clock,
+      refreshGoogleToken: refreshGoogleTokenUseCase,
+    })
+    const authorize = createGooglePerformanceAuthorizer({
+      resolveActor: createActiveMemberAuthResolver(deps.db),
+      readBinding: deps.propertyBindingApi.readInternal,
+      findConnection: connectionRepo.findById,
+      getAccessToken: performanceTokenProvider.getAccessToken,
+      decide: (request) => getExecutionPolicy().decide(request),
+      authorizeGoogleContent: deps.authorizeGooglePerformanceContent,
+      principalKeys: deps.googlePerformancePrincipalKeys,
+      clock: deps.clock,
+    })
+    const source = createGooglePerformanceAdapter({
+      executor: deps.googleAuthorizedProviderExecutor,
+      nowMs: () => deps.clock().getTime(),
+    })
+    getPropertyGooglePerformance = createGetPropertyGooglePerformance({
+      authorize,
+      fetchReport: (input, actor, snapshot, accessToken) =>
+        source.fetchReport(input, accessToken, {
+          capability: 'property.read_gbp_performance',
+          organizationId: snapshot.organizationId,
+          propertyId: snapshot.propertyId,
+          connectionId: snapshot.connectionId,
+          initiatorUserId: actor.userId,
+          approvalBindingId: snapshot.approvalBindingId,
+          authorizationVector: snapshot.authorizationVector,
+        }),
+      issueLease: ({ snapshot, absoluteDeadlineMs, nowMs }) =>
+        deps.providerAuthorizationLeases!.issue({
+          audience: 'performance',
+          capability: 'property.read_gbp_performance',
+          organizationId: snapshot.organizationId,
+          propertyId: snapshot.propertyId,
+          connectionId: snapshot.connectionId,
+          approvalBindingId: snapshot.approvalBindingId,
+          principalHmacKeyVersion: snapshot.principalHmacKeyVersion,
+          principalHmac: snapshot.principalHmac,
+          authorizationVectorSha256: snapshot.authorizationVectorSha256,
+          absoluteDeadlineMs,
+          nowMs,
+        }),
+      clock: deps.clock,
+    })
+    renewGooglePerformanceLease = createRenewGooglePerformanceLease({
+      authorize,
+      renew: deps.providerAuthorizationLeases.renew,
+      clock: deps.clock,
+    })
+  }
+
+  const oauthCallbackAbuseGate =
+    deps.oauthCallbackAbuseGate ??
+    Object.freeze({
+      admitPreState: async () =>
+        getEnv().NODE_ENV === 'production'
+          ? ({ ok: false, code: 'quota_unavailable' } as const)
+          : ({ ok: true } as const),
+      admitResolvedTenant: async () =>
+        getEnv().NODE_ENV === 'production'
+          ? ({ ok: false, code: 'quota_unavailable' } as const)
+          : ({ ok: true } as const),
+    })
+  if (!deps.oauthStateHandles) {
+    throw new Error('Opaque OAuth state service is required')
+  }
+  const getOpaqueGoogleAuthUrl = getGoogleAuthUrl({
+    clientId: getEnv().GOOGLE_CLIENT_ID,
+    callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
+    clock: deps.clock,
+    stateHandles: deps.oauthStateHandles,
   })
 
   const useCases = {
@@ -212,19 +484,25 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
       idGen: () => randomUUID(),
       callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
-      pkceStore: deps.pkceStore,
     }),
 
     disconnectGoogleAccount: disconnectGoogleAccount({
       connectionRepo,
       oauth: oauthPort,
       encryption: encryptionPort,
-      cacheRepo,
       commandStore,
       clock: deps.clock,
       logger: deps.logger,
       unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
       sourceContentPurge: deps.sourceContentPurge,
+      cancelGoogleImportsForConnection: googleImportV2Lifecycle
+        ? async (organizationIdValue, connectionId) => {
+            await googleImportV2Lifecycle.cancelConnection(
+              organizationIdValue,
+              connectionId,
+            )
+          }
+        : undefined,
     }),
 
     listGoogleConnections: listGoogleConnections({
@@ -239,60 +517,39 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
     refreshGoogleToken: refreshGoogleTokenUseCase,
 
-    listGbpLocations: listGbpLocations({
-      connectionRepo,
-      encryption: encryptionPort,
-      gbpApi: gbpApiPort,
-      clock: deps.clock,
-      refreshGoogleToken: refreshGoogleTokenUseCase,
-      logger: deps.logger,
-      propertyApi: deps.propertyApi,
-    }),
+    googleImportDiscovery,
+    googleImportTransaction,
+    processGoogleImportV2Item: googleImportV2Processor?.process ?? null,
+    getPropertyGooglePerformance,
+    renewGooglePerformanceLease,
+    sweepGoogleImportV2Lifecycle,
+    inspectGoogleImportV2Lifecycle: googleImportV2Lifecycle?.inspectBacklog ?? null,
+    inspectGoogleImportV2LifecycleScope: googleImportV2Lifecycle?.inspectScope ?? null,
+    cancelGoogleImportV2ForConnection: googleImportV2Lifecycle?.cancelConnection ?? null,
+    cancelGoogleImportV2ForUser: googleImportV2Lifecycle?.cancelUser ?? null,
+    cancelGoogleImportV2ForOrganization:
+      googleImportV2Lifecycle?.cancelOrganization ?? null,
+    prepareGoogleImportV2PropertyDeletion:
+      googleImportV2Lifecycle?.preparePropertyDeletion ?? null,
+    finalizeGoogleImportV2PropertyDeletion:
+      googleImportV2Lifecycle?.finalizePropertyDeletion ?? null,
+    cancelGoogleImportV2Request: googleImportV2Lifecycle?.cancelRequest ?? null,
+    inspectGoogleImportV2Request: googleImportV2Lifecycle?.inspectRequest ?? null,
 
-    startPropertyImport: startPropertyImport({
-      connectionRepo,
-      importRepo,
-      queue: queuePort,
-      events: deps.events,
-      clock: deps.clock,
-      idGen: () => randomUUID(),
-    }),
-
-    getImportStatus: getImportStatus({
-      importRepo,
-    }),
-
-    importProperty: importProperty({
-      importRepo,
-      propertyRepo: propertyImportRepo,
-      commandStore,
-      toJobId: gbpImportJobId,
-      toOrgId,
-      clock: deps.clock,
-      hashFn: (input: string) => createHash('sha256').update(input).digest('base64url'),
-      logger: deps.logger,
-      onFirstPropertyImported: manageNotificationsUseCase.subscribe,
-    }),
-
-    getGoogleAuthUrl: getGoogleAuthUrl({
-      clientId: getEnv().GOOGLE_CLIENT_ID,
-      callbackUrl: `${getEnv().BETTER_AUTH_URL}/api/auth/google/callback`,
-      stateSecret: getEnv().OAUTH_STATE_SECRET,
-      clock: deps.clock,
-      idGen: () => randomUUID(),
-      pkceStore: deps.pkceStore,
-    }),
+    getGoogleAuthUrl: getOpaqueGoogleAuthUrl,
+    redeemGoogleOAuthState: deps.oauthStateHandles?.redeem,
+    admitGoogleOAuthCallbackPreState: oauthCallbackAbuseGate.admitPreState,
+    admitGoogleOAuthCallbackTenant: oauthCallbackAbuseGate.admitResolvedTenant,
   } as const
 
   // ── Public API — cross-context boundary ─────────────────────────
   const publicApi: Record<string, never> = {}
 
   // ── Review-facing adapter + webhook binder (BQC-5.2) ────────────
-  // The GBP webhook needs to find properties by gbpPlaceId without an
-  // organizationId (push-based from Google). Delegates to Property context's
-  // public API instead of querying the properties table directly (M4).
+  // The JWT-verified GBP webhook may resolve the canonical location ID without
+  // an organization ID. The lookup still delegates through the Property public API.
   const propertyLookup: PropertyLookupPort = {
-    findByGbpPlaceId: deps.propertyApi.findByGbpPlaceId,
+    findByGbpLocationId: deps.propertyApi.findByGbpLocationId,
   }
 
   // Integration owns the Google review API adapter (connection repo + token
@@ -319,15 +576,18 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     internal: {
       repos: {
         connectionRepo,
+        credentialLifecycle,
         encryptionPort,
         oauthPort,
         gbpApiPort,
+        loadImportItemRouting,
       },
       googleReviewApi,
       gbpNotificationHandler,
+      registerOutboxConsumers,
       useCases: {
         ...useCases,
       },
     },
-  } as const
+  }
 }

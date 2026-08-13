@@ -70,7 +70,7 @@ export async function createSimulationContainer(
   })
 
   // 3. Register all event handlers + job handlers
-  await bootstrap(container)
+  await bootstrap(container, { allowUnavailableGoogleImportV2Processor: true })
 
   // 4. Connect the queue to the registry so jobs process inline
   queue.connectRegistry(container.jobRegistry)

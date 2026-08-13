@@ -16,12 +16,12 @@ const BASE = {
   propertyId: propertyId('prop-1'),
   portalId: null as ReturnType<typeof portalId> | null,
   portalGroupId: null as ReturnType<typeof portalGroupId> | null,
-  name: 'Reach 4.5 average Google rating',
+  name: 'Complete the approved Portal workflow',
   description: null as string | null,
   createdBy: userId('user-1'),
-  metricKey: 'property.review' as const,
+  metricKey: 'portal.configuration_completeness' as const,
   aggregationFunction: 'avg' as const,
-  targetValue: 4.5,
+  targetValue: 90,
   now: new Date('2026-06-01T12:00:00Z'),
 }
 
@@ -183,12 +183,12 @@ describe('buildGoal', () => {
       expect(result._unsafeUnwrapErr().code).toBe('invalid_metric_for_scope')
     })
 
-    it('allows portal_group scope with portal.scan metric', () => {
+    it('allows portal_group scope with a beta-safe workflow metric', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
         portalGroupId: portalGroupId('pg-1'),
-        metricKey: 'portal.scan' as const,
+        metricKey: 'portal.content_review.completed' as const,
         aggregationFunction: 'sum' as const,
         targetValue: 200,
       })
@@ -209,35 +209,32 @@ describe('buildGoal', () => {
 
   // ── Metric key × aggregation validation ─────────────────────────────
   describe('metric × aggregation', () => {
-    it('rejects AVG on portal.scan', () => {
+    it('rejects AVG on the content-review counter', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        portalId: portalId('portal-1'),
-        metricKey: 'portal.scan',
+        metricKey: 'portal.content_review.completed',
         aggregationFunction: 'avg',
       })
       expect(result.isErr()).toBe(true)
       expect(result._unsafeUnwrapErr().code).toBe('invalid_aggregation_for_metric')
     })
 
-    it('allows AVG on portal.rating', () => {
+    it('allows AVG on configuration completeness', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        portalId: portalId('portal-1'),
-        metricKey: 'portal.rating',
+        metricKey: 'portal.configuration_completeness',
         aggregationFunction: 'avg',
       })
       expect(result.isOk()).toBe(true)
     })
 
-    it('rejects SUM on portal.rating', () => {
+    it('rejects SUM on configuration completeness', () => {
       const result = buildGoal({
         ...BASE,
         goalType: 'open',
-        portalId: portalId('portal-1'),
-        metricKey: 'portal.rating',
+        metricKey: 'portal.configuration_completeness',
         aggregationFunction: 'sum',
       })
       expect(result.isErr()).toBe(true)

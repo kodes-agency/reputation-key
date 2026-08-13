@@ -44,6 +44,7 @@ export const reorderCategories =
 
     await deps.portalLinkRepo.reorderCategories(
       ctx.organizationId,
+      portalId(input.portalId),
       input.items.map((item) => ({
         id: portalLinkCategoryId(item.id),
         sortKey: item.sortKey,

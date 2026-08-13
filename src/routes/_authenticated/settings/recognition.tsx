@@ -1,67 +1,86 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { z } from 'zod/v4'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
-  getOrganizationBadgeDefinitionsFn,
-  setOrganizationBadgeEnablement,
-} from '#/contexts/badge/server/badges'
+  activateRecognition,
+  deactivateRecognition,
+  getRecognitionSettings,
+} from '#/contexts/leaderboard/server/leaderboards'
 import { RecognitionSettingsPage } from '#/components/features/settings'
-import { EmptyState } from '#/components/ui/empty-state'
-import { Award } from 'lucide-react'
-import { badgeKeys } from '#/shared/queries/query-keys'
-import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
+import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
-const badgeDefinitionsQuery = queryOptions({
-  queryKey: badgeKeys.orgDefinitions(),
-  queryFn: () => getOrganizationBadgeDefinitionsFn(),
-  staleTime: 60_000,
+const recognitionSettingsSearch = z.object({
+  propertyId: z.string().uuid().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/settings/recognition')({
-  beforeLoad: async ({ context }) => {
-    await gateDarkRoute({
-      data: { capability: 'badge.use', featureLabel: 'Recognition' },
-    })
+  validateSearch: recognitionSettingsSearch,
+  beforeLoad: async ({ context, search }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'badge.manage')) {
       throw redirect({ to: '/settings/profile' })
     }
+    if (!search.propertyId) return
+    await Promise.all([
+      gateControlledRoute({
+        data: {
+          capability: 'badge.use',
+          featureLabel: 'Recognition',
+          propertyId: search.propertyId,
+        },
+      }),
+      gateControlledRoute({
+        data: {
+          capability: 'leaderboard.use',
+          featureLabel: 'Recognition board',
+          propertyId: search.propertyId,
+        },
+      }),
+    ])
   },
-  loader: async ({ context }) => {
-    const badges = await context.queryClient.ensureQueryData(badgeDefinitionsQuery)
-    return { badges }
-  },
-  staleTime: 60_000,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) => ({
+    settings: deps.propertyId
+      ? await getRecognitionSettings({ data: { propertyId: deps.propertyId } })
+      : null,
+  }),
   component: RecognitionSettings,
 })
 
 function RecognitionSettings() {
-  const { data: badges } = useSuspenseQuery(badgeDefinitionsQuery)
-  const toggleBadge = useActionMutation(setOrganizationBadgeEnablement, {
-    successMessage: 'Badge setting updated',
-    invalidateKeys: [badgeKeys.orgDefinitions()],
+  const { propertyId } = Route.useSearch()
+  const { settings } = Route.useLoaderData()
+  const activate = useActionMutation(activateRecognition, {
+    successMessage: 'Recognition activation saved',
+    invalidateKeys: [['recognition-settings', propertyId]],
+  })
+  const deactivate = useActionMutation(deactivateRecognition, {
+    successMessage: 'Recognition deactivated',
+    invalidateKeys: [['recognition-settings', propertyId]],
   })
 
   return (
     <>
       <PageHeader
         title="Recognition"
-        description="Control which achievement badges are active for your organization."
+        description="Activate positive portal-group recognition for one governed property."
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Recognition' }]}
       />
       <div className="mt-6">
-        {badges.length > 0 ? (
-          <RecognitionSettingsPage badges={badges} toggleBadge={toggleBadge} />
+        {!propertyId || !settings ? (
+          <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
+            Select a property before configuring recognition.
+          </div>
         ) : (
-          <EmptyState icon={Award} title="No badges available">
-            <p className="text-sm text-muted-foreground">
-              Badge definitions are seeded automatically. If this persists, contact
-              support.
-            </p>
-          </EmptyState>
+          <RecognitionSettingsPage
+            propertyId={propertyId}
+            settings={settings}
+            activate={activate}
+            deactivate={deactivate}
+          />
         )}
       </div>
     </>

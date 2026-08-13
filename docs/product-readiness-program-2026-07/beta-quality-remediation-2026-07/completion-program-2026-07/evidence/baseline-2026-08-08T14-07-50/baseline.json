@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "kind": "bqc-baseline",
+  "environment": {
+    "sha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+    "branch": "feat/bqc-8-3-lifecycle-at-scale",
+    "lockfileSha256": "a2f56f007aab4695835b8292bf417cc30d461815d3ac4d29f4330b9dafb3be36",
+    "migrationVersion": "0016_region-moves",
+    "node": "v26.4.0",
+    "pnpm": "10.6.5",
+    "platform": "darwin/arm64",
+    "nodeEnv": "(unset)",
+    "database": "(unset)",
+    "redisConfigured": false,
+    "capturedAt": "2026-08-08T14:07:51.207Z"
+  },
+  "gates": [
+    {
+      "id": "format",
+      "command": "pnpm format:check",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:07:51.208Z",
+      "durationMs": 55789,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/format.log"
+    },
+    {
+      "id": "types",
+      "command": "pnpm typecheck",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:08:46.997Z",
+      "durationMs": 15369,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/types.log"
+    },
+    {
+      "id": "lint",
+      "command": "pnpm lint",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:09:02.367Z",
+      "durationMs": 11879,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/lint.log"
+    },
+    {
+      "id": "migrations",
+      "command": "echo \"y\" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema",
+      "skipped": true,
+      "skipReason": "missing env DATABASE_URL",
+      "result": "skipped"
+    },
+    {
+      "id": "unit",
+      "command": "pnpm test:unit",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:09:14.247Z",
+      "durationMs": 45600,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/unit.log"
+    },
+    {
+      "id": "integration",
+      "command": "pnpm test:integration",
+      "skipped": true,
+      "skipReason": "missing env DATABASE_URL",
+      "result": "skipped"
+    },
+    {
+      "id": "build-web",
+      "command": "pnpm build",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:09:59.847Z",
+      "durationMs": 6940,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/build-web.log"
+    },
+    {
+      "id": "build-worker",
+      "command": "pnpm build:worker",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:06.787Z",
+      "durationMs": 901,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/build-worker.log"
+    },
+    {
+      "id": "storybook-build",
+      "command": "pnpm build-storybook",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:07.689Z",
+      "durationMs": 10708,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/storybook-build.log"
+    },
+    {
+      "id": "storybook-test",
+      "command": "pnpm test:storybook",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:18.397Z",
+      "durationMs": 25452,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/storybook-test.log"
+    },
+    {
+      "id": "dependency-audit",
+      "command": "pnpm audit",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:43.850Z",
+      "durationMs": 4558,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/dependency-audit.log"
+    },
+    {
+      "id": "fallow-dead-code",
+      "command": "node_modules/.bin/fallow dead-code",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:48.409Z",
+      "durationMs": 1135,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/fallow-dead-code.log"
+    },
+    {
+      "id": "fallow-duplication",
+      "command": "node_modules/.bin/fallow dupes",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:49.544Z",
+      "durationMs": 372,
+      "exitCode": 0,
+      "result": "pass",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/fallow-duplication.log"
+    },
+    {
+      "id": "fallow-health",
+      "command": "node_modules/.bin/fallow health",
+      "skipped": false,
+      "startedAt": "2026-08-08T14:10:49.916Z",
+      "durationMs": 1890,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-08T14-07-50/fallow-health.log"
+    },
+    {
+      "id": "seed-e2e",
+      "command": "pnpm seed:e2e-user",
+      "skipped": true,
+      "skipReason": "missing env E2E_TEST_EMAIL",
+      "result": "skipped"
+    },
+    {
+      "id": "e2e-critical",
+      "command": "pnpm test:e2e --project=critical",
+      "skipped": true,
+      "skipReason": "missing env E2E_TEST_EMAIL",
+      "result": "skipped"
+    },
+    {
+      "id": "e2e-full",
+      "command": "pnpm test:e2e --project=full",
+      "skipped": true,
+      "skipReason": "missing env E2E_TEST_EMAIL",
+      "result": "skipped"
+    }
+  ],
+  "summary": {
+    "total": 17,
+    "passed": 7,
+    "failed": 5,
+    "skipped": 5,
+    "failedGates": [
+      "format",
+      "unit",
+      "storybook-test",
+      "dependency-audit",
+      "fallow-health"
+    ]
+  }
+}

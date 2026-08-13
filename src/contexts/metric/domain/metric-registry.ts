@@ -10,6 +10,7 @@
 // - The registry FAILS CLOSED: unknown source/version produces no reading.
 // - employment_decision_eligible is permanently false in post-beta v1.
 
+import type { MetricKey } from '#/shared/domain/metric-keys'
 export type MetricValueKind = 'counter' | 'duration' | 'level' | 'ratio' | 'average'
 export type MetricLifecycleStatus = 'draft' | 'approved' | 'retired'
 export type SourcePolicyClass =
@@ -24,14 +25,16 @@ export type PermittedConsumer =
   | 'goal'
   | 'badge'
   | 'leaderboard'
+  | 'recognition'
   | 'notification'
   | 'export'
+  | 'portal_analytics'
 
-export type InsufficientDataBehavior = 'unavailable' | 'zero' | 'quarantine'
+export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 
 export interface MetricDefinition {
   readonly id: string
-  readonly key: string
+  readonly key: MetricKey
   readonly name: string
   readonly description: string
   readonly valueKind: MetricValueKind
@@ -41,6 +44,11 @@ export interface MetricDefinition {
   readonly lifecycleStatus: MetricLifecycleStatus
   readonly approvalOwner: string
 }
+
+export type GovernedMetricVersion = Readonly<{
+  definition: MetricDefinition
+  version: MetricDefinitionVersion
+}>
 
 export interface MetricDefinitionVersion {
   readonly id: string
@@ -136,8 +144,6 @@ export function evaluateInsufficientData(
   switch (version.insufficientDataBehavior) {
     case 'unavailable':
       return { insufficient: true, behavior: 'unavailable', result: null }
-    case 'zero':
-      return { insufficient: true, behavior: 'zero', result: 0 }
     case 'quarantine':
       return { insufficient: true, behavior: 'quarantine', result: null }
   }
@@ -154,6 +160,7 @@ export function evaluateInsufficientData(
 const GAMIFICATION_BLOCKED_SOURCES: ReadonlySet<SourcePolicyClass> = new Set([
   'google_property_derivative',
   'review_solicitation_analytics_only',
+  'first_party_guest_private',
 ])
 
 const GAMIFICATION_CONSUMERS: ReadonlySet<PermittedConsumer> = new Set([
@@ -169,3 +176,21 @@ export function isGamificationViolation(version: MetricDefinitionVersion): boole
   if (!hasGamificationConsumer) return false
   return version.sourcePolicyAllowlist.some((s) => GAMIFICATION_BLOCKED_SOURCES.has(s))
 }
+
+/** Immutable IDs seeded by migration 0018; producers never select by a mutable key. */
+export const METRIC_VERSION_IDS = {
+  contentReviewCompleted: '11111111-1111-4111-8111-111111111101',
+  configurationCompleteness: '11111111-1111-4111-8111-111111111102',
+  approvedDestinationRatio: '11111111-1111-4111-8111-111111111103',
+  portalScanAnalytics: '11111111-1111-4111-8111-111111111201',
+  portalRatingAnalytics: '11111111-1111-4111-8111-111111111202',
+  portalFeedbackAnalytics: '11111111-1111-4111-8111-111111111203',
+  portalDestinationClickAnalytics: '11111111-1111-4111-8111-111111111204',
+  propertyReviewDashboard: '11111111-1111-4111-8111-111111111205',
+} as const
+
+export const BETA_SAFE_METRIC_VERSION_IDS = [
+  METRIC_VERSION_IDS.contentReviewCompleted,
+  METRIC_VERSION_IDS.configurationCompleteness,
+  METRIC_VERSION_IDS.approvedDestinationRatio,
+] as const

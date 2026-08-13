@@ -18,8 +18,7 @@ export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
 
 export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
   let exchangeResult: GoogleOAuthResult = {
-    googleAccountId: 'google-account-123',
-    googleEmail: 'test@gmail.com',
+    identity: { kind: 'oidc', googleSubject: 'google-subject-123' },
     accessToken: 'mock-access-token',
     refreshToken: 'mock-refresh-token',
     expiresIn: 3600,
@@ -31,8 +30,8 @@ export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
   const exchangeVerifiers: string[] = []
 
   return {
-    exchangeCode: async (_code, _redirectUri, codeVerifier) => {
-      exchangeVerifiers.push(codeVerifier)
+    exchangeCode: async (input) => {
+      exchangeVerifiers.push(input.codeVerifier)
       if (exchangeError) throw exchangeError
       return exchangeResult
     },

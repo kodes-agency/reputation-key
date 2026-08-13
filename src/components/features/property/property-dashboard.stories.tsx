@@ -2,11 +2,15 @@
 // performance, engagement funnel and recent reviews. Pure data-display surface:
 // all data arrives via props (DashboardData + AttentionSignals), no server/RPC.
 // Charts are CSS bars (property-dashboard-helpers), not recharts, so no sizing hacks.
-import type { Meta, StoryObj } from '@storybook/react'
+import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type {
+  getPropertyGooglePerformance,
+  renewPropertyGooglePerformanceLease,
+} from '#/contexts/integration/server/google-performance'
 import {
   activeSignals,
   calmSignals,
@@ -14,6 +18,17 @@ import {
   populatedDashboard,
   property,
 } from './property-dashboard-stories-data'
+
+const performanceFns = {
+  getPerformance: (async () => ({
+    status: 'unavailable',
+    reason: 'integration_unavailable',
+    action: null,
+  })) as unknown as typeof getPropertyGooglePerformance,
+  renewLease: (async () => ({
+    ok: false,
+  })) as unknown as typeof renewPropertyGooglePerformanceLease,
+}
 
 const meta: Meta<typeof PropertyDashboard> = {
   title: 'Property/PropertyDashboard',
@@ -39,6 +54,9 @@ export const Default: Story = {
     propertyId: property.id,
     timeRange: '30d',
     onTimeRangeChange: (_value: TimeRangePreset) => {},
+    performanceRange: '30d',
+    onPerformanceRangeChange: () => {},
+    performanceFns,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

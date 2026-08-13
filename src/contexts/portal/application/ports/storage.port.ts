@@ -9,6 +9,10 @@ export type StoragePort = Readonly<{
     maxSizeBytes: number,
   ) => Promise<{ uploadUrl: string; key: string }>
   confirmUpload: (key: string) => Promise<string>
+  /** Read server-observed metadata before accepting a guest-owned upload. */
+  inspectObject?: (
+    key: string,
+  ) => Promise<{ contentType: string | null; sizeBytes: number | null }>
   deleteObject: (key: string) => Promise<void>
   /** Return the public URL for a given key. */
   getPublicUrl: (key: string) => string

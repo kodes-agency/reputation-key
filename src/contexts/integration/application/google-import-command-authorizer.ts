@@ -1,0 +1,266 @@
+import { createHash } from 'node:crypto'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PropertyId } from '#/shared/domain/ids'
+import type { GoogleConnection } from '../domain/types'
+import type { GoogleConnectionRepository } from './ports/google-connection.repository'
+import type { ActiveConnectionTokenProvider } from './active-connection-token-provider'
+import type {
+  GoogleImportAuthorizationPropertySnapshot,
+  GoogleImportCommandAuthorizer,
+  GoogleImportCommandAuthorizationResult,
+} from './google-import-discovery'
+import { GOOGLE_BUSINESS_MANAGE_SCOPE } from './google-provider-contract'
+
+type PropertyAuthorizationView = Readonly<{
+  propertyId: PropertyId
+  sourceEpoch: number
+  profileVersion: number
+  lifecycleState: string
+  deletedAt: Date | null
+}>
+type GoogleImportDecisionRequest = Readonly<{
+  principal: Readonly<{ kind: 'user'; ctx: AuthContext }>
+  action: string
+  capability: 'property.import_gbp_v2' | 'property.connect_gbp'
+  organizationId: string
+  propertyId?: PropertyId
+  executionKind: 'interactive'
+  now: Date
+}>
+
+type GoogleImportExecutionDecision = Readonly<{
+  allowed: boolean
+  policyVersion: string
+}>
+
+function permissionDigest(
+  actor: Parameters<GoogleImportCommandAuthorizer>[0]['actor'],
+): string {
+  const permissions = [...(actor.effectivePermissions ?? [])].sort()
+  const scopes = [...(actor.scopeByPermission ?? new Map())]
+    .map(([permission, scope]) => [permission, scope] as const)
+    .sort(([left], [right]) => left.localeCompare(right))
+  return createHash('sha256')
+    .update(JSON.stringify({ permissions, scopes }))
+    .digest('hex')
+}
+
+function connectionIsUsable(
+  connection: GoogleConnection,
+  input: Parameters<GoogleImportCommandAuthorizer>[0],
+): boolean {
+  return (
+    connection.organizationId === input.actor.organizationId &&
+    connection.id === input.connectionId &&
+    connection.status === 'active' &&
+    connection.credentialUseState === 'active' &&
+    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE) &&
+    (connection.visibility === 'organization' ||
+      connection.connectedBy === input.actor.userId)
+  )
+}
+
+function sameExpectedConnection(
+  connection: GoogleConnection,
+  expected: NonNullable<Parameters<GoogleImportCommandAuthorizer>[0]['expected']>,
+): boolean {
+  return (
+    connection.organizationId === expected.organizationId &&
+    connection.id === expected.connectionId &&
+    connection.lifecycleVersion === expected.connectionLifecycleVersion &&
+    connection.accessVersion === expected.connectionAccessVersion &&
+    connection.credentialGeneration === expected.credentialGeneration
+  )
+}
+export type GoogleImportContentAuthorizationResult =
+  | Readonly<{
+      ok: true
+      approvalBindingId: string
+      policyVersion: number
+      emergencyKillVersion: number
+    }>
+  | Readonly<{
+      ok: false
+      code: 'authorization_denied' | 'runtime_unavailable'
+    }>
+
+export type GoogleImportContentAuthorizer = (
+  input: Readonly<{
+    actor: Parameters<GoogleImportCommandAuthorizer>[0]['actor']
+    connectionId: Parameters<GoogleImportCommandAuthorizer>[0]['connectionId']
+    phase: Parameters<GoogleImportCommandAuthorizer>[0]['phase']
+    properties: readonly GoogleImportAuthorizationPropertySnapshot[]
+  }>,
+) => Promise<GoogleImportContentAuthorizationResult>
+
+export function createGoogleImportCommandAuthorizer(
+  deps: Readonly<{
+    connectionRepo: Pick<GoogleConnectionRepository, 'findById'>
+    tokenProvider: ActiveConnectionTokenProvider
+    decide: (
+      request: GoogleImportDecisionRequest,
+    ) => Promise<GoogleImportExecutionDecision>
+    authorizeGoogleContent: GoogleImportContentAuthorizer
+    readProperty: (
+      organizationId: Parameters<GoogleConnectionRepository['findById']>[0],
+      propertyId: PropertyId,
+    ) => Promise<PropertyAuthorizationView | null>
+    clock?: () => Date
+  }>,
+): GoogleImportCommandAuthorizer {
+  const clock = deps.clock ?? (() => new Date())
+
+  const deny = (
+    code: Extract<GoogleImportCommandAuthorizationResult, { ok: false }>['code'],
+  ): GoogleImportCommandAuthorizationResult => ({ ok: false, code })
+
+  return async (input) => {
+    const decideCapability = async (
+      capability: 'property.import_gbp_v2' | 'property.connect_gbp',
+      action = 'integration.manage',
+      propertyId?: PropertyId,
+    ) =>
+      deps.decide({
+        principal: { kind: 'user', ctx: input.actor },
+        action,
+        capability,
+        organizationId: input.actor.organizationId,
+        ...(propertyId ? { propertyId } : {}),
+        executionKind: 'interactive',
+        now: clock(),
+      })
+
+    let importDecision: GoogleImportExecutionDecision
+    let connectDecision: GoogleImportExecutionDecision
+    try {
+      importDecision = await decideCapability('property.import_gbp_v2')
+      if (!importDecision.allowed) return deny('authorization_denied')
+      connectDecision = await decideCapability('property.connect_gbp')
+      if (!connectDecision.allowed) return deny('authorization_denied')
+    } catch {
+      return deny('runtime_unavailable')
+    }
+    if (importDecision.policyVersion !== connectDecision.policyVersion) {
+      return deny('runtime_unavailable')
+    }
+
+    let connection: GoogleConnection | null
+    try {
+      connection = await deps.connectionRepo.findById(
+        input.actor.organizationId,
+        input.connectionId,
+      )
+    } catch {
+      return deny('runtime_unavailable')
+    }
+    if (!connection || !connectionIsUsable(connection, input)) {
+      return deny('connection_unavailable')
+    }
+    if (input.expected && !sameExpectedConnection(connection, input.expected)) {
+      return deny('authorization_changed')
+    }
+
+    try {
+      for (const expectedProperty of input.properties ?? []) {
+        const property = await deps.readProperty(
+          input.actor.organizationId,
+          expectedProperty.propertyId,
+        )
+        if (
+          !property ||
+          property.propertyId !== expectedProperty.propertyId ||
+          property.deletedAt !== null ||
+          property.lifecycleState !== 'active' ||
+          property.sourceEpoch !== expectedProperty.sourceEpoch ||
+          property.profileVersion !== expectedProperty.profileVersion
+        ) {
+          return deny('authorization_changed')
+        }
+        const propertyDecision = await decideCapability(
+          'property.import_gbp_v2',
+          expectedProperty.action,
+          expectedProperty.propertyId,
+        )
+        if (!propertyDecision.allowed) return deny('authorization_changed')
+        if (propertyDecision.policyVersion !== importDecision.policyVersion) {
+          return deny('authorization_changed')
+        }
+      }
+    } catch {
+      return deny('runtime_unavailable')
+    }
+    let contentAuthorization: Extract<
+      GoogleImportContentAuthorizationResult,
+      { ok: true }
+    >
+    try {
+      const result = await deps.authorizeGoogleContent({
+        actor: input.actor,
+        connectionId: input.connectionId,
+        phase: input.phase,
+        properties: input.properties ?? [],
+      })
+      if (!result.ok) return deny(result.code)
+      contentAuthorization = result
+    } catch {
+      return deny('runtime_unavailable')
+    }
+
+    let accessToken: string | null = null
+    if (input.requireAccessToken) {
+      try {
+        accessToken = await deps.tokenProvider.getAccessToken(
+          input.actor.organizationId,
+          input.connectionId,
+        )
+        connection = await deps.connectionRepo.findById(
+          input.actor.organizationId,
+          input.connectionId,
+        )
+      } catch {
+        return deny('runtime_unavailable')
+      }
+      if (!connection || !connectionIsUsable(connection, input)) {
+        return deny('connection_unavailable')
+      }
+      if (input.expected && !sameExpectedConnection(connection, input.expected)) {
+        return deny('authorization_changed')
+      }
+    }
+
+    const authorization = {
+      organizationId: input.actor.organizationId,
+      userId: input.actor.userId,
+      connectionId: input.connectionId,
+      connectionLifecycleVersion: connection.lifecycleVersion,
+      connectionAccessVersion: connection.accessVersion,
+      credentialGeneration: connection.credentialGeneration,
+      approvalBindingId: contentAuthorization.approvalBindingId,
+      authorizationVector: {
+        executionPolicyVersion: importDecision.policyVersion,
+        googleContentPolicyVersion: contentAuthorization.policyVersion,
+        emergencyKillVersion: contentAuthorization.emergencyKillVersion,
+        role: input.actor.role,
+        permissionDigest: permissionDigest(input.actor),
+      },
+    } as const
+    if (input.expected) {
+      const expectedVector = input.expected.authorizationVector
+      if (
+        input.expected.approvalBindingId !== authorization.approvalBindingId ||
+        expectedVector.executionPolicyVersion !==
+          authorization.authorizationVector.executionPolicyVersion ||
+        expectedVector.googleContentPolicyVersion !==
+          authorization.authorizationVector.googleContentPolicyVersion ||
+        expectedVector.emergencyKillVersion !==
+          authorization.authorizationVector.emergencyKillVersion ||
+        expectedVector.role !== authorization.authorizationVector.role ||
+        expectedVector.permissionDigest !==
+          authorization.authorizationVector.permissionDigest
+      ) {
+        return deny('authorization_changed')
+      }
+    }
+    return { ok: true, authorization, accessToken }
+  }
+}

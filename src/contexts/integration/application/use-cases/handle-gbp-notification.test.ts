@@ -14,8 +14,8 @@ import type {
 const createFakePropertyLookup = (
   lookup: Record<string, PropertyLookup | null> = {},
 ) => ({
-  findByGbpPlaceId: async (gbpPlaceId: string): Promise<PropertyLookup | null> =>
-    lookup[gbpPlaceId] ?? null,
+  findByGbpLocationId: async (gbpLocationId: string): Promise<PropertyLookup | null> =>
+    lookup[gbpLocationId] ?? null,
 })
 
 const createFakeReviewQueue = () => {
@@ -81,12 +81,9 @@ describe('handleGbpNotification', () => {
       organizationId: 'org-001',
       connectionId: 'conn-001',
       locationName: 'accounts/123/locations/456',
-      // BQC-3.2: webhook-initiated delayed work carries a named system
-      // initiator + content-free correlation.
-      policy: {
-        initiator: { kind: 'system', id: 'webhook:gbp' },
-        correlationId: 'webhook:msg-001',
-      },
+      // Named, content-free webhook attribution.
+      initiator: { kind: 'system', id: 'webhook:gbp' },
+      correlationId: 'webhook:msg-001',
     })
     expect(jobs[0].options?.jobId).toBe('webhook:msg-001')
   })

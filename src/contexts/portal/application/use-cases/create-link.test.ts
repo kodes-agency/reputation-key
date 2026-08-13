@@ -12,7 +12,7 @@ import {
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { propertyId, type PropertyId } from '#/shared/domain/ids'
+import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -78,6 +78,30 @@ describe('createLink', () => {
     ).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && e.code === 'category_not_found',
     )
+  })
+
+  it('rejects a category owned by a different portal without writing', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const category = buildTestPortalLinkCategory({
+      portalId: portalId('d0000000-0000-0000-0000-000000000099'),
+    })
+    portalLinkRepo.seedCategories([category])
+
+    await expect(
+      useCase(
+        {
+          categoryId: category.id,
+          portalId: portal.id,
+          label: 'Cross-portal link',
+          url: 'https://example.com',
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+    expect(portalLinkRepo.allLinks()).toEqual([])
   })
 
   it('rejects empty label', async () => {

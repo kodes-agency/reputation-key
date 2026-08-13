@@ -5,7 +5,6 @@ import type { GoogleConnectionRepository } from '../ports/google-connection.repo
 import { isUniqueViolationError } from '../ports/google-connection.repository'
 import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
-import type { PkceVerifierStore } from '../oauth-state'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -25,13 +24,13 @@ export type ConnectGoogleAccountDeps = Readonly<{
   clock: () => Date
   idGen: () => string
   callbackUrl: string
-  /** Server-side PKCE verifier store (BQC-7.6). */
-  pkceStore: PkceVerifierStore
 }>
 
-export const connectGoogleAccount =
-  (deps: ConnectGoogleAccountDeps) =>
-  async (input: ConnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
+export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
+  const connect = async (
+    input: ConnectGoogleInput,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection> => {
     // 1. Authorize
     if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
@@ -40,24 +39,19 @@ export const connectGoogleAccount =
       )
     }
 
-    // 2. Redeem the PKCE verifier bound to the state nonce (BQC-7.6).
-    //    One-time use; missing/expired/replayed nonces fail closed — the
-    //    callback maps this to the same 'invalid_state' redirect as a bad
-    //    state signature.
-    const codeVerifier = await deps.pkceStore.redeem(input.stateNonce)
-    if (!codeVerifier) {
-      throw integrationError(
-        'oauth_state_invalid',
-        'OAuth flow state is missing, expired, or already used — restart the connection flow',
-      )
+    // 2. Opaque state redemption has already consumed and bound the PKCE/OIDC
+    // verifier material to this tenant, user, and session.
+    const verifierMaterial = input.verifierMaterial
+    const oauthResult = await deps.oauth.exchangeCode({
+      contractVersion: 'v2',
+      code: input.code,
+      redirectUri: deps.callbackUrl,
+      codeVerifier: verifierMaterial.codeVerifier,
+      oidcNonce: verifierMaterial.oidcNonce,
+    })
+    if (oauthResult.identity.kind !== 'oidc') {
+      throw integrationError('oauth_failed', 'Google OAuth identity contract mismatch')
     }
-
-    // 3. Exchange OAuth code (PKCE verifier proves flow ownership)
-    const oauthResult = await deps.oauth.exchangeCode(
-      input.code,
-      deps.callbackUrl,
-      codeVerifier,
-    )
     const now = deps.clock()
     const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1000)
 
@@ -65,11 +59,12 @@ export const connectGoogleAccount =
     const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
     const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
 
-    // 5. Check if connection already exists (GLOBAL — one Google account belongs
-    //    to exactly one org per the global-uniqueness invariant).
-    const existingConnection = await deps.connectionRepo.findByGoogleAccountIdGlobal(
-      oauthResult.googleAccountId,
-    )
+    // 5. Signed OIDC subjects enforce one provider identity per organization.
+    const identityLookup = {
+      googleSubject: oauthResult.identity.googleSubject,
+    }
+    const existingConnection =
+      await deps.connectionRepo.findByGoogleIdentityGlobal(identityLookup)
 
     if (existingConnection) {
       if (existingConnection.organizationId !== ctx.organizationId) {
@@ -92,7 +87,7 @@ export const connectGoogleAccount =
         event: integrationGoogleAccountConnected({
           connectionId: existingConnection.id,
           organizationId: ctx.organizationId,
-          googleEmail: existingConnection.googleEmail,
+          connectedBy: ctx.userId,
           occurredAt: now,
         }),
       })
@@ -106,8 +101,7 @@ export const connectGoogleAccount =
     const buildResult = buildGoogleConnection({
       id: connectionId,
       organizationId: ctx.organizationId,
-      googleAccountId: oauthResult.googleAccountId,
-      googleEmail: oauthResult.googleEmail,
+      identity: oauthResult.identity,
       encryptedAccessToken,
       encryptedRefreshToken,
       tokenExpiresAt,
@@ -131,7 +125,7 @@ export const connectGoogleAccount =
         event: integrationGoogleAccountConnected({
           connectionId: connection.id,
           organizationId: ctx.organizationId,
-          googleEmail: connection.googleEmail,
+          connectedBy: ctx.userId,
           occurredAt: now,
         }),
       })
@@ -139,9 +133,8 @@ export const connectGoogleAccount =
       if (!isUniqueViolationError(err)) throw err
 
       // Concurrent insert raced past the check — fetch globally and decide by org.
-      const concurrentConnection = await deps.connectionRepo.findByGoogleAccountIdGlobal(
-        oauthResult.googleAccountId,
-      )
+      const concurrentConnection =
+        await deps.connectionRepo.findByGoogleIdentityGlobal(identityLookup)
       if (!concurrentConnection) throw err
       if (concurrentConnection.organizationId !== ctx.organizationId) {
         throw integrationError(
@@ -155,5 +148,8 @@ export const connectGoogleAccount =
 
     return connection
   }
+
+  return connect
+}
 
 export type ConnectGoogleAccount = ReturnType<typeof connectGoogleAccount>

@@ -25,7 +25,7 @@ export const listStaffPortals = createServerFn({ method: 'GET' })
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({
           actor: ctx,
-          action: 'staff_assignment.read',
+          action: 'staff.read',
           propertyId: data.propertyId,
         })
 

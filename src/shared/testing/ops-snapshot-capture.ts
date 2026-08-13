@@ -71,6 +71,17 @@ export function viaContainer(reader: OperationsSnapshotReader): OpsSnapshotSourc
 }
 
 /**
+ * In-process mode for a restartable container singleton. Resolving the reader
+ * on every poll prevents a capture from retaining queues closed by a cold
+ * read-path restart.
+ */
+export function viaContainerFactory(
+  getReader: () => OperationsSnapshotReader,
+): OpsSnapshotSource {
+  return { read: () => getReader().read() }
+}
+
+/**
  * HTTP mode: poll the ops-token-gated metrics endpoint of a booted
  * environment. Non-2xx throws — a failed poll lands in readErrors.
  */

@@ -44,7 +44,7 @@ export const listStaffPortals =
   (deps: ListStaffPortalsDeps): ListStaffPortals =>
   async (input, ctx) => {
     // 1. Authorize
-    if (!canForContext(ctx, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
 
@@ -73,7 +73,7 @@ export const listStaffPortals =
     const portals: StaffPortalEntry[] = []
     for (const pid of portalIds) {
       const portal = await deps.portalLookup.getPortalInfo(ctx.organizationId, pid)
-      if (portal && portal.isActive) {
+      if (portal?.publicationState === 'published') {
         portals.push({ id: portal.id, name: portal.name })
       }
     }

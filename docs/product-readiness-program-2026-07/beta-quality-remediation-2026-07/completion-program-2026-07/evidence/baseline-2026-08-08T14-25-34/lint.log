@@ -1,0 +1,12 @@
+$ pnpm lint
+started: 2026-08-08T14:26:02.947Z  durationMs: 11427  exit: 0
+
+
+> reputation-key@ lint /Users/bozhidardenev/kodes/projects/rep-key
+> eslint . && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && node scripts/check-test-quality.mjs
+
+✓ All component files use kebab-case naming.
+✓ No component/server boundary violations.
+[test-quality] scanned 508 test/spec files; 2 file(s) with registered skips (2 registered)
+[test-quality] OK — no focused tests, no unregistered skips, no generic-error acceptance, no unasserted async failures
+

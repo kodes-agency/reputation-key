@@ -55,6 +55,7 @@ function setup(
       removePortal: async () => false,
       findPortalMembership: async () => null,
       getGroupPortalIds: async () => [],
+      findGroupIdsByPortalIds: async () => [],
       findGroupForPortal: async () => null,
     },
     staffPublicApi: staffApiMock(accessible),

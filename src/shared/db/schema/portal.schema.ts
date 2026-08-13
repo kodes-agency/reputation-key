@@ -5,16 +5,19 @@
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 import { portalGroups } from './portal-group.schema'
+import { properties } from './property.schema'
 export { portalGroups } from './portal-group.schema'
 import {
   pgTable,
   uuid,
   varchar,
-  boolean,
-  smallint,
   jsonb,
+  integer,
+  timestamp,
   index,
   uniqueIndex,
+  foreignKey,
+  check,
 } from 'drizzle-orm/pg-core'
 
 // ── portals ────────────────────────────────────────────────────────
@@ -24,7 +27,7 @@ export const portals = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: varchar('property_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
     entityType: varchar('entity_type', { length: 20 }).notNull().default('property'),
     entityId: varchar('entity_id', { length: 255 }).notNull(),
     name: varchar('name', { length: 100 }).notNull(),
@@ -32,9 +35,9 @@ export const portals = pgTable(
     description: varchar('description', { length: 500 }),
     heroImageUrl: varchar('hero_image_url', { length: 500 }),
     theme: jsonb('theme').default({}),
-    smartRoutingEnabled: boolean('smart_routing_enabled').notNull().default(false),
-    smartRoutingThreshold: smallint('smart_routing_threshold').notNull().default(4),
-    isActive: boolean('is_active').notNull().default(true),
+    publicationState: varchar('publication_state', { length: 20 })
+      .notNull()
+      .default('draft'),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -44,6 +47,76 @@ export const portals = pgTable(
       .on(t.organizationId, t.propertyId, t.slug)
       .where(sql`deleted_at IS NULL`),
     orgPropertyIdx: index('portals_org_property_idx').on(t.organizationId, t.propertyId),
+    orgIdKey: uniqueIndex('portals_org_id_key').on(t.organizationId, t.id),
+    orgPropertyIdKey: uniqueIndex('portals_org_property_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    propertyTenantFk: foreignKey({
+      name: 'portals_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    publicationStateCheck: check(
+      'portals_publication_state_valid',
+      sql`${t.publicationState} IN ('draft', 'published', 'disabled', 'archived')`,
+    ),
+  }),
+)
+
+// ── portal_tokens ─────────────────────────────────────────────────
+
+export const portalTokens = pgTable(
+  'portal_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    tokenIdentifier: varchar('token_identifier', { length: 24 }).notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    tokenKeyVersion: integer('token_key_version').notNull().default(1),
+    version: integer('version').notNull(),
+    printBatch: varchar('print_batch', { length: 100 }),
+    status: varchar('status', { length: 20 }).notNull().default('active'),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+    gracePeriodEnds: timestamp('grace_period_ends', { withTimezone: true }),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokedBy: varchar('revoked_by', { length: 255 }),
+    revokedReason: varchar('revoked_reason', { length: 500 }),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    identifierUnique: uniqueIndex('portal_tokens_identifier_unique').on(
+      t.tokenIdentifier,
+    ),
+    tokenHashUnique: uniqueIndex('portal_tokens_hash_unique').on(t.tokenHash),
+    portalVersionUnique: uniqueIndex('portal_tokens_portal_version_unique').on(
+      t.organizationId,
+      t.portalId,
+      t.version,
+    ),
+    activeLookupIdx: index('portal_tokens_active_lookup_idx').on(
+      t.tokenIdentifier,
+      t.status,
+      t.gracePeriodEnds,
+    ),
+    portalTenantFk: foreignKey({
+      name: 'portal_tokens_portal_tenant_fk',
+      columns: [t.organizationId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.id],
+    }).onDelete('cascade'),
+    propertyTenantFk: foreignKey({
+      name: 'portal_tokens_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    statusCheck: check(
+      'portal_tokens_status_valid',
+      sql`${t.status} IN ('active', 'rotating', 'revoked')`,
+    ),
   }),
 )
 
@@ -64,6 +137,16 @@ export const portalLinkCategories = pgTable(
   },
   (t) => ({
     portalIdx: index('portal_link_categories_portal_idx').on(t.portalId),
+    orgPortalIdKey: uniqueIndex('portal_link_categories_org_portal_id_key').on(
+      t.organizationId,
+      t.portalId,
+      t.id,
+    ),
+    portalTenantFk: foreignKey({
+      name: 'portal_link_categories_portal_tenant_fk',
+      columns: [t.organizationId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.id],
+    }).onDelete('cascade'),
   }),
 )
 
@@ -90,6 +173,25 @@ export const portalLinks = pgTable(
   (t) => ({
     portalIdx: index('portal_links_portal_idx').on(t.portalId),
     categoryIdx: index('portal_links_category_idx').on(t.categoryId),
+    orgPortalIdKey: uniqueIndex('portal_links_org_portal_id_key').on(
+      t.organizationId,
+      t.portalId,
+      t.id,
+    ),
+    categoryTenantFk: foreignKey({
+      name: 'portal_links_category_tenant_fk',
+      columns: [t.organizationId, t.portalId, t.categoryId],
+      foreignColumns: [
+        portalLinkCategories.organizationId,
+        portalLinkCategories.portalId,
+        portalLinkCategories.id,
+      ],
+    }).onDelete('cascade'),
+    portalTenantFk: foreignKey({
+      name: 'portal_links_portal_tenant_fk',
+      columns: [t.organizationId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.id],
+    }).onDelete('cascade'),
   }),
 )
 

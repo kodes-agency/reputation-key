@@ -24,6 +24,8 @@ type FormValues = z.infer<typeof editFormSchema>
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
+  primaryColor: string
+  disabled?: boolean
   formRef?: React.RefObject<{
     handleSubmit: () => void
   } | null>
@@ -38,11 +40,14 @@ type Props = Readonly<{
 export function EditPortalForm({
   portal,
   mutation,
+  primaryColor,
+  disabled = false,
   formRef,
   requestUploadUrl,
   finalizeUpload,
 }: Props) {
   const { can } = usePermissions()
+  const isDisabled = disabled || !can('portal.update')
   const [heroImageUrl, setHeroImageUrl] = useState(portal.heroImageUrl)
 
   const form = useForm({
@@ -60,9 +65,7 @@ export function EditPortalForm({
         name: value.name,
         slug: value.slug,
         description: value.description || null,
-        theme: portal.theme,
-        smartRoutingEnabled: portal.smartRoutingEnabled,
-        smartRoutingThreshold: portal.smartRoutingThreshold,
+        theme: { ...portal.theme, primaryColor },
       }
       await mutation({ data })
     },
@@ -94,10 +97,10 @@ export function EditPortalForm({
           })
           return url
         }}
-        disabled={!can('portal.update')}
+        disabled={isDisabled}
       />
 
-      <BasicInfoSection form={form} disabled={!can('portal.update')} />
+      <BasicInfoSection form={form} disabled={isDisabled} />
     </form>
   )
 }

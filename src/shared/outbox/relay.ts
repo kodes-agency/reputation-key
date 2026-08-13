@@ -48,6 +48,8 @@ export type RelayConfig = Readonly<{
   leaseDurationMs: number
   /** Identifier for this relay instance (for lease ownership). */
   relayId: string
+  /** Optional lifecycle fence evaluated immediately before queue publication. */
+  admitEvent?: (event: UnpublishedEvent) => Promise<boolean>
 }>
 
 /** Renew the lease on the unprocessed remainder after this many publishes. */
@@ -88,6 +90,13 @@ export function createOutboxRelay(
     }
 
     try {
+      if (cfg.admitEvent && !(await cfg.admitEvent(event))) {
+        logger.info(
+          { eventType: event.eventType },
+          'Outbox publication denied by lifecycle fence',
+        )
+        return false
+      }
       // BQC-3.7: no payload validation here — the dispatcher validates (and
       // quarantines poison via 3.6 UnrecoverableError). The envelope carries
       // the stored payload plus envelope-grade metadata from the row.

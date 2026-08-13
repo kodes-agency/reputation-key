@@ -37,6 +37,7 @@ export const onBadgeAwarded =
           {
             userId,
             organizationId: event.organizationId,
+            propertyId: event.propertyId,
             type: 'badge.awarded',
             priority: 'normal',
             resourceType: 'badge',

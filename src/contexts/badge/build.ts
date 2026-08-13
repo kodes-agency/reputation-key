@@ -10,7 +10,6 @@ import { seedBadgeDefinitions } from './application/use-cases/seed-badge-definit
 import { evaluateBadgeForTarget } from './application/use-cases/evaluate-badge-for-target'
 import { reconcileBadgeDefinitions } from './application/use-cases/reconcile-badge-definitions'
 import { setOrganizationBadgeEnablement } from './application/use-cases/set-organization-badge-enablement'
-import { registerBadgeEventHandlers } from './infrastructure/event-handlers'
 import type { BadgeRepository } from './application/ports/badge.repository'
 import type {
   OrganizationBadgeEnablement,
@@ -25,6 +24,7 @@ import type {
 import { badgeId, type BadgeId, type OrganizationId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 
 export type BadgeContextApi = Readonly<{
   publicApi: Readonly<{
@@ -69,6 +69,7 @@ export type BuildBadgeContextDeps = Readonly<{
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   metricApi: MetricPublicApi
+  authorizeReconciliationScope: ScheduledScopeAuthorizer
 }>
 
 export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi => {
@@ -81,11 +82,6 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
     idGen: () => badgeId(randomUUID()),
   })
   const setEnablement = setOrganizationBadgeEnablement({ badgeRepo })
-
-  registerBadgeEventHandlers({
-    eventBus: deps.events,
-    evaluateBadgeForTarget: evaluate,
-  })
 
   return {
     publicApi: {
@@ -106,6 +102,7 @@ export const buildBadgeContext = (deps: BuildBadgeContextDeps): BadgeContextApi 
           events: deps.events,
           clock: deps.clock,
           idGen: () => badgeId(randomUUID()),
+          authorizeScope: deps.authorizeReconciliationScope,
         }),
         setOrganizationBadgeEnablement: setEnablement,
       },

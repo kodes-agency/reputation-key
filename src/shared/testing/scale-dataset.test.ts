@@ -96,6 +96,19 @@ describe('plan determinism', () => {
       'b84e14be37b1a6255ce62a7932f9743558593573a8adeb6a1b371e41c20ff5ef',
     )
   })
+
+  it('binds the lifecycle profile into the dataset identity', () => {
+    const capacity = planScaleDataset({ seed: 'profile', shape: SHAPE })
+    const lifecycle = planScaleDataset({
+      seed: 'profile',
+      shape: SHAPE,
+      sourceLifecycle: true,
+    })
+
+    expect(capacity.sourceLifecycle).toBe(false)
+    expect(lifecycle.sourceLifecycle).toBe(true)
+    expect(lifecycle.hash).not.toBe(capacity.hash)
+  })
 })
 
 describe('plan content', () => {
@@ -164,10 +177,16 @@ describe('row value mapping', () => {
   it('anchors review timestamps to baseTime (not part of the hash)', () => {
     const { reviews } = materialize('rows', { orgs: 1, properties: 2, reviews: 3 })
     const base = new Date('2026-07-31T00:00:00.000Z')
-    const row = reviewRowValues(reviews[0], base)
+    const row = reviewRowValues(reviews[0], base, true)
     const reviewedAt = row[7] as Date
     const expiresAt = row[8] as Date
+    const lastFetchedAt = row[9] as Date
+    const contentExpiresAt = row[10] as Date
+    const contentHash = row[11] as string
     expect(expiresAt.getTime() - reviewedAt.getTime()).toBe(30 * 86_400_000)
+    expect(lastFetchedAt).toEqual(reviewedAt)
+    expect(contentExpiresAt).toEqual(expiresAt)
+    expect(contentHash).toMatch(/^[a-f0-9]{64}$/)
     expect(base.getTime() - reviewedAt.getTime()).toBe(reviews[0].daysAgo * 86_400_000)
     expect(row[3]).toBe('google')
   })
@@ -207,6 +226,7 @@ describe('manifest', () => {
       seed: 'alpha',
       version: SCALE_DATASET_VERSION,
       shape: SHAPE,
+      sourceLifecycle: false,
       hash: plan.hash,
       createdAt: '2026-07-31T12:00:00.000Z',
     })

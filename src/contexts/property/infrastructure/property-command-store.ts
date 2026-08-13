@@ -16,6 +16,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
+import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -37,7 +38,19 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   if (patch.name !== undefined) set.name = patch.name
   if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.timezone !== undefined) set.timezone = patch.timezone
-  if (patch.gbpPlaceId !== undefined) set.gbpPlaceId = patch.gbpPlaceId
+  if (patch.address !== undefined) set.address = patch.address
+  if (patch.gbpLocationId !== undefined) set.gbpLocationId = patch.gbpLocationId
+  if (patch.gbpAccountId !== undefined) set.gbpAccountId = patch.gbpAccountId
+  if (patch.googleConnectionId !== undefined)
+    set.googleConnectionId = patch.googleConnectionId
+  if (patch.profileVersion !== undefined) set.profileVersion = patch.profileVersion
+  if (patch.googleBindingState !== undefined)
+    set.googleBindingState = patch.googleBindingState
+  if (patch.profileSource !== undefined) set.profileSource = patch.profileSource
+  if (patch.profileConfirmedAt !== undefined)
+    set.profileConfirmedAt = patch.profileConfirmedAt
+  if (patch.profileConfirmedBy !== undefined)
+    set.profileConfirmedBy = patch.profileConfirmedBy
   if (patch.countryCode !== undefined) set.countryCode = patch.countryCode
   if (patch.countrySource !== undefined) set.countrySource = patch.countrySource
   if (patch.timezoneSource !== undefined) set.timezoneSource = patch.timezoneSource
@@ -88,7 +101,7 @@ export function createAtomicPropertyCommandStore(
     updateProperty: async (command: UpdatePropertyCommand) => {
       return trace('property.commandStore.updateProperty', async () => {
         await db.transaction(async (tx) => {
-          await tx
+          const [updated] = await tx
             .update(properties)
             .set(buildPropertySetClause(command.patch))
             .where(
@@ -96,8 +109,17 @@ export function createAtomicPropertyCommandStore(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
                 isNull(properties.deletedAt),
+                eq(properties.sourceEpoch, command.expectedSourceEpoch),
+                eq(properties.profileVersion, command.expectedProfileVersion),
               ),
             )
+            .returning({ id: properties.id })
+          if (!updated) {
+            throw propertyError(
+              'stale_property',
+              'property changed while the update was being committed',
+            )
+          }
           await insertOutboxRow(tx, command.event)
         })
         await emitAfterCommit(events, command.event)
@@ -107,6 +129,56 @@ export function createAtomicPropertyCommandStore(
     deleteProperty: async (command: DeletePropertyCommand) => {
       return trace('property.commandStore.deleteProperty', async () => {
         await db.transaction(async (tx) => {
+          const [current] = await tx
+            .select({
+              sourceEpoch: properties.sourceEpoch,
+              profileVersion: properties.profileVersion,
+              googleConnectionId: properties.googleConnectionId,
+            })
+            .from(properties)
+            .where(
+              and(
+                eq(properties.organizationId, command.organizationId as string),
+                eq(properties.id, command.propertyId as string),
+                isNull(properties.deletedAt),
+              ),
+            )
+            .for('update')
+            .limit(1)
+          if (
+            !current ||
+            current.sourceEpoch !== command.expectedSourceEpoch ||
+            current.profileVersion !== command.expectedProfileVersion ||
+            (command.bindingEvent &&
+              current.googleConnectionId !== command.bindingEvent.connectionId)
+          ) {
+            throw propertyError(
+              'stale_property',
+              'property changed while the deletion was being committed',
+            )
+          }
+          await tx
+            .update(propertyOperationReceipts)
+            .set({
+              destinationPropertyId: null,
+              outcome: 'property_deleted',
+              tombstone: true,
+              destinationSourceEpoch: current.sourceEpoch + 1,
+              destinationProfileVersion: current.profileVersion,
+              updatedAt: command.event.occurredAt,
+            })
+            .where(
+              and(
+                eq(
+                  propertyOperationReceipts.organizationId,
+                  command.organizationId as string,
+                ),
+                eq(
+                  propertyOperationReceipts.destinationPropertyId,
+                  command.propertyId as string,
+                ),
+              ),
+            )
           await tx
             .delete(properties)
             .where(
@@ -117,8 +189,14 @@ export function createAtomicPropertyCommandStore(
               ),
             )
           await insertOutboxRow(tx, command.event)
+          if (command.bindingEvent) {
+            await insertOutboxRow(tx, command.bindingEvent)
+          }
         })
         await emitAfterCommit(events, command.event)
+        if (command.bindingEvent) {
+          await emitAfterCommit(events, command.bindingEvent)
+        }
       })
     },
   }

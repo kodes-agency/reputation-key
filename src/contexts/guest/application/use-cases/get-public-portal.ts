@@ -6,16 +6,12 @@ export type GetPublicPortalDeps = Readonly<{
 }>
 
 export type GetPublicPortalInput = Readonly<{
-  propertySlug: string
-  portalSlug: string
+  token: string
 }>
 
 export const getPublicPortal =
   (deps: GetPublicPortalDeps) => async (input: GetPublicPortalInput) => {
-    const result = await deps.publicPortalLookup.findBySlug(
-      input.propertySlug,
-      input.portalSlug,
-    )
+    const result = await deps.publicPortalLookup.findByToken(input.token)
     if (!result) {
       throw guestError('portal_not_found', 'Portal not found')
     }

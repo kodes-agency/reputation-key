@@ -4,7 +4,10 @@
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import {
+  getExecutionPolicy,
+  requireExecutionAllowed,
+} from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -12,8 +15,13 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalInputSchema } from '../application/dto/create-portal.dto'
 import { updatePortalInputSchema } from '../application/dto/update-portal.dto'
-import { isPortalError } from '../domain/errors'
+import { isPortalError, portalError } from '../domain/errors'
 import type { PortalErrorCode } from '../domain/errors'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Capability } from '#/shared/auth/beta-capabilities'
+import type { Permission } from '#/shared/domain/permissions'
+import { portalId as toPortalId } from '#/shared/domain/ids'
+import { requirePortalResourceScope } from './property-scope'
 
 // ── Error → HTTP status mapping ───────────────────────────────────
 
@@ -28,10 +36,11 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       () => 404,
     )
     .with('slug_taken', () => 409)
-    .with('upload_failed', () => 422)
+    .with('upload_failed', 'token_unavailable', () => 422)
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with('portal_inactive', () => 410)
+    .with('invalid_publication_transition', () => 409)
     .with(
       'invalid_slug',
       'invalid_name',
@@ -54,6 +63,66 @@ const portalIdSchema = z.object({
 const listPortalsSchema = z.object({
   propertyId: z.string().optional(),
 })
+async function authorizePortalResource(
+  ctx: AuthContext,
+  rawPortalId: string,
+  action: Permission,
+  capability: Capability,
+): Promise<void> {
+  try {
+    await requirePortalResourceScope({
+      actor: ctx,
+      action,
+      capability,
+      notFound: portalError('portal_not_found', 'portal not found'),
+      lookup: () =>
+        getContainer().useCases.resolvePortalManagementScope(toPortalId(rawPortalId)),
+    })
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
+    throw error
+  }
+}
+
+async function listAuthorizedPortalPropertyIds(
+  ctx: AuthContext,
+): Promise<readonly string[]> {
+  const propertyIds = await getContainer().useCases.listPortalManagementPropertyIds(
+    ctx.organizationId,
+  )
+  const decisions = await Promise.all(
+    propertyIds.map(async (propertyId) => ({
+      propertyId,
+      decision: await getExecutionPolicy().decide({
+        principal: { kind: 'user', ctx },
+        action: 'portal.read',
+        capability: 'portal.read',
+        organizationId: ctx.organizationId,
+        propertyId,
+        executionKind: 'interactive',
+        now: new Date(),
+      }),
+    })),
+  )
+  return decisions
+    .filter(({ decision }) => decision.allowed)
+    .map(({ propertyId }) => propertyId)
+}
+
+const completeContentReviewSchema = z.object({
+  portalId: z.string().min(1),
+  reviewId: z.string().trim().min(1),
+  revision: z.number().int().min(1),
+  supersedes: z
+    .object({
+      contentReviewSourceEventId: z.string().min(1),
+      configurationSourceEventId: z.string().min(1),
+      destinationRatioSourceEventId: z.string().min(1),
+    })
+    .nullable()
+    .optional(),
+})
 
 // ── createPortal ───────────────────────────────────────────────────
 
@@ -68,6 +137,7 @@ export const createPortal = createServerFn({ method: 'POST' })
           actor: ctx,
           action: 'portal.create',
           capability: 'portal.write',
+          propertyId: data.propertyId,
         })
 
         try {
@@ -94,11 +164,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -124,15 +190,25 @@ export const listPortals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-        })
+        const { useCases } = getContainer()
+        const propertyIds = data.propertyId
+          ? [data.propertyId]
+          : await listAuthorizedPortalPropertyIds(ctx)
+        if (data.propertyId) {
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'portal.read',
+            capability: 'portal.read',
+            propertyId: data.propertyId,
+          })
+        }
 
         try {
-          const { useCases } = getContainer()
-          const portals_list = await useCases.listPortals(data, ctx)
+          const portals_list = (
+            await Promise.all(
+              propertyIds.map((propertyId) => useCases.listPortals({ propertyId }, ctx)),
+            )
+          ).flat()
           return { portals: portals_list }
         } catch (e) {
           if (isPortalError(e))
@@ -154,11 +230,7 @@ export const getPortal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-        })
+        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -184,11 +256,7 @@ export const deletePortal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.delete',
-          capability: 'portal.write',
-        })
+        await authorizePortalResource(ctx, data.portalId, 'portal.delete', 'portal.write')
 
         try {
           const { useCases } = getContainer()
@@ -227,11 +295,12 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.create',
-          capability: 'portal.upload',
-        })
+        await authorizePortalResource(
+          ctx,
+          data.portalId,
+          'portal.create',
+          'portal.upload',
+        )
 
         try {
           const { useCases } = getContainer()
@@ -263,11 +332,12 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.create',
-          capability: 'portal.upload',
-        })
+        await authorizePortalResource(
+          ctx,
+          data.portalId,
+          'portal.create',
+          'portal.upload',
+        )
 
         try {
           const { useCases } = getContainer()
@@ -290,33 +360,98 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
     ),
   )
 
-// ── getPortalForQR ────────────────────────────────────────────────
-// Returns the public-facing URL for a portal (used to generate QR codes).
-// Requires authentication — only org members can generate QR codes for their portals.
+const issuePortalTokenSchema = z.object({
+  portalId: z.string().min(1),
+  printBatch: z.string().trim().min(1).max(100).optional(),
+})
 
-export const getPortalForQR = createServerFn({ method: 'GET' })
+const revokePortalTokensSchema = z.object({
+  portalId: z.string().min(1),
+  reason: z.string().trim().min(1).max(500),
+})
+
+export const issuePortalToken = createServerFn({ method: 'POST' })
+  .inputValidator(issuePortalTokenSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        try {
+          return await getContainer().useCases.issuePortalToken(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'portal.issuePortalToken',
+    ),
+  )
+
+export const rotatePortalToken = createServerFn({ method: 'POST' })
   .inputValidator(portalIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-        })
-
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
         try {
-          const { useCases } = getContainer()
-          return await useCases.getPortalQrUrl({ portalId: data.portalId }, ctx)
-        } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw catchUntagged(e)
+          return await getContainer().useCases.rotatePortalToken(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
         }
       },
-      'GET',
-      'portal.getPortalForQR',
+      'POST',
+      'portal.rotatePortalToken',
+    ),
+  )
+
+export const revokePortalTokens = createServerFn({ method: 'POST' })
+  .inputValidator(revokePortalTokensSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        try {
+          return await getContainer().useCases.revokePortalTokens(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'portal.revokePortalTokens',
+    ),
+  )
+
+export const completeContentReview = createServerFn({ method: 'POST' })
+  .inputValidator(completeContentReviewSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        try {
+          return await getContainer().useCases.completeContentReview(data, ctx)
+        } catch (error) {
+          if (isPortalError(error))
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'portal.completeContentReview',
     ),
   )

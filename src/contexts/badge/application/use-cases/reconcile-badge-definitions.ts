@@ -6,9 +6,11 @@ import {
   type EvaluateBadgeForTargetDeps,
 } from './evaluate-badge-for-target'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 
 export type ReconcileBadgeDefinitionsDeps = EvaluateBadgeForTargetDeps & {
   badgeRepo: BadgeRepository
+  authorizeScope: ScheduledScopeAuthorizer
 }
 
 export type ReconcileBadgeDefinitionsInput = Readonly<{
@@ -34,12 +36,19 @@ export const reconcileBadgeDefinitions =
     let awarded = 0
 
     for (const organizationId of orgIds) {
-      const definitions =
-        await deps.badgeRepo.listEnabledDefinitionsForOrg(organizationId)
       const propertyIds = input.propertyId
         ? [input.propertyId]
         : await deps.badgeRepo.listPropertiesForOrg(organizationId)
+      const eligiblePropertyIds: PropertyId[] = []
       for (const propertyId of propertyIds) {
+        if (await deps.authorizeScope(organizationId as string, propertyId as string)) {
+          eligiblePropertyIds.push(propertyId)
+        }
+      }
+      if (eligiblePropertyIds.length === 0) continue
+      const definitions =
+        await deps.badgeRepo.listEnabledDefinitionsForOrg(organizationId)
+      for (const propertyId of eligiblePropertyIds) {
         // Timezone depends only on (org, property), so resolve it once per
         // property rather than once per (target × definition).
         const timezone = await deps.badgeRepo.findPropertyTimezone(

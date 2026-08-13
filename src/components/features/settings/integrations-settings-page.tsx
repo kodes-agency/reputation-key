@@ -101,7 +101,7 @@ export function IntegrationsSettingsPage({
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{conn.googleEmail}</p>
+                        <p className="text-sm font-medium">Google Business Profile</p>
                         <Badge variant={meta.variant}>{meta.label}</Badge>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">

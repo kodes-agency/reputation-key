@@ -14,47 +14,51 @@ type Props = Readonly<{
     }
     handleChange: (value: string[]) => void
   }
-  unassigned: ReadonlyArray<MemberOption>
+  available: ReadonlyArray<MemberOption>
 }>
 
-export function MemberSelector({ field, unassigned }: Props) {
+export function MemberSelector({ field, available }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
   const selected = new Set(field.state.value)
 
   return (
     <Field data-invalid={isInvalid}>
       <FieldLabel>
-        Staff members{' '}
+        Organization members{' '}
         {selected.size > 0 && (
           <span className="font-normal text-muted-foreground">
             ({selected.size} selected)
           </span>
         )}
       </FieldLabel>
-      {unassigned.length === 0 ? (
-        <p className="text-sm text-muted-foreground">All members are already assigned.</p>
+      {available.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          All members already participate here.
+        </p>
       ) : (
         <>
-          <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
             <Checkbox
               checked={
-                selected.size === unassigned.length
+                selected.size === available.length
                   ? true
                   : selected.size > 0
                     ? 'indeterminate'
                     : false
               }
               onCheckedChange={(checked) => {
-                field.handleChange(checked ? unassigned.map((m) => m.userId) : [])
+                field.handleChange(
+                  checked ? available.map((member) => member.userId) : [],
+                )
               }}
             />
             Select all
           </label>
           <div className="max-h-60 space-y-2 overflow-y-auto p-3">
-            {unassigned.map((m) => (
+            {available.map((m) => (
               <label
                 key={m.userId}
-                className="flex cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
               >
                 <Checkbox
                   checked={selected.has(m.userId)}

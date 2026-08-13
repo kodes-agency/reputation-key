@@ -1,0 +1,314 @@
+import type { PropertyId } from '#/shared/domain/ids'
+import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
+
+export const GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT =
+  'integration.property_import.requested' as const
+export const PROPERTY_IMPORT_RETENTION_RELEASED_EVENT =
+  'integration.property_import.retention_released' as const
+export const GOOGLE_PROPERTY_IMPORT_ITEM_JOB = 'import-gbp-property-item-v2' as const
+export const GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION = 2 as const
+
+export type IntegrationPropertyImportRequestedV1 = Readonly<{
+  organizationId: string
+  importJobId: string
+}>
+
+export type IntegrationPropertyImportRetentionReleasedV1 = Readonly<{
+  organizationId: string
+  idempotencyKeys: readonly string[]
+}>
+
+export type GooglePropertyImportItemJobId =
+  `import-item-${string}-l${number}-e${number | 'new'}-r${number}`
+
+export const IMPORT_PARENT_STATUSES = [
+  'queued',
+  'processing',
+  'completed',
+  'completed_with_issues',
+  'failed',
+  'cancelled',
+] as const
+export type ImportParentStatus = (typeof IMPORT_PARENT_STATUSES)[number]
+
+export const GBP_IMPORT_ITEM_STATUSES = [
+  'pending',
+  'processing',
+  'imported',
+  'relinked',
+  'already_exists',
+  'region_unavailable',
+  'failed',
+  'cancelled',
+] as const
+export type GbpImportItemStatus = (typeof GBP_IMPORT_ITEM_STATUSES)[number]
+
+export const IMPORT_OUTCOME_CODES = [
+  'imported',
+  'relinked',
+  'already_exists',
+  'region_unavailable',
+  'active_binding_conflict',
+  'stale_binding',
+  'reauthentication_required',
+  'reconnect_required',
+  'authorization_changed',
+  'policy_disabled',
+  'organization_suspended',
+  'property_suspended',
+  'property_deleted',
+  'temporarily_unavailable',
+  'cleanup_required',
+  'internal_error',
+] as const
+export type ImportOutcomeCode = (typeof IMPORT_OUTCOME_CODES)[number]
+
+export const IMPORT_ITEM_USER_ACTIONS = [
+  'none',
+  'resolve_region',
+  'rediscover',
+  'reauthenticate',
+  'reconnect',
+  'retry',
+] as const
+export type ImportItemUserAction = (typeof IMPORT_ITEM_USER_ACTIONS)[number]
+
+export type ImportReducerClass = 'success' | 'benign_skip' | 'failure' | 'cancellation'
+export type ImportOutcomePresentation = Readonly<{
+  status: GbpImportItemStatus
+  reducerClass: ImportReducerClass
+  retryable: boolean
+  userAction: ImportItemUserAction
+}>
+
+export const IMPORT_OUTCOME_PRESENTATION = {
+  imported: {
+    status: 'imported',
+    reducerClass: 'success',
+    retryable: false,
+    userAction: 'none',
+  },
+  relinked: {
+    status: 'relinked',
+    reducerClass: 'success',
+    retryable: false,
+    userAction: 'none',
+  },
+  already_exists: {
+    status: 'already_exists',
+    reducerClass: 'benign_skip',
+    retryable: false,
+    userAction: 'none',
+  },
+  region_unavailable: {
+    status: 'region_unavailable',
+    reducerClass: 'benign_skip',
+    retryable: false,
+    userAction: 'resolve_region',
+  },
+  active_binding_conflict: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'rediscover',
+  },
+  stale_binding: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'rediscover',
+  },
+  reauthentication_required: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'reauthenticate',
+  },
+  reconnect_required: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'reconnect',
+  },
+  authorization_changed: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  policy_disabled: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  organization_suspended: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  property_suspended: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  property_deleted: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  temporarily_unavailable: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: true,
+    userAction: 'retry',
+  },
+  cleanup_required: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'none',
+  },
+  internal_error: {
+    status: 'failed',
+    reducerClass: 'failure',
+    retryable: false,
+    userAction: 'none',
+  },
+} as const satisfies Readonly<Record<ImportOutcomeCode, ImportOutcomePresentation>>
+
+const IMPORT_OUTCOME_PRESENTATION_BY_CODE = new Map<string, ImportOutcomePresentation>(
+  Object.entries(IMPORT_OUTCOME_PRESENTATION),
+)
+
+export function getImportOutcomePresentation(
+  outcome: string,
+): ImportOutcomePresentation | null {
+  return IMPORT_OUTCOME_PRESENTATION_BY_CODE.get(outcome) ?? null
+}
+
+export type ImportAccountDto = Readonly<{
+  accountRef: string
+  displayName: string
+  role: 'primary_owner' | 'owner' | 'manager' | 'site_manager' | 'unknown'
+}>
+
+export type ImportAccountPageDto = Readonly<{
+  items: readonly ImportAccountDto[]
+  nextCursor: string | null
+  contentExpiresAt: string
+  authorizationLease: ProviderContentLeaseDto
+  contentTtlSeconds: number
+}>
+
+export type RelinkPropertyProfileDto = Readonly<{
+  name: string
+  address: string | null
+  countryCode: string | null
+  timezone: string
+  profileVersion: number
+}>
+
+export type ImportCandidateEligibility =
+  | Readonly<{ kind: 'create' }>
+  | Readonly<{
+      kind: 'relink'
+      propertyId: PropertyId
+      profile: RelinkPropertyProfileDto
+    }>
+  | Readonly<{ kind: 'already_imported'; propertyId: PropertyId }>
+  | Readonly<{ kind: 'active_binding_conflict' }>
+  | Readonly<{ kind: 'region_unavailable' }>
+  | Readonly<{ kind: 'unavailable' }>
+
+export type ImportCandidateDto = Readonly<{
+  candidateId: string
+  candidateRef: string | null
+  accountRef: string
+  accountDisplayName: string
+  businessName: string
+  address: string | null
+  primaryCategory: string | null
+  countryCode: string | null
+  eligibility: ImportCandidateEligibility
+}>
+
+export type ImportCandidatePageDto = Readonly<{
+  items: readonly ImportCandidateDto[]
+  nextCursor: string | null
+  contentExpiresAt: string
+  authorizationLease: ProviderContentLeaseDto
+  contentTtlSeconds: number
+}>
+
+export type ConfirmedCreatePropertyProfileInput = Readonly<{
+  name: string
+  address: string | null
+  countryCode: string
+  timezone: string
+  confirmed: true
+}>
+
+export type ConfirmedRelinkProfileInput =
+  | Readonly<{
+      timezone: string
+      confirmed: true
+      updateExistingProfile: false
+    }>
+  | Readonly<{
+      name: string
+      address: string | null
+      timezone: string
+      confirmed: true
+      updateExistingProfile: true
+    }>
+
+export type StartPropertyImportItemInput =
+  | Readonly<{
+      candidateRef: string
+      action: 'create'
+      profile: ConfirmedCreatePropertyProfileInput
+    }>
+  | Readonly<{
+      candidateRef: string
+      action: 'relink'
+      existingPropertyId: PropertyId
+      profile: ConfirmedRelinkProfileInput
+    }>
+
+export type StartPropertyImportInput = Readonly<{
+  requestId: string
+  items: readonly StartPropertyImportItemInput[]
+  confirmation: 'apply'
+}>
+
+export type ImportProgressItemDto = Readonly<{
+  itemId: string
+  propertyName: string
+  action: 'create' | 'relink'
+  status: GbpImportItemStatus
+  propertyId: PropertyId | null
+  outcomeCode: ImportOutcomeCode | null
+  messageKey: `property_import.${GbpImportItemStatus | ImportOutcomeCode}`
+  retryable: boolean
+  retryRevision: number
+  userAction: ImportItemUserAction
+}>
+
+export type ImportProgressDto = Readonly<{
+  contractVersion: typeof GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION
+  importJobId: string
+  requestId: string
+  status: ImportParentStatus
+  totalCount: number
+  processedCount: number
+  counts: Readonly<Record<GbpImportItemStatus, number>>
+  items: readonly ImportProgressItemDto[]
+  canRetry: boolean
+  pollAfterMs: number | null
+  purgeAt: string | null
+  updatedAt: string
+}>

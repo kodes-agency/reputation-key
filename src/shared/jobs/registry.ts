@@ -1,7 +1,9 @@
 // Job handler registry — maps job names to handler functions.
 // Per architecture: "No classes. Records of functions returned by factories."
 
-export type JobHandler<T = unknown> = (job: import('bullmq').Job<T>) => Promise<void>
+import type { Job } from 'bullmq'
+
+export type JobHandler<T = unknown, TResult = unknown> = (job: Job<T>) => Promise<TResult>
 
 export type JobRegistry = Readonly<{
   /** Register a handler for a job name. */

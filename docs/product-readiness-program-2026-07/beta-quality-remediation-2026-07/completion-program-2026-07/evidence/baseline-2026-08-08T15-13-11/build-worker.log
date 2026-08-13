@@ -1,0 +1,20 @@
+$ pnpm build:worker
+started: 2026-08-08T15:14:42.709Z  durationMs: 851  exit: 0
+
+
+> reputation-key@ build:worker /Users/bozhidardenev/kodes/projects/rep-key
+> tsup
+
+CLI Building entry: {"index":"src/worker/index.ts","migrate-deploy":"scripts/migrate-deploy.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/bozhidardenev/kodes/projects/rep-key/tsup.config.ts
+CLI Target: node22
+CLI Cleaning output folder
+ESM Build start
+ESM dist-worker/migrate-deploy.js     24.45 KB
+ESM dist-worker/index.js              1.35 MB
+ESM dist-worker/migrate-deploy.js.map 76.03 KB
+ESM dist-worker/index.js.map          3.23 MB
+ESM ⚡️ Build success in 137ms
+

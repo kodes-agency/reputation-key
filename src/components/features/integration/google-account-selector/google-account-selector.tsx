@@ -13,12 +13,11 @@ type Props = Readonly<{
   onValueChange: (value: string) => void
 }>
 
+function connectionLabel(connection: GoogleConnectionDto): string {
+  const visibilityLabel = connection.visibility === 'private' ? 'you' : 'organization'
+  return `Google account (${visibilityLabel})`
+}
 export function GoogleAccountSelector({ connections, value, onValueChange }: Props) {
-  const getDisplayName = (connection: GoogleConnectionDto): string => {
-    const visibilityLabel = connection.visibility === 'private' ? '(you)' : '(shared)'
-    return `${connection.googleEmail} ${visibilityLabel}`
-  }
-
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger className="w-full max-w-[300px]" id="google-account-select">
@@ -27,7 +26,7 @@ export function GoogleAccountSelector({ connections, value, onValueChange }: Pro
       <SelectContent>
         {connections.map((connection) => (
           <SelectItem key={connection.id} value={connection.id}>
-            {getDisplayName(connection)}
+            {connectionLabel(connection)}
           </SelectItem>
         ))}
       </SelectContent>

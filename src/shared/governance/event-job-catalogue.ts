@@ -108,7 +108,7 @@ export type EventFamilyRow = Readonly<{
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9'
+  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7'
   notes?: string
 }>
 
@@ -267,12 +267,19 @@ const NOTIFICATION_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/index.ts'
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
+const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
+const METRIC_CORRECTION_OUTBOX =
+  'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
 const GOAL_HANDLERS = 'src/contexts/goal/infrastructure/event-handlers/index.ts'
 const BADGE_HANDLERS = 'src/contexts/badge/infrastructure/event-handlers/index.ts'
 const LEADERBOARD_HANDLERS =
   'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const PROPERTY_RETENTION_OUTBOX =
+  'src/contexts/property/infrastructure/outbox-consumers.ts'
+const INTEGRATION_IMPORT_OUTBOX =
+  'src/contexts/integration/infrastructure/outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -799,6 +806,24 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
         'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
     },
   ),
+  ev(
+    'property.google_binding.changed',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      ownerSlice: 'F7',
+      notes:
+        'identifier-only Property binding lifecycle fact; authorization consumers are added before protected import dispatch is enabled',
+    },
+  ),
 ]
 
 const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -892,6 +917,42 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     consumers: [],
     disposition: 'denied_dark',
   }),
+  ev('portal.content_review.completed', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.configuration_completeness.recorded', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.approved_destination_ratio.recorded', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
   ev(
     'portal.deleted',
     PORTAL_EVENTS,
@@ -905,6 +966,51 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     { notes: 'goal cleanup consumer is itself dark' },
+  ),
+  ev(
+    'portal.token.issued',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    { notes: 'identifier-only public-token lifecycle fact' },
+  ),
+  ev(
+    'portal.token.rotated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    { notes: 'identifier-only public-token lifecycle fact with bounded grace period' },
+  ),
+  ev(
+    'portal.token.revoked',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only lifecycle fact; operator-entered reason remains in Portal storage',
+    },
   ),
   ev('portal_link_category.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
@@ -1086,7 +1192,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist (no googleEmail) — was unregistered/bus-only',
+        'atomic command-store outbox write (BQC-3.5); identifier-only schema excludes provider contact data',
     },
   ),
   ev(
@@ -1110,6 +1216,25 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
+    'integration.property_import.requested',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('integration.property-import-dispatch', INTEGRATION_IMPORT_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only transactional intent; durable consumer add-bulks deterministic revision-scoped item jobs',
+    },
+  ),
+  ev(
     'integration.property_import.completed',
     INTEGRATION_EVENTS,
     {
@@ -1124,6 +1249,26 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer (content-free counts)',
+    },
+  ),
+  ev(
+    'integration.property_import.retention_released',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('property.import-retention-release', PROPERTY_RETENTION_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'property',
+      notes:
+        'bounded import-parent purge release; Property atomically marks matching operation receipts releasable and records the event consumer receipt',
     },
   ),
   ev(
@@ -1166,6 +1311,20 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
       notes:
         "records via the atomic metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); consumers belong to the dark goal/badge/leaderboard contexts; the family itself is enabled",
     },
+  ),
+  ev(
+    'metric.corrected',
+    METRIC_EVENTS,
+    {
+      stateOwner: 'metric',
+      capability: 'metric.internal',
+      action: 'system:metric.record',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX)],
+      disposition: 'enabled',
+    },
+    { notes: 'append-only correction lineage advances the reconciliation watermark' },
   ),
 ]
 
@@ -1232,27 +1391,28 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'portal.upload',
       action: 'system:image.process',
       schedule: 'none',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'R2/S3 fetch+upload (sharp resize); registration-gated no-op while portal.upload is blocked',
+        'R2/S3 fetch+upload; always registered and capability-scoped at dispatch/execution',
     },
   ),
   job(
-    'import-property',
-    'src/contexts/integration/infrastructure/jobs/import-property.job.ts',
+    'import-gbp-property-item-v2',
+    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
     {
       queue: 'default',
-      capability: 'property.connect_gbp',
-      action: 'system:property.import',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
       schedule: 'none',
       registration: 'enabled',
     },
     {
-      timeoutMs: 600_000,
+      retryAttempts: 5,
+      retryBackoff: 'exponential:30000',
       notes:
-        'GBP property import; in-handler capability gate; bulk fetch+upsert warrants 10m',
+        'GBP import v2 per-item work; deterministic item/retry/fence job id, tenant-keyed routing, and fenced Property effects',
     },
   ),
   job(
@@ -1319,11 +1479,11 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'notification.send_email',
       action: 'system:notification.email_urgent',
       schedule: 'none',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'Resend send; registration-gated no-op while notification.send_email is blocked',
+        'Resend-compatible send; capability-gated at execution and routed to the local mail stub in acceptance',
     },
   ),
 ]
@@ -1463,33 +1623,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
-    'reconcile-goal-progress',
-    'src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts',
-    {
-      queue: 'background',
-      capability: 'goal.use',
-      action: 'system:goal.reconcile',
-      schedule: 'cron:10 * * * *',
-      registration: 'denied_dark',
-    },
-    { notes: 'registration-gated no-op; NOT scheduled while goal.use is dark' },
-  ),
-  job(
-    'spawn-recurring-instances',
-    'src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts',
-    {
-      queue: 'background',
-      capability: 'goal.use',
-      action: 'system:goal.spawn',
-      schedule: 'every:86400000',
-      registration: 'denied_dark',
-    },
-    {
-      notes:
-        'registration-gated no-op; spawns goal instances ±1 day window; NOT scheduled while goal.use is dark',
-    },
-  ),
-  job(
     'digest-notification',
     'src/contexts/notification/infrastructure/jobs/digest-notification.job.ts',
     {
@@ -1497,26 +1630,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'notification.send_email',
       action: 'system:notification.email_digest',
       schedule: 'cron:0 * * * *',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'hourly tick → sends at org 8am local (ADR 0011); registration-gated no-op while notification.send_email is blocked',
-    },
-  ),
-  job(
-    'badge.reconcile',
-    'src/bootstrap.ts',
-    {
-      queue: 'background',
-      capability: 'badge.use',
-      action: 'system:badge.reconcile',
-      schedule: 'cron:20 * * * *',
-      registration: 'denied_dark',
-    },
-    {
-      notes:
-        'inline literal (no *.job.ts); registration-gated no-op while badge.use is dark',
+        'Hourly tick sends at org 8am local (ADR 0011); every delivery rechecks notification.send_email',
     },
   ),
   job(
@@ -1527,11 +1645,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'leaderboard.use',
       action: 'system:leaderboard.reconcile',
       schedule: 'cron:30 * * * *',
-      registration: 'denied_dark',
+      registration: 'enabled',
     },
     {
       notes:
-        'inline literal (no *.job.ts); registration-gated no-op while leaderboard.use is dark',
+        'inline literal (no *.job.ts); every discovered property is capability-scoped',
     },
   ),
 ]

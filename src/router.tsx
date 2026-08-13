@@ -1,7 +1,8 @@
-import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
-import { routeTree } from './routeTree.gen'
+import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
+import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
+import { routeTree } from './routeTree.gen'
 
 import { Skeleton } from '#/components/ui/skeleton'
 import { Alert, AlertDescription } from '#/components/ui/alert'
@@ -75,11 +76,16 @@ export function getRouter() {
     },
   })
 
+  const cspNonce = getGlobalStartContext()?.cspNonce
+
   const router = createTanStackRouter({
     routeTree,
     // Expose the QueryClient via router context so route loaders can
     // prefetchQuery / ensureQueryData.
     context: { queryClient },
+    // The same nonce is applied to framework-generated SSR scripts by
+    // TanStack Router and to RootDocument's theme initialization script.
+    ssr: cspNonce ? { nonce: cspNonce } : undefined,
     scrollRestoration: true,
     // ── Caching ─────────────────────────────────────────────────────────
     defaultPreloadStaleTime: 30_000,

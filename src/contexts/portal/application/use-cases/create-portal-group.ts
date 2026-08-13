@@ -101,7 +101,13 @@ export const createPortalGroup =
         }
       }
       for (const brandedPid of brandedPids) {
-        await deps.portalGroupRepo.addPortal(ctx.organizationId, group.id, brandedPid)
+        await deps.portalGroupRepo.addPortal(
+          ctx.organizationId,
+          group.id,
+          brandedPid,
+          group.createdAt,
+          ctx.userId,
+        )
         await emitAndRecord(
           deps.events,
           deps.outboxRepo,
@@ -109,7 +115,7 @@ export const createPortalGroup =
             portalGroupId: group.id,
             portalId: brandedPid,
             organizationId: ctx.organizationId,
-            occurredAt: deps.clock(),
+            occurredAt: group.createdAt,
           }),
         )
       }

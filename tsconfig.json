@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "services/**/*.ts"],
   "exclude": ["node_modules", "dist", ".output", "dist-worker", "drizzle"],
   "compilerOptions": {
     "target": "ES2022",

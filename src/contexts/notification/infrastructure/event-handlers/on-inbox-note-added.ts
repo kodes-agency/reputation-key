@@ -25,10 +25,11 @@ export const onInboxNoteAdded =
       })
       return
     }
+    const propertyId = event.propertyId
 
     const recipients = await deps.userLookup.findAssignedManagers(
       event.organizationId,
-      event.propertyId,
+      propertyId,
     )
 
     // R2-M1: Filter out the note author to avoid self-notification
@@ -45,6 +46,7 @@ export const onInboxNoteAdded =
     const jobs: InsertNotificationJobData[] = filtered.map((userId) => ({
       userId,
       organizationId: event.organizationId,
+      propertyId,
       type: 'inbox_note.added' as const,
       resourceType: 'inbox_item' as const,
       resourceId: event.inboxItemId,

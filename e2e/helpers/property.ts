@@ -1,13 +1,12 @@
-// E2E property helpers — use seeded property (BQR-5.1).
-// Manual UI create was removed; properties enter via Google import.
-// CI seeds `e2e-seed-property` via scripts/seed-e2e-user.ts.
+// E2E property helpers for the beta-local-1 P1 fixture.
+// Manual UI create was removed; properties enter via governed server paths.
 
 import { expect, type Page } from '@playwright/test'
 import { requireE2eSeedState } from './seed-state'
 
-export const SEEDED_PROPERTY_NAME = process.env.E2E_TEST_PROPERTY ?? 'E2E Seed Property'
-export const SEEDED_PROPERTY_SLUG =
-  process.env.E2E_TEST_PROPERTY_SLUG ?? 'e2e-seed-property'
+const seed = requireE2eSeedState()
+export const SEEDED_PROPERTY_NAME = seed.propertyName
+export const SEEDED_PROPERTY_SLUG = seed.propertySlug
 
 /**
  * Open the seeded property detail page.

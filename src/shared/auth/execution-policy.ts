@@ -41,6 +41,7 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import {
   checkBetaCapability,
   checkGlobalCapability,
+  checkScopedCapability,
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
@@ -51,7 +52,7 @@ import {
 import { throwContextError } from './server-errors'
 
 /** Bump when decision semantics change. Recorded on every decision + audit row. */
-export const EXECUTION_POLICY_VERSION = 'bqc-7.5'
+export const EXECUTION_POLICY_VERSION = 'beta-local-2'
 
 export type ExecutionKind =
   | 'interactive'
@@ -83,6 +84,9 @@ export type ExecutionDecision = Readonly<{
   action: string
   policyVersion: string
 }>
+export type PublicConsent = 'analytics' | 'response' | 'freeText' | 'contact' | 'media'
+
+export type PublicConsentAssertions = Readonly<Record<PublicConsent, boolean>>
 
 export type DecisionRequest = Readonly<{
   principal: Principal
@@ -95,6 +99,10 @@ export type DecisionRequest = Readonly<{
   executionKind: ExecutionKind
   /** Purpose/consent class; when present, an active consent is required. */
   purpose?: string
+  /** Public requests carry pre-resolved, request-bound consent assertions. */
+  consentAssertions?: PublicConsentAssertions
+  /** Every named assertion must be true; content/redirect reads omit this. */
+  requiredPublicConsents?: ReadonlyArray<PublicConsent>
   /**
    * BQC-7.5: operator-supplied justification (or the 'read' label for read
    * commands). Recorded on the ALLOW audit row, sliced to 200 chars —
@@ -102,6 +110,18 @@ export type DecisionRequest = Readonly<{
    * rows always carry the typed deny reason instead.
    */
   reason?: string
+  now: Date
+  correlationId?: string
+}>
+
+export type PublicDecisionRequest = Readonly<{
+  action: string
+  capability?: Capability
+  organizationId?: string
+  propertyId?: string
+  purpose?: string
+  consentAssertions?: PublicConsentAssertions
+  requiredPublicConsents?: ReadonlyArray<PublicConsent>
   now: Date
   correlationId?: string
 }>
@@ -414,11 +434,26 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
         case 'user':
           return decideUser(request, request.principal.ctx)
         case 'public': {
-          // Public principals get the global capability check only (no
-          // role/property scope — public surface confinement is recorded in
-          // the entry-point catalogue).
+          if (request.executionKind !== 'public') {
+            return finish(
+              deps,
+              pendingAudits,
+              request,
+              request.capability ?? null,
+              false,
+              'unsupported_principal',
+            )
+          }
           if (request.capability) {
-            const capDecision = checkGlobalCapability(request.capability)
+            const capDecision = request.organizationId
+              ? checkScopedCapability(
+                  {
+                    organizationId: request.organizationId,
+                    ...(request.propertyId ? { propertyId: request.propertyId } : {}),
+                  },
+                  request.capability,
+                )
+              : checkGlobalCapability(request.capability)
             if (!capDecision.allowed) {
               return finish(
                 deps,
@@ -429,6 +464,20 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
                 capDecision.reason,
               )
             }
+          }
+          if (
+            request.requiredPublicConsents?.some(
+              (consent) => request.consentAssertions?.[consent] !== true,
+            )
+          ) {
+            return finish(
+              deps,
+              pendingAudits,
+              request,
+              request.capability ?? null,
+              false,
+              'consent_required',
+            )
           }
           return finish(
             deps,
@@ -574,4 +623,14 @@ export async function requireExecutionAllowed(input: {
       403,
     )
   }
+}
+
+export async function decidePublicExecution(
+  input: PublicDecisionRequest,
+): Promise<ExecutionDecision> {
+  return getExecutionPolicy().decide({
+    ...input,
+    principal: { kind: 'public' },
+    executionKind: 'public',
+  })
 }

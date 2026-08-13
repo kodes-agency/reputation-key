@@ -73,6 +73,7 @@ export const acceptInvitation =
     await deps.identity.runOnAcceptInvitation({
       userId: input.userId as string,
       organizationId: result.organizationId as string,
+      displayName: session.name,
       propertyIds: result.propertyIds,
     })
 

@@ -87,6 +87,18 @@ describe('Goal recurrence', () => {
       })
       expect(formatter.format(afterShift.start)).toBe('11/1')
     })
+
+    it('moves a nonexistent spring-gap wall time to the first valid instant', () => {
+      const beforeGap = new Date('2026-03-07T02:30:00-05:00')
+      const afterShift = generateNextPeriod(beforeGap, daily, nyTimezone)
+      expect(afterShift.start.toISOString()).toBe('2026-03-08T07:00:00.000Z')
+    })
+
+    it('chooses the earlier instant for an ambiguous fall-fold wall time', () => {
+      const beforeFold = new Date('2026-10-31T01:30:00-04:00')
+      const afterShift = generateNextPeriod(beforeFold, daily, nyTimezone)
+      expect(afterShift.start.toISOString()).toBe('2026-11-01T05:30:00.000Z')
+    })
   })
 
   describe('generatePeriodSequence', () => {
@@ -96,6 +108,29 @@ describe('Goal recurrence', () => {
       const periods = generatePeriodSequence(start, weekly, nyTimezone, 4)
       expect(periods).toHaveLength(4)
     })
+  })
+
+  it('clamps month-end periods without overflowing into the following month', () => {
+    const monthly: RecurrenceRule = {
+      frequency: 'monthly',
+      interval: 1,
+      dayOfMonth: 31,
+    }
+    const periods = generatePeriodSequence(
+      new Date('2026-01-31T00:00:00-05:00'),
+      monthly,
+      nyTimezone,
+      3,
+    )
+    const localDates = periods.map((period) =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: nyTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(period.start),
+    )
+    expect(localDates).toEqual(['2026-01-31', '2026-02-28', '2026-03-31'])
   })
 
   describe('buildPeriodUniquenessKey', () => {

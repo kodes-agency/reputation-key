@@ -4,14 +4,20 @@
 > Regenerate: `pnpm bqc:generate-status`. Schema: `src/shared/bqc/status-schema.ts`.
 
 **Program:** BQC  
-**Manifest updated:** 2026-08-01T09:36:52Z  
+**Manifest updated:** 2026-08-09T08:00:33Z  
 **Validation report:** docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md  
 **Validation baseline SHA:** `29b021875c145a7f8827f0ee70fc20935fc5dc79`  
-**Working tree SHA (status describes):** `927614bce728f8c42d922720f149b6ea1b046354`  
-**Lockfile SHA-256:** `948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287`  
-**Migration version:** 0011_people-access-and-attribution  
+**Working tree SHA (status describes):** `f46d2cd690899eace479e6ec9e08d5bbb3fece4c`  
+**Lockfile SHA-256:** `a2f56f007aab4695835b8292bf417cc30d461815d3ac4d29f4330b9dafb3be36`  
+**Migration version:** 0028_recognition-beta-seeds  
 
 BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence.
+
+## Controlled beta acceptance profile
+
+**Evidence version:** `beta-local-1`  
+**Required gates:** `quality`, `security-privacy`, `local-scale-recovery`, `source-lifecycle`, `runtime-fault-matrix`, `migration-upgrade`, `product-journeys`, `release-bundle`  
+**Post-beta / unmeasured:** `scale-capacity`, `region-fault-matrix`, `restore-recovery`, `live-provider`, `real-property-pilot`, `fourteen-day-cohort`  
 
 ## Status vocabulary
 
@@ -39,8 +45,8 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-5 | phase | Clean architecture and context quality | `evidence_pending` | engineering | — | STD-P1-01, STD-P1-04, STD-P1-06, STD-P2-01, STD-P2-02, STD-P2-03, STD-P2-04, STD-P2-05 | — |
 | BQC-6 | phase | Trustworthy verification and experience gates | `evidence_pending` | engineering | — | STD-P1-05, SPEC-P1-03, STD-P2-06 | — |
 | BQC-7 | phase | Production operations, security, and observability | `evidence_pending` | engineering | — | SPEC-P1-05, SPEC-P1-06, STD-P1-07 | — |
-| BQC-8 | phase | Scale, recovery, and release evidence | `implementation_in_progress` | engineering | — | SPEC-P1-04, SPEC-P2-02 | — |
-| BQC-9 | phase | Controlled pilot and AI-readiness handoff | `blocked` | product | — | — | BQC-0 through BQC-8 accepted + human pilot authorization (review 2026-09-01) |
+| BQC-8 | phase | Local scale, recovery, and release evidence | `evidence_pending` | engineering | — | — | — |
+| BQC-9 | phase | Local product acceptance and operations handoff | `evidence_pending` | product | — | — | — |
 
 ## Slices
 
@@ -59,7 +65,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-1.2 | slice | Remove raw inbox/activity/transport copies | `implementation_complete` | engineering | — | — | — |
 | BQC-1.1 | slice | Complete field-and-copy inventory | `implementation_complete` | engineering | — | — | — |
 | BQC-2.7 | slice | Policy operations | `implementation_complete` | engineering | — | — | — |
-| BQC-2.6 | slice | Dark-context policy and interactive containment | `implementation_complete` | engineering | — | — | — |
+| BQC-2.6 | slice | Scoped controlled-feature policy and interactive containment | `implementation_in_progress` | engineering | — | — | — |
 | BQC-2.5 | slice | Delayed/system policy contract | `implementation_complete` | engineering | — | — | — |
 | BQC-2.4 | slice | Interactive production cutover | `implementation_complete` | engineering | — | — | — |
 | BQC-2.3 | slice | Wire PropertyAccessGrant | `implementation_complete` | engineering | — | — | — |
@@ -93,7 +99,7 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-6.9 | slice | Coverage and test-quality gates | `implementation_complete` | engineering | — | — | — |
 | BQC-6.8 | slice | Accessibility, responsive, theme, and performance | `implementation_complete` | engineering | — | — | — |
 | BQC-6.7 | slice | Residual full suite hardening | `implementation_complete` | engineering | — | — | — |
-| BQC-6.6 | slice | Dark-context browser promotion | `implementation_complete` | engineering | — | — | — |
+| BQC-6.6 | slice | Controlled-feature browser promotion | `implementation_in_progress` | engineering | — | — | — |
 | BQC-6.5 | slice | Critical enabled workflow suite | `implementation_complete` | engineering | — | — | — |
 | BQC-6.4 | slice | Correct Playwright diagnostics | `implementation_complete` | engineering | — | — | — |
 | BQC-6.3 | slice | One authoritative component/Storybook gate | `implementation_complete` | engineering | — | — | — |
@@ -108,6 +114,12 @@ Only these states are valid: `not_started`, `implementation_in_progress`, `imple
 | BQC-7.2 | slice | Health semantics | `implementation_complete` | engineering | — | — | — |
 | BQC-7.1 | slice | Production containers and deployment contract | `implementation_complete` | engineering | — | — | — |
 | BQC-8.2 | slice | Steady-state and burst capacity | `implementation_complete` | engineering | — | — | — |
+| BQC-8.8 | slice | Immutable release bundle | `implementation_complete` | engineering | — | — | — |
+| BQC-8.7 | slice | Security and privacy release gates | `implementation_complete` | engineering | — | — | — |
+| BQC-8.6 | slice | Backup, restore, rollback, and forward recovery | `implementation_complete` | engineering | — | — | — |
+| BQC-8.5 | slice | Region fault matrix | `implementation_complete` | engineering | — | — | — |
+| BQC-8.4 | slice | Durable runtime fault matrix | `implementation_complete` | engineering | — | — | — |
+| BQC-8.3 | slice | Source lifecycle at scale | `implementation_complete` | engineering | — | — | — |
 | BQC-8.1 | slice | Convert scenario catalogues into executable harnesses | `implementation_complete` | engineering | — | — | — |
 
 ## Historical BQR work

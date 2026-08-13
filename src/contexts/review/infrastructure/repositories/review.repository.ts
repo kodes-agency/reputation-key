@@ -5,9 +5,10 @@
 // Query limits:
 //   500  — findByPropertyId, findAllByOrganization: per-request page size. Matches typical
 //          GBP location review counts (<500 for most businesses). Paginate if exceeded.
-//   5000 — findAllExpiringBeforeAcrossTenants, findAllExpiredBeforeAcrossTenants: system-level
-//          batch queries for scheduled jobs. No tenant filter — designed to scan all orgs in
-//          one pass. If total reviews exceed ~5K, these jobs need cursor-based pagination.
+//   BQC-8.3: the system-level lifecycle sweeps (refresh-expiring, purge-expired)
+//          use keyset-bounded batch queries (findExpiringBatchAcrossTenants,
+//          findExpiredBatchBeforeAcrossTenants) with caller-supplied limits —
+//          the one-shot 5,000-row scans were removed (not cursor-safe at scale).
 
 import {
   and,
@@ -221,23 +222,6 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
   },
 
   /**
-   * ⚠️ CROSS-TENANT: contentExpiresAt <= date (inclusive), non-null only.
-   * BQR-3.2: fetch-based clock (ADR 0031), not publication-based expiresAt.
-   */
-  findAllExpiringBeforeAcrossTenants: async (date: Date) => {
-    return trace('review.findAllExpiringBeforeAcrossTenants', async () => {
-      const rows = await db
-        .select()
-        .from(reviews)
-        .where(
-          and(isNotNull(reviews.contentExpiresAt), lte(reviews.contentExpiresAt, date)),
-        )
-        .limit(5000)
-      return rows.map(reviewFromRow)
-    })
-  },
-
-  /**
    * BQC-1.5: keyset-bounded batch (contentExpiresAt ASC, id ASC).
    * Cursor predicate is a strict row-tuple greater-than, so concurrent
    * inserts behind the cursor never cause skips or repeats.
@@ -264,19 +248,47 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
   },
 
   /**
-   * ⚠️ CROSS-TENANT: contentExpiresAt < date (exclusive), non-null only.
-   * BQR-3.2 / ADR 0031: no post-expiry grace — purge as soon as the fetch clock expires.
+   * BQC-8.3: keyset-bounded batch of expired rows (contentExpiresAt ASC,
+   * id ASC), exclusive `contentExpiresAt < date` boundary. Same keyset
+   * contract as findExpiringBatchAcrossTenants: the strict row-tuple
+   * cursor predicate never skips or repeats as the cursor advances.
+   * BQR-3.2 / ADR 0031: no post-expiry grace — purge as soon as the
+   * fetch clock expires.
    */
-  findAllExpiredBeforeAcrossTenants: async (date: Date) => {
-    return trace('review.findAllExpiredBeforeAcrossTenants', async () => {
+  findExpiredBatchBeforeAcrossTenants: async (date, cursor, limit) => {
+    return trace('review.findExpiredBatchBeforeAcrossTenants', async () => {
+      const conditions = [
+        isNotNull(reviews.contentExpiresAt),
+        lt(reviews.contentExpiresAt, date),
+      ]
+      if (cursor) {
+        conditions.push(
+          sql`(${reviews.contentExpiresAt}, ${reviews.id}) > (${cursor.contentExpiresAt}, ${cursor.id})`,
+        )
+      }
       const rows = await db
         .select()
+        .from(reviews)
+        .where(and(...conditions))
+        .orderBy(reviews.contentExpiresAt, reviews.id)
+        .limit(limit)
+      return rows.map(reviewFromRow)
+    })
+  },
+
+  /**
+   * BQC-8.3: exact purge-eligible count (exclusive boundary) — the restore
+   * drill's dry-run/zero-remaining probe. A COUNT, not a bounded scan.
+   */
+  countExpiredBeforeAcrossTenants: async (date: Date) => {
+    return trace('review.countExpiredBeforeAcrossTenants', async () => {
+      const rows = await db
+        .select({ count: sql<number>`count(*)::int` })
         .from(reviews)
         .where(
           and(isNotNull(reviews.contentExpiresAt), lt(reviews.contentExpiresAt, date)),
         )
-        .limit(5000)
-      return rows.map(reviewFromRow)
+      return rows[0]?.count ?? 0
     })
   },
 

@@ -1,7 +1,7 @@
 // BQC-4.1 — property region reconciliation (operator tool, real PostgreSQL).
 //
 // Phase BQC-4 §3/§4.1 + ADR 0048: backfill every non-deleted property's
-// processing region from authoritative country data with a reviewable
+// processing region from durable, property-owned country data with a reviewable
 // report — never a blind conversion (mirrors BQC-2.3 staff→grant
 // reconciliation). The report classifies each property; --apply converts
 // ONLY `resolvable` rows, bumps routing_policy_version in the same
@@ -11,11 +11,8 @@
 //   resolved   — region set and consistent with the stored country
 //   resolvable — unresolved + property-level country present (apply converts)
 //   missing    — no property-level country (stays unresolved; operator action)
-//   conflict   — stored country disagrees with the gbp_cache location payload
-//                country, or a resolved region disagrees with the stored
-//                country
+//   conflict   — resolved region disagrees with the stored country
 //   ambiguous  — country maps to the denied 'global' placeholder
-
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { resolveRegion } from '#/shared/domain/processing-profile'
@@ -66,7 +63,6 @@ type PropertyScanRow = Readonly<{
   country_code: string | null
   country_source: string | null
   processing_region: string | null
-  cache_country: string | null
 }>
 
 async function loadProperties(
@@ -76,23 +72,10 @@ async function loadProperties(
   const orgFilter = scope?.organizationId
     ? sql`AND p.organization_id = ${scope.organizationId}`
     : sql``
-  // The gbp_cache location payload is the GBP source data for the address
-  // country. Tolerate both the raw GBP shape (storefrontAddress.regionCode)
-  // and a mapped shape (countryCode); a missing cache row is not a conflict
-  // source.
   const rows = await db.execute(sql`
     SELECT p.id, p.organization_id, p.country_code, p.country_source,
-           p.processing_region,
-           upper(coalesce(
-             gc.payload->'storefrontAddress'->>'regionCode',
-             gc.payload->>'countryCode'
-           )) AS cache_country
+           p.processing_region
     FROM properties p
-    LEFT JOIN LATERAL (
-      SELECT payload FROM gbp_cache gc
-      WHERE gc.property_id = p.id AND gc.data_type = 'location'
-      LIMIT 1
-    ) gc ON true
     WHERE p.deleted_at IS NULL
     ${orgFilter}
   `)
@@ -112,16 +95,7 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
       ? r.processing_region
       : null
   const country = r.country_code?.trim().toUpperCase() || null
-  const cacheCountry = r.cache_country?.trim().toUpperCase() || null
 
-  // Source-data disagreement — never auto-converted (ADR 0048).
-  if (country && cacheCountry && country !== cacheCountry) {
-    return {
-      ...base,
-      classification: 'conflict',
-      detail: `property country ${country} disagrees with gbp cache country ${cacheCountry}`,
-    }
-  }
   if (region) {
     if (country && resolveRegion(country) !== region) {
       return {
@@ -140,9 +114,7 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
     return {
       ...base,
       classification: 'missing',
-      detail: cacheCountry
-        ? 'no property-level country (gbp cache has one — operator review)'
-        : 'no country data on property or gbp cache',
+      detail: 'no property-level country',
     }
   }
   if (resolveRegion(country) === 'global') {

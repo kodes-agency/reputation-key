@@ -24,10 +24,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { isRestoreIsolated } from '#/shared/config/restore-mode'
 
 /**
- * Capability-policy version. Bump when CORE_CAPABILITIES or
- * BLOCKED_CAPABILITIES change. Recorded in the boot manifest (BQC-0.3).
+ * Capability-policy version. Bump when capability vocabulary or posture changes.
+ * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'bqc-0.3'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-2'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -37,12 +37,19 @@ export type Capability =
   | 'organization.create'
   | 'property.create'
   | 'property.connect_gbp'
+  | 'property.import_gbp_v2'
+  | 'property.read_gbp_performance'
   | 'property.publish_reply'
   | 'notification.send_email'
   | 'notification.in_app'
   | 'portal.read'
   | 'portal.write'
   | 'portal.upload'
+  | 'portal.public_read'
+  | 'portal.guest_response'
+  | 'portal.guest_text'
+  | 'portal.guest_contact'
+  | 'portal.guest_media'
   | 'team.use'
   | 'goal.use'
   | 'badge.use'
@@ -86,26 +93,17 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
 ])
 
 /**
- * Capabilities that are always off — hard-blocked by Google policy or
- * product readiness gates. These can NEVER be allowlisted.
+ * Capabilities that are always off and can never be allowlisted.
  *
- * Google response (2026-07-14): AI analysis, reply drafts, and trends are
- * conditionally permitted per-property — they move to non-core (off by
- * default, allowlistable per-org). The following remain hard-blocked:
- *   - gbp.reply.auto_publish: Google prohibits automated AI reply publishing
- *   - gbp.ai.cross_property_summary: Google prohibits cross-property combination
- *   - gbp.review_solicitation_gamification: Google prohibits review-solicitation
- *     gamification (review clicks/scans/volume never drive goals/badges/leaderboards)
- *   - notification.send_email: product gate (beta decision, not Google)
- *   - portal.write, portal.upload: product gate (beta decision)
+ * Google policy permanently prohibits automated reply publishing,
+ * cross-property AI summaries, and review-solicitation gamification. Portal,
+ * guest, and product-email capabilities are non-core controlled-beta features:
+ * they remain off by default and require persisted org/property policy.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'gbp.reply.auto_publish',
   'gbp.ai.cross_property_summary',
   'gbp.review_solicitation_gamification',
-  'notification.send_email',
-  'portal.write',
-  'portal.upload',
 ])
 
 // ── Decision types ──────────────────────────────────────────────────
@@ -136,6 +134,8 @@ export type CapabilityDecision = Readonly<{
  */
 export type CapabilityPolicyStore = Readonly<{
   isCapabilityGloballyEnabled: (cap: Capability) => boolean
+  /** Environment stop control; authoritative over tenant allowlists. */
+  isCapabilityKilled?: (cap: Capability) => boolean
   isOrgAllowlisted: (orgId: string, cap: Capability) => boolean
   isPropertyAllowlisted: (propertyId: string, cap: Capability) => boolean
   isOrgSuspended: (orgId: string) => boolean
@@ -182,6 +182,7 @@ export function createEnvCapabilityPolicyStore(
   )
 
   return {
+    isCapabilityKilled: (cap) => killAll || killedCapabilities.has(cap),
     isCapabilityGloballyEnabled: (cap) => {
       if (killAll) return false
       // BQC-0.4: per-capability kill list (granular stop control)
@@ -356,52 +357,55 @@ export function resetCapabilityPolicyStore(): void {
 }
 
 /**
- * Check whether a capability is allowed for the given context.
- *
- * Returns a CapabilityDecision with `allowed: true` or a deny reason.
- * Fails closed: unknown capabilities, missing policy, or suspended
- * orgs/properties are denied.
+ * Check capability posture against already-resolved tenant/property scope.
+ * This is the shared decision for authenticated callers, opaque public
+ * resources, and scoped delayed work. It deliberately does not authorize a
+ * role or grant; ExecutionPolicy composes those layers for user principals.
  */
+export function checkScopedCapability(
+  scope: Readonly<{ organizationId: string; propertyId?: string }>,
+  capability: Capability,
+): CapabilityDecision {
+  const store = getStore()
+  if (BLOCKED_CAPABILITIES.has(capability)) {
+    return { allowed: false, reason: 'capability_blocked', capability }
+  }
+  if (store.isCapabilityKilled?.(capability)) {
+    return { allowed: false, reason: 'capability_disabled', capability }
+  }
+  if (store.isOrgSuspended(scope.organizationId)) {
+    return { allowed: false, reason: 'org_suspended', capability }
+  }
+  if (scope.propertyId && store.isPropertySuspended(scope.propertyId)) {
+    return { allowed: false, reason: 'property_suspended', capability }
+  }
+  if (!store.isCapabilityGloballyEnabled(capability)) {
+    if (CORE_CAPABILITIES.has(capability)) {
+      return { allowed: false, reason: 'capability_disabled', capability }
+    }
+    if (!store.isOrgAllowlisted(scope.organizationId, capability)) {
+      return { allowed: false, reason: 'org_not_allowlisted', capability }
+    }
+  }
+  if (
+    scope.propertyId &&
+    !CORE_CAPABILITIES.has(capability) &&
+    !store.isPropertyAllowlisted(scope.propertyId, capability)
+  ) {
+    return { allowed: false, reason: 'property_not_allowlisted', capability }
+  }
+  return { allowed: true, reason: 'allowed', capability }
+}
+
 export function checkBetaCapability(
   ctx: AuthContext,
   capability: Capability,
   propertyId?: string,
 ): CapabilityDecision {
-  const store = getStore()
-  // Blocked capabilities are never allowed, regardless of store configuration.
-  // This is a hard safety net — AI and external email remain off until ADR 0031.
-  if (BLOCKED_CAPABILITIES.has(capability)) {
-    return { allowed: false, reason: 'capability_blocked', capability }
-  }
-
-  // Check org suspension
-  if (store.isOrgSuspended(ctx.organizationId)) {
-    return { allowed: false, reason: 'org_suspended', capability }
-  }
-
-  // Check property suspension
-  if (propertyId && store.isPropertySuspended(propertyId)) {
-    return { allowed: false, reason: 'property_suspended', capability }
-  }
-
-  // Check global enablement
-  if (!store.isCapabilityGloballyEnabled(capability)) {
-    // If it's a core capability and globally disabled, it's a kill switch
-    if (CORE_CAPABILITIES.has(capability)) {
-      return { allowed: false, reason: 'capability_disabled', capability }
-    }
-    // Non-core: check org allowlist
-    if (!store.isOrgAllowlisted(ctx.organizationId, capability)) {
-      return { allowed: false, reason: 'org_not_allowlisted', capability }
-    }
-  }
-
-  // Check property allowlist if property-scoped
-  if (propertyId && !store.isPropertyAllowlisted(propertyId, capability)) {
-    return { allowed: false, reason: 'property_not_allowlisted', capability }
-  }
-
-  return { allowed: true, reason: 'allowed', capability }
+  return checkScopedCapability(
+    { organizationId: ctx.organizationId, ...(propertyId ? { propertyId } : {}) },
+    capability,
+  )
 }
 
 /**
@@ -475,15 +479,22 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
   return [...BLOCKED_CAPABILITIES].sort()
 }
 
-/**
- * The complete capability universe (all 28 — includes the BQR-4.1 surface
- * caps). Used for validation (BQC-2.7 policy administration) and guards.
- */
+/** Complete capability vocabulary used by policy administration and guards. */
 export function listAllCapabilities(): ReadonlyArray<Capability> {
   const nonCore: ReadonlyArray<Capability> = [
     'identity.register',
     'organization.create',
+    'property.import_gbp_v2',
+    'property.read_gbp_performance',
+    'notification.send_email',
     'portal.read',
+    'portal.write',
+    'portal.upload',
+    'portal.public_read',
+    'portal.guest_response',
+    'portal.guest_text',
+    'portal.guest_contact',
+    'portal.guest_media',
     'team.use',
     'goal.use',
     'badge.use',
@@ -496,15 +507,13 @@ export function listAllCapabilities(): ReadonlyArray<Capability> {
 }
 
 /**
- * Worker/schedule gate: true only when the capability is globally enabled
- * (core, not killed). Non-core and blocked capabilities return false — even
- * if individual orgs are allowlisted for interactive server functions.
- *
- * BQR-0: dark-context jobs must not schedule or run until their capability is
- * promoted to core (or an explicit later job-enablement path exists).
+ * Registration gate for handlers and schedules. Promotable jobs stay
+ * registered even while no tenant is allowlisted; enqueue, dispatch, and
+ * execution perform scoped decisions. Restore isolation and permanent
+ * prohibitions remain contained at registration.
  */
 export function isCapabilityJobEnabled(capability: Capability): boolean {
-  return checkGlobalCapability(capability).allowed
+  return !isRestoreIsolated(process.env) && !BLOCKED_CAPABILITIES.has(capability)
 }
 
 /**
@@ -526,9 +535,14 @@ export const DARK_CONTEXT_CAPABILITIES = {
   leaderboard: 'leaderboard.use',
 } as const satisfies Readonly<Record<string, Capability>>
 
-/** All portal-surface capabilities that may appear on portal server entry paths. */
+/** All capabilities used by Portal management and the public/guest edge. */
 export const PORTAL_DARK_CAPABILITIES = [
   'portal.read',
   'portal.write',
   'portal.upload',
+  'portal.public_read',
+  'portal.guest_response',
+  'portal.guest_text',
+  'portal.guest_contact',
+  'portal.guest_media',
 ] as const satisfies ReadonlyArray<Capability>

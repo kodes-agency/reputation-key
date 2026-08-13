@@ -48,7 +48,8 @@ export const addPortalToGroup =
       throw portalError('portal_already_grouped', 'portal is already in a group')
     }
 
-    await deps.portalGroupRepo.addPortal(ctx.organizationId, gid, pid)
+    const now = deps.clock()
+    await deps.portalGroupRepo.addPortal(ctx.organizationId, gid, pid, now, ctx.userId)
 
     await emitAndRecord(
       deps.events,
@@ -57,7 +58,7 @@ export const addPortalToGroup =
         portalGroupId: gid,
         portalId: pid,
         organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
+        occurredAt: now,
       }),
     )
   }

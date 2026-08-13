@@ -14,6 +14,7 @@ import type { Property, PropertyId } from '../../domain/types'
 import type {
   PropertyCreated,
   PropertyDeleted,
+  PropertyGoogleBindingChanged,
   PropertyUpdated,
 } from '../../domain/events'
 
@@ -36,6 +37,8 @@ export type CreatePropertyCommand = Readonly<{
 export type UpdatePropertyCommand = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
+  expectedSourceEpoch: number
+  expectedProfileVersion: number
   patch: Readonly<Partial<Property>>
   event: PropertyUpdated
 }>
@@ -49,7 +52,10 @@ export type UpdatePropertyCommand = Readonly<{
 export type DeletePropertyCommand = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
+  expectedSourceEpoch: number
+  expectedProfileVersion: number
   event: PropertyDeleted
+  bindingEvent?: PropertyGoogleBindingChanged
 }>
 
 export type PropertyCommandStore = Readonly<{

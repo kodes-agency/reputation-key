@@ -1,24 +1,27 @@
-// Portal detail page — tabbed layout: Settings, Links, Share, Analytics
-// Tab state via search params (?tab=settings|links|share|analytics)
+// Portal detail page — tabbed layout controlled by typed route search state.
 
-import { useState, useRef } from 'react'
-import { Link, useRouter } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { ArrowLeft, Eye } from 'lucide-react'
 import { PortalDetailTabs } from './portal-detail-tabs'
 import { PortalSettings } from '../portal-settings/portal-settings'
 import { LinkTree } from '../link-tree/link-tree'
-import { PortalShare } from '../portal-share/portal-share'
+import { PortalShare, type IssuedPortalLink } from '../portal-share/portal-share'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
 import { PortalDetailPreview } from './portal-detail-preview'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
-import type { FormLike, UpdatePortalVariables } from '../shared/types'
+import type {
+  FormLike,
+  PortalPublicationState,
+  UpdatePortalVariables,
+} from '../shared/types'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 
-const VALID_TABS = ['settings', 'links', 'share', 'analytics'] as const
-type TabName = (typeof VALID_TABS)[number]
+export const PORTAL_DETAIL_TABS = ['settings', 'links', 'share', 'analytics'] as const
+export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -28,17 +31,23 @@ type Props = Readonly<{
     description: string | null
     heroImageUrl: string | null
     theme: { primaryColor: string }
-    smartRoutingEnabled: boolean
-    smartRoutingThreshold: number
+    propertyId: string
     organizationId: string
-    isActive: boolean
+    publicationState: PortalPublicationState
   }>
   organizationName: string
-  propertySlug: string
   propertyId: string
   categories: readonly LinkTreeCategory[]
+  activeTab: PortalDetailTab
+  onTabChange: (tab: PortalDetailTab) => void
   links: readonly LinkTreeLink[]
   updateMutation: Action<UpdatePortalVariables>
+  issueTokenMutation: Action<
+    { data: { portalId: string; printBatch?: string } },
+    IssuedPortalLink
+  >
+  rotateTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
+  revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
   }) => Promise<{ uploadUrl: string; key: string }>
@@ -51,46 +60,37 @@ type Props = Readonly<{
 export function PortalDetailPage({
   portal,
   organizationName,
-  propertySlug,
   propertyId,
   categories,
   links,
+  activeTab,
+  onTabChange,
   updateMutation,
+  issueTokenMutation,
+  rotateTokenMutation,
+  revokeTokenMutation,
   requestUploadUrl,
   finalizeUpload,
   getPortalAnalytics,
 }: Props) {
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
-  const [isActive, setIsActive] = useState(portal.isActive)
   const editFormRef = useRef<FormLike | null>(null)
+  const [issuedPortalLink, setIssuedPortalLink] = useState<IssuedPortalLink | null>(null)
+  const [linksRevoked, setLinksRevoked] = useState(false)
   const [primaryColor, setPrimaryColor] = useState(portal.theme.primaryColor)
-  const [smartRoutingEnabled, setSmartRoutingEnabled] = useState(
-    portal.smartRoutingEnabled,
-  )
-  const [smartRoutingThreshold, setSmartRoutingThreshold] = useState(
-    portal.smartRoutingThreshold,
-  )
 
-  const router = useRouter()
-  const currentTab: TabName = (() => {
-    const params = new URLSearchParams(
-      typeof window !== 'undefined' ? window.location.search : '',
-    )
-    const t = params.get('tab')
-    return VALID_TABS.includes(t as TabName) ? (t as TabName) : 'settings'
-  })()
+  useEffect(() => {
+    setPrimaryColor(portal.theme.primaryColor)
+  }, [portal.theme.primaryColor])
 
-  const handleTabChange = (value: string) => {
-    const url = new URL(window.location.href)
-    url.searchParams.set('tab', value)
-    router.navigate({ to: url.pathname + url.search, replace: true })
-  }
-
-  const showPreview = currentTab === 'settings' || currentTab === 'links'
-
+  useEffect(() => {
+    setIssuedPortalLink(null)
+    setLinksRevoked(false)
+  }, [portal.id])
+  const showPreview = activeTab === 'settings' || activeTab === 'links'
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="ghost" asChild>
           <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
             <ArrowLeft /> Back
@@ -99,42 +99,53 @@ export function PortalDetailPage({
         {showPreview && (
           <Button
             variant="outline"
-            size="sm"
+            className="min-h-11 sm:min-h-9"
             onClick={() => setPreviewOpen(!previewOpen)}
+            aria-pressed={previewOpen}
           >
-            <Eye className="size-3.5 mr-1" /> {previewOpen ? 'Hide Preview' : 'Preview'}
+            <Eye /> {previewOpen ? 'Hide preview' : 'Preview'}
           </Button>
         )}
       </div>
 
-      <PortalDetailTabs value={currentTab} onValueChange={handleTabChange}>
-        {currentTab === 'settings' && (
+      <PortalDetailTabs value={activeTab} onValueChange={onTabChange}>
+        {activeTab === 'settings' && (
           <PortalSettings
             portal={portal}
             mutation={updateMutation}
             primaryColor={primaryColor}
             onPrimaryColorChange={setPrimaryColor}
-            smartRoutingEnabled={smartRoutingEnabled}
-            onSmartRoutingEnabledChange={setSmartRoutingEnabled}
-            smartRoutingThreshold={smartRoutingThreshold}
-            onSmartRoutingThresholdChange={setSmartRoutingThreshold}
-            isActive={isActive}
-            onIsActiveChange={setIsActive}
             requestUploadUrl={requestUploadUrl}
             finalizeUpload={finalizeUpload}
             formRef={editFormRef}
           />
         )}
 
-        {currentTab === 'links' && (
+        {activeTab === 'links' && (
           <LinkTree portalId={portal.id} categories={categories} links={links} />
         )}
 
-        {currentTab === 'share' && (
-          <PortalShare portalSlug={portal.slug} propertySlug={propertySlug} />
+        {activeTab === 'share' && (
+          <PortalShare
+            portalId={portal.id}
+            portalName={portal.name}
+            issuedLink={issuedPortalLink}
+            revoked={linksRevoked}
+            onLinkIssued={(link) => {
+              setIssuedPortalLink({ publicUrl: link.publicUrl })
+              setLinksRevoked(false)
+            }}
+            onLinksRevoked={() => {
+              setIssuedPortalLink(null)
+              setLinksRevoked(true)
+            }}
+            issueMutation={issueTokenMutation}
+            rotateMutation={rotateTokenMutation}
+            revokeMutation={revokeTokenMutation}
+          />
         )}
 
-        {currentTab === 'analytics' && (
+        {activeTab === 'analytics' && (
           <PortalAnalyticsTab
             portalId={portal.id}
             propertyId={propertyId}

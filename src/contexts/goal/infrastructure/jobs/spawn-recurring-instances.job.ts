@@ -11,10 +11,10 @@ import { goalId, goalProgressId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
-// ── Job name ──────────────────────────────────────────────────────────────
+// Retained only for migration diagnostics; the governed Goal runtime does not register it.
+export const LEGACY_SPAWN_RECURRING_NAME = 'spawn-recurring-instances' as const
 
-export const SPAWN_RECURRING_JOB_NAME = 'spawn-recurring-instances' as const
-
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 // ── Deps ──────────────────────────────────────────────────────────────────
 
 export type SpawnRecurringInstancesDeps = Readonly<{
@@ -22,6 +22,7 @@ export type SpawnRecurringInstancesDeps = Readonly<{
   events: EventBus
   clock: () => Date
   idGen: () => string
+  authorizeScope: ScheduledScopeAuthorizer
 }>
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -39,6 +40,17 @@ export const createSpawnRecurringInstancesHandler =
 
       // ⚠️ CROSS-TENANT by design — background job processes all orgs
       const recurringTemplates = await deps.goalRepo.findAllActiveRecurring()
+      const eligibleTemplates = []
+      for (const template of recurringTemplates) {
+        if (
+          await deps.authorizeScope(
+            template.organizationId as string,
+            template.propertyId as string,
+          )
+        ) {
+          eligibleTemplates.push(template)
+        }
+      }
 
       let spawned = 0
       let failed = 0
@@ -49,7 +61,7 @@ export const createSpawnRecurringInstancesHandler =
         import('#/shared/domain/ids').OrganizationId,
         import('../../domain/types').Goal[]
       >()
-      for (const template of recurringTemplates) {
+      for (const template of eligibleTemplates) {
         const group = templatesByOrg.get(template.organizationId) ?? []
         group.push(template)
         templatesByOrg.set(template.organizationId, group)
@@ -68,7 +80,7 @@ export const createSpawnRecurringInstancesHandler =
         }
       }
 
-      for (const template of recurringTemplates) {
+      for (const template of eligibleTemplates) {
         try {
           const rule = template.recurrenceRule
           if (!rule) continue

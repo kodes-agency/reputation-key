@@ -19,6 +19,7 @@ import type {
   RoutingDecision,
   RoutingEnvelope,
 } from '#/shared/routing/processing-router'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),
@@ -102,6 +103,12 @@ const SYNC_DATA = {
   locationName: 'locations/1',
 }
 
+const SYNC_EXECUTION = {
+  capability: 'property.connect_gbp',
+  initiator: { kind: 'system', id: 'queue:review-sync' },
+  policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+} as const
+
 describe('sync enqueue routing stamp (BQC-4.2)', () => {
   it('stamps the content-free routing envelope on a target decision', async () => {
     const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
@@ -109,12 +116,16 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
 
     await api.internal.repos.queue.addSyncJob(SYNC_DATA)
 
-    expect(resolve).toHaveBeenCalledWith('prop-1', 'review.sync')
+    expect(resolve).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
     const [, data] = jobQueue.add.mock.calls[0]!
     expect(data).toEqual({
       ...SYNC_DATA,
+      ...SYNC_EXECUTION,
       routing: {
-        propertyId: 'prop-1',
+        subject: { kind: 'property', propertyId: 'prop-1' },
         region: 'us',
         workloadClass: 'review.sync',
         routingPolicyVersion: 2,
@@ -136,7 +147,7 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
 
     const [name, data] = jobQueue.add.mock.calls[0]!
     expect(name).toBe('sync-property-reviews')
-    expect(data).toEqual(SYNC_DATA)
+    expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
   })
 
   it('enqueues WITHOUT the routing field when the routing lookup fails', async () => {
@@ -148,7 +159,7 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
     await api.internal.repos.queue.addSyncJob(SYNC_DATA)
 
     const [, data] = jobQueue.add.mock.calls[0]!
-    expect(data).toEqual(SYNC_DATA)
+    expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
   })
 
   it('enqueues WITHOUT the routing field when no router is wired', async () => {
@@ -157,12 +168,17 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
     await api.internal.repos.queue.addSyncJob(SYNC_DATA)
 
     const [, data] = jobQueue.add.mock.calls[0]!
-    expect(data).toEqual(SYNC_DATA)
+    expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
   })
 })
 
 describe('publish enqueue routing stamp (BQC-4.2)', () => {
   const PUBLISH_DATA = { replyId: 'reply-1', organizationId: 'org-1' }
+  const PUBLISH_EXECUTION = {
+    capability: 'property.publish_reply',
+    initiator: { kind: 'system', id: 'queue:reply-publish' },
+    policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+  } as const
 
   it('resolves reply → property and stamps the routing envelope', async () => {
     const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
@@ -173,13 +189,18 @@ describe('publish enqueue routing stamp (BQC-4.2)', () => {
 
     await api.internal.repos.replyQueue.addPublishJob(PUBLISH_DATA)
 
-    expect(resolve).toHaveBeenCalledWith('prop-9', 'reply.publish')
+    expect(resolve).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-9' },
+      'reply.publish',
+    )
     const [name, data] = jobQueue.add.mock.calls[0]!
     expect(name).toBe('publish-reply')
     expect(data).toEqual({
       ...PUBLISH_DATA,
+      ...PUBLISH_EXECUTION,
+      propertyId: 'prop-9',
       routing: {
-        propertyId: 'prop-9',
+        subject: { kind: 'property', propertyId: 'prop-9' },
         region: 'us',
         workloadClass: 'reply.publish',
         routingPolicyVersion: 2,
@@ -194,7 +215,7 @@ describe('publish enqueue routing stamp (BQC-4.2)', () => {
     await api.internal.repos.replyQueue.addPublishJob(PUBLISH_DATA)
 
     const [, data] = jobQueue.add.mock.calls[0]!
-    expect(data).toEqual(PUBLISH_DATA)
+    expect(data).toEqual({ ...PUBLISH_DATA, ...PUBLISH_EXECUTION })
     expect(resolve).not.toHaveBeenCalled()
   })
 
@@ -208,7 +229,7 @@ describe('publish enqueue routing stamp (BQC-4.2)', () => {
     await api.internal.repos.replyQueue.addPublishJob(PUBLISH_DATA)
 
     const [, data] = jobQueue.add.mock.calls[0]!
-    expect(data).toEqual(PUBLISH_DATA)
+    expect(data).toEqual({ ...PUBLISH_DATA, ...PUBLISH_EXECUTION })
     expect(resolve).not.toHaveBeenCalled()
   })
 })

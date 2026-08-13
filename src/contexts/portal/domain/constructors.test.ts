@@ -29,9 +29,7 @@ describe('buildPortal', () => {
     if (result.isOk()) {
       expect(result.value.name).toBe('Test Portal')
       expect(result.value.entityType).toBe('property')
-      expect(result.value.isActive).toBe(true)
-      expect(result.value.smartRoutingEnabled).toBe(false)
-      expect(result.value.smartRoutingThreshold).toBe(4)
+      expect(result.value.publicationState).toBe('draft')
     }
   })
 

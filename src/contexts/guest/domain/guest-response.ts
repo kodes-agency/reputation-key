@@ -14,6 +14,7 @@ export type GuestResponseStatus =
   | 'corrected'
   | 'moderated'
   | 'deleted'
+  | 'expired'
 
 export interface GuestResponse {
   readonly id: string
@@ -25,12 +26,17 @@ export interface GuestResponse {
   readonly rating: number | null
   readonly category: string | null
   readonly text: string | null
+  readonly responseConsent: boolean
+  readonly textConsent: boolean
+  readonly mediaConsent: boolean
   readonly contactConsent: boolean
   readonly contactDetails: string | null
+  readonly correctionCount: 0 | 1
   readonly submittedAt: Date | null
   readonly correctedAt: Date | null
   readonly moderatedAt: Date | null
   readonly deletedAt: Date | null
+  readonly retentionDeadline: Date
   readonly schemaVersion: number
 }
 
@@ -54,6 +60,7 @@ export function createResponse(params: {
   propertyId: string
   portalId: string
   sessionId: string
+  retentionDeadline: Date
 }): GuestResponse {
   return {
     id: params.id,
@@ -65,12 +72,17 @@ export function createResponse(params: {
     rating: null,
     category: null,
     text: null,
+    responseConsent: false,
+    textConsent: false,
+    mediaConsent: false,
     contactConsent: false,
     contactDetails: null,
+    correctionCount: 0,
     submittedAt: null,
     correctedAt: null,
     moderatedAt: null,
     deletedAt: null,
+    retentionDeadline: params.retentionDeadline,
     schemaVersion: 1,
   }
 }
@@ -86,6 +98,9 @@ export function submitResponse(
     rating?: number | null
     category?: string | null
     text?: string | null
+    responseConsent?: boolean
+    textConsent?: boolean
+    mediaConsent?: boolean
     contactConsent?: boolean
     contactDetails?: string | null
   },
@@ -93,6 +108,10 @@ export function submitResponse(
 ): GuestResponse | ResponseError {
   if (response.status === 'deleted') {
     return { code: 'already_deleted' }
+  }
+
+  if (response.status !== 'pending') {
+    return { code: 'already_submitted' }
   }
 
   const hasContent =
@@ -114,6 +133,12 @@ export function submitResponse(
     return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
   }
 
+  if (params.rating != null && params.responseConsent === false) {
+    return { code: 'no_content' }
+  }
+  if (text && params.textConsent === false) {
+    return { code: 'no_content' }
+  }
   if (params.contactDetails && !params.contactConsent) {
     return { code: 'contact_without_consent' }
   }
@@ -124,6 +149,9 @@ export function submitResponse(
     rating: params.rating ?? null,
     category: params.category ?? null,
     text: text || null,
+    responseConsent: params.responseConsent ?? params.rating != null,
+    textConsent: params.textConsent ?? text.length > 0,
+    mediaConsent: params.mediaConsent ?? false,
     contactConsent: params.contactConsent ?? false,
     contactDetails: params.contactDetails ?? null,
     submittedAt: now,
@@ -140,6 +168,9 @@ export function correctResponse(
     rating?: number | null
     category?: string | null
     text?: string | null
+    responseConsent?: boolean
+    textConsent?: boolean
+    mediaConsent?: boolean
     contactConsent?: boolean
     contactDetails?: string | null
   },
@@ -150,7 +181,7 @@ export function correctResponse(
     return { code: 'already_deleted' }
   }
 
-  if (response.status === 'pending') {
+  if (response.status === 'pending' || response.correctionCount !== 0) {
     return { code: 'already_submitted' }
   }
 
@@ -175,14 +206,28 @@ export function correctResponse(
     return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
   }
 
+  const rating = params.rating === undefined ? response.rating : params.rating
+  const nextText = params.text === undefined ? response.text : text || null
+  if (rating == null && nextText == null) return { code: 'no_content' }
+  if (params.contactDetails && !params.contactConsent && !response.contactConsent) {
+    return { code: 'contact_without_consent' }
+  }
+
   return {
     ...response,
     status: 'corrected',
-    rating: params.rating ?? response.rating,
-    category: params.category ?? response.category,
-    text: text || response.text,
+    rating,
+    category: params.category === undefined ? response.category : params.category,
+    text: nextText,
+    responseConsent: params.responseConsent ?? response.responseConsent,
+    textConsent: params.textConsent ?? response.textConsent,
+    mediaConsent: params.mediaConsent ?? response.mediaConsent,
     contactConsent: params.contactConsent ?? response.contactConsent,
-    contactDetails: params.contactDetails ?? response.contactDetails,
+    contactDetails:
+      params.contactDetails === undefined
+        ? response.contactDetails
+        : params.contactDetails,
+    correctionCount: 1,
     correctedAt: now,
   }
 }
@@ -218,6 +263,14 @@ export function deleteResponse(
   return {
     ...response,
     status: 'deleted',
+    rating: null,
+    category: null,
+    text: null,
+    responseConsent: false,
+    textConsent: false,
+    mediaConsent: false,
+    contactConsent: false,
+    contactDetails: null,
     deletedAt: now,
   }
 }

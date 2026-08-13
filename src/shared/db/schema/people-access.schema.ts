@@ -16,10 +16,13 @@ import {
   index,
   uniqueIndex,
   pgEnum,
+  foreignKey,
+  check,
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
 import { portalGroups } from './portal-group.schema'
+import { teams } from './team.schema'
 import { createdAtColumn, updatedAtColumn } from '../columns'
 
 // ── Enums ──────────────────────────────────────────────────────────
@@ -73,6 +76,11 @@ export const propertyAccessGrants = pgTable(
     uniqueActiveGrant: uniqueIndex('pag_unique_active')
       .on(t.organizationId, t.propertyId, t.userId, t.kind)
       .where(sql`status = 'active'`),
+    propertyTenantFk: foreignKey({
+      name: 'pag_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
   }),
 )
 
@@ -104,6 +112,20 @@ export const staffParticipations = pgTable(
     uniqueActiveParticipation: uniqueIndex('sp_unique_active')
       .on(t.organizationId, t.propertyId, t.userId)
       .where(sql`status = 'active'`),
+    tenantKey: uniqueIndex('sp_org_property_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    propertyTenantFk: foreignKey({
+      name: 'sp_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    lifecycleCheck: check(
+      'sp_lifecycle_consistent',
+      sql`(${t.status} = 'active' AND ${t.endedAt} IS NULL) OR (${t.status} <> 'active' AND ${t.endedAt} IS NOT NULL)`,
+    ),
   }),
 )
 
@@ -134,6 +156,27 @@ export const teamMemberships = pgTable(
     uniqueActiveLead: uniqueIndex('tm_unique_active_lead')
       .on(t.organizationId, t.teamId)
       .where(sql`role = 'lead' AND effective_to IS NULL`),
+    uniqueActiveParticipation: uniqueIndex('tm_unique_active_participation')
+      .on(t.organizationId, t.propertyId, t.staffParticipationId)
+      .where(sql`effective_to IS NULL`),
+    intervalCheck: check(
+      'tm_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+    teamTenantFk: foreignKey({
+      name: 'tm_team_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.teamId],
+      foreignColumns: [teams.organizationId, teams.propertyId, teams.id],
+    }).onDelete('restrict'),
+    participationTenantFk: foreignKey({
+      name: 'tm_participation_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.staffParticipationId],
+      foreignColumns: [
+        staffParticipations.organizationId,
+        staffParticipations.propertyId,
+        staffParticipations.id,
+      ],
+    }).onDelete('restrict'),
   }),
 )
 
@@ -165,6 +208,61 @@ export const portalResponsibilities = pgTable(
     uniqueActivePrimary: uniqueIndex('pr_unique_active_primary')
       .on(t.organizationId, t.portalId)
       .where(sql`kind = 'primary' AND effective_to IS NULL`),
+    intervalCheck: check(
+      'pr_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+    participationTenantFk: foreignKey({
+      name: 'pr_participation_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.staffParticipationId],
+      foreignColumns: [
+        staffParticipations.organizationId,
+        staffParticipations.propertyId,
+        staffParticipations.id,
+      ],
+    }).onDelete('restrict'),
+  }),
+)
+
+// ── Team Portal-Group Scopes (effective-dated) ─────────────────────
+export const teamPortalGroupScopes = pgTable(
+  'team_portal_group_scopes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    teamId: uuid('team_id').notNull(),
+    portalGroupId: uuid('portal_group_id').notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    endReason: text('end_reason'),
+  },
+  (t) => ({
+    teamIdx: index('tpgs_org_team_idx').on(t.organizationId, t.propertyId, t.teamId),
+    uniqueActiveScope: uniqueIndex('tpgs_unique_active')
+      .on(t.organizationId, t.propertyId, t.teamId, t.portalGroupId)
+      .where(sql`effective_to IS NULL`),
+    intervalCheck: check(
+      'tpgs_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+    teamTenantFk: foreignKey({
+      name: 'tpgs_team_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.teamId],
+      foreignColumns: [teams.organizationId, teams.propertyId, teams.id],
+    }).onDelete('restrict'),
+    portalGroupTenantFk: foreignKey({
+      name: 'tpgs_portal_group_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalGroupId],
+      foreignColumns: [
+        portalGroups.organizationId,
+        portalGroups.propertyId,
+        portalGroups.id,
+      ],
+    }).onDelete('restrict'),
   }),
 )
 

@@ -32,7 +32,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     const loadPropertyRouting = stubLoader({ 'prop-1': US_PROPERTY })
     const router = createProcessingRouter({ loadPropertyRouting, cell: 'us' })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'target',
@@ -58,7 +61,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       'reply.publish',
       'property.import',
     ] as const) {
-      const decision = await router.resolve('prop-1', workloadClass)
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        workloadClass,
+      )
       expect(decision).toMatchObject({ kind: 'target', queue: 'default' })
     }
   })
@@ -73,7 +79,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         cell: 'us',
       })
 
-      const decision = await router.resolve('prop-1', 'reply.publish')
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'reply.publish',
+      )
 
       expect(decision).toEqual({ kind: 'blocked', reason: 'region_denied', region })
     },
@@ -92,7 +101,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         cell: 'us',
       })
 
-      const decision = await router.resolve('prop-1', 'review.sync')
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'review.sync',
+      )
 
       expect(decision).toEqual({
         kind: 'blocked',
@@ -108,7 +120,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       cell: 'us',
     })
 
-    const decision = await router.resolve('prop-gone', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-gone' },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'blocked',
@@ -125,23 +140,93 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       cell: 'europe',
     })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision).toMatchObject({ kind: 'target', cell: 'us' })
   })
 })
 
-describe('workloadClassForJob (BQC-4.2)', () => {
-  it('maps the property-scoped protected jobs to workload classes', () => {
-    expect(workloadClassForJob('sync-property-reviews')).toBe('review.sync')
-    expect(workloadClassForJob('publish-reply')).toBe('reply.publish')
+describe('ProcessingRouter import-item routing', () => {
+  it('routes tenant-keyed work without a Property identity', async () => {
+    const loadPropertyRouting = stubLoader({})
+    const loadImportItemRouting = vi.fn(async () => ({
+      processingRegion: 'us',
+      routingPolicyVersion: 2,
+    }))
+    const router = createProcessingRouter({
+      loadPropertyRouting,
+      loadImportItemRouting,
+      cell: 'us',
+    })
+
+    const decision = await router.resolve(
+      { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
+      'property.import',
+    )
+
+    expect(decision).toMatchObject({
+      kind: 'target',
+      cell: 'us',
+      routingPolicyVersion: 2,
+    })
+    expect(loadImportItemRouting).toHaveBeenCalledWith('org-1', 'item-1')
+    expect(loadPropertyRouting).not.toHaveBeenCalled()
   })
 
-  it('does not route the org-scoped import fan-out or tenant-cross sweeps', () => {
-    // import-property is organization-scoped in the entry-point catalogue —
-    // its per-property effects ride the sync jobs it spawns. Tenant-cross
-    // sweeps (purge, retention, metric refresh) have no property to route.
-    expect(workloadClassForJob('import-property')).toBeUndefined()
+  it('fails closed when the import-item loader is absent', async () => {
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({}),
+      cell: 'us',
+    })
+
+    await expect(
+      router.resolve(
+        { kind: 'import_item', organizationId: 'org-1', itemId: 'item-gone' },
+        'property.import',
+      ),
+    ).resolves.toEqual({
+      kind: 'blocked',
+      reason: 'import_item_missing',
+      region: null,
+    })
+  })
+
+  it('rejects an import-item subject for any non-import workload', async () => {
+    const loadImportItemRouting = vi.fn(async () => ({
+      processingRegion: 'us',
+      routingPolicyVersion: 2,
+    }))
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({}),
+      loadImportItemRouting,
+      cell: 'us',
+    })
+
+    await expect(
+      router.resolve(
+        { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
+        'review.sync',
+      ),
+    ).resolves.toEqual({
+      kind: 'blocked',
+      reason: 'subject_workload_mismatch',
+      region: null,
+    })
+    expect(loadImportItemRouting).not.toHaveBeenCalled()
+  })
+})
+
+describe('workloadClassForJob (BQC-4.2)', () => {
+  it('maps every routed protected job to its workload class', () => {
+    expect(workloadClassForJob('sync-property-reviews')).toBe('review.sync')
+    expect(workloadClassForJob('publish-reply')).toBe('reply.publish')
+    expect(workloadClassForJob('import-gbp-property-item-v2')).toBe('property.import')
+  })
+
+  it('does not route the legacy org fan-out or tenant-cross sweeps', () => {
     expect(workloadClassForJob('purge-expired-reviews')).toBeUndefined()
     expect(workloadClassForJob('health-check')).toBeUndefined()
     expect(workloadClassForJob('unknown-job')).toBeUndefined()
@@ -168,7 +253,10 @@ describe('providerRefForCell (BQC-4.3)', () => {
       cell: 'us',
     })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision.kind).toBe('blocked')
     expect('provider' in decision).toBe(false)

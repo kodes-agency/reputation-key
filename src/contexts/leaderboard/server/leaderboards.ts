@@ -1,5 +1,3 @@
-// Leaderboard context — server functions
-
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -8,56 +6,141 @@ import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import {
-  getLeaderboardSchema,
-  getComparisonMatrixSchema,
+  activateRecognitionSchema,
+  deactivateRecognitionSchema,
+  getRecognitionBoardSchema,
+  getRecognitionSettingsSchema,
 } from '../application/dto/leaderboard.dto'
-import { propertyId } from '#/shared/domain/ids'
 
-export const getLeaderboard = createServerFn({ method: 'GET' })
-  .inputValidator(getLeaderboardSchema)
+export const getRecognitionBoard = createServerFn({ method: 'GET' })
+  .inputValidator(getRecognitionBoardSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({ actor: ctx, action: 'leaderboard.read' })
-          return await getContainer().leaderboardPublicApi.getLeaderboard({
-            organizationId: ctx.organizationId,
-            propertyId: propertyId(data.propertyId),
-            period: data.period,
-            scope: data.scope,
-            metricKey: data.metricKey,
+          const ctx = await resolveTenantContext(await headersFromContext())
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'leaderboard.read',
+            propertyId: data.propertyId,
           })
-        } catch (e) {
-          throw catchUntagged(e)
+          return getContainer().leaderboardPublicApi.recognition.getBoard(
+            {
+              organizationId: ctx.organizationId,
+              userId: ctx.userId,
+              role: ctx.role,
+            },
+            data,
+          )
+        } catch (error) {
+          throw catchUntagged(error)
         }
       },
       'GET',
-      'leaderboard.getLeaderboard',
+      'recognition.getBoard',
     ),
   )
 
-export const getComparisonMatrix = createServerFn({ method: 'GET' })
-  .inputValidator(getComparisonMatrixSchema)
+export const getRecognitionSettings = createServerFn({ method: 'GET' })
+  .inputValidator(getRecognitionSettingsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         try {
-          const headers = await headersFromContext()
-          const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({ actor: ctx, action: 'leaderboard.read' })
-          return await getContainer().leaderboardPublicApi.getComparisonMatrix({
-            organizationId: ctx.organizationId,
-            propertyId: propertyId(data.propertyId),
-            period: data.period,
-            scope: data.scope,
+          const ctx = await resolveTenantContext(await headersFromContext())
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'badge.manage',
+            propertyId: data.propertyId,
           })
-        } catch (e) {
-          throw catchUntagged(e)
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'leaderboard.read',
+            propertyId: data.propertyId,
+          })
+          return getContainer().leaderboardPublicApi.recognition.getSettings(
+            {
+              organizationId: ctx.organizationId,
+              userId: ctx.userId,
+              role: ctx.role,
+            },
+            data.propertyId,
+          )
+        } catch (error) {
+          throw catchUntagged(error)
         }
       },
       'GET',
-      'leaderboard.getComparisonMatrix',
+      'recognition.getSettings',
+    ),
+  )
+
+export const activateRecognition = createServerFn({ method: 'POST' })
+  .inputValidator(activateRecognitionSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const ctx = await resolveTenantContext(await headersFromContext())
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'badge.manage',
+            propertyId: data.propertyId,
+          })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'leaderboard.read',
+            propertyId: data.propertyId,
+          })
+          return getContainer().leaderboardPublicApi.recognition.activate(
+            {
+              organizationId: ctx.organizationId,
+              userId: ctx.userId,
+              role: ctx.role,
+            },
+            data,
+            getContainer().clock(),
+          )
+        } catch (error) {
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'recognition.activate',
+    ),
+  )
+
+export const deactivateRecognition = createServerFn({ method: 'POST' })
+  .inputValidator(deactivateRecognitionSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const ctx = await resolveTenantContext(await headersFromContext())
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'badge.manage',
+            propertyId: data.propertyId,
+          })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'leaderboard.read',
+            propertyId: data.propertyId,
+          })
+          return getContainer().leaderboardPublicApi.recognition.deactivate(
+            {
+              organizationId: ctx.organizationId,
+              userId: ctx.userId,
+              role: ctx.role,
+            },
+            data,
+            getContainer().clock(),
+          )
+        } catch (error) {
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'recognition.deactivate',
     ),
   )

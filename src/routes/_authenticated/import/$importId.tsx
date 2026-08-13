@@ -1,62 +1,93 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import { getImportStatus } from '#/contexts/integration/server/gbp-import'
+import { useServerFn } from '@tanstack/react-start'
+import {
+  getPropertyImportV2Status,
+  listImportAccounts,
+  listImportCandidates,
+  recoverPropertyImportV2,
+  renewImportAuthorizationLease,
+  retryPropertyImportItem,
+  startPropertyImportV2,
+} from '#/contexts/integration/server/gbp-import'
+import {
+  getGoogleAuthUrl,
+  listGoogleConnections,
+} from '#/contexts/integration/server/google-connections'
+import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
+import { useAction } from '#/components/hooks/use-action'
+import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
-import { ImportProgress, useImportJobPolling } from '#/components/features/integration'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { ErrorState } from '#/components/layout/page-states'
 
-// Shared query options factory — importId is a route param, so the options
-// are built per-request. The loader (ensureQueryData) and component
-// (useSuspenseQuery) reference the SAME factory so keys match.
 const importStatusQuery = (importId: string) =>
   queryOptions({
     queryKey: integrationKeys.import(importId),
-    queryFn: () => getImportStatus({ data: { importId } }),
+    queryFn: () => getPropertyImportV2Status({ data: { importJobId: importId } }),
     staleTime: 0,
+    retry: false,
   })
 
+const connectionsQuery = queryOptions({
+  queryKey: integrationKeys.connections(),
+  queryFn: () => listGoogleConnections(),
+  staleTime: 60_000,
+})
+
 export const Route = createFileRoute('/_authenticated/import/$importId')({
+  beforeLoad: async () => {
+    await gateControlledRoute({
+      data: {
+        capability: 'property.import_gbp_v2',
+        featureLabel: 'Google property import',
+      },
+    })
+  },
   staleTime: 0,
   loader: async ({ context, params: { importId } }) => {
-    const result = await context.queryClient.ensureQueryData(importStatusQuery(importId))
-    return { job: result.job }
+    const [progress, connections] = await Promise.all([
+      context.queryClient.ensureQueryData(importStatusQuery(importId)),
+      context.queryClient.ensureQueryData(connectionsQuery),
+    ])
+    return { progress, connections: connections.connections }
   },
   component: ImportProgressPage,
 })
 
 function ImportProgressPage() {
   const { importId } = Route.useParams()
-  const { data } = useSuspenseQuery(importStatusQuery(importId))
-
-  // Delegated to hook — stable interval, error cap, terminal detection
-  const { job, error } = useImportJobPolling(importId, data.job, getImportStatus)
+  const { activeOrganization } = Route.useRouteContext()
+  const { data: progress } = useSuspenseQuery(importStatusQuery(importId))
+  const { data: connectionData } = useSuspenseQuery(connectionsQuery)
+  const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
 
   return (
     <PageShell>
       <PageHeader
-        title="Import Progress"
+        title="Import progress"
+        description="Track each property through the durable import workflow."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
-          { label: 'Import Properties', to: '/import' },
+          { label: 'Import properties', to: '/import' },
           { label: 'Progress' },
         ]}
-        backTo={{ to: '/import', label: 'Back to Import' }}
+        backTo={{ to: '/import', label: 'Back to import' }}
       />
 
-      {!job ? (
-        <ErrorState message="Import job not found or failed to load." />
-      ) : (
-        <>
-          <ImportProgress job={job} />
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              Lost connection to server. Showing last known status.
-            </p>
-          )}
-        </>
-      )}
+      <GoogleImportManager
+        organizationId={activeOrganization?.id ?? 'no-active-organization'}
+        connections={connectionData.connections}
+        initialProgress={progress}
+        getAuthUrl={getAuthUrl}
+        listAccounts={listImportAccounts}
+        listCandidates={listImportCandidates}
+        renewAuthorizationLease={renewImportAuthorizationLease}
+        startImport={startPropertyImportV2}
+        recoverImport={recoverPropertyImportV2}
+        getImportStatus={getPropertyImportV2Status}
+        retryImportItem={retryPropertyImportItem}
+      />
     </PageShell>
   )
 }

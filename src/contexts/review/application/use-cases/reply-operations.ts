@@ -279,8 +279,8 @@ export const approveReply =
       {
         replyId: approved.id,
         organizationId: approved.organizationId,
-        // BQC-3.2: named initiator for operator/user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        // Named attribution for operator/user-triggered delayed work.
+        initiator: { kind: 'user', id: ctx.userId },
       },
       { idempotencyKey: buildIdempotencyKey(approved.id, approved.updatedAt.getTime()) },
     )
@@ -369,7 +369,7 @@ export const editPublishedReply =
       {
         replyId: updated.id,
         organizationId: updated.organizationId,
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        initiator: { kind: 'user', id: ctx.userId },
       },
       { idempotencyKey: buildIdempotencyKey(updated.id, updated.updatedAt.getTime()) },
     )
@@ -554,8 +554,8 @@ export const retryPublish =
       {
         replyId: backToApproved.id,
         organizationId: backToApproved.organizationId,
-        // BQC-3.2: named initiator for operator/user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        // Named attribution for operator/user-triggered delayed work.
+        initiator: { kind: 'user', id: ctx.userId },
       },
       {
         idempotencyKey: buildIdempotencyKey(

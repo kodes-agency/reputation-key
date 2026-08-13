@@ -552,9 +552,9 @@ describe('dashboardRepository (integration)', () => {
       // Seed portal
       await pool.query(
         `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug)
-         VALUES ($1, $2, $3, 'property', $3, 'Test Portal', 'test-portal')
+         VALUES ($1, $2, $3, 'property', $4, 'Test Portal', 'test-portal')
          ON CONFLICT (id) DO NOTHING`,
-        [PORTAL_A, ORG_A, PROP_A],
+        [PORTAL_A, ORG_A, PROP_A, PROP_A],
       )
 
       // Seed metric readings for the portal

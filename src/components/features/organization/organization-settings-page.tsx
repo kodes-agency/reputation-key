@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAction, type Action } from '#/components/hooks/use-action'
 import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
@@ -15,6 +16,7 @@ import type {
   finalizeOrgLogoUpload,
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
+import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 
 type OrgData = Readonly<{
   id: string
@@ -56,6 +58,7 @@ export function OrganizationSettingsPage({
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const updateOrg = useAction(useServerFn(updateOrganizationFn))
   const requestUpload = useServerFn(requestOrgLogoUploadFn)
   const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
@@ -115,11 +118,12 @@ export function OrganizationSettingsPage({
       <OrganizationSwitchList
         organizations={organizations}
         activeOrganizationId={activeOrganizationId}
-        onSwitch={(orgId) =>
-          switchOrg({ data: { organizationId: orgId } }).then(() =>
+        onSwitch={async (orgId) => {
+          await switchOrg({ data: { organizationId: orgId } })
+          await clearTenantCacheBeforeNavigation(queryClient, () =>
             navigate({ to: '/properties' }),
           )
-        }
+        }}
         isPending={switchOrg.isPending}
       />
     </div>

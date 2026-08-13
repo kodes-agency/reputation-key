@@ -17,7 +17,6 @@ import {
 import type { MetricKey, AggregationFunction } from '#/shared/domain/metric-keys'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId, PortalId, PortalGroupId } from '#/shared/domain/ids'
-import { portalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
 
@@ -136,7 +135,14 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fa
     },
   }
 
-  let aggregateResponse: MetricReadingsAggregate = { sum: 0, count: 0, max: 0 }
+  let aggregateResponse: MetricReadingsAggregate = {
+    sum: 0,
+    count: 0,
+    max: 0,
+    available: true,
+    sampleCount: 1,
+    minimumSample: 1,
+  }
   const queries: MetricReadingsQuery[] = []
 
   const metricRepo: FakeMetricRepo = {
@@ -171,11 +177,11 @@ const BASE_INPUT = {
   propertyId: propertyId('prop-1'),
   portalId: null as PortalId | null,
   portalGroupId: null as PortalGroupId | null,
-  name: 'Reach 4.5 average Google rating',
+  name: 'Complete the approved Portal workflow',
   description: null as string | null,
-  metricKey: 'property.review' as MetricKey,
+  metricKey: 'portal.configuration_completeness' as MetricKey,
   aggregationFunction: 'avg' as AggregationFunction,
-  targetValue: 4.5,
+  targetValue: 90,
 }
 
 describe('createGoal', () => {
@@ -188,14 +194,21 @@ describe('createGoal', () => {
   // ── Open goal ────────────────────────────────────────────────────────
   describe('open goal', () => {
     it('creates an open goal at property scope and inserts goal + progress', async () => {
-      fakes.metricRepo._setAggregate({ sum: 50, count: 50, max: 1 })
+      fakes.metricRepo._setAggregate({
+        sum: 50,
+        count: 50,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {
           ...BASE_INPUT,
           goalType: 'open',
-          metricKey: 'property.review' as MetricKey,
-          aggregationFunction: 'count' as AggregationFunction,
+          metricKey: 'portal.content_review.completed' as MetricKey,
+          aggregationFunction: 'sum' as AggregationFunction,
           targetValue: 200,
         },
         ctxFor('AccountAdmin'),
@@ -230,7 +243,7 @@ describe('createGoal', () => {
 
       const queries = fakes.metricRepo._getQueries()
       expect(queries).toHaveLength(1)
-      expect(queries[0]!.metricKey).toBe('property.review')
+      expect(queries[0]!.metricKey).toBe('portal.configuration_completeness')
       expect(queries[0]!.periodStart).toBeUndefined()
       expect(queries[0]!.periodEnd).toBeUndefined()
       expect(queries[0]!.rollingWindowDays).toBeUndefined()
@@ -315,14 +328,21 @@ describe('createGoal', () => {
   // ── Recurring goal ───────────────────────────────────────────────────
   describe('recurring goal', () => {
     it('creates template + first instance + instance progress', async () => {
-      fakes.metricRepo._setAggregate({ sum: 10, count: 5, max: 4 })
+      fakes.metricRepo._setAggregate({
+        sum: 10,
+        count: 5,
+        max: 4,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {
           ...BASE_INPUT,
           goalType: 'recurring',
-          portalId: portalId('portal-1'),
-          metricKey: 'portal.scan' as MetricKey,
+          portalGroupId: portalGroupId('pg-1'),
+          metricKey: 'portal.content_review.completed' as MetricKey,
           aggregationFunction: 'sum' as AggregationFunction,
           targetValue: 200,
           recurrenceRule: { frequency: 'monthly' },
@@ -364,8 +384,8 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'recurring',
-          portalId: portalId('portal-1'),
-          metricKey: 'portal.scan' as MetricKey,
+          portalGroupId: portalGroupId('pg-1'),
+          metricKey: 'portal.content_review.completed' as MetricKey,
           aggregationFunction: 'sum' as AggregationFunction,
           targetValue: 200,
           recurrenceRule: { frequency: 'weekly' },
@@ -386,8 +406,8 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'recurring',
-          portalId: portalId('portal-1'),
-          metricKey: 'portal.scan' as MetricKey,
+          portalGroupId: portalGroupId('pg-1'),
+          metricKey: 'portal.content_review.completed' as MetricKey,
           aggregationFunction: 'sum' as AggregationFunction,
           targetValue: 200,
           recurrenceRule: { frequency: 'quarterly' },
@@ -407,16 +427,22 @@ describe('createGoal', () => {
   // ── AVG aggregation ──────────────────────────────────────────────────
   describe('AVG aggregation', () => {
     it('stores currentSum and currentCount for AVG', async () => {
-      fakes.metricRepo._setAggregate({ sum: 24, count: 6, max: 5 })
+      fakes.metricRepo._setAggregate({
+        sum: 24,
+        count: 6,
+        max: 5,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {
           ...BASE_INPUT,
           goalType: 'open',
-          portalId: portalId('portal-1'),
-          metricKey: 'portal.rating',
+          metricKey: 'portal.configuration_completeness',
           aggregationFunction: 'avg',
-          targetValue: 4.5,
+          targetValue: 90,
         },
         ctxFor('AccountAdmin'),
       )
@@ -432,9 +458,7 @@ describe('createGoal', () => {
 
   // ── Permission guard ─────────────────────────────────────────────────
   describe('permission guard', () => {
-    it('allows Staff to create a goal', async () => {
-      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
-
+    it('keeps Staff read-only', async () => {
       const result = await createGoal(fakes.deps)(
         {
           ...BASE_INPUT,
@@ -443,12 +467,20 @@ describe('createGoal', () => {
         ctxFor('Staff'),
       )
 
-      expect(result.isOk()).toBe(true)
-      expect(fakes.goals).toHaveLength(1)
+      expect(result.isErr()).toBe(true)
+      expect(result._unsafeUnwrapErr().tag).toBe('forbidden')
+      expect(fakes.goals).toHaveLength(0)
     })
 
     it('allows AccountAdmin to create a goal', async () => {
-      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+      fakes.metricRepo._setAggregate({
+        sum: 0,
+        count: 0,
+        max: 0,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {
@@ -462,7 +494,14 @@ describe('createGoal', () => {
     })
 
     it('allows PropertyManager to create a goal', async () => {
-      fakes.metricRepo._setAggregate({ sum: 0, count: 0, max: 0 })
+      fakes.metricRepo._setAggregate({
+        sum: 0,
+        count: 0,
+        max: 0,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {
@@ -551,8 +590,7 @@ describe('createGoal', () => {
         {
           ...BASE_INPUT,
           goalType: 'open',
-          portalId: portalId('portal-1'),
-          metricKey: 'portal.scan',
+          metricKey: 'portal.content_review.completed',
           aggregationFunction: 'avg',
         },
         ctxFor('AccountAdmin'),
@@ -579,7 +617,14 @@ describe('createGoal', () => {
   describe('tenant isolation', () => {
     it('scopes metric aggregate query to the input organizationId', async () => {
       const OTHER_ORG = organizationId('org-isolated')
-      fakes.metricRepo._setAggregate({ sum: 42, count: 42, max: 1 })
+      fakes.metricRepo._setAggregate({
+        sum: 42,
+        count: 42,
+        max: 1,
+        available: true,
+        sampleCount: 1,
+        minimumSample: 1,
+      })
 
       const result = await createGoal(fakes.deps)(
         {

@@ -23,10 +23,12 @@ function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
 // Stable mock functions so we can control return values per-test.
 const mocks = vi.hoisted(() => ({
   getGoal: vi.fn(),
+  getGoalScope: vi.fn(),
   resolveTenantContext: vi.fn(),
 }))
 
-vi.mock('#/shared/observability/logger', () => {
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
   const logger = {
     info: () => {},
     warn: () => {},
@@ -34,7 +36,7 @@ vi.mock('#/shared/observability/logger', () => {
     debug: () => {},
     child: () => logger,
   }
-  return { getLogger: () => logger }
+  return { ...actual, getLogger: () => logger }
 })
 
 vi.mock('#/shared/auth/headers', () => ({
@@ -69,6 +71,9 @@ vi.mock('#/composition', () => ({
     useCases: {
       getGoal: mocks.getGoal,
     },
+    goalRepo: {
+      getById: mocks.getGoalScope,
+    },
   })),
 }))
 
@@ -86,6 +91,11 @@ describe('getGoal handler (executable)', () => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(TEST_CTX)
     requireExecutionAllowedMock.mockImplementation(() => {})
+    mocks.getGoalScope.mockResolvedValue({
+      id: 'goal-1',
+      organizationId: TEST_CTX.organizationId,
+      propertyId: 'property-1',
+    })
   })
 
   it('invokes the getGoal use case with the caller organizationId and role', async () => {
@@ -105,6 +115,9 @@ describe('getGoal handler (executable)', () => {
     expect(ctx.organizationId).toBe('org-test-aaaa')
     expect(ctx.role).toBe('AccountAdmin')
     expect(requireExecutionAllowedMock).toHaveBeenCalled()
+    expect(requireExecutionAllowedMock).toHaveBeenCalledWith(
+      expect.objectContaining({ propertyId: 'property-1' }),
+    )
   })
 
   it('throws a 404 ServerFunctionError when the use case returns goal_not_found', async () => {

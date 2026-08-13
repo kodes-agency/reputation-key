@@ -5,6 +5,7 @@ node_modules
 .output
 dist
 dist-worker
+dist-google-import-compatibility
 storybook-static
 coverage
 test-results

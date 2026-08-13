@@ -113,6 +113,7 @@ describe('connectGoogleInputSchema', () => {
       code: 'auth-code-123',
       visibility: 'organization',
       stateNonce: 'state-nonce-1',
+      oauthContractVersion: 'v1',
     })
     expect(result.success).toBe(true)
   })
@@ -121,6 +122,7 @@ describe('connectGoogleInputSchema', () => {
     const result = connectGoogleInputSchema.safeParse({
       code: 'auth-code-123',
       stateNonce: 'state-nonce-1',
+      oauthContractVersion: 'v1',
     })
     expect(result.success).toBe(true)
     if (result.success) {

@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Filters by organizationId AND visibility/connectedBy for proper access control.
 
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import type {
@@ -34,28 +34,25 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  findByGoogleAccountId: async (orgId, googleAccountId) => {
-    return trace('googleConnection.findByGoogleAccountId', async () => {
+  findByGoogleIdentity: async (orgId, identity) => {
+    return trace('googleConnection.findByGoogleIdentity', async () => {
+      const identityFilter = eq(googleConnections.googleSubject, identity.googleSubject)
       const rows = await db
         .select()
         .from(googleConnections)
-        .where(
-          and(
-            eq(googleConnections.organizationId, orgId),
-            eq(googleConnections.googleAccountId, googleAccountId),
-          ),
-        )
+        .where(and(eq(googleConnections.organizationId, orgId), identityFilter))
         .limit(1)
       return rows[0] ? googleConnectionFromRow(rows[0]) : null
     })
   },
 
-  findByGoogleAccountIdGlobal: async (googleAccountId) => {
-    return trace('googleConnection.findByGoogleAccountIdGlobal', async () => {
+  findByGoogleIdentityGlobal: async (identity) => {
+    return trace('googleConnection.findByGoogleIdentityGlobal', async () => {
+      const identityFilter = eq(googleConnections.googleSubject, identity.googleSubject)
       const rows = await db
         .select()
         .from(googleConnections)
-        .where(eq(googleConnections.googleAccountId, googleAccountId))
+        .where(identityFilter)
         .limit(1)
       return rows[0] ? googleConnectionFromRow(rows[0]) : null
     })
@@ -89,9 +86,7 @@ export const createGoogleConnectionRepository = (
           'code' in err &&
           (err as { code: string }).code === '23505'
         if (isPg23505) {
-          throw uniqueViolationError(
-            `Duplicate google connection for accountId=${conn.googleAccountId}`,
-          )
+          throw uniqueViolationError('Duplicate Google connection identity')
         }
         throw err
       }
@@ -100,17 +95,25 @@ export const createGoogleConnectionRepository = (
 
   updateTokens: async (orgId, id, accessToken, refreshToken, expiresAt) => {
     return trace('googleConnection.updateTokens', async () => {
-      await db
+      const rows = await db
         .update(googleConnections)
         .set({
           encryptedAccessToken: accessToken,
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
+          credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+          accessVersion: sql`${googleConnections.accessVersion} + 1`,
           updatedAt: new Date(),
         })
         .where(
-          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+          and(
+            eq(googleConnections.organizationId, orgId),
+            eq(googleConnections.id, id),
+            eq(googleConnections.credentialUseState, 'active'),
+          ),
         )
+        .returning({ id: googleConnections.id })
+      return rows.length === 1
     })
   },
 
@@ -130,10 +133,16 @@ export const createGoogleConnectionRepository = (
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
           status,
+          credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+          accessVersion: sql`${googleConnections.accessVersion} + 1`,
           updatedAt: new Date(),
         })
         .where(
-          and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
+          and(
+            eq(googleConnections.organizationId, orgId),
+            eq(googleConnections.id, id),
+            eq(googleConnections.credentialUseState, 'active'),
+          ),
         )
     })
   },
@@ -144,6 +153,7 @@ export const createGoogleConnectionRepository = (
         .update(googleConnections)
         .set({
           status,
+          lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
           updatedAt: new Date(),
         })
         .where(
@@ -159,9 +169,13 @@ export const createGoogleConnectionRepository = (
         .set({
           encryptedAccessToken: 'redacted',
           encryptedRefreshToken: 'redacted',
-          googleEmail: 'redacted',
-          googleAccountId: `redacted:${id}`,
+          googleSubject: null,
           scopes: [],
+          credentialUseState: 'none',
+          cleanupMaterialDeadlineAt: null,
+          lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+          accessVersion: sql`${googleConnections.accessVersion} + 1`,
+          credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
           updatedAt: new Date(),
         })
         .where(
@@ -176,6 +190,7 @@ export const createGoogleConnectionRepository = (
         .update(googleConnections)
         .set({
           visibility,
+          accessVersion: sql`${googleConnections.accessVersion} + 1`,
           updatedAt: new Date(),
         })
         .where(
@@ -201,6 +216,11 @@ export const createGoogleConnectionRepository = (
           tokenExpiresAt: expiresAt,
           status: 'active',
           visibility,
+          credentialUseState: 'active',
+          cleanupMaterialDeadlineAt: null,
+          lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+          accessVersion: sql`${googleConnections.accessVersion} + 1`,
+          credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
           updatedAt: new Date(),
         })
         .where(

@@ -19,19 +19,28 @@ export function PortalDetailTabs({
   onValueChange,
   children,
 }: Readonly<{
-  value: string
-  onValueChange: (v: string) => void
+  value: (typeof TABS)[number]['value']
+  onValueChange: (value: (typeof TABS)[number]['value']) => void
   children?: ReactNode
 }>) {
   return (
-    <Tabs value={value} onValueChange={onValueChange}>
-      <TabsList>
-        {TABS.map(({ value: v, Icon, label }) => (
-          <TabsTrigger key={v} value={v} className="gap-1.5">
-            <Icon className="size-3.5" /> {label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+    <Tabs
+      value={value}
+      onValueChange={(next) => onValueChange(next as (typeof TABS)[number]['value'])}
+    >
+      <div className="w-full overflow-x-auto pb-1">
+        <TabsList className="min-w-max">
+          {TABS.map(({ value: tabValue, Icon, label }) => (
+            <TabsTrigger
+              key={tabValue}
+              value={tabValue}
+              className="min-h-11 gap-1.5 px-3 sm:min-h-9"
+            >
+              <Icon className="size-3.5" /> {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
       {TABS.map(({ value: v }) => (
         <TabsContent key={v} value={v} forceMount hidden={value !== v ? true : undefined}>
           {value === v ? children : null}

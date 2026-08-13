@@ -1,15 +1,11 @@
-// Portal detail page — tabbed layout (Settings / Links / Share / Analytics).
-// The active tab is read from `window.location.search` (?tab=...). To story a
-// specific tab we set that param before render via a render wrapper (each
-// variant pins its tab). The settings tab renders PortalSettings → EditPortalForm
-// (uses usePermissions), and the links tab renders LinkTree (value-imports 8
-// server fns — on the boundary ALLOWLIST; no calls fire on mount). Both need
-// the `/_authenticated` route context → AuthedRouterDecorator.
+// Portal detail page — tabbed layout driven by the owning route's typed search state.
+// Components receive the active tab and navigation callback, so stories and SSR use
+// the same deterministic state without reading or mutating window.location.
 //
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
@@ -35,10 +31,9 @@ const portal = {
   description: 'Main guest-facing portal with links and feedback.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
-  smartRoutingEnabled: true,
-  smartRoutingThreshold: 4,
+  propertyId: 'prop-1',
   organizationId: 'org-1',
-  isActive: true,
+  publicationState: 'published' as const,
 }
 
 const categories: readonly LinkTreeCategory[] = [
@@ -74,6 +69,24 @@ const idleMutation = Object.assign(
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<UpdatePortalVariables, { success: true }>
 
+const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
+const issueTokenMutation = Object.assign(
+  async (_input: { data: { portalId: string; printBatch?: string } }) => ({
+    publicUrl,
+  }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<{ data: { portalId: string; printBatch?: string } }, { publicUrl: string }>
+const rotateTokenMutation = Object.assign(
+  async (_input: { data: { portalId: string } }) => ({ publicUrl }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<{ data: { portalId: string } }, { publicUrl: string }>
+const revokeTokenMutation = Object.assign(
+  async (_input: { data: { portalId: string; reason: string } }) => ({
+    revoked: true,
+  }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<{ data: { portalId: string; reason: string } }, { revoked: boolean }>
+
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
 }) => ({ uploadUrl: 'https://upload.example.com/presigned', key: 'hero-key' })
@@ -101,73 +114,58 @@ const getPortalAnalytics = mockServerFn(async (_input: unknown) => ({
   ratingTrend: [],
 })) as unknown as typeof getPortalAnalyticsFn
 
-// Pin the active tab in window.location.search before render — the component
-// reads it synchronously on mount. Preserves the storybook iframe's own query
-// params (id=…&viewMode=…).
-function withTab(tab: string, children: React.ReactNode) {
-  if (typeof window !== 'undefined') {
-    const url = new URL(window.location.href)
-    url.searchParams.set('tab', tab)
-    window.history.replaceState(null, '', url.toString())
-  }
-  return <>{children}</>
-}
-
 const baseArgs = {
   portal,
   organizationName: 'Acme Hotels',
-  propertySlug: 'acme-hotel',
   propertyId: 'prop-1',
   categories,
   links,
   updateMutation: idleMutation,
+  issueTokenMutation,
+  rotateTokenMutation,
+  revokeTokenMutation,
   requestUploadUrl,
   finalizeUpload,
   getPortalAnalytics,
+  activeTab: 'settings' as const,
+  onTabChange: fn(),
 }
 
-// Default = settings tab (the component's own default when ?tab is absent).
 export const SettingsTab: Story = {
   args: baseArgs,
-  render: (args) => withTab('settings', <PortalDetailPage {...args} />),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
   },
 }
 
-// Links tab → LinkTree (allowlisted value-imports; renders read-only here).
 export const LinksTab: Story = {
-  args: { ...baseArgs },
-  render: (args) => withTab('links', <PortalDetailPage {...args} />),
-  play: async () => {
-    // Links tab renders the link tree (play simplified to avoid tab/query param flakiness in test env).
-    // axe stays enabled (BQC-6.8).
-  },
+  args: { ...baseArgs, activeTab: 'links' },
 }
 
-// Share tab → guest URL + copy/QR actions.
+// Share tab generates and displays the opaque URL through the route-owned action.
 export const ShareTab: Story = {
-  args: { ...baseArgs },
-  render: (args) => withTab('share', <PortalDetailPage {...args} />),
+  args: {
+    ...baseArgs,
+    activeTab: 'share',
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('/p/acme-hotel/guest-services')).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: /generate public link/i }))
+    await expect(await canvas.findByText(publicUrl)).toBeInTheDocument()
+    await expect(canvas.getByText(/save this link now/i)).toBeInTheDocument()
   },
 }
 
 // Analytics tab → fires getPortalAnalytics on mount (mock returns empty →
 // the "no analytics data yet" empty state renders).
 export const AnalyticsTab: Story = {
-  args: { ...baseArgs },
-  render: (args) => withTab('analytics', <PortalDetailPage {...args} />),
+  args: { ...baseArgs, activeTab: 'analytics' },
 }
 
-// Settings tab while a save is in flight — Save button shows "Saving...",
-// active toggle disabled.
+// Settings tab while a save is in flight.
 export const SettingsSaving: Story = {
-  args: { ...baseArgs, updateMutation: pendingMutation },
-  render: (args) => withTab('settings', <PortalDetailPage {...args} />),
+  args: { ...baseArgs, activeTab: 'settings', updateMutation: pendingMutation },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: /saving/i })).toBeInTheDocument()

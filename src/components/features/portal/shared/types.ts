@@ -4,6 +4,8 @@
 
 export type FormLike = { handleSubmit: () => void }
 
+export type PortalPublicationState = 'draft' | 'published' | 'disabled' | 'archived'
+
 export type PortalData = Readonly<{
   id: string
   name: string
@@ -11,9 +13,7 @@ export type PortalData = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: { primaryColor: string }
-  smartRoutingEnabled: boolean
-  smartRoutingThreshold: number
-  isActive: boolean
+  publicationState: PortalPublicationState
 }>
 
 export type UpdatePortalVariables = {
@@ -23,8 +23,6 @@ export type UpdatePortalVariables = {
     slug?: string
     description?: string | null
     theme?: { primaryColor: string }
-    smartRoutingEnabled?: boolean
-    smartRoutingThreshold?: number
-    isActive?: boolean
+    publicationState?: PortalPublicationState
   }
 }

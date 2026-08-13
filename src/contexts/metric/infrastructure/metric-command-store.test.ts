@@ -1,141 +1,125 @@
-// BQC-3.5 — atomic metric command store contract tests.
-//
-// The single command must commit its metric_readings insert and its
-// outbox_events row in ONE transaction, then emit on the in-process bus
-// AFTER commit:
-//   ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit']
-// A failing fact insert rolls back — no reading, no emit. A post-commit bus
-// failure must not propagate.
-
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createAtomicMetricCommandStore } from './metric-command-store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
 import {
-  organizationId,
-  propertyId,
-  portalId,
   metricReadingId,
+  organizationId,
   portalGroupId,
+  propertyId,
 } from '#/shared/domain/ids'
-import type { MetricReading } from '../domain/types'
-import { metricRecorded } from '../domain/events'
+import { createReading, type MetricReading } from '../domain/metric-reading'
+import { metricRecorded, type MetricRecorded } from '../domain/events'
+import { createAtomicMetricCommandStore } from './metric-command-store'
 
 vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-    child: () => ({
-      info: () => {},
-      warn: () => {},
-      error: () => {},
-      debug: () => {},
-    }),
-  }),
+  getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
 }))
-
 vi.mock('#/shared/observability/trace', () => ({
   trace: async (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
 
-const NOW = new Date('2026-06-01T12:00:00.000Z')
-const ORG_ID = organizationId('org-metric-cmd-000000000000001')
-const PROP_ID = propertyId('a0000000-0000-0000-0000-0000000000a1')
-const PORTAL_ID = portalId('b0000000-0000-0000-0000-0000000000b1')
-const GROUP_ID = portalGroupId('c0000000-0000-0000-0000-0000000000c1')
-const READING_ID = metricReadingId('d0000000-0000-0000-0000-0000000000d1')
+const NOW = new Date('2026-08-08T12:00:00.000Z')
+const ORG_ID = organizationId('org-metric-command')
+const PROP_ID = propertyId('a0000000-0000-4000-8000-0000000000a1')
+const GROUP_ID = portalGroupId('c0000000-0000-4000-8000-0000000000c1')
+const READING_ID = metricReadingId('d0000000-0000-4000-8000-0000000000d1')
 
-function makeReading(overrides: Partial<MetricReading> = {}): MetricReading {
-  return {
+const makeReading = (overrides: Partial<MetricReading> = {}): MetricReading =>
+  createReading({
     id: READING_ID,
+    definitionVersionId: '11111111-1111-4111-8111-111111111101',
+    metricKey: 'portal.content_review.completed',
     organizationId: ORG_ID,
     propertyId: PROP_ID,
-    portalId: PORTAL_ID,
-    metricKey: 'portal.scan',
+    portalGroupId: GROUP_ID,
+    portalId: null,
     value: 1,
-    groupId: GROUP_ID,
+    sampleCount: 1,
+    sourceEventId: 'source-event-1',
+    sourcePolicy: 'first_party_workflow',
     occurredAt: NOW,
+    propertyLocalDate: '2026-08-08',
+    attributionQuality: 'exact',
+    retentionClass: 'standard',
+    now: NOW,
     ...overrides,
-  }
-}
+  })
 
-const recordedEvent = (reading: MetricReading = makeReading()) =>
+const recordedEvent = (reading = makeReading()) =>
   metricRecorded({
     readingId: reading.id,
     organizationId: reading.organizationId,
     propertyId: reading.propertyId,
     portalId: reading.portalId,
-    groupId: reading.groupId,
+    portalGroupId: reading.portalGroupId,
+    definitionVersionId: reading.definitionVersionId,
+    sourceEventId: reading.sourceEventId,
+    sourcePolicy: reading.sourcePolicy,
     metricKey: reading.metricKey,
     value: reading.value,
+    numerator: reading.numerator,
+    denominator: reading.denominator,
+    sampleCount: reading.sampleCount,
+    attributionQuality: reading.attributionQuality,
+    permittedConsumers: ['dashboard', 'goal'],
     occurredAt: reading.occurredAt,
   })
 
-type MockTx = {
-  insert: ReturnType<typeof vi.fn>
-}
-
-/**
- * Mocked drizzle transaction recording the crash-boundary ordering.
- * The reading insert echoes its values back via RETURNING (explicit id).
- */
-function createMockDb(opts: {
-  order: string[]
-  outboxRows?: Array<Record<string, unknown>>
-  stateValues?: Array<Record<string, unknown>>
-}) {
-  const { order } = opts
-  const tx: MockTx = {
+const createMockDb = (order: string[]) => {
+  const stateValues: Array<Record<string, unknown>> = []
+  const outboxRows: Array<Record<string, unknown>> = []
+  const tx = {
     insert: vi.fn((table: unknown) => {
       if (table === outboxEvents) {
         order.push('tx.outbox')
         return {
           values: vi.fn(async (row: Record<string, unknown>) => {
-            opts.outboxRows?.push(row)
+            outboxRows.push(row)
           }),
         }
       }
       order.push('tx.state')
       return {
         values: vi.fn((row: Record<string, unknown>) => {
-          opts.stateValues?.push(row)
-          return { returning: vi.fn(async () => [row]) }
+          stateValues.push(row)
+          return {
+            onConflictDoNothing: vi.fn(() => ({
+              returning: vi.fn(async () => [{ id: row.id }]),
+            })),
+          }
         }),
       }
     }),
   }
   const db = {
-    transaction: vi.fn(async (fn: (txArg: MockTx) => Promise<unknown>) => {
+    transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) => {
       order.push('tx.start')
       try {
-        const result = await fn(tx)
+        const result = await work(tx)
         order.push('tx.commit')
         return result
-      } catch (err) {
+      } catch (error) {
         order.push('tx.rollback')
-        throw err
+        throw error
       }
     }),
   }
-  return { db: db as unknown as Database, tx }
+  return { db: db as unknown as Database, stateValues, outboxRows }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
+const makeEvents = (order: string[], fail = false): EventBus => ({
+  on: vi.fn(),
+  emit: vi.fn(async () => {
+    if (fail) throw new Error('bus down')
+    order.push('emit')
+  }),
+  clear: vi.fn(),
+})
 
 describe('createAtomicMetricCommandStore', () => {
   beforeEach(() => {
@@ -144,90 +128,151 @@ describe('createAtomicMetricCommandStore', () => {
     registerAllEventSchemas()
   })
 
-  describe('recordMetric', () => {
-    it('commits reading insert + recorded fact in one tx before emit', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const stateValues: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, outboxRows, stateValues })
-      const events = makeEvents(order)
-      const store = createAtomicMetricCommandStore(db, events)
-      const reading = makeReading()
-      const event = recordedEvent(reading)
+  it('commits governed reading and outbox fact before emitting', async () => {
+    const order: string[] = []
+    const { db, stateValues, outboxRows } = createMockDb(order)
+    const store = createAtomicMetricCommandStore(db, makeEvents(order))
+    const reading = makeReading()
+    const result = await store.recordMetric({ reading, event: recordedEvent(reading) })
 
-      const result = await store.recordMetric({ reading, event })
-
-      expect(result.id).toBe(READING_ID)
-      expect(result.groupId).toBe(GROUP_ID)
-      expect(stateValues).toHaveLength(1)
-      // Explicit id — the fact's readingId must match the committed row.
-      expect(stateValues[0]!.id).toBe(READING_ID as string)
-      expect(outboxRows).toHaveLength(1)
-      expect(outboxRows[0]!.eventType).toBe('metric.recorded')
-      expect(outboxRows[0]!.id).toBe(event.eventId)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+    expect(result).toEqual({ status: 'recorded', reading })
+    expect(stateValues[0]).toMatchObject({
+      id: READING_ID,
+      definitionVersionId: reading.definitionVersionId,
+      sourceEventId: 'source-event-1',
+      exactValue: 1,
+      propertyLocalDate: '2026-08-08',
     })
-
-    it('rolls back the reading when the fact cannot convert (unregistered type)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicMetricCommandStore(db, events)
-      const ghost = {
-        ...recordedEvent(),
-        _tag: 'metric.ghost',
-      } as unknown as ReturnType<typeof recordedEvent>
-
-      await expect(
-        store.recordMetric({ reading: makeReading(), event: ghost }),
-      ).rejects.toThrowError(
-        /Event type metric\.ghost:v1 is not registered for the outbox/,
-      )
-
-      expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
-      // toOutboxEvent throws while building the outbox insert's values — the
-      // query builder was invoked but no row was written, and the tx rolled back.
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.rollback'])
-    })
+    expect(outboxRows).toHaveLength(1)
+    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
   })
 
-  describe('emit failure isolation', () => {
-    it('a post-commit bus failure does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order, true)
-      const store = createAtomicMetricCommandStore(db, events)
+  it('rolls back the reading when the outbox fact is invalid', async () => {
+    const order: string[] = []
+    const { db } = createMockDb(order)
+    const events = makeEvents(order)
+    const ghost = {
+      ...recordedEvent(),
+      _tag: 'metric.ghost',
+    } as unknown as MetricRecorded
 
-      const result = await store.recordMetric({
+    await expect(
+      createAtomicMetricCommandStore(db, events).recordMetric({
         reading: makeReading(),
-        event: recordedEvent(),
-      })
-
-      expect(result.id).toBe(READING_ID)
-      expect(outboxRows).toHaveLength(1)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
-    })
+        event: ghost,
+      }),
+    ).rejects.toThrow(/Event type metric\.ghost:v1 is not registered for the outbox/)
+    expect(events.emit).not.toHaveBeenCalled()
+    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.rollback'])
   })
 
-  describe('identifier-only payload enforcement (schema allowlist, BQC-3.5 fix)', () => {
-    it('metric.recorded passes schema validation with the real producer payload', () => {
-      const row = toOutboxEvent(recordedEvent())
-      expect(row.eventType).toBe('metric.recorded')
-      expect(() => validateEventPayload('metric.recorded', 1, row.payload)).not.toThrow()
+  it('retains the durable fact when post-commit bus emission fails', async () => {
+    const order: string[] = []
+    const { db, outboxRows } = createMockDb(order)
+    const result = await createAtomicMetricCommandStore(
+      db,
+      makeEvents(order, true),
+    ).recordMetric({
+      reading: makeReading(),
+      event: recordedEvent(),
     })
 
-    it('the recorded payload carries occurredAt (not the legacy recordedAt)', () => {
-      const row = toOutboxEvent(recordedEvent())
-      const payload = row.payload as Record<string, unknown>
-      expect(payload.occurredAt).toBe(NOW.toISOString())
-      expect(payload).not.toHaveProperty('recordedAt')
-      expect(payload.organizationId).toBe(ORG_ID as string)
-      expect(payload.propertyId).toBe(PROP_ID as string)
-      expect(payload.metricKey).toBe('portal.scan')
-      expect(payload.value).toBe(1)
+    expect(result.status).toBe('recorded')
+    expect(outboxRows).toHaveLength(1)
+    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
+  })
+
+  it('publishes an identifier-only provenance payload accepted by the schema', () => {
+    const row = toOutboxEvent(recordedEvent())
+    const payload = row.payload as Record<string, unknown>
+    expect(() => validateEventPayload('metric.recorded', 1, payload)).not.toThrow()
+    expect(payload).toMatchObject({
+      readingId: READING_ID,
+      definitionVersionId: '11111111-1111-4111-8111-111111111101',
+      sourceEventId: 'source-event-1',
+      permittedConsumers: ['dashboard', 'goal'],
     })
+    expect(payload).not.toHaveProperty('recordedAt')
+  })
+
+  it('atomically retracts the superseded reading and records its replacement', async () => {
+    const outboxRows: Array<Record<string, unknown>> = []
+    const correctionRows: Array<Record<string, unknown>> = []
+    const replacement = makeReading({
+      id: metricReadingId('d0000000-0000-4000-8000-0000000000d2'),
+      sourceEventId: 'source-event-2',
+      value: 0.8,
+      numerator: 4,
+      denominator: 5,
+      sampleCount: 5,
+    })
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => [
+              {
+                id: READING_ID,
+                organizationId: ORG_ID,
+                propertyId: PROP_ID,
+              },
+            ]),
+          })),
+        })),
+      })),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: replacement.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === metricCorrections) {
+          return {
+            values: vi.fn(async (row: Record<string, unknown>) => {
+              correctionRows.push(row)
+            }),
+          }
+        }
+        if (table === outboxEvents) {
+          return {
+            values: vi.fn(async (row: Record<string, unknown>) => {
+              outboxRows.push(row)
+            }),
+          }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) =>
+        work(tx),
+      ),
+    } as unknown as Database
+    const events = makeEvents([])
+
+    const result = await createAtomicMetricCommandStore(db, events).recordMetric({
+      reading: replacement,
+      supersedesSourceEventId: 'source-event-1',
+      event: recordedEvent(replacement),
+    })
+
+    expect(result).toEqual({ status: 'recorded', reading: replacement })
+    expect(correctionRows).toEqual([
+      expect.objectContaining({
+        readingId: READING_ID,
+        sourceEventId: 'source-event-2:retract',
+        kind: 'retract',
+        reason: 'source_reconciliation',
+      }),
+    ])
+    expect(outboxRows.map((row) => row.eventType)).toEqual([
+      'metric.recorded',
+      'metric.corrected',
+    ])
+    expect(events.emit).toHaveBeenCalledTimes(2)
   })
 })

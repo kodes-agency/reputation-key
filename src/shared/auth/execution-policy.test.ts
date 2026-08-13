@@ -98,7 +98,10 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
   it('denies a blocked capability before any permission check', async () => {
     const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(
-      request({ action: 'portal.create', capability: 'portal.write' }),
+      request({
+        action: 'system:gbp.reply.auto_publish',
+        capability: 'gbp.reply.auto_publish',
+      }),
     )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('capability_blocked')
@@ -215,6 +218,7 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
         action: 'system:identity.register',
         capability: 'identity.register',
         organizationId: undefined,
+        executionKind: 'public',
       }),
     )
     // identity.register is non-core → globally off without e2e override
@@ -226,9 +230,70 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
         action: 'system:identity.sign_in',
         capability: undefined,
         organizationId: undefined,
+        executionKind: 'public',
       }),
     )
     expect(allowCore.allowed).toBe(true)
+  })
+  it('public Portal decisions use resolved property scope and explicit consent assertions', async () => {
+    initCapabilityPolicyStore({
+      isCapabilityGloballyEnabled: () => false,
+      isOrgAllowlisted: (organizationId, capability) =>
+        organizationId === ORG && capability === 'portal.guest_media',
+      isPropertyAllowlisted: (candidatePropertyId, capability) =>
+        candidatePropertyId === PROP && capability === 'portal.guest_media',
+      isOrgSuspended: () => false,
+      isPropertySuspended: () => false,
+    })
+    const policy = createExecutionPolicy(deps())
+    const consentAssertions = {
+      analytics: false,
+      response: true,
+      freeText: false,
+      contact: false,
+      media: true,
+    } as const
+    const allowed = await policy.decide(
+      request({
+        principal: { kind: 'public', id: 'guest-session' },
+        action: 'public:portal.media.issue',
+        capability: 'portal.guest_media',
+        organizationId: ORG,
+        propertyId: PROP,
+        executionKind: 'public',
+        requiredPublicConsents: ['response', 'media'],
+        consentAssertions,
+      }),
+    )
+    expect(allowed.allowed).toBe(true)
+
+    const wrongProperty = await policy.decide(
+      request({
+        principal: { kind: 'public' },
+        action: 'public:portal.media.issue',
+        capability: 'portal.guest_media',
+        organizationId: ORG,
+        propertyId: 'p2',
+        executionKind: 'public',
+        requiredPublicConsents: ['response', 'media'],
+        consentAssertions,
+      }),
+    )
+    expect(wrongProperty.reason).toBe('property_not_allowlisted')
+
+    const declined = await policy.decide(
+      request({
+        principal: { kind: 'public' },
+        action: 'public:portal.media.issue',
+        capability: 'portal.guest_media',
+        organizationId: ORG,
+        propertyId: PROP,
+        executionKind: 'public',
+        requiredPublicConsents: ['response', 'media'],
+        consentAssertions: { ...consentAssertions, media: false },
+      }),
+    )
+    expect(declined.reason).toBe('consent_required')
   })
 
   it('system principal denies as unsupported (BQC-2.5 contract lives in the delayed policy)', async () => {
@@ -345,7 +410,9 @@ describe('operator principal (BQC-7.5)', () => {
 
   it('denies when the declared capability is blocked (org-scoped)', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
-    const decision = await policy.decide(operatorRequest({ capability: 'portal.write' }))
+    const decision = await policy.decide(
+      operatorRequest({ capability: 'gbp.reply.auto_publish' }),
+    )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('capability_blocked')
   })

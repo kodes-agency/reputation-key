@@ -58,6 +58,7 @@ export const onInboxItemCreated =
         deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, {
           userId,
           organizationId: event.organizationId,
+          propertyId: event.propertyId,
           type,
           resourceType: 'inbox_item',
           resourceId: event.inboxItemId,

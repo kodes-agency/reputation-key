@@ -7,10 +7,9 @@
 // src/shared/db/CONTEXT.md):
 //   1. pnpm auth:migrate  — Better Auth tables (the CLI prompts; fed "y")
 //   2. pnpm db:migrate    — the Drizzle journal track
-//   3. registered sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
-// The sidecar file is plain SQL (no psql meta-commands), so it is applied
-// in-process via pg — the same end state as the ci.yml psql step without
-// requiring a psql binary on the developer machine.
+//   3. Google Property binding concurrent-index sidecar
+//   4. registered SQL sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
+// Both sidecars run outside the Drizzle migration transaction.
 //
 // Safety: the target passes validateTestDatabaseTarget (denylist + localhost
 // required unless ALLOW_REMOTE_TEST_DB=1) BEFORE any connection is opened —
@@ -48,6 +47,7 @@ type DbState = Readonly<{
   journalCount: number
   hasAuthTables: boolean
   hasSidecar: boolean
+  hasGooglePropertyBindingIndex: boolean
 }>
 
 function quoteIdent(name: string): string {
@@ -142,6 +142,11 @@ async function readState(url: string): Promise<DbState> {
         (SELECT count(*)::int FROM information_schema.tables WHERE table_schema = 'public') AS table_count,
         (SELECT EXISTS (SELECT 1 FROM information_schema.tables
           WHERE table_schema = 'public' AND table_name = 'user')) AS has_auth,
+        (SELECT COALESCE(bool_and(i.indisvalid AND i.indisready AND i.indisunique), false)
+          FROM pg_index i
+          JOIN pg_class c ON c.oid = i.indexrelid
+          WHERE c.relname = 'properties_org_gbp_location_id_unique')
+          AS has_google_property_binding_index,
         (SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar
     `)
     const journal = await pool
@@ -151,12 +156,14 @@ async function readState(url: string): Promise<DbState> {
       table_count: number
       has_auth: boolean
       has_sidecar: boolean
+      has_google_property_binding_index: boolean
     }
     return {
       tableCount: row.table_count,
       journalCount: (journal.rows[0] as { n: number }).n,
       hasAuthTables: row.has_auth,
       hasSidecar: row.has_sidecar,
+      hasGooglePropertyBindingIndex: row.has_google_property_binding_index,
     }
   })
 }
@@ -197,6 +204,7 @@ async function applyMigrations(url: string): Promise<void> {
   } as NodeJS.ProcessEnv
   await run('pnpm', ['auth:migrate'], env, 'y\n')
   await run('pnpm', ['db:migrate'], env)
+  await run('pnpm', ['db:google-property-binding-index'], env)
   await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
 }
 
@@ -219,6 +227,7 @@ export async function ensureTestDatabase(
   const upToDate =
     before.journalCount === expectedJournalCount() &&
     before.hasAuthTables &&
+    before.hasGooglePropertyBindingIndex &&
     before.hasSidecar
   if (upToDate) {
     return {

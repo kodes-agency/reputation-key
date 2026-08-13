@@ -160,8 +160,8 @@ function createTestEnv(googleReviews: ReadonlyArray<GoogleReview> = []) {
     findByOrganizationId: vi.fn(async () => []),
     findByConnection: vi.fn(async () => []),
     findIdsByContentFilter: vi.fn(async () => []),
-    findAllExpiringBeforeAcrossTenants: vi.fn(async () => []),
-    findAllExpiredBeforeAcrossTenants: vi.fn(async () => []),
+    findExpiredBatchBeforeAcrossTenants: vi.fn(async () => []),
+    countExpiredBeforeAcrossTenants: vi.fn(async () => 0),
     deleteById: vi.fn(async (_id, _orgId) => {}),
     deleteByPropertyId: vi.fn(async (_propertyId, _orgId) => {}),
   }

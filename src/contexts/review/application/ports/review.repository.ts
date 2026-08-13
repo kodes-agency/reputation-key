@@ -63,12 +63,6 @@ export type ReviewRepository = Readonly<{
     now: Date,
   ): Promise<ReadonlyArray<string>>
   /**
-   * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
-   * Reviews with non-null `contentExpiresAt <= date` (inclusive).
-   * Used by refresh-expiring (pass refresh-due threshold).
-   */
-  findAllExpiringBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
-  /**
    * ⚠️ CROSS-TENANT: BQC-1.5 keyset-bounded batch of expiring reviews,
    * ordered (contentExpiresAt ASC, id ASC). `cursor` resumes strictly AFTER
    * (contentExpiresAt, id) — no row is skipped or repeated as the cursor
@@ -80,11 +74,25 @@ export type ReviewRepository = Readonly<{
     limit: number,
   ): Promise<ReadonlyArray<Review>>
   /**
-   * ⚠️ CROSS-TENANT: System-level query — scans ALL orgs.
-   * Reviews with non-null `contentExpiresAt < date` (exclusive).
-   * Used by purge-expired (pass `now`; no post-expiry grace — ADR 0031).
+   * ⚠️ CROSS-TENANT: BQC-8.3 keyset-bounded batch of expired reviews —
+   * non-null `contentExpiresAt < date` (exclusive; no post-expiry grace,
+   * ADR 0031), ordered (contentExpiresAt ASC, id ASC). `cursor` resumes
+   * strictly AFTER (contentExpiresAt, id). Used by purge-expired (pass
+   * `now`); replaces the one-shot 5,000-row scan
+   * (findAllExpiredBeforeAcrossTenants).
    */
-  findAllExpiredBeforeAcrossTenants(date: Date): Promise<ReadonlyArray<Review>>
+  findExpiredBatchBeforeAcrossTenants(
+    date: Date,
+    cursor: Readonly<{ contentExpiresAt: Date; id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Review>>
+  /**
+   * ⚠️ CROSS-TENANT: exact count of purge-eligible rows (non-null
+   * `contentExpiresAt < date`, exclusive). BQC-8.3: the restore drill's
+   * dry-run/zero-remaining probe — a COUNT, not a bounded scan, so the
+   * number stays honest at any scale.
+   */
+  countExpiredBeforeAcrossTenants(date: Date): Promise<number>
   deleteById(id: ReviewId, organizationId: OrganizationId): Promise<void>
   deleteByPropertyId(
     propertyId: PropertyId,

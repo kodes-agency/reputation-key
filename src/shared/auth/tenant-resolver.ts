@@ -297,6 +297,29 @@ function buildAuthContext(
   return ctx
 }
 
+/**
+ * Resolve the same authorization shape used by interactive requests from a
+ * durable organization/member identity. Delayed workers call this only after
+ * an organization-scoped membership lookup; no session state is reconstructed.
+ */
+export async function resolveMemberAuthContext(
+  input: Readonly<{
+    memberRole: string
+    organizationId: string
+    userId: string
+  }>,
+): Promise<Readonly<{ context: AuthContext; permissionVersion: number | null }>> {
+  const authorization = await resolveMemberAuthorization({
+    memberRole: input.memberRole,
+    activeOrgId: input.organizationId,
+    userId: input.userId,
+  })
+  return {
+    context: buildAuthContext(input.userId, input.organizationId, authorization),
+    permissionVersion: authorization.permissionVersion,
+  }
+}
+
 // ── The pipeline ───────────────────────────────────────────────
 
 /**
@@ -339,17 +362,17 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   if (!member) {
     throwAuthError('forbidden', 'Not a member of the active organization')
   }
-  const authz = await resolveMemberAuthorization({
+  const resolved = await resolveMemberAuthContext({
     memberRole: member.role,
-    activeOrgId,
+    organizationId: activeOrgId,
     userId: session.user.id,
   })
-  const ctx = buildAuthContext(session.user.id, activeOrgId, authz)
+  const ctx = resolved.context
 
   // Stage 4 — cache (only with a valid key, i.e. non-empty cookies) + memo + span.
   if (key) {
     evictOldestIfNeeded()
-    tenantCache.set(key, { ctx, ts: Date.now(), version: authz.permissionVersion })
+    tenantCache.set(key, { ctx, ts: Date.now(), version: resolved.permissionVersion })
   }
   const reqCtx2 = getRequestContext()
   if (reqCtx2) {

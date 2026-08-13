@@ -5,16 +5,20 @@ Each candidate build that claims BQR completion creates a directory:
 ```text
 docs/release-evidence/beta/<release-id>/
   manifest.md
+  finding-closure.md
   quality-gates.md
   migration-and-schema.md
+  source-data-governance.md
+  authorization-and-capabilities.md
   event-and-job-reliability.md
+  regional-execution.md
   security-and-privacy.md
   accessibility-and-performance.md
   scale-and-recovery.md
-  scale-dataset.json      # deterministic dataset manifest (seed/shape/hash, BQC-8.1)
+  scale-dataset.json      # deterministic dataset manifest (seed/shape/hash/profile)
   raw/                    # identifier-only measured data behind the summaries (ADR 0030)
-    <scenario>.result.json  # scenario record: assertions, metrics, identity, SLO snapshot
-    <scenario>.raw.json     # probe samples + monitoring time series
+    <execution>.result.json  # scenario/fault record: assertions, metrics, identity, SLO snapshot
+    <execution>.raw.json     # probe samples + monitoring time series
   pilot-observations.md
   exceptions.md
   approval.md
@@ -29,3 +33,20 @@ when required samples, monitoring data, release identity, or the dataset
 manifest are missing. Harness usage: `docs/performance/scale-harness.md`.
 
 Until a release candidate is cut, keep filling `_template/` and link PRE17C / BQR phase evidence there.
+
+## BQC-8.8 immutable-bundle gate
+
+Every Markdown evidence document carries the same
+`<!-- bqc-release-identity {...} -->` comment. `manifest.md` also carries the
+`<!-- bqc-release-bundle {...} -->` comment that lists finding dispositions,
+gate results, and named approvals. The machine-readable markers make release
+identity and reviewer timing auditable without hiding the reports from humans.
+
+```bash
+pnpm release:validate-evidence -- --release-id=<release-id>
+```
+
+The validator rejects template/pending files, a mixed candidate identity,
+missing target-scale dataset, missing BQC-8 exit-matrix gates, non-passing
+required gates, unaccepted P0/P1 findings, incomplete P2/P3 exceptions, and
+approvals that predate final evidence.

@@ -130,6 +130,12 @@ export type ScaleDatasetPlan = Readonly<{
   seed: string
   version: number
   shape: DatasetShape
+  /**
+   * True only for the BQC-8.3 lifecycle dataset. Keeping it separate from
+   * capacity data stops the hourly production scheduler from erasing the
+   * normal BQC-8.2 population before its load scenarios run.
+   */
+  sourceLifecycle: boolean
   /** Re-iterable generators (fresh LCG streams per call), in ordinal order. */
   orgs: () => Generator<ScaleOrg>
   properties: () => Generator<ScaleProperty>
@@ -225,11 +231,14 @@ export function planScaleDataset(input: {
   seed: string
   shape: DatasetShape
   version?: number
+  /** Include fetch-clock fields for the BQC-8.3 lifecycle sweep. */
+  sourceLifecycle?: boolean
   /** Pinned routing policy version (the CLI passes ROUTING_POLICY_VERSION). */
   routingPolicyVersion?: number
 }): ScaleDatasetPlan {
   const { seed, shape } = input
   const version = input.version ?? SCALE_DATASET_VERSION
+  const sourceLifecycle = input.sourceLifecycle ?? false
   const routingPolicyVersion = input.routingPolicyVersion ?? 1
   for (const [key, value] of Object.entries(shape)) {
     if (!Number.isInteger(value) || value <= 0) {
@@ -257,6 +266,7 @@ export function planScaleDataset(input: {
 
   // One full pass to hash the canonical stream (identity + structure).
   const hash = createHash('sha256')
+  if (sourceLifecycle) hash.update('source-lifecycle|1\n')
   let i = 0
   for (const org of orgs()) {
     hash.update(hashLine(version, 'org', i, [org.id, org.slug]))
@@ -292,7 +302,16 @@ export function planScaleDataset(input: {
     i += 1
   }
 
-  return { seed, version, shape, orgs, properties, reviews, hash: hash.digest('hex') }
+  return {
+    seed,
+    version,
+    shape,
+    sourceLifecycle,
+    orgs,
+    properties,
+    reviews,
+    hash: hash.digest('hex'),
+  }
 }
 
 // ── Manifest ─────────────────────────────────────────────────────────
@@ -301,6 +320,8 @@ export type DatasetManifest = Readonly<{
   seed: string
   version: number
   shape: DatasetShape
+  /** Whether review rows have BQC-8.3 fetch-clock fields populated. */
+  sourceLifecycle: boolean
   hash: string
   /** Informational only — NOT covered by the hash. */
   createdAt: string
@@ -311,6 +332,7 @@ export function createManifest(plan: ScaleDatasetPlan, createdAt: Date): Dataset
     seed: plan.seed,
     version: plan.version,
     shape: plan.shape,
+    sourceLifecycle: plan.sourceLifecycle,
     hash: plan.hash,
     createdAt: createdAt.toISOString(),
   }
@@ -332,12 +354,16 @@ export function parseManifest(json: string): DatasetManifest {
     typeof m.hash !== 'string' ||
     !/^[0-9a-f]{64}$/.test(m.hash) ||
     typeof m.createdAt !== 'string' ||
+    (m.sourceLifecycle !== undefined && typeof m.sourceLifecycle !== 'boolean') ||
     typeof shape?.orgs !== 'number' ||
     typeof shape?.properties !== 'number' ||
     typeof shape?.reviews !== 'number'
   )
     throw new Error('dataset manifest: shape mismatch')
-  return m as unknown as DatasetManifest
+  return {
+    ...(m as Omit<DatasetManifest, 'sourceLifecycle'>),
+    sourceLifecycle: m.sourceLifecycle === true,
+  }
 }
 
 // ── Row value mapping (load-time wall-clock anchoring) ───────────────
@@ -359,7 +385,11 @@ export function propertyRowValues(property: ScaleProperty): readonly unknown[] {
   ]
 }
 
-export function reviewRowValues(review: ScaleReview, baseTime: Date): readonly unknown[] {
+export function reviewRowValues(
+  review: ScaleReview,
+  baseTime: Date,
+  sourceLifecycle = false,
+): readonly unknown[] {
   const reviewedAt = new Date(baseTime.getTime() - review.daysAgo * DAY_MS)
   const expiresAt = new Date(reviewedAt.getTime() + REVIEW_TTL_DAYS * DAY_MS)
   return [
@@ -372,6 +402,11 @@ export function reviewRowValues(review: ScaleReview, baseTime: Date): readonly u
     review.rating,
     reviewedAt,
     expiresAt,
+    sourceLifecycle ? reviewedAt : null,
+    sourceLifecycle ? expiresAt : null,
+    sourceLifecycle
+      ? sha256Hex(`scale-review-content|${review.externalId}|${review.rating}`)
+      : null,
   ]
 }
 
@@ -459,7 +494,7 @@ export async function loadScaleDataset(
   let reviewCount = 0
   let batch: Array<readonly unknown[]> = []
   for (const review of plan.reviews()) {
-    batch.push(reviewRowValues(review, opts.baseTime))
+    batch.push(reviewRowValues(review, opts.baseTime, plan.sourceLifecycle))
     reviewCount += 1
     if (batch.length === INSERT_BATCH) {
       await batchInsert(db, 'reviews', REVIEW_COLUMNS, batch)
@@ -487,6 +522,9 @@ const REVIEW_COLUMNS = [
   'rating',
   'reviewed_at',
   'expires_at',
+  'last_fetched_at',
+  'content_expires_at',
+  'content_hash',
 ] as const
 
 export type VerifyCheck = Readonly<{ check: string; passed: boolean; detail: string }>

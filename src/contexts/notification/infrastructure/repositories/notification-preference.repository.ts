@@ -3,16 +3,24 @@
 
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { notificationPreferences } from '#/shared/db/schema/notification.schema'
+import {
+  notificationPreferences,
+  notificationUserSettings,
+} from '#/shared/db/schema/notification.schema'
 import {
   notificationPreferenceId,
-  userId as toUserId,
   organizationId as toOrgId,
+  propertyId as toPropertyId,
+  userId as toUserId,
 } from '#/shared/domain/ids'
-import type { NotificationPreference, NotificationType } from '../../domain/types'
+import type {
+  NotificationCadence,
+  NotificationCategory,
+  NotificationChannel,
+  NotificationPreference,
+  NotificationUserSettings,
+} from '../../domain/types'
 import { notificationError } from '../../domain/errors'
-
-// ── Row → Domain mapper ─────────────────────────────────────────────
 
 type PreferenceRow = typeof notificationPreferences.$inferSelect
 
@@ -20,20 +28,25 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => ({
   id: notificationPreferenceId(row.id),
   userId: toUserId(row.userId),
   organizationId: toOrgId(row.organizationId),
-  type: row.type as NotificationType,
-  emailEnabled: row.emailEnabled,
-  inAppEnabled: row.inAppEnabled,
+  propertyId: toPropertyId(row.propertyId),
+  category: row.category as NotificationCategory,
+  channel: row.channel as NotificationChannel,
+  enabled: row.enabled,
+  cadence: row.cadence as NotificationCadence,
+  urgentBypassEnabled: row.urgentBypassEnabled,
+  quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
+  quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
 
-// ── Repository ──────────────────────────────────────────────────────
-
 export const createNotificationPreferenceRepository = (db: Database) => ({
-  findByUserAndType: async (
+  findForDelivery: async (
     userId: string,
     orgId: string,
-    type: string,
+    propertyId: string,
+    category: string,
+    channel: string,
   ): Promise<NotificationPreference | null> => {
     const rows = await db
       .select()
@@ -42,24 +55,30 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
         and(
           eq(notificationPreferences.userId, userId),
           eq(notificationPreferences.organizationId, orgId),
-          eq(notificationPreferences.type, type),
+          eq(notificationPreferences.propertyId, propertyId),
+          eq(notificationPreferences.category, category),
+          eq(notificationPreferences.channel, channel),
         ),
       )
       .limit(1)
-
     return rows[0] ? preferenceFromRow(rows[0]) : null
   },
 
   upsert: async (preference: NotificationPreference): Promise<NotificationPreference> => {
-    const row = await db
+    const rows = await db
       .insert(notificationPreferences)
       .values({
         id: preference.id as string,
         userId: preference.userId as string,
         organizationId: preference.organizationId as string,
-        type: preference.type,
-        emailEnabled: preference.emailEnabled,
-        inAppEnabled: preference.inAppEnabled,
+        propertyId: preference.propertyId as string,
+        category: preference.category,
+        channel: preference.channel,
+        enabled: preference.enabled,
+        cadence: preference.cadence,
+        urgentBypassEnabled: preference.urgentBypassEnabled,
+        quietHoursStart: preference.quietHoursStart,
+        quietHoursEnd: preference.quietHoursEnd,
         createdAt: preference.createdAt,
         updatedAt: preference.updatedAt,
       })
@@ -67,20 +86,23 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
         target: [
           notificationPreferences.userId,
           notificationPreferences.organizationId,
-          notificationPreferences.type,
+          notificationPreferences.propertyId,
+          notificationPreferences.category,
+          notificationPreferences.channel,
         ],
         set: {
-          emailEnabled: preference.emailEnabled,
-          inAppEnabled: preference.inAppEnabled,
+          enabled: preference.enabled,
+          cadence: preference.cadence,
+          urgentBypassEnabled: preference.urgentBypassEnabled,
+          quietHoursStart: preference.quietHoursStart,
+          quietHoursEnd: preference.quietHoursEnd,
           updatedAt: preference.updatedAt,
         },
       })
       .returning()
-
-    const r = row[0]
-    if (!r)
-      throw notificationError('insert_failed', 'No row returned from preference UPSERT')
-    return preferenceFromRow(r)
+    if (!rows[0])
+      throw notificationError('insert_failed', 'Preference UPSERT returned no row')
+    return preferenceFromRow(rows[0])
   },
 
   findByUser: async (
@@ -96,7 +118,71 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
           eq(notificationPreferences.organizationId, orgId),
         ),
       )
-
     return rows.map(preferenceFromRow)
+  },
+
+  getUserSettings: async (
+    userId: string,
+    orgId: string,
+  ): Promise<NotificationUserSettings | null> => {
+    const rows = await db
+      .select()
+      .from(notificationUserSettings)
+      .where(
+        and(
+          eq(notificationUserSettings.userId, userId),
+          eq(notificationUserSettings.organizationId, orgId),
+        ),
+      )
+      .limit(1)
+    const row = rows[0]
+    return row
+      ? {
+          userId: toUserId(row.userId),
+          organizationId: toOrgId(row.organizationId),
+          locale: row.locale,
+          timezone: row.timezone,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }
+      : null
+  },
+
+  upsertUserSettings: async (
+    settings: NotificationUserSettings,
+  ): Promise<NotificationUserSettings> => {
+    const rows = await db
+      .insert(notificationUserSettings)
+      .values({
+        userId: settings.userId as string,
+        organizationId: settings.organizationId as string,
+        locale: settings.locale,
+        timezone: settings.timezone,
+        createdAt: settings.createdAt,
+        updatedAt: settings.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: [
+          notificationUserSettings.userId,
+          notificationUserSettings.organizationId,
+        ],
+        set: {
+          locale: settings.locale,
+          timezone: settings.timezone,
+          updatedAt: settings.updatedAt,
+        },
+      })
+      .returning()
+    const row = rows[0]
+    if (!row)
+      throw notificationError('insert_failed', 'User settings UPSERT returned no row')
+    return {
+      userId: toUserId(row.userId),
+      organizationId: toOrgId(row.organizationId),
+      locale: row.locale,
+      timezone: row.timezone,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }
   },
 })

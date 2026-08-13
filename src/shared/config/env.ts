@@ -28,6 +28,9 @@ const envSchema = z.object({
 
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
+  // Dedicated non-persistent Redis for provider Content and short-lived
+  // authorization records. Production composition requires a distinct TLS URL.
+  PROVIDER_EPHEMERAL_REDIS_URL: z.string().optional(),
 
   // BQC-7.2: operator token gating /api/health/metrics (private ops
   // diagnostics). Optional in the SCHEMA on purpose — the fail-closed posture
@@ -41,6 +44,9 @@ const envSchema = z.object({
   // Both optional — local/dev boots report 'unknown'.
   RELEASE_SHA: z.string().min(1).optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
+  // Revision baked into Docker images through SOURCE_REVISION. Production
+  // startup rejects a concrete RELEASE_SHA that names a different candidate.
+  IMAGE_SOURCE_REVISION: z.string().min(1).optional(),
 
   // BQC-7.4: optional operator webhook for alert dispatch (the alert
   // routing wiring point — e.g. an incident-management inbound hook).
@@ -65,6 +71,15 @@ const envSchema = z.object({
   AWS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   AWS_S3_BUCKET_NAME: z.string().min(1).optional(),
   AWS_S3_REGION: z.string().min(1).optional(),
+  // Optional S3-compatible endpoint split for local object storage. Object
+  // operations use the private endpoint; browser upload signatures use the
+  // loopback-reachable endpoint. Unset preserves AWS endpoint discovery.
+  S3_INTERNAL_ENDPOINT: z.url().optional(),
+  S3_PRESIGN_ENDPOINT: z.url().optional(),
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .optional()
+    .transform((value) => value?.toLowerCase() === 'true'),
 
   // Error tracking — Sentry (optional, Phase 22 for full integration)
   SENTRY_DSN: z.string().optional(),
@@ -76,6 +91,11 @@ const envSchema = z.object({
       ? z.string().min(16)
       : z.string().min(16).default('dev-only-salt-not-for-production'),
 
+  // Public Portal capability tokens — keyed lookup digest, independent from auth/session keys.
+  PORTAL_TOKEN_HASH_SECRET:
+    process.env.NODE_ENV === 'production'
+      ? z.string().min(32)
+      : z.string().min(32).default('dev-only-portal-token-secret-32b'),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -91,6 +111,16 @@ const envSchema = z.object({
     .string()
     .min(32)
     .regex(/^[a-f0-9]+$/, 'Must be hex characters'),
+  // Versioned, audience-separated HMAC keyrings. First entry is active;
+  // retained entries verify only. Format: v2:<64-hex>,v1:<64-hex>.
+  GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS: z.string().optional(),
+  GOOGLE_SESSION_BINDING_HMAC_KEYS: z.string().optional(),
+  GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS: z.string().optional(),
+  GOOGLE_REPLAY_HMAC_KEYS: z.string().optional(),
+  // Runtime-isolation declaration plus independent control-plane live-probe
+  // evidence. Protected production issuance requires exact, fresh parity.
+  GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON: z.string().optional(),
+  GOOGLE_CONTROL_PLANE_POLICY_GENERATION: z.string().min(1).optional(),
 
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),
@@ -191,11 +221,16 @@ const envSchema = z.object({
   // override ABSENT = the approved 'gbp-default' endpoints, byte-identical to
   // the pre-seam behavior. These are endpoint URLs only — the app still runs
   // its REAL adapters against whatever they point at (no fake injection).
+  GOOGLE_PROVIDER_ENDPOINT_PROFILE: z
+    .enum(['production-fixed', 'local-sandbox'])
+    .default('production-fixed'),
+  GBP_ACCOUNT_MANAGEMENT_BASE_URL: z.url().optional(),
   GBP_API_BASE_URL: z.url().optional(),
+  GBP_PERFORMANCE_BASE_URL: z.url().optional(),
   GBP_REVIEWS_API_BASE_URL: z.url().optional(),
   GBP_NOTIFICATIONS_API_BASE_URL: z.url().optional(),
   GOOGLE_OAUTH_TOKEN_URL: z.url().optional(),
-  GOOGLE_OAUTH_USERINFO_URL: z.url().optional(),
+  GOOGLE_OAUTH_JWKS_URL: z.url().optional(),
   GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
 })
 

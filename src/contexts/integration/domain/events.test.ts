@@ -6,10 +6,10 @@ import { isDomainError } from '#/shared/domain/errors'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
-  integrationPropertyImportCompleted,
   integrationGoogleConnectionVisibilityChanged,
+  integrationPropertyImportRetentionReleased,
 } from './events'
-import { googleConnectionId, gbpImportJobId, organizationId } from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 
 const now = new Date('2025-06-15T12:00:00Z')
 
@@ -20,7 +20,7 @@ describe('integrationGoogleAccountConnected', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      googleEmail: 'user@example.com',
+      connectedBy: userId('user-1'),
       occurredAt: now,
     })
     expect(event._tag).toBe('integration.google_account.connected')
@@ -30,19 +30,28 @@ describe('integrationGoogleAccountConnected', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      googleEmail: 'user@example.com',
+      connectedBy: userId('user-1'),
       occurredAt: now,
     })
     expect(event.connectionId).toBe(googleConnectionId('conn-1'))
     expect(event.organizationId).toBe(organizationId('org-1'))
-    expect(event.googleEmail).toBe('user@example.com')
+    expect(event.connectedBy).toBe(userId('user-1'))
+    expect(Object.keys(event).sort()).toEqual([
+      '_tag',
+      'connectedBy',
+      'connectionId',
+      'correlationId',
+      'eventId',
+      'occurredAt',
+      'organizationId',
+    ])
   })
 
   it('sets occurredAt as a Date', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      googleEmail: 'user@example.com',
+      connectedBy: userId('user-1'),
       occurredAt: now,
     })
     expect(event.occurredAt).toBeInstanceOf(Date)
@@ -83,53 +92,6 @@ describe('integrationGoogleAccountDisconnected', () => {
   })
 })
 
-// ── integrationPropertyImportCompleted ─────────────────────────────────────────
-
-describe('integrationPropertyImportCompleted', () => {
-  it('sets _tag to "property_import.completed"', () => {
-    const event = integrationPropertyImportCompleted({
-      importJobId: gbpImportJobId('job-1'),
-      organizationId: organizationId('org-1'),
-      totalCount: 100,
-      importedCount: 80,
-      skippedCount: 15,
-      failedCount: 5,
-      occurredAt: now,
-    })
-    expect(event._tag).toBe('integration.property_import.completed')
-  })
-
-  it('preserves all payload fields including counters', () => {
-    const event = integrationPropertyImportCompleted({
-      importJobId: gbpImportJobId('job-1'),
-      organizationId: organizationId('org-1'),
-      totalCount: 100,
-      importedCount: 80,
-      skippedCount: 15,
-      failedCount: 5,
-      occurredAt: now,
-    })
-    expect(event.importJobId).toBe(gbpImportJobId('job-1'))
-    expect(event.totalCount).toBe(100)
-    expect(event.importedCount).toBe(80)
-    expect(event.skippedCount).toBe(15)
-    expect(event.failedCount).toBe(5)
-  })
-
-  it('sets occurredAt as a Date', () => {
-    const event = integrationPropertyImportCompleted({
-      importJobId: gbpImportJobId('job-1'),
-      organizationId: organizationId('org-1'),
-      totalCount: 0,
-      importedCount: 0,
-      skippedCount: 0,
-      failedCount: 0,
-      occurredAt: now,
-    })
-    expect(event.occurredAt).toBeInstanceOf(Date)
-  })
-})
-
 // ── integrationGoogleConnectionVisibilityChanged ───────────────────────────────
 
 describe('integrationGoogleConnectionVisibilityChanged', () => {
@@ -166,42 +128,54 @@ describe('integrationGoogleConnectionVisibilityChanged', () => {
   })
 })
 
+describe('integrationPropertyImportRetentionReleased', () => {
+  it('creates a bounded identifier-only release event', () => {
+    const idempotencyKeys = ['40000000-0000-4000-8000-000000000001']
+    const event = integrationPropertyImportRetentionReleased({
+      organizationId: organizationId('org-1'),
+      idempotencyKeys,
+      occurredAt: now,
+    })
+    expect(event).toMatchObject({
+      _tag: 'integration.property_import.retention_released',
+      organizationId: 'org-1',
+      idempotencyKeys,
+      occurredAt: now,
+      correlationId: null,
+    })
+  })
+
+  it('rejects duplicate or oversized release sets', () => {
+    expect(() =>
+      integrationPropertyImportRetentionReleased({
+        organizationId: organizationId('org-1'),
+        idempotencyKeys: ['same', 'same'],
+        occurredAt: now,
+      }),
+    ).toThrow('1..100 unique')
+    expect(() =>
+      integrationPropertyImportRetentionReleased({
+        organizationId: organizationId('org-1'),
+        idempotencyKeys: Array.from({ length: 101 }, (_, index) => `key-${index}`),
+        occurredAt: now,
+      }),
+    ).toThrow('1..100 unique')
+  })
+})
+
 // ── occurredAt validation (assertion_failed DomainError) ─────────────────────────
 
 describe('event constructors validate occurredAt', () => {
-  // All four constructors share the same guard; exercising one is sufficient since
-  // the throw site + code are identical across them.
+  // All constructors share the same occurredAt guard; exercising one is
+  // sufficient because the throw site and error code are identical.
   it('throws an Error & DomainError with code "assertion_failed" when occurredAt is not a Date', () => {
     let caught: unknown
     try {
       integrationGoogleAccountConnected({
         connectionId: googleConnectionId('conn-1'),
         organizationId: organizationId('org-1'),
-        googleEmail: 'user@example.com',
+        connectedBy: userId('user-1'),
         occurredAt: '2025-06-15' as unknown as Date,
-      })
-    } catch (e) {
-      caught = e
-    }
-    expect(caught).toBeInstanceOf(Error)
-    if (isDomainError(caught)) {
-      expect(caught.code).toBe('assertion_failed')
-    } else {
-      expect.fail('expected a DomainError')
-    }
-  })
-
-  it('rejects a null occurredAt across the import-completed constructor', () => {
-    let caught: unknown
-    try {
-      integrationPropertyImportCompleted({
-        importJobId: gbpImportJobId('job-1'),
-        organizationId: organizationId('org-1'),
-        totalCount: 0,
-        importedCount: 0,
-        skippedCount: 0,
-        failedCount: 0,
-        occurredAt: null as unknown as Date,
       })
     } catch (e) {
       caught = e

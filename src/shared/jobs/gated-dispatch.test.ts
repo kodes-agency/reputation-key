@@ -77,6 +77,17 @@ describe('createGatedJobHandler', () => {
     expect(handler).toHaveBeenCalledWith(job)
   })
 
+  it('returns the handler result to BullMQ for evidence-bearing jobs', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    initDelayedExecutionPolicy({ decide: decideMock })
+    const registry = createJobRegistry()
+    registry.register('health-check', async () => ({ purged: 500 }))
+
+    await expect(createGatedJobHandler('default', registry)(fakeJob())).resolves.toEqual({
+      purged: 500,
+    })
+  })
+
   it('skips the handler and resolves on deny_terminal', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     initDelayedExecutionPolicy({ decide: decideMock })

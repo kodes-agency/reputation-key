@@ -97,17 +97,18 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        # BQC-5.4: deploy apply order — auth track, drizzle track, then the
-        # registered idempotent sidecar — so the tested DB matches deploy
-        # state (see src/shared/db/CONTEXT.md).
+        # BQC-5.4: deploy apply order — auth track, Drizzle track, the
+        # autocommit concurrent-index gate, then the registered SQL sidecar —
+        # so the tested DB matches deploy state (see src/shared/db/CONTEXT.md).
         run: |
           echo "y" | pnpm auth:migrate
           pnpm db:migrate
+          pnpm db:google-property-binding-index
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
       # BQC-7.1: predeploy migration parity — the deploy runner
       # (scripts/migrate-deploy.ts, the Railway preDeployCommand) must
-      # converge instantly against the DB the manual trio just migrated.
+      # converge instantly against the DB the manual sequence just migrated.
       # Exit 0 = the deploy path and the documented manual path reach the
       # same end state; guards drift between the two on every PR.
       - name: Predeploy migration parity
@@ -191,6 +192,14 @@ jobs:
       - name: Worker build
         run: pnpm build:worker
 
+      - name: Google import compatibility build
+        run: pnpm build:google-import-compatibility
+
+      - name: Google import artifact boundary
+        run: |
+          pnpm check:google-import-artifacts final .output dist-worker
+          pnpm check:google-import-artifacts compatibility dist-google-import-compatibility
+
       # BQC-7.1: artifact digest — deterministic tarball of the deploy
       # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
       # the step output and job summary as build evidence.
@@ -226,6 +235,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
       - name: Build web image
         run: docker build -f Dockerfile -t repkey-web:ci .
@@ -233,25 +248,57 @@ jobs:
       - name: Build worker image
         run: docker build -f Dockerfile.worker -t repkey-worker:ci .
 
-      - name: Smoke images (boot + non-root + prod-deps purity)
+      - name: Build rollout-only Google import compatibility image
+        run: docker build -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
+
+      - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
           docker run --rm repkey-web:ci node -e "process.exit(0)"
           docker run --rm repkey-worker:ci node -e "process.exit(0)"
-          test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
-          # BQC-7.7: production dependency/prune verification — the runtime
-          # node_modules must be the prod-only install: sentinel DIRECT
-          # devDependencies (vitest, typescript, eslint, prettier — see
-          # package.json devDependencies) must be absent, the prod tree present.
-          for img in repkey-web:ci repkey-worker:ci; do
-            docker run --rm "$img" test -e /app/node_modules/pg
+          docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
+          for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
+            test "$(docker image inspect "$img" --format '{{.Config.User}}')" = "node"
+            docker run --rm --entrypoint test "$img" -e /app/node_modules/pg
+            docker run --rm --entrypoint node "$img" -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
             for sentinel in vitest typescript eslint prettier; do
-              if docker run --rm "$img" test -e "/app/node_modules/$sentinel"; then
+              if docker run --rm --entrypoint test "$img" -e "/app/node_modules/$sentinel"; then
                 echo "::error::devDependency $sentinel leaked into $img prod node_modules"
                 exit 1
               fi
             done
           done
+          for img in repkey-web:ci repkey-worker:ci; do
+            test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
+            test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
+            docker run --rm --entrypoint test "$img" ! -e /app/dist-google-import-compatibility
+          done
+          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
+          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
+          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'
+          {
+            echo "### Google import image digests"
+            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
+              echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Start production-profile Compose stack
+        run: pnpm e2e:stack:up
+      - name: Verify production-profile Compose stack readiness
+        run: pnpm e2e:stack:smoke
+      - name: Collect Docker stack diagnostics
+        if: always()
+        run: pnpm e2e:stack:logs
+      - name: Upload Docker stack evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docker-local-stack-evidence
+          path: test-results/local-stack/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down Docker stack
+        if: always()
+        run: pnpm e2e:stack:down
 
       # BQC-7.7: image SBOMs (SPDX JSON, 30d retention). The images contain
       # the build outputs (.output / dist-worker), so this is ALSO the
@@ -269,6 +316,13 @@ jobs:
           image: repkey-worker:ci
           format: spdx-json
           output-file: sbom-worker.spdx.json
+
+      - name: SBOM Google import compatibility image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-google-import-compatibility:ci
+          format: spdx-json
+          output-file: sbom-google-import-compatibility.spdx.json
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -294,6 +348,14 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: repkey-worker:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+
+      - name: Vulnerability scan Google import compatibility image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-google-import-compatibility:ci
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
@@ -386,53 +448,10 @@ jobs:
     # release-candidate promotion.
     timeout-minutes: 25
 
-    services:
-      postgres:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      # Required: composition root needs Redis to build jobQueue; without it
-      # /api/auth/* rate-limit path throws jobQueue required → sign-in 500s.
-      redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://test:test@localhost:5432/test
-      REDIS_URL: redis://localhost:6379
-      BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-      BETTER_AUTH_URL: http://localhost:3000
-      RESEND_API_KEY: re_ci_test_key_placeholder
-      GOOGLE_CLIENT_ID: ci-placeholder-client-id
-      GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-      ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-      OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-      E2E_BASE_URL: http://localhost:3000
-      E2E_TEST_EMAIL: test@example.com
-      E2E_TEST_PASSWORD: password123
-      # Open registration + team UI for this job only (not production defaults).
-      # BQC-0.3: the override boots only with this explicit execution identity
-      # (the dev server pins NODE_ENV=development via the dev script).
-      BETA_E2E_GLOBAL_CAPABILITIES: identity.register,organization.create,team.use
-      BETA_E2E_EXECUTION_IDENTITY: playwright-e2e
+      CI: '1'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      E2E_LOCKED_BASE_URL: http://127.0.0.1:3001
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -443,21 +462,15 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Run migrations
-        # BQC-5.4: deploy apply order — auth track, drizzle track, then the
-        # registered idempotent sidecar — so the tested DB matches deploy
-        # state (see src/shared/db/CONTEXT.md).
-        run: |
-          echo "y" | pnpm auth:migrate
-          pnpm db:migrate
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
-      - name: Seed E2E test user
-        run: pnpm exec tsx scripts/seed-e2e-user.ts
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Start local Compose application stack
+        run: pnpm e2e:stack:up
+      - name: Smoke local Compose application stack
+        run: pnpm e2e:stack:smoke
       - name: Run critical e2e (hard gate — BQR-5.1)
         run: pnpm test:e2e --project=critical
       # BQC-6.4: retain failure diagnostics (trace/screenshot/video, written to
-      # test-results/ only by failed tests). `if: failure()` is correct HERE:
+      # test-results/playwright/ only by failed tests). `if: failure()` is correct HERE:
       # the critical run has no continue-on-error, so its failure fails the job
       # and this fires. Playwright empties outputDir at the start of each run,
       # so this must upload before the full suite runs.
@@ -466,7 +479,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-artifacts-critical
-          path: test-results/
+          path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7
       - name: Run full e2e suite (hard gate — BQC-6.7)
@@ -481,6 +494,71 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-artifacts-full
-          path: test-results/
+          path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7
+      - name: Collect local Compose diagnostics
+        if: always()
+        run: pnpm e2e:stack:logs
+      - name: Upload local stack evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-local-stack-evidence
+          path: test-results/local-stack/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down local Compose application stack
+        if: always()
+        run: pnpm e2e:stack:down
+
+  # Final controlled-beta gate. beta:smoke owns the hermetic beta-profile
+  # Compose cycles for clean/upgrade/scale/fault/product evidence; the final
+  # down step is a defensive cleanup if the orchestrator is interrupted.
+  beta-acceptance:
+    needs: [check, docker, storybook, storybook-test, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: '1'
+      E2E_BASE_URL: http://127.0.0.1:3000
+      E2E_LOCKED_BASE_URL: http://127.0.0.1:3001
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Run authoritative local beta smoke
+        run: pnpm beta:smoke -- --release-sha=${{ github.sha }}
+      - name: Resolve beta manifest digest
+        id: beta_manifest
+        shell: bash
+        run: |
+          shopt -s nullglob
+          checksums=(test-results/beta-smoke/"$GITHUB_SHA"/*/manifest.sha256)
+          test "${#checksums[@]}" -eq 1
+          manifest_dir="$(dirname "${checksums[0]}")"
+          echo "digest=$(basename "$manifest_dir")" >> "$GITHUB_OUTPUT"
+      - name: Collect beta Compose diagnostics
+        if: always()
+        run: pnpm exec tsx scripts/local-stack/stack.ts logs --mode=beta
+      - name: Upload beta smoke evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-local-smoke-${{ steps.beta_manifest.outputs.digest || github.sha }}
+          path: |
+            test-results/beta-smoke/**
+            test-results/beta-smoke-work/**
+            test-results/local-stack/**
+            test-results/playwright/**
+          if-no-files-found: ignore
+          overwrite: false
+          retention-days: 30
+      - name: Tear down beta Compose stack
+        if: always()
+        run: pnpm local:beta:down

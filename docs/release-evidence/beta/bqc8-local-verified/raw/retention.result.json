@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "scenario": "retention",
+  "startedAt": "2026-08-08T14:44:48.561Z",
+  "durationMs": 220118.036458,
+  "passed": true,
+  "metrics": {
+    "expiredBefore": 416486,
+    "purged": 416486,
+    "expiredAfter": 0,
+    "batches": 833,
+    "canariesChecked": 12,
+    "canariesRemaining": 0
+  },
+  "assertions": [
+    {
+      "check": "all expired content removed",
+      "passed": true,
+      "detail": "0 expired rows remain"
+    },
+    {
+      "check": "purge accounted for every expired row",
+      "passed": true,
+      "detail": "purged 416486 of 416486"
+    },
+    {
+      "check": "registered-copy canaries disappeared",
+      "passed": true,
+      "detail": "0/12 canaries remain"
+    },
+    {
+      "check": "lifecycle sweep remained keyset bounded",
+      "passed": true
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "completePurge": true,
+    "noResurrection": true
+  },
+  "samples": {
+    "count": 1,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 2,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

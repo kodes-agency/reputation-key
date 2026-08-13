@@ -73,12 +73,19 @@ const ops = createPolicyAdminOps({
       createProcessingRouter({
         loadPropertyRouting: createPropertyRoutingLoader({ db }),
         cell: CELL,
-      }).resolve(propertyId, 'review.sync'),
+      }).resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
     cell: CELL,
     providerRef: providerRefForCell(CELL) ?? null,
   }),
+  refreshPolicy: async () => {},
   setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
   setPropertyPolicy: (input) => setPropertyPolicy(db, input),
+  propertyBelongsToOrganization: async (orgId, propertyId) => {
+    const result = await db.execute(
+      sql`SELECT 1 FROM properties WHERE organization_id = ${orgId} AND id = ${propertyId}`,
+    )
+    return result.rows.length > 0
+  },
   addOrganizationCapability: (orgId, cap, by) =>
     addOrganizationCapability(db, orgId, cap, by),
   removeOrganizationCapability: (orgId, cap) =>

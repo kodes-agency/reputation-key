@@ -7,14 +7,13 @@
 // - User IANA timezone with organization fallback.
 // - Application idempotency key persists beyond provider's 24-hour dedupe.
 
-export type NotificationCategory =
-  | 'mandatory'
-  | 'urgent_operational'
-  | 'workflow_collaboration'
-  | 'digest_summary'
-  | 'recognition'
+import type {
+  NotificationCadence,
+  NotificationCategory,
+  NotificationChannel,
+} from './types'
 
-export type NotificationChannel = 'in_app' | 'email'
+export type { NotificationCategory, NotificationChannel }
 
 export type DeliveryState =
   | 'pending'
@@ -27,14 +26,18 @@ export type DeliveryState =
   | 'suppressed'
   | 'cancelled'
 
-export interface NotificationPreference {
+export interface GovernedNotificationPreference {
   readonly id: string
   readonly userId: string
   readonly organizationId: string
+  readonly propertyId: string
   readonly category: NotificationCategory
   readonly channel: NotificationChannel
   readonly enabled: boolean
-  readonly propertyFilter: string | null
+  readonly cadence: NotificationCadence
+  readonly urgentBypassEnabled: boolean
+  readonly quietHoursStart: string | null
+  readonly quietHoursEnd: string | null
   readonly version: number
 }
 
@@ -82,9 +85,10 @@ export function isDisableable(category: NotificationCategory): boolean {
 }
 
 export function resolvePreference(
-  preferences: readonly NotificationPreference[],
+  preferences: readonly GovernedNotificationPreference[],
   userId: string,
   organizationId: string,
+  propertyId: string,
   category: NotificationCategory,
   channel: NotificationChannel,
 ): boolean {
@@ -92,6 +96,7 @@ export function resolvePreference(
     (p) =>
       p.userId === userId &&
       p.organizationId === organizationId &&
+      p.propertyId === propertyId &&
       p.category === category &&
       p.channel === channel,
   )

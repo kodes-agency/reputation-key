@@ -12,7 +12,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 type LogCall = Readonly<{ level: string; obj: unknown; msg?: unknown }>
 const calls: LogCall[] = []
 
-vi.mock('#/shared/observability/logger', () => {
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
   const record =
     (level: string) =>
     (obj: unknown, msg?: unknown): void => {
@@ -27,7 +28,7 @@ vi.mock('#/shared/observability/logger', () => {
     trace: record('trace'),
     child: () => logger,
   }
-  return { getLogger: () => logger }
+  return { ...actual, getLogger: () => logger }
 })
 
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'

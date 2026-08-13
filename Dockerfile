@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+ARG SOURCE_REVISION=unknown
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WEB image (TanStack Start + Nitro, node-server preset).
 #
@@ -21,7 +22,7 @@
 #
 # Deploy contract (railway.json):
 #   - preDeployCommand: `node dist-worker/migrate-deploy.js` (advisory-locked,
-#     idempotent migration trio; see scripts/migrate-deploy.ts header)
+#     idempotent migration sequence; see scripts/migrate-deploy.ts header)
 #   - healthcheck: GET /api/health/started (healthcheckTimeout 30s) — BQC-7.2:
 #     the platform activation gate consumes STARTUP semantics (container +
 #     migrations + policy complete), NOT liveness. Activation ≠ liveness:
@@ -68,7 +69,8 @@ RUN NODE_ENV=production \
     GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
-    pnpm build && pnpm build:worker
+    pnpm build && pnpm build:worker \
+ && node scripts/check-google-import-artifacts.mjs final .output dist-worker
 
 # ── Production-only dependencies (runtime: worker externals + migrate trio) ─
 FROM base AS prod-deps
@@ -80,7 +82,12 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # ── Web runtime ──────────────────────────────────────────────────────────────
 FROM base AS web
-ENV NODE_ENV=production
+ARG SOURCE_REVISION
+ENV NODE_ENV=production \
+    IMAGE_SOURCE_REVISION=$SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      com.repkey.google-import-contract=final \
+      com.repkey.rollout-scope=serving-final
 # BQC-7.7: the runtime never installs packages — strip the npm CLI shipped in
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
@@ -91,7 +98,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.runtime.json ./package.json
 # Predeploy migration inputs (read by dist-worker/migrate-deploy.js); the
 # journal is ALSO read at runtime by the readiness/startup migration check
 # (src/shared/health/readiness.ts anchors it at cwd = /app here):

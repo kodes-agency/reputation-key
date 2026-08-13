@@ -11,13 +11,16 @@ import {
 
 describe('metric-keys', () => {
   describe('MetricKey type', () => {
-    it('defines all five known metric keys', () => {
+    it('defines analytics and beta-safe governed metric keys', () => {
       expect(METRIC_KEYS).toEqual([
         'portal.scan',
         'portal.rating',
         'portal.feedback',
         'portal.review_link_click',
         'property.review',
+        'portal.content_review.completed',
+        'portal.configuration_completeness',
+        'portal.approved_destination_ratio',
       ])
     })
   })
@@ -29,23 +32,30 @@ describe('metric-keys', () => {
   })
 
   describe('scope → metric key validation', () => {
-    it('property scope allows only property.review', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual(['property.review'])
-    })
-
-    it('portal scope allows scans and ratings only', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual(['portal.scan', 'portal.rating'])
-    })
-
-    it('portal_group scope allows scans and ratings only', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
-        'portal.scan',
-        'portal.rating',
+    it('property scope allows only beta-safe first-party workflow metrics', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.property).toEqual([
+        'portal.content_review.completed',
+        'portal.configuration_completeness',
+        'portal.approved_destination_ratio',
       ])
     })
 
-    it('isValidMetricKeyForScope returns true for valid pair', () => {
-      expect(isValidMetricKeyForScope('property', 'property.review')).toBe(true)
+    it('individual portal scope is excluded from beta goals', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual([])
+    })
+
+    it('portal_group scope allows beta-safe first-party workflow metrics', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
+        'portal.content_review.completed',
+        'portal.configuration_completeness',
+        'portal.approved_destination_ratio',
+      ])
+    })
+
+    it('isValidMetricKeyForScope returns true for a governed pair', () => {
+      expect(
+        isValidMetricKeyForScope('property', 'portal.configuration_completeness'),
+      ).toBe(true)
     })
 
     it('isValidMetricKeyForScope returns false for invalid pair', () => {

@@ -110,6 +110,27 @@ describe('outbox relay (BQC-3.7)', () => {
     }
   })
 
+  it('leaves a lifecycle-denied event unpublished without blocking admitted events', async () => {
+    const denied = {
+      ...makeEvent('evt-denied'),
+      eventType: 'integration.property_import.completed',
+    }
+    const admitted = makeEvent('evt-admitted')
+    const { repo, state } = makeRepo([denied, admitted])
+    const { queue, added } = makeQueue()
+    const admitEvent = vi.fn(async (event: UnpublishedEvent) => event.id !== denied.id)
+
+    const relay = createOutboxRelay(repo, queue, {
+      relayId: 'relay-test-1',
+      admitEvent,
+    })
+    await relay.poll()
+
+    expect(admitEvent).toHaveBeenCalledTimes(2)
+    expect(added.map((call) => call.opts.jobId)).toEqual(['evt-admitted'])
+    expect(state.markedPublished).toEqual(['evt-admitted'])
+  })
+
   it('renews the lease for the unprocessed remainder every 10 published events', async () => {
     const events = Array.from({ length: 25 }, (_, i) => makeEvent(`evt-${i}`))
     const { repo, state } = makeRepo(events)

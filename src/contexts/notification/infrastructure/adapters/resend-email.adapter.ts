@@ -4,9 +4,10 @@ import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
-import { notificationError } from '../../domain/errors'
+import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import { classifyProviderRejection } from '../../domain/notification-delivery-policy'
 
-export const createResendEmailAdapter = () => {
+export const createResendEmailAdapter = (): EmailSenderPort => {
   let resend: Resend | undefined
 
   function getResend(): Resend {
@@ -18,35 +19,53 @@ export const createResendEmailAdapter = () => {
   }
 
   return {
-    async send(params: { to: string; subject: string; html: string }): Promise<void> {
+    async send(params: {
+      to: string
+      subject: string
+      html: string
+      idempotencyKey: string
+    }) {
       const logger = getLogger()
       const client = getResend()
+      const acceptedAt = new Date()
+      const { data, error } = await client.emails.send(
+        {
+          from: 'Reputation Key <info@kodes.agency>',
+          to: params.to,
+          subject: params.subject,
+          html: params.html,
+        },
+        { idempotencyKey: params.idempotencyKey },
+      )
 
-      const { error } = await client.emails.send({
-        from: 'Reputation Key <info@kodes.agency>',
-        to: params.to,
-        subject: params.subject,
-        html: params.html,
-      })
-
-      if (error) {
+      if (error || !data?.id) {
+        const statusCode =
+          error && 'statusCode' in error && typeof error.statusCode === 'number'
+            ? error.statusCode
+            : null
+        const providerCode =
+          error && 'name' in error && typeof error.name === 'string' ? error.name : null
+        const classification = classifyProviderRejection({
+          statusCode,
+          providerCode,
+          message: error?.message ?? '',
+        })
         logger.error(
-          { error, toPrefix: maskEmail(params.to), subject: params.subject },
-          `Failed to send email: ${params.subject}`,
+          { toPrefix: maskEmail(params.to), providerCode, statusCode, classification },
+          'Email provider rejected message',
         )
-        throw notificationError(
-          'email_send_failed',
-          'Email provider rejected the message',
-          {
-            subject: params.subject,
-          },
-        )
+        return { kind: 'rejected' as const, classification, providerCode }
       }
 
       logger.info(
-        { toPrefix: maskEmail(params.to), subject: params.subject },
-        'Email sent',
+        { toPrefix: maskEmail(params.to), providerMessageId: data.id },
+        'Email provider accepted message',
       )
+      return {
+        kind: 'accepted' as const,
+        providerMessageId: data.id,
+        acceptedAt,
+      }
     },
   }
 }

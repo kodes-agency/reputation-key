@@ -157,9 +157,9 @@ export function buildScaleEvidence(input: {
   // Fail-closed validation of every result BEFORE any markdown is built.
   const seen = new Set<string>()
   for (const record of results) {
-    if (!(record.scenario in SCENARIOS)) {
+    if (!(record.scenario in SCENARIOS) && !(record.scenario in FAULTS)) {
       throw new EvidenceError(
-        `result for unknown scenario '${record.scenario}' — not in the catalogue`,
+        `result for unknown scenario or fault '${record.scenario}' — not in the catalogue`,
       )
     }
     if (seen.has(record.scenario)) {
@@ -194,8 +194,8 @@ export function buildScaleEvidence(input: {
 
   const executed = results.map((r) => ({ key: r.scenario, passed: r.passed }))
   const failures = executed.filter((e) => !e.passed).map((e) => e.key)
-  const notExecuted = Object.keys(SCENARIOS).filter((k) => !seen.has(k))
-  const faultsNotExecuted = Object.keys(FAULTS)
+  const notExecuted = Object.keys(SCENARIOS).filter((key) => !seen.has(key))
+  const faultsNotExecuted = Object.keys(FAULTS).filter((key) => !seen.has(key))
 
   // ── Markdown ───────────────────────────────────────────────────────
   const executedRows = results
@@ -235,10 +235,15 @@ export function buildScaleEvidence(input: {
     .join('\n')
 
   const faultRows = Object.entries(FAULTS)
-    .map(
-      ([key, f]) =>
-        `| \`${key}\` | ${f.name} | ${f.invariant} | not executed in this environment |`,
-    )
+    .map(([key, fault]) => {
+      const hit = results.find((record) => record.scenario === key)
+      const status = hit
+        ? hit.passed
+          ? 'PASS (measured — see Executed runs)'
+          : 'FAIL (invariant violation — see Executed runs)'
+        : 'not executed in this environment'
+      return `| \`${key}\` | ${fault.name} | ${fault.invariant} | ${status} |`
+    })
     .join('\n')
 
   const sloRows = Object.entries(SLOS)
@@ -280,7 +285,6 @@ ${scenarioRows}
 
 ## Fault matrix (§9.3)
 
-Fault executors land with BQC-8.4 (runtime fault matrix) and BQC-8.5 (region fault matrix); until then every fault row is honestly not executed.
 
 | Id | Name | Invariant | Status |
 | -- | ---- | --------- | ------ |

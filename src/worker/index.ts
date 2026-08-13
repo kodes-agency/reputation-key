@@ -6,6 +6,7 @@ import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
+import { assertReleaseIdentity } from '#/shared/config/release-identity'
 import {
   assertRestoreModeCompatible,
   isRestoreIsolated,
@@ -29,6 +30,7 @@ import {
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
+import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -37,8 +39,6 @@ import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrast
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
 import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
-import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
-import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import type { Worker } from 'bullmq'
 
@@ -47,6 +47,7 @@ import type { Worker } from 'bullmq'
 // fallow-ignore-next-line complexity
 async function main() {
   const env = getEnv()
+  assertReleaseIdentity(env)
   const logger = getLogger()
 
   logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
@@ -129,6 +130,7 @@ async function main() {
   const routingGate: JobRoutingGate = {
     router: createProcessingRouter({
       loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
+      loadImportItemRouting: createImportItemRoutingLoader({ db: container.db }),
       cell: processingCell,
     }),
     cell: processingCell,
@@ -322,38 +324,19 @@ async function main() {
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
-    // ── Dark-context + outbound-email jobs (BQR-0 containment) ──────
-    // Goal / badge / leaderboard / portal are dark for beta. Outbound email
-    // is blocked (notification.send_email). Only schedule when the matching
-    // capability is globally enabled (core). Non-core allowlists do not
-    // re-enable background work until a later promotion path exists.
+    // ── Controlled-beta + outbound-email jobs ──────────────────────
+    // Promoted background work remains capability-gated so the persisted
+    // cohort policy and emergency kill switches apply at schedule time.
+    // Outbound email remains blocked unless notification.send_email is enabled.
     type CapabilitySchedule = Readonly<{
       jobName: string
       every?: number
       pattern?: string
       label: string
-      capability: 'goal.use' | 'badge.use' | 'leaderboard.use' | 'notification.send_email'
+      capability: 'leaderboard.use' | 'notification.send_email'
     }>
     const capabilitySchedules: CapabilitySchedule[] = [
-      {
-        jobName: RECONCILE_JOB_NAME,
-        pattern: '10 * * * *',
-        label: 'hourly',
-        capability: 'goal.use',
-      },
-      {
-        jobName: SPAWN_RECURRING_JOB_NAME,
-        every: 24 * 60 * 60 * 1000,
-        label: 'daily',
-        capability: 'goal.use',
-      },
-      // Stagger: badge at minute 20, leaderboard at minute 30
-      {
-        jobName: 'badge.reconcile',
-        pattern: '20 * * * *',
-        label: 'hourly',
-        capability: 'badge.use',
-      },
+      // Recognition refresh is staggered from metric rollups.
       {
         jobName: 'leaderboard.reconcile',
         pattern: '30 * * * *',

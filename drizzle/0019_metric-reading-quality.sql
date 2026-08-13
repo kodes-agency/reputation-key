@@ -1,0 +1,9 @@
+ALTER TABLE "metric_readings" ADD COLUMN "property_local_date" varchar(10);--> statement-breakpoint
+ALTER TABLE "metric_readings" ADD COLUMN "data_quality" varchar(20);--> statement-breakpoint
+ALTER TABLE "metric_readings" ADD COLUMN "retention_class" varchar(50);--> statement-breakpoint
+CREATE UNIQUE INDEX "metric_corrections_supersedes_unique" ON "metric_corrections" USING btree ("supersedes_correction_id") WHERE "metric_corrections"."supersedes_correction_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "metric_corrections_root_unique" ON "metric_corrections" USING btree ("reading_id") WHERE "metric_corrections"."supersedes_correction_id" IS NULL;--> statement-breakpoint
+ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_operand_check" CHECK (("metric_corrections"."kind" = 'retract' AND "metric_corrections"."exact_delta" IS NULL AND "metric_corrections"."replacement_value" IS NULL)
+        OR ("metric_corrections"."kind" = 'replace' AND "metric_corrections"."exact_delta" IS NULL AND "metric_corrections"."replacement_value" IS NOT NULL)
+        OR ("metric_corrections"."kind" = 'adjust' AND "metric_corrections"."exact_delta" IS NOT NULL AND "metric_corrections"."replacement_value" IS NULL));--> statement-breakpoint
+ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_governed_provenance_check" CHECK ("metric_readings"."definition_version_id" IS NULL OR ("metric_readings"."source_event_id" IS NOT NULL AND "metric_readings"."source_policy" IS NOT NULL AND "metric_readings"."exact_value" IS NOT NULL AND "metric_readings"."sample_count" IS NOT NULL AND "metric_readings"."attribution_quality" IS NOT NULL AND "metric_readings"."event_at" IS NOT NULL AND "metric_readings"."property_local_date" IS NOT NULL AND "metric_readings"."data_quality" IS NOT NULL AND "metric_readings"."retention_class" IS NOT NULL));

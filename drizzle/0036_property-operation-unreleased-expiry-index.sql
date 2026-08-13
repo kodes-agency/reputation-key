@@ -1,0 +1,1 @@
+CREATE INDEX "property_operation_receipts_unreleased_expiry_idx" ON "property_operation_receipts" USING btree ("expires_at","id") WHERE "property_operation_receipts"."retention_released_at" IS NULL;

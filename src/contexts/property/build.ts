@@ -5,12 +5,7 @@
 import type { Database } from '#/shared/db'
 
 import type { PropertyRepository } from './application/ports/property.repository'
-import type { PropertyPublicApi } from './application/public-api'
-import { propertyImportConflict } from './application/public-api'
-import { propertyCreated } from './domain/events'
-import type { Property } from './domain/types'
-import { isRegionProcessable, resolvePropertyRouting } from './domain/processing-routing'
-import { getLogger } from '#/shared/observability/logger'
+import type { PropertyFactsPublicApi, PropertyPublicApi } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
@@ -27,6 +22,9 @@ import {
 } from './application/use-cases/advance-region-move'
 import type { RegionMoveAuditWriter } from './application/ports/region-move-store.port'
 import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
+import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
+import type { PropertyGoogleBindingPublicApi } from './application/public-api'
+import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
@@ -54,6 +52,16 @@ type PropertyContextDeps = Readonly<{
    * Constructed once by the composition root (the only layer that may
    * import review infrastructure) and shared across contexts. */
   sourceContentPurge: SourceContentPurge
+  googleImportLifecycle?: Readonly<{
+    prepareDeletion: (
+      organizationId: string,
+      propertyId: string,
+    ) => Promise<Readonly<{ itemIds: ReadonlyArray<string> }>>
+    finalizeDeletion: (
+      organizationId: string,
+      itemIds: ReadonlyArray<string>,
+    ) => Promise<void>
+  }>
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
@@ -63,6 +71,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   // BQC-4.5: the region move store (region_moves, migration 0016) + the
   // guarded authority swap on properties.
   const regionMoveStore = createRegionMoveRepository(deps.db)
+  const bindingApi: PropertyGoogleBindingPublicApi = createPropertyGoogleBindingStore(
+    deps.db,
+    deps.events,
+  )
 
   const useCases = {
     createProperty: createProperty({
@@ -105,10 +117,12 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       commandStore,
       clock: deps.clock,
       sourceContentPurge: deps.sourceContentPurge,
+      prepareGoogleImportDeletion: deps.googleImportLifecycle?.prepareDeletion,
+      finalizeGoogleImportDeletion: deps.googleImportLifecycle?.finalizeDeletion,
     }),
   } as const
 
-  const publicApi: PropertyPublicApi = {
+  const publicApi: PropertyPublicApi & PropertyFactsPublicApi = {
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -117,6 +131,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const p = await deps.repo.findById(orgId, pid)
       return p?.name ?? null
     },
+    getPropertyTimezone: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p?.timezone ?? null
+    },
     getPropertyNames: async (
       orgId: OrganizationId,
       propertyIds: ReadonlyArray<PropertyId>,
@@ -124,8 +142,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const properties = await deps.repo.findByIds(orgId, propertyIds)
       return properties.map((p) => ({ id: p.id as string, name: p.name }))
     },
-    findByGbpPlaceId: async (gbpPlaceId: string) => {
-      const p = await deps.repo.findByGbpPlaceId(gbpPlaceId)
+    findByGbpLocationId: async (gbpLocationId: string) => {
+      const p = await deps.repo.findByGbpLocationId(gbpLocationId)
       if (!p) return null
       return {
         id: p.id,
@@ -162,102 +180,15 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
       }
     },
-    // F060 NOTE: importProperty intentionally bypasses buildProperty use case.
-    // GBP sync requires raw property construction because imported properties
-    // have different validation rules (no user-facing slug collision check, etc.).
-    // BQC-3.5: the insert + property.created fact commit atomically via the
-    // command store; the integration import job no longer re-emits the fact.
-    importProperty: async (input) => {
-      try {
-        const id = idGen()
-        const now = deps.clock()
-        // BQR-3.5: resolve region from GBP country when present; else explicit unresolved.
-        const routing = resolvePropertyRouting({
-          countryCode: input.countryCode ?? null,
-          countrySource: input.countryCode ? 'google_address' : 'organization_default',
-          now,
-        })
-        const property: Property = {
-          id,
-          organizationId: input.orgId,
-          name: input.name,
-          slug: input.slug,
-          // Keep UTC placeholder until timezone API enrichment; availability fails closed for AI.
-          timezone: 'UTC',
-          gbpPlaceId: input.gbpPlaceId,
-          googleConnectionId: input.googleConnectionId,
-          createdAt: now,
-          updatedAt: now,
-          deletedAt: null,
-          lifecycleState: 'active',
-          lifecycleReason: null,
-          lifecycleStateChangedAt: now,
-          purgeScheduledFor: null,
-          lifecycleInitiatedBy: null,
-          ...routing,
-        }
-        // BQC-4.1 / ADR 0048: the initial-sync trigger (gbpLocationName on
-        // property.created) is emitted only for properties inside an approved
-        // cell. Unresolved/denied regions are created but never triggered —
-        // the skip is explicit and operator-visible in the logs.
-        const processable = isRegionProcessable(property.processingRegion)
-        if (!processable) {
-          getLogger().info(
-            {
-              processingRegion: property.processingRegion,
-            },
-            'import: initial review sync blocked — property region not processable',
-          )
-        }
-        const inserted = await commandStore.createProperty({
-          organizationId: input.orgId,
-          property,
-          event: propertyCreated({
-            propertyId: property.id,
-            organizationId: property.organizationId,
-            name: property.name,
-            slug: property.slug,
-            gbpPlaceId: property.gbpPlaceId ?? undefined,
-            googleConnectionId: property.googleConnectionId ?? undefined,
-            gbpLocationName:
-              processable && input.gbpLocationName ? input.gbpLocationName : undefined,
-            processingRegion: property.processingRegion ?? undefined,
-            occurredAt: property.createdAt,
-          }),
-        })
-        return {
-          id: inserted.id,
-          organizationId: inserted.organizationId,
-          name: inserted.name,
-          slug: inserted.slug,
-          gbpPlaceId: inserted.gbpPlaceId,
-          createdAt: inserted.createdAt,
-        }
-      } catch (err) {
-        // drizzle wraps driver errors in DrizzleQueryError — the SQLSTATE
-        // lives on the cause (accept both shapes).
-        const code = (err as { code?: unknown } | null)?.code
-        const causeCode = (err as { cause?: unknown } | null)?.cause
-        const isPg23505 =
-          code === '23505' ||
-          (typeof causeCode === 'object' &&
-            causeCode !== null &&
-            (causeCode as { code?: unknown }).code === '23505')
-        if (isPg23505) {
-          throw propertyImportConflict(
-            `Duplicate property for gbpPlaceId=${input.gbpPlaceId}`,
-          )
-        }
-        throw err
-      }
-    },
-    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
-      return deps.repo.findExistingGbpPlaceIds(orgId, gbpPlaceIds)
-    },
-    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
-      return deps.repo.existsByGbpPlaceId(orgId, gbpPlaceId)
-    },
   }
 
-  return { publicApi, internal: { repos: {} as const, useCases } } as const
+  return {
+    publicApi,
+    bindingApi,
+    internal: {
+      repos: {} as const,
+      useCases,
+      registerOutboxConsumers: () => registerPropertyRetentionConsumer(bindingApi),
+    },
+  } as const
 }

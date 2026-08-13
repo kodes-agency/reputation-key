@@ -14,6 +14,9 @@ export type MetricKey =
   | 'portal.feedback'
   | 'portal.review_link_click'
   | 'property.review'
+  | 'portal.content_review.completed'
+  | 'portal.configuration_completeness'
+  | 'portal.approved_destination_ratio'
 
 export type AggregationFunction = 'sum' | 'count' | 'max' | 'avg'
 
@@ -27,6 +30,9 @@ export const METRIC_KEYS: readonly MetricKey[] = [
   'portal.feedback',
   'portal.review_link_click',
   'property.review',
+  'portal.content_review.completed',
+  'portal.configuration_completeness',
+  'portal.approved_destination_ratio',
 ] as const
 
 export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
@@ -38,19 +44,24 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 
 /**
  * Which metric keys are valid for each entity scope.
- * - Property scope is intentionally limited to 'property.review' (Google reviews),
- *   as scans and private ratings are portal-specific experiences.
- * - Portal group scope uses the same keys as portal scope — aggregated across member portals.
+ * Goal eligibility is restricted to the three beta-safe first-party Portal
+ * workflow metrics. Guest, solicitation, and Google-derived analytics never
+ * enter goal selection.
  */
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
 > = {
-  // Goal eligibility follows the outcomes-not-levers rule (ADR 0020):
-  // feedback (process) and review-link clicks (lever) are excluded from goals
-  // but remain valid MetricKeys for badges/leaderboard/dashboard.
-  property: ['property.review'],
-  portal: ['portal.scan', 'portal.rating'],
-  portal_group: ['portal.scan', 'portal.rating'],
+  property: [
+    'portal.content_review.completed',
+    'portal.configuration_completeness',
+    'portal.approved_destination_ratio',
+  ],
+  portal_group: [
+    'portal.content_review.completed',
+    'portal.configuration_completeness',
+    'portal.approved_destination_ratio',
+  ],
+  portal: [],
 }
 
 /**
@@ -66,6 +77,9 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
   'portal.feedback': ['sum', 'count'],
   'portal.review_link_click': ['sum', 'count'],
   'property.review': ['count', 'avg', 'max'],
+  'portal.content_review.completed': ['sum', 'count'],
+  'portal.configuration_completeness': ['avg', 'max'],
+  'portal.approved_destination_ratio': ['avg', 'max'],
 }
 
 /**
@@ -77,6 +91,9 @@ export const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction
   'portal.feedback': 'sum',
   'portal.review_link_click': 'sum',
   'property.review': 'avg',
+  'portal.content_review.completed': 'sum',
+  'portal.configuration_completeness': 'avg',
+  'portal.approved_destination_ratio': 'avg',
 }
 
 // ── Validation helpers ───────────────────────────────────────────────────

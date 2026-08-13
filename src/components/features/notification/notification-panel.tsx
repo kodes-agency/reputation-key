@@ -31,11 +31,17 @@ function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
 }
 
 // Owns panel state + mutation handlers so the component stays declarative.
-function useNotificationPanel(notificationFns: NotificationServerFns) {
+function useNotificationPanel(
+  notificationFns: NotificationServerFns,
+  organizationId: string,
+) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { count } = useUnreadNotificationCount(notificationFns.getUnreadCount)
+  const { count } = useUnreadNotificationCount(
+    notificationFns.getUnreadCount,
+    organizationId,
+  )
   const {
     notifications,
     isLoading,
@@ -44,13 +50,14 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
     hasMore,
     refetch: refetchList,
     loadMore,
-  } = useNotifications(notificationFns.getList, 20)
+  } = useNotifications(notificationFns.getList, organizationId, 20)
   const markRead = useMarkNotificationRead(notificationFns.markRead)
   const markAllRead = useMarkAllNotificationsRead(notificationFns.markAllRead)
   const dismiss = useDismissNotification(notificationFns.dismiss)
   const dismissAll = useDismissAllNotifications(notificationFns.dismissAll)
 
-  const refresh = () => qc.invalidateQueries({ queryKey: notificationKeys.all })
+  const refresh = () =>
+    qc.invalidateQueries({ queryKey: notificationKeys.forOrganization(organizationId) })
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -104,8 +111,9 @@ function useNotificationPanel(notificationFns: NotificationServerFns) {
 
 export function NotificationPanel({
   notificationFns,
-}: Readonly<{ notificationFns: NotificationServerFns }>) {
-  const panel = useNotificationPanel(notificationFns)
+  organizationId = 'no-active-organization',
+}: Readonly<{ notificationFns: NotificationServerFns; organizationId?: string }>) {
+  const panel = useNotificationPanel(notificationFns, organizationId)
 
   return (
     <Popover open={panel.open} onOpenChange={panel.handleOpenChange}>

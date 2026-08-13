@@ -63,6 +63,8 @@ export type OperationsSnapshotDeps = Readonly<{
   versions: Readonly<{
     /** CAPABILITY_POLICY_VERSION (boot manifest). */
     capabilityPolicy: string
+    /** EXECUTION_POLICY_VERSION (authorization semantics). */
+    executionPolicy: string
     /** Persisted policy_version reader (null when only the env seed exists). */
     policyStore: () => number | null
     /** ROUTING_POLICY_VERSION (processing-routing). */
@@ -99,6 +101,7 @@ export type OperationsDbSection = Readonly<{
 /** BQC-7.3 (versions.*): deploy + policy identity. All content-free. */
 export type OperationsVersions = Readonly<{
   capabilityPolicy: string
+  executionPolicy: string
   policyStore: number | null
   routingPolicy: number
   sourceContentPolicy: number
@@ -206,6 +209,7 @@ async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<Runtime
     release: { sha: (deps.runtime?.releaseSha ?? getReleaseSha)() },
     versions: {
       capabilityPolicy: deps.versions.capabilityPolicy,
+      executionPolicy: deps.versions.executionPolicy,
       policyStore: deps.versions.policyStore(),
       routingPolicy: deps.versions.routingPolicy,
       sourceContentPolicy: deps.versions.sourceContentPolicy,
@@ -224,6 +228,7 @@ function zeroRuntimeSection(
     release: { sha: 'unknown' },
     versions: {
       capabilityPolicy: versions.capabilityPolicy,
+      executionPolicy: versions.executionPolicy,
       policyStore: null,
       routingPolicy: versions.routingPolicy,
       sourceContentPolicy: versions.sourceContentPolicy,

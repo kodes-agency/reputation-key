@@ -70,6 +70,30 @@ describe('createRateLimiter', () => {
       expect(result.allowed).toBe(false)
       expect(result.remaining).toBe(0)
     })
+    it('honors a per-check limit and window for stricter public actions', async () => {
+      const limiter = createRateLimiter(mockRedis as unknown as Redis, defaultOpts)
+      await limiter.check('guest-response', {
+        maxRequests: 2,
+        windowSeconds: 3600,
+      })
+      await limiter.check('guest-response', {
+        maxRequests: 2,
+        windowSeconds: 3600,
+      })
+      const result = await limiter.check('guest-response', {
+        maxRequests: 2,
+        windowSeconds: 3600,
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.remaining).toBe(0)
+      expect(mockRedis.eval).toHaveBeenLastCalledWith(
+        expect.any(String),
+        1,
+        'ratelimit:test:guest-response',
+        3600,
+      )
+    })
 
     it('tracks remaining correctly', async () => {
       const limiter = createRateLimiter(mockRedis as unknown as Redis, defaultOpts)

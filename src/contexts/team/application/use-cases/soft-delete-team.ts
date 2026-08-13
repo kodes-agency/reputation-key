@@ -1,11 +1,11 @@
 // Team context — soft-delete team use case
 
 import type { TeamRepository } from '../ports/team.repository'
-import type { AssignmentCheckPort } from '../ports/assignment-check.port'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { TeamId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { TeamMembershipRepository } from '../ports/team-membership.repository'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { teamError } from '../../domain/errors'
@@ -21,7 +21,7 @@ export type SoftDeleteTeamInput = Readonly<{
 export type SoftDeleteTeamDeps = Readonly<{
   teamRepo: TeamRepository
   staffApi: StaffPublicApi
-  assignmentCheck: AssignmentCheckPort
+  membershipRepo: TeamMembershipRepository
   events: EventBus
   clock: () => Date
   outboxRepo?: OutboxRepository
@@ -53,20 +53,15 @@ export const softDeleteTeam =
       throw teamError('forbidden', 'no access to this property')
     }
 
-    // 3. Check for active assignments — prevent deletion if team has members
-    // F139: Guard against deleting a team with active staff assignments.
-    const assignmentCount = await deps.assignmentCheck.countByTeam(
+    // Close active memberships at the archive boundary. Historical intervals
+    // remain queryable; team archive never cascades or erases attribution.
+    const now = deps.clock()
+    await deps.membershipRepo.closeForTeam(
       ctx.organizationId,
       team.id,
+      now,
+      'team_archived',
     )
-    if (assignmentCount > 0) {
-      throw teamError(
-        'team_has_assignments',
-        `Cannot delete team with ${assignmentCount} active assignment(s). Remove or reassign staff first.`,
-      )
-    }
-
-    // 4. Persist
     await deps.teamRepo.softDelete(ctx.organizationId, team.id)
 
     // 5. Emit event
@@ -77,7 +72,7 @@ export const softDeleteTeam =
         teamId: team.id,
         organizationId: team.organizationId,
         propertyId: team.propertyId,
-        occurredAt: deps.clock(),
+        occurredAt: now,
       }),
     )
   }

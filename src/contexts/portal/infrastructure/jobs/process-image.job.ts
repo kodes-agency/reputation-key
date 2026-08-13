@@ -11,12 +11,13 @@ import type { StoragePort } from '../../application/ports/storage.port'
 import type { PortalRepository } from '../../application/ports/portal.repository'
 import { portalError } from '../../domain/errors'
 import { organizationId, portalId } from '#/shared/domain/ids'
+import type { JobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 
-export type ProcessImageJobData = Readonly<{
-  key: string
-  portalId: string
-  organizationId: string
-}>
+export type ProcessImageJobData = JobExecutionEnvelope &
+  Readonly<{
+    key: string
+    portalId: string
+  }>
 
 export type ProcessImageJobDeps = Readonly<{
   storage: StoragePort

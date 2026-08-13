@@ -1,0 +1,10 @@
+$ pnpm format:check
+started: 2026-08-08T14:30:16.772Z  durationMs: 12024  exit: 0
+
+
+> reputation-key@ format:check /Users/bozhidardenev/kodes/projects/rep-key
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+

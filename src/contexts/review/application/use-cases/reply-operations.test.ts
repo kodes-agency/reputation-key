@@ -572,8 +572,8 @@ describe('approveReply', () => {
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
-        // BQC-3.2: named initiator for user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: USER_ID } },
+        // Named attribution for user-triggered delayed work.
+        initiator: { kind: 'user', id: USER_ID },
       },
       {
         // BQC-3.3: saga idempotency key dedupes enqueue for the same approval
@@ -682,7 +682,7 @@ describe('editPublishedReply', () => {
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
-        policy: { initiator: { kind: 'user', id: USER_ID } },
+        initiator: { kind: 'user', id: USER_ID },
       },
       { idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()) },
     )

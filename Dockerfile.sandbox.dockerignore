@@ -1,0 +1,13 @@
+# The sandbox image needs only its entry point and the dependency-free fixtures.
+# A Dockerfile-specific ignore takes precedence over the production image's
+# root .dockerignore so test-only fixture sources never enter that image.
+**
+!package.json
+!pnpm-lock.yaml
+!scripts
+!scripts/perf
+!scripts/perf/cell-stub-server.ts
+!e2e
+!e2e/fixtures
+!e2e/fixtures/gbp-stub.ts
+!e2e/fixtures/mail-stub.ts

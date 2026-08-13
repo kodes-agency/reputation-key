@@ -1,7 +1,9 @@
+import type { GuestResponseView } from '../use-cases/guest-response-lifecycle'
+
 // F066: Re-export ScanSource from domain/types instead of duplicating the union
 export type { ScanSource } from '../../domain/types'
 
-export type PublicPortalLoaderData = {
+export type PublicPortalData = {
   portal: {
     id: string
     name: string
@@ -9,8 +11,6 @@ export type PublicPortalLoaderData = {
     description: string | null
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
-    smartRoutingEnabled: boolean
-    smartRoutingThreshold: number
     organizationName: string
   }
   categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
@@ -23,4 +23,9 @@ export type PublicPortalLoaderData = {
   }>
   organizationId: string
   propertyId: string
+}
+
+export type PublicPortalLoaderData = PublicPortalData & {
+  guestSession: { csrfNonce: string }
+  response: GuestResponseView | null
 }

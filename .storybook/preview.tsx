@@ -59,6 +59,10 @@ const preview: Preview = {
   parameters: {
     viewport: {
       viewports: {
+        mobileNarrow: {
+          name: 'Mobile narrow',
+          styles: { width: '320px', height: '900px' },
+        },
         mobileStaff: {
           name: 'Mobile staff',
           styles: { width: '390px', height: '844px' },

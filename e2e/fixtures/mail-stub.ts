@@ -34,7 +34,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
 export const MAIL_STUB_PORT = 4101
-export const MAIL_STUB_BASE_URL = `http://localhost:${MAIL_STUB_PORT}`
+export const MAIL_STUB_BASE_URL =
+  process.env.MAIL_STUB_BASE_URL ?? `http://localhost:${MAIL_STUB_PORT}`
 
 /**
  * BQC-6.7 sandbox env: point the app's Resend client at the stub. Spread into
@@ -57,6 +58,7 @@ export type FailureMode =
   | Readonly<{ mode: 'always-fail'; status: number }>
 
 export type MailStub = Readonly<{
+  host: string
   port: number
   stop: () => Promise<void>
 }>
@@ -80,7 +82,10 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-export async function startMailStub(port: number = MAIL_STUB_PORT): Promise<MailStub> {
+export async function startMailStub(
+  port: number = MAIL_STUB_PORT,
+  host: string = '127.0.0.1',
+): Promise<MailStub> {
   const sends: RecordedSend[] = []
   let failureMode: FailureMode = { mode: 'success' }
   let sequence = 0
@@ -149,10 +154,11 @@ export async function startMailStub(port: number = MAIL_STUB_PORT): Promise<Mail
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '127.0.0.1', () => resolve())
+    server.listen(port, host, () => resolve())
   })
 
   return {
+    host,
     port,
     stop: () =>
       new Promise<void>((resolve) => {

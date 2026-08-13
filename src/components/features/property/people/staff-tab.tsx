@@ -1,5 +1,13 @@
-import { useState, useMemo } from 'react'
-import { TabsContent } from '#/components/ui/tabs'
+import { useMemo, useState } from 'react'
+import { LockKeyhole, Plus } from 'lucide-react'
+import type { Action } from '#/components/hooks/use-action'
+import { PortalResponsibilitiesModal } from '#/components/features/staff/portal-responsibilities-modal'
+import {
+  StaffParticipationForm,
+  StaffParticipationList,
+} from '#/components/features/staff'
+import type { PortalOption } from '#/components/features/staff/portal-selector'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -9,127 +17,141 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Plus } from 'lucide-react'
-import { StaffAssignmentList, AssignStaffForm } from '#/components/features/staff'
-import { EditStaffPortalsModal } from '#/components/features/staff/edit-staff-portals-modal'
-import type { Action } from '#/components/hooks/use-action'
-import type { MemberLike, TeamLike } from '#/lib/lookups'
-import type { PortalOption } from '#/components/features/staff/portal-selector'
-import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
+import { TabsContent } from '#/components/ui/tabs'
+import type {
+  ArchiveStaffParticipationMutationInput,
+  CreateStaffParticipationMutationInput,
+  MemberOption,
+  PortalResponsibilitySelection,
+  StaffParticipationView,
+  UpdatePortalResponsibilitiesMutationInput,
+} from '#/components/features/team/shared/types'
 
 interface StaffTabProps {
   propertyId: string
-  assignments: ReadonlyArray<{
-    id: string
-    userId: string
-    teamId: string | null
-    portalId: string | null
-  }>
-  memberOptions: MemberLike[]
-  teamOptions: TeamLike[]
-  portalOptions: PortalOption[]
-  /** F-PEOPLE: portal.read denied (dark) — hide the portal-dependent
-   * affordances (Assign Staff portal selector, per-row portal Edit). */
+  participations: ReadonlyArray<StaffParticipationView>
+  responsibilities: ReadonlyArray<PortalResponsibilitySelection>
+  memberOptions: ReadonlyArray<MemberOption>
+  portalOptions: ReadonlyArray<PortalOption>
   portalsDenied: boolean
-  assignedUserIds: Set<string>
-  assignMutation: Action<{ data: CreateStaffAssignmentInput }>
-  removeMutation: Action<{ data: { assignmentId: string } }>
-  assignOpen: boolean
-  onAssignOpenChange: (open: boolean) => void
-  updatePortalsMutation: Action<{
-    data: { userId: string; propertyId: string; portalIds: string[] }
+  canManageStaff?: boolean
+  activeUserIds: ReadonlySet<string>
+  createMutation: Action<{ data: CreateStaffParticipationMutationInput }>
+  archiveMutation: Action<{ data: ArchiveStaffParticipationMutationInput }>
+  createOpen: boolean
+  onCreateOpenChange: (open: boolean) => void
+  updateResponsibilitiesMutation: Action<{
+    data: UpdatePortalResponsibilitiesMutationInput
   }>
 }
 
 export function StaffTab({
   propertyId,
-  assignments,
+  participations,
+  responsibilities,
   memberOptions,
-  teamOptions,
   portalOptions,
   portalsDenied,
-  assignedUserIds,
-  assignMutation,
-  removeMutation,
-  assignOpen,
-  onAssignOpenChange,
-  updatePortalsMutation,
+  canManageStaff = true,
+  activeUserIds,
+  createMutation,
+  archiveMutation,
+  createOpen,
+  onCreateOpenChange,
+  updateResponsibilitiesMutation,
 }: StaffTabProps) {
-  const [editingUserId, setEditingUserId] = useState<string | null>(null)
-
-  // Compute current portal IDs for the user being edited
-  const editingUserAssignments = useMemo(() => {
-    if (editingUserId == null) return []
-    return assignments.filter((a) => a.userId === editingUserId)
-  }, [editingUserId, assignments])
-
-  const editingUserPortalIds = useMemo(
+  const [editingParticipationId, setEditingParticipationId] = useState<string | null>(
+    null,
+  )
+  const editingParticipation = useMemo(
     () =>
-      editingUserAssignments
-        .map((a) => a.portalId)
-        .filter((id): id is string => id != null),
-    [editingUserAssignments],
+      participations.find(
+        (participation) => participation.id === editingParticipationId,
+      ) ?? null,
+    [editingParticipationId, participations],
+  )
+  const editingResponsibilities = useMemo(
+    () =>
+      responsibilities.find(
+        (responsibility) =>
+          responsibility.staffParticipationId === editingParticipationId,
+      ) ?? null,
+    [editingParticipationId, responsibilities],
   )
 
-  const editingUserName = useMemo(() => {
-    if (editingUserId == null) return ''
-    const member = memberOptions.find((m) => m.userId === editingUserId)
-    return member ? member.name : editingUserId
-  }, [editingUserId, memberOptions])
+  if (!canManageStaff) {
+    return (
+      <TabsContent value="staff" className="mt-4">
+        <Alert>
+          <LockKeyhole aria-hidden="true" />
+          <AlertTitle>Staff management is unavailable</AlertTitle>
+          <AlertDescription>
+            You do not have permission to manage participation at this property.
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    )
+  }
 
   return (
     <TabsContent value="staff" className="mt-4 space-y-4">
       <div className="flex justify-end">
-        <Dialog open={assignOpen} onOpenChange={onAssignOpenChange}>
+        <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
           <DialogTrigger asChild>
             <Button>
-              <Plus />
-              Assign Staff
+              <Plus aria-hidden="true" />
+              Add staff
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Assign Staff</DialogTitle>
+              <DialogTitle>Add staff participation</DialogTitle>
               <DialogDescription>
-                {portalsDenied
-                  ? 'Select staff members to assign to this property.'
-                  : 'Select staff members and portals to assign to this property.'}
+                Add organization members to this property. Team membership and portal
+                responsibilities are managed separately.
               </DialogDescription>
             </DialogHeader>
-            <AssignStaffForm
+            <StaffParticipationForm
               propertyId={propertyId}
-              mutation={assignMutation}
+              mutation={createMutation}
               members={memberOptions}
-              teams={teamOptions}
-              portals={portalOptions}
-              portalsUnavailable={portalsDenied}
-              assignedUserIds={assignedUserIds}
+              activeUserIds={activeUserIds}
+              onSuccess={() => onCreateOpenChange(false)}
             />
           </DialogContent>
         </Dialog>
       </div>
 
-      <StaffAssignmentList
-        assignments={assignments}
-        members={memberOptions}
-        teams={teamOptions}
-        removeAction={removeMutation}
-        onEditUser={setEditingUserId}
-        canEditPortals={!portalsDenied}
+      {portalsDenied && (
+        <Alert>
+          <LockKeyhole aria-hidden="true" />
+          <AlertTitle>Portal responsibilities are unavailable</AlertTitle>
+          <AlertDescription>
+            You can still manage staff participation. Portal responsibility controls
+            require access to this property's portals.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <StaffParticipationList
+        participations={participations}
+        archiveAction={archiveMutation}
+        canManageResponsibilities={!portalsDenied}
+        onEditResponsibilities={setEditingParticipationId}
       />
 
-      {editingUserId != null && !portalsDenied && (
-        <EditStaffPortalsModal
-          key={editingUserId}
-          userId={editingUserId}
-          userName={editingUserName}
-          propertyId={propertyId}
-          currentPortalIds={editingUserPortalIds}
+      {editingParticipation && !portalsDenied && (
+        <PortalResponsibilitiesModal
+          key={editingParticipation.id}
+          staffParticipationId={editingParticipation.id}
+          displayName={editingParticipation.displayName}
+          currentPrimaryPortalId={editingResponsibilities?.primaryPortalId ?? null}
+          currentSupportingPortalIds={editingResponsibilities?.supportingPortalIds ?? []}
           allPortals={portalOptions}
-          updateAction={updatePortalsMutation}
-          open={editingUserId != null}
+          updateAction={updateResponsibilitiesMutation}
+          open
           onOpenChange={(open) => {
-            if (!open) setEditingUserId(null)
+            if (!open) setEditingParticipationId(null)
           }}
         />
       )}

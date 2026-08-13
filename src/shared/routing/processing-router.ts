@@ -45,10 +45,12 @@ export type ProcessingTarget = Readonly<{
  * mapping — this type is the contract adapters are built from. */
 export type ProviderEndpoints = Readonly<{
   gbpApiBaseUrl: string
+  gbpAccountManagementBaseUrl: string
+  gbpPerformanceBaseUrl: string
   reviewsApiBaseUrl: string
   notificationsApiBaseUrl: string
   oauthTokenUrl: string
-  oauthUserInfoUrl: string
+  oauthJwksUrl: string
   oauthRevokeUrl: string
 }>
 
@@ -57,14 +59,27 @@ export type RoutingBlockedReason =
   | 'region_denied'
   | 'property_missing'
 
-/** A fail-closed routing decision — the work must not execute anywhere. */
+/** A fail-closed property routing decision. */
 export type RoutingBlocked = Readonly<{
   kind: 'blocked'
   reason: RoutingBlockedReason
   region: string | null
 }>
 
+export type ImportRoutingBlockedReason =
+  | RoutingBlockedReason
+  | 'import_item_missing'
+  | 'subject_workload_mismatch'
+
+export type ImportRoutingBlocked = Readonly<{
+  kind: 'blocked'
+  reason: ImportRoutingBlockedReason
+  region: string | null
+}>
+
 export type RoutingDecision = ProcessingTarget | RoutingBlocked
+export type ImportRoutingDecision = ProcessingTarget | ImportRoutingBlocked
+export type ProcessingDecision = RoutingDecision | ImportRoutingDecision
 
 /**
  * Content-free routing envelope stamped on job payloads at enqueue (BQC-4.2
@@ -72,8 +87,12 @@ export type RoutingDecision = ProcessingTarget | RoutingBlocked
  * fresh decision is the authority; a payload region is NEVER accepted only
  * because it is present.
  */
+export type ProcessingSubject =
+  | Readonly<{ kind: 'property'; propertyId: string }>
+  | Readonly<{ kind: 'import_item'; organizationId: string; itemId: string }>
+
 export type RoutingEnvelope = Readonly<{
-  propertyId: string
+  subject: ProcessingSubject
   region: string
   workloadClass: WorkloadClass
   routingPolicyVersion: number
@@ -85,15 +104,39 @@ export type PropertyRoutingRecord = Readonly<{
   routingPolicyVersion: number
 }>
 
+/** Current routing facts for a nonterminal tenant-scoped import item. */
+export type ImportItemRoutingRecord = Readonly<{
+  processingRegion: string
+  routingPolicyVersion: number
+}>
+
 export type ProcessingRouterDeps = Readonly<{
   /** Port: load the property's persisted routing facts; null when missing. */
   loadPropertyRouting: (propertyId: string) => Promise<PropertyRoutingRecord | null>
+  /** Port: tenant-keyed import-item routing; absent fails import work closed. */
+  loadImportItemRouting?: (
+    organizationId: string,
+    itemId: string,
+  ) => Promise<ImportItemRoutingRecord | null>
   /** The worker's declared cell (env PROCESSING_CELL, default 'us'). */
   cell: string
 }>
 
 export type ProcessingRouter = Readonly<{
-  resolve: (propertyId: string, workloadClass: WorkloadClass) => Promise<RoutingDecision>
+  resolve: {
+    (
+      subject: Extract<ProcessingSubject, { kind: 'property' }>,
+      workloadClass: WorkloadClass,
+    ): Promise<RoutingDecision>
+    (
+      subject: Extract<ProcessingSubject, { kind: 'import_item' }>,
+      workloadClass: WorkloadClass,
+    ): Promise<ImportRoutingDecision>
+    (
+      subject: ProcessingSubject,
+      workloadClass: WorkloadClass,
+    ): Promise<ProcessingDecision>
+  }
 }>
 
 /**
@@ -128,52 +171,71 @@ const WORKLOAD_QUEUES: Readonly<Record<WorkloadClass, 'default' | 'background'>>
 }
 
 /**
- * Job name → workload class for dispatch-time routing. Only property-scoped
- * protected jobs are routed; 'import-property' is an organization-scoped
- * fan-out whose per-property effects ride the sync jobs it spawns, and
- * tenant-cross sweeps never route. String literals mirror the catalogue job
- * names (the shared zone cannot import context job constants); the
- * entry-point catalogue pins those names.
+ * Job name → workload class for dispatch-time routing. Import-item work is
+ * organization-scoped in policy but still routed through its tenant-keyed
+ * immutable item facts; it must never impersonate a Property.
  */
 const JOB_WORKLOAD_CLASSES: Readonly<Record<string, WorkloadClass>> = {
   'sync-property-reviews': 'review.sync',
   'publish-reply': 'reply.publish',
+  'import-gbp-property-item-v2': 'property.import',
 }
 
-/** The workload class routed for a job name, or undefined when the job does
- * not route (tenant-cross sweeps, org-scoped fan-outs, unknown jobs). */
+/** The workload class routed for a job name, or undefined when it does not route. */
 export function workloadClassForJob(jobName: string): WorkloadClass | undefined {
   return JOB_WORKLOAD_CLASSES[jobName]
 }
 
+function resolveRecord(
+  record: PropertyRoutingRecord | ImportItemRoutingRecord | null,
+  missingReason: 'property_missing' | 'import_item_missing',
+  workloadClass: WorkloadClass,
+): ProcessingDecision {
+  if (!record) return { kind: 'blocked', reason: missingReason, region: null }
+  const region = record.processingRegion
+  if (region == null || region === 'unresolved') {
+    return { kind: 'blocked', reason: 'region_unresolved', region: region ?? null }
+  }
+  const target = CELL_TARGETS[region]
+  if (!target) return { kind: 'blocked', reason: 'region_denied', region }
+  return {
+    kind: 'target',
+    cell: target.cell,
+    region: target.region,
+    queue: WORKLOAD_QUEUES[workloadClass],
+    provider: target.provider,
+    routingPolicyVersion: record.routingPolicyVersion,
+  }
+}
+
 /**
- * Create the routing decision model. resolve() loads the property's CURRENT
- * routing facts on every call — a stale allow or a stamped envelope never
+ * Create the routing decision model. resolve() loads CURRENT server-owned
+ * routing facts on every call — a stale allow or stamped envelope never
  * overrides the fresh decision.
  */
 export function createProcessingRouter(deps: ProcessingRouterDeps): ProcessingRouter {
-  return {
-    resolve: async (propertyId, workloadClass) => {
-      const record = await deps.loadPropertyRouting(propertyId)
-      if (!record) {
-        return { kind: 'blocked', reason: 'property_missing', region: null }
-      }
-      const region = record.processingRegion
-      if (region == null || region === 'unresolved') {
-        return { kind: 'blocked', reason: 'region_unresolved', region: region ?? null }
-      }
-      const target = CELL_TARGETS[region]
-      if (!target) {
-        return { kind: 'blocked', reason: 'region_denied', region }
-      }
+  const resolve = async (
+    subject: ProcessingSubject,
+    workloadClass: WorkloadClass,
+  ): Promise<ProcessingDecision> => {
+    if (subject.kind === 'property') {
+      return resolveRecord(
+        await deps.loadPropertyRouting(subject.propertyId),
+        'property_missing',
+        workloadClass,
+      )
+    }
+    if (workloadClass !== 'property.import') {
       return {
-        kind: 'target',
-        cell: target.cell,
-        region: target.region,
-        queue: WORKLOAD_QUEUES[workloadClass],
-        provider: target.provider,
-        routingPolicyVersion: record.routingPolicyVersion,
+        kind: 'blocked',
+        reason: 'subject_workload_mismatch',
+        region: null,
       }
-    },
+    }
+    const record = deps.loadImportItemRouting
+      ? await deps.loadImportItemRouting(subject.organizationId, subject.itemId)
+      : null
+    return resolveRecord(record, 'import_item_missing', workloadClass)
   }
+  return { resolve: resolve as ProcessingRouter['resolve'] }
 }

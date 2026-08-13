@@ -19,11 +19,16 @@ vi.mock('#/shared/db/retention/evidence', () => ({
 }))
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: vi.fn(() => mockLogger),
+  sanitizeTelemetryValue: vi.fn((value) => value),
 }))
 
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { openRetentionRun, closeRetentionRun } from '#/shared/db/retention/evidence'
-import { createRetentionSweepHandler, RETENTION_RULES } from './retention-sweep.job'
+import {
+  createRetentionSweepHandler,
+  GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+  RETENTION_RULES,
+} from './retention-sweep.job'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
@@ -137,6 +142,86 @@ describe('retention sweep job (BQC-1.6)', () => {
       expect.anything(),
       'run-a.old',
       expect.objectContaining({ outcome: 'completed' }),
+    )
+  })
+
+  it('records bounded Google import lifecycle evidence before ordinary rules', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const googleImportLifecycleSweep = vi.fn(async () => ({
+      expiredItemsVisited: 4,
+      receiptsReconciled: 1,
+      itemsTerminalized: 3,
+      parentsPurged: 2,
+      propertyReceiptsSwept: 5,
+      unreleasedExpiredReceipts: 0,
+    }))
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      batchSize: 100,
+      googleImportLifecycleSweep,
+    })
+
+    await handler({} as never)
+
+    expect(openRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+      100,
+      NOW,
+    )
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT}`,
+      {
+        finishedAt: NOW,
+        batches: 1,
+        rowsDeleted: 7,
+        outcome: 'completed',
+      },
+    )
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+        expiredItemsVisited: 4,
+      }),
+      'Google import lifecycle retention sweep completed',
+    )
+  })
+
+  it('records lifecycle failure, continues ordinary rules, then fails the job', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      googleImportLifecycleSweep: vi.fn(async () => {
+        throw new Error('receipt release backlog')
+      }),
+    })
+
+    await expect(handler({} as never)).rejects.toThrow(
+      GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+    )
+
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT}`,
+      expect.objectContaining({
+        outcome: 'failed',
+        errorCode: 'receipt release backlog',
+      }),
     )
   })
 })

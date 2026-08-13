@@ -17,8 +17,9 @@ export type GbpApiError = Readonly<{
   operation: string
   /** Domain classification set at the adapter boundary from the raw HTTP status. */
   kind: GbpApiErrorKind
-  /** Raw upstream response body — kept server-side for diagnostics, never classified. */
-  body: string
+  /** Content-free diagnostics. Provider response bytes are never retained. */
+  providerBodyBytes: number
+  retryAfterMs: number | null
   message: string
 }>
 
@@ -29,10 +30,12 @@ const defineEnumerable = <T>(value: T): PropertyDescriptor => ({
   configurable: false,
 })
 
+const textEncoder = new TextEncoder()
+
 export const createGbpApiError = (
   operation: string,
   kind: GbpApiErrorKind,
-  body: string,
+  details: string | Readonly<{ providerBodyBytes?: number; retryAfterMs?: number }> = '',
 ): Error & GbpApiError => {
   const message = `GBP API ${operation} failed (${kind})`
   // TS can't see defineProperties add the tagged props, so the intersection is asserted once here.
@@ -42,7 +45,14 @@ export const createGbpApiError = (
     _tag: defineEnumerable('GbpApiError'),
     operation: defineEnumerable(operation),
     kind: defineEnumerable(kind),
-    body: defineEnumerable(body),
+    providerBodyBytes: defineEnumerable(
+      typeof details === 'string'
+        ? textEncoder.encode(details).byteLength
+        : (details.providerBodyBytes ?? 0),
+    ),
+    retryAfterMs: defineEnumerable(
+      typeof details === 'string' ? null : (details.retryAfterMs ?? null),
+    ),
   })
   if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {
     Error.captureStackTrace(err, createGbpApiError)

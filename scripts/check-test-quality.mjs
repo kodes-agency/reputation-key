@@ -22,11 +22,6 @@
 //     Conditional presence fallback: contexts with domain/ but no
 //     domain/errors.ts module are legitimately absent from the BQR-1.2
 //     convention check, so the per-context test registers as skipped.
-//   - e2e/post-beta/guest-portal.spec.ts (owner: engineering)
-//     portal.read is dark for beta; the suite is excluded from both
-//     Playwright projects (testIgnore 'post-beta/' in playwright.config.ts)
-//     and the runtime skip guards accidental inclusion. Re-enable with the
-//     capability posture change + a portal seed fixture.
 //
 // ── Mutation-sample evidence (BQC-6.9 §4, run 2026-07-29) ──
 //
@@ -66,13 +61,6 @@ const SKIP_REGISTER = [
     owner: 'engineering',
     reason:
       'conditional presence fallback — contexts without a domain errors module are legitimately absent from the convention check',
-    maxHits: 1,
-  },
-  {
-    file: 'e2e/post-beta/guest-portal.spec.ts',
-    owner: 'engineering',
-    reason:
-      'portal.read dark for beta; suite testIgnored from Playwright projects — runtime skip guards accidental inclusion until posture change + portal seed fixture',
     maxHits: 1,
   },
 ]

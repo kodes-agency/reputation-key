@@ -5,7 +5,6 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
@@ -13,8 +12,38 @@ import {
   updateLinkCategoryInputSchema,
   reorderCategoriesInputSchema,
 } from '../application/dto/portal-link-category.dto'
-import { isPortalError } from '../domain/errors'
+import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  portalId as toPortalId,
+  portalLinkCategoryId as toCategoryId,
+} from '#/shared/domain/ids'
+import { requireMatchingPortalResourceScopes } from './property-scope'
+
+async function authorizePortalCategoryScopes(
+  ctx: AuthContext,
+  action: 'portal.create' | 'portal.update' | 'portal.delete',
+  lookups: readonly (() => Promise<{
+    organizationId: string
+    propertyId: string
+    portalId?: string
+  } | null>)[],
+): Promise<void> {
+  try {
+    await requireMatchingPortalResourceScopes({
+      actor: ctx,
+      action,
+      capability: 'portal.write',
+      notFound: portalError('category_not_found', 'portal category resource not found'),
+      lookups,
+    })
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
+    throw error
+  }
+}
 
 // ── Category CRUD ──────────────────────────────────────────────────
 
@@ -25,11 +54,12 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.create',
-          capability: 'portal.write',
-        })
+        await authorizePortalCategoryScopes(ctx, 'portal.create', [
+          () =>
+            getContainer().useCases.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           const category = await useCases.createLinkCategory(data, ctx)
@@ -52,11 +82,12 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalCategoryScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().useCases.resolvePortalCategoryManagementScope(
+              toCategoryId(data.categoryId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           const category = await useCases.updateLinkCategory(data, ctx)
@@ -79,11 +110,12 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.delete',
-          capability: 'portal.write',
-        })
+        await authorizePortalCategoryScopes(ctx, 'portal.delete', [
+          () =>
+            getContainer().useCases.resolvePortalCategoryManagementScope(
+              toCategoryId(data.categoryId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           await useCases.deleteLinkCategory(data, ctx)
@@ -106,11 +138,18 @@ export const reorderCategories = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalCategoryScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().useCases.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+          ...data.items.map(
+            (item) => () =>
+              getContainer().useCases.resolvePortalCategoryManagementScope(
+                toCategoryId(item.id),
+              ),
+          ),
+        ])
         try {
           const { useCases } = getContainer()
           await useCases.reorderCategories(data, ctx)

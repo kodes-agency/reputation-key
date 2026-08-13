@@ -3,18 +3,35 @@
 
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
-import type {
-  GoogleConnectionId,
-  GbpImportJobId,
-  OrganizationId,
-} from '#/shared/domain/ids'
+import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain/ids'
+
+export type IntegrationPropertyImportRequested = Readonly<{
+  _tag: 'integration.property_import.requested'
+  eventId: string
+  organizationId: OrganizationId
+  importJobId: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const integrationPropertyImportRequested = (
+  args: Omit<IntegrationPropertyImportRequested, '_tag' | 'correlationId' | 'eventId'>,
+): IntegrationPropertyImportRequested => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'integration.property_import.requested',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export type IntegrationGoogleAccountConnected = Readonly<{
   _tag: 'integration.google_account.connected'
   eventId: string
   connectionId: GoogleConnectionId
   organizationId: OrganizationId
-  googleEmail: string
+  connectedBy: UserId
   occurredAt: Date
   correlationId: string | null
 }>
@@ -50,30 +67,6 @@ export const integrationGoogleAccountDisconnected = (
   }
 }
 
-export type IntegrationPropertyImportCompleted = Readonly<{
-  _tag: 'integration.property_import.completed'
-  eventId: string
-  importJobId: GbpImportJobId
-  organizationId: OrganizationId
-  totalCount: number
-  importedCount: number
-  skippedCount: number
-  failedCount: number
-  occurredAt: Date
-  correlationId: string | null
-}>
-export const integrationPropertyImportCompleted = (
-  args: Omit<IntegrationPropertyImportCompleted, '_tag' | 'correlationId' | 'eventId'>,
-): IntegrationPropertyImportCompleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    _tag: 'integration.property_import.completed',
-    eventId: newEventId(),
-    correlationId: null,
-    ...args,
-  }
-}
-
 export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
   _tag: 'integration.google_connection.visibility_changed'
   eventId: string
@@ -98,8 +91,39 @@ export const integrationGoogleConnectionVisibilityChanged = (
   }
 }
 
+export type IntegrationPropertyImportRetentionReleased = Readonly<{
+  _tag: 'integration.property_import.retention_released'
+  eventId: string
+  organizationId: OrganizationId
+  idempotencyKeys: readonly string[]
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const integrationPropertyImportRetentionReleased = (
+  args: Omit<
+    IntegrationPropertyImportRetentionReleased,
+    '_tag' | 'correlationId' | 'eventId'
+  >,
+): IntegrationPropertyImportRetentionReleased => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.idempotencyKeys.length >= 1 &&
+      args.idempotencyKeys.length <= 100 &&
+      new Set(args.idempotencyKeys).size === args.idempotencyKeys.length,
+    'idempotencyKeys must contain 1..100 unique values',
+  )
+  return {
+    _tag: 'integration.property_import.retention_released',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
 export type IntegrationEvent =
   | IntegrationGoogleAccountConnected
   | IntegrationGoogleAccountDisconnected
   | IntegrationGoogleConnectionVisibilityChanged
-  | IntegrationPropertyImportCompleted
+  | IntegrationPropertyImportRetentionReleased
+  | IntegrationPropertyImportRequested

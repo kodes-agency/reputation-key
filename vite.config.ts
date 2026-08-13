@@ -52,6 +52,8 @@ const config = defineConfig(({ mode }) => {
               // path. Wired plugins (init order):
               //   - production-secret-guard (BQC-7.6): refuse boot when a
               //     known placeholder/test secret leaks into production.
+              //   - release-identity-guard: refuse a declared candidate that
+              //     differs from the revision baked into the image.
               //   - restore-mode-guard (BQC-7.8): restore-isolated boot
               //     assertion + the loud RESTORE MODE ISOLATED log line; the
               //     capability fail-closed enforcement itself lives at the
@@ -66,6 +68,7 @@ const config = defineConfig(({ mode }) => {
               //     routing) + x-request-id on every response.
               plugins: [
                 'server/plugins/production-secret-guard.ts',
+                'server/plugins/release-identity-guard.ts',
                 'server/plugins/restore-mode-guard.ts',
                 'server/plugins/graceful-shutdown.ts',
                 'server/plugins/security-headers.ts',

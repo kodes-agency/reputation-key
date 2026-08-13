@@ -80,6 +80,9 @@ function createFakeDeps(overrides?: {
     sum: overrides?.metricSum ?? 0,
     count: overrides?.metricSum ? 1 : 0,
     max: overrides?.metricSum ?? 0,
+    available: true,
+    sampleCount: 1,
+    minimumSample: 1,
   }
 
   const badgeRepo = {

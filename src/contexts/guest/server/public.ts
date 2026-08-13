@@ -1,145 +1,411 @@
-// Guest context — rating & feedback submission server functions
-// Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
-
 import { createServerFn } from '@tanstack/react-start'
-import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { setResponseHeader } from '@tanstack/react-start/server'
+import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
+import { getEnv } from '#/shared/config/env'
 import { headersFromContext } from '#/shared/auth/headers'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { ratingInputSchema } from '../application/dto/rating.dto'
-import { feedbackInputSchema } from '../application/dto/feedback.dto'
-import { isGuestError } from '../domain/errors'
+import {
+  decidePublicExecution,
+  requireExecutionAllowed,
+} from '#/shared/auth/execution-policy'
+import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError } from '#/shared/auth/server-errors'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
-export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
-import { portalId, ratingId } from '#/shared/domain/ids'
-import { guestErrorStatus } from './guest-scans'
+import type { Capability } from '#/shared/auth/beta-capabilities'
+import type {
+  PublicConsent,
+  PublicConsentAssertions,
+} from '#/shared/auth/execution-policy'
+import type { GuestResponseScope } from '../application/ports/guest-response.repository'
+import {
+  GuestResponseLifecycleError,
+  type GuestResponseInput,
+} from '../application/use-cases/guest-response-lifecycle'
+import type { PublicPortalData } from '../application/dto/public-portal.dto'
+import { MAX_TEXT_LENGTH } from '../domain/guest-response'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
+import { guestRateLimitKey } from './guest-session'
 import { hashIp } from './hash-ip.server'
-import { resolveGuestSession, guestRateLimitKey } from './guest-session'
+export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
-// ── submitRating ───────────────────────────────────────────────────
+const baseMutationSchema = z.object({
+  token: z.string().min(1).max(256),
+  csrfNonce: z.string().uuid(),
+})
 
-export const submitRatingFn = createServerFn({ method: 'POST' })
-  .inputValidator(ratingInputSchema)
+const responseMutationSchema = baseMutationSchema.extend({
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  category: z.string().uuid().nullable().optional(),
+  text: z.string().max(MAX_TEXT_LENGTH).nullable().optional(),
+  responseConsent: z.boolean().optional(),
+  textConsent: z.boolean().optional(),
+  mediaConsent: z.boolean().optional(),
+})
+
+const issueMediaSchema = baseMutationSchema.extend({
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  sizeBytes: z
+    .number()
+    .int()
+    .min(1)
+    .max(10 * 1024 * 1024),
+})
+
+const confirmMediaSchema = baseMutationSchema.extend({
+  mediaId: z.string().uuid(),
+  objectKey: z.string().min(1).max(700),
+})
+
+const denyWithoutEnumeration = (): never =>
+  throwContextError(
+    'GuestResponseError',
+    { code: 'unavailable', message: 'Request unavailable' },
+    404,
+  )
+
+async function resolveBoundSession(
+  input: Readonly<{
+    token: string
+    csrfNonce: string
+    capability: Capability
+    action: string
+    assertions: PublicConsentAssertions
+    requiredConsents: ReadonlyArray<PublicConsent>
+  }>,
+) {
+  const { useCases } = getContainer()
+  let portal: PublicPortalData
+  try {
+    portal = await useCases.getPublicPortal({ token: input.token })
+  } catch {
+    return denyWithoutEnumeration()
+  }
+  const scope: GuestResponseScope = {
+    organizationId: portal.organizationId,
+    propertyId: portal.propertyId,
+    portalId: portal.portal.id,
+  }
+  const requestHeaders = (await headersFromContext()) ?? new Headers()
+  const origin = requestHeaders.get('origin')
+  if (origin !== new URL(getEnv().BETTER_AUTH_URL).origin) {
+    return denyWithoutEnumeration()
+  }
+  const session = useCases.guestSessions.verify(requestHeaders.get('cookie') ?? '', scope)
+  if (!session || !useCases.guestSessions.verifyCsrf(session, input.csrfNonce)) {
+    return denyWithoutEnumeration()
+  }
+  const decision = await decidePublicExecution({
+    action: input.action,
+    capability: input.capability,
+    ...scope,
+    consentAssertions: input.assertions,
+    requiredPublicConsents: input.requiredConsents,
+    now: new Date(),
+  })
+  if (!decision.allowed) return denyWithoutEnumeration()
+  return { useCases, scope, session, headers: requestHeaders }
+}
+
+function lifecycleFailure(error: unknown): never {
+  if (!(error instanceof GuestResponseLifecycleError)) throw error
+  const conflict: Record<string, true> = {
+    already_submitted: true,
+    correction_window_expired: true,
+    already_deleted: true,
+  }
+  const hidden: Record<string, true> = {
+    response_not_found: true,
+    response_unavailable: true,
+    media_not_found: true,
+  }
+  if (hidden[error.code]) return denyWithoutEnumeration()
+  throwContextError(
+    'GuestResponseError',
+    { code: error.code, message: 'Request could not be completed' },
+    conflict[error.code] ? 409 : 400,
+  )
+}
+
+async function rateLimit(
+  action: 'submit' | 'correct' | 'media',
+  sessionId: string,
+  portalId: string,
+  headers: Headers,
+): Promise<void> {
+  const { rateLimiter } = getContainer()
+  const limits =
+    action === 'submit'
+      ? {
+          session: { maxRequests: 2, windowSeconds: 60 * 60 },
+          networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
+        }
+      : action === 'correct'
+        ? {
+            session: { maxRequests: 1, windowSeconds: 60 * 60 },
+            networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
+          }
+        : {
+            session: { maxRequests: 3, windowSeconds: 60 * 60 },
+            networkPortal: { maxRequests: 20, windowSeconds: 60 * 60 },
+          }
+  const keyKind = action === 'media' ? 'media' : 'response'
+  const ipHash = hashIp(clientIpFromHeaders(headers))
+  let result = await rateLimiter.check(
+    `${guestRateLimitKey(keyKind, sessionId, ipHash)}:${action}`,
+    limits.session,
+  )
+  if (result.allowed) {
+    result = await rateLimiter.check(
+      `${keyKind}:network:${ipHash}:portal:${portalId}`,
+      limits.networkPortal,
+    )
+  }
+  if (result.allowed) return
+  setResponseHeader(
+    'Retry-After',
+    String(Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000))),
+  )
+  throwContextError(
+    'GuestResponseError',
+    { code: 'rate_limited', message: 'Too many requests' },
+    429,
+  )
+}
+
+function assertions(input: GuestResponseInput): PublicConsentAssertions {
+  return {
+    analytics: false,
+    response: input.responseConsent === true,
+    freeText: input.textConsent === true,
+    contact: false,
+    media: input.mediaConsent === true,
+  }
+}
+
+export const submitGuestResponseFn = createServerFn({ method: 'POST' })
+  .inputValidator(responseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        assertGlobalCapability('portal.read')
-        const { useCases, rateLimiter } = getContainer()
-        const headers = await headersFromContext()
-
-        const cookieHeader = headers?.get('cookie') ?? ''
-        // Resolve the guest session: reuse the cookie if present, otherwise mint
-        // a fresh id AND set it as an HttpOnly cookie so the client carries it on
-        // subsequent requests (cannot be done client-side; HttpOnly is required by
-        // the guest CONTEXT.md invariant).
-        const ip = clientIpFromHeaders(headers)
-        const ipHash = hashIp(ip)
-        const session = resolveGuestSession(cookieHeader)
-
-        // Key on the session id when the cookie is present; fall back to the IP
-        // hash when cookieless so omitting the cookie cannot yield a fresh,
-        // unthrottled bucket on every request.
-        const rateResult = await rateLimiter.check(
-          guestRateLimitKey('rating', session, ipHash),
-        )
-        if (!rateResult.allowed) {
-          throwContextError(
-            'GuestError',
-            { code: 'rate_limit_exceeded', message: 'Too many requests' },
-            429,
-          )
-        }
-
-        const ctx = await useCases.resolvePortalContext({
-          portalId: portalId(data.portalId),
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.submit',
+          capability: 'portal.guest_response',
+          assertions: assertions(data),
+          requiredConsents: ['response'],
         })
-
-        try {
-          const rating = await useCases.submitRating({
-            organizationId: ctx.organizationId,
-            portalId: portalId(data.portalId),
-            propertyId: ctx.propertyId,
-            sessionId: session.sessionId,
-            value: data.value,
-            source: data.source,
-            ipHash,
+        if (data.text?.trim()) {
+          await resolveBoundSession({
+            ...data,
+            action: 'public:portal.response.text.submit',
+            capability: 'portal.guest_text',
+            assertions: assertions(data),
+            requiredConsents: ['response', 'freeText'],
           })
-          return { success: true, ratingId: rating.id }
-        } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
+        }
+        await rateLimit(
+          'submit',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.submit(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
         }
       },
       'POST',
-      'guest.submitRating',
+      'guest.response.submit',
     ),
   )
 
-// ── submitFeedback ─────────────────────────────────────────────────
-
-export const submitFeedbackFn = createServerFn({ method: 'POST' })
-  .inputValidator(feedbackInputSchema)
+export const correctGuestResponseFn = createServerFn({ method: 'POST' })
+  .inputValidator(responseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // Honeypot check
-        if (data.honeypot) {
-          return { success: true, blocked: true }
-        }
-
-        assertGlobalCapability('portal.read')
-        const { useCases, rateLimiter } = getContainer()
-        const headers = await headersFromContext()
-
-        const cookieHeader = headers?.get('cookie') ?? ''
-        const ip = clientIpFromHeaders(headers)
-        const ipHash = hashIp(ip)
-        // Reuse the cookie session if present, otherwise mint a fresh id AND
-        // set it as an HttpOnly cookie (see submitRating for full rationale).
-        const session = resolveGuestSession(cookieHeader)
-
-        // Session-keyed when the cookie is present; IP-hash fallback when
-        // cookieless so omitting the cookie cannot bypass throttling.
-        const rateResult = await rateLimiter.check(
-          guestRateLimitKey('feedback', session, ipHash),
-        )
-        if (!rateResult.allowed) {
-          throwContextError(
-            'GuestError',
-            { code: 'rate_limit_exceeded', message: 'Too many requests' },
-            429,
-          )
-        }
-
-        const ctx = await useCases.resolvePortalContext({
-          portalId: portalId(data.portalId),
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.correct',
+          capability: 'portal.guest_response',
+          assertions: assertions(data),
+          requiredConsents: ['response'],
         })
-
-        try {
-          const fb = await useCases.submitFeedback({
-            organizationId: ctx.organizationId,
-            portalId: portalId(data.portalId),
-            propertyId: ctx.propertyId,
-            sessionId: session.sessionId,
-            comment: data.comment,
-            source: data.source,
-            ipHash,
-            ratingId: data.ratingId ? ratingId(data.ratingId) : undefined,
+        if (data.text?.trim()) {
+          await resolveBoundSession({
+            ...data,
+            action: 'public:portal.response.text.correct',
+            capability: 'portal.guest_text',
+            assertions: assertions(data),
+            requiredConsents: ['response', 'freeText'],
           })
-          return { success: true, feedbackId: fb.id }
-        } catch (e) {
-          if (isGuestError(e))
-            throwContextError('GuestError', e, guestErrorStatus(e.code))
-          throw catchUntagged(e)
+        }
+        await rateLimit(
+          'correct',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.correct(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
         }
       },
       'POST',
-      'guest.submitFeedback',
+      'guest.response.correct',
     ),
   )
 
-// ── Re-exports from split files ────────────────────────────────────
+export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
+  .inputValidator(baseMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.withdraw',
+          capability: 'portal.guest_response',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: ['response'],
+        })
+        try {
+          return await bound.useCases.responseLifecycle.withdraw(
+            bound.scope,
+            bound.session.sessionId,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.withdraw',
+    ),
+  )
 
-export { recordScanFn, getPublicPortal, resolveLinkAndTrack } from './guest-scans'
+export const issueGuestMediaFn = createServerFn({ method: 'POST' })
+  .inputValidator(issueMediaSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.media.issue',
+          capability: 'portal.guest_media',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: true,
+          },
+          requiredConsents: ['response', 'media'],
+        })
+        await rateLimit(
+          'media',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.issueMedia(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.media.issue',
+    ),
+  )
+
+export const confirmGuestMediaFn = createServerFn({ method: 'POST' })
+  .inputValidator(confirmMediaSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.media.confirm',
+          capability: 'portal.guest_media',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: true,
+          },
+          requiredConsents: ['response', 'media'],
+        })
+        try {
+          return await bound.useCases.responseLifecycle.confirmMedia(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.media.confirm',
+    ),
+  )
+
+const moderationSchema = z.object({
+  propertyId: z.string().uuid(),
+  portalId: z.string().uuid(),
+  responseId: z.string().uuid(),
+  action: z.enum(['quarantine', 'delete']),
+})
+
+export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
+  .inputValidator(moderationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const actor = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor,
+          action: 'feedback.respond',
+          capability: 'portal.guest_response',
+          propertyId: data.propertyId,
+        })
+        const { useCases } = getContainer()
+        try {
+          return await useCases.responseLifecycle.moderate(
+            {
+              organizationId: actor.organizationId,
+              propertyId: data.propertyId,
+              portalId: data.portalId,
+            },
+            data.responseId,
+            data.action,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.moderate',
+    ),
+  )

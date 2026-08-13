@@ -1,5 +1,6 @@
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Settings } from 'lucide-react'
 import {
   Sidebar,
@@ -19,6 +20,7 @@ import { usePropertyId } from '#/components/hooks/use-property-id'
 import { StaffNavItems } from './staff-nav-items'
 import { StaffOrgSwitcher } from './staff-org-switcher'
 import { StaffPropertySwitcher } from './staff-property-switcher'
+import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 
 type Props = Readonly<{
   organizations: ReadonlyArray<{ id: string; name: string }>
@@ -52,6 +54,7 @@ export function StaffSidebar({
   const activeSection = useActiveSection()
   const navigate = useNavigate()
   const setOrg = useAction(setActiveOrganization)
+  const queryClient = useQueryClient()
   const rawPropertyId = usePropertyId()
 
   // The URL ?propertyId= is the single source of truth (ADR 0016). Ensure a
@@ -64,7 +67,10 @@ export function StaffSidebar({
     if (!valid) {
       navigate({
         to: '.',
-        search: (prev) => ({ ...prev, propertyId: properties[0].id }),
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          propertyId: properties[0].id,
+        }),
         replace: true,
       })
     }
@@ -76,9 +82,9 @@ export function StaffSidebar({
 
   function handleOrgSwitch(orgId: string) {
     setOrg({ data: { organizationId: orgId } })
-      .then(() => {
-        navigate({ to: '/' })
-      })
+      .then(() =>
+        clearTenantCacheBeforeNavigation(queryClient, () => navigate({ to: '/' })),
+      )
       .catch(() => {
         // Error is tracked in setOrg.error via useAction
       })
@@ -87,7 +93,10 @@ export function StaffSidebar({
   function handlePropertySwitch(newPropertyId: string) {
     navigate({
       to: '.',
-      search: (prev) => ({ ...prev, propertyId: newPropertyId }),
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        propertyId: newPropertyId,
+      }),
     })
   }
 

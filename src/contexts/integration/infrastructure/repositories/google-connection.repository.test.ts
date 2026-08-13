@@ -33,15 +33,14 @@ describe('googleConnectionRepository (integration)', () => {
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: crypto.randomUUID(),
-        googleEmail: 'test-a@example.com',
+        googleSubject: `signed-${crypto.randomUUID()}`,
       })
 
       await repo.insert(conn)
       const found = await repo.findById(ORG_A, conn.id)
 
       expect(found).not.toBeNull()
-      expect(found!.googleEmail).toBe('test-a@example.com')
+      expect(found!.googleSubject).toBe(conn.googleSubject)
       expect(found!.status).toBe('active')
       expect(found!.organizationId).toBe(ORG_A)
     })
@@ -54,20 +53,36 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
-  describe('findByGoogleAccountId', () => {
-    it('finds connection by google account id', async () => {
+  describe('findByGoogleIdentity', () => {
+    it('finds a connection by signed OIDC subject within a tenant', async () => {
       const repo = makeRepo()
-      const gaId = crypto.randomUUID()
+      const subject = `signed-${crypto.randomUUID()}`
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: gaId,
+        googleSubject: subject,
       })
       await repo.insert(conn)
 
-      const found = await repo.findByGoogleAccountId(ORG_A, gaId)
-      expect(found).not.toBeNull()
-      expect(found!.id).toBe(conn.id)
+      const found = await repo.findByGoogleIdentity(ORG_A, {
+        googleSubject: subject,
+      })
+      expect(found).toMatchObject({ id: conn.id })
+    })
+
+    it('finds a connection globally by signed OIDC subject', async () => {
+      const repo = makeRepo()
+      const conn = buildTestGoogleConnection({
+        id: crypto.randomUUID(),
+        organizationId: ORG_A,
+        googleSubject: 'signed-subject-repo-test',
+      })
+      await repo.insert(conn)
+      await expect(
+        repo.findByGoogleIdentityGlobal({
+          googleSubject: 'signed-subject-repo-test',
+        }),
+      ).resolves.toMatchObject({ id: conn.id })
     })
   })
 
@@ -78,16 +93,14 @@ describe('googleConnectionRepository (integration)', () => {
         buildTestGoogleConnection({
           id: crypto.randomUUID(),
           organizationId: ORG_A,
-          googleAccountId: crypto.randomUUID(),
-          googleEmail: 'a1@example.com',
+          googleSubject: `signed-${crypto.randomUUID()}`,
         }),
       )
       await repo.insert(
         buildTestGoogleConnection({
           id: crypto.randomUUID(),
           organizationId: ORG_A,
-          googleAccountId: crypto.randomUUID(),
-          googleEmail: 'a2@example.com',
+          googleSubject: `signed-${crypto.randomUUID()}`,
         }),
       )
 
@@ -103,8 +116,7 @@ describe('googleConnectionRepository (integration)', () => {
         buildTestGoogleConnection({
           id: crypto.randomUUID(),
           organizationId: ORG_A,
-          googleAccountId: crypto.randomUUID(),
-          googleEmail: 'visible@example.com',
+          googleSubject: `signed-${crypto.randomUUID()}`,
           visibility: 'organization',
           connectedBy: userId('user-someone-else'),
         }),
@@ -113,8 +125,7 @@ describe('googleConnectionRepository (integration)', () => {
         buildTestGoogleConnection({
           id: crypto.randomUUID(),
           organizationId: ORG_A,
-          googleAccountId: crypto.randomUUID(),
-          googleEmail: 'private@example.com',
+          googleSubject: `signed-${crypto.randomUUID()}`,
           visibility: 'private',
           connectedBy: otherUser,
         }),
@@ -135,8 +146,7 @@ describe('googleConnectionRepository (integration)', () => {
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: crypto.randomUUID(),
-        googleEmail: 'isolate@example.com',
+        googleSubject: `signed-${crypto.randomUUID()}`,
       })
       await repo.insert(conn)
 
@@ -151,7 +161,7 @@ describe('googleConnectionRepository (integration)', () => {
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: crypto.randomUUID(),
+        googleSubject: `signed-${crypto.randomUUID()}`,
         status: 'active',
       })
       await repo.insert(conn)
@@ -168,7 +178,7 @@ describe('googleConnectionRepository (integration)', () => {
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: crypto.randomUUID(),
+        googleSubject: `signed-${crypto.randomUUID()}`,
         visibility: 'private',
       })
       await repo.insert(conn)
@@ -185,7 +195,7 @@ describe('googleConnectionRepository (integration)', () => {
       const conn = buildTestGoogleConnection({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
-        googleAccountId: crypto.randomUUID(),
+        googleSubject: `signed-${crypto.randomUUID()}`,
       })
       await repo.insert(conn)
 

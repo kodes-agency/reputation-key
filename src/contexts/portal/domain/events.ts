@@ -47,6 +47,71 @@ export type PortalDeleted = Readonly<{
   occurredAt: Date
 }>
 
+export type PortalTokenIssued = Readonly<{
+  _tag: 'portal.token.issued'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  tokenIdentifier: string
+  version: number
+  occurredAt: Date
+}>
+
+export type PortalTokenRotated = Readonly<{
+  _tag: 'portal.token.rotated'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  previousVersion: number
+  version: number
+  gracePeriodEnds: Date
+  occurredAt: Date
+}>
+
+export type PortalTokenRevoked = Readonly<{
+  _tag: 'portal.token.revoked'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  occurredAt: Date
+}>
+
+type PortalWorkflowFactBase = Readonly<{
+  eventId: string
+  correlationId: string | null
+  reviewId: string
+  revision: number
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  portalGroupId: PortalGroupId | null
+  supersedesSourceEventId: string | null
+  occurredAt: Date
+}>
+
+export type PortalContentReviewCompleted = PortalWorkflowFactBase &
+  Readonly<{ _tag: 'portal.content_review.completed' }>
+
+export type PortalConfigurationCompletenessRecorded = PortalWorkflowFactBase &
+  Readonly<{
+    _tag: 'portal.configuration_completeness.recorded'
+    completedFields: number
+    requiredFields: number
+  }>
+
+export type PortalApprovedDestinationRatioRecorded = PortalWorkflowFactBase &
+  Readonly<{
+    _tag: 'portal.approved_destination_ratio.recorded'
+    approvedDestinations: number
+    configuredDestinations: number
+  }>
+
 // ── Link category events ───────────────────────────────────────────
 
 export type PortalLinkCategoryCreated = Readonly<{
@@ -151,6 +216,12 @@ export type PortalEvent =
   | PortalCreated
   | PortalUpdated
   | PortalDeleted
+  | PortalTokenIssued
+  | PortalTokenRotated
+  | PortalTokenRevoked
+  | PortalContentReviewCompleted
+  | PortalConfigurationCompletenessRecorded
+  | PortalApprovedDestinationRatioRecorded
   | PortalLinkCategoryCreated
   | PortalLinkCategoryReordered
   | PortalLinkCreated
@@ -210,6 +281,33 @@ export const portalDeleted = (
     ...args,
   }
 }
+
+export const portalTokenIssued = (
+  args: Omit<PortalTokenIssued, '_tag' | 'eventId' | 'correlationId'>,
+): PortalTokenIssued => ({
+  _tag: 'portal.token.issued',
+  eventId: newEventId(),
+  correlationId: null,
+  ...args,
+})
+
+export const portalTokenRotated = (
+  args: Omit<PortalTokenRotated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalTokenRotated => ({
+  _tag: 'portal.token.rotated',
+  eventId: newEventId(),
+  correlationId: null,
+  ...args,
+})
+
+export const portalTokenRevoked = (
+  args: Omit<PortalTokenRevoked, '_tag' | 'eventId' | 'correlationId'>,
+): PortalTokenRevoked => ({
+  _tag: 'portal.token.revoked',
+  eventId: newEventId(),
+  correlationId: null,
+  ...args,
+})
 
 export const portalLinkCategoryCreated = (
   args: Omit<PortalLinkCategoryCreated, '_tag' | 'eventId' | 'correlationId'>,
@@ -324,5 +422,81 @@ export const portalRemovedFromGroup = (
     eventId: newEventId(),
     correlationId: null,
     ...args,
+  }
+}
+
+type PortalWorkflowFactArgs<T extends PortalWorkflowFactBase> = Omit<
+  T,
+  '_tag' | 'eventId' | 'correlationId'
+> &
+  Readonly<{ eventId?: string }>
+
+function assertPortalWorkflowFact(
+  args: PortalWorkflowFactArgs<PortalWorkflowFactBase>,
+): void {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.reviewId.trim().length > 0, 'reviewId must be non-empty')
+  assert(
+    Number.isInteger(args.revision) && args.revision >= 1,
+    'revision must be a positive integer',
+  )
+}
+
+export const portalContentReviewCompleted = (
+  args: PortalWorkflowFactArgs<PortalContentReviewCompleted>,
+): PortalContentReviewCompleted => {
+  assertPortalWorkflowFact(args)
+  const { eventId = newEventId(), ...fact } = args
+  return {
+    _tag: 'portal.content_review.completed',
+    eventId,
+    correlationId: null,
+    ...fact,
+  }
+}
+
+export const portalConfigurationCompletenessRecorded = (
+  args: PortalWorkflowFactArgs<PortalConfigurationCompletenessRecorded>,
+): PortalConfigurationCompletenessRecorded => {
+  assertPortalWorkflowFact(args)
+  assert(
+    Number.isInteger(args.requiredFields) && args.requiredFields > 0,
+    'requiredFields must be a positive integer',
+  )
+  assert(
+    Number.isInteger(args.completedFields) &&
+      args.completedFields >= 0 &&
+      args.completedFields <= args.requiredFields,
+    'completedFields must be between zero and requiredFields',
+  )
+  const { eventId = newEventId(), ...fact } = args
+  return {
+    _tag: 'portal.configuration_completeness.recorded',
+    eventId,
+    correlationId: null,
+    ...fact,
+  }
+}
+
+export const portalApprovedDestinationRatioRecorded = (
+  args: PortalWorkflowFactArgs<PortalApprovedDestinationRatioRecorded>,
+): PortalApprovedDestinationRatioRecorded => {
+  assertPortalWorkflowFact(args)
+  assert(
+    Number.isInteger(args.configuredDestinations) && args.configuredDestinations >= 0,
+    'configuredDestinations must be a non-negative integer',
+  )
+  assert(
+    Number.isInteger(args.approvedDestinations) &&
+      args.approvedDestinations >= 0 &&
+      args.approvedDestinations <= args.configuredDestinations,
+    'approvedDestinations must be between zero and configuredDestinations',
+  )
+  const { eventId = newEventId(), ...fact } = args
+  return {
+    _tag: 'portal.approved_destination_ratio.recorded',
+    eventId,
+    correlationId: null,
+    ...fact,
   }
 }

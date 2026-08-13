@@ -18,11 +18,11 @@ const NOW = new Date('2026-07-17T12:00:00Z')
 async function seedConnection(id: string, accountSuffix: string): Promise<void> {
   await db.execute(sql`
     INSERT INTO google_connections (
-      id, organization_id, google_account_id, google_email,
+      id, organization_id, google_subject,
       encrypted_access_token, encrypted_refresh_token, token_expires_at,
       scopes, connected_by, status
     ) VALUES (
-      ${id}, ${ORG}, ${'acc-' + accountSuffix}, ${'e@' + accountSuffix},
+      ${id}, ${ORG}, ${'subject-' + accountSuffix},
       'tok', 'rtok', now(), ARRAY['x'], 'user-1', 'active'
     )
     ON CONFLICT (id) DO NOTHING
@@ -63,6 +63,7 @@ async function count(table: string, where: string): Promise<number> {
 
 describe('source content purge (BQC-1.7, integration)', () => {
   beforeAll(async () => {
+    await db.execute(sql`DELETE FROM retention_runs WHERE subject LIKE 'reviews.purge.%'`)
     await db.execute(
       sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Purge Org', 'purge-org', NOW()) ON CONFLICT (id) DO NOTHING`,
     )

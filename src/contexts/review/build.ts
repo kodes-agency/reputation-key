@@ -41,6 +41,7 @@ import { getStaffRecentActivity } from './application/use-cases/get-staff-recent
 import { createEligibleReads, type EligibleReads } from './application/eligible-reads'
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
 import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
 import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
@@ -128,10 +129,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     const router = input.processingRouter
     if (!router || !propertyId) return undefined
     try {
-      const decision = await router.resolve(propertyId, workloadClass)
+      const subject = { kind: 'property', propertyId } as const
+      const decision = await router.resolve(subject, workloadClass)
       if (decision.kind !== 'target') return undefined
       return {
-        propertyId,
+        subject,
         region: decision.region,
         workloadClass,
         routingPolicyVersion: decision.routingPolicyVersion,
@@ -168,29 +170,52 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   const queue: ReviewQueuePort = {
     addSyncJob: async (data, options) => {
       const routing = await stampRouting(data.propertyId, 'review.sync')
-      await jobQueue.add('sync-property-reviews', routing ? { ...data, routing } : data, {
-        jobId: options?.jobId,
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 50 },
-        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
-        ...jobEnqueueOptions('sync-property-reviews'),
+      const execution = createJobExecutionEnvelope({
+        organizationId: data.organizationId,
+        propertyId: data.propertyId,
+        capability: 'property.connect_gbp',
+        initiator: data.initiator ?? { kind: 'system', id: 'queue:review-sync' },
+        correlationId: data.correlationId,
       })
+      await jobQueue.add(
+        'sync-property-reviews',
+        { ...data, ...execution, ...(routing ? { routing } : {}) },
+        {
+          jobId: options?.jobId,
+          removeOnComplete: { count: 100 },
+          removeOnFail: { count: 50 },
+          // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
+          ...jobEnqueueOptions('sync-property-reviews'),
+        },
+      )
     },
   }
 
   const replyQueue: ReplyQueuePort = {
     addPublishJob: async (data, options) => {
       const routing = await stampPublishRouting(data)
-      await jobQueue.add('publish-reply', routing ? { ...data, routing } : data, {
-        // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
-        // of the same approval cycle is deduped by the queue.
-        jobId: options?.idempotencyKey,
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 50 },
-        // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue
-        // (exponential:5000 + 120s timeout for publish-reply).
-        ...jobEnqueueOptions('publish-reply'),
+      const execution = createJobExecutionEnvelope({
+        organizationId: data.organizationId,
+        propertyId:
+          routing?.subject.kind === 'property' ? routing.subject.propertyId : undefined,
+        capability: 'property.publish_reply',
+        initiator: data.initiator ?? { kind: 'system', id: 'queue:reply-publish' },
+        correlationId: data.correlationId,
       })
+      await jobQueue.add(
+        'publish-reply',
+        { ...data, ...execution, ...(routing ? { routing } : {}) },
+        {
+          // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
+          // of the same approval cycle is deduped by the queue.
+          jobId: options?.idempotencyKey,
+          removeOnComplete: { count: 100 },
+          removeOnFail: { count: 50 },
+          // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue
+          // (exponential:5000 + 120s timeout for publish-reply).
+          ...jobEnqueueOptions('publish-reply'),
+        },
+      )
     },
   }
 
@@ -219,7 +244,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   registerReviewHandlers({
     events: input.events,
-    queue,
     // BQC-3.8: disconnect cancels in-flight publications before/with the
     // source-content purge (the guarded store tolerates the race).
     cancelPublicationsForConnection: cancelPublicationsForConnection({

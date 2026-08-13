@@ -7,44 +7,55 @@
 // - The registry fails closed: an unknown source/version produces no
 //   reading. Invalid events are quarantined.
 import type { AttributionQuality } from './attribution-quality'
-
+import type { SourcePolicyClass } from './metric-registry'
+import type {
+  MetricReadingId,
+  OrganizationId,
+  PortalGroupId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
+import type { MetricKey } from '#/shared/domain/metric-keys'
 export type MetricValueKind = 'counter' | 'duration' | 'level' | 'ratio' | 'average'
 export type ReadingDataQuality = 'exact' | 'approximate' | 'delayed' | 'reconciling'
 export type CorrectionKind = 'retract' | 'replace' | 'adjust'
 
 export interface MetricReading {
-  readonly id: string
+  readonly id: MetricReadingId
   readonly definitionVersionId: string
-  readonly organizationId: string
-  readonly propertyId: string
-  readonly portalGroupId: string | null
-  readonly portalId: string | null
+  readonly metricKey: MetricKey
+  readonly organizationId: OrganizationId
+  readonly propertyId: PropertyId
+  readonly portalGroupId: PortalGroupId | null
+  readonly portalId: PortalId | null
   readonly value: number
   readonly numerator: number | null
   readonly denominator: number | null
   readonly duration: number | null
-  readonly sampleSize: number
+  readonly sampleCount: number
   readonly sourceEventId: string
-  readonly sourceSchema: string
+  readonly sourcePolicy: SourcePolicyClass
   readonly occurredAt: Date
   readonly recordedAt: Date
   readonly propertyLocalDate: string
   readonly attributionQuality: AttributionQuality
   readonly dataQuality: ReadingDataQuality
   readonly retentionClass: string
-  readonly correctedBy: string | null
 }
 
 export interface MetricCorrection {
   readonly id: string
   readonly correctedReadingId: string
+  readonly sourceEventId: string
   readonly kind: CorrectionKind
   readonly reason: string
-  readonly actor: string
+  readonly actorType: string
+  readonly actorId: string
+  readonly exactDelta: number | null
   readonly replacementValue: number | null
   readonly occurredAt: Date
   readonly recordedAt: Date
-  readonly supersededBy: string | null
+  readonly supersedesCorrectionId: string | null
 }
 
 export type ReadingResult =
@@ -52,6 +63,12 @@ export type ReadingResult =
   | { status: 'duplicate'; existingReadingId: string }
   | { status: 'quarantined'; reason: string; sourceEventId: string }
   | { status: 'rejected'; reason: string }
+  | {
+      status: 'insufficient_data'
+      definitionVersionId: string
+      minimumSample: number
+      actualSample: number
+    }
 
 /**
  * Create a new metric reading.
@@ -60,19 +77,20 @@ export type ReadingResult =
  * If a reading with the same key already exists, it is a duplicate.
  */
 export function createReading(params: {
-  id: string
+  id: MetricReadingId
   definitionVersionId: string
-  organizationId: string
-  propertyId: string
-  portalGroupId?: string | null
-  portalId?: string | null
+  metricKey: MetricKey
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalGroupId?: PortalGroupId | null
+  portalId?: PortalId | null
   value: number
   numerator?: number | null
   denominator?: number | null
   duration?: number | null
-  sampleSize: number
+  sampleCount: number
   sourceEventId: string
-  sourceSchema: string
+  sourcePolicy: SourcePolicyClass
   occurredAt: Date
   propertyLocalDate: string
   attributionQuality: AttributionQuality
@@ -83,6 +101,7 @@ export function createReading(params: {
   return {
     id: params.id,
     definitionVersionId: params.definitionVersionId,
+    metricKey: params.metricKey,
     organizationId: params.organizationId,
     propertyId: params.propertyId,
     portalGroupId: params.portalGroupId ?? null,
@@ -91,36 +110,30 @@ export function createReading(params: {
     numerator: params.numerator ?? null,
     denominator: params.denominator ?? null,
     duration: params.duration ?? null,
-    sampleSize: params.sampleSize,
+    sampleCount: params.sampleCount,
     sourceEventId: params.sourceEventId,
-    sourceSchema: params.sourceSchema,
+    sourcePolicy: params.sourcePolicy,
     occurredAt: params.occurredAt,
     recordedAt: params.now,
     propertyLocalDate: params.propertyLocalDate,
     attributionQuality: params.attributionQuality,
     dataQuality: params.dataQuality ?? 'exact',
     retentionClass: params.retentionClass,
-    correctedBy: null,
   }
 }
-
 /**
- * Check if a reading is a duplicate of an existing one.
- * Idempotency key: (definition_version_id, source_event_id).
- * When portal_id is present, include it in the key.
+ * Check the immutable idempotency key (definition_version_id, source_event_id).
  */
 export function findDuplicate(
   existing: readonly MetricReading[],
   definitionVersionId: string,
   sourceEventId: string,
-  portalId: string | null,
 ): MetricReading | null {
   return (
     existing.find(
-      (r) =>
-        r.definitionVersionId === definitionVersionId &&
-        r.sourceEventId === sourceEventId &&
-        (portalId === null ? r.portalId === null : r.portalId === portalId),
+      (reading) =>
+        reading.definitionVersionId === definitionVersionId &&
+        reading.sourceEventId === sourceEventId,
     ) ?? null
   )
 }
@@ -133,20 +146,40 @@ export function getEffectiveValue(
   reading: MetricReading,
   corrections: readonly MetricCorrection[],
 ): number | null {
-  if (reading.correctedBy === null) return reading.value
+  let latest: MetricCorrection | null = null
 
-  // Find the latest correction chain
-  const correction = corrections.find((c) => c.id === reading.correctedBy)
-  if (!correction) return reading.value
+  for (const candidate of corrections) {
+    if (candidate.correctedReadingId !== reading.id) continue
 
-  switch (correction.kind) {
+    let superseded = false
+    for (const possibleSuccessor of corrections) {
+      if (possibleSuccessor.supersedesCorrectionId === candidate.id) {
+        superseded = true
+        break
+      }
+    }
+    if (superseded) continue
+
+    if (
+      latest === null ||
+      candidate.recordedAt.getTime() > latest.recordedAt.getTime() ||
+      (candidate.recordedAt.getTime() === latest.recordedAt.getTime() &&
+        candidate.id > latest.id)
+    ) {
+      latest = candidate
+    }
+  }
+
+  if (latest === null) return reading.value
+
+  switch (latest.kind) {
     case 'retract':
       return null
     case 'replace':
-      return correction.replacementValue
+      return latest.replacementValue
     case 'adjust':
-      return correction.replacementValue !== null
-        ? reading.value + correction.replacementValue
-        : reading.value
+      return latest.exactDelta === null
+        ? reading.value
+        : reading.value + latest.exactDelta
   }
 }

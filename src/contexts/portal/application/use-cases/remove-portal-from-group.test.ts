@@ -89,6 +89,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
       Array.from(memberships.entries())
         .filter(([, gid]) => String(gid) === String(groupId))
         .map(([pid]) => portalId(pid)),
+    findGroupIdsByPortalIds: async () => [],
     findGroupForPortal: async (_orgId, pid) => {
       const gid = memberships.get(String(pid))
       return gid ? (store.get(String(gid)) ?? null) : null
@@ -125,7 +126,13 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo, events } = setup([PROPERTY_ID])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(ctx.organizationId, GROUP_ID, PORTAL_ID)
+    await portalGroupRepo.addPortal(
+      ctx.organizationId,
+      GROUP_ID,
+      PORTAL_ID,
+      FIXED_TIME,
+      ctx.userId,
+    )
 
     await useCase({ portalGroupId: String(GROUP_ID), portalId: String(PORTAL_ID) }, ctx)
 
@@ -145,7 +152,13 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo } = setup([])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(ctx.organizationId, GROUP_ID, PORTAL_ID)
+    await portalGroupRepo.addPortal(
+      ctx.organizationId,
+      GROUP_ID,
+      PORTAL_ID,
+      FIXED_TIME,
+      ctx.userId,
+    )
 
     await expect(
       useCase({ portalGroupId: String(GROUP_ID), portalId: String(PORTAL_ID) }, ctx),
@@ -156,7 +169,13 @@ describe('removePortalFromGroup', () => {
     const { useCase, portalGroupRepo } = setup([])
     const ctx = buildTestAuthContext({ role: 'Staff' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
-    await portalGroupRepo.addPortal(ctx.organizationId, GROUP_ID, PORTAL_ID)
+    await portalGroupRepo.addPortal(
+      ctx.organizationId,
+      GROUP_ID,
+      PORTAL_ID,
+      FIXED_TIME,
+      ctx.userId,
+    )
 
     await expect(
       useCase({ portalGroupId: String(GROUP_ID), portalId: String(PORTAL_ID) }, ctx),

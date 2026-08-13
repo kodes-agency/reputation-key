@@ -1,0 +1,135 @@
+import { z } from 'zod'
+import type {
+  GbpLocationCandidate,
+  GoogleBusinessInformationPort,
+} from '../../application/google-provider-contract'
+import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import { createGbpApiError } from '../../domain/gbp-api-error'
+import { executeGoogleProviderJson } from './google-provider-adapter'
+import {
+  parseGoogleProviderResourceSuffix,
+  validateGoogleProviderSuffix,
+} from './google-resource-suffix'
+
+const boundedDisplayField = z.string().min(1).max(4_096)
+const storefrontAddressSchema = z
+  .object({
+    addressLines: z.array(boundedDisplayField).max(10).optional(),
+    locality: boundedDisplayField.optional(),
+    administrativeArea: boundedDisplayField.optional(),
+    postalCode: boundedDisplayField.optional(),
+    regionCode: z
+      .string()
+      .regex(/^[A-Za-z]{2}$/)
+      .optional(),
+  })
+  .passthrough()
+
+const locationSchema = z
+  .object({
+    name: z.string().min(1).max(520),
+    title: boundedDisplayField,
+    storefrontAddress: storefrontAddressSchema.optional(),
+    categories: z
+      .object({
+        primaryCategory: z
+          .object({ displayName: boundedDisplayField })
+          .passthrough()
+          .optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough()
+
+const locationsPageSchema = z
+  .object({
+    locations: z.array(locationSchema).max(100).optional(),
+    nextPageToken: z.string().min(1).max(2_048).optional(),
+  })
+  .passthrough()
+
+function addressFrom(
+  value: z.infer<typeof storefrontAddressSchema> | undefined,
+): string | null {
+  if (!value) return null
+  const parts = [
+    ...(value.addressLines ?? []),
+    value.locality,
+    value.administrativeArea,
+    value.postalCode,
+  ].filter((part): part is string => typeof part === 'string')
+  return parts.length === 0 ? null : parts.join(', ')
+}
+
+function parseLocation(
+  raw: z.infer<typeof locationSchema>,
+  accountId: string,
+  accountDisplayName: string,
+): GbpLocationCandidate | null {
+  const locationId = parseGoogleProviderResourceSuffix(raw.name, 'locations/')
+  if (!locationId) return null
+  return Object.freeze({
+    binding: Object.freeze({ accountId, locationId }),
+    accountDisplayName,
+    businessName: raw.title,
+    address: addressFrom(raw.storefrontAddress),
+    primaryCategory: raw.categories?.primaryCategory?.displayName ?? null,
+    countryCode: raw.storefrontAddress?.regionCode?.toUpperCase() ?? null,
+  })
+}
+
+export function createGoogleBusinessInformationAdapter(
+  deps: Readonly<{
+    executor: GoogleAuthorizedProviderExecutor
+    nowMs?: () => number
+  }>,
+): GoogleBusinessInformationPort {
+  const nowMs = deps.nowMs ?? Date.now
+  return Object.freeze({
+    listLocations: async (input) => {
+      if (
+        !validateGoogleProviderSuffix(input.accountId) ||
+        input.accountDisplayName.length < 1 ||
+        input.accountDisplayName.length > 1_024
+      ) {
+        throw createGbpApiError('listLocations', 'parse_error')
+      }
+      const raw = await executeGoogleProviderJson({
+        operation: 'listLocations',
+        descriptor: {
+          routeKey: 'business-information.locations.list',
+          accessToken: input.accessToken,
+          accountId: input.accountId,
+          ...(input.pageToken ? { pageToken: input.pageToken } : {}),
+        },
+        authorization: input.authorization,
+        executor: deps.executor,
+        nowMs,
+        signal: input.signal,
+      })
+      const parsed = locationsPageSchema.safeParse(raw)
+      if (!parsed.success) {
+        throw createGbpApiError('listLocations', 'parse_error')
+      }
+      const items: GbpLocationCandidate[] = []
+      const seen = new Set<string>()
+      for (const rawLocation of parsed.data.locations ?? []) {
+        const location = parseLocation(
+          rawLocation,
+          input.accountId,
+          input.accountDisplayName,
+        )
+        if (!location || seen.has(location.binding.locationId)) {
+          throw createGbpApiError('listLocations', 'parse_error')
+        }
+        seen.add(location.binding.locationId)
+        items.push(location)
+      }
+      return Object.freeze({
+        items: Object.freeze(items),
+        nextPageToken: parsed.data.nextPageToken ?? null,
+      })
+    },
+  })
+}

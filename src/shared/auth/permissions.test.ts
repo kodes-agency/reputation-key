@@ -14,7 +14,7 @@ describe('permissions statement', () => {
     expect(resources).toContain('invitation')
     expect(resources).toContain('property')
     expect(resources).toContain('team')
-    expect(resources).toContain('staff_assignment')
+    expect(resources).toContain('staff')
     expect(resources).toContain('ac')
     expect(resources).toContain('portal')
     expect(resources).toContain('review')
@@ -39,12 +39,16 @@ describe('permissions statement', () => {
     expect(statement.team).toContain('create')
     expect(statement.team).toContain('update')
     expect(statement.team).toContain('delete')
-    expect(statement.staff_assignment).toContain('create')
-    expect(statement.staff_assignment).toContain('delete')
+    expect(statement.team).toContain('membership.manage')
+    expect(statement.staff).toContain('manage')
+    expect(statement.staff).toContain('read')
     expect(statement.review).toContain('read')
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
+    expect(statement.feedback).toContain('contact_read')
     expect(statement.integration).toContain('manage')
+    expect(statement.property).toContain('import_gbp_v2')
+    expect(statement.property).toContain('read_gbp_performance')
     expect(statement.inbox).toContain('read')
     expect(statement.inbox).toContain('write')
     expect(statement.inbox).toContain('manage')
@@ -72,13 +76,15 @@ describe('owner role (AccountAdmin)', () => {
     'property.delete',
     'property.read',
     'property.admin',
+    'property.import_gbp_v2',
+    'property.read_gbp_performance',
     'team.create',
     'team.update',
     'team.delete',
     'team.read',
-    'staff_assignment.create',
-    'staff_assignment.delete',
-    'staff_assignment.read',
+    'team.membership.manage',
+    'staff.manage',
+    'staff.read',
     'ac.create',
     'ac.read',
     'ac.update',
@@ -91,6 +97,7 @@ describe('owner role (AccountAdmin)', () => {
     'reply.manage',
     'feedback.read',
     'feedback.respond',
+    'feedback.contact_read',
     'inbox.read',
     'inbox.write',
     'inbox.manage',
@@ -122,12 +129,14 @@ describe('admin role (PropertyManager)', () => {
     'property.update',
     'property.read',
     'property.admin',
+    'property.import_gbp_v2',
+    'property.read_gbp_performance',
     'team.create',
     'team.update',
     'team.read',
-    'staff_assignment.create',
-    'staff_assignment.delete',
-    'staff_assignment.read',
+    'team.membership.manage',
+    'staff.manage',
+    'staff.read',
     'portal.create',
     'portal.update',
     'portal.read',
@@ -135,6 +144,7 @@ describe('admin role (PropertyManager)', () => {
     'reply.manage',
     'feedback.read',
     'feedback.respond',
+    'feedback.contact_read',
     'inbox.read',
     'inbox.write',
     'inbox.manage',
@@ -183,8 +193,8 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 
-  it('can create goals', () => {
-    expect(can('Staff', 'goal.create')).toBe(true)
+  it('cannot create goals', () => {
+    expect(can('Staff', 'goal.create')).toBe(false)
   })
 
   it('cannot update goals', () => {
@@ -207,15 +217,24 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 
+  it('can read live GBP Performance but cannot import properties', () => {
+    expect(can('Staff', 'property.read_gbp_performance')).toBe(true)
+    expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
+  })
+
   it('cannot manage teams', () => {
     expect(can('Staff', 'team.create')).toBe(false)
     expect(can('Staff', 'team.update')).toBe(false)
     expect(can('Staff', 'team.delete')).toBe(false)
   })
 
-  it('cannot manage staff assignments', () => {
-    expect(can('Staff', 'staff_assignment.create')).toBe(false)
-    expect(can('Staff', 'staff_assignment.delete')).toBe(false)
+  it('can manage non-lead membership through the scoped command boundary', () => {
+    expect(can('Staff', 'team.membership.manage')).toBe(true)
+  })
+
+  it('cannot manage staff participation lifecycle', () => {
+    expect(can('Staff', 'staff.manage')).toBe(false)
+    expect(can('Staff', 'staff.read')).toBe(true)
   })
 
   it('cannot manage organizations', () => {

@@ -49,22 +49,27 @@ export async function signIn(
   const orgsRes = await page.request.get('/api/auth/organization/list', {
     headers: apiHeaders({}, origin),
   })
-  if (orgsRes.ok()) {
-    const orgs = (await orgsRes.json()) as unknown
-    const list = Array.isArray(orgs) ? orgs : []
-    const first = list[0] as { id?: string } | undefined
-    if (first?.id) {
-      const active = await page.request.post('/api/auth/organization/set-active', {
-        data: { organizationId: first.id },
-        headers: apiHeaders({}, origin),
-      })
-      if (!active.ok()) {
-        const body = await active.text()
-        throw new Error(
-          `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
-        )
-      }
-    }
+  if (!orgsRes.ok()) {
+    const body = await orgsRes.text()
+    throw new Error(
+      `E2E organization list failed (${orgsRes.status()}): ${body.slice(0, 300)}`,
+    )
+  }
+  const orgs = (await orgsRes.json()) as unknown
+  const list = Array.isArray(orgs) ? orgs : []
+  const first = list[0] as { id?: string } | undefined
+  if (!first?.id) {
+    throw new Error('E2E seeded user has no organization membership')
+  }
+  const active = await page.request.post('/api/auth/organization/set-active', {
+    data: { organizationId: first.id },
+    headers: apiHeaders({}, origin),
+  })
+  if (!active.ok()) {
+    const body = await active.text()
+    throw new Error(
+      `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
+    )
   }
 
   // BQC-6.5: staff land on a clean authenticated surface — every
@@ -75,6 +80,10 @@ export async function signIn(
   await page.waitForURL(/\/(dashboard|properties|home|inbox|settings)/, {
     timeout: 20_000,
   })
+  // Route redirects can resolve before their server-function loaders finish.
+  // Returning earlier makes the caller's next navigation abort those requests
+  // and surfaces a real browser `Failed to fetch` console error.
+  await page.waitForLoadState('networkidle')
 }
 
 /** Register a new account with a unique email. Returns the email used. */

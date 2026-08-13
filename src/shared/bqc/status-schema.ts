@@ -24,6 +24,34 @@ const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-
 
 const isoDateTimeSchema = z.string().min(1)
 
+export const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
+
+export const BETA_LOCAL_REQUIRED_GATE_IDS = [
+  'quality',
+  'security-privacy',
+  'local-scale-recovery',
+  'source-lifecycle',
+  'runtime-fault-matrix',
+  'migration-upgrade',
+  'product-journeys',
+  'release-bundle',
+] as const
+
+export const BETA_LOCAL_POST_BETA_GATE_IDS = [
+  'scale-capacity',
+  'region-fault-matrix',
+  'restore-recovery',
+  'live-provider',
+  'real-property-pilot',
+  'fourteen-day-cohort',
+] as const
+
+const betaAcceptanceSchema = z.object({
+  evidenceVersion: z.literal(BETA_LOCAL_EVIDENCE_VERSION),
+  requiredGates: z.array(z.string().min(1)).min(1),
+  postBetaGates: z.array(z.string().min(1)).min(1),
+})
+
 export const bqcEntrySchema = z
   .object({
     id: z
@@ -121,7 +149,41 @@ export const bqcStatusManifestSchema = z
       migrationVersion: z.string().optional(),
       notes: z.string().optional(),
     }),
+    acceptance: betaAcceptanceSchema.optional(),
     entries: z.array(bqcEntrySchema).min(1),
+  })
+  .superRefine((manifest, ctx) => {
+    if (!manifest.acceptance) return
+
+    if (
+      manifest.acceptance.requiredGates.length !== BETA_LOCAL_REQUIRED_GATE_IDS.length ||
+      !BETA_LOCAL_REQUIRED_GATE_IDS.every((value) =>
+        manifest.acceptance?.requiredGates.includes(value),
+      ) ||
+      new Set(manifest.acceptance.requiredGates).size !==
+        manifest.acceptance.requiredGates.length
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'beta-local-1 requiredGates must match the controlled-beta contract',
+        path: ['acceptance', 'requiredGates'],
+      })
+    }
+    if (
+      manifest.acceptance.postBetaGates.length !== BETA_LOCAL_POST_BETA_GATE_IDS.length ||
+      !BETA_LOCAL_POST_BETA_GATE_IDS.every((value) =>
+        manifest.acceptance?.postBetaGates.includes(value),
+      ) ||
+      new Set(manifest.acceptance.postBetaGates).size !==
+        manifest.acceptance.postBetaGates.length
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'beta-local-1 postBetaGates must match the unmeasured operations contract',
+        path: ['acceptance', 'postBetaGates'],
+      })
+    }
   })
   .superRefine((manifest, ctx) => {
     const ids = new Set<string>()

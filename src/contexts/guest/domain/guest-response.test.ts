@@ -20,6 +20,7 @@ describe('GuestResponse', () => {
     propertyId: 'prop-1',
     portalId: 'portal-1',
     sessionId: 'session-1',
+    retentionDeadline: new Date('2026-04-15T12:00:00Z'),
   }
 
   describe('createResponse', () => {
@@ -111,6 +112,17 @@ describe('GuestResponse', () => {
       const result = submitResponse(r, { rating: 5 }, NOW)
       expect(result).toHaveProperty('code', 'already_deleted')
     })
+
+    it('does not resubmit an existing aggregate', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 5 },
+        NOW,
+      ) as GuestResponse
+      expect(submitResponse(submitted, { rating: 4 }, NOW)).toEqual({
+        code: 'already_submitted',
+      })
+    })
   })
 
   describe('correctResponse', () => {
@@ -146,6 +158,18 @@ describe('GuestResponse', () => {
       const result = correctResponse(r, { rating: 4 }, NOW)
       expect(result).toHaveProperty('code', 'already_deleted')
     })
+
+    it('allows exactly one correction', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 5 },
+        NOW,
+      ) as GuestResponse
+      const corrected = correctResponse(submitted, { rating: 4 }, NOW) as GuestResponse
+      expect(correctResponse(corrected, { rating: 3 }, NOW)).toEqual({
+        code: 'already_submitted',
+      })
+    })
   })
 
   describe('moderateResponse', () => {
@@ -180,6 +204,9 @@ describe('GuestResponse', () => {
       expect(result).toHaveProperty('status', 'deleted')
       if (!('code' in result)) {
         expect(result.deletedAt).toEqual(NOW)
+        expect(result.rating).toBeNull()
+        expect(result.text).toBeNull()
+        expect(result.mediaConsent).toBe(false)
       }
     })
 

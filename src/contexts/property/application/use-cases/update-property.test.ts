@@ -49,6 +49,10 @@ describe('updateProperty', () => {
 
     expect(updated.name).toBe('New Name')
     expect(updated.timezone).toBe('Europe/London')
+    expect(updated.profileVersion).toBe(prop.profileVersion + 1)
+    expect(updated.sourceEpoch).toBe(prop.sourceEpoch + 1)
+    expect(updated.timezoneSource).toBe('tenant_confirmed')
+    expect(updated.timezoneResolvedAt).toEqual(FIXED_TIME)
   })
 
   it('updates slug', async () => {
@@ -60,6 +64,8 @@ describe('updateProperty', () => {
     const updated = await useCase({ propertyId: prop.id, slug: 'new-slug' }, ctx)
 
     expect(updated.slug).toBe('new-slug')
+    expect(updated.profileVersion).toBe(prop.profileVersion)
+    expect(updated.sourceEpoch).toBe(prop.sourceEpoch)
   })
 
   it('rejects users who cannot edit', async () => {
@@ -271,36 +277,24 @@ describe('updateProperty', () => {
     expect(updated.name).toBe('New Name')
   })
 
-  it('allows setting gbpPlaceId to null (clearing it)', async () => {
-    const { useCase, propertyRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const prop = buildTestProperty({ gbpPlaceId: 'ChIJ_old_place_id' })
-    propertyRepo.seed([prop])
-
-    const updated = await useCase({ propertyId: prop.id, gbpPlaceId: null }, ctx)
-
-    expect(updated.gbpPlaceId).toBeNull()
-  })
-
-  it('allows updating only gbpPlaceId without changing other fields', async () => {
+  it('does not expose or alter the protected Google binding on profile edits', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
       name: 'Original',
-      slug: 'original',
-      timezone: 'UTC',
+      gbpLocationId: 'location-1',
+      gbpAccountId: 'account-1',
+      googleConnectionId: 'connection-1' as never,
+      googleBindingState: 'active',
     })
     propertyRepo.seed([prop])
 
-    const updated = await useCase(
-      { propertyId: prop.id, gbpPlaceId: 'ChIJ_new_place_id' },
-      ctx,
-    )
+    const updated = await useCase({ propertyId: prop.id, name: 'Updated' }, ctx)
 
-    expect(updated.gbpPlaceId).toBe('ChIJ_new_place_id')
-    expect(updated.name).toBe('Original')
-    expect(updated.slug).toBe('original')
-    expect(updated.timezone).toBe('UTC')
+    expect(updated.name).toBe('Updated')
+    expect(updated.gbpLocationId).toBe('location-1')
+    expect(updated.gbpAccountId).toBe('account-1')
+    expect(updated.googleBindingState).toBe('active')
   })
 
   it('returns existing property unchanged when no fields are different', async () => {

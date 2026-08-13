@@ -35,7 +35,7 @@ export const refreshGoogleToken =
     }
 
     // 2. Check status
-    if (connection.status === 'disconnected') {
+    if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
       throw integrationError(
         'connection_disconnected',
         'Cannot refresh token for disconnected connection',
@@ -62,20 +62,35 @@ export const refreshGoogleToken =
     const encryptedAccessToken = deps.encryption.encrypt(refreshResult.accessToken)
 
     // 7. Update tokens
-    await deps.connectionRepo.updateTokens(
+    const updated = await deps.connectionRepo.updateTokens(
       orgId,
       connectionId,
       encryptedAccessToken,
       connection.encryptedRefreshToken, // Keep same refresh token
       tokenExpiresAt,
     )
+    if (!updated) {
+      throw integrationError(
+        'connection_disconnected',
+        'Credential authority changed during token refresh',
+      )
+    }
 
-    // 8. Return refreshed connection
+    // 8. Re-read after the conditional commit; never return cleanup-only material.
     const updatedConnection = await deps.connectionRepo.findById(orgId, connectionId)
     if (!updatedConnection) {
       throw integrationError(
         'connection_not_found',
         'Connection not found after token refresh',
+      )
+    }
+    if (
+      updatedConnection.status !== 'active' ||
+      updatedConnection.credentialUseState !== 'active'
+    ) {
+      throw integrationError(
+        'connection_disconnected',
+        'Credential authority changed after token refresh',
       )
     }
 

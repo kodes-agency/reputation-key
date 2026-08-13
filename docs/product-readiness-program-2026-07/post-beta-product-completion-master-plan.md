@@ -1,19 +1,17 @@
-# Post-Beta Product Completion Program — Master Plan
+# Controlled-Beta Feature Completion Program — Historical Master Plan
 
-**Status:** Proposed; product decisions remain before implementation  
-**Date:** 2026-07-14  
-**Starts after:** Beta acceptance and the applicable PRE17 foundations  
-**Product center:** Real Google reviews, inbox work, and property operations  
-**Scale target:** 5,000 properties and 500,000 new reviews/month  
-**Regional posture:** Property-region routing; no silent cross-region fallback
+**Status:** Superseded for beta scope by ADR 0049 and the controlled-beta master plan
+**Date:** 2026-08-08
+**Current execution:** Dashboard, Portals/Guest, Goals, Leadership/recognition, Settings, and outbound email are promoted through persisted organization/property policy
+**Post-beta remainder:** hosted capacity/PITR, regional infrastructure fault evidence, live-provider execution, real-property observation, and the 14-day cohort
 
 ## 1. Outcome
 
-Finish the product contexts deliberately held behind beta capability gates: staff, teams, portals, guest interactions, metrics, goals, dashboards, badges, leaderboards, activity, and notifications. The result should be a coherent product rather than a set of individually implemented screens.
+This document remains the detailed domain-design source for staff, teams, portals, guest interactions, metrics, goals, dashboards, badges, leaderboards, activity, and notifications. These surfaces are no longer categorically post-beta. They are controlled-beta work and must meet the Inbox readiness bar, the ADR 0049 cohort policy, and `beta-local-1` acceptance.
 
-This program does not make guest feedback the center of Reputation Key. Imported reviews and the manager inbox remain the principal source of customer value. Public portals are review-link touchpoints first; private guest feedback is an optional, separately controlled capability. AI Phases 17 and 18 remain separate and no organization-wide AI summary is introduced here.
+Imported reviews and the manager Inbox remain the principal source of customer value. Public portals are review-link touchpoints first; private guest feedback is optional and separately controlled. AI Phases 17 and 18 remain separate; no organization-wide AI summary is introduced.
 
-The beta plans were intentionally safety-first. They mention these contexts only to keep them server-disabled until safe; they do not complete their domain models or workflows. This program supplies that missing implementation-ready path.
+The four detailed plans are implementation inputs for the active beta program. Statements that call them permanently dark or defer them until after beta are superseded. Their safety, privacy, tenancy, correction, accessibility, and lifecycle requirements remain in force.
 
 ## 2. Source material and authority
 

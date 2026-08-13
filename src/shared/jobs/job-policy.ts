@@ -30,10 +30,18 @@ const BACKOFF_JITTER = 0.5
 
 /** Fallback when a job has no catalogue row (defensive — readiness prevents it). */
 const DEFAULT_TIMEOUT_MS = 120_000
+const DOMAIN_REDRIVE_ONLY_JOBS: ReadonlySet<string> = new Set([
+  'import-gbp-property-item-v2',
+])
 
 /** The catalogue row for a job name, or undefined. */
 export function jobFamilyRow(jobName: string): JobFamilyRow | undefined {
   return JOB_FAMILY_ROWS.find((r) => r.jobName === jobName)
+}
+
+/** Work that must converge through its owning domain state machine. */
+export function isDomainRedriveOnlyJob(jobName: string): boolean {
+  return DOMAIN_REDRIVE_ONLY_JOBS.has(jobName)
 }
 
 /**
@@ -87,6 +95,34 @@ export function jobEnqueueOptions(jobName: string): JobsOptions {
     attempts: row.retryAttempts,
     backoff: { type: backoff.type, delay: backoff.delay, jitter: BACKOFF_JITTER },
   }
+}
+
+/**
+ * Maximum delay BullMQ may apply after the current attempt fails. Jitter only
+ * lowers this value, so callers can prove a retry will not cross a deadline.
+ */
+export function jobRetryDelayUpperBoundMs(
+  jobName: string,
+  attemptOrdinal: number,
+): number {
+  if (!Number.isSafeInteger(attemptOrdinal) || attemptOrdinal < 1) {
+    throw new Error(`invalid attempt ordinal '${attemptOrdinal}'`)
+  }
+  const row = jobFamilyRow(jobName)
+  if (!row) {
+    throw new Error(
+      `unknown job '${jobName}' — no JOB_FAMILY_ROWS entry; add the family to the event/job catalogue (BQC-3.6)`,
+    )
+  }
+  const backoff = parseRetryBackoff(row.retryBackoff)
+  const delay =
+    backoff.type === 'exponential'
+      ? Math.round(2 ** (attemptOrdinal - 1) * backoff.delay)
+      : backoff.delay
+  if (!Number.isSafeInteger(delay)) {
+    throw new Error(`retry delay for '${jobName}' exceeds the safe integer range`)
+  }
+  return delay
 }
 
 /**

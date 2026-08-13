@@ -61,7 +61,7 @@ const ListItemRow = React.memo(function ListItemRow({
         {/* Row 1: Reviewer name + date + stars */}
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`text-sm truncate ${isOpen ? 'font-semibold' : 'font-medium'}`}
+            className={`min-w-0 flex-1 truncate text-sm ${isOpen ? 'font-semibold' : 'font-medium'}`}
           >
             {item.reviewerName ?? 'Anonymous'}
           </span>

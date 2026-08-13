@@ -155,14 +155,9 @@ test.describe('Critical a11y: axe page scans', () => {
     await assertNoAxeViolations(page, 'settings members (/settings/members)')
   })
 
-  test('staff home (/home) is axe-clean', async ({ page }) => {
+  test('promoted P1 home (/home?propertyId=) is axe-clean', async ({ page }) => {
     await signIn(page)
-    // The enabled beta staff-home surface is the no-property empty state:
-    // with ?propertyId= set, the loader's goal.read/badge.read fns deny under
-    // the dark goal.use/badge.use capabilities (the property-scoped staff
-    // dashboard is dark-gated functionality, not an enabled workflow). Bare
-    // /home is what users landing on Home actually render in beta.
-    await page.goto('/home')
+    await page.goto(`/home?propertyId=${seed.p1PropertyId}`)
     await expect(page).toHaveURL(/\/home/)
     // Wait for real page content (the h1), not just the shell.
     await expect(page.getByRole('heading', { name: /^home$/i }).first()).toBeVisible({

@@ -1,0 +1,47 @@
+$ pnpm format:check
+started: 2026-08-08T14:25:34.852Z  durationMs: 14062  exit: 1
+
+
+> reputation-key@ format:check /Users/bozhidardenev/kodes/projects/rep-key
+> prettier --check .
+
+Checking formatting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+[warn] docs/performance/scale-harness.md
+[warn] docs/release-evidence/beta/bqc8-local-candidate/lifecycle-scale-dataset.json
+[warn] docs/release-evidence/beta/bqc8-local-candidate/raw/retention.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-candidate/raw/retention.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/burst.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/burst.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/dashboardCold.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/dashboardCold.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/dashboardMix.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/dashboardMix.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/drain.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/drain.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/fleetDispatch.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/fleetDispatch.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/reconnect.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/reconnect.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/replyBurst.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/replyBurst.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/retention.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/retention.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/singlePropertyBurst.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/singlePropertyBurst.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/steady.raw.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/raw/steady.result.json
+[warn] docs/release-evidence/beta/bqc8-local-verified/scale-and-recovery.md
+[warn] docs/release-evidence/beta/bqc8-local-verified/scale-dataset.json
+[warn] scripts/perf/load-test.ts
+[warn] scripts/perf/seed-scale.ts
+[warn] scripts/release/validate-bundle.ts
+[warn] src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.test.ts
+[warn] src/contexts/review/infrastructure/repositories/review.repository.test.ts
+[warn] src/contexts/review/infrastructure/repositories/review.repository.ts
+[warn] src/shared/testing/ops-snapshot-capture.test.ts
+[warn] src/shared/testing/release-bundle.test.ts
+[warn] src/shared/testing/release-bundle.ts
+[warn] src/shared/testing/scale-evidence.test.ts
+[warn] Code style issues found in 36 files. Run Prettier with --write to fix.

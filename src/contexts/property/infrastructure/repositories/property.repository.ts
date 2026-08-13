@@ -19,7 +19,19 @@ export type PropertySetValues = {
   name?: string
   slug?: string
   timezone?: string
-  gbpPlaceId?: string | null
+  address?: string | null
+  gbpLocationId?: string | null
+  gbpAccountId?: string | null
+  googleConnectionId?: string | null
+  profileVersion?: number
+  googleBindingState?:
+    | 'unbound'
+    | 'account_confirmation_required'
+    | 'active'
+    | 'disconnected'
+  profileSource?: 'legacy' | 'tenant_confirmed'
+  profileConfirmedAt?: Date | null
+  profileConfirmedBy?: string | null
   updatedAt?: Date
   deletedAt?: Date | null
   // BQR-3.5 processing profile
@@ -101,7 +113,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
       if (patch.name !== undefined) setValues.name = patch.name
       if (patch.slug !== undefined) setValues.slug = patch.slug
       if (patch.timezone !== undefined) setValues.timezone = patch.timezone
-      if (patch.gbpPlaceId !== undefined) setValues.gbpPlaceId = patch.gbpPlaceId
+      if (patch.gbpLocationId !== undefined) setValues.gbpLocationId = patch.gbpLocationId
       // BQR-3.5 processing profile fields
       if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode
       if (patch.countrySource !== undefined) setValues.countrySource = patch.countrySource
@@ -134,11 +146,11 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
     })
   },
 
-  /** ⚠️ CROSS-TENANT when orgId is omitted — caller MUST be JWT-verified (GBP webhook handler). */
-  findByGbpPlaceId: async (gbpPlaceId, orgId) => {
-    return trace('property.findByGbpPlaceId', async () => {
+  /** Cross-tenant only for the JWT-verified GBP webhook handler. */
+  findByGbpLocationId: async (gbpLocationId, orgId) => {
+    return trace('property.findByGbpLocationId', async () => {
       const conditions = [
-        eq(properties.gbpPlaceId, gbpPlaceId),
+        eq(properties.gbpLocationId, gbpLocationId),
         isNull(properties.deletedAt),
       ]
       if (orgId) {
@@ -207,35 +219,6 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
         throw propertyError('property_not_found', 'Failed to retrieve inserted property')
       }
       return propertyFromRow(inserted)
-    })
-  },
-
-  findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
-    return trace('property.findExistingGbpPlaceIds', async () => {
-      if (gbpPlaceIds.length === 0) return []
-      const rows = await db
-        .select({ gbpPlaceId: properties.gbpPlaceId })
-        .from(properties)
-        .where(
-          and(
-            ...baseWhere(properties, orgId),
-            inArray(properties.gbpPlaceId, gbpPlaceIds as [string, ...string[]]),
-          ),
-        )
-      return rows.map((r) => r.gbpPlaceId).filter((id): id is string => id !== null)
-    })
-  },
-
-  existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
-    return trace('property.existsByGbpPlaceId', async () => {
-      const rows = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(
-          and(...baseWhere(properties, orgId), eq(properties.gbpPlaceId, gbpPlaceId)),
-        )
-        .limit(1)
-      return rows.length > 0
     })
   },
 })

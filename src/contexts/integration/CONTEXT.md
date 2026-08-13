@@ -2,119 +2,70 @@
 
 ## Bounded context
 
-Manages Google OAuth connections, token lifecycle, GBP API infrastructure, and Pub/Sub subscription management. Connection management only — review syncing and property import live in their own contexts (`review` and `property`).
+Owns Google OAuth connections, provider access, opaque property-import discovery, the durable v2 import lifecycle, Business Profile Performance retrieval, and Pub/Sub subscription management. Property state changes cross the Property context only through sanctioned binding ports.
 
-## Glossary
+## Core concepts
 
-- **GoogleConnection** — Authenticated OAuth connection to a Google account. Stores encrypted access/refresh tokens, `connectedBy` user, `visibility` (`private` | `organization`), and `status` (`active` | `disconnected`).
-- **GbpLocation** — A Google Business Profile location fetched via GBP API. Belongs to a GoogleConnection. Has `gbpPlaceId`, `locationName`, `address`.
-- **GbpCacheEntry** — Cached GBP data per property. Currently stores location data only (`dataType: 'location'`).
-- **GbpImportJob** — A batch import of GBP locations. Tracks `importedCount`, `skippedCount`, `failedCount`. Status: `'queued'` → `'in_progress'` → `'completed'` \| `'completed_with_skips'` \| `'completed_with_failures'` \| `'failed'`.
-- **PropertyImport** — Creates a `Property` entity from a successfully imported GBP location. Links the new property back to the originating GoogleConnection.
-- **Token Encryption** — Access/refresh tokens are encrypted at rest using AES-256 via `TokenEncryptionPort`.
-- **OAuth Callback** — Google OAuth flow redirects to `BETTER_AUTH_URL/api/auth/google/callback` after user consent. The HMAC-signed state is bound to the initiating user (`sub`) and the flow runs PKCE S256 (BQC-7.6): the verifier lives server-side in the `PkceVerifierStore` (Redis; keyed by the state nonce, one-time use, TTL = the 10-minute state TTL), only the challenge leaves the process. Codec + port: `application/oauth-state.ts`.
-
-## Relationships
-
-- An **Organization** can have multiple **Google Connections** (different accounts)
-- Each **Google Connection** belongs to a single **Organization** and has a `connectedBy` user
-- A **Google Connection** has many **GBP Locations** (fetched via GBP API)
-- **GBP Cache** entries are stored per Property and data type (locations only)
-- An **Import Job** is created for a specific **Google Connection** and processes a batch of **GBP Locations** (lives in `property` context)
-- Successful **Import Job** items create **Properties** linked to the originating **Google Connection**
-- **Import Job** tracks three counters: `importedCount`, `skippedCount`, `failedCount`
-- **Pub/Sub Subscription** is created per Google account on first property import, removed on last property deletion or disconnect
+- **GoogleConnection** — tenant-owned OAuth credentials keyed by the verified Google OIDC subject. Credentials and the subject are cleared on disconnect.
+- **Opaque import reference** — short-lived browser handle whose provider routing data exists only in the provider-ephemeral store.
+- **Import request/item** — durable tenant-scoped v2 intent and per-location work. Pending work keeps protected routing suffixes; terminal retention follows the v2 lifecycle.
+- **Property Google binding** — Property-owned account/location suffixes, connection, lifecycle state, source epoch, and confirmed profile.
+- **Performance report** — live property-scoped Google Business Profile daily metrics, returned with source and retrieval metadata and never persisted.
+- **Token encryption** — access and refresh tokens are encrypted at rest through `TokenEncryptionPort`.
 
 ## Invariants
 
-- A connection must be `active` to start an import or list locations
-- Duplicate GBP place IDs within the same organization are skipped during import
-- Token refresh happens automatically with a 5-minute expiry buffer — the `refreshGoogleToken` use case is called before any GBP API interaction
-- Access tokens are encrypted at rest; never stored in plaintext
-- Each organization may have multiple Google connections, but each connection belongs to exactly one org
+- Provider calls require a current connection, capability approval, execution permit, quota admission, and generation checks.
+- Browser DTOs and durable events never expose provider account/location identifiers.
+- Import discovery data is bounded, short-lived, and stored only in provider-ephemeral Redis.
+- Durable import requests are tenant-scoped, idempotent, fenced per item, and converge through the v2 reducer.
+- Property create/relink effects use `PropertyGoogleBindingPublicApi`; Integration does not construct or insert Property entities directly.
+- Performance data is live-only and property-scoped; the base Dashboard does not depend on provider availability.
+- Access tokens are encrypted at rest and never logged.
 
 ## Events produced
 
-- **`integration.google_account.connected`** — connectionId, organizationId, googleEmail, occurredAt. Emitted when a Google account is connected.
-- **`integration.google_account.disconnected`** — connectionId, organizationId, occurredAt. Emitted when a Google account is disconnected.
-- **`integration.property_import.completed`** — importJobId, organizationId, totalCount, importedCount, skippedCount, failedCount, occurredAt. Emitted by the `importProperty` use case when an import job reaches terminal status.
-- **`integration.google_connection.visibility_changed`** — connectionId, organizationId, visibility, occurredAt. Emitted when connection visibility is updated.
+- **`integration.google_account.connected`** — identifier-only connection lifecycle fact.
+- **`integration.google_account.disconnected`** — identifier-only disconnect fact.
+- **`integration.google_connection.visibility_changed`** — identifier-only visibility fact.
+- **`integration.property_import.requested`** — identifier-only durable import dispatch fact.
+- **`integration.property_import.retention_released`** — bounded identifier-only receipt-release fact.
 
-## Events consumed
+## Architecture
 
-None. Integration context does not subscribe to events from other contexts.
-
-## Architecture layers
-
-```
+```text
 integration/
-  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts, gbp-api-error.ts
+  domain/              connection types, events, errors, rules
   application/
-    ports/             google-connection.repository.ts, gbp-cache.repository.ts,
-                       gbp-import.repository.ts, gbp-api.port.ts, gbp-queue.port.ts,
-                       google-oauth.port.ts, token-encryption.port.ts,
-                       property-lookup.port.ts, property-query.port.ts,
-                       property-fk-cleanup.port.ts, property-import-repo.port.ts,
-                       integration-command-store.port.ts (BQC-3.5)
-    dto/               connect-google.dto.ts, disconnect-google.dto.ts,
-                       google-connection.dto.ts, import-properties.dto.ts,
-                       import-status.dto.ts, list-locations.dto.ts,
-                       update-connection-visibility.dto.ts
-    use-cases/         connect-google-account.ts, disconnect-google-account.ts,
-                       list-google-connections.ts, update-connection-visibility.ts,
-                       refresh-google-token.ts, list-gbp-locations.ts,
-                       start-property-import.ts, get-import-status.ts,
-                       import-property.ts, handle-gbp-notification.ts
-    oauth-state.ts     OAuth state codec (HMAC sign/verify, user binding) + PKCE
-                       primitives + PkceVerifierStore port (BQC-7.6)
-    constants.ts       application-level constants
-    public-api.ts      re-exports DTO types, domain types
+    ports/             connection, provider, import-store, reference-store, queue contracts
+    dto/               connection, discovery, import-v2, Performance DTOs
+    use-cases/         OAuth/connection/notification use cases
+    google-import-*    discovery, authorization, reducer, transaction, lifecycle
+    google-performance-* authorization, retrieval, report normalization
   infrastructure/
-    repositories/      google-connection.repository.ts, gbp-cache.repository.ts,
-                       gbp-import.repository.ts, property-import.repository.ts,
-                       pkce-verifier-store.repository.ts (Redis + in-memory, BQC-7.6)
-    integration-command-store.ts  atomic state+fact store (BQC-3.5)
-    adapters/          google-oauth.adapter.ts, token-encryption.adapter.ts,
-                       gbp-api.adapter.ts, google-review-api.adapter.ts
-    mappers/           google-connection.mapper.ts, gbp-cache.mapper.ts, gbp-import.mapper.ts
-    handlers/          gbp-notification-handler.ts
-    jobs/              import-property.job.ts
-    event-handlers/    (empty — no consumers)
-  server/              google-connections.ts, gbp-import.ts, error-helpers.ts,
-                       google-auth-url.ts
+    adapters/          OAuth and Google provider adapters
+    repositories/      connection and credential lifecycle stores
+    jobs/              import-gbp-property-item-v2
+    google-import-*    durable v2 and provider-ephemeral implementations
+  server/              Google connection, import-v2, and Performance endpoints
   build.ts             composition root
 ```
 
-## Use cases
-
-- **`connectGoogleAccount`** — Redeem the PKCE verifier (one-time, fail closed), OAuth code exchange with `code_verifier`, encrypt tokens, store connection. Emits `integration.google_account.connected`.
-- **`getGoogleAuthUrl`** — Build the signed authorization URL: stores the PKCE verifier, binds the HMAC state to the initiating user (BQC-7.6).
-- **`disconnectGoogleAccount`** — Revoke tokens, clear caches, set connection status to `'disconnected'`. Emits `integration.google_account.disconnected`. (FK nulling does NOT happen on disconnect — only on delete.)
-- **`listGoogleConnections`** — List connections for an org.
-- **`updateConnectionVisibility`** — Toggle private/organization visibility. Emits `integration.google_connection.visibility_changed`.
-- **`refreshGoogleToken`** — Auto-refresh expired tokens with 5-minute buffer.
-- **`listGbpLocations`** — Fetch GBP locations for a connection (with token refresh).
-- **`startPropertyImport`** — Create import job, enqueue bulk import tasks.
-- **`getImportStatus`** — Query import job progress (imported/skipped/failed counts).
-- **`importProperty`** — Process single GBP location into a property. Handles duplicate conflicts. Emits `integration.property_import.completed` when the job reaches terminal status.
-- **`handleGbpNotification`** — Process Google Pub/Sub push notifications for real-time review updates.
-
 ## Public API
 
-Exported from `application/public-api.ts`:
+`application/public-api.ts` exports:
 
-- Types: `GoogleConnectionDto`, `GoogleConnectionStatus`, `GoogleConnectionVisibility`, `GbpLocation`, `GbpImportJob`, `GbpImportJobStatus`
-
-## Server functions
-
-- **`google-connections.ts`** — Server functions for Google connection CRUD (connect, disconnect, list, update visibility, list locations, start import, get import status).
-- **`gbp-import.ts`** — Server functions for GBP import operations.
+- connection DTO/status/visibility contracts;
+- exact Google provider-route and Performance metric catalogues;
+- opaque discovery and import-v2 DTO/contracts;
+- identifier-only import event contracts.
 
 ## Permissions
 
-- `integration.manage` — Connect, disconnect, and manage Google connections. Also gates `listGbpLocations` and `getImportStatus` (checked in both the server fn and use case).
-- `property.create` — Start property imports from GBP locations. Checked by `startPropertyImport` (both the server fn in `gbp-import.ts` and the use case via `can(ctx.role, 'property.create')`).
+- `integration.manage` — manage Google connections and authorized discovery.
+- `property.import_gbp_v2` — start, inspect, and retry v2 property imports.
+- `dashboard.performance_google` — retrieve live property Performance reporting.
 
 ## Background jobs
 
-- **import-property** — Processes a single GBP location into a property. Created by `startPropertyImport` use case.
+- **`import-gbp-property-item-v2`** — deterministic, fenced per-item create/relink execution with bounded retries and domain-owned convergence.

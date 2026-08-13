@@ -11,6 +11,7 @@ import { describe, it, expect, vi } from 'vitest'
 import type { JobsOptions, Queue } from 'bullmq'
 import {
   jobEnqueueOptions,
+  jobRetryDelayUpperBoundMs,
   jobTimeoutMs,
   withCatalogueJobOptions,
   isCatalogueKnownWork,
@@ -56,7 +57,6 @@ describe('jobEnqueueOptions (BQC-3.6)', () => {
     expect(jobTimeoutMs('health-check')).toBe(30_000)
     expect(jobTimeoutMs('sync-property-reviews')).toBe(300_000)
     expect(jobTimeoutMs('publish-reply')).toBe(120_000)
-    expect(jobTimeoutMs('import-property')).toBe(600_000)
     expect(jobTimeoutMs('refresh-expiring-reviews')).toBe(300_000)
     expect(jobTimeoutMs('purge-expired-reviews')).toBe(300_000)
     expect(jobTimeoutMs('retention-sweep')).toBe(900_000)
@@ -69,6 +69,22 @@ describe('jobEnqueueOptions (BQC-3.6)', () => {
     })
   })
 
+  it('gives fenced Google import items five jittered exponential attempts', () => {
+    expect(jobEnqueueOptions('import-gbp-property-item-v2')).toEqual({
+      attempts: 5,
+      backoff: {
+        type: 'exponential',
+        delay: 30_000,
+        jitter: expect.any(Number),
+      },
+    })
+  })
+
+  it('reports the maximum BullMQ backoff before the next retry', () => {
+    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item-v2', 1)).toBe(30_000)
+    expect(jobRetryDelayUpperBoundMs('import-gbp-property-item-v2', 4)).toBe(240_000)
+    expect(jobRetryDelayUpperBoundMs('health-check', 2)).toBe(60_000)
+  })
   it('throws on an unknown job name (config failure, not silent default)', () => {
     expect(() => jobEnqueueOptions('not-a-job')).toThrow(/not-a-job/)
   })

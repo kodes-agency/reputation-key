@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+ARG SOURCE_REVISION=unknown
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WORKER image (BullMQ: job workers, schedules, outbox
 # relay). Shares the base/deps/build/prod-deps stages with the web Dockerfile
@@ -54,7 +55,8 @@ RUN NODE_ENV=production \
     GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
-    pnpm build:worker
+    pnpm build:worker \
+ && node scripts/check-google-import-artifacts.mjs final dist-worker
 
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml ./
@@ -62,7 +64,12 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 FROM base AS worker
-ENV NODE_ENV=production
+ARG SOURCE_REVISION
+ENV NODE_ENV=production \
+    IMAGE_SOURCE_REVISION=$SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      com.repkey.google-import-contract=final \
+      com.repkey.rollout-scope=serving-final
 # BQC-7.7: the runtime never installs packages — strip the npm CLI shipped in
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
@@ -71,6 +78,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # drizzle-orm external — all present in the prod install.
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.runtime.json ./package.json
 USER node
 CMD ["node", "dist-worker/index.js"]

@@ -4,40 +4,58 @@
 // TypeScript structural typing makes `string` assignable to branded types.
 // Brands serve as documentation of intent, not runtime enforcement.
 
-import type { NotificationEmail, NotificationPriority } from '../../domain/types'
-import type { NotificationEmailId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  DeliveryErrorClass,
+  NotificationCadence,
+  NotificationEmail,
+} from '../../domain/types'
+import type { NotificationEmailId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type NotificationEmailRepositoryPort = Readonly<{
-  /** Upsert on conflict (by notificationId). */
   insert(email: NotificationEmail): Promise<NotificationEmail>
-
   findById(
     id: NotificationEmailId,
     orgId: OrganizationId,
+    propertyId: PropertyId,
   ): Promise<NotificationEmail | null>
-
-  findPendingByOrg(
+  findDueByProperty(
     orgId: OrganizationId,
-    priority: NotificationPriority,
+    propertyId: PropertyId,
+    cadence: NotificationCadence,
+    now: Date,
   ): Promise<readonly NotificationEmail[]>
-
-  markSent(
+  markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    sentAt: Date,
+    propertyId: PropertyId,
+    providerMessageId: string,
+    acceptedAt: Date,
+  ): Promise<void>
+  markDelayed(
+    id: NotificationEmailId,
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    notBefore: Date,
     updatedAt: Date,
   ): Promise<void>
-
   markFailed(
     id: NotificationEmailId,
     orgId: OrganizationId,
+    propertyId: PropertyId,
+    classification: DeliveryErrorClass,
+    nextAttemptAt: Date | null,
     failedAt: Date,
-    updatedAt: Date,
   ): Promise<void>
-
-  markSkipped(
+  markSuppressed(
     id: NotificationEmailId,
     orgId: OrganizationId,
+    propertyId: PropertyId,
+    reason: string,
     updatedAt: Date,
+  ): Promise<void>
+  recordProviderState(
+    providerMessageId: string,
+    state: 'delivered' | 'bounced' | 'complained',
+    occurredAt: Date,
   ): Promise<void>
 }>

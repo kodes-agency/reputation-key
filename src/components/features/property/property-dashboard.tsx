@@ -8,11 +8,14 @@ import type {
 } from '#/contexts/dashboard/application/public-api'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
+import { GooglePerformanceSection } from './google-performance-section'
+import type { GooglePerformanceServerFns } from './use-google-performance'
 
 export interface PropertyDashboardProps {
   property: Readonly<{ id: string; name: string }> | null | undefined
@@ -21,6 +24,9 @@ export interface PropertyDashboardProps {
   propertyId: string
   timeRange: TimeRangePreset
   onTimeRangeChange: (value: TimeRangePreset) => void
+  performanceRange: PropertyPerformancePreset
+  onPerformanceRangeChange: (value: PropertyPerformancePreset) => void
+  performanceFns: GooglePerformanceServerFns
 }
 
 export function PropertyDashboard({
@@ -30,6 +36,9 @@ export function PropertyDashboard({
   propertyId,
   timeRange,
   onTimeRangeChange,
+  performanceRange,
+  onPerformanceRangeChange,
+  performanceFns,
 }: PropertyDashboardProps) {
   if (!property) return null
 
@@ -88,6 +97,13 @@ export function PropertyDashboard({
         <KPICard label="Scans" kpi={kpis.scans} icon={ScanLine} />
         <KPICard label="Feedback" kpi={kpis.feedback} icon={MessageCircle} />
       </div>
+
+      <GooglePerformanceSection
+        propertyId={propertyId}
+        preset={performanceRange}
+        onPresetChange={onPerformanceRangeChange}
+        serverFns={performanceFns}
+      />
 
       {engagementFunnel && (
         <div>

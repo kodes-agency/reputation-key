@@ -162,10 +162,33 @@ const inboxItemBulkStatusChangedSchema = z.object({
 // `recordedAt` while the domain event (and its consumers) carry
 // `occurredAt`. Now recorded atomically via the metric command store.
 const metricRecordedSchema = z.object({
+  readingId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+  portalId: z.string().nullable(),
+  portalGroupId: z.string().nullable(),
+  definitionVersionId: z.string(),
+  sourceEventId: z.string(),
+  sourcePolicy: z.string(),
   metricKey: z.string(),
   value: z.number(),
+  numerator: z.number().nullable(),
+  denominator: z.number().nullable(),
+  sampleCount: z.number().int().nonnegative(),
+  attributionQuality: z.string(),
+  permittedConsumers: z.array(z.string()),
+  occurredAt: z.string(),
+})
+
+const metricCorrectedSchema = z.object({
+  correctionId: z.string(),
+  correctedReadingId: z.string(),
+  replacementReadingId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  definitionVersionId: z.string(),
+  sourceEventId: z.string(),
+  supersededSourceEventId: z.string(),
   occurredAt: z.string(),
 })
 
@@ -176,8 +199,6 @@ const propertyCreatedSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
   slug: z.string(),
-  gbpPlaceId: z.string().optional(),
-  googleConnectionId: z.string().optional(),
   // BQC-4.1: content-free routing fact (ADR 0048) — durable evidence of the
   // region the property was created with.
   processingRegion: z.string().optional(),
@@ -196,6 +217,56 @@ const propertyDeletedSchema = z.object({
   propertyId: z.string(),
   organizationId: z.string(),
 })
+
+const propertyGoogleBindingChangedSchema = z
+  .object({
+    _tag: z.literal('property.google_binding.changed').optional(),
+    eventId: z.string().optional(),
+    correlationId: z.string().nullable().optional(),
+    occurredAt: z.string().optional(),
+    organizationId: z.string(),
+    propertyId: z.string(),
+    connectionId: z.string(),
+    sourceEpoch: z.number().int().nonnegative(),
+    change: z.enum(['created', 'relinked', 'disconnected', 'deletion_started']),
+  })
+  .strict()
+  .transform(({ organizationId, propertyId, connectionId, sourceEpoch, change }) => ({
+    organizationId,
+    propertyId,
+    connectionId,
+    sourceEpoch,
+    change,
+  }))
+
+const integrationPropertyImportRetentionReleasedSchema = z
+  .object({
+    _tag: z.literal('integration.property_import.retention_released').optional(),
+    eventId: z.string().optional(),
+    correlationId: z.string().nullable().optional(),
+    occurredAt: z.string().optional(),
+    organizationId: z.string(),
+    idempotencyKeys: z.array(z.uuid()).min(1).max(100),
+  })
+  .strict()
+  .transform(({ organizationId, idempotencyKeys }) => ({
+    organizationId,
+    idempotencyKeys,
+  }))
+const integrationPropertyImportRequestedSchema = z
+  .object({
+    _tag: z.literal('integration.property_import.requested').optional(),
+    eventId: z.string().optional(),
+    correlationId: z.string().nullable().optional(),
+    occurredAt: z.string().optional(),
+    organizationId: z.string(),
+    importJobId: z.uuid(),
+  })
+  .strict()
+  .transform(({ organizationId, importJobId }) => ({
+    organizationId,
+    importJobId,
+  }))
 
 // ── Guest event schemas ─────────────────────────────────────────────
 
@@ -311,23 +382,11 @@ const organizationCreatedSchema = z.object({
 
 // ── Integration event schemas ───────────────────────────────────────
 
-const propertyImportCompletedSchema = z.object({
-  importJobId: z.string(),
-  organizationId: z.string(),
-  totalCount: z.number(),
-  importedCount: z.number(),
-  skippedCount: z.number(),
-  failedCount: z.number(),
-})
-
-// BQC-3.5: connected/disconnected/visibility_changed were never registered,
-// so the outbox adapter silently skipped them (bus-only). Registered with
-// identifier-only allowlists so the atomic command store can record them —
-// zero historical rows existed. googleEmail is deliberately NOT allowlisted
-// (provider identity stays out of the durable trail).
-const googleAccountConnectedSchema = z.object({
+// Connected events are identifier-only v2; the final binary has no v1 decoder.
+const googleAccountConnectedV2Schema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
+  connectedBy: z.string(),
 })
 
 const googleAccountDisconnectedSchema = z.object({
@@ -341,9 +400,53 @@ const connectionVisibilityChangedSchema = z.object({
   visibility: z.string(),
 })
 
-// ── Portal event schemas (only consumed ones) ───────────────────────
+// ── Portal event schemas ───────────────────────────────────────────
+
+const portalWorkflowFactSchema = z.object({
+  reviewId: z.string().min(1),
+  revision: z.number().int().positive(),
+  organizationId: z.string().min(1),
+  propertyId: z.string().min(1),
+  portalId: z.string().min(1),
+  portalGroupId: z.string().nullable(),
+  supersedesSourceEventId: z.string().min(1).nullable(),
+  occurredAt: z.string(),
+})
+
+const portalContentReviewCompletedSchema = portalWorkflowFactSchema
+const portalConfigurationCompletenessRecordedSchema = portalWorkflowFactSchema.extend({
+  completedFields: z.number().int().nonnegative(),
+  requiredFields: z.number().int().positive(),
+})
+const portalApprovedDestinationRatioRecordedSchema = portalWorkflowFactSchema.extend({
+  approvedDestinations: z.number().int().nonnegative(),
+  configuredDestinations: z.number().int().nonnegative(),
+})
 
 const portalDeletedSchema = z.object({
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+})
+
+const portalTokenIssuedSchema = z.object({
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  tokenIdentifier: z.string(),
+  version: z.number().int().positive(),
+})
+
+const portalTokenRotatedSchema = z.object({
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  previousVersion: z.number().int().positive(),
+  version: z.number().int().positive(),
+  gracePeriodEnds: z.string().datetime(),
+})
+
+const portalTokenRevokedSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
@@ -472,6 +575,11 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: metricRecordedSchema,
   })
+  registerEventSchema({
+    type: 'metric.corrected',
+    version: EVENT_VERSION,
+    schema: metricCorrectedSchema,
+  })
 
   // Property events (only consumed ones — created triggers inbox/metric/notification)
   registerEventSchema({
@@ -488,6 +596,21 @@ export function registerAllEventSchemas(): void {
     type: 'property.deleted',
     version: EVENT_VERSION,
     schema: propertyDeletedSchema,
+  })
+  registerEventSchema({
+    type: 'property.google_binding.changed',
+    version: EVENT_VERSION,
+    schema: propertyGoogleBindingChangedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.property_import.requested',
+    version: EVENT_VERSION,
+    schema: integrationPropertyImportRequestedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.property_import.retention_released',
+    version: EVENT_VERSION,
+    schema: integrationPropertyImportRetentionReleasedSchema,
   })
 
   // Guest events (consumed by metric)
@@ -575,14 +698,9 @@ export function registerAllEventSchemas(): void {
 
   // Integration events
   registerEventSchema({
-    type: 'integration.property_import.completed',
-    version: EVENT_VERSION,
-    schema: propertyImportCompletedSchema,
-  })
-  registerEventSchema({
     type: 'integration.google_account.connected',
-    version: EVENT_VERSION,
-    schema: googleAccountConnectedSchema,
+    version: 2,
+    schema: googleAccountConnectedV2Schema,
   })
   registerEventSchema({
     type: 'integration.google_account.disconnected',
@@ -595,11 +713,41 @@ export function registerAllEventSchemas(): void {
     schema: connectionVisibilityChangedSchema,
   })
 
-  // Portal events (only consumed ones)
+  // Portal events
   registerEventSchema({
     type: 'portal.deleted',
     version: EVENT_VERSION,
     schema: portalDeletedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.content_review.completed',
+    version: EVENT_VERSION,
+    schema: portalContentReviewCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.configuration_completeness.recorded',
+    version: EVENT_VERSION,
+    schema: portalConfigurationCompletenessRecordedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.approved_destination_ratio.recorded',
+    version: EVENT_VERSION,
+    schema: portalApprovedDestinationRatioRecordedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.token.issued',
+    version: EVENT_VERSION,
+    schema: portalTokenIssuedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.token.rotated',
+    version: EVENT_VERSION,
+    schema: portalTokenRotatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.token.revoked',
+    version: EVENT_VERSION,
+    schema: portalTokenRevokedSchema,
   })
   registerEventSchema({
     type: 'portal_group.deleted',

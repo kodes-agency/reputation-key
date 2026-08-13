@@ -86,9 +86,10 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['src/**/*.test.ts'],
+          include: ['src/**/*.test.ts', 'e2e/fixtures/**/*.test.ts'],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',
+            'src/**/*.integration.test.ts',
             'src/shared/db/migration-verification.test.ts',
           ],
           setupFiles: ['src/test-setup.ts'],
@@ -112,6 +113,7 @@ export default defineConfig({
           environment: 'node',
           include: [
             'src/**/infrastructure/repositories/*.test.ts',
+            'src/**/*.integration.test.ts',
             'src/shared/db/migration-verification.test.ts',
           ],
           setupFiles: ['src/test-setup.ts'],

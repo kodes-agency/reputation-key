@@ -53,9 +53,9 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       store.delete(id)
     },
 
-    findByGbpPlaceId: async (gbpPlaceId) => {
+    findByGbpLocationId: async (gbpLocationId) => {
       for (const property of store.values()) {
-        if (property.gbpPlaceId === gbpPlaceId && property.deletedAt === null) {
+        if (property.gbpLocationId === gbpLocationId && property.deletedAt === null) {
           return property
         }
       }
@@ -91,25 +91,6 @@ export const createInMemoryPropertyRepo = (): InMemoryPropertyRepo => {
       }
       store.set(property.id, property)
       return property
-    },
-
-    findExistingGbpPlaceIds: async (orgId, gbpPlaceIds) => {
-      if (gbpPlaceIds.length === 0) return []
-      const set = new Set(gbpPlaceIds)
-      return [...store.values()]
-        .filter(
-          (p) => isAccessible(orgId, p) && p.gbpPlaceId !== null && set.has(p.gbpPlaceId),
-        )
-        .map((p) => p.gbpPlaceId as string)
-    },
-
-    existsByGbpPlaceId: async (orgId, gbpPlaceId) => {
-      for (const property of store.values()) {
-        if (isAccessible(orgId, property) && property.gbpPlaceId === gbpPlaceId) {
-          return true
-        }
-      }
-      return false
     },
 
     // ── Test-only helpers ───────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { toOutboxEvent, tryToOutboxEvent, OutboxPayloadError } from './event-adapter'
 import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { z } from 'zod'
 import type { DomainEvent } from '#/shared/events/events'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -68,6 +69,24 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     expect(row.payload).toHaveProperty('correlationId', 'corr-123')
   })
 
+  it('persists connected events only as identifier-only v2', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const row = toOutboxEvent({
+      _tag: 'integration.google_account.connected',
+      eventId: 'evt-connected',
+      connectionId: 'connection-1',
+      organizationId: organizationId('org-1'),
+      connectedBy: 'user-1',
+      occurredAt: NOW,
+      correlationId: null,
+    } as DomainEvent)
+
+    expect(row.eventVersion).toBe(2)
+    expect(row.payload).toHaveProperty('connectedBy', 'user-1')
+    expect(row.payload).not.toHaveProperty('outboxEventVersion')
+  })
+
   it('throws unregistered for unknown event types', () => {
     const event = {
       ...makeReviewCreated(),
@@ -130,5 +149,27 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     const row = toOutboxEvent(event)
     expect(row.payload).toEqual({ resourceId: 'r-1', correlationId: null })
     expect(row.payload).not.toHaveProperty('comment')
+  })
+
+  it('normalizes a portal rotation grace deadline before allowlist validation', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const gracePeriodEnds = new Date('2025-06-01T12:05:00.000Z')
+    const row = toOutboxEvent({
+      _tag: 'portal.token.rotated',
+      eventId: 'evt-rotation',
+      portalId: 'portal-1',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      previousVersion: 1,
+      version: 2,
+      gracePeriodEnds,
+      occurredAt: NOW,
+      correlationId: null,
+    } as DomainEvent)
+
+    expect(row.payload).toMatchObject({
+      gracePeriodEnds: gracePeriodEnds.toISOString(),
+    })
   })
 })

@@ -13,23 +13,23 @@ import { isStaffError } from './errors'
 
 describe('staff_assignment.create permission', () => {
   it('allows AccountAdmin and PropertyManager', () => {
-    expect(can('AccountAdmin', 'staff_assignment.create')).toBe(true)
-    expect(can('PropertyManager', 'staff_assignment.create')).toBe(true)
+    expect(can('AccountAdmin', 'staff.manage')).toBe(true)
+    expect(can('PropertyManager', 'staff.manage')).toBe(true)
   })
 
   it('rejects Staff', () => {
-    expect(can('Staff', 'staff_assignment.create')).toBe(false)
+    expect(can('Staff', 'staff.manage')).toBe(false)
   })
 })
 
 describe('staff_assignment.delete permission', () => {
   it('allows AccountAdmin and PropertyManager', () => {
-    expect(can('AccountAdmin', 'staff_assignment.delete')).toBe(true)
-    expect(can('PropertyManager', 'staff_assignment.delete')).toBe(true)
+    expect(can('AccountAdmin', 'staff.manage')).toBe(true)
+    expect(can('PropertyManager', 'staff.manage')).toBe(true)
   })
 
   it('rejects Staff', () => {
-    expect(can('Staff', 'staff_assignment.delete')).toBe(false)
+    expect(can('Staff', 'staff.manage')).toBe(false)
   })
 })
 

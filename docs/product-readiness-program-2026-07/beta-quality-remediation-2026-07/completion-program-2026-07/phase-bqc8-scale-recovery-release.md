@@ -1,13 +1,15 @@
-# BQC-8 — Scale, Recovery, and Release Evidence
+# BQC-8 — Local Scale, Recovery, and Release Evidence
 
-**Status:** `not_started`  
-**Estimate:** 6–10 engineering days plus environment scheduling  
-**Dependencies:** BQC-6 and BQC-7 accepted; BQC-1…5 production paths complete  
-**Unlocks:** BQC-9 real-property pilot
+**Status:** `evidence_pending` — `beta:smoke` passed; five post-evidence approvals remain
+**Evidence profile:** `beta-local-1`
+**Dependencies:** BQC-6 and BQC-7 implementation complete; BQC-1…5 production paths complete
+**Unlocks:** BQC-9 local product acceptance
 
 ## 1. Outcome
 
-Execute—not describe—the target-scale, burst, failure, restore, regional, security, and release-candidate gates. Produce one immutable evidence bundle that proves the same commit, migrations, artifacts, policy versions, topology, and environment passed every required gate.
+Execute the target-scale, lifecycle, runtime-fault, migration-upgrade, security/privacy, product-journey, and release-bundle gates against the production-profile local Docker application stack. Produce one digest-keyed immutable evidence manifest proving the same revision, migration heads, image identities, policy versions, fixtures, and results.
+
+Hosted Railway capacity/PITR, regional-infrastructure failure, live Google publication, real-property observation, and the 14-day cohort are post-beta operations. This phase never labels those unexecuted checks passed.
 
 ## 2. Findings owned
 
@@ -20,175 +22,125 @@ Execute—not describe—the target-scale, burst, failure, restore, regional, se
 
 - Scale/fault/recovery harnesses and immutable evidence validation: `IMPLEMENTS`.
 - Product behavior, policy, lifecycle, runtime, routing, testing, and operations controls from BQC-1…7: `RE_EXECUTES`.
-- BQC-8 never repairs a product/control defect inside the evidence candidate. A failed scenario returns to its implementation owner, produces a new immutable candidate, and reruns affected evidence.
 
-## 3. Test environment and dataset
+## 3. Test environment and datasets
 
-Provision a production-shaped staging cell with:
+Use `compose.local.yml` with production web/worker images, PostgreSQL 16, Redis 7, private MinIO, GBP/mail sandboxes, migrator, seed, two web origins, worker, and perf runner. Browser traffic enters only through loopback; DB/Redis remain internal.
 
-- the production web/worker containers and migration path;
-- PostgreSQL/Redis/storage classes representative of intended beta production;
-- the same observability/alerts/operator controls;
-- isolated synthetic identities and provider adapters/sandboxes;
-- 100 organizations, 5,000 properties, 500,000 reviews, representative inbox/reply/metric/activity/notification state;
-- realistic skew: a small percentage of properties owns a large share of reviews, plus long/translated/missing data;
-- US-heavy distribution with denied/unprovisioned Europe cases for routing proof.
+Run two deterministic synthetic datasets:
+
+1. the existing 100 organizations / 5,000 properties / 500,000 reviews fixture for throughput, lifecycle, queue, and fault catalogues;
+2. one organization with one authorized manager and 5,000 properties, mixed P1/P2 cohort policy, governed readings, and real Dashboard repository instrumentation.
+
+Seed manifests record generator revision, counts, relationship checks, policy distribution, and content-free hashes. Results are labelled synthetic local evidence, not production capacity.
 
 The seed tool records deterministic seed/version/hash and validates counts/relationships. It must not only generate SQL; it must load, verify, and clean up the environment safely.
 
-## 4. Slices
+## 4. Implemented local gates
 
-### BQC-8.1 — Convert scenario catalogues into executable harnesses
+### BQC-8.1 — Production-profile stack and identity
 
-**Mode:** `IMPLEMENTS` the scale/fault orchestration and evidence-ingestion harnesses. It does not replace product or operational controls owned by BQC-1…7.
+`compose.local.yml` runs digest-pinned PostgreSQL, Redis, and MinIO dependencies
+with production web/worker images, provider sandboxes, a migrator, deterministic
+seed, locked and allowlisted web origins, and a non-root performance runner.
+Acceptance binds source revision, lockfile, migration heads, image IDs, policy
+version, stack contract, and both fixture hashes.
 
-- Turn `scripts/perf/load-test.ts` from descriptions into runnable scenarios or replace it with a maintained tool.
-- Make `write-scale-evidence` ingest measured outputs; it may not label unexecuted rows as evidence.
-- Fail when thresholds, required samples, release identity, or monitoring data are absent.
-- Store raw performance data without protected content and generate reviewed summaries.
+### BQC-8.2 — Deterministic scale fixtures
 
-### BQC-8.2 — Steady-state and burst capacity
+The existing 100-organization / 5,000-property / 500,000-review catalogue loads
+and verifies exact counts, distribution, and relationship integrity. A separate
+one-organization / 5,000-property fleet fixture proves authorized Dashboard
+query bounds and cohort filtering. These are synthetic local budgets, not hosted
+capacity measurements.
 
-**Mode:** `RE_EXECUTES` accepted BQC-3 runtime, BQC-5 query/composition, BQC-6 experience, and BQC-7 topology behavior at target scale.
+### BQC-8.3 — Source lifecycle and governed data
 
-Execute:
+The source-lifecycle gate re-executes expiry and retention behavior without
+protected content in evidence. Governed metric definitions, exact readings,
+provenance, eligibility, corrections, and consumer scopes are bound to the
+candidate used by Goals, Recognition, and Dashboard.
 
-- normal monthly-rate review arrival with realistic daily/hourly skew;
-- webhook/import burst and reconnect catch-up;
-- dashboard/inbox interactive reads while jobs run;
-- reply publication burst within human-use expectations;
-- worker scale-up/down and backlog drain;
-- cache cold start/eviction;
-- connection pool and tenant-fairness pressure.
+### BQC-8.4 — Runtime fault and restart matrix
 
-Measure throughput, p50/p95/p99 latency, error rate, queue oldest age/lag, DB CPU/locks/connections/query time, Redis memory/latency, cache hit rate, and worker utilization. Verify no property starves behind a hot tenant.
+The local stack injects dependency and process failures across PostgreSQL,
+Redis, object storage, web, worker, GBP, and mail boundaries. Readiness fails
+honestly, affected work fails closed, durable state converges after recovery,
+and external effects remain idempotent.
 
-### BQC-8.3 — Source lifecycle at scale
+### BQC-8.5 — Policy and tenant isolation
 
-**Mode:** `RE_EXECUTES` BQC-1 source lifecycle and BQC-3 durable scheduling at target scale.
+The security/privacy and product gates prove P1 success, P2/P3 denial,
+cross-property nondisclosure, suspension, organization/property kill switches,
+public-token scope resolution, delayed-work reauthorization, and withdrawal
+cleanup. Local wrong-region and tampered-work checks remain policy tests;
+regional infrastructure outage execution is post-beta.
 
-- Advance an accelerated clock/data distribution through refresh-due and hard expiry.
-- Verify cursor jobs cover all 500,000 reviews without full-table/unbounded behavior.
-- Inject Google throttling/transient failures and prove backpressure, retries, alerts, and purge safety.
-- Confirm no expired content is served and all seeded canaries disappear from every registered copy.
-- Verify outbox/receipt/job/log/cache retention keeps tables/queues bounded.
+### BQC-8.6 — Clean install and pre-cutover upgrade
 
-### BQC-8.4 — Durable runtime fault matrix
+Acceptance runs the deploy migrator once against an empty database and once
+against a versioned pre-cutover dump. Both converge at
+`0028_recognition-beta-seeds`; reconciliation and quarantine reports are bound
+into the acceptance index. Managed PITR and provider RPO/RTO remain post-beta.
 
-**Mode:** `RE_EXECUTES` the BQC-3 fault/runtime harness in the deployed target environment. Add only environment orchestration/measurement, not a parallel runtime implementation.
+### BQC-8.7 — Quality, security, privacy, and accessibility
 
-Inject at controlled boundaries:
+The quality gate records formatting, lint, typecheck, unit, integration, web
+and worker builds, Storybook component/a11y checks, blocking Storybook browser
+tests, critical browser tests, full browser tests, and scoped teardown. The
+security/privacy gate re-executes capability, denial, guest-session, and guest
+lifecycle contracts against the same source identity.
 
-- process crash before/after state+outbox commit;
-- crash before/after projection+receipt commit;
-- duplicate/reordered events;
-- malformed/unknown/poison jobs;
-- stalled worker and expired lease;
-- Redis restart/outage;
-- PostgreSQL connection interruption/failover simulation;
-- provider timeout/throttle/ambiguous reply outcome;
-- quarantine and operator redrive.
+### BQC-8.8 — Immutable release evidence
 
-Prove no lost facts, split commits, duplicate external replies, or silently completed unknown work. Reconciliation/repair must converge.
+`pnpm beta:smoke` is the only successful manifest producer. It refuses an
+existing release path, hashes every gate result, and writes:
 
-### BQC-8.5 — Region fault matrix
+`test-results/beta-smoke/f46d2cd690899eace479e6ec9e08d5bbb3fece4c/6ae52200cfcecac772493e1a3af419b1d2a4140225536aa2d1b33ac263b0953f/manifest.json`
 
-**Mode:** `RE_EXECUTES` BQC-4 routing and BQC-7 topology under integrated faults.
+The manifest completed at `2026-08-09T08:00:33.003Z`; all eight required gates
+passed with exit code zero. Promotion remains impossible until all five named
+approval roles submit post-evidence records bound to digest
+`6ae52200cfcecac772493e1a3af419b1d2a4140225536aa2d1b33ac263b0953f`.
 
-- Stop or deny the US queue/worker/provider adapter and prove no cross-region execution.
-- Attempt wrong-cell/tampered jobs and confirm quarantine/alert.
-- Attempt an unresolved/Europe property in the US-only beta and confirm deny.
-- Verify global control/observability data remains content-free.
+## 5. Local budgets and claims
 
-### BQC-8.6 — Backup, restore, rollback, and forward recovery
-
-**Mode:** `RE_EXECUTES` BQC-1 lifecycle, BQC-3 reconciliation, and BQC-7 backup/deployment controls. The timed environment orchestration and measurement belong to BQC-8.
-
-Measure:
-
-- point-in-time restore and application reconciliation against RPO ≤15 minutes;
-- restore to usable service against RTO ≤4 hours;
-- source-policy enforcement before restored traffic;
-- deployment rollback to the previous compatible artifact;
-- forward recovery for an irreversible migration;
-- Redis/job reconstruction or reconciliation according to declared durability;
-- secrets/key rotation effect on existing encrypted tokens/sessions.
-
-Record start/end timestamps, lost/recovered work, manual steps, owners, and deviations. A configured backup without a successful restore is failure.
-
-### BQC-8.7 — Security and privacy release gates
-
-**Mode:** `RE_EXECUTES` the BQC-7 gates against the final artifact and binds their existing policy/results to the release identity.
-
-Run all BQC-7 scans against final artifacts, repeat protected-canary scans across staging telemetry/evidence, verify least privilege and private diagnostics, and review data-flow/retention/provider/subprocessor documentation with accountable owners.
-
-### BQC-8.8 — Immutable release bundle
-
-**Mode:** `IMPLEMENTS` the bundle validator and release-identity binding; it consumes accepted evidence from BQC-1…7 and measurements from BQC-8.2…8.7.
-
-Populate the master evidence structure. Add an automated validator that ensures:
-
-- all required files exist and are non-template;
-- every result refers to the same release/config/policy identities;
-- every finding is accepted or has a permitted lower-severity disposition;
-- no required step is soft/failed/pending;
-- evidence links/artifacts are accessible to reviewers;
-- approvals are from named roles and after the final evidence timestamp.
-
-## 5. Performance budgets
-
-Use the repository's documented SLOs where already approved and record exact numeric thresholds before executing. At minimum:
-
-- interactive inbox/dashboard/reply paths have defined p95/p99 and error budgets;
-- new reviews project within the beta freshness SLO;
-- queue oldest age and backlog drain have explicit maximums;
-- refresh completes with margin before hard expiry under throttle/failure;
-- queries/jobs have bounded row/time/memory budgets;
-- deploy, drain, restore, and rollback targets are explicit;
-- RPO/RTO remain ≤15 minutes/≤4 hours.
-
-Do not choose thresholds after viewing results. If an existing threshold is unrealistic, revise it through an approved decision before the run and explain user/policy impact.
+Thresholds are fixed before execution. Evidence records exact fixture counts,
+query bounds, lifecycle outcomes, queue/retry/quarantine facts, health
+transitions, migration convergence, and content-free hashes. A green run proves
+the application images and declared Docker topology under those fixtures. It
+does not prove Railway capacity, managed PITR, regional infrastructure
+failover, merchant authorization, live Google behavior, or real-property
+stability.
 
 ## 6. Go/no-go review
 
-Required reviewers:
+Required post-evidence approvers:
 
 - engineering/runtime;
-- product/property owner;
+- product/property;
 - security/privacy;
-- Google project/integration owner;
-- operations/on-call owner.
+- Google project/integration sandbox;
+- operations/on-call.
 
-No-go conditions include any master stop-line, unresolved P0/P1, missing evidence, failed restore, unbounded lifecycle backlog, wrong-region execution, hidden soft gate, or release-identity mismatch.
+No-go conditions include any unresolved P0/P1, missing or mixed-identity
+evidence, failed gate, tenant/property leak, post-withdrawal content, duplicate
+external effect, unbounded query/job, or approval predating final evidence.
 
-## 7. Evidence
+## 7. Exit matrix
 
-This phase's output is the release evidence bundle itself, plus:
+| Criterion                                                            | Observed result |
+| -------------------------------------------------------------------- | --------------- |
+| 100-org / 5,000-property / 500,000-review fixture loads and verifies | Pass            |
+| Authorized one-org / 5,000-property fleet fixture loads and verifies | Pass            |
+| Clean install and pre-cutover upgrade converge at migration `0028`   | Pass            |
+| Quality, security/privacy, lifecycle, fault, and product gates pass  | Pass            |
+| Candidate identity and every evidence artifact are digest-bound      | Pass            |
+| Required independent approvals postdate and bind the final manifest  | Pending         |
 
-- signed staging environment inventory;
-- deterministic dataset manifest;
-- raw load/fault/recovery measurements;
-- alert/operator timelines;
-- finding closure report;
-- exception register;
-- signed go/no-go decision for BQC-9.
+## 8. Post-beta operations
 
-## 8. Exit matrix
-
-| Criterion                                                       | Required result |
-| --------------------------------------------------------------- | --------------- |
-| 5,000-property/500,000-review dataset loaded and verified       | Pass            |
-| Steady/burst/backlog/cold-cache scenarios meet budgets          | Pass            |
-| Lifecycle refresh/expiry/retention meets policy at scale        | Pass            |
-| Crash/duplicate/reorder/poison/stalled/redrive converges safely | Pass            |
-| Region outage produces no fallback                              | Pass            |
-| Restore observes RPO/RTO and source policy                      | Pass            |
-| Security/privacy/artifact gates pass final candidate            | Pass            |
-| All tracked findings have accepted evidence                     | Pass            |
-| Release bundle validates and reviewers approve pilot entry      | Accepted        |
-
-## 9. Out of scope
-
-- Real Google review content; this phase uses synthetic/provider-sandbox data.
-- BQC-9 observation period.
-- AI workload sizing; Phase 17/18 will use the accepted runtime/capacity baseline.
+Hosted capacity and managed PITR, regional infrastructure outage/no-fallback,
+live Google publication, merchant authorization, real-property observation,
+and the 14-day cohort remain unmeasured. Later execution creates separate
+immutable evidence and never rewrites `beta-local-1`.

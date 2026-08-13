@@ -15,7 +15,6 @@ import { trace } from '#/shared/observability/trace'
 type SetValues = {
   name?: string
   description?: string | null
-  teamLeadId?: string | null
   updatedAt?: Date
   deletedAt?: Date | null
 }
@@ -80,9 +79,6 @@ export const createTeamRepository = (
       if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
       if (patch.name !== undefined) setValues.name = patch.name
       if (patch.description !== undefined) setValues.description = patch.description
-      if (patch.teamLeadId !== undefined)
-        setValues.teamLeadId =
-          patch.teamLeadId !== null ? unbrand(patch.teamLeadId) : null
 
       await db
         .update(teams)

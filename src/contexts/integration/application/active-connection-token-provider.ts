@@ -55,7 +55,7 @@ export const createActiveConnectionTokenProvider = (
     if (!connection) {
       throw integrationError('connection_not_found', 'Google connection not found')
     }
-    if (connection.status !== 'active') {
+    if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
       throw integrationError('connection_disconnected', 'Google account is not connected')
     }
     return connection

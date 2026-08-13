@@ -76,17 +76,8 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ).toThrow(/health-chek/)
   })
 
-  it('passes with denied_dark/blocked_capability rows registered as no-op handlers', () => {
-    const logger = fakeLogger()
-    const darkRows = JOB_FAMILY_ROWS.filter((r) => r.registration !== 'enabled')
-    expect(darkRows.length).toBeGreaterThan(0)
-
-    // fullyRegisteredRegistry registers dark/blocked rows as no-ops — by design.
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-      }),
-    ).not.toThrow()
+  it('contains no stale denied or blocked rows after controlled-beta promotion', () => {
+    expect(JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled')).toEqual([])
   })
 
   it('skips durable-consumer validation when the dispatcher is disabled (logs info)', () => {

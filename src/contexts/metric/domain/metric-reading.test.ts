@@ -1,141 +1,104 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  type MetricReading,
   createReading,
   findDuplicate,
   getEffectiveValue,
   type MetricCorrection,
+  type MetricReading,
 } from './metric-reading'
+import {
+  metricReadingId,
+  organizationId,
+  portalId,
+  propertyId,
+} from '#/shared/domain/ids'
+
+const NOW = new Date('2026-01-16T00:00:00Z')
+
+const makeReadingParams = (
+  overrides: Partial<Parameters<typeof createReading>[0]> = {},
+): Parameters<typeof createReading>[0] => ({
+  id: metricReadingId('d4000000-0000-4000-8000-000000000071'),
+  definitionVersionId: 'ver-1',
+  metricKey: 'portal.content_review.completed',
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId('d4000000-0000-4000-8000-000000000051'),
+  value: 42,
+  sampleCount: 10,
+  sourceEventId: 'evt-1',
+  sourcePolicy: 'first_party_workflow',
+  occurredAt: new Date('2026-01-15T00:00:00Z'),
+  propertyLocalDate: '2026-01-15',
+  attributionQuality: 'exact',
+  retentionClass: 'standard',
+  now: NOW,
+  ...overrides,
+})
+
+const correction = (
+  kind: MetricCorrection['kind'],
+  operand: number | null,
+  overrides: Partial<MetricCorrection> = {},
+): MetricCorrection => ({
+  id: 'corr-1',
+  correctedReadingId: 'd4000000-0000-4000-8000-000000000071',
+  sourceEventId: 'correction-event-1',
+  kind,
+  reason: 'source_correction',
+  actorType: 'system',
+  actorId: 'metric-reconciliation',
+  exactDelta: kind === 'adjust' ? operand : null,
+  replacementValue: kind === 'replace' ? operand : null,
+  occurredAt: NOW,
+  recordedAt: NOW,
+  supersedesCorrectionId: null,
+  ...overrides,
+})
 
 describe('MetricReading', () => {
-  const NOW = new Date('2026-01-16T00:00:00Z')
-
-  function makeReadingParams(
-    overrides: Partial<Parameters<typeof createReading>[0]> = {},
-  ): Parameters<typeof createReading>[0] {
-    return {
-      id: 'read-1',
-      definitionVersionId: 'ver-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
+  it('creates a provenance-complete reading', () => {
+    const reading = createReading(makeReadingParams())
+    expect(reading).toMatchObject({
       value: 42,
-      sampleSize: 10,
-      sourceEventId: 'evt-1',
-      sourceSchema: 'v1',
-      occurredAt: new Date('2026-01-15'),
-      propertyLocalDate: '2026-01-15',
-      attributionQuality: 'exact',
-      retentionClass: 'standard',
-      now: NOW,
-      ...overrides,
-    }
-  }
-
-  describe('createReading', () => {
-    it('creates a reading with all fields', () => {
-      const r = createReading(makeReadingParams())
-      expect(r.value).toBe(42)
-      expect(r.recordedAt).toEqual(NOW)
-      expect(r.correctedBy).toBeNull()
+      recordedAt: NOW,
+      sampleCount: 10,
+      sourcePolicy: 'first_party_workflow',
     })
   })
 
-  describe('findDuplicate', () => {
-    it('finds duplicate by definition version and source event', () => {
-      const r = createReading(makeReadingParams())
-      const dup = findDuplicate([r], 'ver-1', 'evt-1', null)
-      expect(dup?.id).toBe('read-1')
-    })
-
-    it('returns null when no duplicate', () => {
-      const r = createReading(makeReadingParams())
-      const dup = findDuplicate([r], 'ver-1', 'evt-2', null)
-      expect(dup).toBeNull()
-    })
-
-    it('respects portal_id in idempotency key', () => {
-      const r = createReading(makeReadingParams({ portalId: 'portal-1' }))
-      // Same event but different portal is not a duplicate
-      expect(findDuplicate([r], 'ver-1', 'evt-1', 'portal-2')).toBeNull()
-      // Same event and same portal is a duplicate
-      expect(findDuplicate([r], 'ver-1', 'evt-1', 'portal-1')?.id).toBe('read-1')
-    })
+  it('deduplicates by immutable version and source event across dimensions', () => {
+    const reading = createReading(
+      makeReadingParams({ portalId: portalId('d4000000-0000-4000-8000-000000000081') }),
+    )
+    expect(findDuplicate([reading], 'ver-1', 'evt-1')?.id).toBe(reading.id)
+    expect(findDuplicate([reading], 'ver-1', 'evt-2')).toBeNull()
   })
 
-  describe('getEffectiveValue', () => {
-    const baseReading: MetricReading = {
-      id: 'read-1',
-      definitionVersionId: 'ver-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalGroupId: null,
-      portalId: null,
-      value: 42,
-      numerator: null,
-      denominator: null,
-      duration: null,
-      sampleSize: 10,
-      sourceEventId: 'evt-1',
-      sourceSchema: 'v1',
-      occurredAt: new Date('2026-01-15'),
-      recordedAt: new Date('2026-01-15'),
-      propertyLocalDate: '2026-01-15',
-      attributionQuality: 'exact',
-      dataQuality: 'exact',
-      retentionClass: 'standard',
-      correctedBy: null,
-    }
+  describe('append-only corrections', () => {
+    const baseReading: MetricReading = createReading(makeReadingParams())
 
-    it('returns original value when no correction', () => {
+    it('uses the original value without a correction', () => {
       expect(getEffectiveValue(baseReading, [])).toBe(42)
     })
 
-    it('returns null for retraction', () => {
-      const correction: MetricCorrection = {
-        id: 'corr-1',
-        correctedReadingId: 'read-1',
-        kind: 'retract',
-        reason: 'source_error',
-        actor: 'system',
-        replacementValue: null,
-        occurredAt: new Date(),
-        recordedAt: new Date(),
-        supersededBy: null,
-      }
-      const reading = { ...baseReading, correctedBy: 'corr-1' }
-      expect(getEffectiveValue(reading, [correction])).toBeNull()
+    it.each([
+      ['retract', null, null],
+      ['replace', 50, 50],
+      ['adjust', 5, 47],
+    ] as const)('applies the latest %s correction', (kind, operand, expected) => {
+      expect(getEffectiveValue(baseReading, [correction(kind, operand)])).toBe(expected)
     })
 
-    it('returns replacement value for replace', () => {
-      const correction: MetricCorrection = {
-        id: 'corr-1',
-        correctedReadingId: 'read-1',
-        kind: 'replace',
-        reason: 'data_correction',
-        actor: 'admin',
-        replacementValue: 50,
-        occurredAt: new Date(),
-        recordedAt: new Date(),
-        supersededBy: null,
-      }
-      const reading = { ...baseReading, correctedBy: 'corr-1' }
-      expect(getEffectiveValue(reading, [correction])).toBe(50)
-    })
+    it('follows supersession lineage without mutating the original reading', () => {
+      const first = correction('replace', 50)
+      const latest = correction('adjust', 5, {
+        id: 'corr-2',
+        sourceEventId: 'correction-event-2',
+        supersedesCorrectionId: first.id,
+      })
 
-    it('returns adjusted value for adjust', () => {
-      const correction: MetricCorrection = {
-        id: 'corr-1',
-        correctedReadingId: 'read-1',
-        kind: 'adjust',
-        reason: 'late_arrival',
-        actor: 'system',
-        replacementValue: 5,
-        occurredAt: new Date(),
-        recordedAt: new Date(),
-        supersededBy: null,
-      }
-      const reading = { ...baseReading, correctedBy: 'corr-1' }
-      expect(getEffectiveValue(reading, [correction])).toBe(47) // 42 + 5
+      expect(getEffectiveValue(baseReading, [first, latest])).toBe(47)
+      expect(baseReading.value).toBe(42)
     })
   })
 })

@@ -3,27 +3,26 @@ import { useServerFn } from '@tanstack/react-start'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { identityKeys, propertyKeys, integrationKeys } from '#/shared/queries/query-keys'
+import { integrationKeys } from '#/shared/queries/query-keys'
+import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
 import {
-  listGbpLocations,
-  startPropertyImport,
+  getPropertyImportV2Status,
+  listImportAccounts,
+  listImportCandidates,
+  recoverPropertyImportV2,
+  renewImportAuthorizationLease,
+  retryPropertyImportItem,
+  startPropertyImportV2,
 } from '#/contexts/integration/server/gbp-import'
-import {
-  ConnectGoogleButton,
-  ImportConnectedView,
-} from '#/components/features/integration'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 
-// Shared query options — the loader (ensureQueryData) and component
-// (useSuspenseQuery) reference the SAME options object so the primed cache is
-// hit with zero extra fetch.
 const connectionsQuery = queryOptions({
   queryKey: integrationKeys.connections(),
   queryFn: () => listGoogleConnections(),
@@ -31,9 +30,15 @@ const connectionsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/import/')({
-  beforeLoad: ({ context }) => {
+  beforeLoad: async ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'integration.manage')) throw redirect({ to: '/properties' })
+    if (!can(role, 'property.import_gbp_v2')) throw redirect({ to: '/properties' })
+    await gateControlledRoute({
+      data: {
+        capability: 'property.import_gbp_v2',
+        featureLabel: 'Google property import',
+      },
+    })
   },
   staleTime: 60_000,
   loader: async ({ context }) => {
@@ -46,55 +51,49 @@ export const Route = createFileRoute('/_authenticated/import/')({
 function ImportPage() {
   const search = useSearch({ strict: false }) as { connectionId?: string; error?: string }
   const { data } = useSuspenseQuery(connectionsQuery)
-  const connections = data.connections
+  const { activeOrganization } = Route.useRouteContext()
   const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
-
-  const importAction = useActionMutation(startPropertyImport, {
-    invalidateKeys: [
-      identityKeys.organizations(),
-      propertyKeys.list(),
-      integrationKeys.connections(),
-    ],
-  })
 
   return (
     <PageShell>
       <PageHeader
-        title="Import Properties"
-        description="Import properties from your Google Business Profile"
+        title="Import Google properties"
+        description="Discover, review, and import locations from Google Business Profile."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
-          { label: 'Import Properties' },
+          { label: 'Import properties' },
         ]}
-        backTo={{ to: '/properties', label: 'Back to Properties' }}
+        backTo={{ to: '/properties', label: 'Back to properties' }}
       />
 
-      {search.error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+      {search.error ? (
+        <div
+          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
+          role="alert"
+        >
           <p className="text-sm text-destructive">
             {search.error === 'denied'
               ? 'Google authorization was cancelled.'
               : search.error === 'connection_failed'
-                ? 'Failed to connect Google account. Please try again.'
-                : 'An error occurred during Google authorization.'}
+                ? 'Google could not be connected. Try again.'
+                : 'Google authorization could not be completed.'}
           </p>
         </div>
-      )}
+      ) : null}
 
-      {connections.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 rounded-lg border py-12">
-          <p className="text-muted-foreground">No Google accounts connected yet.</p>
-          <ConnectGoogleButton getAuthUrl={getAuthUrl} />
-        </div>
-      ) : (
-        <ImportConnectedView
-          connections={connections}
-          initialConnectionId={search.connectionId}
-          getAuthUrl={getAuthUrl}
-          importAction={importAction}
-          listGbpLocations={listGbpLocations}
-        />
-      )}
+      <GoogleImportManager
+        organizationId={activeOrganization?.id ?? 'no-active-organization'}
+        connections={data.connections}
+        initialConnectionId={search.connectionId}
+        getAuthUrl={getAuthUrl}
+        listAccounts={listImportAccounts}
+        listCandidates={listImportCandidates}
+        renewAuthorizationLease={renewImportAuthorizationLease}
+        startImport={startPropertyImportV2}
+        recoverImport={recoverPropertyImportV2}
+        getImportStatus={getPropertyImportV2Status}
+        retryImportItem={retryPropertyImportItem}
+      />
     </PageShell>
   )
 }

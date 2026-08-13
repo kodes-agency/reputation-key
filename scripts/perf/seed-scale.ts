@@ -5,6 +5,7 @@
 //
 // Usage:
 //   pnpm perf:seed-scale -- --orgs=100 --properties=5000 --reviews=500000
+//   pnpm perf:seed-scale -- --source-lifecycle --orgs=100 --properties=5000 --reviews=500000
 //   pnpm perf:seed-scale -- --seed=my-seed --orgs=2 --properties=20 --reviews=500
 //   pnpm perf:seed-scale -- --dry-run               (plan + hash, no DB)
 //   pnpm perf:seed-scale -- --verify                (prove DB == plan; exit 1 on drift)
@@ -62,6 +63,7 @@ async function main(): Promise<number> {
   const dryRun = process.argv.includes('--dry-run')
   const verify = process.argv.includes('--verify')
   const clean = process.argv.includes('--clean')
+  const sourceLifecycle = process.argv.includes('--source-lifecycle')
   const baseTimeArg = argValue('--base-time')
   const baseTime = baseTimeArg ? new Date(baseTimeArg) : new Date()
   if (Number.isNaN(baseTime.getTime())) {
@@ -74,7 +76,7 @@ async function main(): Promise<number> {
     ROUTING_POLICY_VERSION,
   )
 
-  const plan = planScaleDataset({ seed, shape, routingPolicyVersion })
+  const plan = planScaleDataset({ seed, shape, sourceLifecycle, routingPolicyVersion })
 
   console.log('BQC-8.1 deterministic scale dataset')
   console.log('═'.repeat(60))
@@ -85,6 +87,9 @@ async function main(): Promise<number> {
   )
   console.log(`  Plan hash:   ${plan.hash}`)
   console.log(`  Routing ver: ${routingPolicyVersion}`)
+  console.log(
+    `  Lifecycle:   ${sourceLifecycle ? 'fetch-clock fields populated' : 'capacity-only'}`,
+  )
 
   if (dryRun && !clean) {
     console.log('\nDRY RUN — no data touched.')

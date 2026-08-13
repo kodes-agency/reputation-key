@@ -1,5 +1,5 @@
 // Integration context — handle GBP notification use case
-// Steps: lookup property by gbpPlaceId → validate connection → enqueue review sync
+// Steps: lookup property by GBP location ID → validate connection → enqueue review sync
 // This is the business logic extracted from the webhook route.
 //
 // This is layer 1 of the imported-properties scoping (Pub/Sub lifecycle): inbound
@@ -33,8 +33,8 @@ export const handleGbpNotification =
   async (input: HandleGbpNotificationInput): Promise<HandleGbpNotificationResult> => {
     const logger = deps.logger
 
-    // 1. Resolve property by gbpPlaceId
-    const property = await deps.propertyLookup.findByGbpPlaceId(input.locationId)
+    // 1. Resolve property by canonical GBP location ID.
+    const property = await deps.propertyLookup.findByGbpLocationId(input.locationId)
 
     if (!property || !property.googleConnectionId) {
       logger.info(
@@ -51,12 +51,9 @@ export const handleGbpNotification =
         organizationId: property.organizationId,
         connectionId: property.googleConnectionId,
         locationName: input.locationName,
-        // BQC-3.2: webhook-initiated delayed work carries a named system
-        // initiator; the Pub/Sub message id is the content-free correlation.
-        policy: {
-          initiator: { kind: 'system', id: 'webhook:gbp' },
-          correlationId: `webhook:${input.messageId}`,
-        },
+        // Webhook-initiated delayed work carries named, content-free attribution.
+        initiator: { kind: 'system', id: 'webhook:gbp' },
+        correlationId: `webhook:${input.messageId}`,
       },
       {
         jobId: `webhook:${input.messageId}`,

@@ -1,66 +1,33 @@
-import type { NotificationType } from '#/contexts/notification/application/public-api'
+import type { NotificationCategory } from '#/contexts/notification/application/public-api'
 
-// Display metadata for every notification type the backend recognises.
-// Keep in sync with NOTIFICATION_TYPES in notification/domain/types.ts (single source).
-export const TYPE_ROWS: ReadonlyArray<{
-  type: NotificationType
+export const CATEGORY_ROWS: ReadonlyArray<{
+  category: NotificationCategory
   label: string
   description: string
 }> = [
   {
-    type: 'review.created',
-    label: 'New reviews',
-    description: 'A new review is published for a property.',
+    category: 'mandatory',
+    label: 'Account and safety',
+    description: 'Required account, security, and service notices.',
   },
   {
-    type: 'feedback.created',
-    label: 'New feedback',
-    description: 'A guest submits new feedback.',
+    category: 'urgent_operational',
+    label: 'Urgent operations',
+    description: 'Escalations and failures that may require immediate action.',
   },
   {
-    type: 'reply.pending_approval',
-    label: 'Reply pending approval',
-    description: 'A reply is awaiting approval.',
+    category: 'workflow_collaboration',
+    label: 'Workflow and collaboration',
+    description: 'Reviews, assignments, notes, and reply updates.',
   },
   {
-    type: 'reply.approved',
-    label: 'Reply approved',
-    description: 'A reply you submitted is approved.',
+    category: 'digest_summary',
+    label: 'Daily summaries',
+    description: 'A property-specific summary delivered at 08:00 property-local time.',
   },
   {
-    type: 'reply.rejected',
-    label: 'Reply rejected',
-    description: 'A reply you submitted is rejected.',
+    category: 'recognition',
+    label: 'Recognition',
+    description: 'Recognition updates for activated properties.',
   },
-  {
-    type: 'reply.published',
-    label: 'Reply published',
-    description: 'A reply is published publicly.',
-  },
-  {
-    type: 'reply.publish_failed',
-    label: 'Reply publish failed',
-    description: 'A reply failed to publish.',
-  },
-  {
-    type: 'inbox.escalated',
-    label: 'Escalated items',
-    description: 'An inbox item is escalated.',
-  },
-  {
-    type: 'inbox.assigned',
-    label: 'Assignments',
-    description: 'An inbox item is assigned to you.',
-  },
-  {
-    type: 'inbox_note.added',
-    label: 'Notes',
-    description: 'A note is added to an inbox item.',
-  },
-  {
-    type: 'goal.completed',
-    label: 'Goals completed',
-    description: 'A goal is completed.',
-  },
-  { type: 'badge.awarded', label: 'Badges awarded', description: 'A badge is awarded.' },
 ]

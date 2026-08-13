@@ -3,93 +3,285 @@
 // Never returns { success: false } — always throws on error.
 
 import { createServerFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
-import { listLocationsInputSchema } from '../application/dto/list-locations.dto'
-import { importPropertiesInputSchema } from '../application/dto/import-properties.dto'
-import { importStatusInputSchema } from '../application/dto/import-status.dto'
-import { isIntegrationError } from '../domain/errors'
-import { integrationErrorStatus } from './error-helpers'
+import { googleConnectionId } from '#/shared/domain/ids'
+import {
+  listImportAccountsInputSchema,
+  listImportCandidatesInputSchema,
+  renewImportAuthorizationLeaseInputSchema,
+} from '../application/dto/google-import-discovery.dto'
+import {
+  getPropertyImportStatusInputSchema,
+  recoverPropertyImportInputSchema,
+  retryPropertyImportItemInputSchema,
+  startPropertyImportInputSchema,
+} from '../application/dto/google-import-v2.dto'
+import {
+  GoogleImportDiscoveryError,
+  type GoogleImportDiscoveryErrorCode,
+} from '../application/google-import-discovery'
+import {
+  GoogleImportTransactionError,
+  type GoogleImportTransactionErrorCode,
+} from '../application/google-import-transaction'
 
-// ── listGbpLocations ───────────────────────────────────────────────
+function disableProviderContentCaching(): void {
+  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+  setResponseHeader('Pragma', 'no-cache')
+  setResponseHeader('Expires', '0')
+}
 
-export const listGbpLocations = createServerFn({ method: 'POST' })
-  .inputValidator(listLocationsInputSchema)
+function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
+  switch (code) {
+    case 'unauthorized':
+      return 403
+    case 'invalid_request':
+      return 400
+    case 'reference_invalid':
+      return 410
+    case 'provider_unavailable':
+    case 'temporarily_unavailable':
+      return 503
+  }
+}
+
+function requireGoogleImportDiscovery() {
+  const discovery = getContainer().useCases.googleImportDiscovery
+  if (!discovery) {
+    throw new GoogleImportDiscoveryError('temporarily_unavailable')
+  }
+  return discovery
+}
+function requireGoogleImportTransaction() {
+  const transaction = getContainer().useCases.googleImportTransaction
+  if (!transaction) {
+    throw new GoogleImportTransactionError('temporarily_unavailable')
+  }
+  return transaction
+}
+
+function transactionErrorStatus(code: GoogleImportTransactionErrorCode): number {
+  switch (code) {
+    case 'unauthorized':
+      return 403
+    case 'invalid_reference':
+      return 404
+    case 'request_conflict':
+      return 409
+    case 'temporarily_unavailable':
+      return 503
+  }
+}
+
+function translateTransactionError(error: unknown): never {
+  if (error instanceof GoogleImportTransactionError) {
+    throwContextError(
+      'GoogleImportTransactionError',
+      error,
+      transactionErrorStatus(error.code),
+    )
+  }
+  throw catchUntagged(error)
+}
+
+function translateDiscoveryError(error: unknown): never {
+  if (error instanceof GoogleImportDiscoveryError) {
+    throwContextError(
+      'GoogleImportDiscoveryError',
+      error,
+      discoveryErrorStatus(error.code),
+    )
+  }
+  throw catchUntagged(error)
+}
+
+// ── bounded Google import discovery ────────────────────────────────
+
+export const listImportAccounts = createServerFn({ method: 'POST' })
+  .inputValidator(listImportAccountsInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
         try {
-          const { useCases } = getContainer()
-          const locations = await useCases.listGbpLocations(data, ctx)
-          return { locations }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
+          return await requireGoogleImportDiscovery().listAccounts(
+            {
+              connectionId: googleConnectionId(data.connectionId),
+              ...(data.cursorRef ? { cursorRef: data.cursorRef } : {}),
+            },
+            ctx,
+          )
+        } catch (error) {
+          return translateDiscoveryError(error)
         }
       },
       'POST',
-      'integration.listGbpLocations',
+      'integration.listImportAccounts',
     ),
   )
 
-// ── startPropertyImport ────────────────────────────────────────────
-
-export const startPropertyImport = createServerFn({ method: 'POST' })
-  .inputValidator(importPropertiesInputSchema)
+export const listImportCandidates = createServerFn({ method: 'POST' })
+  .inputValidator(listImportCandidatesInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'property.create' })
-
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
         try {
-          const { useCases } = getContainer()
-          // BQC-4.1: result carries region-gate skips alongside the job.
-          const result = await useCases.startPropertyImport(data, ctx)
-          return { job: result.job, skippedLocations: result.skippedLocations }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
+          const connectionId = googleConnectionId(data.connectionId)
+          return data.accountRef
+            ? await requireGoogleImportDiscovery().listCandidates(
+                { connectionId, accountRef: data.accountRef },
+                ctx,
+              )
+            : await requireGoogleImportDiscovery().listCandidates(
+                { connectionId, cursorRef: data.cursorRef! },
+                ctx,
+              )
+        } catch (error) {
+          return translateDiscoveryError(error)
         }
       },
       'POST',
-      'integration.startPropertyImport',
+      'integration.listImportCandidates',
     ),
   )
 
-// ── getImportStatus ────────────────────────────────────────────────
-
-export const getImportStatus = createServerFn({ method: 'POST' })
-  .inputValidator(importStatusInputSchema)
+export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
+  .inputValidator(renewImportAuthorizationLeaseInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
         try {
-          const { useCases } = getContainer()
-          const job = await useCases.getImportStatus(data, ctx)
-          return { job }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
+          return await requireGoogleImportDiscovery().renewAuthorizationLease(
+            {
+              connectionId: googleConnectionId(data.connectionId),
+              leaseRef: data.leaseRef,
+            },
+            ctx,
+          )
+        } catch (error) {
+          return translateDiscoveryError(error)
         }
       },
       'POST',
-      'integration.getImportStatus',
+      'integration.renewImportAuthorizationLease',
+    ),
+  )
+// ── atomic v2 import intent ────────────────────────────────────────
+
+export const startPropertyImportV2 = createServerFn({ method: 'POST' })
+  .inputValidator(startPropertyImportInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().start(data, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'POST',
+      'integration.startPropertyImportV2',
+    ),
+  )
+
+export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
+  .inputValidator(recoverPropertyImportInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().recover(data.requestId, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'POST',
+      'integration.recoverPropertyImportV2',
+    ),
+  )
+
+export const retryPropertyImportItem = createServerFn({ method: 'POST' })
+  .inputValidator(retryPropertyImportItemInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().retry(data, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'POST',
+      'integration.retryPropertyImportItem',
+    ),
+  )
+
+export const getPropertyImportV2Status = createServerFn({ method: 'GET' })
+  .inputValidator(getPropertyImportStatusInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().status(data.importJobId, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'GET',
+      'integration.getPropertyImportV2Status',
     ),
   )

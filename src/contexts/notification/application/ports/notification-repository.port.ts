@@ -9,18 +9,33 @@ import type {
   NotificationStatus,
   NotificationType,
 } from '../../domain/types'
-import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  NotificationId,
+  OrganizationId,
+  PropertyId,
+  UserId,
+} from '#/shared/domain/ids'
 
 export type NotificationRepositoryPort = Readonly<{
   /** Upsert on conflict by idempotency key (userId + type + resourceId + eventId). */
   insert(notification: Notification): Promise<Notification>
 
   findById(id: NotificationId, orgId: OrganizationId): Promise<Notification | null>
+  findByIdForProperty(
+    id: NotificationId,
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ): Promise<Notification | null>
 
   /** Batch-fetch by ids within an org. Returns a Map keyed by notification id. */
   findByIds(
     ids: readonly NotificationId[],
     orgId: OrganizationId,
+  ): Promise<Map<string, Notification>>
+  findByIdsForProperty(
+    ids: readonly NotificationId[],
+    orgId: OrganizationId,
+    propertyId: PropertyId,
   ): Promise<Map<string, Notification>>
 
   findUnreadByUser(
@@ -53,6 +68,7 @@ export type NotificationRepositoryPort = Readonly<{
   findUnreadByUserTypeResource(
     userId: UserId,
     orgId: OrganizationId,
+    propertyId: PropertyId,
     type: NotificationType,
     resourceId: string,
   ): Promise<Notification | null>

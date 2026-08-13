@@ -1,12 +1,10 @@
-// Portal settings — active toggle, edit form, theme, smart routing.
-// Extracted from portal-detail-page to separate the settings concern.
+// Portal settings — publication, identity, image, and theme.
+// Mutation state is owned by the route and reflected through the query-backed portal prop.
 
 import { EditPortalForm } from '../portal-form/edit-portal-form'
 import { ThemePresetSelector } from './theme-preset-selector'
-import { SmartRoutingConfig } from './smart-routing-config'
 import { Button } from '#/components/ui/button'
-import { Switch } from '#/components/ui/switch'
-import { Label } from '#/components/ui/label'
+import { Badge } from '#/components/ui/badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { Action } from '#/components/hooks/use-action'
 import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
@@ -16,12 +14,6 @@ type Props = Readonly<{
   mutation: Action<UpdatePortalVariables>
   primaryColor: string
   onPrimaryColorChange: (color: string) => void
-  smartRoutingEnabled: boolean
-  onSmartRoutingEnabledChange: (enabled: boolean) => void
-  smartRoutingThreshold: number
-  onSmartRoutingThresholdChange: (threshold: number) => void
-  isActive: boolean
-  onIsActiveChange: (active: boolean) => void
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
   }) => Promise<{ uploadUrl: string; key: string }>
@@ -36,80 +28,107 @@ export function PortalSettings({
   mutation,
   primaryColor,
   onPrimaryColorChange,
-  smartRoutingEnabled,
-  onSmartRoutingEnabledChange,
-  smartRoutingThreshold,
-  onSmartRoutingThresholdChange,
-  isActive,
-  onIsActiveChange,
   requestUploadUrl,
   finalizeUpload,
   formRef,
 }: Props) {
   const { can } = usePermissions()
+  const isArchived = portal.publicationState === 'archived'
 
   return (
-    <section className="rounded-lg border p-4 space-y-4">
-      <h2 className="text-lg font-semibold">Settings</h2>
+    <section
+      className="space-y-6 rounded-lg border p-4 sm:p-6"
+      aria-labelledby="portal-settings-heading"
+    >
+      <div className="space-y-1">
+        <h2 id="portal-settings-heading" className="text-lg font-semibold">
+          Settings
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Update the public page and control whether guests can open it.
+        </p>
+      </div>
 
-      {/* Active/Inactive toggle */}
-      <div className="flex items-center justify-between rounded-md border px-4 py-3">
-        <div className="space-y-0.5">
-          <Label htmlFor="portal-active" className="text-sm font-medium">
-            Portal active
-          </Label>
+      <div className="flex min-h-14 flex-col gap-3 rounded-md border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-medium">Publication</h3>
+            <Badge
+              variant={portal.publicationState === 'published' ? 'default' : 'outline'}
+            >
+              {portal.publicationState[0].toUpperCase() +
+                portal.publicationState.slice(1)}
+            </Badge>
+          </div>
           <p className="text-xs text-muted-foreground">
-            {isActive
-              ? 'Guests can access this portal.'
-              : 'Guests will see an "unavailable" message.'}
+            {portal.publicationState === 'published'
+              ? 'Guests with the link can open this portal.'
+              : isArchived
+                ? 'This portal is archived. Its configuration and history are retained.'
+                : 'The public page is unavailable until you publish it.'}
           </p>
         </div>
-        <Switch
-          id="portal-active"
-          checked={isActive}
-          onCheckedChange={(checked) => {
-            onIsActiveChange(checked)
-            mutation({ data: { portalId: portal.id, isActive: checked } })
-          }}
-          disabled={!can('portal.update') || mutation.isPending}
-        />
+        {!isArchived && can('portal.update') && (
+          <Button
+            variant={portal.publicationState === 'published' ? 'outline' : 'default'}
+            className="min-h-11 sm:min-h-9"
+            disabled={mutation.isPending}
+            onClick={() => {
+              void mutation({
+                data: {
+                  portalId: portal.id,
+                  publicationState:
+                    portal.publicationState === 'published' ? 'disabled' : 'published',
+                },
+              }).catch(() => undefined)
+            }}
+          >
+            {mutation.isPending
+              ? 'Updating…'
+              : portal.publicationState === 'published'
+                ? 'Disable public page'
+                : 'Publish portal'}
+          </Button>
+        )}
       </div>
 
       <EditPortalForm
         portal={portal}
         mutation={mutation}
+        disabled={isArchived}
+        primaryColor={primaryColor}
         formRef={formRef}
         requestUploadUrl={requestUploadUrl}
         finalizeUpload={finalizeUpload}
       />
 
-      {/* Theme Presets */}
       <div className="space-y-2">
         <h3 className="font-semibold">Theme</h3>
+        <p className="text-sm text-muted-foreground">
+          Choose the accent used in the portal preview, then save your changes.
+        </p>
         <ThemePresetSelector
           primaryColor={primaryColor}
           onPrimaryColorChange={onPrimaryColorChange}
-          disabled={!can('portal.update')}
+          disabled={!can('portal.update') || mutation.isPending || isArchived}
         />
       </div>
 
-      {/* Smart Routing */}
-      <div className="space-y-2">
-        <h3 className="font-semibold">Smart Routing</h3>
-        <SmartRoutingConfig
-          enabled={smartRoutingEnabled}
-          onEnabledChange={onSmartRoutingEnabledChange}
-          threshold={smartRoutingThreshold}
-          onThresholdChange={onSmartRoutingThresholdChange}
-          disabled={!can('portal.update')}
-        />
-      </div>
-
-      {can('portal.update') && (
-        <Button onClick={() => formRef.current?.handleSubmit()}>
-          {mutation.isPending ? 'Saving...' : 'Save Changes'}
+      {can('portal.update') && !isArchived && (
+        <Button
+          onClick={() => formRef.current?.handleSubmit()}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? 'Saving…' : 'Save changes'}
         </Button>
       )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {mutation.isPending
+          ? 'Saving portal settings'
+          : mutation.isSuccess
+            ? 'Portal settings saved'
+            : ''}
+      </p>
     </section>
   )
 }

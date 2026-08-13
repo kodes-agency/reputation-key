@@ -26,7 +26,6 @@ import {
   validatePortalName,
   validateDescription,
   validatePortalTheme,
-  validateSmartRoutingThreshold,
   validateUrl,
   validateLinkLabel,
   validateCategoryTitle,
@@ -45,8 +44,7 @@ export type BuildPortalInput = Readonly<{
   providedSlug?: string
   description?: string | null
   theme?: Partial<PortalTheme>
-  smartRoutingEnabled?: boolean
-  smartRoutingThreshold?: number
+  publicationState?: Portal['publicationState']
   now: Date
 }>
 
@@ -56,10 +54,9 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
   const desc = validateDescription(input.description ?? null)
   const defaultTheme: PortalTheme = { primaryColor: '#6366F1' }
   const theme = validatePortalTheme(input.theme ?? defaultTheme)
-  const threshold = validateSmartRoutingThreshold(input.smartRoutingThreshold ?? 4)
 
-  return Result.combine([nameResult, slug, desc, theme, threshold]).map(
-    ([validName, validSlug, validDesc, validTheme, validThreshold]): Portal => ({
+  return Result.combine([nameResult, slug, desc, theme]).map(
+    ([validName, validSlug, validDesc, validTheme]): Portal => ({
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -76,9 +73,7 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       description: validDesc,
       heroImageUrl: null,
       theme: validTheme,
-      smartRoutingEnabled: input.smartRoutingEnabled ?? false,
-      smartRoutingThreshold: validThreshold,
-      isActive: true,
+      publicationState: input.publicationState ?? 'draft',
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

@@ -5,12 +5,18 @@
 export type { StoragePort } from './ports/storage.port'
 export type { LinkResolverPort } from './ports/link-resolver.port'
 
-// Event re-exports — cross-context consumers must import events from public-api, not domain/events
-export type { PortalDeleted, PortalEvent } from '../domain/events'
-
-export type { PortalGroupDeleted } from '../domain/events'
+// Event re-exports — cross-context consumers must import events from public-api, not domain/events.
+export type {
+  PortalApprovedDestinationRatioRecorded,
+  PortalConfigurationCompletenessRecorded,
+  PortalContentReviewCompleted,
+  PortalDeleted,
+  PortalEvent,
+  PortalGroupDeleted,
+} from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
+export type { Portal } from '../domain/types'
 
 import type {
   OrganizationId,
@@ -25,8 +31,8 @@ export type PortalContextResult = Readonly<{
   propertyId: PropertyId
 }>
 
-/** Full public portal data returned for guest-facing lookups by slug. */
-export type PublicPortalBySlugResult = Readonly<{
+/** Full public portal data returned for guest-facing token lookups. */
+export type PublicPortalResult = Readonly<{
   portal: {
     id: string
     name: string
@@ -34,8 +40,7 @@ export type PublicPortalBySlugResult = Readonly<{
     description: string | null
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
-    smartRoutingEnabled: boolean
-    smartRoutingThreshold: number
+
     organizationName: string
   }
   categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
@@ -50,17 +55,9 @@ export type PublicPortalBySlugResult = Readonly<{
   propertyId: string
 }>
 
-/**
- * BQC-5.6: typed outcome for the public slug lookup — cross-context
- * consumers switch on `status` instead of catching portal domain errors
- * (review eligible-reads precedent). `inactive` maps the repository's
- * portalError('portal_inactive'); `not_found` maps its null; any other
- * error is rethrown unchanged.
- */
-export type PublicPortalBySlugOutcome =
-  | Readonly<{ status: 'found'; result: PublicPortalBySlugResult }>
-  | Readonly<{ status: 'inactive' }>
-  | Readonly<{ status: 'not_found' }>
+export type PublicPortalByTokenOutcome =
+  | Readonly<{ status: 'found'; result: PublicPortalResult }>
+  | Readonly<{ status: 'unavailable' }>
 
 /** Portal context public API — consumed by guest and other contexts. */
 export type PortalPublicApi = Readonly<{
@@ -78,18 +75,17 @@ export type PortalPublicApi = Readonly<{
   getPortalInfo: (
     orgId: OrganizationId,
     portalId: PortalId,
-  ) => Promise<Readonly<{ id: PortalId; name: string; isActive: boolean }> | null>
+  ) => Promise<Readonly<{
+    id: PortalId
+    name: string
+    publicationState: 'draft' | 'published' | 'disabled' | 'archived'
+  }> | null>
 
   /**
-   * Full public portal lookup by property slug + portal slug.
-   * Returns a typed outcome: found (portal info, link categories, links,
-   * org name), inactive, or not_found. Used by guest context for the
-   * public-facing portal page.
+   * Resolve a full public portal through a revocable opaque capability token.
+   * Every unavailable posture deliberately collapses to one outcome.
    */
-  findPublicPortalBySlug: (
-    propertySlug: string,
-    portalSlug: string,
-  ) => Promise<PublicPortalBySlugOutcome>
+  findPublicPortalByToken: (rawToken: string) => Promise<PublicPortalByTokenOutcome>
 }>
 
 /** Minimal portal group info for cross-context consumers. */
@@ -104,6 +100,7 @@ export type PortalGroupPublicApi = Readonly<{
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
+    asOf?: Date,
   ) => Promise<PortalGroupSummary | null>
   getGroupPortalIds: (
     orgId: OrganizationId,
@@ -114,4 +111,9 @@ export type PortalGroupPublicApi = Readonly<{
     orgId: OrganizationId,
     portalIds: ReadonlyArray<PortalId>,
   ) => Promise<ReadonlyArray<PortalGroupId>>
+  portalGroupBelongsToProperty: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    groupId: PortalGroupId,
+  ) => Promise<boolean>
 }>

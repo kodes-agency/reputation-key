@@ -1,12 +1,16 @@
 import { Checkbox } from '#/components/ui/checkbox'
 import { Button } from '#/components/ui/button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import type { MemberLike } from '#/lib/lookups'
+
+type ParticipationOption = Readonly<{
+  id: string
+  displayName: string
+}>
 
 type Props = Readonly<{
-  available: ReadonlyArray<MemberLike>
+  available: ReadonlyArray<ParticipationOption>
   selectedIds: Set<string>
-  onToggleMember: (userId: string) => void
+  onToggleMember: (staffParticipationId: string) => void
   onToggleAll: () => void
   onAdd: () => void
   onCancel: () => void
@@ -28,44 +32,43 @@ export function AddMembersDialogContent({
     <>
       <div className="space-y-3">
         {available.length > 1 && (
-          <div className="flex items-center gap-2 border-b pb-2">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 border-b pb-2">
             <Checkbox
               checked={selectedIds.size === available.length}
               onCheckedChange={onToggleAll}
-              aria-label="Select all"
+              aria-label="Select all available staff"
             />
             <span className="text-sm text-muted-foreground">
               {selectedIds.size === available.length ? 'Deselect all' : 'Select all'}
             </span>
-          </div>
+          </label>
         )}
-        <div className="max-h-[300px] space-y-1 overflow-y-auto">
-          {available.map((m) => (
+        <div className="max-h-72 space-y-1 overflow-y-auto">
+          {available.map((participation) => (
             <label
-              key={m.userId}
-              className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted"
+              key={participation.id}
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted"
             >
               <Checkbox
-                checked={selectedIds.has(m.userId)}
-                onCheckedChange={() => onToggleMember(m.userId)}
-                aria-label={`Select ${m.name}`}
+                checked={selectedIds.has(participation.id)}
+                onCheckedChange={() => onToggleMember(participation.id)}
+                aria-label={`Select ${participation.displayName}`}
               />
-              <div className="flex-1">
-                <div className="text-sm font-medium">{m.name}</div>
-                <div className="text-xs text-muted-foreground">{m.email}</div>
-              </div>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {participation.displayName}
+              </span>
             </label>
           ))}
         </div>
         <FormErrorBanner error={error} />
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={onCancel} disabled={isAdding}>
           Cancel
         </Button>
         <Button onClick={onAdd} disabled={selectedIds.size === 0 || isAdding}>
           {isAdding
-            ? 'Adding...'
+            ? 'Adding…'
             : `Add ${selectedIds.size || ''} member${selectedIds.size !== 1 ? 's' : ''}`}
         </Button>
       </div>

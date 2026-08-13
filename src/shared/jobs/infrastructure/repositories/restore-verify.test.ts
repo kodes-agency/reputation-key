@@ -133,11 +133,16 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
   })
   return {
     env,
-    countExpired: async () =>
-      (await reviewRepo.findAllExpiredBeforeAcrossTenants(clock())).length,
+    countExpired: async () => reviewRepo.countExpiredBeforeAcrossTenants(clock()),
     purgeExpired: async () => {
       await purgeHandler({} as never)
     },
+    inspectGoogleImportLifecycle: async () => ({
+      expiredItems: 0,
+      purgeCandidates: 0,
+      unreleasedExpiredReceipts: 0,
+    }),
+    sweepGoogleImportLifecycle: async () => {},
     purgeEvidence: async () => {
       const rows = await db.execute(sql`
         SELECT subject, rows_deleted, outcome, started_at

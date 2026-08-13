@@ -277,16 +277,21 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
 
     async getSessionUser(
       headers: Headers,
-    ): Promise<Readonly<{ id: string; email: string }> | null> {
+    ): Promise<Readonly<{ id: string; email: string; name: string }> | null> {
       const session = await auth.api.getSession({ headers })
       if (!session) return null
-      return { id: session.user.id, email: session.user.email }
+      return {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+      }
     },
 
     async runOnAcceptInvitation(ctx: {
       userId: string
       organizationId: string
       propertyIds: ReadonlyArray<string>
+      displayName?: string
     }): Promise<void> {
       // Post-commit side effect — auto-create staff assignments for the invited
       // properties (replaces BA's afterAcceptInvitation hook, which the

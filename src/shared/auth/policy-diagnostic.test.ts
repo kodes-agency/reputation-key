@@ -37,7 +37,7 @@ const setup = (rows: Readonly<Record<string, RegionRow>>) => {
     cell: 'us',
   })
   const resolveRouting = vi.fn((propertyId: string) =>
-    router.resolve(propertyId, 'review.sync'),
+    router.resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
   )
   const getRegionDiagnostic = createRegionDiagnostic({
     loadPropertyRegion,

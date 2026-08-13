@@ -1,0 +1,12 @@
+{
+  "seed": "perf-lifecycle-v1",
+  "version": 1,
+  "shape": {
+    "orgs": 100,
+    "properties": 5000,
+    "reviews": 500000
+  },
+  "sourceLifecycle": false,
+  "hash": "39db063cb1d6c4399c62100054aa62fd9be5d6c0114bcdfadb686ee969c5b00d",
+  "createdAt": "2026-08-08T15:08:06.342Z"
+}

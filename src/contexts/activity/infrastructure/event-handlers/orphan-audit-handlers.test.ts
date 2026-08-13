@@ -1,11 +1,8 @@
 // BQC-3.9 — activity audit handlers for the consumed orphan families.
 //
-// The five BQC-3.1 orphan event families whose facts were recorded but never
-// consumed (identity.organization.created, property.updated, property.deleted,
-// integration.google_connection.visibility_changed,
-// integration.property_import.completed) gain activity audit consumers —
-// mechanical mirrors of the on-member-removed pattern. Pure unit tests with a
-// mock queue — no DB needed. Each case asserts the EXACT enqueued payload.
+// Four orphan event families whose facts were recorded but never consumed gain
+// activity audit consumers. Pure unit tests use a mock queue and assert exact
+// enqueued payloads.
 
 import { describe, it, expect, vi } from 'vitest'
 import type { Queue } from 'bullmq'
@@ -14,14 +11,12 @@ import {
   propertyId,
   userId,
   googleConnectionId,
-  gbpImportJobId,
 } from '#/shared/domain/ids'
 
 const ORG = organizationId('org-1')
 const PROP = propertyId('00000000-0000-4000-8000-000000000001')
 const USER = userId('00000000-0000-4000-8000-000000000020')
 const CONN = googleConnectionId('00000000-0000-4000-8000-000000000099')
-const IMPORT_JOB = gbpImportJobId('00000000-0000-4000-8000-000000000088')
 
 const mockQueue = () =>
   ({ add: vi.fn() }) as unknown as Queue & { add: ReturnType<typeof vi.fn> }
@@ -134,41 +129,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       source: 'web',
       eventId: 'evt-conn-1',
       payload: { subject: 'integration', from: null, to: 'organization', detail: null },
-    })
-  })
-
-  it('onPropertyImportCompleted → created/integration with content-free counts', async () => {
-    const { onPropertyImportCompleted } = await import('./on-property-import-completed')
-    const queue = mockQueue()
-
-    await onPropertyImportCompleted({ queue })({
-      _tag: 'integration.property_import.completed',
-      eventId: 'evt-imp-1',
-      importJobId: IMPORT_JOB,
-      organizationId: ORG,
-      totalCount: 5,
-      importedCount: 3,
-      skippedCount: 1,
-      failedCount: 1,
-      occurredAt: new Date(),
-      correlationId: null,
-    })
-
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
-      action: 'created',
-      resourceType: 'integration',
-      resourceId: IMPORT_JOB,
-      propertyId: null,
-      organizationId: ORG,
-      userId: null,
-      source: 'web',
-      eventId: 'evt-imp-1',
-      payload: {
-        subject: 'integration',
-        from: null,
-        to: null,
-        detail: 'import completed: 3/5 imported, 1 skipped, 1 failed',
-      },
     })
   })
 })

@@ -1,28 +1,20 @@
 // Integration context — entity constructors
 
-import type {
-  GoogleConnection,
-  GbpCacheEntry,
-  GbpImportJob,
-  GbpCacheDataType,
-} from './types'
-import type {
-  GoogleConnectionId,
-  GbpImportJobId,
-  GbpCacheEntryId,
-  OrganizationId,
-  PropertyId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { GoogleConnection } from './types'
+import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { ok, err } from '#/shared/domain'
 import { integrationError } from './errors'
-import { isValidVisibility, isValidEmail } from './rules'
+import { isValidVisibility } from './rules'
+
+type BuildConnectionIdentity = Readonly<{
+  kind: 'oidc'
+  googleSubject: string
+}>
 
 type BuildConnectionArgs = Readonly<{
   id: GoogleConnectionId
   organizationId: OrganizationId
-  googleAccountId: string
-  googleEmail: string
+  identity: BuildConnectionIdentity
   encryptedAccessToken: string
   encryptedRefreshToken: string
   tokenExpiresAt: Date
@@ -33,8 +25,8 @@ type BuildConnectionArgs = Readonly<{
 }>
 
 export const buildGoogleConnection = (args: BuildConnectionArgs) => {
-  if (!isValidEmail(args.googleEmail)) {
-    return err(integrationError('oauth_failed', 'Invalid Google email'))
+  if (args.identity.googleSubject.length === 0) {
+    return err(integrationError('oauth_failed', 'Invalid Google identity'))
   }
   if (!isValidVisibility(args.visibility)) {
     return err(
@@ -45,8 +37,7 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
   return ok<GoogleConnection>({
     id: args.id,
     organizationId: args.organizationId,
-    googleAccountId: args.googleAccountId,
-    googleEmail: args.googleEmail,
+    googleSubject: args.identity.googleSubject,
     encryptedAccessToken: args.encryptedAccessToken,
     encryptedRefreshToken: args.encryptedRefreshToken,
     tokenExpiresAt: args.tokenExpiresAt,
@@ -54,82 +45,16 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     connectedBy: args.connectedBy,
     visibility: args.visibility,
     status: 'active',
+    credentialUseState: 'active',
+    cleanupMaterialDeadlineAt: null,
+    lifecycleVersion: 1,
+    accessVersion: 1,
+    credentialGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
     statusChangedAt: args.now,
     createdAt: args.now,
     updatedAt: args.now,
-  })
-}
-
-type BuildImportJobArgs = Readonly<{
-  id: GbpImportJobId
-  organizationId: OrganizationId
-  initiatedBy: UserId
-  totalCount: number
-  now: Date
-}>
-
-export const buildGbpImportJob = (args: BuildImportJobArgs) =>
-  ok<GbpImportJob>({
-    id: args.id,
-    organizationId: args.organizationId,
-    initiatedBy: args.initiatedBy,
-    status: 'queued',
-    totalCount: args.totalCount,
-    importedCount: 0,
-    skippedCount: 0,
-    failedCount: 0,
-    createdAt: args.now,
-    updatedAt: args.now,
-  })
-
-type CreateGbpCacheEntryInput = Readonly<{
-  id: GbpCacheEntryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  gbpPlaceId: string
-  dataType: GbpCacheDataType
-  payload: unknown
-  googleAttribution: string | null
-  fetchedAt: Date
-  expiresAt: Date
-  updatedAt: Date
-}>
-
-export const createGbpCacheEntry = (input: CreateGbpCacheEntryInput) => {
-  // expiresAt > fetchedAt
-  if (input.expiresAt <= input.fetchedAt) {
-    return err(
-      integrationError('invalid_cache_entry', 'expiresAt must be after fetchedAt'),
-    )
-  }
-
-  // Required fields present
-  if (!input.id) {
-    return err(integrationError('invalid_cache_entry', 'id is required'))
-  }
-  if (!input.organizationId) {
-    return err(integrationError('invalid_cache_entry', 'organizationId is required'))
-  }
-  if (!input.propertyId) {
-    return err(integrationError('invalid_cache_entry', 'propertyId is required'))
-  }
-  if (!input.gbpPlaceId) {
-    return err(integrationError('invalid_cache_entry', 'gbpPlaceId is required'))
-  }
-
-  return ok<GbpCacheEntry>({
-    id: input.id,
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    gbpPlaceId: input.gbpPlaceId,
-    dataType: input.dataType,
-    payload: input.payload,
-    googleAttribution: input.googleAttribution,
-    fetchedAt: input.fetchedAt,
-    expiresAt: input.expiresAt,
-    updatedAt: input.updatedAt,
   })
 }

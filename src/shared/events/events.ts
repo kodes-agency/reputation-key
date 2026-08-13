@@ -65,7 +65,7 @@ export type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
   IntegrationGoogleConnectionVisibilityChanged,
-  IntegrationPropertyImportCompleted,
+  IntegrationPropertyImportRequested,
 } from '#/contexts/integration/domain/events'
 
 // Review context events
@@ -92,7 +92,11 @@ export type {
 export type { GoalEvent, GoalCompleted } from '#/contexts/goal/domain/events'
 
 // Metric context events
-export type { MetricEvent, MetricRecorded } from '#/contexts/metric/domain/events'
+export type {
+  MetricEvent,
+  MetricRecorded,
+  MetricCorrected,
+} from '#/contexts/metric/domain/events'
 
 // Badge context events
 export type { BadgeEvent, BadgeAwarded } from '#/contexts/badge/domain/events'

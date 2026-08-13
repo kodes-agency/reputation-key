@@ -1,44 +1,33 @@
-// Leaderboard context — build function.
-// Event handlers are registered at build time so every process handles events.
-
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Clock } from '#/shared/domain/clock'
-import { createLeaderboardRepository } from './infrastructure/repositories/leaderboard.repository'
-import { registerLeaderboardEventHandlers } from './infrastructure/event-handlers'
-import type { LeaderboardRepository } from './application/ports/leaderboard.repository'
-import { refreshLeaderboard } from './application/use-cases/refresh-leaderboard'
-import { reconcileLeaderboards } from './application/use-cases/reconcile-leaderboards'
-import { getLeaderboard } from './application/use-cases/get-leaderboard'
-import { getComparisonMatrix } from './application/use-cases/get-comparison-matrix'
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import type { OutboxRepository } from '#/shared/outbox'
+import { createRecognitionRepository } from './infrastructure/repositories/recognition.repository'
+import { registerRecognitionEventHandlers } from './infrastructure/event-handlers'
+import {
+  createRecognitionUseCases,
+  type RecognitionUseCases,
+} from './application/use-cases/governed-recognition'
+import type { RecognitionRepository } from './application/ports/recognition.repository'
 import type {
-  RefreshLeaderboardInput,
-  RefreshLeaderboardReturn,
-} from './application/use-cases/refresh-leaderboard'
-import type { ReconcileLeaderboardsReturn } from './application/use-cases/reconcile-leaderboards'
-import type {
-  GetLeaderboardInput,
-  GetLeaderboardReturn,
-} from './application/use-cases/get-leaderboard'
-import type {
-  GetComparisonMatrixInput,
-  GetComparisonMatrixReturn,
-} from './application/use-cases/get-comparison-matrix'
+  PropertyFactsPublicApi,
+  PropertyPublicApi,
+} from '#/contexts/property/application/public-api'
 
 export type LeaderboardContextApi = Readonly<{
   publicApi: Readonly<{
-    getLeaderboard: (input: GetLeaderboardInput) => Promise<GetLeaderboardReturn>
-    getComparisonMatrix: (
-      input: GetComparisonMatrixInput,
-    ) => Promise<GetComparisonMatrixReturn>
+    recognition: Pick<
+      RecognitionUseCases,
+      'getSettings' | 'activate' | 'deactivate' | 'getBoard'
+    >
   }>
   internal: Readonly<{
-    repos: Readonly<{ leaderboardRepo: LeaderboardRepository }>
+    repos: Readonly<{ recognitionRepo: RecognitionRepository }>
     useCases: Readonly<{
-      refreshLeaderboard: (
-        input: RefreshLeaderboardInput,
-      ) => Promise<RefreshLeaderboardReturn>
-      reconcileLeaderboards: () => Promise<ReconcileLeaderboardsReturn>
+      reconcileRecognition: RecognitionUseCases['reconcileProperty']
+      reconcileAllRecognition: RecognitionUseCases['reconcileAll']
+      listRecognitionScopes: RecognitionUseCases['listActiveScopes']
     }>
   }>
 }>
@@ -46,35 +35,45 @@ export type LeaderboardContextApi = Readonly<{
 export type BuildLeaderboardContextDeps = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
+  outboxRepo?: OutboxRepository
   clock: Clock
+  propertyApi: Pick<PropertyPublicApi, 'propertyExists'> & PropertyFactsPublicApi
+  authorizeBoardReconciliationScope: ScheduledScopeAuthorizer
+  authorizeAwardReconciliationScope: ScheduledScopeAuthorizer
 }>
 
-export const buildLeaderboardContext = (
+export function buildLeaderboardContext(
   deps: BuildLeaderboardContextDeps,
-): LeaderboardContextApi => {
-  const leaderboardRepo = createLeaderboardRepository(deps.db, deps.clock)
+): LeaderboardContextApi {
+  const recognitionRepo = createRecognitionRepository({
+    db: deps.db,
+    clock: deps.clock,
+    propertyApi: deps.propertyApi,
+    authorizeBoardScope: deps.authorizeBoardReconciliationScope,
+    authorizeAwardScope: deps.authorizeAwardReconciliationScope,
+  })
+  const recognitionUseCases = createRecognitionUseCases(recognitionRepo)
 
-  const refreshLeaderboardFn = refreshLeaderboard({ repo: leaderboardRepo })
-  const reconcileLeaderboardsFn = reconcileLeaderboards({ repo: leaderboardRepo })
-  const getLeaderboardFn = getLeaderboard({ repo: leaderboardRepo })
-  const getComparisonMatrixFn = getComparisonMatrix({ repo: leaderboardRepo })
-
-  registerLeaderboardEventHandlers({
+  registerRecognitionEventHandlers({
     eventBus: deps.events,
-    refreshLeaderboard: refreshLeaderboardFn,
+    reconcileProperty: recognitionUseCases.reconcileProperty,
   })
 
   return {
     publicApi: {
-      getLeaderboard: getLeaderboardFn,
-      getComparisonMatrix: getComparisonMatrixFn,
+      recognition: {
+        getSettings: recognitionUseCases.getSettings,
+        activate: recognitionUseCases.activate,
+        deactivate: recognitionUseCases.deactivate,
+        getBoard: recognitionUseCases.getBoard,
+      },
     },
     internal: {
-      repos: { leaderboardRepo },
+      repos: { recognitionRepo },
       useCases: {
-        refreshLeaderboard: refreshLeaderboardFn,
-        reconcileLeaderboards: reconcileLeaderboardsFn,
+        reconcileRecognition: recognitionUseCases.reconcileProperty,
+        reconcileAllRecognition: recognitionUseCases.reconcileAll,
+        listRecognitionScopes: recognitionUseCases.listActiveScopes,
       },
     },
   }

@@ -96,6 +96,7 @@ describe('onGoalCompleted (notification)', () => {
     expect(deps.jobs[0]!.data).toEqual({
       userId: MANAGER_1,
       organizationId: ORG_ID,
+      propertyId: PROP_ID,
       type: 'goal.completed',
       resourceType: 'goal',
       resourceId: GOAL_ID,

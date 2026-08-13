@@ -96,7 +96,6 @@ describe('buildCellEnv', () => {
     expect(env.GBP_REVIEWS_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GBP_NOTIFICATIONS_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GOOGLE_OAUTH_TOKEN_URL).toBe('http://localhost:4150/oauth/token')
-    expect(env.GOOGLE_OAUTH_USERINFO_URL).toBe('http://localhost:4150/oauth/userinfo')
     expect(env.GOOGLE_OAUTH_REVOKE_URL).toBe('http://localhost:4150/oauth/revoke')
     expect(env.RESEND_BASE_URL).toBe('http://localhost:4151')
   })

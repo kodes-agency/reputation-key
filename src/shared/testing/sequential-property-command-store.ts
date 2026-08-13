@@ -52,13 +52,30 @@ export function createSequentialPropertyCommandStore(deps: {
     },
 
     updateProperty: async (command) => {
+      const current = await deps.repo.findById(command.organizationId, command.propertyId)
+      if (
+        !current ||
+        current.sourceEpoch !== command.expectedSourceEpoch ||
+        current.profileVersion !== command.expectedProfileVersion
+      ) {
+        throw propertyError('stale_property', 'property changed before test update')
+      }
       await deps.repo.update(command.organizationId, command.propertyId, command.patch)
       await recordAndEmit(command.event)
     },
 
     deleteProperty: async (command) => {
+      const current = await deps.repo.findById(command.organizationId, command.propertyId)
+      if (
+        !current ||
+        current.sourceEpoch !== command.expectedSourceEpoch ||
+        current.profileVersion !== command.expectedProfileVersion
+      ) {
+        throw propertyError('stale_property', 'property changed before test deletion')
+      }
       await deps.repo.hardDelete(command.organizationId, command.propertyId)
       await recordAndEmit(command.event)
+      if (command.bindingEvent) await recordAndEmit(command.bindingEvent)
     },
   }
 }
