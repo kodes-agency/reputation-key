@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assertGoogleImportReleaseImageIdentity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
 } from './google-import-release-source'
@@ -60,4 +61,48 @@ describe('Google import release source plan', () => {
       ).toThrow('must be distinct')
     },
   )
+})
+
+describe('Google import release image identity', () => {
+  const unlabeledHistoricalImage = {
+    tag: 'repkey-release-baseline-web:baseline',
+    sourceRevision: null,
+    user: 'node',
+  }
+
+  it('accepts an unlabeled historical image only when its exact worktree bound the build', () => {
+    expect(() =>
+      assertGoogleImportReleaseImageIdentity(unlabeledHistoricalImage, BASELINE, {
+        allowUnlabeledMaterializedSource: true,
+      }),
+    ).not.toThrow()
+
+    expect(() =>
+      assertGoogleImportReleaseImageIdentity(unlabeledHistoricalImage, BASELINE),
+    ).toThrow('source revision label mismatch')
+  })
+
+  it('rejects a misleading revision label and a root runtime', () => {
+    expect(() =>
+      assertGoogleImportReleaseImageIdentity(
+        {
+          ...unlabeledHistoricalImage,
+          sourceRevision: COMPATIBILITY,
+        },
+        BASELINE,
+        { allowUnlabeledMaterializedSource: true },
+      ),
+    ).toThrow('source revision label mismatch')
+
+    expect(() =>
+      assertGoogleImportReleaseImageIdentity(
+        {
+          ...unlabeledHistoricalImage,
+          sourceRevision: BASELINE,
+          user: '',
+        },
+        BASELINE,
+      ),
+    ).toThrow('does not run as node')
+  })
 })

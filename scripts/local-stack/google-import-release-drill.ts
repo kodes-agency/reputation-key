@@ -12,6 +12,7 @@ import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import {
+  assertGoogleImportReleaseImageIdentity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
   type GoogleImportReleaseSourcePlan,
@@ -277,13 +278,6 @@ function inspectImage(tag: string): ImageProof {
     entrypoint: value.Config.Entrypoint ?? null,
     command: value.Config.Cmd ?? null,
   }
-}
-
-function assertImage(proof: ImageProof, expectedRevision: string): void {
-  if (proof.sourceRevision !== expectedRevision) {
-    throw new Error(`${proof.tag} source revision label mismatch`)
-  }
-  if (proof.user !== 'node') throw new Error(`${proof.tag} does not run as node`)
 }
 
 function imageSmoke(tag: string): CommandResult {
@@ -555,13 +549,17 @@ async function main(): Promise<void> {
       gateway: inspectImage(tags.gateway),
       providerRedis: inspectImage(PROVIDER_REDIS_IMAGE),
     }
-    assertImage(images.baselineWeb, plan.baselineCommit)
-    assertImage(images.baselineWorker, plan.baselineCommit)
-    assertImage(images.compatibility, plan.compatibilityCommit)
-    assertImage(images.finalWeb, plan.finalCommit)
-    assertImage(images.finalWorker, plan.finalCommit)
-    assertImage(images.admission, plan.finalCommit)
-    assertImage(images.gateway, plan.finalCommit)
+    assertGoogleImportReleaseImageIdentity(images.baselineWeb, plan.baselineCommit, {
+      allowUnlabeledMaterializedSource: true,
+    })
+    assertGoogleImportReleaseImageIdentity(images.baselineWorker, plan.baselineCommit, {
+      allowUnlabeledMaterializedSource: true,
+    })
+    assertGoogleImportReleaseImageIdentity(images.compatibility, plan.compatibilityCommit)
+    assertGoogleImportReleaseImageIdentity(images.finalWeb, plan.finalCommit)
+    assertGoogleImportReleaseImageIdentity(images.finalWorker, plan.finalCommit)
+    assertGoogleImportReleaseImageIdentity(images.admission, plan.finalCommit)
+    assertGoogleImportReleaseImageIdentity(images.gateway, plan.finalCommit)
     if (images.compatibility.contract !== 'compatibility') {
       throw new Error('Compatibility image has the wrong contract label')
     }
@@ -668,6 +666,7 @@ async function main(): Promise<void> {
         cleanFullHistory: true,
         orderedDistinctCommits: true,
         isolatedCommitWorktrees: true,
+        historicalBaselineBoundByMaterializedWorktree: true,
         lockfilesAndBaseImagesPinned: true,
         immutableImageIds: true,
         baselineToExpandToContract: true,

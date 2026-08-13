@@ -9,6 +9,25 @@ export type GoogleImportReleaseSourcePlan = Readonly<{
   finalCommit: string
 }>
 
+export type GoogleImportReleaseImageIdentity = Readonly<{
+  tag: string
+  sourceRevision: string | null
+  user: string
+}>
+
+export function assertGoogleImportReleaseImageIdentity(
+  proof: GoogleImportReleaseImageIdentity,
+  expectedRevision: string,
+  options: Readonly<{ allowUnlabeledMaterializedSource?: boolean }> = {},
+): void {
+  const unlabeledMaterializedSource =
+    options.allowUnlabeledMaterializedSource === true && proof.sourceRevision === null
+  if (proof.sourceRevision !== expectedRevision && !unlabeledMaterializedSource) {
+    throw new Error(`${proof.tag} source revision label mismatch`)
+  }
+  if (proof.user !== 'node') throw new Error(`${proof.tag} does not run as node`)
+}
+
 function assertFullCommit(value: string, field: string): void {
   if (!FULL_GIT_COMMIT.test(value)) {
     throw new Error(`${field} must be a full lowercase 40-character Git commit`)
