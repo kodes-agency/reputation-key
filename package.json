@@ -103,7 +103,8 @@
     "ops:restore-preflight": "tsx scripts/ops/restore-preflight.ts",
     "ops:restore-verify": "tsx scripts/ops/restore-verify.ts",
     "ops:google-content-approval": "tsx scripts/ops/google-content-approval.ts",
-    "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts"
+    "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts",
+    "release:google-import-drill": "tsx scripts/local-stack/google-import-release-drill.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1039.0",

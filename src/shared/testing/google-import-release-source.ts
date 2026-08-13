@@ -1,0 +1,43 @@
+import { createHash } from 'node:crypto'
+
+const FULL_GIT_COMMIT = /^[a-f0-9]{40}$/
+
+export type GoogleImportReleaseSourcePlan = Readonly<{
+  schemaVersion: 'google-import-release-source-v1'
+  baselineCommit: string
+  compatibilityCommit: string
+  finalCommit: string
+}>
+
+function assertFullCommit(value: string, field: string): void {
+  if (!FULL_GIT_COMMIT.test(value)) {
+    throw new Error(`${field} must be a full lowercase 40-character Git commit`)
+  }
+}
+
+export function createGoogleImportReleaseSourcePlan(
+  input: Readonly<{
+    baselineCommit: string
+    compatibilityCommit: string
+    finalCommit: string
+  }>,
+): GoogleImportReleaseSourcePlan {
+  assertFullCommit(input.baselineCommit, 'baselineCommit')
+  assertFullCommit(input.compatibilityCommit, 'compatibilityCommit')
+  assertFullCommit(input.finalCommit, 'finalCommit')
+
+  if (new Set(Object.values(input)).size !== 3) {
+    throw new Error('Release source commits must be distinct')
+  }
+
+  return Object.freeze({
+    schemaVersion: 'google-import-release-source-v1',
+    baselineCommit: input.baselineCommit,
+    compatibilityCommit: input.compatibilityCommit,
+    finalCommit: input.finalCommit,
+  })
+}
+
+export function releaseSourcePlanSha256(plan: GoogleImportReleaseSourcePlan): string {
+  return createHash('sha256').update(JSON.stringify(plan)).digest('hex')
+}
