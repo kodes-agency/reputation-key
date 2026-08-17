@@ -835,6 +835,7 @@ services:
       PERF_ARTIFACT_DIR: /artifacts/perf
     volumes:
       - ${STACK_ARTIFACT_DIR}:/artifacts
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
     depends_on:
       web:
         condition: service_healthy
