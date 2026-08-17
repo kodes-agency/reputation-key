@@ -68,7 +68,9 @@ async function operation(): Promise<void> {
     }
     case 'gbp': {
       await createGbpApiAdapter({
-        baseUrl: process.env.GBP_API_BASE_URL ?? 'http://provider-sandbox:4100',
+        baseUrl:
+          process.env.GBP_ACCOUNT_MANAGEMENT_BASE_URL ??
+          'https://provider-sandbox:4100/v1',
       }).listAccounts('local-fault-token')
       return
     }

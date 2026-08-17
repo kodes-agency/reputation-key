@@ -37,7 +37,7 @@ x-app-environment: &app-environment
   S3_PRESIGN_ENDPOINT: http://127.0.0.1:4900
   S3_FORCE_PATH_STYLE: 'true'
   GOOGLE_PROVIDER_ENDPOINT_PROFILE: local-sandbox
-  GBP_ACCOUNT_MANAGEMENT_BASE_URL: http://provider-sandbox:4100
+  GBP_ACCOUNT_MANAGEMENT_BASE_URL: https://provider-sandbox:4100/v1
   GBP_API_BASE_URL: https://provider-sandbox:4100
   GBP_PERFORMANCE_BASE_URL: http://provider-sandbox:4100
   GBP_REVIEWS_API_BASE_URL: http://provider-sandbox:4100
@@ -836,6 +836,11 @@ services:
     volumes:
       - ${STACK_ARTIFACT_DIR}:/artifacts
       - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
+    networks:
+      - app
+      - provider-ephemeral
+      - egress-control
+      - provider-egress
     depends_on:
       web:
         condition: service_healthy
