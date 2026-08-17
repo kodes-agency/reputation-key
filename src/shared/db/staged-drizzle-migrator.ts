@@ -1,10 +1,21 @@
+import { createHash } from 'node:crypto'
 import { readMigrationFiles, type MigrationMeta } from 'drizzle-orm/migrator'
-import type { Client } from 'pg'
+import type { Client, QueryResult } from 'pg'
+import {
+  AI_REVIEW_SOURCE_CONTRACT_VERSION,
+  canonicalizeRawAiReviewSource,
+} from '../ai-review-source-contract'
 
 const PRE_ENUM_COMMIT_TAG = '0033_medical_morg'
 const PRE_ENUM_COMMIT_MILLIS = 1786528018434
 const POST_ENUM_FIRST_MILLIS = 1786534800305
 
+const REVIEW_SOURCE_MIGRATION_MILLIS = 1786811862145
+const REVIEW_SOURCE_BATCH_SIZE = 250
+const REVIEW_SOURCE_DIGEST_PREFIX = Buffer.from(
+  `${AI_REVIEW_SOURCE_CONTRACT_VERSION}\0`,
+  'utf8',
+)
 type GoogleImportOutcomeState = Readonly<{
   typePresent: boolean
   cleanupRequiredPresent: boolean
@@ -14,7 +25,27 @@ type GoogleImportOutcomeState = Readonly<{
 export type StagedDrizzleMigrationResult = Readonly<{
   preEnumCommitApplied: number
   postEnumCommitApplied: number
+  reviewAiSourceBackfilled: number
   outcome: GoogleImportOutcomeState
+}>
+type MigrationBatchResult = Readonly<{
+  applied: number
+  reviewAiSourceBackfilled: number
+}>
+
+type ReviewAiSourceMigrationRow = Readonly<{
+  id: unknown
+  text: unknown
+  rating: unknown
+  language_code: unknown
+  reviewed_at: unknown
+  reviewer_name: unknown
+}>
+
+type ReviewAiSourceProvenance = Readonly<{
+  id: string
+  byteLength: number
+  digest: string
 }>
 
 type GoogleImportOutcomeRow = Readonly<{
@@ -102,10 +133,89 @@ async function ensureMigrationJournal(client: Client): Promise<void> {
   `)
 }
 
+function nullableString(value: unknown): string | null {
+  if (value === null || typeof value === 'string') return value
+  throw new Error('review_ai_source_backfill_invalid_row')
+}
+
+function reviewSourceProvenance(
+  row: ReviewAiSourceMigrationRow,
+): ReviewAiSourceProvenance {
+  if (
+    typeof row.id !== 'string' ||
+    !(row.reviewed_at instanceof Date) ||
+    !Number.isInteger(row.rating)
+  ) {
+    throw new Error('review_ai_source_backfill_invalid_row')
+  }
+  const reviewedAtEpochMillis = row.reviewed_at.getTime()
+  if (!Number.isSafeInteger(reviewedAtEpochMillis) || reviewedAtEpochMillis < 0) {
+    throw new Error('review_ai_source_backfill_invalid_row')
+  }
+  const canonical = canonicalizeRawAiReviewSource({
+    text: nullableString(row.text),
+    rating: row.rating as number,
+    languageCode: nullableString(row.language_code),
+    reviewedAtEpochMillis,
+    reviewerDisplayName: nullableString(row.reviewer_name),
+  })
+  return {
+    id: row.id,
+    byteLength: canonical.bytes.byteLength,
+    digest: createHash('sha256')
+      .update(REVIEW_SOURCE_DIGEST_PREFIX)
+      .update(canonical.bytes)
+      .digest('hex'),
+  }
+}
+
+async function backfillReviewAiSourceProvenance(client: Client): Promise<number> {
+  let lastId: string | null = null
+  let total = 0
+  for (;;) {
+    const result: QueryResult<ReviewAiSourceMigrationRow> =
+      await client.query<ReviewAiSourceMigrationRow>(
+        `
+        SELECT "id", "text", "rating", "language_code", "reviewed_at", "reviewer_name"
+        FROM "reviews"
+        WHERE ($1::uuid IS NULL OR "id" > $1::uuid)
+          AND ("ai_source_byte_length" IS NULL OR "ai_source_digest" IS NULL)
+        ORDER BY "id"
+        LIMIT ${REVIEW_SOURCE_BATCH_SIZE}
+      `,
+        [lastId],
+      )
+    if (result.rows.length === 0) return total
+
+    const provenance: ReviewAiSourceProvenance[] = result.rows.map(reviewSourceProvenance)
+    const update = await client.query(
+      `
+        UPDATE "reviews" AS review
+        SET
+          "ai_source_byte_length" = source."byte_length",
+          "ai_source_digest" = source."digest"
+        FROM unnest($1::uuid[], $2::integer[], $3::text[])
+          AS source("id", "byte_length", "digest")
+        WHERE review."id" = source."id"
+      `,
+      [
+        provenance.map((entry) => entry.id),
+        provenance.map((entry) => entry.byteLength),
+        provenance.map((entry) => entry.digest),
+      ],
+    )
+    if (update.rowCount !== provenance.length) {
+      throw new Error('review_ai_source_backfill_write_mismatch')
+    }
+    total += provenance.length
+    lastId = provenance.at(-1)!.id
+  }
+}
+
 async function applyMigrationBatch(
   client: Client,
   migrations: readonly MigrationMeta[],
-): Promise<number> {
+): Promise<MigrationBatchResult> {
   await client.query('BEGIN')
   try {
     const result = await client.query<{ created_at: string }>(`
@@ -116,12 +226,21 @@ async function applyMigrationBatch(
     `)
     const lastApplied = result.rows[0]?.created_at
     let applied = 0
+    let reviewAiSourceBackfilled = 0
 
     for (const migration of migrations) {
       if (lastApplied !== undefined && Number(lastApplied) >= migration.folderMillis) {
         continue
       }
-      for (const statement of migration.sql) await client.query(statement)
+      for (const statement of migration.sql) {
+        if (
+          migration.folderMillis === REVIEW_SOURCE_MIGRATION_MILLIS &&
+          statement.includes('review_ai_source_contract_migrator_required')
+        ) {
+          reviewAiSourceBackfilled += await backfillReviewAiSourceProvenance(client)
+        }
+        await client.query(statement)
+      }
       await client.query(
         'INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ($1, $2)',
         [migration.hash, migration.folderMillis],
@@ -130,7 +249,7 @@ async function applyMigrationBatch(
     }
 
     await client.query('COMMIT')
-    return applied
+    return { applied, reviewAiSourceBackfilled }
   } catch (error) {
     await client.query('ROLLBACK')
     throw error
@@ -208,9 +327,15 @@ export async function runStagedDrizzleMigrations(
 ): Promise<StagedDrizzleMigrationResult> {
   const stages = loadMigrationStages(migrationsFolder)
   await ensureMigrationJournal(client)
-  const preEnumCommitApplied = await applyMigrationBatch(client, stages.preEnumCommit)
+  const preEnumCommit = await applyMigrationBatch(client, stages.preEnumCommit)
   const outcome = await prepareGoogleImportOutcome(client)
   await prepareRailwayApprovalEnums(client)
-  const postEnumCommitApplied = await applyMigrationBatch(client, stages.postEnumCommit)
-  return { preEnumCommitApplied, postEnumCommitApplied, outcome }
+  const postEnumCommit = await applyMigrationBatch(client, stages.postEnumCommit)
+  return {
+    preEnumCommitApplied: preEnumCommit.applied,
+    postEnumCommitApplied: postEnumCommit.applied,
+    reviewAiSourceBackfilled:
+      preEnumCommit.reviewAiSourceBackfilled + postEnumCommit.reviewAiSourceBackfilled,
+    outcome,
+  }
 }

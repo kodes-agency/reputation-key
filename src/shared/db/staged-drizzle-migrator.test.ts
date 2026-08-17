@@ -21,13 +21,27 @@ function createMigrationClient(input: {
   cleanupRequiredPresent: boolean
   railwayTargetPresent: boolean
   railwayProfilePresent: boolean
-}): Readonly<{ client: Client; queries: string[] }> {
+  reviews?: readonly Readonly<{
+    id: string
+    text: string | null
+    rating: number
+    language_code: string | null
+    reviewed_at: Date
+    reviewer_name: string | null
+  }>[]
+}): Readonly<{
+  client: Client
+  queries: string[]
+  parametersByQuery: (readonly unknown[] | undefined)[]
+}> {
   const queries: string[] = []
+  const parametersByQuery: (readonly unknown[] | undefined)[] = []
   let latestMigration = input.latestMigration
   let enumTypePresent = input.enumTypePresent
   let cleanupRequiredPresent = input.cleanupRequiredPresent
   let railwayTargetPresent = input.railwayTargetPresent
   let railwayProfilePresent = input.railwayProfilePresent
+  let reviewBatchRead = false
   let pendingEnumType = false
   let inTransaction = false
 
@@ -35,6 +49,7 @@ function createMigrationClient(input: {
     async query(sql: string, parameters?: unknown[]) {
       const statement = sql.trim()
       queries.push(statement)
+      parametersByQuery.push(parameters)
 
       if (statement === 'BEGIN') {
         inTransaction = true
@@ -95,6 +110,14 @@ function createMigrationClient(input: {
         }
         return { rows: [] }
       }
+      if (statement.includes('FROM "reviews"') && statement.includes('ORDER BY "id"')) {
+        if (reviewBatchRead) return { rows: [] }
+        reviewBatchRead = true
+        return { rows: [...(input.reviews ?? [])] }
+      }
+      if (statement.startsWith('UPDATE "reviews" AS review')) {
+        return { rows: [], rowCount: (parameters?.[0] as readonly unknown[]).length }
+      }
       if (statement.startsWith('INSERT INTO "drizzle"."__drizzle_migrations"')) {
         const appliedAt = Number(parameters?.[1])
         latestMigration = appliedAt
@@ -105,7 +128,7 @@ function createMigrationClient(input: {
     },
   } as unknown as Client
 
-  return { client, queries }
+  return { client, queries, parametersByQuery }
 }
 
 describe('staged Drizzle migrator', () => {
@@ -121,6 +144,7 @@ describe('staged Drizzle migrator', () => {
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
       preEnumCommitApplied: 17,
       postEnumCommitApplied: 16,
+      reviewAiSourceBackfilled: 0,
       outcome: {
         typePresent: true,
         cleanupRequiredPresent: true,
@@ -159,6 +183,7 @@ describe('staged Drizzle migrator', () => {
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
       preEnumCommitApplied: 0,
       postEnumCommitApplied: 0,
+      reviewAiSourceBackfilled: 0,
       outcome: {
         typePresent: true,
         cleanupRequiredPresent: true,
@@ -170,5 +195,43 @@ describe('staged Drizzle migrator', () => {
         query.includes("ADD VALUE IF NOT EXISTS 'cleanup_required'"),
       ),
     ).toBe(false)
+  })
+
+  it('backfills canonical AI source provenance before the 0043 contract guard', async () => {
+    const reviewedAt = new Date('2026-08-01T12:34:56.789Z')
+    const review = {
+      id: '11111111-1111-4111-8111-111111111111',
+      text: 'Jane Doe thanked JANE DOE and typed [PERSON].',
+      rating: 5,
+      language_code: 'en-US',
+      reviewed_at: reviewedAt,
+      reviewer_name: 'Jane Doe',
+    } as const
+    const { client, queries, parametersByQuery } = createMigrationClient({
+      latestMigration: migrationTime('0042_google-import-execution-policy-version'),
+      enumTypePresent: true,
+      cleanupRequiredPresent: true,
+      railwayTargetPresent: true,
+      railwayProfilePresent: true,
+      reviews: [review],
+    })
+
+    await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual(
+      expect.objectContaining({ reviewAiSourceBackfilled: 1 }),
+    )
+
+    const updateIndex = queries.findIndex((query) =>
+      query.startsWith('UPDATE "reviews" AS review'),
+    )
+    const guardIndex = queries.findIndex((query) =>
+      query.includes('review_ai_source_contract_migrator_required'),
+    )
+    expect(updateIndex).toBeGreaterThan(-1)
+    expect(guardIndex).toBeGreaterThan(updateIndex)
+    expect(parametersByQuery[updateIndex]).toEqual([
+      [review.id],
+      [67],
+      ['3af54f078010ae25fca4b12cb559aebb4b1d062d24887f6d7713796965c33a7d'],
+    ])
   })
 })
