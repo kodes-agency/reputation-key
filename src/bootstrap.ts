@@ -44,6 +44,15 @@ import {
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { activityLogId, replyId } from '#/shared/domain/ids'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import {
+  createExpireReviewProviderSourceHandler,
+  createSweepReviewProviderTombstonesHandler,
+  EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+  SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+  type ReviewProviderLifecycleSweepJobData,
+} from '#/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job'
+import { createReviewProviderSnapshotRepository } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
@@ -156,10 +165,13 @@ export async function bootstrap(
   ) {
     throw new Error('Google import v2 processor dependencies are unavailable')
   }
-  // ── Review sync jobs ─────────────────────────────────────────────
+  // ── Review provider-snapshot jobs ────────────────────────────────
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
-    // BQR-2.3: use composition-wired use case (atomic ReviewCommandStore)
-    syncReviews: container.useCases.syncReviews,
+    runSnapshot: container.useCases.runReviewProviderSnapshot,
+    propertyRouting: container.propertyProcessingScopeApi,
+    enqueueContinuation: async (data) => {
+      await container.reviewQueue.addSyncJob(data)
+    },
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
@@ -171,6 +183,76 @@ export async function bootstrap(
   logger.info(
     { job: SYNC_REVIEWS_JOB_NAME },
     'registered sync-property-reviews job handler',
+  )
+  const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
+    container.db,
+    container.eventBus,
+  )
+  const enqueueReviewProviderLifecycleContinuation = async (
+    jobName:
+      | typeof EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME
+      | typeof SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+    data: ReviewProviderLifecycleSweepJobData,
+  ): Promise<void> => {
+    if (!container.backgroundQueue) {
+      throw new Error('Review provider lifecycle queue is unavailable')
+    }
+    await container.backgroundQueue.add(jobName, data, {
+      jobId: `${jobName}-${data.beforeOrAtEpochMillis}-${data.afterReviewId ?? 'start'}`,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 50 },
+      ...jobEnqueueOptions(jobName),
+    })
+  }
+  const expireReviewProviderSourceHandler = createExpireReviewProviderSourceHandler({
+    repository: reviewProviderSnapshotRepository,
+    enqueueExpiryContinuation: (data) =>
+      enqueueReviewProviderLifecycleContinuation(
+        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+        data,
+      ),
+    enqueueTombstoneContinuation: (data) =>
+      enqueueReviewProviderLifecycleContinuation(
+        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+        data,
+      ),
+  })
+  const sweepReviewProviderTombstonesHandler = createSweepReviewProviderTombstonesHandler(
+    {
+      repository: reviewProviderSnapshotRepository,
+      enqueueExpiryContinuation: (data) =>
+        enqueueReviewProviderLifecycleContinuation(
+          EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+          data,
+        ),
+      enqueueTombstoneContinuation: (data) =>
+        enqueueReviewProviderLifecycleContinuation(
+          SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+          data,
+        ),
+    },
+  )
+  container.jobRegistry.register(EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME, async (job) => {
+    await expireReviewProviderSourceHandler(
+      job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
+    )
+  })
+  container.jobRegistry.register(
+    SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+    async (job) => {
+      await sweepReviewProviderTombstonesHandler(
+        job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
+      )
+    },
+  )
+  logger.info(
+    {
+      jobs: [
+        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+      ],
+    },
+    'registered Review provider lifecycle handlers',
   )
 
   // ── Review retention jobs ────────────────────────────────────────
@@ -405,7 +487,6 @@ export async function bootstrap(
     await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
   const { createJobExecutionEnvelope } =
     await import('#/shared/jobs/delayed-execution-gate')
-  const { jobEnqueueOptions } = await import('#/shared/jobs/job-policy')
   const digestHandler = createDigestNotificationJobHandler({
     pool: getPool(),
     emailRepo: container.notificationEmailRepo,

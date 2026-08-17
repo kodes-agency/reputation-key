@@ -6,7 +6,7 @@ import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/do
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
-export type { PropertyDeleted, PropertyUpdated } from '../domain/events'
+export type { PropertyCreated, PropertyDeleted, PropertyUpdated } from '../domain/events'
 
 /** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
 export type PropertySlugLookupResult = Readonly<{
@@ -33,6 +33,14 @@ export type PropertyFactsPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
+}>
+
+/** Region and binding generation read from one property snapshot. */
+export type PropertyProcessingScopePublicApi = Readonly<{
+  getProcessingScope: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<Readonly<{ processingRegion: string | null; sourceEpoch: number }> | null>
 }>
 
 /** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */

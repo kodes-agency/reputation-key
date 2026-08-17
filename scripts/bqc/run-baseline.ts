@@ -69,6 +69,7 @@ const GATES: ReadonlyArray<Gate> = [
   },
   { id: 'build-web', command: 'pnpm build' },
   { id: 'build-worker', command: 'pnpm build:worker' },
+  { id: 'build-ai-egress-gateway', command: 'pnpm build:ai-egress-gateway' },
   { id: 'storybook-build', command: 'pnpm build-storybook' },
   { id: 'storybook-test', command: 'pnpm test:storybook' },
   { id: 'dependency-audit', command: 'pnpm check:dependency-audit' },

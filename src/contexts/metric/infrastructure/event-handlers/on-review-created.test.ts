@@ -41,7 +41,9 @@ const makeEvent = (overrides: Partial<ReviewCreated> = {}): ReviewCreated => ({
   propertyId: propertyId('prop-1'),
   organizationId: organizationId('org-1'),
   platform: 'google',
-  externalId: 'ext-1',
+  sourceEpoch: 2,
+  sourceRevision: 3,
+  analysisSequence: 4,
   occurredAt: FIXED_TIME,
   ...overrides,
 })
@@ -81,7 +83,7 @@ describe('onReviewCreated', () => {
   it('records the exact rating value returned by the lookup', async () => {
     deps = createFakeDeps(5)
     const handler = onReviewCreated(deps)
-    await handler(makeEvent({ reviewId: reviewId('rev-2'), externalId: 'ext-2' }))
+    await handler(makeEvent({ reviewId: reviewId('rev-2'), sourceRevision: 4 }))
 
     expect(deps.readings[0]!.value).toBe(5)
     expect(deps.readings[0]!.portalId).toBeNull()

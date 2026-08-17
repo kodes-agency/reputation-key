@@ -1,7 +1,7 @@
 # Merchant AI Opt-in and Revocation Specification
 
-**Status:** Proposed product and application contract  
-**Scope:** Property-level authorization for future Google-review AI capabilities  
+**Status:** Authorization control implemented; provider runtime and capability release remain prohibited pending later gates  
+**Scope:** Property-level authorization for Google-review AI capabilities  
 **Owners:** Product, privacy, engineering  
 **Related:** [ADR 0031](../../adr/0031-google-source-content-and-ai-processing-boundary.md), [source-content policy](source-content-policy-specification.md)
 
@@ -23,13 +23,13 @@ Privacy/legal owners must separately document roles, lawful bases, notices, proc
 
 Opt-in is recorded per property and per capability group:
 
-| Capability group         | What the merchant enables                                                              | Additional condition                                               |
-| ------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `review_analysis`        | Sentiment/category inference and pure-domain priority score for newly received reviews | Approved property route/provider/redaction profile                 |
-| `reply_drafting`         | Manager-requested AI reply draft                                                       | Direct manager request; draft only; separate manual publish        |
-| `property_trends`        | Property-local themes/trends/summaries                                                 | Phase 18 plan/evidence; no cross-property inputs/output            |
-| `historical_backfill`    | Bounded analysis of policy-valid historical reviews                                    | Separate explicit opt-in due to cost/volume and conservative scope |
-| `current_reply_examples` | Same-property, currently policy-valid published replies used transiently as examples   | Disabled by default; no durable corpus; separately enabled         |
+| Capability group         | What the merchant enables                                                              | Additional condition                                        |
+| ------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `review_analysis`        | Sentiment/category inference and pure-domain priority score for newly received reviews | Approved property route/provider/redaction profile          |
+| `reply_drafting`         | Manager-requested AI reply draft                                                       | Direct manager request; draft only; separate manual publish |
+| `property_trends`        | Property-local themes/trends/summaries                                                 | Phase 18 plan/evidence; no cross-property inputs/output     |
+| `historical_backfill`    | Unavailable; rejected by the authorization boundary                                    | Requires a later, separately approved contract              |
+| `current_reply_examples` | Unavailable; rejected by the authorization boundary                                    | Requires a later, separately approved contract              |
 
 Enabling one group does not enable another. Cross-property summaries, organization summaries, automatic reply publication, provider training and review-based staff scoring are unavailable and cannot appear as opt-in choices.
 
@@ -43,6 +43,8 @@ type MerchantAiOptIn = Readonly<{
   state: MerchantAiState
   capabilities: readonly MerchantAiCapability[]
   enablementEpoch: number
+  stateVersion: number
+  sourceEpoch: number
 
   noticeVersion: string
   sourcePolicyId: string
@@ -108,7 +110,7 @@ Before confirmation, show concise, layered information specific to the property 
 10. how to disable AI, what stops immediately, and what previously derived data is retained/deleted; and
 11. where to find privacy/contact/request information.
 
-The final action must be unambiguous, such as **Enable selected AI features for Hotel Sofia**. Do not use preselected checkboxes, bundling with Google connection, passive continued-use consent, or a vague “Improve my experience” control.
+Initial enablement explicitly enables the three current capabilities as one disclosed package: the controls show that fixed package read-only before confirmation, and the confirmation names the selected property. After enablement, each current capability can be changed independently. Do not bundle enablement with Google connection, rely on passive continued use, or use a vague “Improve my experience” control.
 
 ## 6. Enable command
 
@@ -130,13 +132,12 @@ It must not enqueue historical backfill unless that capability was separately se
 Persist:
 
 - organization/property and actor IDs;
-- authorization decision/session assurance reference;
 - state transition and selected capabilities;
 - notice/source-policy/routing/provider-approval/redaction-profile versions;
-- processing region;
-- previous/new enablement epoch;
-- timestamp, user agent category and request correlation where approved; and
-- idempotency key/result.
+- processing region and source epoch;
+- previous/new enablement and state versions;
+- timestamp and reason code; and
+- idempotency key, command hash, and committed result.
 
 Do not store review/prompt/reply content in the opt-in record.
 

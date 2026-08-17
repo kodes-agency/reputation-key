@@ -37,6 +37,9 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   runtimeIsolationProfileSha256: canonicalGoogleContentSha256(
     'runtime-isolation-profile',
   ),
+  railwayClosedBetaCohort: null,
+  railwayClosedBetaCohortSha256: null,
+  railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
@@ -75,6 +78,9 @@ const roleDocument = (
   transientPerformanceReportingDecision: 'approved',
   confirmedImportProfileTreatmentDecision: 'approved',
   unmanagedUserAgentMemoryResidualDecision: 'approved',
+  railwayClosedBetaResidualDecision: null,
+  railwayClosedBetaCohortSha256: null,
+  railwayClosedBetaResidualRiskSha256: null,
   approverIdentity: `${role}-approver`,
   approvedAt: '2026-08-10T10:00:00.000Z',
   expiresAt: '2026-08-12T10:00:00.000Z',
@@ -111,6 +117,64 @@ const candidate = (): GoogleContentApprovalCandidate => {
 const approvalBundle = () => ({ manifest: 'manifest', candidate: candidate() })
 
 const binding = (): GoogleContentApprovalBinding => candidate().binding
+const railwayCandidate = (): GoogleContentApprovalCandidate => {
+  const cohort = ['org-1']
+  const cohortSha256 = canonicalGoogleContentSha256(cohort)
+  const residualRiskSha256 = canonicalGoogleContentSha256('railway-residual-risk')
+  const approverIdentity = 'Railway Owner <owner@example.test>'
+  const railwayRoleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
+    const document: GoogleContentApprovalRoleDocument = {
+      ...roleDocument(role),
+      targetPhase: 'railway_closed_beta',
+      environmentProfile: 'railway-closed-beta-1',
+      railwayClosedBetaResidualDecision: 'approved',
+      railwayClosedBetaCohortSha256: cohortSha256,
+      railwayClosedBetaResidualRiskSha256: residualRiskSha256,
+      approverIdentity,
+      expiresAt: '2026-09-09T10:00:00.000Z',
+    }
+    return { sha256: canonicalGoogleContentSha256(document), document }
+  })
+  const indexDocument = {
+    manifestSha256: bindingBase().evidenceManifestSha256,
+    artifactSha256: { deployment: bindingBase().deploymentAttestationSha256 },
+    roleDocumentSha256: Object.fromEntries(
+      railwayRoleDocuments.map((entry) => [entry.document.role, entry.sha256]),
+    ) as GoogleContentApprovalCandidate['index']['roleDocumentSha256'],
+  }
+  const index = {
+    ...indexDocument,
+    sha256: canonicalGoogleContentSha256(indexDocument),
+  }
+  return {
+    binding: {
+      ...bindingBase(),
+      targetPhase: 'railway_closed_beta',
+      environmentProfile: 'railway-closed-beta-1',
+      runtimeIsolationProfileVersion: null,
+      runtimeIsolationProfileSha256: null,
+      railwayClosedBetaCohort: cohort,
+      railwayClosedBetaCohortSha256: cohortSha256,
+      railwayClosedBetaResidualRiskSha256: residualRiskSha256,
+      evidenceIndexSha256: index.sha256,
+      expiresAt: '2026-09-09T10:00:00.000Z',
+    },
+    index,
+    roleDocuments: railwayRoleDocuments,
+  }
+}
+
+const runtimeBindingFromCandidate = (
+  input: GoogleContentApprovalCandidate,
+): GoogleContentRuntimeBinding => {
+  const {
+    approvedAt: _approvedAt,
+    expiresAt: _expiresAt,
+    status: _status,
+    ...runtime
+  } = input.binding
+  return runtime
+}
 
 type Tx = Readonly<Record<string, never>>
 
@@ -208,7 +272,11 @@ const freshPolicy = (memory: ReturnType<typeof createStore>) => async () => ({
   emergencyKillVersion: memory.control().emergencyKillVersion,
 })
 
-const admissionInput = () => ({
+const admissionInput = (
+  expectedAuthorizationVector: Readonly<Record<string, string | number>> = {
+    grantGeneration: 3,
+  },
+) => ({
   runtimeBinding: runtimeBinding(),
   scope: {
     organizationId: 'org-1',
@@ -216,6 +284,8 @@ const admissionInput = () => ({
     connectionId: 'connection-1',
     initiatorUserId: 'user-1',
   },
+  expectedApprovalBindingId: 'approval-1',
+  expectedAuthorizationVector,
   operationKey: 'import.start',
   routeKey: 'google.business-information.locations.list',
   routeCatalogVersion: 'google-provider-routes-1',
@@ -263,6 +333,66 @@ describe('Google Content authorization authority', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'role_digest_mismatch' })
     expect(memory.approvals).toHaveLength(1)
+  })
+
+  it('preauthorizes against the current approval, control, and authorization vector', async () => {
+    const memory = createStore()
+    const authority = createGoogleContentAuthorizationAuthority({
+      store: memory.store,
+      clock: () => now,
+      newPermitId: () => 'permit-1',
+      verifyRoleApproval: () => true,
+      refreshPolicy: freshPolicy(memory),
+      isRegisteredOperator: () => true,
+      authorize: async () => ({
+        allowed: true,
+        vector: { grantGeneration: 3, connectionGeneration: 8 },
+      }),
+    })
+    await authority.installApproval(approvalBundle())
+
+    await expect(
+      authority.preauthorize({
+        runtimeBinding: runtimeBinding(),
+        scope: admissionInput().scope,
+        operationKey: 'import.discovery',
+        vectorMode: 'full',
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      approvalBindingId: 'approval-1',
+      policyVersion: 12,
+      emergencyKillVersion: 4,
+      authorizationVector: { grantGeneration: 3, connectionGeneration: 8 },
+    })
+  })
+
+  it('rejects admission when the preauthorized binding or vector changed', async () => {
+    const memory = createStore()
+    let generation = 3
+    const authority = createGoogleContentAuthorizationAuthority({
+      store: memory.store,
+      clock: () => now,
+      newPermitId: () => 'permit-1',
+      verifyRoleApproval: () => true,
+      refreshPolicy: freshPolicy(memory),
+      isRegisteredOperator: () => true,
+      authorize: async () => ({ allowed: true, vector: { grantGeneration: generation } }),
+    })
+    await authority.installApproval(approvalBundle())
+
+    await expect(
+      authority.admit({
+        ...admissionInput(),
+        expectedApprovalBindingId: 'approval-stale',
+      }),
+    ).resolves.toEqual({ ok: false, code: 'approval_binding_changed' })
+    generation = 4
+    await expect(authority.admit(admissionInput())).resolves.toEqual({
+      ok: false,
+      code: 'authorization_changed',
+    })
+    expect(memory.permits).toHaveLength(0)
   })
 
   it('fails closed while the capability kill is active', async () => {
@@ -320,6 +450,42 @@ describe('Google Content authorization authority', () => {
     expect(memory.permits).toHaveLength(0)
   })
 
+  it('admits Railway closed-beta work only for its signed organization cohort', async () => {
+    const memory = createStore()
+    const authorize = vi.fn(async () => ({
+      allowed: true as const,
+      vector: { grantGeneration: 3 },
+    }))
+    const authority = createGoogleContentAuthorizationAuthority({
+      store: memory.store,
+      clock: () => now,
+      newPermitId: () => 'permit-1',
+      verifyRoleApproval: () => true,
+      refreshPolicy: freshPolicy(memory),
+      isRegisteredOperator: () => true,
+      authorize,
+    })
+    const railway = railwayCandidate()
+    await authority.installApproval({ manifest: 'manifest', candidate: railway })
+
+    await expect(
+      authority.admit({
+        ...admissionInput(),
+        runtimeBinding: runtimeBindingFromCandidate(railway),
+        scope: { ...admissionInput().scope, organizationId: 'org-outside-cohort' },
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(authorize).not.toHaveBeenCalled()
+    expect(memory.permits).toHaveLength(0)
+
+    await expect(
+      authority.admit({
+        ...admissionInput(),
+        runtimeBinding: runtimeBindingFromCandidate(railway),
+      }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+
   it('allows a killed capability only for a named operator with an exact approval', async () => {
     const memory = createStore()
     memory.setControl({
@@ -370,7 +536,9 @@ describe('Google Content authorization authority', () => {
     })
     await authority.installApproval(approvalBundle())
 
-    const admitted = await authority.admit(admissionInput())
+    const admitted = await authority.admit(
+      admissionInput({ grantGeneration: 3, connectionGeneration: 8 }),
+    )
     expect(admitted).toMatchObject({ ok: true, permit: { state: 'admitted' } })
     expect(memory.permits.get('permit-1')?.authorizationVector).toEqual({
       grantGeneration: 3,

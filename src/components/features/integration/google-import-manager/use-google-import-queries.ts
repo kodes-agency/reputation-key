@@ -39,6 +39,7 @@ function usePageVisibleAndFocused(): boolean {
 export function useGoogleImportAccounts(
   input: Readonly<{
     organizationId: string
+    enabled: boolean
     connectionId: string | null
     listAccounts: typeof listImportAccounts
     epoch: number
@@ -62,7 +63,7 @@ export function useGoogleImportAccounts(
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: AccountsPage) => lastPage.nextCursor ?? undefined,
-    enabled: input.connectionId !== null,
+    enabled: input.enabled && input.connectionId !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     retry: false,
@@ -77,6 +78,7 @@ export function useGoogleImportCandidates(
   input: Readonly<{
     organizationId: string
     connectionId: string | null
+    enabled: boolean
     accountRef: string | null
     listCandidates: typeof listImportCandidates
     epoch: number
@@ -106,7 +108,7 @@ export function useGoogleImportCandidates(
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: CandidatesPage) => lastPage.nextCursor ?? undefined,
-    enabled: input.connectionId !== null && input.accountRef !== null,
+    enabled: input.enabled && input.connectionId !== null && input.accountRef !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     retry: false,
@@ -121,6 +123,7 @@ export function useGoogleImportContentLease(
   input: Readonly<{
     organizationId: string
     connectionId: string | null
+    enabled: boolean
     leaseRef: string | null
     renewLease: typeof renewImportAuthorizationLease
     hasProviderContent: boolean
@@ -145,6 +148,7 @@ export function useGoogleImportContentLease(
         }),
       ),
     enabled:
+      input.enabled &&
       input.connectionId !== null &&
       input.leaseRef !== null &&
       input.hasProviderContent &&

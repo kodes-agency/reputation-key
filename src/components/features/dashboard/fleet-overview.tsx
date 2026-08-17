@@ -5,7 +5,8 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { dashboardKeys } from '#/shared/queries/query-keys'
-import { Building2, AlertCircle, Star, Plus } from 'lucide-react'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { Building2, AlertCircle, Star } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
@@ -55,20 +56,19 @@ export function FleetOverviewError({ message }: Readonly<{ message?: string }>) 
 }
 
 export function FleetOverviewEmpty() {
+  const { can } = usePermissions()
   return (
     <Shell>
       <div className="flex flex-col items-center justify-center gap-4 py-24">
         <h2 className="text-lg font-medium">No properties yet</h2>
         <p className="max-w-sm text-center text-sm text-muted-foreground">
-          Create your first property to start managing reviews, staff performance, and
-          reputation.
+          Create your first property to manage reviews, staff performance, and reputation.
         </p>
-        <Button asChild>
-          <Link to="/import">
-            <Plus />
-            Create Property
-          </Link>
-        </Button>
+        {can('property.import_gbp_v2') ? (
+          <Button asChild>
+            <Link to="/properties/import-google">Import property</Link>
+          </Button>
+        ) : null}
       </div>
     </Shell>
   )

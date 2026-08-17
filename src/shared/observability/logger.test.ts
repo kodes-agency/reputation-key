@@ -51,8 +51,8 @@ describe('Google credential telemetry safety', () => {
         'https://app.example.test/api/auth/google/callback?code=secret&state=secret',
       ),
     ).toBe('/api/auth/google/callback')
-    expect(normalizeTelemetryPath('/import?providerError=secret#fragment')).toBe(
-      '/import',
-    )
+    expect(
+      normalizeTelemetryPath('/properties/import-google?providerError=secret#fragment'),
+    ).toBe('/properties/import-google')
   })
 })

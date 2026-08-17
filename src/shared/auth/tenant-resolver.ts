@@ -37,7 +37,7 @@ import {
   fetchRoleDefinitions,
   fetchPermissionVersion,
 } from '#/shared/db/role-definitions'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 
 import {
   recordTenantCacheEviction,
@@ -231,12 +231,15 @@ async function resolveDynamicAuthorization(
   memberRole: string,
   domainRole: Role | null,
   context: { activeOrgId: string; userId: string },
+  database: Database = getDb(),
 ): Promise<MemberAuthorization> {
   // Fail-closed with 503 if role definitions can't load.
   try {
-    const db = getDb()
-    const permissionVersion = await fetchPermissionVersion(db, context.activeOrgId)
-    const { customRoles, policies } = await fetchRoleDefinitions(db, context.activeOrgId)
+    const permissionVersion = await fetchPermissionVersion(database, context.activeOrgId)
+    const { customRoles, policies } = await fetchRoleDefinitions(
+      database,
+      context.activeOrgId,
+    )
     const resolved = resolvePermissions({
       roleNames: memberRole.split(','),
       customRoles,
@@ -314,6 +317,31 @@ export async function resolveMemberAuthContext(
     activeOrgId: input.organizationId,
     userId: input.userId,
   })
+  return {
+    context: buildAuthContext(input.userId, input.organizationId, authorization),
+    permissionVersion: authorization.permissionVersion,
+  }
+}
+
+/** Resolve a durable member using the caller's transaction snapshot. */
+export async function resolveMemberAuthContextWithDatabase(
+  database: Database,
+  input: Readonly<{
+    memberRole: string
+    organizationId: string
+    userId: string
+  }>,
+): Promise<Readonly<{ context: AuthContext; permissionVersion: number | null }>> {
+  const domainRole = toDomainRole(input.memberRole)
+  const authorization =
+    selectRoleStrategy(getEnv().ENABLE_CUSTOM_ROLES) === 'dynamic'
+      ? await resolveDynamicAuthorization(
+          input.memberRole,
+          domainRole,
+          { activeOrgId: input.organizationId, userId: input.userId },
+          database,
+        )
+      : resolveBuiltInAuthorization(input.memberRole, domainRole)
   return {
     context: buildAuthContext(input.userId, input.organizationId, authorization),
     permissionVersion: authorization.permissionVersion,

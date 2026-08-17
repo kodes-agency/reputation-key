@@ -93,7 +93,7 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  updateTokens: async (orgId, id, accessToken, refreshToken, expiresAt) => {
+  updateTokens: async (orgId, id, expected, accessToken, refreshToken, expiresAt) => {
     return trace('googleConnection.updateTokens', async () => {
       const rows = await db
         .update(googleConnections)
@@ -102,7 +102,6 @@ export const createGoogleConnectionRepository = (
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
           credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-          accessVersion: sql`${googleConnections.accessVersion} + 1`,
           updatedAt: new Date(),
         })
         .where(
@@ -110,6 +109,8 @@ export const createGoogleConnectionRepository = (
             eq(googleConnections.organizationId, orgId),
             eq(googleConnections.id, id),
             eq(googleConnections.credentialUseState, 'active'),
+            eq(googleConnections.lifecycleVersion, expected.lifecycleVersion),
+            eq(googleConnections.credentialGeneration, expected.credentialGeneration),
           ),
         )
         .returning({ id: googleConnections.id })
@@ -202,20 +203,24 @@ export const createGoogleConnectionRepository = (
   updateReconnection: async (
     orgId,
     id,
+    googleSubject,
     accessToken,
     refreshToken,
     expiresAt,
     visibility,
+    scopes,
   ) => {
     return trace('googleConnection.updateReconnection', async () => {
       await db
         .update(googleConnections)
         .set({
+          googleSubject,
           encryptedAccessToken: accessToken,
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
           status: 'active',
           visibility,
+          scopes: [...scopes],
           credentialUseState: 'active',
           cleanupMaterialDeadlineAt: null,
           lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,

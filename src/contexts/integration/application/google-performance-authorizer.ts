@@ -1,4 +1,8 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  googleAuthorizationPermissionDigest,
+  sameGoogleContentAuthorizationVector,
+} from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   createProviderAuthorizationPrincipalBinding,
@@ -79,22 +83,6 @@ function staleSource(): GooglePerformanceAuthorizationResult {
       retryAfterSeconds: null,
     },
   }
-}
-
-function permissionDigest(actor: AuthContext): string {
-  const permissions = [...(actor.effectivePermissions ?? [])].sort()
-  const scopes = [...(actor.scopeByPermission ?? new Map())]
-    .map(([permission, scope]) => [permission, scope] as const)
-    .sort(([left], [right]) => left.localeCompare(right))
-  return providerAuthorizationVectorSha256({
-    connectionLifecycleVersion: 0,
-    connectionAccessVersion: 0,
-    credentialGeneration: 0,
-    authorizationVector: {
-      permissions: JSON.stringify(permissions),
-      scopes: JSON.stringify(scopes),
-    },
-  })
 }
 
 function connectionVisibleTo(connection: GoogleConnection, actor: AuthContext): boolean {
@@ -266,13 +254,31 @@ export function createGooglePerformanceAuthorizer(
       return unavailable('policy_disabled', null)
     }
 
-    const authorizationVector = Object.freeze({
+    const expectedAuthorizationVector = Object.freeze({
       executionPolicyVersion: readDecision.policyVersion,
       googleContentPolicyVersion: content.policyVersion,
       emergencyKillVersion: content.emergencyKillVersion,
       role: actor.role,
-      permissionDigest: permissionDigest(actor),
+      permissionDigest: googleAuthorizationPermissionDigest(actor),
+      connectionLifecycleVersion: connection.lifecycleVersion,
+      connectionAccessVersion: connection.accessVersion,
+      credentialGeneration: connection.credentialGeneration,
+      propertySourceEpoch: binding.sourceEpoch,
+      propertyProfileVersion: binding.profileVersion,
+      propertyBindingState: binding.state,
+      propertyLifecycleState: binding.lifecycleState,
+      propertyProfileSource: binding.profileSource,
+      propertyTimezoneConfirmed: binding.profileConfirmedAt !== null,
     })
+    if (
+      !sameGoogleContentAuthorizationVector(
+        content.authorizationVector,
+        expectedAuthorizationVector,
+      )
+    ) {
+      return unavailable('policy_disabled', null)
+    }
+    const authorizationVector = content.authorizationVector
     const principal = createProviderAuthorizationPrincipalBinding({
       keys: deps.principalKeys,
       audience: PRINCIPAL_AUDIENCE,
@@ -306,7 +312,7 @@ export function createGooglePerformanceAuthorizer(
     if (input.expected && !sameSnapshot(snapshot, input.expected)) {
       return staleSource()
     }
-    if (input.phase === 'before_return') {
+    if (input.phase === 'before_return' || input.requireAccessToken === false) {
       return { ok: true, snapshot, accessToken: null }
     }
 

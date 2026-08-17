@@ -20,6 +20,11 @@ const compiled = compileGoogleProviderRequest(
   bindCredential,
 )
 const vector = Object.freeze({
+  executionPolicyVersion: 'beta-local-2',
+  googleContentPolicyVersion: 1,
+  emergencyKillVersion: 0,
+  role: 'owner',
+  permissionDigest: 'd'.repeat(64),
   requestBindingSha256: compiled.admission.requestBindingSha256,
   credentialBinding: compiled.admission.credentialBinding,
   projectFingerprint: PROJECT_FINGERPRINT,

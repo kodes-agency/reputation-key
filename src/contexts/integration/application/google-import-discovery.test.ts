@@ -1,3 +1,4 @@
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
@@ -39,6 +40,7 @@ const providerAuthorization = () => ({
   propertyId: null,
   connectionId,
   initiatorUserId: actor.userId,
+  expectedCredentialGeneration: 5,
   approvalBindingId,
   authorizationVector: authorization().authorizationVector,
 })
@@ -151,7 +153,7 @@ function setup(
     listAccounts: vi.fn(async () => ({
       items: [
         {
-          resourceName: 'accounts/provider-account-1' as const,
+          resourceName: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
           accountId: 'provider-account-1',
           displayName: 'Primary',
           role: 'owner' as const,

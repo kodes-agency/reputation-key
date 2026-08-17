@@ -3,13 +3,12 @@
 // Two layers:
 //   1. Presence assertions (PRE17A A1 heritage): the objects CI's
 //      "empty → latest" migration path must produce.
-//   2. Semantic parity (BQC-5.4): the full Drizzle model (all 68 tables,
-//      incl. the better-auth mirror) compared against the migrated
-//      PostgreSQL catalog — columns/types/nullability/defaults, PK/unique/
-//      check/FK constraints incl. actions, indexes incl. order/direction/
-//      expressions/predicates, enum labels, journal continuity, and the
-//      DB-only register (both directions closed). See ./CONTEXT.md and
-//      ./schema-drift.ts.
+//   2. Semantic parity (BQC-5.4): the full Drizzle model (including the
+//      better-auth mirror) compared against the migrated PostgreSQL catalog —
+//      columns/types/nullability/defaults, PK/unique/check/FK constraints incl.
+//      actions, indexes incl. order/direction/expressions/predicates, enum
+//      labels, journal continuity, and the DB-only register (both directions
+//      closed). See ./CONTEXT.md and ./schema-drift.ts.
 //
 // In CI this runs after `auth:migrate && db:migrate` + the registered deploy
 // sidecar against a fresh database. Locally it requires a migrated test
@@ -55,6 +54,32 @@ const EXPECTED_TABLES = [
   'inbox_user_views',
   'metric_definitions',
   'metric_readings',
+  // Migrations 0046-0048 (AI private-beta control plane and read models)
+  'review_ai_analysis_heads',
+  'ai_governance_policies',
+  'ai_runtime_capability_profiles',
+  'ai_provider_deployment_capabilities',
+  'ai_read_barrier_heads',
+  'ai_review_event_cursors',
+  'ai_review_analysis_outcomes',
+  'ai_execution_control_heads',
+  'ai_execution_control_transitions',
+  'ai_canary_authorization_heads',
+  'ai_canary_authorizations',
+  'ai_execution_permits',
+  'ai_execution_permit_settlements',
+  'ai_operation_profiles',
+  'ai_provider_deployment_profiles',
+  'ai_property_calendar_authorities',
+  'ai_property_processing_profiles',
+  'ai_routing_policies',
+  'ai_operations',
+  'ai_operation_attempts',
+  'ai_review_analyses',
+  'ai_property_aggregate_heads',
+  'ai_property_daily_aggregates',
+  'ai_property_trend_reports',
+  'ai_property_aggregate_contributions',
   // Migration 0007 (BQR-1.1)
   'review_sync_state',
   'review_sync_runs',
@@ -83,6 +108,9 @@ const EXPECTED_INDEXES = [
   'metric_readings_recorded_at_idx',
   'inbox_items_source_date_idx',
   'properties_lifecycle_state_idx',
+  'reviews_tenant_identity_unique',
+  'ai_review_analyses_operation_unique',
+  'ai_review_analyses_current_idx',
 ] as const
 
 describe('migration verification (PRE17A A1 presence)', () => {

@@ -22,6 +22,14 @@ type LifecycleDependencies = Readonly<{
   clearContent: () => void
 }>
 
+const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+export function contentExpiryDelayMs(expiresAt: string, nowMs: number): number {
+  const expiresAtMs = Date.parse(expiresAt)
+  if (!Number.isFinite(expiresAtMs)) return 0
+  return Math.min(MAX_TIMER_DELAY_MS, Math.max(0, expiresAtMs - nowMs))
+}
+
 export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) {
   let viewEpoch = 0
   let clearOperation: Promise<void> | null = null

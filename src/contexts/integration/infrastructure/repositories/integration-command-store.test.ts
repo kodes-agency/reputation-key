@@ -166,6 +166,8 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const updated = await store.reconnectGoogleAccount({
       organizationId: ORG_ID,
       connectionId: CONN_ID,
+      googleSubject: 'google-subject-2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       encryptedAccessToken: 'enc-a2',
       encryptedRefreshToken: 'enc-r2',
       tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
@@ -173,13 +175,19 @@ describe.sequential('integrationCommandStore (integration)', () => {
       event: connectedEvent(),
     })
 
-    expect(updated.visibility).toBe('organization')
+    expect(updated).toMatchObject({
+      googleSubject: 'google-subject-2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
+      visibility: 'organization',
+    })
     const rows = await pool.query(
-      'SELECT encrypted_access_token, visibility, status FROM google_connections WHERE id = $1',
+      'SELECT google_subject, encrypted_access_token, scopes, visibility, status FROM google_connections WHERE id = $1',
       [CONN_ID],
     )
     expect(rows.rows[0]).toMatchObject({
+      google_subject: 'google-subject-2',
       encrypted_access_token: 'enc-a2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       visibility: 'organization',
       status: 'active',
     })

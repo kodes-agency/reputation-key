@@ -48,6 +48,23 @@ import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-ap
 import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
 import type { GoogleImportReferenceStore } from '#/contexts/integration/application/ports/google-import-reference-store.port'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
+import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
+import { createGoogleAuthorizedProviderExecutor } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
+import { createOpaqueImportReferenceStore } from '#/contexts/integration/infrastructure/opaque-import-reference-store'
+import type { GoogleReviewCursorStore } from '#/contexts/integration/infrastructure/google-review-cursor-store'
+import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
+import { createGoogleEgressGatewayHttpClient } from '../services/google-egress-gateway/http-api'
+import {
+  createInternalMtlsJsonTransport,
+  loadInternalMtlsMaterial,
+} from '../services/internal-mtls'
+import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
+import {
+  createGoogleContentRoleSignatureVerifier,
+  parseGoogleContentRolePublicKeys,
+} from '#/shared/auth/google-content-approval'
+import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
 import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
 import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { buildIdentityContext } from '#/contexts/identity/build'
@@ -87,13 +104,17 @@ import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provide
 import { createRedisProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import { createProviderEphemeralRedis } from '#/shared/provider-ephemeral/redis-client'
 import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
-import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
+import {
+  createProviderAuthorizationLeaseService,
+  type ProviderAuthorizationLeaseService,
+} from '#/shared/provider-ephemeral/authorization-lease'
+import { providerAuthorizationVectorSha256 } from '#/shared/provider-ephemeral/authorization-binding'
 import {
   validateProviderEphemeralRedisUrls,
   verifyProviderEphemeralRedisRuntime,
   type ProviderRedisReadiness,
 } from '#/shared/provider-ephemeral/runtime-verification'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
 import {
@@ -108,6 +129,7 @@ import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
 import { buildReviewContext } from '#/contexts/review/build'
 import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
+import { configureReviewProviderSubjectWriterKeys } from '#/contexts/review/application/provider-subject-keyring'
 import { buildInboxContext } from '#/contexts/inbox/build'
 import { buildMetricContext } from '#/contexts/metric/build'
 import { buildBadgeContext } from '#/contexts/badge/build'
@@ -117,6 +139,7 @@ import { buildGoalContext } from '#/contexts/goal/build'
 import { buildActivityContext } from '#/contexts/activity/build'
 import { buildNotificationContext } from '#/contexts/notification/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
+import { buildAiContext } from '#/contexts/ai/build'
 import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
 
 // ── Infrastructure ─────────────────────────────────────────────────
@@ -266,6 +289,8 @@ export type ProviderOverrides = Readonly<{
   googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
   /** Opaque import reference store backed by provider-ephemeral storage. */
   googleImportReferences?: GoogleImportReferenceStore
+  /** Opaque Review paging cursor store backed by provider-ephemeral storage. */
+  googleReviewCursorStore?: GoogleReviewCursorStore
   /** Fresh Google Content approval/kill authorization seam. */
   authorizeGoogleImportContent?: GoogleImportContentAuthorizer
   /** Fresh approval/kill authorization for live Performance reads. */
@@ -323,6 +348,17 @@ export function createContainer(options?: {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
+  if (
+    env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS !== undefined ||
+    (!enableJobs && env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined)
+  ) {
+    throw new Error('config_invalid')
+  }
+  const reviewProviderSubjectKeyring = configureReviewProviderSubjectWriterKeys({
+    writerEnabled: enableJobs,
+    production: env.NODE_ENV === 'production',
+    raw: env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS,
+  })
 
   // BQC-7.3 (release.sha): deploy identity at boot — one line per container
   // build (singleton in prod; simulations/tests build per scenario).
@@ -338,13 +374,16 @@ export function createContainer(options?: {
     providerConfigFor(providerRefForCell(env.PROCESSING_CELL)),
     env,
   )
-  if (env.NODE_ENV === 'production') {
+  const runtimeIsolationConfigured =
+    env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON !== undefined ||
+    env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION !== undefined
+  if (env.NODE_ENV === 'production' && runtimeIsolationConfigured) {
     if (
       !env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON ||
       !env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION
     ) {
       throw new Error(
-        'Opaque OAuth state requires runtime-isolation profile and live attestation',
+        'Configured Google runtime isolation requires a profile and live attestation',
       )
     }
     const expectedGoogleOrigins = [
@@ -357,7 +396,10 @@ export function createContainer(options?: {
       attestationRaw: readFileSync('/run/repkey/google-egress-attestation.json', 'utf8'),
       expectedControlPlanePolicyGeneration: env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION,
       expectedGoogleOrigins,
-      expectedTargetEnvironment: 'production',
+      expectedTargetEnvironment:
+        env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
+          ? 'local_sandbox'
+          : 'production',
       now: clock(),
     })
   }
@@ -366,6 +408,7 @@ export function createContainer(options?: {
   let oauthStateHandles: ReturnType<typeof createOAuthStateHandleService> | undefined
   let providerEphemeralReadiness: Promise<ProviderRedisReadiness> | undefined
   let googleImportReplayKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
+  let googleOpaqueReferenceKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
   {
     if (!providerEphemeralStore && env.PROVIDER_EPHEMERAL_REDIS_URL) {
       if (env.NODE_ENV === 'production') {
@@ -379,6 +422,7 @@ export function createContainer(options?: {
       }
       providerEphemeralRedis = createProviderEphemeralRedis(
         env.PROVIDER_EPHEMERAL_REDIS_URL,
+        env.PROVIDER_EPHEMERAL_REDIS_CA_PEM,
       )
       providerEphemeralStore = createRedisProviderEphemeralStore(providerEphemeralRedis)
       providerEphemeralReadiness =
@@ -398,7 +442,7 @@ export function createContainer(options?: {
       }
       return `local:${fallbackKey}`
     }
-    createVersionedHmacKeyring(
+    googleOpaqueReferenceKeys = createVersionedHmacKeyring(
       requiredKeyring(
         env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS,
         'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
@@ -523,7 +567,314 @@ export function createContainer(options?: {
       if (!cancel) throw new Error('Google import lifecycle unavailable')
       return cancel(orgId, userIdValue).then(() => undefined)
     },
+    verifyMerchantAiStepUp: async ({ headers, password }) => {
+      try {
+        const result = await getAuth().api.verifyPassword({
+          headers,
+          body: { password },
+        })
+        return result.status === true
+      } catch {
+        return false
+      }
+    },
   })
+
+  const googleContentRuntimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
+    ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
+    : undefined
+  let googleContentAuthority:
+    | ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>>
+    | undefined
+  let googleContentAuthorityStore:
+    | ReturnType<typeof createGoogleContentAuthorityRepository>
+    | undefined
+  if (googleContentRuntimeBindings) {
+    const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
+    if (!rawPublicKeys) {
+      throw new Error('Google Content approval role public keys are unavailable')
+    }
+    let publicKeysInput: unknown
+    try {
+      publicKeysInput = JSON.parse(rawPublicKeys)
+    } catch {
+      throw new Error('Google Content approval role public keys are invalid')
+    }
+    const publicKeys = parseGoogleContentRolePublicKeys(publicKeysInput)
+    if (!publicKeys.ok) {
+      throw new Error('Google Content approval role public keys are invalid')
+    }
+    googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
+    googleContentAuthority = createGoogleContentAuthorizationAuthority({
+      store: googleContentAuthorityStore,
+      clock,
+      newPermitId: randomUUID,
+      verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
+      refreshPolicy: identity.internal.refreshPolicyStoreRequired,
+      isRegisteredOperator: () => false,
+      authorize: createGoogleContentAuthorizationCheck({
+        clock,
+        hasActivePropertyGrant: identity.internal.hasActivePropertyGrant,
+      }),
+    })
+  }
+  const ensureProviderEphemeralReady = providerEphemeralReadiness
+    ? async () => {
+        const readiness = await providerEphemeralReadiness
+        if (!readiness.ok) {
+          throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
+        }
+      }
+    : undefined
+  const defaultProviderAuthorizationLeases =
+    providerEphemeralStore && googleOpaqueReferenceKeys
+      ? createProviderAuthorizationLeaseService({
+          store: providerEphemeralStore,
+          handleKeys: googleOpaqueReferenceKeys,
+          randomNonce: () => randomBytes(32).toString('base64url'),
+          ensureRuntimeReady: ensureProviderEphemeralReady,
+          revalidate: async (record) => {
+            const runtimeBinding = googleContentRuntimeBindings?.[record.capability]
+            if (!runtimeBinding || !googleContentAuthority) {
+              return {
+                allowed: false,
+                approvalBindingId: null,
+                authorizationVectorSha256: null,
+              }
+            }
+            try {
+              const result = await googleContentAuthority.preauthorize({
+                runtimeBinding,
+                scope: {
+                  organizationId: record.organizationId,
+                  propertyId: record.propertyId,
+                  connectionId: record.connectionId,
+                  initiatorUserId: record.initiatorUserId,
+                },
+                operationKey: `${record.audience}.lease_renewal`,
+                vectorMode: 'full',
+              })
+              if (!result.ok) {
+                return {
+                  allowed: false,
+                  approvalBindingId: null,
+                  authorizationVectorSha256: null,
+                }
+              }
+              const lifecycleVersion =
+                result.authorizationVector.connectionLifecycleVersion
+              const accessVersion = result.authorizationVector.connectionAccessVersion
+              const credentialGeneration = result.authorizationVector.credentialGeneration
+              if (
+                !Number.isSafeInteger(lifecycleVersion) ||
+                !Number.isSafeInteger(accessVersion) ||
+                !Number.isSafeInteger(credentialGeneration)
+              ) {
+                return {
+                  allowed: false,
+                  approvalBindingId: null,
+                  authorizationVectorSha256: null,
+                }
+              }
+              return {
+                allowed: true,
+                approvalBindingId: result.approvalBindingId,
+                authorizationVectorSha256: providerAuthorizationVectorSha256({
+                  connectionLifecycleVersion: lifecycleVersion as number,
+                  connectionAccessVersion: accessVersion as number,
+                  credentialGeneration: credentialGeneration as number,
+                  authorizationVector: result.authorizationVector,
+                }),
+              }
+            } catch {
+              return {
+                allowed: false,
+                approvalBindingId: null,
+                authorizationVectorSha256: null,
+              }
+            }
+          },
+        })
+      : undefined
+  const providerAuthorizationLeases =
+    options?.providers?.providerAuthorizationLeases ?? defaultProviderAuthorizationLeases
+  const googleImportReferences =
+    options?.providers?.googleImportReferences ??
+    (providerEphemeralStore && googleOpaqueReferenceKeys && providerAuthorizationLeases
+      ? createOpaqueImportReferenceStore({
+          store: providerEphemeralStore,
+          handleKeys: googleOpaqueReferenceKeys,
+          leasePrincipalKeys: googleOpaqueReferenceKeys,
+          leases: providerAuthorizationLeases,
+          nowMs: () => clock().getTime(),
+        })
+      : undefined)
+  const googlePerformancePrincipalKeys =
+    options?.providers?.googlePerformancePrincipalKeys ?? googleOpaqueReferenceKeys
+
+  const unavailableGoogleContentAuthorization = Object.freeze({
+    ok: false as const,
+    code: 'runtime_unavailable' as const,
+  })
+  const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
+    options?.providers?.authorizeGoogleImportContent ??
+    (async (input) => {
+      const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
+      if (!binding || !googleContentAuthority) {
+        return unavailableGoogleContentAuthorization
+      }
+      const result = await googleContentAuthority
+        .preauthorize({
+          runtimeBinding: binding,
+          scope: {
+            organizationId: input.actor.organizationId,
+            propertyId: null,
+            connectionId: input.connectionId,
+            initiatorUserId: input.actor.userId,
+          },
+          operationKey: `import.${input.phase}`,
+          vectorMode: 'full',
+        })
+        .catch((err: unknown) => {
+          logger.warn({ err }, 'Google Content preauthorization failed')
+          throw err
+        })
+      if (result.ok) return result
+      logger.warn(
+        { stage: 'google-content-preauthorize', code: result.code },
+        'Google Content authorization denied',
+      )
+      return {
+        ok: false as const,
+        code:
+          result.code === 'authorization_denied' ||
+          result.code === 'authorization_changed'
+            ? ('authorization_denied' as const)
+            : ('runtime_unavailable' as const),
+      }
+    })
+  const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
+    options?.providers?.authorizeGooglePerformanceContent ??
+    (async (input) => {
+      const binding = googleContentRuntimeBindings?.['property.read_gbp_performance']
+      if (!binding || !googleContentAuthority) {
+        return unavailableGoogleContentAuthorization
+      }
+      const result = await googleContentAuthority.preauthorize({
+        runtimeBinding: binding,
+        scope: {
+          organizationId: input.actor.organizationId,
+          propertyId: input.propertyId,
+          connectionId: input.connectionId,
+          initiatorUserId: input.actor.userId,
+        },
+        operationKey: `performance.${input.phase}`,
+        vectorMode: 'full',
+      })
+      return result.ok
+        ? result
+        : {
+            ok: false as const,
+            code:
+              result.code === 'authorization_denied' ||
+              result.code === 'authorization_changed'
+                ? ('authorization_denied' as const)
+                : ('runtime_unavailable' as const),
+          }
+    })
+
+  const gatewayConfig = [
+    env.GOOGLE_EGRESS_GATEWAY_ORIGIN,
+    env.GOOGLE_EGRESS_GATEWAY_SERVER_NAME,
+    env.GOOGLE_INTERNAL_MTLS_CA_PATH,
+    env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
+    env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
+    env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS,
+  ] as const
+  const configuredGatewayValues = gatewayConfig.filter(
+    (value): value is string => value !== undefined,
+  )
+  if (
+    configuredGatewayValues.length !== 0 &&
+    configuredGatewayValues.length !== gatewayConfig.length
+  ) {
+    throw new Error('Google egress gateway transport configuration is incomplete')
+  }
+  let googleAuthorizedProviderExecutor =
+    options?.providers?.googleAuthorizedProviderExecutor
+  if (!googleAuthorizedProviderExecutor && configuredGatewayValues.length > 0) {
+    if (!googleContentAuthority || !googleContentRuntimeBindings) {
+      throw new Error('Google egress gateway requires Google Content runtime approval')
+    }
+    const [
+      gatewayOrigin,
+      gatewayServerName,
+      caPath,
+      certPath,
+      keyPath,
+      credentialBindingKeys,
+    ] = configuredGatewayValues
+    const bindCredential = createGoogleCredentialBinder(
+      createVersionedHmacKeyring(credentialBindingKeys),
+    )
+    const gateway = createGoogleEgressGatewayHttpClient(
+      createInternalMtlsJsonTransport({
+        origin: gatewayOrigin,
+        serverName: gatewayServerName,
+        tls: loadInternalMtlsMaterial({ caPath, certPath, keyPath }),
+        peerIdentityPolicy: {
+          uri: 'spiffe://repkey.internal/google-egress-gateway',
+          dnsName: gatewayServerName,
+          extendedKeyUsages: ['serverAuth', 'clientAuth'],
+        },
+        timeoutMs: 30_000,
+        maxResponseBytes: 5 * 1024 * 1024,
+      }),
+    )
+    googleAuthorizedProviderExecutor = createGoogleAuthorizedProviderExecutor({
+      bindCredential,
+      routeTarget:
+        env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
+          ? {
+              kind: 'local_sandbox',
+              simulatorOrigin: new URL(providerEndpoints.gbpApiBaseUrl).origin,
+            }
+          : { kind: 'production' },
+      admit: async ({ authorization, admission }) => {
+        const binding = googleContentRuntimeBindings[authorization.capability]
+        if (!binding) return { ok: false, code: 'runtime_unavailable' }
+        const result = await googleContentAuthority!.admit({
+          runtimeBinding: binding,
+          scope: {
+            organizationId: authorization.organizationId,
+            propertyId: authorization.propertyId,
+            connectionId: authorization.connectionId,
+            initiatorUserId: authorization.initiatorUserId,
+          },
+          expectedApprovalBindingId: authorization.approvalBindingId,
+          expectedAuthorizationVector: authorization.authorizationVector,
+          operationKey: `provider.${admission.routeKey}`,
+          routeKey: admission.routeKey,
+          routeCatalogVersion: admission.catalogueVersion,
+          quotaPolicyId: admission.quotaPolicyId,
+          providerRequestBinding: {
+            requestBindingSha256: admission.requestBindingSha256,
+            credentialBinding: admission.credentialBinding,
+            projectFingerprint: binding.googleProjectAttestationSha256,
+            requestBodySha256: admission.requestBodySha256,
+            requestBodyBytes: admission.requestBodyBytes,
+          },
+          startVectorMode: 'full',
+          commitVectorMode: 'full',
+        })
+        return result.ok
+          ? { ok: true as const, permitId: result.permit.id }
+          : { ok: false as const, code: result.code }
+      },
+      gateway,
+      logger,
+    })
+  }
 
   // BQC-1.7: the bounded lifecycle purge implementation is review-owned
   // infrastructure — the composition root is the only layer allowed to
@@ -629,22 +980,26 @@ export function createContainer(options?: {
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.bindingApi,
+    enqueueReviewSync: (data, options) =>
+      review.internal.repos.queue.addSyncJob(data, options),
     logger: getLogger(),
     providerEndpoints,
     sourceContentPurge,
     googleOAuth: options?.providers?.googleOAuth,
     gbpApi: options?.providers?.gbpApi,
-    googleAuthorizedProviderExecutor:
-      options?.providers?.googleAuthorizedProviderExecutor,
+    googleAuthorizedProviderExecutor,
     googleImportReplayKeys,
-    authorizeGoogleImportContent: options?.providers?.authorizeGoogleImportContent,
-    authorizeGooglePerformanceContent:
-      options?.providers?.authorizeGooglePerformanceContent,
-    googlePerformancePrincipalKeys: options?.providers?.googlePerformancePrincipalKeys,
-    providerAuthorizationLeases: options?.providers?.providerAuthorizationLeases,
-    googleImportReferences: options?.providers?.googleImportReferences,
+    authorizeGoogleImportContent,
+    authorizeGooglePerformanceContent,
+    googlePerformancePrincipalKeys,
+    providerAuthorizationLeases,
+    googleImportReferences,
+    providerEphemeralStore,
+    googleOpaqueReferenceKeys,
+    googleReviewCursorStore: options?.providers?.googleReviewCursorStore,
     oauthStateHandles,
     oauthCallbackAbuseGate,
+    refreshPolicyStoreRequired: identity.internal.refreshPolicyStoreRequired,
   })
 
   setMembershipRemovalLifecycle({
@@ -674,6 +1029,7 @@ export function createContainer(options?: {
     // BQC-4.2: stamp the content-free routing envelope at enqueue (telemetry;
     // the worker's dispatch-time routing gate re-resolves and decides).
     processingRouter,
+    providerSubjectKeyring: reviewProviderSubjectKeyring,
   })
 
   const inbox = buildInboxContext({
@@ -717,6 +1073,8 @@ export function createContainer(options?: {
     getLogger,
     portalGroupApi: portal.publicApi.portalGroup,
   })
+
+  const ai = buildAiContext({ db, redis })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
   // Dashboard never queries review/reply/metric tables directly. BQC-5.5:
@@ -847,6 +1205,7 @@ export function createContainer(options?: {
     clock,
     opsQueues,
     operationsSnapshot,
+    ai: ai.internal,
     // BQC-7.4: the alert dispatch port — composition-owned so the
     // health-check job (and any future evaluation point) shares the ONE
     // dispatcher (error-level ALERT log + optional ALERT_WEBHOOK_URL POST).
@@ -871,7 +1230,7 @@ export function createContainer(options?: {
       handleGbpNotification: integration.internal.gbpNotificationHandler({
         reviewQueue: review.internal.repos.queue,
       }),
-      syncReviews: review.internal.useCases.syncReviews,
+      runReviewProviderSnapshot: review.internal.useCases.runReviewProviderSnapshot,
       draftReply: review.internal.useCases.draftReply,
       submitReply: review.internal.useCases.submitReply,
       approveReply: review.internal.useCases.approveReply,
@@ -904,6 +1263,7 @@ export function createContainer(options?: {
     replyQueue: review.internal.repos.replyQueue,
     googleReviewApi: integration.internal.googleReviewApi,
     staffPublicApi: staff.publicApi,
+    propertyProcessingScopeApi: property.publicApi,
     inboxRepo: inbox.internal.repos.inboxRepo,
     inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
     goalRepo: goal.internal.repos.goalRepo,
@@ -922,6 +1282,15 @@ export function createContainer(options?: {
     // Workers await this before starting; side-effect paths use it for
     // fresh reads (BQC-2.5). Owned by the identity build (readiness).
     refreshPolicyStore: identity.internal.refreshPolicyStore,
+    refreshReviewProviderSubjectKeys: async () => {
+      if (!review.internal.providerSubjectKeys) {
+        if (enableJobs && env.NODE_ENV === 'production') {
+          throw new Error('review_provider_subject_key_inventory_unavailable')
+        }
+        return
+      }
+      await review.internal.providerSubjectKeys.acquireDeriver()
+    },
     // Worker-only durable consumer registration contributed by owning contexts.
     registerOutboxConsumers: () => {
       integration.internal.registerOutboxConsumers()

@@ -1,7 +1,8 @@
 ---
 status: accepted
-release_state: local_only
+release_state: railway_closed_beta_exception_accepted
 accepted_date: 2026-08-10
+amended_date: 2026-08-12
 ---
 
 # 0050 — Google property import and live Performance reporting
@@ -62,6 +63,7 @@ The frozen source contracts are:
 | Provider route catalogue | `google-provider-routes-1` |
 | Performance catalogue    | `2026-08-05`               |
 | Runtime isolation        | `google-content-egress-1`  |
+| Closed-beta deployment   | `railway-closed-beta-1`    |
 | Import DTO               | `2`                        |
 | Performance DTO          | `1`                        |
 
@@ -89,9 +91,9 @@ Performance values and derivatives are live-only. RepKey must not persist, prefe
 
 Every successful result has an absolute deadline of at most 15 minutes. HTTP responses are `private, no-store, max-age=0`; SSR never prefetches or dehydrates the report; browser queries have no persister, `gcTime: 0`, `retry: false`, and no focus/reconnect/background refetch.
 
-The controlled runtime uses read-only roots, tmpfs-only writable/temp locations, core dumps and diagnostic snapshots disabled, and body-free observability. This does not prove that an unmanaged browser/OS cannot swap, hibernate, crash-recover, extend, or forensically capture client memory. Production Performance approval must explicitly accept that residual. A denial keeps only the Performance capability killed.
+The controlled runtime uses read-only roots, tmpfs-only writable/temp locations, core dumps and diagnostic snapshots disabled, and body-free observability. This does not prove that an unmanaged browser/OS cannot swap, hibernate, crash-recover, extend, or forensically capture client memory. Any non-sandbox Performance approval must explicitly accept that residual. A denial keeps only the Performance capability killed.
 
-Request-lifetime period sums and chart composition are reporting transformations, not durable manipulation. Production enablement requires the five role owners to approve that treatment for the exact release and environment. There is no approval by silence or by an absent record.
+Request-lifetime period sums and chart composition are reporting transformations, not durable manipulation. Railway closed-beta enablement requires one accountable owner to sign all five role documents for the exact release and environment. Later production phases retain five independent role owners. There is no approval by silence or by an absent record.
 
 ### 4. Canonical Property binding
 
@@ -227,15 +229,17 @@ These are not unique-person totals. The UI shows no conversion rate and never de
 
 The frozen presentation result is `PropertyGooglePerformanceResultV1`. Base Dashboard data renders independently from provider latency or failure. The live dependency boundary accepts only policy, authorization lease, Property read, Google source, clock, and code-only authorization-audit dependencies. Write repositories, queues/jobs, server caches, and Metric dependencies are denied.
 
-### 11. Machine-bound production approval
+### 11. Machine-bound capability approval
 
-A global allowlist is necessary but insufficient. Each capability needs a persisted `GoogleContentApprovalBinding` for one exact target phase, environment profile, release SHA, migration head, ADR/content/OAuth/project/catalogue/policy/isolation fingerprints, deployment attestation, evidence manifest/index, and all five runtime image digests:
+A global allowlist is necessary but insufficient. Each capability needs a persisted `GoogleContentApprovalBinding` for one exact target phase, environment profile, release SHA, migration head, ADR/content/OAuth/project/catalogue/policy fingerprints, deployment attestation, evidence manifest/index, and all five runtime image digests:
 
 - web
 - worker
 - Google execution-admission
 - Google egress gateway
 - provider-ephemeral Redis
+
+The approval schema must add target phase `railway_closed_beta` and environment profile `railway-closed-beta-1`. Its runtime-isolation version and digest become an exact nullable pair, absent only for that phase/profile. A Railway binding instead requires a non-null digest of the immutable Railway residual-risk decision described below. Each role document adds the same explicit `railwayClosedBetaResidualDecision`; absence or denial cannot authorize the exception. `railway-closed-beta-1` is a deployment/risk profile, not a runtime-isolation profile, and must never compare equal to or satisfy `google-content-egress-1`.
 
 The evidence graph is acyclic:
 
@@ -244,17 +248,48 @@ The evidence graph is acyclic:
 3. construct the canonical index from manifest, artifacts, and role documents; and
 4. persist the capability binding outside the index, binding both manifest and index digests.
 
-Required roles are `engineering/runtime`, `product/property`, `security/privacy`, `google-project/integration`, and `operations/on-call`. Binding absence is the only pre-approval representation. No placeholder, synthetic production approval, or partially signed binding row is allowed.
+Required roles are `engineering/runtime`, `product/property`, `security/privacy`, `google-project/integration`, and `operations/on-call`. Binding absence is the only pre-approval representation. No placeholder, synthetic approval, partially signed binding row, or approval by deployment environment is allowed.
 
-Expand-canary bindings last at most 72 hours. Final bindings expire at the earlier of the Google project-attestation expiry or 90 days after the latest required approval. Phase/profile/release/schema/image/config drift denies new work. Natural expiry may only bound already-delivered Content through its original lease and never admit new provider/effect work.
+For `railway_closed_beta` only, one accountable owner may hold all five required roles. The owner must issue five separate, role-specific signed documents with one exact `approverIdentity`; any mixed identity fails closed. This is role-complete attestation, not separation of duties. It neither weakens the five-document signature and decision checks nor applies to `production_expand_canary` or `production_final`, which retain independent role ownership.
 
-### 12. Production isolation and hosting decision
+Railway closed-beta bindings last at most 30 days. Expand-canary bindings last at most 72 hours. Final bindings expire at the earlier of the Google project-attestation expiry or 90 days after the latest required approval. Phase/profile/cohort/release/schema/image/config drift denies new work. Natural expiry may only bound already-delivered Content through its original lease and never admit new provider/effect work.
 
-`google-content-egress-1` is semantic infrastructure control, not an application-reported hash. Every content/credential-bearing web or worker replica is immutable and default-deny for IPv4 and IPv6. It may reach only exact internal identity+protocol+port tuples, the named allowlisting resolver, and the authenticated egress gateway. The admission service cannot reach a provider. The gateway cannot reach PostgreSQL or Redis. Provider-ephemeral Redis can initiate no outbound connection, including DNS, metadata, telemetry push, database, Redis peer, or Google.
+### 12. Hosting decision and controlled Railway exception
 
-A control-plane collector must enumerate every protected replica/policy generation and run the complete allowed/denied matrix from each role. Missing replica, drift, default route, alternate resolver/client, direct IP, metadata, unknown internal tuple, or provider-Redis outbound path denies readiness and production approval.
+#### Open-beta production isolation
 
-Current Railway documentation provides internet egress, optional IPv6, static source IPs, and private service networking, but does not document destination-deny/FQDN egress enforcement. A static source IP is not destination enforcement. Therefore Railway-hosted protected identities are ineligible for production bindings under this ADR. The achievable release state is local-green with both production capabilities killed until a qualifying target is independently proven. This gate must not be weakened to ship.
+`google-content-egress-1` remains semantic infrastructure control, not an application-reported hash. Every content/credential-bearing web or worker replica is immutable and default-deny for IPv4 and IPv6. It may reach only exact internal identity+protocol+port tuples, the named allowlisting resolver, and the authenticated egress gateway. The admission service cannot reach a provider. The gateway cannot reach PostgreSQL or Redis. Provider-ephemeral Redis can initiate no outbound connection, including DNS, metadata, telemetry push, database, Redis peer, or Google.
+
+A control-plane collector must enumerate every protected replica/policy generation and run the complete allowed/denied matrix from each role. Missing replica, drift, default route, alternate resolver/client, direct IP, metadata, unknown internal tuple, or provider-Redis outbound path denies open-beta readiness and production approval.
+
+The planned qualifying target is GKE Standard for application workloads, a dedicated GCE Managed Instance Group for the Google egress gateway, and Google Secure Web Proxy in explicit-proxy, default-deny mode with exact gateway-service-account, hostname, and port-443 rules. This target remains unqualified until a disposable-environment spike proves the complete role-specific network and physical-nonpersistence matrix and a later ADR mutation binds its immutable infrastructure profile. Open beta, public rollout, `production_expand_canary`, and `production_final` remain blocked until that proof exists.
+
+#### Railway closed-beta exception
+
+Current Railway documentation provides internet egress, optional IPv6, static source IPs, and private service networking, but does not document destination-deny/FQDN egress enforcement. A static source IP is not destination enforcement. Railway therefore does not satisfy `google-content-egress-1`.
+
+The product owner nevertheless accepts a lower-assurance, time-bounded exception for the named closed-beta cohort. An exact, explicitly approved `railway-closed-beta-1` binding may authorize **both** `property.import_gbp_v2` and `property.read_gbp_performance`; the capabilities remain independently killed, approved, and rolled back. This exception authorizes no wildcard, plan-, role-, email-domain-, or self-service enrollment and cannot authorize open beta, public access, another capability, `production_expand_canary`, `production_final`, or contract migration.
+
+The immutable Railway risk decision must state that Railway cannot independently prove:
+
+- destination-deny egress from Content/credential-bearing web and worker processes;
+- denial of direct-IP, alternate-DNS, IPv4, IPv6, metadata, sentinel, or unexpected internal-tuple attempts;
+- read-only-root and RAM-only writes at the host boundary, host swap exclusion, or host core-dump exclusion;
+- deny-all-new-outbound enforcement for provider-ephemeral Redis; or
+- the complete infrastructure policy generation and per-role live-probe matrix required by `google-content-egress-1`.
+
+Application routing through a dedicated gateway reduces accidental misuse but does not remove these risks: compromise of a Railway web or worker process may retain general network reachability. The accountable owner must sign all five role documents covering this exact residual for the exact capability, release, images, migration head, Google project/client, cohort, and expiry. The runtime validator requires the same exact signed `approverIdentity` across those documents.
+
+The exception is valid only while all of the following hold:
+
+1. The complete shared foundation plus Import and Performance contracts in this ADR are implemented; no authorization, OAuth, replay, lifecycle, quota, content, accessibility, acceptance, or cleanup requirement is waived.
+2. The cohort is an immutable, explicit organization-ID allowlist in the signed manifest. Server-side checks run at OAuth start/callback, discovery, import start/retry/enqueue/job/effect, Performance request/provider call/publication, authorization-lease renewal, and credential cleanup. Removal denies new work immediately.
+3. Dedicated Railway services run the web, worker, authenticated Google egress gateway, content-free execution admission, and provider-ephemeral Redis roles. App and worker transports expose no direct Google adapter path; every Google request uses a typed gateway route with fixed production origins, constructed paths, redirects denied, and no request/database/environment origin override.
+4. Provider Redis has no volume, AOF, RDB snapshot, replication/backlog persistence, backup, export, or restore path; uses authenticated TLS and least-privilege ACLs; enforces `maxmemory` with `noeviction`; and retains Content for at most 15 minutes. It is never the BullMQ/general Redis.
+5. Controlled containers use read-only roots, bounded RAM-backed writable/temp paths where Railway exposes them, `ulimit core=0`, disabled diagnostics, and body-free logs/traces/APM. Import and Performance responses remain `private, no-store, max-age=0`; no SSR dehydration, browser persister, service-worker cache, export, analytics, screenshot, or durable provider-Content path is added.
+6. OAuth v2 keeps the opaque initiating-session-bound state, PKCE, nonce, exact scopes, signed OIDC `sub`, generic callback failure, serialized subject guard, and exact-token cleanup contract. A beta-specific OAuth client is preferred to limit blast radius; if GCP uses another client, every affected connection is marked `reauthentication_required` rather than silently reused.
+7. Both persisted capability kills begin denied. Activation requires the complete I6 and P3 local gates, integrated immutable-image drill, named-cohort Railway smoke test, dropped-response/overlap/retry/deletion/authorization-race coverage, real kill/drain rehearsal, persistence-negative inspection, and five fresh role attestations signed by the accountable owner. Evidence is body/value-free; no real Performance value or provider display Content enters screenshots or artifacts.
+8. Binding expiry, project-attestation expiry, approval suspension/revocation, cohort mismatch, kill-generation change, policy/authorization refresh failure, release/schema/image/config drift, provider-Redis nonpersistence/readiness failure, or cleanup ambiguity denies new work. No environment variable, static IP, or private-network membership can self-approve or bypass a deny.
 
 ### 13. Identifier storage allowlist
 
@@ -284,9 +319,13 @@ Use expand/compatibility/contract:
 8. denied/quiescent handoff; and
 9. contract DDL only after no compatibility process can run.
 
-Before contract, rollback restores the compatibility binary/issuance while both new capabilities remain killed. After contract, rollback is independent persisted kill/approval revoke plus forward-fix. No alias, shadow column, wildcard route, old job consumer, v1 identity path, or legacy decoder remains after contract.
+Railway closed beta is an additional gate after the integrated local release drill and before qualifying-target production expand. It applies only additive expand migrations, deploys the exact five approved images with both capabilities killed, completes compatibility/backfill/index/issuance/drain checks, and proves the final contract-ready binary on the expand schema. It then persists separate, expiring `railway_closed_beta` bindings and canaries Import and Performance independently for the exact organization cohort. No contract DDL/DML runs on Railway.
 
-Production expand/canary and production contract are separate release gates. The expand owner must end with both capabilities killed or approval-revoked, ordinary and cleanup work drained, and zero active permits/import jobs/outbox relays/authorization leases. The contract owner independently re-proves that state before any production DDL/DML.
+Before contract, rollback first kills or approval-revokes both capabilities, prevents new OAuth/discovery/Performance starts, waits the state/content TTL plus skew, drains ordinary work and credential cleanup, and proves zero active permits, import jobs, outbox relays, authorization leases, or ambiguous source/cleanup operations. It may then restore the compatibility binary/issuance. After contract, rollback is independent persisted kill/approval revoke plus forward-fix. No alias, shadow column, wildcard route, old job consumer, v1 identity path, or legacy decoder remains after contract.
+
+Before GCP migration, Railway must reach that same denied/quiescent state and its provider Redis must be destroyed. The authoritative PostgreSQL migration follows the separately approved state-migration plan; BullMQ state is drained or deterministically reconciled rather than copied blindly. If the GCP deployment uses a different OAuth client, affected Google connections become `reauthentication_required`. Railway never resumes Google work after GCP promotion.
+
+Qualifying-target production expand/canary and production contract remain separate release gates. The expand owner must end with both capabilities killed or approval-revoked, ordinary and cleanup work drained, and zero active permits/import jobs/outbox relays/authorization leases. The contract owner independently re-proves that state before any production DDL/DML.
 
 ## Considered options
 
@@ -296,15 +335,19 @@ Production expand/canary and production contract are separate release gates. The
 - **Use wildcard location routing or infer account identity.** Rejected. Business Information and Reviews are account-scoped; guessing loses authority and tenant routing.
 - **Use self-contained browser claims/provider IDs.** Rejected. Opaque server-resolved references minimize disclosure and allow bounded invalidation.
 - **Treat Railway static egress IP/private networking as isolation.** Rejected. Neither proves destination-deny enforcement.
+- **Enable Import but keep Performance killed on Railway.** Rejected by the product owner for closed beta. The lower-assurance Railway risk is accepted for both capabilities, while all live-only Performance controls and independent kill/approval boundaries remain mandatory.
+- **Delay both capabilities until GCP qualification.** Rejected for closed beta because it prevents the intended end-to-end product learning. Retained as the mandatory open-beta boundary.
 - **Revoke every token returned by a failed initial exchange.** Rejected. Before authoritative subject mapping, revocation can destroy another valid authority.
 
 ## Consequences
 
-- Import and Performance can be implemented, accepted, killed, and released independently after the shared foundation.
+- Import and Performance can be implemented, accepted, killed, canaried, and rolled back independently after the shared foundation.
+- The exact named closed-beta cohort may use both capabilities on Railway only under fresh `railway-closed-beta-1` residual-risk approvals.
 - Performance has no data rollback because it stores no provider Content.
 - Import durability comes from tenant-confirmed profile data, content-free replay digests, deterministic jobs, and Property receipts rather than provider display fields.
 - The architecture needs dedicated provider Redis, admission, gateway, approval, source-guard, cleanup, and release-evidence infrastructure.
-- Production remains blocked on qualifying infrastructure and five exact-release approvals even after all local tests pass.
+- Railway remains a lower-assurance exception; it is not evidence of destination-deny or physical nonpersistence.
+- Open beta and public rollout remain blocked on qualifying `google-content-egress-1` infrastructure and five exact-release approvals even after all local and Railway closed-beta tests pass.
 
 ## Pre-implementation mutation log
 
@@ -325,6 +368,26 @@ Production expand/canary and production contract are separate release gates. The
 - **Affected implementation:** capability/permit foundation, lifecycle operations, local/production release gates, expand constraints, and acceptance evidence.
 - **Migration/rollback impact:** pre-implementation only; no non-revoked outcome may be backfilled as drained.
 - **Proof:** contract tests exhaustively assert the three cleanup outcomes.
+
+### 2026-08-12 — all-feature Railway closed-beta exception
+
+- **Author:** Product owner; recorded by Main.
+- **Reason:** the closed beta needs end-to-end Import and live Performance product learning before the open-beta migration to GCP.
+- **Old contract:** Railway could reach only local-green with both new capabilities production-killed because it cannot prove `google-content-egress-1`.
+- **New contract:** the `railway-closed-beta-1` lower-assurance profile may authorize both new capabilities for an exact named organization cohort for at most 30 days, with independent kills/bindings, five explicit residual-risk approvals, the complete application/content/OAuth/lifecycle controls, dedicated services, and expand-schema-only rollout. It cannot satisfy the isolation profile or authorize open beta, public rollout, qualifying-target production phases, or contract migration.
+- **Risk retained:** Railway still cannot independently enforce or attest destination-deny, bypass denial, host-level physical nonpersistence, provider-Redis outbound denial, or the complete role probe matrix. Gateway routing reduces accidental misuse but not compromise blast radius.
+- **Migration/rollback impact:** add the approval phase/profile and residual-decision schema before activation; kill and drain both capabilities, destroy provider Redis, reconcile queues, and require reauthentication when the OAuth client changes before GCP promotion. No Railway contract DDL/DML.
+- **Proof required:** ADR/blueprint parity, changed-contract tests for the new phase/profile and fail-closed predicates, complete I6/P3 and immutable-image evidence, named-cohort Railway smoke and persistence-negative checks, kill/drain rehearsal, and fresh signatures from all five roles. This policy decision is not itself a runtime approval.
+
+### 2026-08-12 — single-accountable-owner Railway approval
+
+- **Author:** Product owner; recorded by Main.
+- **Reason:** the named closed-beta organization has one accountable operator and cannot supply five independent role owners without fabricating separation of duties.
+- **Old contract:** Railway activation required five fresh residual-risk approvals from independent role owners.
+- **New contract:** for `railway_closed_beta` only, one accountable owner may sign five separate role-specific approval documents. All five documents remain mandatory and must carry one exact signed `approverIdentity`; mixed identities fail closed. Production expand and final phases retain independent role ownership.
+- **Risk retained:** the exception has no separation of duties. A compromised or mistaken owner can approve every Railway role, in addition to the infrastructure risks already accepted for `railway-closed-beta-1`.
+- **Migration/rollback impact:** no persisted schema migration. Deploy the validator change before installing a single-owner bundle. Existing mixed-owner Railway bundles become invalid and must remain killed or be revoked; rollback kills both capabilities and removes the bundle before restoring the prior validator.
+- **Proof required:** changed-contract tests proving same-owner acceptance and mixed-owner denial, a newly frozen immutable release, five separately signed role documents from the named owner, named-cohort acceptance, and the existing kill/drain controls. This ADR mutation is not itself a runtime approval.
 
 ## Contract mutation protocol
 

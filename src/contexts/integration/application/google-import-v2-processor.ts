@@ -4,6 +4,7 @@ import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
 } from '#/contexts/property/application/public-api'
+import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
@@ -87,6 +88,7 @@ export function createGoogleImportV2Processor(
     store: GoogleImportV2Store
     propertyBindingApi: PropertyGoogleBindingPublicApi
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
+    enqueueReviewSync?: ReviewQueuePort['addSyncJob']
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
@@ -98,6 +100,41 @@ export function createGoogleImportV2Processor(
     receipt: PropertyReceipt,
     now: Date,
   ): Promise<void> => {
+    if (
+      deps.enqueueReviewSync &&
+      !receipt.tombstone &&
+      receipt.destinationPropertyId !== null &&
+      (receipt.outcome === 'imported' || receipt.outcome === 'relinked')
+    ) {
+      const binding = await deps.propertyBindingApi.readInternal(
+        organizationId(organizationIdValue),
+        receipt.destinationPropertyId,
+      )
+      if (
+        binding?.state === 'active' &&
+        binding.connectionId !== null &&
+        binding.accountId !== null &&
+        binding.locationId !== null &&
+        binding.sourceEpoch === receipt.destinationSourceEpoch
+      ) {
+        await deps.enqueueReviewSync(
+          {
+            organizationId: organizationIdValue,
+            propertyId: receipt.destinationPropertyId,
+            connectionId: binding.connectionId,
+            locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
+            initiator: {
+              kind: 'system',
+              id: 'google-property-import',
+            },
+            correlationId: `google-import:${itemId}`,
+          },
+          {
+            jobId: `review-sync-${receipt.destinationPropertyId}-source-epoch-${receipt.destinationSourceEpoch}`,
+          },
+        )
+      }
+    }
     await deps.store.reconcileFromReceipt({
       organizationId: organizationIdValue,
       itemId,

@@ -230,6 +230,7 @@ export function createGoogleImportDiscovery(
       propertyId: null,
       connectionId: googleConnectionId(authorization.connectionId),
       initiatorUserId: authorization.userId,
+      expectedCredentialGeneration: authorization.credentialGeneration,
       approvalBindingId: authorization.approvalBindingId,
       authorizationVector: authorization.authorizationVector,
     })

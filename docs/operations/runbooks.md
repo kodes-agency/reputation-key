@@ -75,6 +75,20 @@ artifact gate (`pnpm check:google-import-artifacts`) proves final bundles omit
 legacy Google identity/state/job/schema adapters while the compatibility
 bundle retains the frozen rollout surface.
 
+### Canonical synthetic Google resource
+
+Incident notes, logs, evidence, and provider-support records must never paste a
+Google account, location, or review resource. The generated value below is the
+only repository documentation example; it is unmistakably synthetic and must
+never be sent to Google.
+
+<!-- google-provider-identifiers-v1:start -->
+
+> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87`). Do not edit this block.
+> Canonical synthetic review resource: `accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001`.
+
+<!-- google-provider-identifiers-v1:end -->
+
 Registered gaps (owned elsewhere, do NOT improvise in an incident): metric-rollup
 watermark reset (metric owner — use `ops:refresh metrics-*` for a bounded re-run),
 ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution

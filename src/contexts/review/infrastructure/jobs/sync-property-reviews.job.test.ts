@@ -1,54 +1,63 @@
-// sync-property-reviews job handler behavior.
-// BQC-3.2: the BQC-0.4 in-handler capability stop control moved to the
-// dispatch gate (src/shared/jobs/delayed-execution-gate.ts) — see
-// gated-dispatch.test.ts and architecture/delayed-policy-delegation.test.ts.
-
-import { describe, it, expect, vi } from 'vitest'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { describe, expect, it, vi } from 'vitest'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
 
 const JOB_DATA = {
   propertyId: '11111111-1111-4111-8111-111111111111',
-  organizationId: 'org-1',
+  organizationId: '33333333-3333-4333-8333-333333333333',
   connectionId: '22222222-2222-4222-8222-222222222222',
-  locationName: 'accounts/111/locations/222',
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
-function makeSyncResult() {
-  return {
-    isErr: () => false,
-    value: {
-      partialFailure: false,
-      fetched: 0,
-      created: 0,
-      updated: 0,
-      refreshed: 0,
-      failed: 0,
-      repliesMirrored: 0,
-    },
-  }
+const propertyRouting = {
+  getProcessingScope: vi.fn(async () => ({ processingRegion: 'global', sourceEpoch: 7 })),
 }
 
-describe('sync-property-reviews job handler', () => {
-  it('runs the use case without an in-handler capability gate (delegated to dispatch)', async () => {
-    const syncReviews = vi.fn().mockResolvedValue(makeSyncResult())
+describe('sync-property-reviews snapshot handler', () => {
+  it('executes one bounded step and enqueues its provider-token-free continuation', async () => {
+    const runSnapshot = vi.fn(async () => ({
+      status: 'checkpointed' as const,
+      runId: '44444444-4444-4444-8444-444444444444',
+      state: 'scanning' as const,
+    }))
+    const enqueueContinuation = vi.fn(async () => undefined)
     const handler = createSyncPropertyReviewsHandler({
-      syncReviews: syncReviews as never,
+      runSnapshot,
+      propertyRouting,
+      enqueueContinuation,
     })
 
     await handler({ id: 'job-1', data: JOB_DATA } as never)
 
-    expect(syncReviews).toHaveBeenCalledTimes(1)
+    expect(runSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceEpoch: 7,
+        locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      }),
+    )
+    expect(enqueueContinuation).toHaveBeenCalledWith({
+      ...JOB_DATA,
+      sourceEpoch: 7,
+      runId: '44444444-4444-4444-8444-444444444444',
+    })
+    expect(JSON.stringify(enqueueContinuation.mock.calls)).not.toContain('pageToken')
+  })
+
+  it('rejects a stale source epoch before snapshot work', async () => {
+    const runSnapshot = vi.fn()
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: runSnapshot as never,
+      propertyRouting,
+      enqueueContinuation: vi.fn(async () => undefined),
+    })
+
+    await expect(
+      handler({ id: 'job-2', data: { ...JOB_DATA, sourceEpoch: 6 } } as never),
+    ).rejects.toThrow('Review provider source changed')
+    expect(runSnapshot).not.toHaveBeenCalled()
   })
 })

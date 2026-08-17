@@ -47,8 +47,8 @@ test.describe('Critical workflow: review arrival → inbox projection SLO', () =
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
-        type: 'LOCATION_GROUP',
-        roleInfo: { name: 'OWNER' },
+        accountName: `E2E SLO account ${e2eRunId}`,
+        role: 'OWNER',
       },
       locations: [
         {
@@ -74,14 +74,17 @@ test.describe('Critical workflow: review arrival → inbox projection SLO', () =
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
       connectedBy: admin!.id,
-      googleAccountId: ACCOUNT,
+      googleSubject: ACCOUNT,
     })
     const { propertyId } = await seedProperty({
       organizationId: seed.organizationId,
       name: `E2E SLO Hotel ${e2eRunId}`,
       slug: `${PREFIX}prop-${e2eRunId}`,
-      gbpPlaceId: 'slo-loc',
-      googleConnectionId: connectionId,
+      googleBinding: {
+        connectionId,
+        accountId: ACCOUNT,
+        locationId: 'slo-loc',
+      },
     })
 
     await signIn(page)

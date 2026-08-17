@@ -1,5 +1,10 @@
 // Review context — reply lifecycle use case tests
 
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import {
   draftReply,
@@ -70,6 +75,11 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -236,7 +246,7 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       addPublishJob: vi.fn(async () => {}),
     } as unknown as ReplyQueuePort,
     googleReviewApi: {
-      fetchReviews: vi.fn(async () => []),
+      getReview: vi.fn(async () => ({ status: 'not_found' as const })),
       replyToReview: vi.fn(async () => {}),
     } as unknown as GoogleReviewApiPort,
     commandStore: undefined as unknown as ReplyCommandStore,
@@ -1004,7 +1014,7 @@ describe('retryPublish', () => {
     expect(result.publicationState).toBe('authorized')
     expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
     // Non-ambiguous rows behave exactly as today — no provider re-read.
-    expect(deps.googleReviewApi.fetchReviews).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 
   it('rejects retry for non-failed reply', async () => {
@@ -1037,8 +1047,8 @@ describe('retryPublish', () => {
     }
     const reviewWithConnection = makeReview({
       googleConnectionId: 'conn-1' as never,
-      externalLocationId: 'accounts/111/locations/222',
-      externalId: 'ext-1',
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
     })
     const deps = makeDeps({
       replyRepo: {
@@ -1051,18 +1061,26 @@ describe('retryPublish', () => {
         findById: vi.fn(async () => reviewWithConnection),
       } as unknown as ReviewRepository,
     })
-    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
-      { externalId: 'ext-1', replyText: 'Thank you!' } as never,
-    ])
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: 'Thank you!',
+      } as never,
+    })
 
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
 
     expect(result.status).toBe('published')
-    expect(deps.googleReviewApi.fetchReviews).toHaveBeenCalledWith(
-      ORG_ID,
-      'conn-1',
-      'accounts/111/locations/222',
-    )
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      connectionId: 'conn-1',
+      sourceEpoch: 0,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     // The heal commits the published fact (once — no duplicate send).
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
@@ -1080,8 +1098,8 @@ describe('retryPublish', () => {
     })
     const reviewWithConnection = makeReview({
       googleConnectionId: 'conn-1' as never,
-      externalLocationId: 'accounts/111/locations/222',
-      externalId: 'ext-1',
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
     })
     const deps = makeDeps({
       replyRepo: {
@@ -1093,9 +1111,14 @@ describe('retryPublish', () => {
         findById: vi.fn(async () => reviewWithConnection),
       } as unknown as ReviewRepository,
     })
-    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
-      { externalId: 'ext-1', replyText: null } as never,
-    ])
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: null,
+      } as never,
+    })
 
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
 

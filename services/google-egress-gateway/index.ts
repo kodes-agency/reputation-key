@@ -60,6 +60,11 @@ const admissionTransport = createInternalMtlsJsonTransport({
   origin: requiredEnv('GOOGLE_EXECUTION_ADMISSION_ORIGIN'),
   tls,
   serverName: requiredEnv('GOOGLE_EXECUTION_ADMISSION_SERVER_NAME'),
+  peerIdentityPolicy: {
+    uri: 'spiffe://repkey.internal/google-execution-admission',
+    dnsName: requiredEnv('GOOGLE_EXECUTION_ADMISSION_SERVER_NAME'),
+    extendedKeyUsages: ['serverAuth'],
+  },
 })
 const admission = createGoogleExecutionAdmissionHttpClient(admissionTransport)
 const grantKeyring = createVersionedHmacKeyring(

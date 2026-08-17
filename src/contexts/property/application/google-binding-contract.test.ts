@@ -1,3 +1,4 @@
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   GOOGLE_BINDING_STATES,
@@ -36,7 +37,14 @@ describe('Property Google binding contract', () => {
   it('accepts only bare bounded provider suffixes', () => {
     expect(isGoogleResourceSuffix('123456789')).toBe(true)
     expect(isGoogleResourceSuffix('x'.repeat(255))).toBe(true)
-    for (const value of ['', 'accounts/123', 'a?b', 'a#b', 'a b', 'x'.repeat(256)]) {
+    for (const value of [
+      '',
+      GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+      'a?b',
+      'a#b',
+      'a b',
+      'x'.repeat(256),
+    ]) {
       expect(isGoogleResourceSuffix(value)).toBe(false)
     }
   })

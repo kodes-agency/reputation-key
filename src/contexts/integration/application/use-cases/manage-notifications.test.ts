@@ -1,5 +1,9 @@
 // Integration context — manage-notifications use case tests (Pub/Sub lifecycle step 3).
 
+import {
+  GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import { manageNotifications } from './manage-notifications'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
@@ -14,6 +18,8 @@ import type { GoogleConnection } from '../../domain/types'
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const CONN = 'e0000000-0000-0000-0000-000000000001'
+const ACCOUNT_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-account-primary'].expectedSegments.accountId
 
 const setup = (overrides?: {
   connection?: Partial<GoogleConnection>
@@ -35,7 +41,12 @@ const setup = (overrides?: {
   )
 
   gbpApi.setAccounts([
-    { name: 'accounts/1234567890', accountName: 'Biz', type: 'BUSINESS', role: 'OWNER' },
+    {
+      name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+      accountName: 'Biz',
+      type: 'BUSINESS',
+      role: 'OWNER',
+    },
   ])
 
   const connection = buildTestGoogleConnection({
@@ -80,7 +91,7 @@ describe('manageNotifications', () => {
       expect(notifications.subscribeCalls).toHaveLength(1)
       expect(notifications.subscribeCalls[0]).toMatchObject({
         accessToken: 'access-token',
-        gbpAccountId: '1234567890',
+        gbpAccountId: ACCOUNT_ID,
         pubsubTopic: 'projects/test/topics/gbp-reviews',
         notificationTypes: ['NEW_REVIEW'],
       })
@@ -140,7 +151,7 @@ describe('manageNotifications', () => {
       expect(notifications.unsubscribeCalls).toHaveLength(1)
       expect(notifications.unsubscribeCalls[0]).toMatchObject({
         accessToken: 'access-token',
-        gbpAccountId: '1234567890',
+        gbpAccountId: ACCOUNT_ID,
       })
     })
 

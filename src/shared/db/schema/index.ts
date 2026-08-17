@@ -1,6 +1,7 @@
 // Schema barrel — import all schema files here
 // so Drizzle kit and the DB connection can reference a single entry point.
 
+export * from './ai.schema'
 export * from './auth'
 export * from './dac.schema'
 export * from './audit'
@@ -26,5 +27,6 @@ export * from './activity.schema'
 export * from './notification.schema'
 export * from './outbox.schema'
 export * from './policy.schema'
+export * from './merchant-ai-authorization.schema'
 export * from './google-content-control.schema'
 export * from './region-move.schema'

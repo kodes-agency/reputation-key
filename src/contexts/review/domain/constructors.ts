@@ -37,6 +37,8 @@ type BuildReviewArgs = Readonly<{
   languageCode: string | null
   reviewedAt: Date
   now: Date
+  aiSourceByteLength: number
+  aiSourceDigest: string
   sentimentLabel?: SentimentLabel
   sentimentScore?: number | null
 }>
@@ -75,6 +77,8 @@ export const buildReview = (args: BuildReviewArgs) => {
       reviewedAt: args.reviewedAt,
       now: args.now,
       contentHash,
+      aiSourceByteLength: args.aiSourceByteLength,
+      aiSourceDigest: args.aiSourceDigest,
     }),
     createdAt: args.now,
     updatedAt: args.now,

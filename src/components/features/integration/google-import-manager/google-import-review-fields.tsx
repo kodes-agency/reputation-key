@@ -21,6 +21,7 @@ import {
 type Props = Readonly<{
   item: ImportReviewItem
   attempted: boolean
+  disabled: boolean
   validation: ImportReviewValidation
   onPatch: (patch: Partial<ImportReviewItem>) => void
 }>
@@ -36,6 +37,7 @@ function errorFor(
 export function GoogleImportReviewFields({
   item,
   attempted,
+  disabled,
   validation,
   onPatch,
 }: Props) {
@@ -52,7 +54,7 @@ export function GoogleImportReviewFields({
           <Input
             id={reviewControlId(item.candidateId, 'name')}
             value={item.name}
-            disabled={!editableProfile}
+            disabled={disabled || !editableProfile}
             maxLength={100}
             aria-invalid={invalid('name')}
             onChange={(event) => onPatch({ name: event.currentTarget.value })}
@@ -69,7 +71,7 @@ export function GoogleImportReviewFields({
           <Input
             id={reviewControlId(item.candidateId, 'address')}
             value={item.address}
-            disabled={!editableProfile}
+            disabled={disabled || !editableProfile}
             maxLength={500}
             aria-invalid={invalid('address')}
             onChange={(event) => onPatch({ address: event.currentTarget.value })}
@@ -89,6 +91,7 @@ export function GoogleImportReviewFields({
               onValueChange={(countryCode) =>
                 onPatch({ countryCode, countryConfirmed: false })
               }
+              disabled={disabled}
             >
               <SelectTrigger
                 id={reviewControlId(item.candidateId, 'countryCode')}
@@ -118,6 +121,7 @@ export function GoogleImportReviewFields({
           <Select
             value={item.timezone}
             onValueChange={(timezone) => onPatch({ timezone, timezoneConfirmed: false })}
+            disabled={disabled}
           >
             <SelectTrigger
               id={reviewControlId(item.candidateId, 'timezone')}
@@ -146,6 +150,7 @@ export function GoogleImportReviewFields({
             <Checkbox
               id={reviewControlId(item.candidateId, 'countryConfirmed')}
               checked={item.countryConfirmed}
+              disabled={disabled}
               aria-invalid={invalid('countryConfirmed')}
               onCheckedChange={(checked) =>
                 onPatch({ countryConfirmed: checked === true })
@@ -165,6 +170,7 @@ export function GoogleImportReviewFields({
           <Checkbox
             id={reviewControlId(item.candidateId, 'timezoneConfirmed')}
             checked={item.timezoneConfirmed}
+            disabled={disabled}
             aria-invalid={invalid('timezoneConfirmed')}
             onCheckedChange={(checked) =>
               onPatch({ timezoneConfirmed: checked === true })

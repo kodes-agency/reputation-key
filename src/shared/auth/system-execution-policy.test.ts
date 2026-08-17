@@ -37,9 +37,10 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(fixture.env))
 
       const refreshPolicy = vi.fn(async () => {})
+      const hasActiveConsent = vi.fn(async () => false)
       const deps: DelayedPolicyDeps = {
         refreshPolicy,
-        hasActiveConsent: async () => false,
+        hasActiveConsent,
       }
       const policy = createDelayedExecutionPolicy(deps)
       const decision = await policy.decide({
@@ -51,6 +52,13 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       if (fixture.expect.reason) expect(decision.reason).toBe(fixture.expect.reason)
       expect(decision.freshRead).toBe(fixture.expect.freshRead)
       expect(refreshPolicy).toHaveBeenCalledTimes(fixture.expect.freshRead ? 1 : 0)
+      if (fixture.request.consent) {
+        expect(hasActiveConsent).toHaveBeenCalledWith({
+          organizationId: fixture.request.organizationId,
+          ...fixture.request.consent,
+          at: new Date('2026-07-17T12:00:00Z'),
+        })
+      }
       // stale_context annotates — the fresh decision itself is never overridden.
       if (fixture.expect.outcome === 'stale_context') {
         expect(decision.allowed).toBe(true)

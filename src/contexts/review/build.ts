@@ -17,14 +17,24 @@ import type {
   ReplyQueuePort,
 } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type { PropertyProcessingScopePublicApi } from '#/contexts/property/application/public-api'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
 import { createAtomicReplyCommandStore } from './infrastructure/reply-command-store'
-import { syncReviews } from './application/use-cases/sync-reviews'
+import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
+import { createAiReviewSource } from './application/ai-review-source'
+import {
+  createReviewProviderSubjectKeyService,
+  createUnavailableReviewProviderSubjectKeyService,
+  type ReviewProviderSubjectKeyService,
+  type ReviewProviderSubjectSecretKeyring,
+} from './application/provider-subject-keyring'
+import { createReviewProviderSubjectKeyInventoryRepository } from './infrastructure/provider-subject-key-inventory.repository'
+import { createReviewProviderSnapshotRepository } from './infrastructure/repositories/review-provider-snapshot.repository'
+import { runReviewProviderSnapshot } from './application/use-cases/run-review-provider-snapshot'
 import {
   draftReply,
   submitReply,
@@ -64,7 +74,7 @@ export type ReviewContextBuildInput = Readonly<{
    * context owns the routing fact — the build wraps its public API into
    * review's PropertyRoutingPort.
    */
-  propertyApi: Pick<PropertyPublicApi, 'getProcessingRegion'>
+  propertyApi: PropertyProcessingScopePublicApi
   /**
    * BQC-4.2: stamps the content-free routing envelope on sync/publish job
    * payloads at enqueue. Optional — when absent (or when resolution fails),
@@ -72,6 +82,8 @@ export type ReviewContextBuildInput = Readonly<{
    * remains the authority (ADR 0048).
    */
   processingRouter?: ProcessingRouter
+  /** Worker-only Review provider-subject key material; absent on web. */
+  providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -85,7 +97,7 @@ export type ReviewContextApi = Readonly<{
       replyQueue: ReplyQueuePort
     }>
     useCases: Readonly<{
-      syncReviews: ReturnType<typeof syncReviews>
+      runReviewProviderSnapshot: ReturnType<typeof runReviewProviderSnapshot>
       draftReply: ReturnType<typeof draftReply>
       submitReply: ReturnType<typeof submitReply>
       approveReply: ReturnType<typeof approveReply>
@@ -103,12 +115,22 @@ export type ReviewContextApi = Readonly<{
      * consumers (dashboard) as their review-stats dep port.
      */
     servingStats: ReviewServingStats
+    /** Content-minimized Review source for authorized AI workloads. */
+    aiReviewSource: ReturnType<typeof createAiReviewSource>
+    /** Masked-inventory-verified derivation/rotation authority for Review writers. */
+    providerSubjectKeys: ReviewProviderSubjectKeyService
   }>
 }>
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
   const reviewRepo = createReviewRepository(input.db)
   const replyRepo = createReplyRepository(input.db)
+  const providerSubjectKeys = input.providerSubjectKeyring
+    ? createReviewProviderSubjectKeyService({
+        keyring: input.providerSubjectKeyring,
+        repository: createReviewProviderSubjectKeyInventoryRepository(input.db),
+      })
+    : createUnavailableReviewProviderSubjectKeyService()
 
   if (!input.jobQueue)
     throw reviewError(
@@ -219,11 +241,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
   }
 
-  // BQC-4.1: review sync asserts the property's region before any external
-  // effect; the property context owns the routing fact (ADR 0048).
+  // Read the cell and source epoch atomically so review synchronization can
+  // reject provider results after a relink/disconnect race.
   const propertyRoutingLookup: PropertyRoutingPort = {
-    getProcessingRegion: (orgId, pid) =>
-      input.propertyApi.getProcessingRegion(orgId, pid),
+    getProcessingScope: (orgId, pid) => input.propertyApi.getProcessingScope(orgId, pid),
   }
 
   // BQC-3.3: atomic reply state + outbox writes for the reply command family.
@@ -257,18 +278,22 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   // BQR-2.3: atomic review upsert + outbox insert for sync path
   const commandStore = createAtomicReviewCommandStore(input.db, input.events)
 
+  const observationWriter = createReviewProviderObservationWriter({
+    reviewRepo,
+    replyRepo,
+    clock: input.clock,
+    idGen: () => reviewId(crypto.randomUUID()),
+    replyIdGen: () => replyId(crypto.randomUUID()),
+    commandStore,
+    replyCommandStore,
+  })
   const useCases = {
-    syncReviews: syncReviews({
-      reviewRepo,
-      replyRepo,
+    runReviewProviderSnapshot: runReviewProviderSnapshot({
+      repository: createReviewProviderSnapshotRepository(input.db, input.events),
       googleReviewApi: input.googleReviewApi,
-      clock: input.clock,
-      idGen: () => reviewId(crypto.randomUUID()),
-      replyIdGen: () => replyId(crypto.randomUUID()),
-      logger: input.logger,
-      commandStore,
-      replyCommandStore,
       propertyRouting: propertyRoutingLookup,
+      observationWriter,
+      subjectKeyService: providerSubjectKeys,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),
@@ -305,6 +330,11 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
       // clock-injected. Wired into the dashboard build by composition.
       servingStats: createServingStats({ db: input.db, clock: input.clock }),
+      aiReviewSource: createAiReviewSource({
+        readForAi: reviewRepo.readForAi,
+        assertCurrentForAi: reviewRepo.assertCurrentForAi,
+      }),
+      providerSubjectKeys,
     },
   }
 }

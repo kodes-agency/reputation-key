@@ -51,8 +51,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
+import { drizzle } from 'drizzle-orm/node-postgres'
 import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
 import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migrator'
+import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -147,6 +149,11 @@ async function main(): Promise<void> {
       // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
+      await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
+        db: drizzle(client),
+        env: process.env,
+      })
+      log('review provider subject key inventory initialized')
 
       // Verify the deploy migration state (self-maintaining expectations —
       // the journal file on disk is the reference, not a hardcoded count).
@@ -157,22 +164,30 @@ async function main(): Promise<void> {
           (SELECT EXISTS (SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'public' AND table_name = 'user')) AS has_auth,
           (SELECT EXISTS (SELECT 1 FROM pg_proc
-            WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar
+            WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar,
+          (SELECT count(*) = 1
+            FROM review_provider_subject_hmac_key_versions
+            WHERE state = 'active') AS has_provider_subject_key
       `)
       const journal = await readJournalState(client)
       const row = state.rows[0] as {
         table_count: number
         has_auth: boolean
         has_sidecar: boolean
+        has_provider_subject_key: boolean
       }
       const complete =
-        row.has_auth && row.has_sidecar && journal.applied === expectedJournalCount()
+        row.has_auth &&
+        row.has_sidecar &&
+        row.has_provider_subject_key &&
+        journal.applied === expectedJournalCount()
       log('migration state', {
         tableCount: row.table_count,
         journalApplied: journal.applied,
         journalExpected: expectedJournalCount(),
         hasAuthTables: row.has_auth,
         hasSidecar: row.has_sidecar,
+        hasProviderSubjectKey: row.has_provider_subject_key,
       })
       if (!complete) {
         throw new Error(

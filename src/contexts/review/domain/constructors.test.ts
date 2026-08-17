@@ -14,10 +14,15 @@ const ORG_ID = organizationId('org-1')
 const PROP_ID = propertyId('prop-1')
 const CONN_ID = googleConnectionId('conn-1')
 const NOW = new Date('2025-06-01T12:00:00Z')
+const AI_PROVENANCE = {
+  aiSourceByteLength: 1,
+  aiSourceDigest: '0'.repeat(64),
+} as const
 
 describe('buildReview', () => {
   it('builds a valid review with all fields', () => {
     const result = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-1'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -48,6 +53,7 @@ describe('buildReview', () => {
 
   it('returns Err for invalid rating', () => {
     const result = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-1'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -72,6 +78,7 @@ describe('buildReview', () => {
   it('calculates expiresAt from reviewedAt', () => {
     const reviewedAt = new Date('2025-05-27T12:00:00Z') // 5 days before NOW
     const result = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-1'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -98,6 +105,7 @@ describe('buildReview', () => {
   it('sets contentExpiresAt from fetch time (not publication) and contentHash', () => {
     const reviewedAt = new Date('2025-05-01T12:00:00Z') // older publication
     const result = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-1'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -126,6 +134,7 @@ describe('buildReview', () => {
 
   it('preserves sentiment when provided', () => {
     const result = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-1'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,
@@ -273,6 +282,7 @@ describe('ReviewErrorCode — exhaustive constructor coverage', () => {
 
     // buildReview → invalid_rating  (rating out of 1–5 range)
     const ratingResult = buildReview({
+      ...AI_PROVENANCE,
       id: reviewId('rev-bad'),
       organizationId: ORG_ID,
       propertyId: PROP_ID,

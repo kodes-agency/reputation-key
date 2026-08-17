@@ -149,6 +149,33 @@ branch-ruleset setting ("code scanning results" required check) — platform
 configuration to be flipped during BQC-8 hardening, noted here so it is not
 silently lost.
 
+### GitHub merge and production-environment controls
+
+Verified 2026-08-15 for `kodes-agency/reputation-key`:
+
+- active repository ruleset `20890731`
+  (`main-required-pull-request-and-ci`) targets `refs/heads/main`;
+- direct updates require a pull request with one approval, stale-review
+  dismissal, Code Owner review where applicable, approval after the last push,
+  and resolved review threads;
+- merge method is squash only; branch deletion and non-fast-forward updates
+  are denied;
+- required checks are `check`, `docker`, `secrets`, `storybook`,
+  `storybook-test`, `e2e`, `audit`, and
+  `Analyze (javascript-typescript)`, with strict branch freshness; and
+- GitHub environment `production` (ID `19948405265`) targets protected
+  branches and requires a reviewer with self-review prevention.
+  The only eligible repository collaborator is currently `kodes-agency`, so
+  PR review and self-review prevention intentionally keep merges and production
+  deployment blocked until a second eligible reviewer is added. GitHub reports
+  `can_admins_bypass: true`; the repository owner must disable administrator
+  bypass in the environment UI before this becomes a hard release control.
+
+Ruleset/environment readback is candidate evidence, not a permanent fact:
+release validation must query GitHub again and compare the exact rule/check
+set. The GitHub environment does not by itself prove that a Railway deployment
+uses it; the controlled-deployment workflow/link remains a release gate.
+
 ### eslint-plugin-security triage (deliberate deviations)
 
 `eslint-plugin-security@4.0.1` recommended rules run as **errors** on

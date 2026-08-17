@@ -66,9 +66,11 @@ export function useGooglePerformance(
 
   const clearVolatileContent = useCallback(
     (reason: PerformanceClearReason) => {
+      const expiredKey = queryKey
       setClearReason(reason)
       setReportEnabled(false)
-      void clearQueryKey(queryKey)
+      setViewEpoch((current) => current + 1)
+      void clearQueryKey(expiredKey)
     },
     [clearQueryKey, queryKey],
   )
@@ -192,11 +194,12 @@ export function useGooglePerformance(
     contentExpired: clearReason === 'content_expired',
     retryAfterSeconds,
     refresh: () => {
-      const previousKey = queryKey
-      setClearReason(null)
-      setReportEnabled(true)
-      setViewEpoch((current) => current + 1)
-      void clearQueryKey(previousKey)
+      if (clearReason !== null || !reportEnabled) {
+        setClearReason(null)
+        setReportEnabled(true)
+        return
+      }
+      void query.refetch()
     },
   })
 }

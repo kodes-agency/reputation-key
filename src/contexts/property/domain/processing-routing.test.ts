@@ -84,40 +84,24 @@ describe('wouldChangeResolvedRegion', () => {
   })
 })
 
-// BQC-4.1 / ADR 0048: only the US cell executes protected workloads in beta.
-// 'europe' is denied until its infrastructure passes; 'global' is a denied
-// placeholder; 'unresolved' fails closed.
+// Private-beta execution is globally available for properties with a resolved
+// country-derived cell. A genuinely unresolved property still fails closed.
 describe('isRegionProcessable', () => {
-  it('is true only for us', () => {
-    expect(isRegionProcessable('us')).toBe(true)
+  it.each(['us', 'europe', 'global'])('allows the resolved %s cell', (region) => {
+    expect(isRegionProcessable(region)).toBe(true)
   })
 
-  it('is false for denied or unresolved regions', () => {
-    expect(isRegionProcessable('europe')).toBe(false)
-    expect(isRegionProcessable('global')).toBe(false)
+  it('is false for unresolved or missing regions', () => {
     expect(isRegionProcessable('unresolved')).toBe(false)
     expect(isRegionProcessable(null)).toBe(false)
   })
 })
 
 describe('assertRegionResolved', () => {
-  it('does not throw for the approved us cell', () => {
-    expect(() => assertRegionResolved({ processingRegion: 'us' })).not.toThrow()
-  })
-
-  it.each(['unresolved', 'europe', 'global'])(
-    'throws region_unresolved for %s',
+  it.each(['us', 'europe', 'global'])(
+    'does not throw for the resolved %s cell',
     (region) => {
-      try {
-        assertRegionResolved({ processingRegion: region })
-        expect.unreachable('should have thrown')
-      } catch (e) {
-        expect(isPropertyError(e)).toBe(true)
-        expect((e as { code: string }).code).toBe('region_unresolved')
-        expect((e as { context?: { processingRegion?: string } }).context).toEqual({
-          processingRegion: region,
-        })
-      }
+      expect(() => assertRegionResolved({ processingRegion: region })).not.toThrow()
     },
   )
 
@@ -136,18 +120,13 @@ describe('assertRegionResolved', () => {
 // detail DTO, operator diagnostic). Mirrors the ProcessingRouter's blocked
 // reasons — 'unresolved'/missing vs denied cell/placeholder.
 describe('regionBlockedReason', () => {
-  it('is null for the approved us cell', () => {
-    expect(regionBlockedReason('us')).toBeNull()
+  it.each(['us', 'europe', 'global'])('is null for the available %s cell', (region) => {
+    expect(regionBlockedReason(region)).toBeNull()
   })
 
   it('is region_unresolved for unresolved or missing regions', () => {
     expect(regionBlockedReason('unresolved')).toBe('region_unresolved')
     expect(regionBlockedReason(null)).toBe('region_unresolved')
-  })
-
-  it('is region_denied for the denied europe cell and global placeholder', () => {
-    expect(regionBlockedReason('europe')).toBe('region_denied')
-    expect(regionBlockedReason('global')).toBe('region_denied')
   })
 
   it('is region_denied for unknown region values (fail closed)', () => {

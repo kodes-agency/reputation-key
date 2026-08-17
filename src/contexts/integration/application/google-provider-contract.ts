@@ -40,6 +40,7 @@ export type GoogleProviderCallAuthorization = Readonly<{
   connectionId: GoogleConnectionId
   initiatorUserId: string
   approvalBindingId: string
+  expectedCredentialGeneration: number
   authorizationVector: Readonly<Record<string, string | number | boolean | null>>
 }>
 export type ProviderPage<T> = Readonly<{

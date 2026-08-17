@@ -29,7 +29,11 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import { EXECUTION_POLICY_VERSION, type DecisionAuditEntry } from './execution-policy'
+import {
+  EXECUTION_POLICY_VERSION,
+  type ConsentSelector,
+  type DecisionAuditEntry,
+} from './execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -81,7 +85,7 @@ export type DelayedDecisionRequest = Readonly<{
   executionKind: 'worker' | 'consumer' | 'schedule'
   /** Who enqueued the work, when relevant (user or system). */
   initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
-  purpose?: string
+  consent?: ConsentSelector
   /** Policy version recorded at enqueue — stale-context detection only. */
   policyVersionAtEnqueue?: string
   correlationId?: string
@@ -116,13 +120,12 @@ export type DelayedPolicyDeps = Readonly<{
   /** Version-gated strong read (container.refreshPolicyStore). */
   refreshPolicy: () => Promise<void>
   hasActiveConsent?: (
-    input: Readonly<{
-      organizationId: string
-      subjectType: string
-      subjectId: string
-      purpose: string
-      at: Date
-    }>,
+    input: Readonly<
+      ConsentSelector & {
+        organizationId: string
+        at: Date
+      }
+    >,
   ) => Promise<boolean>
   writeDecisionAudit?: (entry: DecisionAuditEntry) => Promise<void>
   onAuditError?: (err: unknown) => void
@@ -233,17 +236,25 @@ export function createDelayedExecutionPolicy(
         }
       }
 
-      // Purpose/consent re-check (org-level subject, as interactive).
-      if (request.purpose) {
-        const consented = deps.hasActiveConsent
-          ? await deps.hasActiveConsent({
-              organizationId: request.organizationId,
-              subjectType: 'organization',
-              subjectId: request.organizationId,
-              purpose: request.purpose,
-              at: request.now,
-            })
-          : false
+      // Explicit consent subject is forwarded from enqueue and rechecked now.
+      if (request.consent) {
+        const subjectMatchesRequest =
+          (request.consent.subjectType === 'organization' &&
+            request.consent.subjectId === request.organizationId) ||
+          (request.consent.subjectType === 'property' &&
+            request.propertyId !== undefined &&
+            request.consent.subjectId === request.propertyId) ||
+          (request.consent.subjectType === 'user' &&
+            request.initiator?.kind === 'user' &&
+            request.consent.subjectId === request.initiator.id)
+        const consented =
+          subjectMatchesRequest && deps.hasActiveConsent
+            ? await deps.hasActiveConsent({
+                organizationId: request.organizationId,
+                ...request.consent,
+                at: request.now,
+              })
+            : false
         if (!consented) {
           return finish(request, capability, false, 'consent_required', freshRead)
         }

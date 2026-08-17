@@ -24,15 +24,16 @@ describe('local stack controller', () => {
     expect(parseLocalStackMode(mode)).toBe(mode)
   })
 
-  it('assigns isolated loopback database and Redis ports to every mode', () => {
+  it('assigns isolated loopback service ports to every mode', () => {
     const ports = (['e2e', 'perf', 'beta'] as const).map(localStackHostPorts)
 
     expect(new Set(ports.map(({ postgres }) => postgres))).toHaveLength(3)
     expect(new Set(ports.map(({ redis }) => redis))).toHaveLength(3)
+    expect(new Set(ports.map(({ googleGateway }) => googleGateway))).toHaveLength(3)
     expect(ports).toEqual([
-      { postgres: 55432, redis: 56379 },
-      { postgres: 55433, redis: 56380 },
-      { postgres: 55434, redis: 56381 },
+      { postgres: 55432, redis: 56379, googleGateway: 58443 },
+      { postgres: 55433, redis: 56380, googleGateway: 58444 },
+      { postgres: 55434, redis: 56381, googleGateway: 58445 },
     ])
   })
 
@@ -58,9 +59,24 @@ describe('local stack controller', () => {
     })
     expect(env.POSTGRES_HOST_PORT).toBe('55434')
     expect(env.REDIS_HOST_PORT).toBe('56381')
+    expect(env.GOOGLE_EGRESS_GATEWAY_HOST_PORT).toBe('58445')
     expect(env.BETTER_AUTH_SECRET).toHaveLength(64)
     expect(env.ENCRYPTION_KEY).toMatch(/^[a-f0-9]{64}$/)
     expect(env.OAUTH_STATE_SECRET).toMatch(/^[a-f0-9]{64}$/)
+    expect(env.PROVIDER_EPHEMERAL_REDIS_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
+    expect(env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_REPLAY_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_SESSION_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_ADMISSION_GRANT_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.AI_CONTROL_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
+    expect(env.AI_REQUEST_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.AI_ADMISSION_ED25519_KID).toBe('admission-v1')
+    expect(env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS).toBe(
+      env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS,
+    )
     expect(env.POSTGRES_PASSWORD).not.toContain('password')
   })
 

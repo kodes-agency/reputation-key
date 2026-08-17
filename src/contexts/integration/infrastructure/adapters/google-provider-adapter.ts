@@ -33,6 +33,45 @@ function abortReason(signal: AbortSignal): Error {
     : new DOMException('The provider request was aborted', 'AbortError')
 }
 
+async function awaitProviderExecution(
+  execution: ReturnType<GoogleAuthorizedProviderExecutor['execute']>,
+  signal?: AbortSignal,
+): Promise<Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>> {
+  if (!signal) return execution
+  if (signal.aborted) throw abortReason(signal)
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      void execution.then(
+        (late) => {
+          if (late.ok) late.body.fill(0)
+        },
+        () => undefined,
+      )
+      reject(abortReason(signal))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    void execution.then(
+      (result) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        resolve(result)
+      },
+      (error: unknown) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
 export type GoogleProviderSuccessfulResponse = Extract<
   Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>,
   { ok: true }
@@ -53,17 +92,33 @@ export async function executeGoogleProviderRaw(
   if (!Number.isSafeInteger(startedAtMs)) {
     throw createGbpApiError(input.operation, 'upstream_error')
   }
-
   let result: Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>
+  const requestController = new AbortController()
+  const abortFromCaller = () => requestController.abort(abortReason(input.signal!))
+  input.signal?.addEventListener('abort', abortFromCaller, { once: true })
+  const deadlineTimer = setTimeout(
+    () =>
+      requestController.abort(
+        new DOMException('The provider request deadline elapsed', 'TimeoutError'),
+      ),
+    PROVIDER_DEADLINE_MS,
+  )
+
   try {
-    result = await input.executor.execute(input.descriptor, {
-      authorization: input.authorization,
-      deadlineMs: startedAtMs + PROVIDER_DEADLINE_MS,
-      ...(input.signal ? { signal: input.signal } : {}),
-    })
+    result = await awaitProviderExecution(
+      input.executor.execute(input.descriptor, {
+        authorization: input.authorization,
+        deadlineMs: startedAtMs + PROVIDER_DEADLINE_MS,
+        signal: requestController.signal,
+      }),
+      requestController.signal,
+    )
   } catch {
     if (input.signal?.aborted) throw abortReason(input.signal)
     throw createGbpApiError(input.operation, 'upstream_error')
+  } finally {
+    clearTimeout(deadlineTimer)
+    input.signal?.removeEventListener('abort', abortFromCaller)
   }
 
   if (!result.ok) {

@@ -25,8 +25,10 @@ const reviewCreatedSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
-  externalId: z.string(),
   platform: z.string().optional(),
+  sourceEpoch: z.number().int().nonnegative().default(0),
+  sourceRevision: z.number().int().positive(),
+  analysisSequence: z.number().int().positive(),
   occurredAt: z.string().optional(),
 })
 
@@ -36,6 +38,17 @@ const reviewExpiredSchema = z.object({
   reviewId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+  occurredAt: z.string().optional(),
+})
+
+const reviewSourceTransitionedSchema = z.object({
+  reviewId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceEpoch: z.number().int().nonnegative(),
+  sourceRevision: z.number().int().positive(),
+  analysisSequence: z.number().int().positive(),
+  change: z.enum(['source_expired', 'provider_deleted']),
   occurredAt: z.string().optional(),
 })
 
@@ -380,6 +393,38 @@ const organizationCreatedSchema = z.object({
   ownerId: z.string(),
 })
 
+const merchantAiChangedSchema = z
+  .object({
+    _tag: z.literal('identity.merchant_ai.changed').optional(),
+    eventId: z.string().optional(),
+    correlationId: z.string().nullable().optional(),
+    organizationId: z.string(),
+    propertyId: z.string().uuid(),
+    authorizationLineageId: z.string().uuid(),
+    state: z.enum(['disabled', 'enabled', 'revoked']),
+    reviewAnalysisEpoch: z.number().int().safe().positive(),
+    replyDraftingEpoch: z.number().int().safe().positive(),
+    propertyTrendsEpoch: z.number().int().safe().positive(),
+    authorizedSourceEpoch: z.number().int().safe().positive(),
+    analysisStartSequence: z.number().int().safe().nonnegative(),
+    stateVersion: z.number().int().safe().positive(),
+    occurredAt: z.string(),
+  })
+  .strict()
+  .transform((event) => ({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    authorizationLineageId: event.authorizationLineageId,
+    state: event.state,
+    reviewAnalysisEpoch: event.reviewAnalysisEpoch,
+    replyDraftingEpoch: event.replyDraftingEpoch,
+    propertyTrendsEpoch: event.propertyTrendsEpoch,
+    authorizedSourceEpoch: event.authorizedSourceEpoch,
+    analysisStartSequence: event.analysisStartSequence,
+    stateVersion: event.stateVersion,
+    occurredAt: event.occurredAt,
+  }))
+
 // ── Integration event schemas ───────────────────────────────────────
 
 // Connected events are identifier-only v2; the final binary has no v1 decoder.
@@ -490,6 +535,11 @@ export function registerAllEventSchemas(): void {
     type: 'review.expired',
     version: EVENT_VERSION,
     schema: reviewExpiredSchema,
+  })
+  registerEventSchema({
+    type: 'review.source_transitioned',
+    version: EVENT_VERSION,
+    schema: reviewSourceTransitionedSchema,
   })
   registerEventSchema({
     type: 'review.reply.submitted',
@@ -694,6 +744,11 @@ export function registerAllEventSchemas(): void {
     type: 'identity.organization.created',
     version: EVENT_VERSION,
     schema: organizationCreatedSchema,
+  })
+  registerEventSchema({
+    type: 'identity.merchant_ai.changed',
+    version: EVENT_VERSION,
+    schema: merchantAiChangedSchema,
   })
 
   // Integration events

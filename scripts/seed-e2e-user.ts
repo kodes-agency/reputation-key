@@ -30,6 +30,7 @@ import {
 } from '../src/shared/db/schema/portal.schema'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
+import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
 import { teams } from '../src/shared/db/schema/team.schema'
 import {
   staffParticipations,
@@ -76,6 +77,14 @@ import {
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 
+import {
+  createGoogleContentRoleSignatureVerifier,
+  parseGoogleContentApprovalBundle,
+  parseGoogleContentRolePublicKeys,
+} from '../src/shared/auth/google-content-approval'
+import { createGoogleContentAuthorizationAuthority } from '../src/shared/auth/google-content-authority'
+import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { randomUUID } from 'node:crypto'
 const managerEmail = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 const managerPassword = process.env.E2E_TEST_PASSWORD ?? 'password123'
 const managerName = process.env.E2E_TEST_NAME ?? 'E2E Beta Manager'
@@ -1018,6 +1027,12 @@ async function ensureReviews(input: {
   boundedIds: readonly string[]
 }): Promise<void> {
   const db = getDb()
+  // Keep the seeded review windows stable as wall-clock time advances: the
+  // newest fixture is always 15 days old, so the 30-day fleet view contains
+  // 30 P1 reviews and 15 P2 reviews.
+  const reviewedAtAnchor = new Date()
+  reviewedAtAnchor.setUTCHours(12, 0, 0, 0)
+  reviewedAtAnchor.setUTCDate(reviewedAtAnchor.getUTCDate() - 15)
   const propertyFor = (index: number) => {
     if (index < 40) return { organizationId: input.orgAId, propertyId: input.p1Id }
     if (index < 60) return { organizationId: input.orgAId, propertyId: input.p2Id }
@@ -1032,7 +1047,17 @@ async function ensureReviews(input: {
     const ordinal = index + 1
     const scope = propertyFor(index)
     const id = `50000000-0000-4000-8000-${ordinal.toString(16).padStart(12, '0')}`
-    const reviewedAt = new Date(Date.UTC(2026, 6, 31 - (index % 20), 12, 0, 0))
+    const reviewedAt = new Date(reviewedAtAnchor)
+    reviewedAt.setUTCDate(reviewedAt.getUTCDate() - (index % 20))
+    const text = `Deterministic local beta review ${ordinal}.`
+    const reviewerName = `E2E Reviewer ${ordinal}`
+    const provenance = computeAiReviewSourceProvenance({
+      text,
+      rating: ((index % 5) + 1) as 1 | 2 | 3 | 4 | 5,
+      languageCode: 'en',
+      reviewedAtEpochMillis: reviewedAt.getTime(),
+      reviewerDisplayName: reviewerName,
+    })
     await db
       .insert(reviews)
       .values({
@@ -1041,9 +1066,9 @@ async function ensureReviews(input: {
         platform: 'google',
         externalId: `e2e-beta-review-${ordinal.toString().padStart(3, '0')}`,
         externalLocationId: `e2e-location-${scope.propertyId}`,
-        reviewerName: `E2E Reviewer ${ordinal}`,
+        reviewerName,
         rating: (index % 5) + 1,
-        text: `Deterministic local beta review ${ordinal}.`,
+        text,
         languageCode: 'en',
         reviewedAt,
         expiresAt: FAR_FUTURE,
@@ -1052,6 +1077,11 @@ async function ensureReviews(input: {
         sourceUpdatedAt: reviewedAt,
         firstFetchedAt: reviewedAt,
         lastFetchedAt: reviewedAt,
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 0,
+        aiSourceByteLength: provenance.byteLength,
+        aiSourceDigest: provenance.digest,
       })
       .onConflictDoUpdate({
         target: reviews.id,
@@ -1060,6 +1090,8 @@ async function ensureReviews(input: {
           propertyId: scope.propertyId,
           rating: (index % 5) + 1,
           reviewedAt,
+          aiSourceByteLength: provenance.byteLength,
+          aiSourceDigest: provenance.digest,
           expiresAt: FAR_FUTURE,
           contentExpiresAt: FAR_FUTURE,
         },
@@ -1172,7 +1204,63 @@ async function ensureDueEmailFixture(input: {
     })
 }
 
+async function ensureLocalGoogleContentApprovals(): Promise<void> {
+  const bundlesRaw = process.env.GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON
+  const publicKeysRaw = process.env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
+  if (!bundlesRaw && !publicKeysRaw) return
+  if (!bundlesRaw || !publicKeysRaw) {
+    throw new Error('local Google Content approval configuration is incomplete')
+  }
+
+  let bundleValues: unknown
+  let publicKeyValues: unknown
+  try {
+    bundleValues = JSON.parse(bundlesRaw)
+    publicKeyValues = JSON.parse(publicKeysRaw)
+  } catch {
+    throw new Error('local Google Content approval JSON is invalid')
+  }
+  if (!Array.isArray(bundleValues)) {
+    throw new Error('local Google Content approval bundles are invalid')
+  }
+  const parsedKeys = parseGoogleContentRolePublicKeys(publicKeyValues)
+  if (!parsedKeys.ok) {
+    throw new Error('local Google Content approval public keys are invalid')
+  }
+
+  const authority = createGoogleContentAuthorizationAuthority({
+    store: createGoogleContentAuthorityRepository(getDb()),
+    clock: () => new Date(),
+    newPermitId: randomUUID,
+    verifyRoleApproval: createGoogleContentRoleSignatureVerifier(parsedKeys.publicKeys),
+    isRegisteredOperator: (operatorId) => operatorId === 'local-stack-seed',
+  })
+  for (const value of bundleValues) {
+    const parsed = parseGoogleContentApprovalBundle(value)
+    if (!parsed.ok) throw new Error('local Google Content approval bundle is invalid')
+    const installed = await authority.installApproval(parsed.bundle)
+    if (!installed.ok) {
+      throw new Error(`local Google Content approval refused: ${installed.code}`)
+    }
+    const {
+      approvedAt: _approvedAt,
+      expiresAt: _expiresAt,
+      status: _status,
+      ...runtimeBinding
+    } = parsed.bundle.candidate.binding
+    const allowed = await authority.allowCapability(
+      runtimeBinding,
+      'local-stack-seed',
+      'local acceptance approval',
+    )
+    if (!allowed.ok) {
+      throw new Error(`local Google Content capability refused: ${allowed.code}`)
+    }
+  }
+}
+
 async function main(): Promise<void> {
+  await ensureLocalGoogleContentApprovals()
   const managerUserId = await ensureCredentialUser({
     email: managerEmail,
     password: managerPassword,

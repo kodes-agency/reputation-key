@@ -176,6 +176,7 @@ const BETWEEN_RANGE =
 const INTERVAL_LITERAL = /interval\s+'([^']+)'/g
 const INTERVAL_EQUIVALENTS: Readonly<Record<string, string>> = {
   '24 hours': '24:00:00',
+  '5 minutes': '00:05:00',
 }
 
 /**
@@ -198,8 +199,8 @@ function normalizeExpr(raw: string): string {
     INTERVAL_LITERAL,
     (_match, value: string) => `'${INTERVAL_EQUIVALENTS[value] ?? value}'`,
   )
-  s = s.replace(/\s+/g, ' ').trim()
-  s = s.replace(/[()]/g, '')
+  s = s.replace(/[()]/g, '').replace(/\s+/g, ' ').trim()
+  s = s.replace(/\s*(->>|->|#>>|#>)\s*/g, '$1')
   return s
     .replace(/\s*,\s*/g, ',')
     .replace(/\s*\[\s*/g, '[')
@@ -545,7 +546,16 @@ function canonicalDbType(row: Record<string, unknown>): string {
       ? `numeric(${row.numeric_precision}, ${row.numeric_scale})`
       : 'numeric'
   }
-  if (udt.startsWith('_')) return `${udt.slice(1)}[]` // pg array types
+  if (udt.startsWith('_')) {
+    const arrayTypeAliases: Readonly<Record<string, string>> = {
+      int4: 'integer',
+      int8: 'bigint',
+      int2: 'smallint',
+      bool: 'boolean',
+    }
+    const element = udt.slice(1)
+    return `${arrayTypeAliases[element] ?? element}[]`
+  }
   const mapped: Record<string, string> = {
     int4: 'int',
     int8: 'bigint',

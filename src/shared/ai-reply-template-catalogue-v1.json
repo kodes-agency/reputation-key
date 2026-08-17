@@ -1,0 +1,1661 @@
+{
+  "version": "gbp-reply-template-catalogue-v1",
+  "entries": [
+    {
+      "templateGroup": "en-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Thank you for sharing this positive review. We are pleased that your experience was enjoyable."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Thank you for sharing your perspective. We appreciate the time you took to describe your experience."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "We are sorry that the service did not meet expectations. Your feedback is important to our team."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Thank you for explaining your concerns. We recognize that this experience was disappointing."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Thank you for the kind review. We are so glad you had an enjoyable experience with us."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Thanks for taking the time to share your experience. We truly value your thoughtful feedback."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "We are sorry the service missed the mark. Thank you for helping us understand your experience."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Thank you for being open about your concerns. We understand why the experience felt disappointing."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Thanks for the great review. We are really happy you enjoyed your experience with us."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Thanks for sharing what happened. We appreciate your honest take on the experience."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "We are sorry the service was not what you expected. Your feedback gives us valuable perspective."
+    },
+    {
+      "templateGroup": "en-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Thanks for telling us about your concerns. We can see why the experience was frustrating."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Gracias por compartir esta reseña positiva. Nos alegra saber que su experiencia fue agradable. Valoramos sinceramente sus palabras y el tiempo dedicado a contarnos todos los detalles."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Gracias por compartir su perspectiva. Valoramos el tiempo que dedicó a describir su experiencia."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Lamentamos que el servicio no cumpliera sus expectativas. Sus comentarios son importantes para nuestro equipo."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Gracias por explicar sus inquietudes. Reconocemos que esta experiencia resultó decepcionante."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Gracias por esta reseña tan amable. Nos alegra mucho saber que disfrutó de su experiencia."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Gracias por dedicar tiempo a contarnos su experiencia. Valoramos sinceramente sus comentarios."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Sentimos que el servicio no estuviera a la altura. Gracias por ayudarnos a comprender su experiencia."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Gracias por hablar con claridad sobre sus inquietudes. Entendemos por qué la experiencia fue decepcionante."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Gracias por la excelente reseña. Nos encanta saber que disfrutó de su experiencia con nosotros."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Gracias por contarnos lo sucedido. Apreciamos mucho su opinión sincera sobre la experiencia."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Sentimos que el servicio no fuera lo que esperaba. Sus comentarios nos aportan una perspectiva valiosa."
+    },
+    {
+      "templateGroup": "es-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Gracias por contarnos sus inquietudes. Entendemos por qué la experiencia pudo resultar frustrante."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Merci d’avoir partagé cet avis positif. Nous sommes heureux que votre expérience ait été agréable."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Merci d’avoir partagé votre point de vue. Nous apprécions le temps consacré à décrire votre expérience."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Nous regrettons que le service n’ait pas répondu à vos attentes. Votre avis compte pour notre équipe."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Merci d’avoir expliqué vos préoccupations. Nous reconnaissons que cette expérience a été décevante."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Merci pour cet avis chaleureux. Nous sommes ravis que vous ayez passé un agréable moment parmi nous."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Merci d’avoir pris le temps de raconter votre expérience. Votre retour nous tient vraiment à cœur."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Nous sommes désolés que le service vous ait déçu. Merci de nous aider à mieux comprendre votre expérience."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Merci d’avoir exprimé franchement vos préoccupations. Nous comprenons pourquoi cette expérience vous a déçu."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Merci pour ce très bel avis. Cela nous fait plaisir de savoir que vous avez apprécié votre expérience."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Merci de nous avoir raconté ce qui s’est passé. Nous apprécions votre regard sincère sur cette expérience."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Nous sommes désolés que le service ne corresponde pas à vos attentes. Votre retour nous apporte un éclairage précieux."
+    },
+    {
+      "templateGroup": "fr-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Merci de nous avoir parlé de vos préoccupations. Nous comprenons pourquoi cette expérience a pu être frustrante."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Vielen Dank für diese positive Bewertung. Wir freuen uns, dass Sie eine angenehme Erfahrung gemacht haben."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Vielen Dank für Ihre Rückmeldung. Wir schätzen die Zeit, die Sie sich für die Beschreibung genommen haben."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Es tut uns leid, dass der Service Ihre Erwartungen nicht erfüllt hat. Ihre Rückmeldung ist für unser Team wichtig."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Vielen Dank, dass Sie Ihre Bedenken erläutert haben. Wir verstehen, dass diese Erfahrung enttäuschend war."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Vielen Dank für die freundliche Bewertung. Wir freuen uns sehr, dass Sie Ihren Aufenthalt genossen haben."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Danke, dass Sie sich Zeit für Ihre Rückmeldung genommen haben. Ihre offenen Worte bedeuten uns viel."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Es tut uns leid, dass unser Service nicht überzeugen konnte. Danke, dass Sie uns Ihre Erfahrung geschildert haben."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Danke, dass Sie Ihre Bedenken so offen ansprechen. Wir verstehen, warum die Erfahrung enttäuschend war."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Danke für die tolle Bewertung. Wir freuen uns wirklich, dass Sie eine schöne Erfahrung bei uns hatten."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Danke, dass Sie uns erzählt haben, was passiert ist. Wir schätzen Ihre ehrliche Sicht auf die Erfahrung."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Es tut uns leid, dass der Service anders war als erwartet. Ihre Rückmeldung gibt uns eine wertvolle Perspektive."
+    },
+    {
+      "templateGroup": "de-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Danke, dass Sie uns von Ihren Bedenken erzählt haben. Wir können verstehen, warum das frustrierend war."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Agradecemos por compartilhar esta avaliação positiva. Ficamos felizes em saber que sua experiência foi agradável."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Agradecemos por compartilhar sua perspectiva. Valorizamos o tempo dedicado a descrever sua experiência."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Lamentamos que o serviço não tenha atendido às suas expectativas. Seus comentários são importantes para nossa equipe."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Agradecemos por explicar suas preocupações. Reconhecemos que esta experiência foi decepcionante."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Obrigado por esta avaliação tão gentil. Ficamos muito felizes que você tenha aproveitado a experiência conosco."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Obrigado por dedicar um tempo para contar sua experiência. Valorizamos sinceramente seus comentários."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Lamentamos que o serviço tenha deixado a desejar. Obrigado por nos ajudar a entender sua experiência."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Obrigado por falar abertamente sobre suas preocupações. Entendemos por que a experiência foi decepcionante."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Obrigado pela ótima avaliação. Ficamos muito contentes que você tenha gostado da experiência conosco."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Obrigado por contar o que aconteceu. Apreciamos sua opinião sincera sobre toda a experiência."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Lamentamos que o serviço não tenha sido o que você esperava. Seus comentários trazem uma perspectiva valiosa."
+    },
+    {
+      "templateGroup": "pt-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Obrigado por contar suas preocupações. Entendemos por que essa experiência pode ter sido frustrante."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Grazie per aver condiviso questa recensione positiva. Siamo lieti che la sua esperienza sia stata piacevole."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Grazie per aver condiviso il suo punto di vista. Apprezziamo il tempo dedicato a descrivere la sua esperienza."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Ci dispiace che il servizio non abbia soddisfatto le sue aspettative. Il suo riscontro è importante per il nostro team."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Grazie per aver spiegato le sue preoccupazioni. Riconosciamo che questa esperienza sia stata deludente."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Grazie per questa recensione così gentile. Siamo davvero felici che abbia vissuto una piacevole esperienza."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Grazie per il tempo dedicato a raccontarci la sua esperienza. Apprezziamo sinceramente il suo riscontro."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Ci dispiace che il servizio non sia stato all’altezza. Grazie per averci aiutato a capire la sua esperienza."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Grazie per aver parlato apertamente delle sue preoccupazioni. Comprendiamo perché sia rimasto deluso."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Grazie per la splendida recensione. Siamo davvero contenti che abbia apprezzato la sua esperienza con noi."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Grazie per averci raccontato cosa è successo. Apprezziamo la sua opinione sincera sull’esperienza."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Ci dispiace che il servizio non fosse quello atteso. Il suo riscontro ci offre una prospettiva preziosa."
+    },
+    {
+      "templateGroup": "it-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Grazie per averci parlato delle sue preoccupazioni. Capiamo perché l’esperienza possa essere stata frustrante."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Bedankt voor het delen van deze positieve beoordeling. We zijn blij dat u een prettige ervaring had."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Bedankt voor het delen van uw perspectief. We waarderen de tijd die u nam om uw ervaring te beschrijven."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Het spijt ons dat de service niet aan uw verwachtingen voldeed. Uw feedback is belangrijk voor ons team."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Bedankt dat u uw zorgen hebt toegelicht. We begrijpen dat deze ervaring teleurstellend was."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Bedankt voor deze vriendelijke beoordeling. We zijn erg blij dat u een fijne ervaring bij ons had."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Bedankt dat u de tijd nam om uw ervaring te delen. We waarderen uw oprechte feedback enorm."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Het spijt ons dat de service tekortschoot. Bedankt dat u ons helpt uw ervaring beter te begrijpen."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Bedankt dat u zo open bent over uw zorgen. We begrijpen waarom deze ervaring teleurstellend voelde."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Bedankt voor de mooie beoordeling. We vinden het geweldig dat u van uw ervaring bij ons hebt genoten."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Bedankt dat u vertelde wat er gebeurde. We waarderen uw eerlijke kijk op de hele ervaring."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Het spijt ons dat de service niet was wat u verwachtte. Uw feedback geeft ons een waardevol perspectief."
+    },
+    {
+      "templateGroup": "nl-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Bedankt dat u uw zorgen met ons deelde. We snappen waarom de ervaring frustrerend kon zijn."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Dziękujemy za podzielenie się pozytywną opinią. Cieszymy się, że Państwa doświadczenie było przyjemne."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Dziękujemy za przedstawienie swojej perspektywy. Doceniamy czas poświęcony na opisanie doświadczenia."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Przykro nam, że obsługa nie spełniła Państwa oczekiwań. Ta opinia jest ważna dla naszego zespołu."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Dziękujemy za wyjaśnienie swoich zastrzeżeń. Rozumiemy, że to doświadczenie było rozczarowujące."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Dziękujemy za tak miłą opinię. Bardzo się cieszymy, że Państwa doświadczenie było udane."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Dziękujemy za czas poświęcony na opisanie doświadczenia. Naprawdę cenimy tę szczerą opinię."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Przykro nam, że obsługa nie stanęła na wysokości zadania. Dziękujemy za opisanie swojego doświadczenia."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Dziękujemy za otwarte przedstawienie swoich zastrzeżeń. Rozumiemy, dlaczego to było rozczarowujące."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Dziękujemy za świetną opinię. Naprawdę cieszy nas, że dobrze wspominają Państwo to doświadczenie."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Dziękujemy za opisanie tego, co się wydarzyło. Cenimy Państwa szczere spojrzenie na całą sytuację."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Przykro nam, że obsługa nie była zgodna z oczekiwaniami. Ta opinia daje nam cenną perspektywę."
+    },
+    {
+      "templateGroup": "pl-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Dziękujemy za przedstawienie swoich obaw. Rozumiemy, dlaczego to doświadczenie mogło być frustrujące."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Bu olumlu değerlendirmeyi paylaştığınız için teşekkür ederiz. Deneyiminizin keyifli geçmesine sevindik."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Bakış açınızı paylaştığınız için teşekkür ederiz. Deneyiminizi anlatmaya ayırdığınız zamanı önemsiyoruz."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Hizmetin beklentilerinizi karşılamamış olmasından üzgünüz. Görüşleriniz ekibimiz için önemlidir."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Endişelerinizi açıkladığınız için teşekkür ederiz. Bu deneyimin hayal kırıklığı yarattığını anlıyoruz."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Bu nazik değerlendirme için teşekkür ederiz. Bizimle keyifli bir deneyim yaşamanıza çok sevindik."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Deneyiminizi anlatmaya zaman ayırdığınız için teşekkürler. Samimi görüşlerinize gerçekten değer veriyoruz."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Hizmetin beklentinin altında kalmasına üzüldük. Deneyiminizi anlamamıza yardımcı olduğunuz için teşekkürler."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Endişelerinizi açıkça paylaştığınız için teşekkürler. Deneyimin neden hayal kırıklığı yarattığını anlıyoruz."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Harika değerlendirme için teşekkürler. Bizimle geçirdiğiniz deneyimden keyif almanıza çok sevindik."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Neler olduğunu paylaştığınız için teşekkürler. Deneyim hakkındaki dürüst görüşünüzü önemsiyoruz."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Hizmetin beklediğiniz gibi olmamasına üzüldük. Görüşleriniz bize değerli bir bakış açısı kazandırıyor."
+    },
+    {
+      "templateGroup": "tr-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Endişelerinizi anlattığınız için teşekkürler. Deneyimin neden can sıkıcı olduğunu anlayabiliyoruz."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Дякуємо, що поділилися цим позитивним відгуком. Нам приємно знати, що ваші враження були хорошими."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Дякуємо, що поділилися своєю думкою. Ми цінуємо час, який ви приділили опису свого досвіду."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Нам прикро, що обслуговування не виправдало ваших очікувань. Ваш відгук важливий для нашої команди."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Дякуємо, що пояснили свої зауваження. Ми розуміємо, що цей досвід був для вас розчаруванням."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Дякуємо за такий доброзичливий відгук. Ми дуже раді, що у вас залишилися приємні враження."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Дякуємо, що знайшли час розповісти про свій досвід. Ми щиро цінуємо ваш відвертий відгук."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Нам прикро, що обслуговування вас розчарувало. Дякуємо, що допомагаєте нам зрозуміти ваш досвід."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Дякуємо, що відкрито розповіли про свої зауваження. Ми розуміємо, чому цей досвід був неприємним."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Дякуємо за чудовий відгук. Ми справді раді, що вам сподобалося перебування у нас."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Дякуємо, що розповіли про те, що сталося. Ми цінуємо ваш чесний погляд на цей досвід."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Нам прикро, що обслуговування було не таким, як ви очікували. Ваш відгук дає нам цінне розуміння."
+    },
+    {
+      "templateGroup": "uk-Cyrl",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Дякуємо, що розповіли про свої зауваження. Ми розуміємо, чому цей досвід міг бути прикрим."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Благодарим вас за положительный отзыв. Мы рады, что у вас остались приятные впечатления."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Благодарим вас за высказанное мнение. Мы ценим время, которое вы уделили описанию своего опыта."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Нам жаль, что обслуживание не оправдало ваших ожиданий. Ваш отзыв важен для нашей команды."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Благодарим вас за подробное описание замечаний. Мы понимаем, что этот опыт оказался разочаровывающим."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Спасибо за такой добрый отзыв. Мы очень рады, что у вас остались приятные впечатления."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Спасибо, что нашли время рассказать о своем опыте. Мы искренне ценим вашу открытую обратную связь."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Нам жаль, что обслуживание вас разочаровало. Спасибо, что помогаете нам лучше понять ваш опыт."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Спасибо, что открыто рассказали о своих замечаниях. Мы понимаем, почему этот опыт вас разочаровал."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Спасибо за отличный отзыв. Мы действительно рады, что вам понравилось проведенное у нас время."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Спасибо, что рассказали о случившемся. Мы ценим ваш честный взгляд на весь этот опыт."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Нам жаль, что обслуживание было не таким, как вы ожидали. Ваш отзыв дает нам ценную перспективу."
+    },
+    {
+      "templateGroup": "ru-Cyrl",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Спасибо, что рассказали о своих замечаниях. Мы понимаем, почему этот опыт мог вызвать раздражение."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "شكرًا لمشاركة هذا التقييم الإيجابي. يسعدنا أن تجربتك كانت ممتعة وتركت لديك انطباعًا طيبًا."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "شكرًا لمشاركة وجهة نظرك. نقدر الوقت الذي خصصته لوصف تجربتك بكل وضوح واهتمام."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "نأسف لأن الخدمة لم تلب توقعاتك. ملاحظاتك مهمة لفريقنا وتساعدنا على فهم تجربتك."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "شكرًا لتوضيح مخاوفك. ندرك أن هذه التجربة كانت مخيبة للآمال بالنسبة إليك."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "شكرًا على هذا التقييم اللطيف. يسعدنا كثيرًا أنك استمتعت بتجربتك معنا."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "شكرًا لتخصيص وقت لمشاركة تجربتك. نحن نقدر حقًا ملاحظاتك الصادقة والمدروسة."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "نأسف لأن الخدمة لم تكن بالمستوى المطلوب. شكرًا لمساعدتنا على فهم تجربتك بشكل أفضل."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "شكرًا لتحدثك بصراحة عن مخاوفك. نتفهم لماذا كانت التجربة مخيبة للآمال."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "شكرًا على التقييم الرائع. نحن سعداء حقًا لأنك استمتعت بتجربتك معنا."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "شكرًا لإخبارنا بما حدث. نحن نقدر رأيك الصادق في التجربة التي مررت بها."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "نأسف لأن الخدمة لم تكن كما توقعت. تمنحنا ملاحظاتك منظورًا مهمًا حول تجربتك."
+    },
+    {
+      "templateGroup": "ar-Arab",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "شكرًا لإخبارنا عن مخاوفك. يمكننا تفهم سبب شعورك بالإحباط من هذه التجربة."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "תודה ששיתפת את הביקורת החיובית הזאת. אנו שמחים לדעת שהחוויה שלך הייתה נעימה ומהנה."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "תודה ששיתפת את נקודת המבט שלך. אנו מעריכים את הזמן שהקדשת לתיאור החוויה."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "אנו מצטערים שהשירות לא עמד בציפיות שלך. המשוב שלך חשוב מאוד לצוות שלנו."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "תודה שהסברת את החששות שלך. אנו מבינים שהחוויה הזאת הייתה מאכזבת עבורך."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "תודה על הביקורת הנעימה. אנו שמחים מאוד לדעת שנהנית מהחוויה שלך אצלנו."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "תודה שהקדשת זמן לספר על החוויה שלך. אנו מעריכים מאוד את המשוב הכנה שלך."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "אנו מצטערים שהשירות לא היה מוצלח. תודה שעזרת לנו להבין טוב יותר את החוויה שלך."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "תודה שדיברת בפתיחות על החששות שלך. אנו מבינים מדוע החוויה הייתה מאכזבת."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "תודה על הביקורת הנהדרת. אנו ממש שמחים לדעת שנהנית מהחוויה שלך אצלנו."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "תודה שסיפרת לנו מה קרה. אנו מעריכים את נקודת המבט הכנה שלך על החוויה."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "אנו מצטערים שהשירות לא היה כפי שציפית. המשוב שלך מעניק לנו נקודת מבט חשובה."
+    },
+    {
+      "templateGroup": "he-Hebr",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "תודה שסיפרת לנו על החששות שלך. אנו מבינים מדוע החוויה הזאת הייתה מתסכלת."
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "यह सकारात्मक समीक्षा साझा करने के लिए धन्यवाद। हमें खुशी है कि आपका अनुभव सुखद और आनंददायक रहा।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "अपना दृष्टिकोण साझा करने के लिए धन्यवाद। हम आपके अनुभव का वर्णन करने में दिए गए समय की सराहना करते हैं।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "हमें खेद है कि सेवा आपकी अपेक्षाओं पर खरी नहीं उतरी। आपकी प्रतिक्रिया हमारी टीम के लिए महत्वपूर्ण है।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "अपनी चिंताओं को स्पष्ट करने के लिए धन्यवाद। हम समझते हैं कि यह अनुभव निराशाजनक रहा।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "इस सुंदर समीक्षा के लिए धन्यवाद। हमें बहुत खुशी है कि आपने हमारे साथ अपने अनुभव का आनंद लिया।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "अपना अनुभव बताने के लिए समय निकालने का धन्यवाद। हम आपकी सच्ची प्रतिक्रिया को बहुत महत्व देते हैं।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "हमें खेद है कि सेवा अच्छी नहीं रही। अपना अनुभव समझने में हमारी मदद करने के लिए धन्यवाद।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "अपनी चिंताओं के बारे में खुलकर बताने के लिए धन्यवाद। हम समझते हैं कि यह अनुभव क्यों निराशाजनक था।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "शानदार समीक्षा के लिए धन्यवाद। हमें सचमुच खुशी है कि आपने हमारे साथ अच्छा अनुभव किया।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "जो हुआ वह हमें बताने के लिए धन्यवाद। हम अनुभव के बारे में आपकी ईमानदार राय की सराहना करते हैं।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "हमें खेद है कि सेवा आपकी उम्मीद के अनुसार नहीं थी। आपकी प्रतिक्रिया हमें एक महत्वपूर्ण दृष्टिकोण देती है।"
+    },
+    {
+      "templateGroup": "hi-Deva",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "अपनी चिंताएं बताने के लिए धन्यवाद। हम समझ सकते हैं कि यह अनुभव आपके लिए निराशाजनक क्यों था।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "এই ইতিবাচক পর্যালোচনা ভাগ করে নেওয়ার জন্য ধন্যবাদ। আপনার অভিজ্ঞতা আনন্দদায়ক ছিল জেনে আমরা খুশি।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "আপনার দৃষ্টিভঙ্গি ভাগ করে নেওয়ার জন্য ধন্যবাদ। অভিজ্ঞতা বর্ণনা করতে দেওয়া সময়কে আমরা মূল্য দিই।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "পরিষেবা আপনার প্রত্যাশা পূরণ না করায় আমরা দুঃখিত। আপনার মতামত আমাদের দলের জন্য গুরুত্বপূর্ণ।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "আপনার উদ্বেগগুলো ব্যাখ্যা করার জন্য ধন্যবাদ। আমরা বুঝি যে এই অভিজ্ঞতা হতাশাজনক ছিল।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "এই সুন্দর পর্যালোচনার জন্য ধন্যবাদ। আপনি আমাদের সঙ্গে আনন্দদায়ক অভিজ্ঞতা পেয়েছেন জেনে আমরা খুব খুশি।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "আপনার অভিজ্ঞতা জানাতে সময় দেওয়ার জন্য ধন্যবাদ। আপনার আন্তরিক মতামতকে আমরা সত্যিই মূল্য দিই।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "পরিষেবা প্রত্যাশামতো না হওয়ায় আমরা দুঃখিত। আপনার অভিজ্ঞতা বুঝতে সাহায্য করার জন্য ধন্যবাদ।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "আপনার উদ্বেগ নিয়ে খোলামেলা বলার জন্য ধন্যবাদ। অভিজ্ঞতাটি কেন হতাশাজনক ছিল তা আমরা বুঝি।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "দারুণ পর্যালোচনার জন্য ধন্যবাদ। আপনি আমাদের সঙ্গে অভিজ্ঞতা উপভোগ করেছেন জেনে আমরা খুব আনন্দিত।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "কী ঘটেছিল তা জানানোর জন্য ধন্যবাদ। পুরো অভিজ্ঞতা সম্পর্কে আপনার সৎ মতামতকে আমরা মূল্য দিই।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "পরিষেবাটি আপনার আশা অনুযায়ী না হওয়ায় আমরা দুঃখিত। আপনার মতামত আমাদের মূল্যবান দৃষ্টিভঙ্গি দেয়।"
+    },
+    {
+      "templateGroup": "bn-Beng",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "আপনার উদ্বেগের কথা জানানোর জন্য ধন্যবাদ। অভিজ্ঞতাটি কেন বিরক্তিকর ছিল তা আমরা বুঝতে পারি।"
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "இந்த நேர்மறையான மதிப்புரையைப் பகிர்ந்ததற்கு நன்றி. உங்கள் அனுபவம் மகிழ்ச்சியாக இருந்ததை அறிந்து மகிழ்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "உங்கள் பார்வையைப் பகிர்ந்ததற்கு நன்றி. அனுபவத்தை விவரிக்க நீங்கள் செலவிட்ட நேரத்தை மதிக்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "சேவை உங்கள் எதிர்பார்ப்பை நிறைவேற்றாததற்கு வருந்துகிறோம். உங்கள் கருத்து எங்கள் குழுவுக்கு முக்கியமானது."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "உங்கள் கவலைகளை விளக்கியதற்கு நன்றி. இந்த அனுபவம் ஏமாற்றமளித்தது என்பதை நாங்கள் புரிந்துகொள்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "இந்த அன்பான மதிப்புரைக்கு நன்றி. எங்களுடன் இனிய அனுபவம் கிடைத்ததில் நாங்கள் மிகவும் மகிழ்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "உங்கள் அனுபவத்தைப் பகிர நேரம் ஒதுக்கியதற்கு நன்றி. உங்கள் நேர்மையான கருத்தை மிகவும் மதிக்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "சேவை சிறப்பாக அமையாததற்கு வருந்துகிறோம். உங்கள் அனுபவத்தைப் புரிந்துகொள்ள உதவியதற்கு நன்றி."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "உங்கள் கவலைகளை வெளிப்படையாகப் பகிர்ந்ததற்கு நன்றி. அனுபவம் ஏன் ஏமாற்றமளித்தது என்பதை புரிந்துகொள்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "சிறந்த மதிப்புரைக்கு நன்றி. எங்களுடன் உங்கள் அனுபவத்தை ரசித்ததில் நாங்கள் மிகவும் மகிழ்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "என்ன நடந்தது என்று சொன்னதற்கு நன்றி. அந்த அனுபவம் குறித்த உங்கள் நேர்மையான பார்வையை மதிக்கிறோம்."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "சேவை நீங்கள் எதிர்பார்த்தபடி இல்லாததற்கு வருந்துகிறோம். உங்கள் கருத்து எங்களுக்கு முக்கியமான பார்வையை தருகிறது."
+    },
+    {
+      "templateGroup": "ta-Taml",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "உங்கள் கவலைகளைச் சொன்னதற்கு நன்றி. இந்த அனுபவம் ஏன் எரிச்சலாக இருந்தது என்பதை புரிந்துகொள்கிறோம்."
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "ขอบคุณที่แบ่งปันรีวิวเชิงบวกนี้ เราดีใจที่ทราบว่าประสบการณ์ของคุณราบรื่นและน่าประทับใจ"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "ขอบคุณที่แบ่งปันมุมมอง เราเห็นคุณค่าของเวลาที่คุณใช้บอกเล่าประสบการณ์อย่างละเอียด"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "เราเสียใจที่บริการไม่เป็นไปตามความคาดหวัง ความคิดเห็นของคุณสําคัญต่อทีมของเรา"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "ขอบคุณที่อธิบายข้อกังวล เราเข้าใจว่าประสบการณ์ครั้งนี้ทําให้คุณรู้สึกผิดหวัง"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "ขอบคุณสําหรับรีวิวที่น่ารัก เราดีใจมากที่คุณได้รับประสบการณ์ที่น่าพึงพอใจกับเรา"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "ขอบคุณที่สละเวลาแบ่งปันประสบการณ์ เราให้ความสําคัญกับความคิดเห็นที่จริงใจของคุณ"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "เราเสียใจที่บริการไม่ดีเท่าที่ควร ขอบคุณที่ช่วยให้เราเข้าใจประสบการณ์ของคุณมากขึ้น"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "ขอบคุณที่พูดถึงข้อกังวลอย่างตรงไปตรงมา เราเข้าใจว่าทําไมประสบการณ์นี้จึงน่าผิดหวัง"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "ขอบคุณสําหรับรีวิวที่ยอดเยี่ยม เราดีใจจริงๆ ที่คุณเพลิดเพลินกับประสบการณ์ที่มีกับเรา"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "ขอบคุณที่เล่าให้เราฟังว่าเกิดอะไรขึ้น เราเห็นคุณค่าของมุมมองที่จริงใจต่อประสบการณ์นี้"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "เราเสียใจที่บริการไม่เป็นอย่างที่คุณคาดหวัง ความคิดเห็นของคุณช่วยให้เราเห็นมุมมองที่สําคัญ"
+    },
+    {
+      "templateGroup": "th-Thai",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "ขอบคุณที่บอกเราเกี่ยวกับข้อกังวล เราเข้าใจได้ว่าทําไมประสบการณ์นี้จึงทําให้รู้สึกหงุดหงิด"
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Cảm ơn bạn đã chia sẻ đánh giá tích cực này. Chúng tôi rất vui khi biết bạn có một trải nghiệm dễ chịu."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Cảm ơn bạn đã chia sẻ góc nhìn của mình. Chúng tôi trân trọng thời gian bạn dành để mô tả trải nghiệm."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Chúng tôi rất tiếc vì dịch vụ chưa đáp ứng mong đợi. Ý kiến của bạn rất quan trọng với đội ngũ chúng tôi."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Cảm ơn bạn đã giải thích những điều còn băn khoăn. Chúng tôi hiểu trải nghiệm này đã gây thất vọng."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Cảm ơn bạn về đánh giá đầy thiện ý. Chúng tôi rất vui khi bạn có một trải nghiệm tốt đẹp cùng chúng tôi."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Cảm ơn bạn đã dành thời gian chia sẻ trải nghiệm. Chúng tôi thực sự trân trọng ý kiến chân thành của bạn."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Chúng tôi rất tiếc vì dịch vụ chưa được như mong muốn. Cảm ơn bạn đã giúp chúng tôi hiểu trải nghiệm này."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Cảm ơn bạn đã thẳng thắn chia sẻ băn khoăn. Chúng tôi hiểu vì sao trải nghiệm này khiến bạn thất vọng."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Cảm ơn bạn về đánh giá tuyệt vời. Chúng tôi thật sự vui khi bạn hài lòng với trải nghiệm cùng chúng tôi."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Cảm ơn bạn đã kể lại những gì xảy ra. Chúng tôi trân trọng góc nhìn chân thật của bạn về trải nghiệm."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Chúng tôi rất tiếc vì dịch vụ không như bạn mong đợi. Ý kiến của bạn mang đến một góc nhìn quý giá."
+    },
+    {
+      "templateGroup": "vi-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Cảm ơn bạn đã nói về những băn khoăn. Chúng tôi hiểu vì sao trải nghiệm này có thể gây khó chịu."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Terima kasih karena Anda sudah menulis ulasan yang positif. Kami senang mengetahui kualitas pelayanan dan pengalaman yang diterima terasa menyenangkan. Penilaian Anda sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Terima kasih karena Anda sudah menulis ulasan tentang pengalaman ini. Kami bisa memahami penilaian Anda terhadap kualitas pelayanan. Saran yang disampaikan sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Kami menyesal karena kualitas pelayanan yang diterima belum memenuhi harapan. Kami bisa memahami pengalaman yang mengecewakan tersebut. Saran yang disampaikan sangat berguna untuk meningkatkan pelayanan."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Terima kasih karena Anda sudah menjelaskan kekhawatiran ini. Kami bisa memahami mengapa pengalaman tersebut terasa mengecewakan. Penilaian Anda terhadap kualitas pelayanan sangat berguna untuk evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Terima kasih karena Anda sudah menulis ulasan yang positif. Kami senang mengetahui kualitas pelayanan dan pengalaman yang diterima terasa menyenangkan. Penilaian Anda sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Terima kasih karena Anda sudah menulis ulasan tentang pengalaman ini. Kami bisa memahami penilaian Anda terhadap kualitas pelayanan. Saran yang disampaikan sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Kami menyesal karena kualitas pelayanan yang diterima belum memenuhi harapan. Kami bisa memahami pengalaman yang mengecewakan tersebut. Saran yang disampaikan sangat berguna untuk meningkatkan pelayanan."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Terima kasih karena Anda sudah menjelaskan kekhawatiran ini. Kami bisa memahami mengapa pengalaman tersebut terasa mengecewakan. Penilaian Anda terhadap kualitas pelayanan sangat berguna untuk evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Terima kasih karena Anda sudah menulis ulasan yang positif. Kami senang mengetahui kualitas pelayanan dan pengalaman yang diterima terasa menyenangkan. Penilaian Anda sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Terima kasih karena Anda sudah menulis ulasan tentang pengalaman ini. Kami bisa memahami penilaian Anda terhadap kualitas pelayanan. Saran yang disampaikan sangat berguna bagi evaluasi kami."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Kami menyesal karena kualitas pelayanan yang diterima belum memenuhi harapan. Kami bisa memahami pengalaman yang mengecewakan tersebut. Saran yang disampaikan sangat berguna untuk meningkatkan pelayanan."
+    },
+    {
+      "templateGroup": "id-Latn",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Terima kasih karena Anda sudah menjelaskan kekhawatiran ini. Kami bisa memahami mengapa pengalaman tersebut terasa mengecewakan. Penilaian Anda terhadap kualitas pelayanan sangat berguna untuk evaluasi kami."
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "感谢您分享这条积极评价。得知您拥有愉快而满意的体验,我们感到非常高兴,也感谢您的认可。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "感谢您分享自己的看法。我们十分珍惜您花时间详细描述这次体验,并认真看待您的意见。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "很抱歉本次服务没有达到您的期望。您的反馈对我们的团队十分重要,也让我们更好地理解这次体验。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "感谢您说明自己的担忧。我们理解这次体验令人失望,也认真重视您所表达的感受和意见。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "感谢您留下这条友善的评价。得知您在这里拥有愉快的体验,我们真的感到十分开心。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "感谢您花时间分享这次体验。我们真诚重视您的坦率意见,也感谢您提供这些具体感受。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "很抱歉服务没有达到理想水平。感谢您帮助我们更清楚地理解您的体验和真实感受。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "感谢您坦诚说出自己的担忧。我们理解为什么这次体验会让您感到失望和不愉快。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "感谢您的精彩评价。知道您喜欢这次体验,我们真的很开心,也很珍惜您的积极分享。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "谢谢您告诉我们事情的经过。我们重视您对这次体验的真实看法,也感谢您的坦诚。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "很抱歉服务并不像您期待的那样。您的反馈为我们提供了重要而有价值的观察角度。"
+    },
+    {
+      "templateGroup": "zh-Hans",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "谢谢您告诉我们这些担忧。我们能够理解为什么这次体验会让您觉得沮丧和不舒服。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "感謝您分享這則正面評價。得知您擁有愉快而滿意的體驗,我們感到非常高興,也謝謝您的肯定。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "感謝您分享自己的看法。我們十分珍惜您花時間詳細描述這次體驗,並認真看待您的意見。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "很抱歉本次服務沒有達到您的期望。您的回饋對我們的團隊十分重要,也讓我們更了解這次體驗。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "感謝您說明自己的疑慮。我們理解這次體驗令人失望,也認真重視您所表達的感受與意見。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "感謝您留下這則友善的評價。得知您在這裡擁有愉快的體驗,我們真的感到十分開心。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "感謝您花時間分享這次體驗。我們真誠重視您的坦率意見,也謝謝您提供這些具體感受。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "很抱歉服務沒有達到理想水準。感謝您幫助我們更清楚地了解您的體驗和真實感受。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "感謝您坦誠說出自己的疑慮。我們理解為什麼這次體驗會讓您感到失望和不愉快。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "感謝您的精彩評價。知道您喜歡這次體驗,我們真的很開心,也很珍惜您的正面分享。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "謝謝您告訴我們事情的經過。我們重視您對這次體驗的真實看法,也感謝您的坦誠。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "很抱歉服務並不像您期待的那樣。您的回饋為我們提供了重要而有價值的觀察角度。"
+    },
+    {
+      "templateGroup": "zh-Hant",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "謝謝您告訴我們這些疑慮。我們能夠理解為什麼這次體驗會讓您覺得沮喪和不舒服。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "このたびは高い評価をお寄せいただき、ありがとうございます。心地よい体験をしていただけたことを大変うれしく思います。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "ご意見を共有していただき、ありがとうございます。体験を丁寧にお伝えいただいたお時間とお気持ちを大切に受け止めています。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "サービスがご期待に添えず、申し訳ございません。いただいたご意見は私たちのチームにとって大切なものです。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "ご心配な点を詳しくお伝えいただき、ありがとうございます。今回の体験が残念なものだったことを受け止めています。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "温かい評価をありがとうございます。楽しい時間をお過ごしいただけたと知り、私たちもとてもうれしく思います。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "体験についてお時間を割いて共有してくださり、ありがとうございます。率直なご意見を心から大切にしています。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "サービスが十分でなかったことをお詫びします。体験を理解するために詳しくお伝えいただき、ありがとうございます。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "気になった点を率直に共有していただき、ありがとうございます。残念なお気持ちになった理由を理解しています。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "すてきな評価をありがとうございます。今回の体験を楽しんでいただけたことを知り、私たちも本当にうれしいです。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "起きたことを詳しく教えてくださり、ありがとうございます。体験についての率直な見方を大切に受け止めています。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "サービスが思っていたものと違ったことをお詫びします。いただいた声は私たちに大切な視点を与えてくれます。"
+    },
+    {
+      "templateGroup": "ja-Jpan",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "気になった点を教えてくださり、ありがとうございます。今回の体験がもどかしく感じられた理由を理解できます。"
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "긍정적인 후기를 남겨 주셔서 감사합니다. 즐겁고 만족스러운 경험을 하셨다는 소식을 들어 매우 기쁩니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "소중한 관점을 공유해 주셔서 감사합니다. 경험을 자세히 설명하는 데 들인 시간과 정성을 중요하게 생각합니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "서비스가 기대에 미치지 못해 죄송합니다. 남겨 주신 의견은 저희 팀이 경험을 이해하는 데 매우 중요합니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "우려하신 부분을 설명해 주셔서 감사합니다. 이번 경험이 실망스러웠다는 점을 진지하게 받아들이고 있습니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "따뜻한 후기를 남겨 주셔서 감사합니다. 저희와 함께 즐거운 경험을 하셨다는 사실이 정말 기쁩니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "시간을 내어 경험을 공유해 주셔서 감사합니다. 솔직하고 세심한 의견을 진심으로 소중하게 생각합니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "서비스가 만족스럽지 못해 죄송합니다. 경험을 더 잘 이해할 수 있도록 알려 주셔서 감사합니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "우려하신 점을 솔직하게 말씀해 주셔서 감사합니다. 이번 경험이 왜 실망스러웠는지 이해합니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "멋진 후기를 남겨 주셔서 감사합니다. 저희와 함께한 경험을 즐기셨다니 정말 기분이 좋습니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "어떤 일이 있었는지 알려 주셔서 감사합니다. 이번 경험에 대한 솔직한 생각을 소중하게 받아들입니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "서비스가 기대하신 모습과 달라 죄송합니다. 남겨 주신 의견은 저희에게 중요한 관점을 전해 줍니다."
+    },
+    {
+      "templateGroup": "ko-Kore",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "걱정하신 부분을 알려 주셔서 감사합니다. 이번 경험이 왜 답답하게 느껴졌는지 충분히 이해합니다."
+    }
+  ]
+}

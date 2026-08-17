@@ -13,11 +13,13 @@
 // such as "zero reply-upsert calls reached Google after the disconnect".
 //
 // Control surface (never recorded):
-//   GET  /__control/health            → 200 'ok'
-//   POST /__control/scope             body: StubScope — upsert one account scope
-//   POST /__control/reply-behavior    body: { accountName, behavior } — switch modes mid-test
+//   GET  /__control/health                  → 200 'ok'
+//   POST /__control/scope                   body: StubScope — upsert one account scope
+//   POST /__control/reply-behavior          body: { accountName, behavior }
+//   POST /__control/fetch-behavior          body: { accountName, locationName?, behavior }
+//   POST /__control/performance-behavior    body: { locationName, behavior }
 //   GET  /__control/calls?method=..&pathPrefix=.. → recorded calls (filtered)
-//   POST /__control/reset             → clear all scopes + recorded calls
+//   POST /__control/reset                   → clear all scopes + recorded calls
 //
 // Reply behavior modes (per scope):
 //   { mode: 'success' }                          → PUT reply → 200
@@ -26,7 +28,12 @@
 // On a successful PUT the stub records the reply onto the scripted review
 // (GBP's reply upsert semantics), so subsequent reads see it — like Google.
 
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 
 export const GBP_STUB_PORT = 4100
 export const GBP_STUB_BASE_URL =
@@ -53,7 +60,7 @@ export const GBP_SANDBOX_ENV = {
 export type StubReviewer = Readonly<{ displayName?: string; profilePhotoUrl?: string }>
 
 export type StubReview = Readonly<{
-  /** Full resource name, e.g. accounts/a/locations/l/reviews/r1 */
+  /** Full resource name with account, location, and review segments. */
   name: string
   /** 'ONE'..'FIVE' (GBP wire format) */
   starRating: string
@@ -64,7 +71,7 @@ export type StubReview = Readonly<{
 }>
 
 export type StubLocation = Readonly<{
-  /** Full resource name, e.g. accounts/a/locations/l */
+  /** Full resource name with account and location segments. */
   name: string
   title: string
   storefrontAddress?: Record<string, unknown>
@@ -73,10 +80,10 @@ export type StubLocation = Readonly<{
 }>
 
 export type StubAccount = Readonly<{
-  /** e.g. accounts/e2e-import-1 */
+  /** Full account resource name. */
   name: string
-  type?: string
-  roleInfo?: { name: string }
+  accountName: string
+  role?: 'PRIMARY_OWNER' | 'OWNER' | 'MANAGER' | 'SITE_MANAGER'
 }>
 
 export type FetchBehavior =
@@ -89,6 +96,17 @@ export type FetchBehavior =
     }>
   | Readonly<{ mode: 'always-fail'; status: number; retryAfterSeconds?: number }>
 
+export type PerformanceBehavior =
+  | Readonly<{ mode: 'success' }>
+  | Readonly<{ mode: 'delay'; delayMs: number }>
+  | Readonly<{ mode: 'status'; status: number; retryAfterSeconds?: number }>
+  | Readonly<{ mode: 'malformed' }>
+  | Readonly<{ mode: 'oversize'; bytes: number }>
+
+export type StubPerformanceFixture = Readonly<{
+  response: unknown
+  behavior?: PerformanceBehavior
+}>
 export type ReplyBehavior =
   | Readonly<{ mode: 'success' }>
   | Readonly<{ mode: 'fail-then-success'; status: number; failures: number }>
@@ -100,6 +118,8 @@ export type StubScope = Readonly<{
   /** locationName → scripted review set (served by fetchReviews + batchGet) */
   reviews: Record<string, readonly StubReview[]>
   replyBehavior?: ReplyBehavior
+  /** location resource name → scripted Performance API response. */
+  performance?: Record<string, StubPerformanceFixture>
 }>
 
 export type RecordedCall = Readonly<{
@@ -118,6 +138,7 @@ type MutableScope = {
   fetchBehavior: FetchBehavior
   fetchBehaviorByLocation: Map<string, FetchBehavior>
   replyBehavior: ReplyBehavior
+  performance: Map<string, { response: unknown; behavior: PerformanceBehavior }>
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -205,15 +226,88 @@ function parseFetchBehaviorCommand(
   }
 }
 
+function parsePerformanceBehaviorCommand(
+  body: string,
+): Readonly<{ locationName: string; behavior: PerformanceBehavior }> | undefined {
+  let raw: unknown
+  try {
+    raw = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
+  const { locationName, behavior } = raw
+  if (
+    typeof locationName !== 'string' ||
+    locationName.length < 1 ||
+    locationName.length > 512 ||
+    typeof behavior !== 'object' ||
+    behavior === null ||
+    Array.isArray(behavior)
+  ) {
+    return undefined
+  }
+
+  const { mode, delayMs, status, retryAfterSeconds, bytes } = behavior
+  if (mode === 'success' || mode === 'malformed') {
+    return { locationName, behavior: { mode } }
+  }
+  if (
+    mode === 'delay' &&
+    typeof delayMs === 'number' &&
+    Number.isInteger(delayMs) &&
+    delayMs >= 0 &&
+    delayMs <= 120_000
+  ) {
+    return { locationName, behavior: { mode, delayMs } }
+  }
+  if (
+    mode === 'status' &&
+    typeof status === 'number' &&
+    Number.isInteger(status) &&
+    status >= 400 &&
+    status <= 599 &&
+    (retryAfterSeconds === undefined ||
+      (typeof retryAfterSeconds === 'number' &&
+        Number.isInteger(retryAfterSeconds) &&
+        retryAfterSeconds >= 0 &&
+        retryAfterSeconds <= 300))
+  ) {
+    return {
+      locationName,
+      behavior:
+        retryAfterSeconds === undefined
+          ? { mode, status }
+          : { mode, status, retryAfterSeconds },
+    }
+  }
+  if (
+    mode === 'oversize' &&
+    typeof bytes === 'number' &&
+    Number.isInteger(bytes) &&
+    bytes > 5 * 1024 * 1024 &&
+    bytes <= 10 * 1024 * 1024
+  ) {
+    return { locationName, behavior: { mode, bytes } }
+  }
+  return undefined
+}
+
 export type GbpStub = Readonly<{
   host: string
   port: number
   stop: () => Promise<void>
 }>
 
+export type GbpStubTls = Readonly<{
+  cert: Buffer
+  key: Buffer
+}>
+
 export async function startGbpStub(
   port: number = GBP_STUB_PORT,
   host: string = '127.0.0.1',
+  tls?: GbpStubTls,
 ): Promise<GbpStub> {
   const scopes = new Map<string, MutableScope>()
   const calls: RecordedCall[] = []
@@ -228,6 +322,32 @@ export async function startGbpStub(
 
   const scopeFor = (accountName: string): MutableScope | undefined =>
     scopes.get(scopeKey(accountName))
+
+  const performanceFixtureForName = (
+    locationName: string,
+  ): { response: unknown; behavior: PerformanceBehavior } | undefined => {
+    for (const scope of scopes.values()) {
+      const fixture = scope.performance.get(locationName)
+      if (fixture) return fixture
+    }
+    return undefined
+  }
+
+  const performanceFixtureForLocationId = (
+    locationId: string,
+  ): { response: unknown; behavior: PerformanceBehavior } | undefined => {
+    for (const scope of scopes.values()) {
+      for (const [locationName, fixture] of scope.performance) {
+        if (
+          locationName === locationId ||
+          locationName.endsWith(`/locations/${locationId}`)
+        ) {
+          return fixture
+        }
+      }
+    }
+    return undefined
+  }
 
   const record = (method: string, path: string, body?: string) => {
     if (calls.length < MAX_RECORDED) {
@@ -272,6 +392,28 @@ export async function startGbpStub(
     }
     return false
   }
+  function pageOffset(pageToken: string | null, prefix: string): number | null {
+    if (pageToken === null) return 0
+    const separator = pageToken.lastIndexOf(':')
+    if (separator <= 0 || pageToken.slice(0, separator) !== prefix) return null
+    const offset = Number(pageToken.slice(separator + 1))
+    return Number.isSafeInteger(offset) && offset >= 0 ? offset : null
+  }
+
+  function providerPage<T>(
+    items: readonly T[],
+    offset: number,
+    pageSize: number,
+    tokenPrefix: string,
+  ): Readonly<{ items: readonly T[]; nextPageToken?: string }> {
+    const nextOffset = offset + pageSize
+    return {
+      items: items.slice(offset, nextOffset),
+      ...(nextOffset < items.length
+        ? { nextPageToken: `${tokenPrefix}:${nextOffset}` }
+        : {}),
+    }
+  }
 
   const handleApi = async (
     req: IncomingMessage,
@@ -307,20 +449,51 @@ export async function startGbpStub(
       return
     }
 
-    // ── GBP business-information surface ──
-    if (path === '/accounts' && method === 'GET') {
-      json(res, 200, { accounts: [...scopes.values()].map((s) => s.account) })
+    // ── GBP account-management surface ──
+    if (path === '/v1/accounts' && method === 'GET') {
+      const offset = pageOffset(url.searchParams.get('pageToken'), 'accounts')
+      if (offset === null) {
+        json(res, 400, gbpError(400, 'Invalid account page token'))
+        return
+      }
+      const page = providerPage(
+        [...scopes.values()]
+          .map((scope) => scope.account)
+          .sort((left, right) => left.name.localeCompare(right.name)),
+        offset,
+        20,
+        'accounts',
+      )
+      json(res, 200, {
+        accounts: page.items,
+        ...(page.nextPageToken ? { nextPageToken: page.nextPageToken } : {}),
+      })
       return
     }
 
-    const locationsMatch = /^\/accounts\/([^/]+)\/locations$/.exec(path)
+    // ── GBP business-information surface ──
+
+    const locationsMatch = /^\/v1\/accounts\/([^/]+)\/locations$/.exec(path)
     if (locationsMatch && method === 'GET') {
       const scope = scopeFor(locationsMatch[1])
       if (!scope) {
         json(res, 404, gbpError(404, 'Unknown account'))
         return
       }
-      json(res, 200, { locations: scope.locations })
+      const tokenPrefix = `locations:${scopeKey(locationsMatch[1])}`
+      const offset = pageOffset(url.searchParams.get('pageToken'), tokenPrefix)
+      if (offset === null) {
+        json(res, 400, gbpError(400, 'Invalid location page token'))
+        return
+      }
+      const page = providerPage(scope.locations, offset, 100, tokenPrefix)
+      json(res, 200, {
+        locations: page.items.map((location) => ({
+          ...location,
+          name: `locations/${location.name.split('/').at(-1)}`,
+        })),
+        ...(page.nextPageToken ? { nextPageToken: page.nextPageToken } : {}),
+      })
       return
     }
 
@@ -346,6 +519,40 @@ export async function startGbpStub(
     }
 
     const locationGetMatch = /^\/accounts\/([^/]+)\/locations\/([^/]+)$/.exec(path)
+
+    const performanceMatch =
+      /^\/v1\/locations\/([^/:]+):fetchMultiDailyMetricsTimeSeries$/.exec(path)
+    if (performanceMatch && method === 'GET') {
+      const fixture = performanceFixtureForLocationId(performanceMatch[1])
+      if (!fixture) {
+        json(res, 404, gbpError(404, 'Unknown Performance location'))
+        return
+      }
+      const behavior = fixture.behavior
+      if (behavior.mode === 'delay') {
+        await new Promise((resolve) => setTimeout(resolve, behavior.delayMs))
+      } else if (behavior.mode === 'status') {
+        if (behavior.retryAfterSeconds !== undefined) {
+          res.setHeader('retry-after', String(behavior.retryAfterSeconds))
+        }
+        json(
+          res,
+          behavior.status,
+          gbpError(behavior.status, 'Scripted Performance failure'),
+        )
+        return
+      } else if (behavior.mode === 'malformed') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end('{"broken"')
+        return
+      } else if (behavior.mode === 'oversize') {
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(`{"padding":"${'x'.repeat(behavior.bytes)}"}`)
+        return
+      }
+      json(res, 200, fixture.response)
+      return
+    }
     if (locationGetMatch && method === 'GET') {
       const scope = scopeFor(locationGetMatch[1])
       const location = scope?.locations.find((l) => l.name === path.slice(1))
@@ -364,7 +571,8 @@ export async function startGbpStub(
     }
 
     // ── Reviews v4 surface (same path shapes, different adapter base URL) ──
-    const reviewsMatch = /^\/accounts\/([^/]+)\/locations\/([^/]+)\/reviews$/.exec(path)
+    const reviewsMatch =
+      /^(?:\/v4)?\/accounts\/([^/]+)\/locations\/([^/]+)\/reviews$/.exec(path)
     if (reviewsMatch && method === 'GET') {
       const scope = scopeFor(reviewsMatch[1])
       if (!scope) {
@@ -373,12 +581,48 @@ export async function startGbpStub(
       }
       const locationName = `accounts/${reviewsMatch[1]}/locations/${reviewsMatch[2]}`
       if (applyFetchBehavior(res, scope, [locationName])) return
-      json(res, 200, { reviews: scope.reviews.get(locationName) ?? [] })
+      const reviews = scope.reviews.get(locationName) ?? []
+      const tokenPrefix = `reviews:${scopeKey(locationName)}`
+      const offset = pageOffset(url.searchParams.get('pageToken'), tokenPrefix)
+      if (offset === null) {
+        json(res, 400, gbpError(400, 'Invalid review page token'))
+        return
+      }
+      const page = providerPage(reviews, offset, 50, tokenPrefix)
+      json(res, 200, {
+        reviews: page.items,
+        totalReviewCount: reviews.length,
+        ...(page.nextPageToken ? { nextPageToken: page.nextPageToken } : {}),
+      })
+      return
+    }
+
+    const reviewGetMatch =
+      /^(?:\/v4)?\/accounts\/([^/]+)\/locations\/([^/]+)\/reviews\/([^/]+)$/.exec(path)
+    if (reviewGetMatch && method === 'GET') {
+      const scope = scopeFor(reviewGetMatch[1])
+      if (!scope) {
+        json(res, 404, gbpError(404, 'Unknown account'))
+        return
+      }
+      const locationName = `accounts/${reviewGetMatch[1]}/locations/${reviewGetMatch[2]}`
+      if (applyFetchBehavior(res, scope, [locationName])) return
+      const reviewName = `${locationName}/reviews/${reviewGetMatch[3]}`
+      const review = scope.reviews
+        .get(locationName)
+        ?.find((item) => item.name === reviewName)
+      if (!review) {
+        json(res, 404, gbpError(404, 'Unknown review'))
+        return
+      }
+      json(res, 200, review)
       return
     }
 
     const replyMatch =
-      /^\/accounts\/([^/]+)\/locations\/([^/]+)\/reviews\/([^/]+)\/reply$/.exec(path)
+      /^(?:\/v4)?\/accounts\/([^/]+)\/locations\/([^/]+)\/reviews\/([^/]+)\/reply$/.exec(
+        path,
+      )
     if (replyMatch && method === 'PUT') {
       const scope = scopeFor(replyMatch[1])
       if (!scope) {
@@ -453,6 +697,15 @@ export async function startGbpStub(
         fetchBehavior: { mode: 'success' },
         fetchBehaviorByLocation: new Map(),
         replyBehavior: scope.replyBehavior ?? { mode: 'success' },
+        performance: new Map(
+          Object.entries(scope.performance ?? {}).map(([locationName, fixture]) => [
+            locationName,
+            {
+              response: fixture.response,
+              behavior: fixture.behavior ?? { mode: 'success' },
+            },
+          ]),
+        ),
       })
       json(res, 200, { ok: true })
       return
@@ -491,6 +744,21 @@ export async function startGbpStub(
       json(res, 200, { ok: true })
       return
     }
+    if (path === '/__control/performance-behavior' && method === 'POST') {
+      const command = parsePerformanceBehaviorCommand(body)
+      if (!command) {
+        json(res, 400, { error: 'Invalid Performance behavior command' })
+        return
+      }
+      const fixture = performanceFixtureForName(command.locationName)
+      if (!fixture) {
+        json(res, 404, { error: 'Unknown Performance location' })
+        return
+      }
+      fixture.behavior = command.behavior
+      json(res, 200, { ok: true })
+      return
+    }
     if (path === '/__control/calls' && method === 'GET') {
       const methodFilter = url.searchParams.get('method')
       const pathPrefix = url.searchParams.get('pathPrefix')
@@ -508,7 +776,7 @@ export async function startGbpStub(
     json(res, 404, { error: `Unknown control route ${method} ${path}` })
   }
 
-  const server = createServer((req, res) => {
+  const handleRequest = (req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       const url = new URL(req.url ?? '/', `http://localhost:${port}`)
       const body = req.method === 'GET' ? '' : await readBody(req)
@@ -521,7 +789,10 @@ export async function startGbpStub(
     })().catch((err) => {
       json(res, 500, { error: String(err) })
     })
-  })
+  }
+  const server = tls
+    ? createHttpsServer({ cert: tls.cert, key: tls.key }, handleRequest)
+    : createHttpServer(handleRequest)
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -568,6 +839,17 @@ export const gbpStubControl = {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ accountName, behavior }),
+    })
+  },
+
+  async setPerformanceBehavior(
+    locationName: string,
+    behavior: PerformanceBehavior,
+  ): Promise<void> {
+    await controlFetch('/__control/performance-behavior', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ locationName, behavior }),
     })
   },
 

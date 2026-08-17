@@ -58,6 +58,7 @@
 // shared Redis is never killed or restarted. Skips cleanly when Redis is
 // unreachable (same convention as the BQC-3.6 quarantine suite).
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import {
   describe,
   it,
@@ -451,10 +452,10 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
 // ── (c) Provider (GBP) down ──────────────────────────────────────────
 
 const ORG_C = organizationId('org-bqc46-faults-cc000001')
-const PROP_C = propertyId('4d000000-0000-0000-0000-000000000001')
-const CONN_C = googleConnectionId('4d000000-0000-0000-0000-000000000002')
-const REVIEW_C = reviewId('4d000000-0000-0000-0000-000000000010')
-const REPLY_C = replyId('4d000000-0000-0000-0000-000000000020')
+const PROP_C = propertyId('46c00000-0000-4000-8000-000000000001')
+const CONN_C = googleConnectionId('46c00000-0000-4000-8000-000000000002')
+const REVIEW_C = reviewId('46c00000-0000-4000-8000-000000000010')
+const REPLY_C = replyId('46c00000-0000-4000-8000-000000000020')
 const USER_C = userId('user-bqc46-faults-cc00001')
 const NOW_C = new Date('2026-07-18T12:00:00.000Z')
 
@@ -471,7 +472,7 @@ function makeReviewC(): Review {
     propertyId: PROP_C,
     platform: 'google',
     externalId: 'ext-bqc46-c-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_C,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
@@ -489,6 +490,11 @@ function makeReviewC(): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW_C,
     updatedAt: NOW_C,
   }
@@ -599,7 +605,13 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       .mockRejectedValueOnce(gbp5xx)
       .mockRejectedValueOnce(gbpTimeout)
     const googleReviewApi: GoogleReviewApiPort = {
-      fetchReviews: async () => [],
+      listReviewsPage: async () => ({
+        reviews: [],
+        totalReviewCount: 0,
+        nextCursorRef: null,
+      }),
+      getReview: async () => ({ status: 'not_found' }),
+      discardReviewCursors: async () => {},
       replyToReview,
     }
     const handler = createPublishReplyHandler({

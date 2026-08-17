@@ -18,6 +18,7 @@ import {
 type Props = Readonly<{
   progress: ImportProgressDto
   isPollingError: boolean
+  isRefreshing: boolean
   retryingItemId: string | null
   onRefresh: () => void
   onRetry: (item: ImportProgressItemDto) => void
@@ -26,6 +27,7 @@ type Props = Readonly<{
 export function GoogleImportProgressView({
   progress,
   isPollingError,
+  isRefreshing,
   retryingItemId,
   onRefresh,
   onRetry,
@@ -57,9 +59,19 @@ export function GoogleImportProgressView({
             {progress.processedCount} of {progress.totalCount} properties processed
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={onRefresh}>
-          <RefreshCcw aria-hidden="true" />
-          Refresh status
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshCcw
+            className={
+              isRefreshing ? 'animate-spin motion-reduce:animate-none' : undefined
+            }
+            aria-hidden="true"
+          />
+          {isRefreshing ? 'Refreshing…' : 'Refresh status'}
         </Button>
       </div>
 
@@ -137,7 +149,7 @@ export function GoogleImportProgressView({
             <Link to="/properties">View properties</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link to="/import">Start another import</Link>
+            <Link to="/properties/import-google">Start another import</Link>
           </Button>
         </div>
       ) : null}

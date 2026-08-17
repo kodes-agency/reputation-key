@@ -4,8 +4,8 @@
 // AMBIGUOUS publish outcome (timeout/unknown error after the provider request
 // may have landed — see classifyPublicationFailure in the publication saga).
 //
-// The flow re-reads provider state through the SAME GBP read path the review
-// sync uses (GoogleReviewApiPort.fetchReviews for the review's location):
+// The flow re-reads provider state through the targeted
+// GoogleReviewApiPort.getReview path for this exact review:
 // - provider shows a reply for the review → markPublished atomically (heals
 //   the divergence; commits the durable review.reply.published fact);
 // - provider does not → the reply stays publish_failed; outcome 'still_failed'
@@ -18,9 +18,17 @@
 
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type {
+  GoogleReviewApiPort,
+  GoogleReviewGetResult,
+} from '../ports/google-review-api.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
-import type { ReplyId, OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import type {
+  GoogleConnectionId,
+  OrganizationId,
+  PropertyId,
+  ReplyId,
+} from '#/shared/domain/ids'
 import type { ReviewError } from '../../domain/errors'
 import { reviewError } from '../../domain/errors'
 import { reviewReplyPublished } from '../../domain/events'
@@ -74,9 +82,11 @@ export const reconcileReplyPublication =
     const providerHasReply = await fetchProviderReplyState(
       deps,
       input.organizationId,
+      review.propertyId,
       review.googleConnectionId,
+      review.sourceEpoch,
       review.externalLocationId,
-      review.externalId,
+      `${review.externalLocationId}/reviews/${review.externalId}`,
     )
     if (providerHasReply.isErr()) return err(providerHasReply.error)
     if (!providerHasReply.value) return ok({ outcome: 'still_failed' })
@@ -110,17 +120,22 @@ export type ReconcileReplyPublication = ReturnType<typeof reconcileReplyPublicat
 async function fetchProviderReplyState(
   deps: ReconcileReplyPublicationDeps,
   organizationId: OrganizationId,
+  propertyId: PropertyId,
   connectionId: GoogleConnectionId,
+  sourceEpoch: number,
   locationName: string,
-  externalId: string,
+  reviewName: string,
 ): Promise<Result<boolean, ReviewError>> {
-  let googleReviews
+  let result: GoogleReviewGetResult
   try {
-    googleReviews = await deps.googleReviewApi.fetchReviews(
+    result = await deps.googleReviewApi.getReview({
       organizationId,
+      propertyId,
       connectionId,
+      sourceEpoch,
       locationName,
-    )
+      reviewName,
+    })
   } catch (e: unknown) {
     return err(
       reviewError('sync_failed', 'Failed to re-read provider reply state', {
@@ -128,6 +143,9 @@ async function fetchProviderReplyState(
       }),
     )
   }
-  const match = googleReviews.find((gr) => gr.externalId === externalId)
-  return ok(match?.replyText != null && match.replyText.length > 0)
+  return ok(
+    result.status === 'found' &&
+      result.review.replyText != null &&
+      result.review.replyText.length > 0,
+  )
 }

@@ -11,6 +11,7 @@ type Props = Readonly<{
   total: number
   attempted: boolean
   validation: ImportReviewValidation
+  disabled: boolean
   onChange: (item: ImportReviewItem) => void
 }>
 
@@ -19,6 +20,7 @@ export function GoogleImportReviewItem({
   index,
   total,
   attempted,
+  disabled,
   validation,
   onChange,
 }: Props) {
@@ -50,6 +52,7 @@ export function GoogleImportReviewItem({
         <label className="mb-5 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
           <Checkbox
             checked={item.updateExistingProfile}
+            disabled={disabled}
             onCheckedChange={(checked) =>
               patch({ updateExistingProfile: checked === true })
             }
@@ -62,6 +65,7 @@ export function GoogleImportReviewItem({
         item={item}
         attempted={attempted}
         validation={validation}
+        disabled={disabled}
         onPatch={patch}
       />
     </section>

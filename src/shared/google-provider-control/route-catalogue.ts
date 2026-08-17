@@ -72,6 +72,13 @@ const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
     .strict(),
   z
     .object({
+      routeKey: z.literal('reviews.get'),
+      accessToken: boundedRouteString,
+      reviewName: z.string().min(1).max(1_024),
+    })
+    .strict(),
+  z
+    .object({
       routeKey: z.literal('reviews.reply'),
       accessToken: boundedRouteString,
       reviewName: z.string().min(1).max(1_024),
@@ -119,6 +126,11 @@ export type GoogleProviderRouteDescriptor =
       accessToken: string
       locationName: string
       pageToken?: string
+    }>
+  | Readonly<{
+      routeKey: 'reviews.get'
+      accessToken: string
+      reviewName: string
     }>
   | Readonly<{
       routeKey: 'reviews.reply'
@@ -230,6 +242,12 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     ...REVIEWS_POLICY,
     endpointClass: 'reviews' as const,
     maxRequestBytes: 0,
+  }),
+  'reviews.get': Object.freeze({
+    ...REVIEWS_POLICY,
+    endpointClass: 'reviews' as const,
+    maxRequestBytes: 0,
+    maxResponseBytes: 64 * 1024,
   }),
   'reviews.reply': Object.freeze({
     ...REVIEWS_POLICY,
@@ -500,7 +518,7 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         url: queryUrl(
           `https://mybusiness.googleapis.com/v4/${descriptor.locationName}/reviews`,
           [
-            ['pageSize', '100'],
+            ['pageSize', '50'],
             ['pageToken', optionalPageToken(descriptor.pageToken)],
           ],
         ),
@@ -509,6 +527,23 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         credential: accessToken,
         maxRequestBytes: 0,
         maxResponseBytes: 5 * 1024 * 1024,
+        quotaPolicyId: 'google-reviews-v1',
+        inFlightPolicyId: 'google-reviews-v1',
+      }
+    }
+    case 'reviews.get': {
+      const accessToken = requireBounded(descriptor.accessToken)
+      if (!PROVIDER_REVIEW_NAME.test(descriptor.reviewName)) return invalidInput()
+      return {
+        endpointClass: 'reviews',
+        requestClass: 'reviews',
+        method: 'GET',
+        url: `https://mybusiness.googleapis.com/v4/${descriptor.reviewName}`,
+        headers: bearerHeaders(accessToken),
+        body: null,
+        credential: accessToken,
+        maxRequestBytes: 0,
+        maxResponseBytes: 64 * 1024,
         quotaPolicyId: 'google-reviews-v1',
         inFlightPolicyId: 'google-reviews-v1',
       }

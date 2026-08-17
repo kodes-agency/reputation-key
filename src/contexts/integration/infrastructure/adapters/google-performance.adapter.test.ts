@@ -3,6 +3,7 @@ import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 import { isGbpApiError } from '../../domain/gbp-api-error'
 import { createGooglePerformanceAdapter } from './google-performance.adapter'
+import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
 
 const input = Object.freeze({
   organizationId: organizationId('organization-1'),
@@ -23,7 +24,13 @@ const authorization = Object.freeze({
   connectionId: input.connectionId,
   initiatorUserId: 'user-1',
   approvalBindingId: 'approval-1',
-  authorizationVector: Object.freeze({ policyVersion: 1 }),
+  expectedCredentialGeneration: 3,
+  authorizationVector: Object.freeze({ policyVersion: 1, credentialGeneration: 3 }),
+})
+const reauthorized = Object.freeze({
+  ...authorization,
+  expectedCredentialGeneration: 4,
+  authorizationVector: Object.freeze({ policyVersion: 1, credentialGeneration: 4 }),
 })
 
 function responseBody() {
@@ -87,9 +94,65 @@ describe('Google Performance adapter', () => {
         startLocalDate: '2026-07-01',
         endLocalDate: '2026-07-31',
       },
-      { authorization, deadlineMs: 16_000 },
+      { authorization, deadlineMs: 16_000, signal: expect.any(AbortSignal) },
     )
     expect(body.every((byte) => byte === 0)).toBe(true)
+  })
+
+  it('revalidates authorization after a forced 401 refresh before retrying once', async () => {
+    const expiredBody = new TextEncoder().encode('{"error":"expired"}')
+    const execute = vi
+      .fn<GoogleAuthorizedProviderExecutor['execute']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 401,
+        headers: {
+          contentType: 'application/json',
+          cacheControl: 'private',
+          retryAfter: null,
+        },
+        body: expiredBody,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: {
+          contentType: 'application/json',
+          cacheControl: 'private',
+          retryAfter: null,
+        },
+        body: responseBody(),
+      })
+    const refreshAccessToken = vi.fn(async () => 'leader-only-token')
+    const getAccessToken = vi.fn(async () => 'refreshed-access-token')
+    const reauthorize = vi.fn(async () => reauthorized)
+    const adapter = createGooglePerformanceAdapter({
+      executor: createSingle401RefreshExecutor({
+        executor: { execute },
+        refreshAccessToken,
+        getAccessToken,
+        reauthorize,
+      }),
+      nowMs: () => 1_000,
+    })
+
+    await expect(
+      adapter.fetchReport(input, 'expired-access-token', authorization),
+    ).resolves.toMatchObject({
+      requestedRange: {
+        startLocalDate: '2026-07-01',
+        endLocalDate: '2026-07-31',
+      },
+    })
+    expect(refreshAccessToken).toHaveBeenCalledWith({ authorization })
+    expect(getAccessToken).toHaveBeenCalledTimes(1)
+    expect(reauthorize).toHaveBeenCalledWith({ authorization })
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(execute.mock.calls[1]).toEqual([
+      expect.objectContaining({ accessToken: 'refreshed-access-token' }),
+      expect.objectContaining({ authorization: reauthorized }),
+    ])
+    expect(expiredBody.every((byte) => byte === 0)).toBe(true)
   })
 
   it('classifies throttling without retaining the provider body', async () => {

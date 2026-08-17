@@ -1,0 +1,39 @@
+{
+  "version": "language-script-consistency-v1",
+  "unicodeVersion": "17.0.0",
+  "icuVersion": "78.2",
+  "generatedTableDigest": "60d7100a24737b690f51c8ad35ee323f812208a2aabb30b1b9a9581ad1c92912",
+  "thresholdNumerator": 4,
+  "thresholdDenominator": 5,
+  "scriptMasks": {
+    "Latn": 1,
+    "Cyrl": 2,
+    "Arab": 4,
+    "Hebr": 8,
+    "Deva": 16,
+    "Beng": 32,
+    "Taml": 64,
+    "Thai": 128,
+    "Hans": 256,
+    "Hant": 256,
+    "Jpan": 1792,
+    "Kore": 2304
+  },
+  "generator": {
+    "path": "scripts/generate-ai-language-script-table.ts",
+    "sha256": "22e5e75ab85755c3eabcf3fb9d180b91d82fd030feb872a1cc5e0ab99fbfef05"
+  },
+  "table": {
+    "path": "src/shared/generated/ai-language-script-extensions-v17.ts",
+    "sha256": "78b356093e5a1f847026e33379b75060e46fea71ce80306b9d6b624ecd985dd8"
+  },
+  "wrapper": {
+    "path": "src/shared/ai-language-script-consistency.ts",
+    "sha256": "a5bba4b5307ed26ab9a6158a5616c4df8857e4484cbc40ab9a60c1d717cfc403"
+  },
+  "vectors": {
+    "path": "src/shared/ai-language-script-consistency-v1.vectors.json",
+    "sha256": "b60873ea1f89634fa1d6453a3396a181e31286ad70fcabd7a8af07073f45a2f6"
+  },
+  "attestationDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa"
+}

@@ -22,6 +22,11 @@ type GoogleImportOutcomeRow = Readonly<{
   cleanup_required_present: boolean
 }>
 
+type RailwayApprovalEnumState = Readonly<{
+  railway_target_present: boolean
+  railway_profile_present: boolean
+}>
+
 type MigrationStages = Readonly<{
   preEnumCommit: readonly MigrationMeta[]
   postEnumCommit: readonly MigrationMeta[]
@@ -45,6 +50,27 @@ const GOOGLE_IMPORT_OUTCOME_STATE_SQL = `
         AND t.typname = 'google_import_v2_outcome'
         AND e.enumlabel = 'cleanup_required'
     ) AS cleanup_required_present
+`
+const RAILWAY_APPROVAL_ENUM_STATE_SQL = `
+  SELECT
+    EXISTS (
+      SELECT 1
+      FROM pg_type AS t
+      JOIN pg_namespace AS n ON n.oid = t.typnamespace
+      JOIN pg_enum AS e ON e.enumtypid = t.oid
+      WHERE n.nspname = 'public'
+        AND t.typname = 'google_content_approval_target_phase'
+        AND e.enumlabel = 'railway_closed_beta'
+    ) AS railway_target_present,
+    EXISTS (
+      SELECT 1
+      FROM pg_type AS t
+      JOIN pg_namespace AS n ON n.oid = t.typnamespace
+      JOIN pg_enum AS e ON e.enumtypid = t.oid
+      WHERE n.nspname = 'public'
+        AND t.typname = 'google_content_environment_profile'
+        AND e.enumlabel = 'railway-closed-beta-1'
+    ) AS railway_profile_present
 `
 
 function loadMigrationStages(migrationsFolder: string): MigrationStages {
@@ -152,6 +178,25 @@ async function prepareGoogleImportOutcome(
     additionAttempted: true,
   }
 }
+async function prepareRailwayApprovalEnums(client: Client): Promise<void> {
+  const result = await client.query<RailwayApprovalEnumState>(
+    RAILWAY_APPROVAL_ENUM_STATE_SQL,
+  )
+  const state = result.rows[0]
+  if (!state) throw new Error('Railway approval enum preflight returned no state')
+  if (!state.railway_target_present) {
+    await client.query(`
+      ALTER TYPE "public"."google_content_approval_target_phase"
+      ADD VALUE IF NOT EXISTS 'railway_closed_beta' BEFORE 'production_expand_canary'
+    `)
+  }
+  if (!state.railway_profile_present) {
+    await client.query(`
+      ALTER TYPE "public"."google_content_environment_profile"
+      ADD VALUE IF NOT EXISTS 'railway-closed-beta-1' BEFORE 'production'
+    `)
+  }
+}
 
 /**
  * Preserves immutable migration 0034 while satisfying PostgreSQL's enum rule:
@@ -165,6 +210,7 @@ export async function runStagedDrizzleMigrations(
   await ensureMigrationJournal(client)
   const preEnumCommitApplied = await applyMigrationBatch(client, stages.preEnumCommit)
   const outcome = await prepareGoogleImportOutcome(client)
+  await prepareRailwayApprovalEnums(client)
   const postEnumCommitApplied = await applyMigrationBatch(client, stages.postEnumCommit)
   return { preEnumCommitApplied, postEnumCommitApplied, outcome }
 }

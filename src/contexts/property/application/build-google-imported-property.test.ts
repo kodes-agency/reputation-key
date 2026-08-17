@@ -1,3 +1,4 @@
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it } from 'vitest'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { buildGoogleImportedProperty } from './build-google-imported-property'
@@ -46,7 +47,7 @@ describe('buildGoogleImportedProperty', () => {
     expect(() =>
       buildGoogleImportedProperty({
         ...BASE_INPUT,
-        locationId: 'accounts/123/locations/456',
+        locationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
       }),
     ).toThrow('canonical bare account/location suffixes')
   })

@@ -65,6 +65,7 @@ function ProgressHarness({ snapshot = processing }: { snapshot?: ImportProgressD
       <GoogleImportProgressView
         progress={snapshot}
         isPollingError={false}
+        isRefreshing={false}
         retryingItemId={null}
         onRefresh={() => {}}
         onRetry={() => setRetried(true)}
@@ -116,8 +117,41 @@ export const LiveUpdatesPaused: Story = {
   args: {
     progress: processing,
     isPollingError: true,
+    isRefreshing: false,
     retryingItemId: null,
     onRefresh: () => {},
     onRetry: () => {},
+  },
+}
+
+export const RetryInFlight: Story = {
+  args: {
+    progress: processing,
+    isPollingError: false,
+    isRefreshing: false,
+    retryingItemId: items[1]!.itemId,
+    onRefresh: () => {},
+    onRetry: () => {},
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const retryButtons = canvas.getAllByRole('button', { name: /retrying/i })
+    await Promise.all(retryButtons.map((button) => expect(button).toBeDisabled()))
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+export const RefreshInFlight: Story = {
+  args: {
+    progress: processing,
+    isPollingError: false,
+    isRefreshing: true,
+    retryingItemId: null,
+    onRefresh: () => {},
+    onRetry: () => {},
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: /refreshing/i })).toBeDisabled()
   },
 }

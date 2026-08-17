@@ -61,6 +61,9 @@ export type Permission =
   | 'integration.manage'
   // BQC-2.7: policy administration — AccountAdmin (owner) only by default.
   | 'policy.admin'
+  | 'ai.reply.generate'
+  | 'ai.trends.read'
+  | 'ai.manage'
   | 'identity.avatar_upload'
   | 'identity.logo_upload'
   | 'identity.password.change'

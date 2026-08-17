@@ -17,6 +17,7 @@ type Props = Pick<
   | 'connections'
   | 'initialConnectionId'
   | 'initialProgress'
+  | 'initialRequestId'
   | 'listAccounts'
   | 'listCandidates'
   | 'renewAuthorizationLease'
@@ -28,16 +29,27 @@ export function useGoogleImportDiscoveryController({
   connections,
   initialConnectionId,
   initialProgress,
+  initialRequestId,
   listAccounts,
   listCandidates,
   renewAuthorizationLease,
   onClearStartError,
 }: Props) {
+  const initialActiveConnectionId =
+    connections.find(
+      (connection) =>
+        connection.id === initialConnectionId && connection.status === 'active',
+    )?.id ??
+    connections.find((connection) => connection.status === 'active')?.id ??
+    null
   const [step, setStep] = useState<'discover' | 'review' | 'progress'>(
     initialProgress ? 'progress' : 'discover',
   )
   const [connectionId, setConnectionId] = useState<string | null>(
-    initialConnectionId ?? connections[0]?.id ?? null,
+    initialActiveConnectionId,
+  )
+  const [contentActive, setContentActive] = useState(
+    initialActiveConnectionId !== null && initialRequestId === undefined,
   )
   const [accountRef, setAccountRef] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -47,6 +59,7 @@ export function useGoogleImportDiscoveryController({
     [],
   )
   const clearProviderState = useCallback(() => {
+    setContentActive(false)
     setAccountRef(null)
     setSelectedIds(new Set())
     setSearch('')
@@ -60,6 +73,7 @@ export function useGoogleImportDiscoveryController({
     connectionId,
     accountRef,
     step,
+    enabled: contentActive,
     listAccounts,
     listCandidates,
     renewAuthorizationLease,
@@ -72,19 +86,37 @@ export function useGoogleImportDiscoveryController({
 
   useEffect(() => {
     if (
-      !connectionId ||
-      connections.some((connection) => connection.id === connectionId)
+      connectionId === null ||
+      connections.some(
+        (connection) => connection.id === connectionId && connection.status === 'active',
+      )
     ) {
       return
     }
-    setConnectionId(connections[0]?.id ?? null)
-    void content.lifecycle.clear('authorization_revoked')
+    void (async () => {
+      await content.lifecycle.clear('authorization_revoked')
+      setConnectionId(
+        connections.find((connection) => connection.status === 'active')?.id ?? null,
+      )
+    })()
   }, [connectionId, connections, content.lifecycle])
 
   const changeConnection = async (nextConnectionId: string) => {
-    if (nextConnectionId === connectionId) return
+    if (
+      nextConnectionId === connectionId ||
+      !connections.some(
+        (connection) =>
+          connection.id === nextConnectionId && connection.status === 'active',
+      )
+    ) {
+      return
+    }
     await content.lifecycle.clear('connection_changed')
     setConnectionId(nextConnectionId)
+    setContentActive(true)
+  }
+  const resumeDiscovery = () => {
+    if (connectionId !== null) setContentActive(true)
   }
   const selectAccount = (nextAccountRef: string) => {
     setAccountRef(nextAccountRef)
@@ -109,7 +141,7 @@ export function useGoogleImportDiscoveryController({
     setReviewCandidates(selected)
     setReviewDraft(createImportReviewDraft(selected, browserTimezone))
     setStep('review')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }
 
   return {
@@ -117,6 +149,7 @@ export function useGoogleImportDiscoveryController({
     step,
     setStep,
     connectionId,
+    contentActive,
     accountRef,
     selectedIds,
     search,
@@ -126,6 +159,7 @@ export function useGoogleImportDiscoveryController({
     setReviewDraft,
     reviewCandidates,
     changeConnection,
+    resumeDiscovery,
     selectAccount,
     toggleCandidate,
     toggleLoaded,

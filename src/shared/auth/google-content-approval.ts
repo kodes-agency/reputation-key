@@ -34,6 +34,11 @@ export type GoogleContentApprovalValidationCode =
   | 'binding_expired'
   | 'invalid_phase_profile'
   | 'invalid_approval_window'
+  | 'invalid_railway_cohort'
+  | 'railway_cohort_digest_mismatch'
+  | 'railway_residual_binding_mismatch'
+  | 'railway_residual_risk_denied'
+  | 'railway_approval_owner_mismatch'
   | 'index_digest_mismatch'
   | 'manifest_digest_mismatch'
   | 'deployment_artifact_mismatch'
@@ -107,10 +112,17 @@ const approvalBindingSchema = z
     googleOAuthClientIdSha256: sha256Schema,
     googleRedirectUriSha256: sha256Schema,
     providerOriginProfileSha256: sha256Schema,
-    runtimeIsolationProfileVersion: z.literal(
-      GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
-    ),
-    runtimeIsolationProfileSha256: sha256Schema,
+    runtimeIsolationProfileVersion: z
+      .literal(GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION)
+      .nullable(),
+    runtimeIsolationProfileSha256: sha256Schema.nullable(),
+    railwayClosedBetaCohort: z
+      .array(z.string().min(1).max(255))
+      .min(1)
+      .max(100)
+      .nullable(),
+    railwayClosedBetaCohortSha256: sha256Schema.nullable(),
+    railwayClosedBetaResidualRiskSha256: sha256Schema.nullable(),
     performanceCatalogVersion: z.literal(GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION),
     capabilityPolicyVersion: z.literal(GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION),
     executionPolicyVersion: z.literal(GOOGLE_CONTENT_EXECUTION_POLICY_VERSION),
@@ -141,6 +153,9 @@ const roleDocumentSchema = z
     transientPerformanceReportingDecision: z.enum(['approved', 'denied']),
     confirmedImportProfileTreatmentDecision: z.enum(['approved', 'denied']),
     unmanagedUserAgentMemoryResidualDecision: z.enum(['approved', 'denied']),
+    railwayClosedBetaResidualDecision: z.enum(['approved', 'denied']).nullable(),
+    railwayClosedBetaCohortSha256: sha256Schema.nullable(),
+    railwayClosedBetaResidualRiskSha256: sha256Schema.nullable(),
     approverIdentity: z.string().min(1).max(200),
     approvedAt: instantSchema,
     expiresAt: instantSchema,
@@ -246,13 +261,76 @@ function parseInstant(value: string): number | null {
 function expectedEnvironmentProfile(
   phase: GoogleContentApprovalBinding['targetPhase'],
 ): GoogleContentApprovalBinding['environmentProfile'] {
-  return phase === 'local_sandbox' ? 'sandbox' : 'production'
+  switch (phase) {
+    case 'local_sandbox':
+      return 'sandbox'
+    case 'railway_closed_beta':
+      return 'railway-closed-beta-1'
+    case 'production_expand_canary':
+    case 'production_final':
+      return 'production'
+  }
 }
 
 function maximumApprovalWindowMs(
   phase: GoogleContentApprovalBinding['targetPhase'],
 ): number {
+  if (phase === 'railway_closed_beta') return 30 * DAY_MS
   return phase === 'production_expand_canary' ? 72 * HOUR_MS : 90 * DAY_MS
+}
+
+function isRailwayClosedBeta(binding: GoogleContentApprovalBinding): boolean {
+  return binding.targetPhase === 'railway_closed_beta'
+}
+
+function validRailwayCohort(organizations: readonly string[]): boolean {
+  if (
+    organizations.length === 0 ||
+    new Set(organizations).size !== organizations.length
+  ) {
+    return false
+  }
+  return organizations.every(
+    (organizationId) =>
+      organizationId !== '*' &&
+      organizationId.trim() === organizationId &&
+      organizationId.length > 0 &&
+      organizationId.length <= 255,
+  )
+}
+
+function validatePhaseProfile(
+  binding: GoogleContentApprovalBinding,
+): GoogleContentApprovalValidationCode | null {
+  if (binding.environmentProfile !== expectedEnvironmentProfile(binding.targetPhase)) {
+    return 'invalid_phase_profile'
+  }
+  if (isRailwayClosedBeta(binding)) {
+    if (
+      binding.runtimeIsolationProfileVersion !== null ||
+      binding.runtimeIsolationProfileSha256 !== null ||
+      binding.railwayClosedBetaCohort === null ||
+      binding.railwayClosedBetaCohortSha256 === null ||
+      binding.railwayClosedBetaResidualRiskSha256 === null
+    ) {
+      return 'invalid_phase_profile'
+    }
+    if (!validRailwayCohort(binding.railwayClosedBetaCohort)) {
+      return 'invalid_railway_cohort'
+    }
+    return canonicalGoogleContentSha256(binding.railwayClosedBetaCohort) ===
+      binding.railwayClosedBetaCohortSha256
+      ? null
+      : 'railway_cohort_digest_mismatch'
+  }
+  return binding.runtimeIsolationProfileVersion ===
+    GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION &&
+    binding.runtimeIsolationProfileSha256 !== null &&
+    binding.railwayClosedBetaCohort === null &&
+    binding.railwayClosedBetaCohortSha256 === null &&
+    binding.railwayClosedBetaResidualRiskSha256 === null
+    ? null
+    : 'invalid_phase_profile'
 }
 
 function treatmentApproved(document: GoogleContentApprovalRoleDocument): boolean {
@@ -279,8 +357,9 @@ export function validateGoogleContentApprovalCandidate(
   if (expiresAt === null || now.getTime() >= expiresAt) {
     return { ok: false, code: 'binding_expired' }
   }
-  if (binding.environmentProfile !== expectedEnvironmentProfile(binding.targetPhase)) {
-    return { ok: false, code: 'invalid_phase_profile' }
+  const phaseProfileCode = validatePhaseProfile(binding)
+  if (phaseProfileCode) {
+    return { ok: false, code: phaseProfileCode }
   }
   if (
     approvedAt === null ||
@@ -328,6 +407,7 @@ export function validateGoogleContentApprovalCandidate(
   }
 
   let latestRoleApproval = Number.NEGATIVE_INFINITY
+  let railwayApprovalOwner: string | null = null
   for (const role of GOOGLE_CONTENT_APPROVAL_ROLES) {
     const entry = byRole.get(role)
     if (!entry) return { ok: false, code: 'missing_role_approval' }
@@ -345,6 +425,13 @@ export function validateGoogleContentApprovalCandidate(
     const document = entry.document
     if (!verifyRoleApproval(document)) {
       return { ok: false, code: 'invalid_role_signature' }
+    }
+    if (isRailwayClosedBeta(binding)) {
+      if (railwayApprovalOwner === null) {
+        railwayApprovalOwner = document.approverIdentity
+      } else if (document.approverIdentity !== railwayApprovalOwner) {
+        return { ok: false, code: 'railway_approval_owner_mismatch' }
+      }
     }
     if (document.manifestSha256 !== index.manifestSha256) {
       return { ok: false, code: 'manifest_digest_mismatch' }
@@ -367,6 +454,25 @@ export function validateGoogleContentApprovalCandidate(
     latestRoleApproval = Math.max(latestRoleApproval, roleApprovedAt)
     if (!treatmentApproved(document)) {
       return { ok: false, code: 'content_treatment_denied' }
+    }
+    if (isRailwayClosedBeta(binding)) {
+      if (document.railwayClosedBetaResidualDecision !== 'approved') {
+        return { ok: false, code: 'railway_residual_risk_denied' }
+      }
+      if (
+        document.railwayClosedBetaCohortSha256 !==
+          binding.railwayClosedBetaCohortSha256 ||
+        document.railwayClosedBetaResidualRiskSha256 !==
+          binding.railwayClosedBetaResidualRiskSha256
+      ) {
+        return { ok: false, code: 'railway_residual_binding_mismatch' }
+      }
+    } else if (
+      document.railwayClosedBetaResidualDecision !== null ||
+      document.railwayClosedBetaCohortSha256 !== null ||
+      document.railwayClosedBetaResidualRiskSha256 !== null
+    ) {
+      return { ok: false, code: 'railway_residual_binding_mismatch' }
     }
   }
 

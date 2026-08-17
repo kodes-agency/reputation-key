@@ -77,6 +77,12 @@ export type PolicyAdminDeps = Readonly<{
     organizationId: string,
     capability: string,
   ) => Promise<void>
+  addPropertyCapability: (
+    propertyId: string,
+    capability: string,
+    createdBy?: string,
+  ) => Promise<void>
+  removePropertyCapability: (propertyId: string, capability: string) => Promise<void>
   isOrgMember: (organizationId: string, userId: string) => Promise<boolean>
   loadOrgPolicyState: (organizationId: string) => Promise<OrgPolicyState>
   grantPropertyAccess: (input: {
@@ -195,6 +201,55 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     await auditOp(deps, {
       organizationId: input.organizationId,
       action: input.enabled ? 'policy.allowlist.set' : 'policy.allowlist.clear',
+      capability: input.capability,
+      reason: input.reason,
+      actorUserId: input.actorUserId,
+    })
+  }
+
+  async function setPropertyCapability(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      capability: string
+      enabled: boolean
+      reason: string
+      actorUserId: string
+      now: Date
+    }>,
+  ): Promise<void> {
+    if (!deps.listAllCapabilities().includes(input.capability)) {
+      throw new Error(`unknown capability '${input.capability}'`)
+    }
+    if (deps.isCoreCapability(input.capability)) {
+      throw new Error(`capability '${input.capability}' is core — no allowlist needed`)
+    }
+    if (deps.isBlockedCapability(input.capability)) {
+      throw new Error(`capability '${input.capability}' is blocked — never allowlistable`)
+    }
+    requireReason(input.reason)
+    if (
+      !(await deps.propertyBelongsToOrganization(input.organizationId, input.propertyId))
+    ) {
+      throw new Error('property not found in organization')
+    }
+
+    if (input.enabled) {
+      await deps.addPropertyCapability(
+        input.propertyId,
+        input.capability,
+        input.actorUserId,
+      )
+    } else {
+      await deps.removePropertyCapability(input.propertyId, input.capability)
+    }
+    await deps.refreshPolicy()
+    await auditOp(deps, {
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      action: input.enabled
+        ? 'policy.property.allowlist.set'
+        : 'policy.property.allowlist.clear',
       capability: input.capability,
       reason: input.reason,
       actorUserId: input.actorUserId,
@@ -350,6 +405,7 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   return {
     getOrgPolicyState,
     setOrgCapability,
+    setPropertyCapability,
     setOrgSuspension,
     setPropertySuspension,
     grantPropertyAccessOp,

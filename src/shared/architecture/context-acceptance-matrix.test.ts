@@ -384,28 +384,46 @@ describe('row 16 — Leaderboard (controlled beta): bounded recompute and gated 
   })
 })
 
-describe('row 17 — AI (dark): no implementation; only approved governance interfaces', () => {
-  it('src/contexts/ai does not exist', () => {
-    expect(existsSync(join(ROOT, 'src', 'contexts', 'ai'))).toBe(false)
+describe('row 17 — AI (private-beta foundation): closed policy and durable operation seams', () => {
+  it('owns a pure closed policy and strict runtime binding parser', () => {
+    const rules = strippedSource('src/contexts/ai/domain/rules.ts')
+    expect(rules).toContain('parseAiPrivateBetaPolicy')
+    expect(rules).toContain('parseAiExecutionBinding')
+    expect(rules).toContain('parseAiCanaryExecutionBinding')
   })
 
-  it('package.json carries no AI provider SDK dependency', () => {
+  it('pins the provider SDK to the separately isolated AI gateway slice', () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')) as {
       dependencies?: Record<string, string>
       devDependencies?: Record<string, string>
     }
-    const AI_SDK =
-      /openai|anthropic|langchain|@google-ai|@aws-sdk\/client-bedrock|cohere|mistral/i
-    const offenders = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(
-      (d) => AI_SDK.test(d),
-    )
+    expect(pkg.dependencies?.openai).toBe('7.4.0')
+    const OTHER_AI_SDK =
+      /anthropic|langchain|@google-ai|@aws-sdk\/client-bedrock|cohere|mistral/i
+    const unexpectedDependencies = Object.keys({
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+    }).filter((dependency) => OTHER_AI_SDK.test(dependency))
+    expect(unexpectedDependencies).toEqual([])
+
+    const productionSources = [
+      ...walkSource(join(ROOT, 'src')),
+      ...walkSource(join(ROOT, 'services')),
+    ]
+    const openAiImport =
+      /(?:from|import\()\s*['"]openai(?:\/[^'"]*)?['"]|require\(['"]openai/u
+    const wrongOwners = productionSources
+      .filter((file) => openAiImport.test(stripComments(readFileSync(file, 'utf-8'))))
+      .map(rel)
+      .filter((file) => !file.startsWith('services/ai-egress-gateway/'))
     expect(
-      offenders,
-      'AI provider SDKs must not land while AI is dark:\n' + offenders,
+      wrongOwners,
+      'openai@7.4.0 imports belong exclusively to services/ai-egress-gateway:\n' +
+        wrongOwners.join('\n'),
     ).toEqual([])
   })
 
-  it('the approved governance surface stays declared (ai.* capabilities exist, dark)', () => {
+  it('retains the approved governance capability surface', () => {
     const caps = strippedSource('src/shared/auth/beta-capabilities.ts')
     for (const cap of ['ai.analyze', 'ai.generate_reply', 'ai.detect_trends']) {
       expect(caps, `missing governance capability '${cap}'`).toContain(`'${cap}'`)

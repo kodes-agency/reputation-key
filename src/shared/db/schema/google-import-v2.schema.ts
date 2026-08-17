@@ -172,7 +172,9 @@ export const gbpImportRequestItems = pgTable(
     expectedConnectionAccessVersion: integer('expected_connection_access_version'),
     expectedCredentialGeneration: integer('expected_credential_generation'),
     approvalBindingId: varchar('approval_binding_id', { length: 255 }),
-    expectedExecutionPolicyVersion: integer('expected_execution_policy_version'),
+    expectedExecutionPolicyVersion: varchar('expected_execution_policy_version', {
+      length: 32,
+    }),
     expectedGoogleContentPolicyVersion: integer('expected_google_content_policy_version'),
     expectedEmergencyKillVersion: integer('expected_emergency_kill_version'),
     expectedActorRole: varchar('expected_actor_role', { length: 50 }),
@@ -294,7 +296,7 @@ export const gbpImportRequestItems = pgTable(
         )
         OR (
           char_length(${t.approvalBindingId}) BETWEEN 1 AND 255
-          AND ${t.expectedExecutionPolicyVersion} >= 0
+          AND char_length(${t.expectedExecutionPolicyVersion}) BETWEEN 1 AND 32
           AND ${t.expectedGoogleContentPolicyVersion} >= 0
           AND ${t.expectedEmergencyKillVersion} >= 0
           AND char_length(${t.expectedActorRole}) BETWEEN 1 AND 50

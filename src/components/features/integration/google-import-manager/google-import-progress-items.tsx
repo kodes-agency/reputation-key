@@ -44,6 +44,7 @@ function RetryButton({
   onRetry: (item: ImportProgressItemDto) => void
 }>) {
   if (!item.retryable) return null
+  const isRetrying = retryingItemId === item.itemId
   return (
     <Button
       type="button"
@@ -53,12 +54,12 @@ function RetryButton({
       disabled={retryingItemId !== null}
       onClick={() => onRetry(item)}
     >
-      {retryingItemId === item.itemId ? (
-        <Loader2 className="animate-spin" aria-hidden="true" />
+      {isRetrying ? (
+        <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
       ) : (
         <RotateCcw aria-hidden="true" />
       )}
-      {mobile ? 'Retry this property' : 'Retry'}
+      {isRetrying ? 'Retrying…' : mobile ? 'Retry this property' : 'Retry'}
     </Button>
   )
 }

@@ -18,7 +18,7 @@ const oauthStateRecordSchema = z
     purpose: z.enum(['reviews', 'import_gbp_v2', 'performance_reauth']),
     connectionMode: z.enum(['new', 'reauth', 'reconnect']),
     targetConnectionId: z.string().min(1).max(255).nullable(),
-    returnRoute: z.literal('/import'),
+    returnRoute: z.literal('/properties/import-google'),
     sessionBindingKeyVersion: z.string().min(1).max(32),
     sessionBindingDigest: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
     oidcNonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
@@ -66,7 +66,7 @@ export type OAuthStateHandleService = Readonly<{
         purpose: 'reviews' | 'import_gbp_v2' | 'performance_reauth'
         connectionMode: 'new' | 'reauth' | 'reconnect'
         targetConnectionId: string | null
-        returnRoute: '/import'
+        returnRoute: '/properties/import-google'
         verifierMaterial: OAuthVerifierMaterialV2
       }>
     | Readonly<{ ok: false; code: OAuthStateHandleRejection }>
@@ -141,7 +141,7 @@ export function createOAuthStateHandleService(
         purpose: input.purpose,
         connectionMode: input.connectionMode,
         targetConnectionId: input.targetConnectionId,
-        returnRoute: '/import',
+        returnRoute: '/properties/import-google',
         sessionBindingKeyVersion: sessionBinding.keyVersion,
         sessionBindingDigest: sessionBinding.digest,
         oidcNonce: input.oidcNonce,

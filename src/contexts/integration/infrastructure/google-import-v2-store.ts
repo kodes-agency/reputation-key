@@ -100,7 +100,7 @@ function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
   const vector = item.authorization.authorizationVector
   return {
     approvalBindingId: item.authorization.approvalBindingId,
-    expectedExecutionPolicyVersion: Number(vector.executionPolicyVersion),
+    expectedExecutionPolicyVersion: String(vector.executionPolicyVersion),
     expectedGoogleContentPolicyVersion: Number(vector.googleContentPolicyVersion),
     expectedEmergencyKillVersion: Number(vector.emergencyKillVersion),
     expectedActorRole: String(vector.role),
@@ -116,7 +116,7 @@ function authorizationFromRow(row: {
   expectedConnectionAccessVersion: number | null
   expectedCredentialGeneration: number | null
   approvalBindingId: string | null
-  expectedExecutionPolicyVersion: number | null
+  expectedExecutionPolicyVersion: string | null
   expectedGoogleContentPolicyVersion: number | null
   expectedEmergencyKillVersion: number | null
   expectedActorRole: string | null
@@ -150,6 +150,9 @@ function authorizationFromRow(row: {
       emergencyKillVersion: row.expectedEmergencyKillVersion,
       role: row.expectedActorRole,
       permissionDigest: row.expectedPermissionDigest,
+      connectionLifecycleVersion: row.expectedConnectionLifecycleVersion,
+      connectionAccessVersion: row.expectedConnectionAccessVersion,
+      credentialGeneration: row.expectedCredentialGeneration,
     },
   } as const
 }

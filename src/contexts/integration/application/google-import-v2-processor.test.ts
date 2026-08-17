@@ -1,3 +1,7 @@
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
@@ -16,6 +20,10 @@ const JOB_ID = '00000000-0000-4000-8000-000000000002'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000003'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000004'
 const CLAIM_FENCE = '00000000-0000-4000-8000-000000000005'
+const PROVIDER_ACCOUNT_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-account-primary'].expectedSegments.accountId
+const PROVIDER_LOCATION_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments.locationId
 
 const actor = {
   organizationId: ORG_ID,
@@ -34,11 +42,14 @@ const authorization = {
   credentialGeneration: 2,
   approvalBindingId: '00000000-0000-4000-8000-000000000006',
   authorizationVector: {
-    executionPolicyVersion: 12,
+    executionPolicyVersion: 'beta-local-2',
     googleContentPolicyVersion: 8,
     emergencyKillVersion: 2,
     role: 'Admin',
     permissionDigest: 'a'.repeat(64),
+    connectionLifecycleVersion: 4,
+    connectionAccessVersion: 3,
+    credentialGeneration: 2,
   },
 } as const
 
@@ -53,8 +64,8 @@ function claimedItem(
     connectionId: CONNECTION_ID,
     existingPropertyId: null,
     destinationPropertyId: PROPERTY_ID,
-    providerAccountSuffix: 'account-1',
-    providerLocationSuffix: 'location-1',
+    providerAccountSuffix: PROVIDER_ACCOUNT_ID,
+    providerLocationSuffix: PROVIDER_LOCATION_ID,
     expectedConnectionLifecycleVersion: 4,
     expectedConnectionAccessVersion: 3,
     expectedCredentialGeneration: 2,
@@ -89,6 +100,7 @@ function setup(
     >[]
     createError?: unknown
     relinkError?: unknown
+    enqueueReviewSyncError?: unknown
   } = {},
 ) {
   const item = claimedItem()
@@ -139,8 +151,28 @@ function setup(
     readReceipt.mockResolvedValueOnce(receipt)
   }
   readReceipt.mockResolvedValue(null)
+  const readInternal = vi.fn().mockResolvedValue({
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    state: 'active',
+    connectionId: CONNECTION_ID,
+    accountId: PROVIDER_ACCOUNT_ID,
+    locationId: PROVIDER_LOCATION_ID,
+    sourceEpoch: 0,
+    profileVersion: 1,
+    profileSource: 'tenant_confirmed',
+    profileConfirmedAt: NOW,
+    deletedAt: null,
+    name: 'Acme Hotel',
+    address: '1 Main Street',
+    countryCode: 'US',
+    timezone: 'America/New_York',
+    processingRegion: 'us',
+    lifecycleState: 'active',
+  })
   const propertyBindingApi = {
     readReceipt,
+    readInternal,
     createBoundProperty,
     relink,
   } as unknown as PropertyGoogleBindingPublicApi
@@ -152,6 +184,9 @@ function setup(
   const resolveActor = over.resolveActorError
     ? vi.fn().mockRejectedValue(over.resolveActorError)
     : vi.fn().mockResolvedValue(over.actor === undefined ? actor : over.actor)
+  const enqueueReviewSync = over.enqueueReviewSyncError
+    ? vi.fn().mockRejectedValue(over.enqueueReviewSyncError)
+    : vi.fn().mockResolvedValue(undefined)
   const processor = createGoogleImportV2Processor({
     store,
     propertyBindingApi,
@@ -159,6 +194,7 @@ function setup(
     resolveActor,
     clock: () => NOW,
     newClaimFence: () => CLAIM_FENCE,
+    enqueueReviewSync,
   })
   return {
     processor,
@@ -170,10 +206,12 @@ function setup(
     reconcileFromReceipt,
     completeClaim,
     readReceipt,
+    readInternal,
     createBoundProperty,
     relink,
     authorize,
     resolveActor,
+    enqueueReviewSync,
   }
 }
 
@@ -227,6 +265,25 @@ describe('GoogleImportV2Processor', () => {
       outcomeCode: 'imported',
       now: NOW,
     })
+    expect(harness.enqueueReviewSync).toHaveBeenCalledWith(
+      {
+        organizationId: ORG_ID,
+        propertyId: PROPERTY_ID,
+        connectionId: CONNECTION_ID,
+        locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        initiator: {
+          kind: 'system',
+          id: 'google-property-import',
+        },
+        correlationId: `google-import:${ITEM_ID}`,
+      },
+      {
+        jobId: `review-sync-${PROPERTY_ID}-source-epoch-0`,
+      },
+    )
+    expect(harness.enqueueReviewSync.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.reconcileFromReceipt.mock.invocationCallOrder[0]!,
+    )
     expect(harness.completeClaim).not.toHaveBeenCalled()
     expect(harness.runClaimedEffect.mock.invocationCallOrder[0]).toBeLessThan(
       harness.createBoundProperty.mock.invocationCallOrder[0]!,

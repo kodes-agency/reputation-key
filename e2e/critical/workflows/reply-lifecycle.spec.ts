@@ -70,8 +70,8 @@ test.describe('Critical workflow: reply lifecycle', () => {
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
-        type: 'LOCATION_GROUP',
-        roleInfo: { name: 'OWNER' },
+        accountName: `E2E reply account ${e2eRunId}`,
+        role: 'OWNER',
       },
       locations: [
         {
@@ -87,14 +87,17 @@ test.describe('Critical workflow: reply lifecycle', () => {
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
       connectedBy: admin!.id,
-      googleAccountId: ACCOUNT,
+      googleSubject: ACCOUNT,
     })
     const { propertyId } = await seedProperty({
       organizationId: seed.organizationId,
       name: `E2E Reply Hotel ${name} ${e2eRunId}`,
       slug: `${PREFIX}${name}-${e2eRunId}`,
-      gbpPlaceId: `${name}-loc`,
-      googleConnectionId: connectionId,
+      googleBinding: {
+        connectionId,
+        accountId: ACCOUNT,
+        locationId: `${name}-loc`,
+      },
     })
     const { reviewId } = await seedReview({
       organizationId: seed.organizationId,
@@ -184,7 +187,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
     await expect(page.getByText('Published').first()).toBeVisible({ timeout: 15_000 })
 
     // The provider recorded exactly one reply upsert with the final wording.
-    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    const puts = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: `/v4/${s.locationName}`,
+    })
     expect(puts).toHaveLength(1)
     expect(puts[0].path).toContain(`/reviews/happy-r1/reply`)
     expect(puts[0].body).toContain('Final reply wording — thank you!')
@@ -232,7 +238,10 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(healed.publication_attempts).toBe(2)
 
     // Exactly 2 provider upserts: one transient failure + one recovered success.
-    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    const puts = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: `/v4/${s.locationName}`,
+    })
     expect(puts).toHaveLength(2)
 
     // NOTE (gap reported in the slice summary): when ALL BullMQ attempts are
@@ -281,7 +290,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     )
     const putsAfterTerminal = await gbpStubControl.calls({
       method: 'PUT',
-      pathPrefix: s.locationName,
+      pathPrefix: `/v4/${s.locationName}`,
     })
     expect(putsAfterTerminal).toHaveLength(1)
 
@@ -305,7 +314,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
       async () => {
         const puts = await gbpStubControl.calls({
           method: 'PUT',
-          pathPrefix: s.locationName,
+          pathPrefix: `/v4/${s.locationName}`,
         })
         return puts.length === 2 ? puts : null
       },
@@ -367,12 +376,15 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(healed.publication_state).toBe('published')
 
     // Reconciliation is read-only at the provider: ZERO reply upserts.
-    const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: s.locationName })
+    const puts = await gbpStubControl.calls({
+      method: 'PUT',
+      pathPrefix: `/v4/${s.locationName}`,
+    })
     expect(puts).toHaveLength(0)
     // …and it did re-read provider state through the real adapter.
     const gets = await gbpStubControl.calls({
       method: 'GET',
-      pathPrefix: `${s.locationName}/reviews`,
+      pathPrefix: `/v4/${s.locationName}/reviews`,
     })
     expect(gets.length).toBeGreaterThan(0)
   })

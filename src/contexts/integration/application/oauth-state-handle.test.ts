@@ -129,7 +129,7 @@ describe('OAuth state handles', () => {
       purpose: 'performance_reauth',
       connectionMode: 'reauth',
       targetConnectionId: 'connection-7',
-      returnRoute: '/import',
+      returnRoute: '/properties/import-google',
     })
 
     await expect(

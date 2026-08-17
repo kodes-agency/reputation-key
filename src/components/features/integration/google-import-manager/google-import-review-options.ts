@@ -11,6 +11,4 @@ export const IMPORT_COUNTRY_OPTIONS = IMPORT_COUNTRY_CODES.map((code) => ({
   label: regionDisplayNames?.of(code) ?? code,
 }))
 
-export const IMPORT_TIMEZONE_OPTIONS = Array.from(
-  new Set([...VALID_TIMEZONES, ...Intl.supportedValuesOf('timeZone')]),
-).sort()
+export const IMPORT_TIMEZONE_OPTIONS = VALID_TIMEZONES

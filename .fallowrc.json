@@ -186,6 +186,7 @@
         "src/contexts/identity/server/auth-settings.org.ts",
         "src/contexts/identity/server/organizations.roles.ts",
         "src/contexts/identity/server/policy-admin.ts",
+        "src/contexts/identity/server/merchant-ai.ts",
         "src/contexts/property/server/region-move.ts"
       ],
       "rules": { "unused-files": "off" }

@@ -1,8 +1,7 @@
 // BQC-3.9 — activity audit handlers for the consumed orphan families.
 //
-// Four orphan event families whose facts were recorded but never consumed gain
-// activity audit consumers. Pure unit tests use a mock queue and assert exact
-// enqueued payloads.
+// Recorded lifecycle event families are consumed into content-minimized
+// activity audit jobs. Tests assert the exact queue payloads.
 
 import { describe, it, expect, vi } from 'vitest'
 import type { Queue } from 'bullmq'
@@ -13,6 +12,11 @@ import {
   googleConnectionId,
 } from '#/shared/domain/ids'
 
+import { onGoogleConnectionVisibilityChanged } from './on-google-connection-visibility-changed'
+import { onOrganizationCreated } from './on-organization-created'
+import { onPropertyCreated } from './on-property-created'
+import { onPropertyDeleted } from './on-property-deleted'
+import { onPropertyUpdated } from './on-property-updated'
 const ORG = organizationId('org-1')
 const PROP = propertyId('00000000-0000-4000-8000-000000000001')
 const USER = userId('00000000-0000-4000-8000-000000000020')
@@ -23,7 +27,6 @@ const mockQueue = () =>
 
 describe('activity orphan audit handlers (BQC-3.9)', () => {
   it('onOrganizationCreated → created/organization with the owner as actor', async () => {
-    const { onOrganizationCreated } = await import('./on-organization-created')
     const queue = mockQueue()
 
     await onOrganizationCreated({ queue })({
@@ -50,8 +53,35 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
     })
   })
 
+  it('onPropertyCreated → created/property with the name in detail', async () => {
+    const queue = mockQueue()
+
+    await onPropertyCreated({ queue })({
+      _tag: 'property.created',
+      eventId: 'evt-prop-created',
+      organizationId: ORG,
+      propertyId: PROP,
+      name: 'Grand Hotel',
+      slug: 'grand-hotel',
+      processingRegion: 'us',
+      occurredAt: new Date(),
+      correlationId: null,
+    })
+
+    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+      action: 'created',
+      resourceType: 'property',
+      resourceId: PROP,
+      propertyId: PROP,
+      organizationId: ORG,
+      userId: null,
+      source: 'web',
+      eventId: 'evt-prop-created',
+      payload: { subject: 'property', from: null, to: null, detail: 'Grand Hotel' },
+    })
+  })
+
   it('onPropertyUpdated → changed/property with the name in detail', async () => {
-    const { onPropertyUpdated } = await import('./on-property-updated')
     const queue = mockQueue()
 
     await onPropertyUpdated({ queue })({
@@ -79,7 +109,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
   })
 
   it('onPropertyDeleted → deleted/property with no detail', async () => {
-    const { onPropertyDeleted } = await import('./on-property-deleted')
     const queue = mockQueue()
 
     await onPropertyDeleted({ queue })({
@@ -105,8 +134,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
   })
 
   it('onGoogleConnectionVisibilityChanged → changed/integration, new visibility in to', async () => {
-    const { onGoogleConnectionVisibilityChanged } =
-      await import('./on-google-connection-visibility-changed')
     const queue = mockQueue()
 
     await onGoogleConnectionVisibilityChanged({ queue })({

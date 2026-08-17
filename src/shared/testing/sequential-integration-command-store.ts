@@ -41,10 +41,12 @@ export function createSequentialIntegrationCommandStore(deps: {
       await deps.connectionRepo.updateReconnection(
         command.organizationId,
         command.connectionId,
+        command.googleSubject,
         command.encryptedAccessToken,
         command.encryptedRefreshToken,
         command.tokenExpiresAt,
         command.visibility,
+        command.scopes,
       )
       const updated = await deps.connectionRepo.findById(
         command.organizationId,

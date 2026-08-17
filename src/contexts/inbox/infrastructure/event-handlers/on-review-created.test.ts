@@ -29,7 +29,9 @@ const mockEvent: ReviewCreated = {
   propertyId: PROP_ID,
   organizationId: ORG_ID,
   platform: 'google',
-  externalId: 'ext-1',
+  sourceEpoch: 2,
+  sourceRevision: 3,
+  analysisSequence: 4,
   occurredAt: NOW,
 }
 

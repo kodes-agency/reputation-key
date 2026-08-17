@@ -49,6 +49,7 @@ export const statement = {
   // Granted to AccountAdmin (owner full statement) only — deliberately NOT in
   // the PropertyManager/Staff role definitions below (least privilege).
   policy: ['admin'],
+  ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
     'logo_upload',
@@ -92,6 +93,7 @@ export const admin = ac.newRole({
   organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
   integration: ['manage'],
+  ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
     'logo_upload',

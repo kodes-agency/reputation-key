@@ -32,6 +32,7 @@ import { onMemberRoleChanged } from './on-member-role-changed'
 import { onGoogleAccountConnected } from './on-google-account-connected'
 import { onGoogleAccountDisconnected } from './on-google-account-disconnected'
 import { onOrganizationCreated } from './on-organization-created'
+import { onPropertyCreated } from './on-property-created'
 import { onPropertyUpdated } from './on-property-updated'
 import { onPropertyDeleted } from './on-property-deleted'
 import { onGoogleConnectionVisibilityChanged } from './on-google-connection-visibility-changed'
@@ -180,6 +181,9 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   )
 
   // ── Property events (BQC-3.9 orphan consume: audit) ──
+  deps.events.on('property.created', onPropertyCreated({ queue: deps.queue }), {
+    consumer: 'activity.event-handlers',
+  })
   deps.events.on('property.updated', onPropertyUpdated({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })

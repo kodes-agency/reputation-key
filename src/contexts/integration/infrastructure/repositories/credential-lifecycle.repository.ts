@@ -142,7 +142,7 @@ export function createCredentialLifecycleRepository(
           .for('update')
           .limit(1)
         if (!guard) return fail('not_found')
-        if (!['open', 'drained'].includes(guard.state) || guard.activeSourceOperationId) {
+        if (guard.state !== 'open' || guard.activeSourceOperationId) {
           return fail('concurrent_operation')
         }
         const sequence = guard.nextSequence
@@ -265,9 +265,10 @@ export function createCredentialLifecycleRepository(
         await tx
           .update(googleSubjectAuthorityGuards)
           .set({
-            state: 'drained',
+            state: 'open',
             activeSourceOperationId: null,
             sourceCutoffSequence: source.sequence,
+            cleanupDeadlineAt: null,
             updatedAt: input.now,
           })
           .where(eq(googleSubjectAuthorityGuards.id, source.guardId))
@@ -371,7 +372,11 @@ export function createCredentialLifecycleRepository(
           .where(eq(credentialRevokePermits.id, revoke.id))
         await tx
           .update(googleSubjectAuthorityGuards)
-          .set({ state: 'drained', updatedAt: input.now })
+          .set({
+            state: 'provider_reset_required',
+            cleanupDeadlineAt: null,
+            updatedAt: input.now,
+          })
           .where(eq(googleSubjectAuthorityGuards.id, revoke.guardId))
         return success({ sourceOperationId: source.id })
       }),
@@ -442,7 +447,10 @@ export function createCredentialLifecycleRepository(
         if (!source) return fail('not_found')
         if (source.organizationId !== input.organizationId) return fail('scope_mismatch')
         if (revoke.state !== 'dispatching') return fail('invalid_transition')
-        const guardState = cleanupGuardState(input.outcome)
+        const guardState =
+          input.outcome === 'confirmed_revoked'
+            ? 'open'
+            : cleanupGuardState(input.outcome)
         await tx
           .update(credentialRevokePermits)
           .set({
@@ -454,7 +462,11 @@ export function createCredentialLifecycleRepository(
           .where(eq(credentialRevokePermits.id, revoke.id))
         await tx
           .update(googleSubjectAuthorityGuards)
-          .set({ state: guardState, updatedAt: input.now })
+          .set({
+            state: guardState,
+            cleanupDeadlineAt: null,
+            updatedAt: input.now,
+          })
           .where(eq(googleSubjectAuthorityGuards.id, revoke.guardId))
         return success({ sourceOperationId: source.id })
       }),
@@ -542,14 +554,17 @@ export function createCredentialLifecycleRepository(
           .for('update')
 
         for (const row of rows) {
-          const ambiguous =
-            row.revokeState === 'dispatching' ||
-            (row.revokeState === 'dormant' && row.sourceState === 'provider_started')
+          const providerStarted =
+            row.sourceState === 'provider_started' ||
+            row.sourceState === 'provider_outcome_ambiguous' ||
+            (row.sourceState === 'terminal' && row.revokeState !== 'dormant')
+          const ambiguous = row.revokeState === 'dispatching'
+          const providerResetRequired = !ambiguous && providerStarted
           if (row.revokeState === 'dormant') {
             await tx
               .update(googleCredentialSourceOperations)
               .set(
-                ambiguous
+                providerStarted
                   ? {
                       state: 'provider_outcome_ambiguous',
                       outcomeCode: 'cleanup_deadline_elapsed',
@@ -567,21 +582,31 @@ export function createCredentialLifecycleRepository(
           await tx
             .update(credentialRevokePermits)
             .set({
-              state: ambiguous ? 'cleanup_ambiguous' : 'confirmed_not_sent',
+              state: ambiguous
+                ? 'cleanup_ambiguous'
+                : providerStarted
+                  ? 'confirmed_not_sent'
+                  : 'consumed_no_revoke',
               tokenHmacKeyVersion: null,
               tokenHmac: null,
               sendAuthorizationExpiresAt: null,
               terminalAt: input.now,
               outcomeCode: ambiguous
                 ? 'cleanup_deadline_ambiguous'
-                : 'cleanup_authorization_expired',
+                : providerStarted
+                  ? 'cleanup_authorization_expired'
+                  : 'deadline_before_provider_send',
               updatedAt: input.now,
             })
             .where(eq(credentialRevokePermits.id, row.revokeId))
           await tx
             .update(googleSubjectAuthorityGuards)
             .set({
-              state: ambiguous ? 'ambiguous' : 'drained',
+              state: ambiguous
+                ? 'ambiguous'
+                : providerResetRequired
+                  ? 'provider_reset_required'
+                  : 'open',
               activeSourceOperationId: null,
               sourceCutoffSequence: row.sourceSequence,
               cleanupDeadlineAt: null,

@@ -49,8 +49,13 @@ async function insertSentinel(): Promise<void> {
     ],
   )
   await pool.query(
-    `INSERT INTO reviews (id, organization_id, property_id, platform, external_id, external_location_id, rating, reviewed_at, expires_at)
-     VALUES ($1, $2, $3, 'google', $4, $5, 5, $6, $7) ON CONFLICT DO NOTHING`,
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id, external_location_id,
+       rating, reviewed_at, expires_at, source_epoch, source_revision,
+       analysis_sequence, ai_source_byte_length, ai_source_digest
+     )
+     VALUES ($1, $2, $3, 'google', $4, $5, 5, $6, $7, 0, 0, 0, 1, repeat('0', 64))
+     ON CONFLICT DO NOTHING`,
     [
       SENTINEL_REVIEW,
       SENTINEL_ORG,

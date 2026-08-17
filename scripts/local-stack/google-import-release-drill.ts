@@ -16,6 +16,7 @@ import {
   assertGoogleImportRuntimePackagePurity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
+  redactedReleaseCommandText,
   type GoogleImportReleaseSourcePlan,
 } from '../../src/shared/testing/google-import-release-source'
 
@@ -58,10 +59,6 @@ function flag(name: string): string {
   return value
 }
 
-function commandText(command: string, args: readonly string[]): string {
-  return [command, ...args].join(' ')
-}
-
 function run(
   command: string,
   args: readonly string[],
@@ -81,7 +78,7 @@ function run(
     maxBuffer: 64 * 1024 * 1024,
     stdio: options.quiet ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'inherit', 'inherit'],
   })
-  const text = commandText(command, args)
+  const text = redactedReleaseCommandText(command, args)
   if (result.error) throw new Error(`${text}: ${result.error.message}`)
   if (result.status !== 0) {
     const detail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
@@ -111,10 +108,10 @@ function runExpectFailure(
   })
   if (result.error) throw result.error
   if (result.status === 0) {
-    throw new Error(`${commandText(command, args)} unexpectedly succeeded`)
+    throw new Error(`${redactedReleaseCommandText(command, args)} unexpectedly succeeded`)
   }
   return {
-    command: commandText(command, args),
+    command: redactedReleaseCommandText(command, args),
     durationMs: Date.now() - startedAt,
     exitCode: result.status ?? -1,
   }
@@ -342,6 +339,36 @@ function runMigrator(tag: string, network: string, databaseUrl: string): Command
     'node',
     'dist-worker/migrate-deploy.js',
   ])
+}
+
+function runFinalSchemaProbe(
+  tag: string,
+  network: string,
+  databaseUrl: string,
+): CommandResult {
+  const result = run(
+    'docker',
+    [
+      'run',
+      '--rm',
+      '--network',
+      network,
+      '-e',
+      `DATABASE_URL=${databaseUrl}`,
+      tag,
+      'node',
+      'dist-worker/google-import-final-schema-probe.js',
+    ],
+    { quiet: true },
+  )
+  const proof = JSON.parse(result.stdout) as {
+    status?: unknown
+    checks?: unknown
+  }
+  if (proof.status !== 'ok' || proof.checks !== 4) {
+    throw new Error(`${tag} returned an invalid final schema probe: ${result.stdout}`)
+  }
+  return result
 }
 
 function runMigratorExpectFailure(
@@ -634,11 +661,19 @@ async function main(): Promise<void> {
       postgres,
       "SELECT count(*)::text || ':' || max(created_at)::text FROM drizzle.__drizzle_migrations;",
     )
+    const expandSchemaProbes = [
+      runFinalSchemaProbe(tags.finalWeb, network, databaseUrl),
+      runFinalSchemaProbe(tags.finalWorker, network, databaseUrl),
+    ]
     prepareContractState(postgres)
     const contractSql = readFileSync(join(final, CONTRACT_MIGRATION), 'utf8')
     psql(postgres, `BEGIN;\n${contractSql}\nCOMMIT;`)
     const contractMigrationSha256 = sha256(contractSql)
     const finalMigration = runMigrator(tags.finalWeb, network, databaseUrl)
+    const contractSchemaProbes = [
+      runFinalSchemaProbe(tags.finalWeb, network, databaseUrl),
+      runFinalSchemaProbe(tags.finalWorker, network, databaseUrl),
+    ]
     const finalSchema = finalSchemaProof(postgres)
     const oldBinaryRejected = runMigratorExpectFailure(
       tags.baselineWeb,
@@ -665,7 +700,7 @@ async function main(): Promise<void> {
     }
 
     const evidence = {
-      schemaVersion: 'google-import-immutable-drill-v1',
+      schemaVersion: 'google-import-immutable-drill-v2',
       evidenceKind: 'google-import-immutable-local-migration-drill',
       startedAt: startedAt.toISOString(),
       completedAt: new Date().toISOString(),
@@ -681,6 +716,10 @@ async function main(): Promise<void> {
       images,
       finalImagesBefore,
       finalImagesAfter,
+      finalSchemaProbes: {
+        expand: expandSchemaProbes,
+        contract: contractSchemaProbes,
+      },
       migration: {
         baseline: { ...baselineMigration, stdout: undefined, head: baselineHead },
         expand: { ...expandMigration, stdout: undefined, head: expandHead },

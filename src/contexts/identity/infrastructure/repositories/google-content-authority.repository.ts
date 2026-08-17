@@ -11,11 +11,13 @@ import {
 } from '#/shared/db/schema'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_CONTENT_APPROVAL_TARGET_PHASES,
   GOOGLE_CONTENT_CAPABILITIES,
   GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION,
   GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
   GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION,
   GOOGLE_CONTENT_POLICY_VERSION,
+  GOOGLE_CONTENT_ENVIRONMENT_PROFILES,
   GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
   GOOGLE_OAUTH_CONTRACT_VERSION,
 } from '#/shared/auth/google-content-contract'
@@ -34,15 +36,14 @@ const roleDocumentSchema = z
     capability: z.enum(GOOGLE_CONTENT_CAPABILITIES),
     manifestSha256: z.string().min(1),
     releaseSha: z.string().min(1),
-    targetPhase: z.enum([
-      'local_sandbox',
-      'production_expand_canary',
-      'production_final',
-    ]),
-    environmentProfile: z.enum(['sandbox', 'production']),
+    targetPhase: z.enum(GOOGLE_CONTENT_APPROVAL_TARGET_PHASES),
+    environmentProfile: z.enum(GOOGLE_CONTENT_ENVIRONMENT_PROFILES),
     transientPerformanceReportingDecision: z.enum(['approved', 'denied']),
     confirmedImportProfileTreatmentDecision: z.enum(['approved', 'denied']),
     unmanagedUserAgentMemoryResidualDecision: z.enum(['approved', 'denied']),
+    railwayClosedBetaResidualDecision: z.enum(['approved', 'denied']).nullable(),
+    railwayClosedBetaCohortSha256: z.string().nullable(),
+    railwayClosedBetaResidualRiskSha256: z.string().nullable(),
     approverIdentity: z.string().min(1),
     approvedAt: z.string().min(1),
     expiresAt: z.string().min(1),
@@ -104,8 +105,9 @@ function approvalRecordFromRow(row: ApprovalRow): GoogleContentApprovalRecord | 
   if (
     row.googleContentPolicyVersion !== GOOGLE_CONTENT_POLICY_VERSION ||
     row.googleOauthContractVersion !== GOOGLE_OAUTH_CONTRACT_VERSION ||
-    row.runtimeIsolationProfileVersion !==
-      GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION ||
+    (row.runtimeIsolationProfileVersion !== null &&
+      row.runtimeIsolationProfileVersion !==
+        GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION) ||
     row.performanceCatalogVersion !== GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION ||
     row.capabilityPolicyVersion !== GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION ||
     row.executionPolicyVersion !== GOOGLE_CONTENT_EXECUTION_POLICY_VERSION
@@ -131,6 +133,9 @@ function approvalRecordFromRow(row: ApprovalRow): GoogleContentApprovalRecord | 
       providerOriginProfileSha256: row.providerOriginProfileSha256,
       runtimeIsolationProfileVersion: row.runtimeIsolationProfileVersion,
       runtimeIsolationProfileSha256: row.runtimeIsolationProfileSha256,
+      railwayClosedBetaCohort: row.railwayClosedBetaCohort,
+      railwayClosedBetaCohortSha256: row.railwayClosedBetaCohortSha256,
+      railwayClosedBetaResidualRiskSha256: row.railwayClosedBetaResidualRiskSha256,
       performanceCatalogVersion: row.performanceCatalogVersion,
       capabilityPolicyVersion: row.capabilityPolicyVersion,
       executionPolicyVersion: row.executionPolicyVersion,
@@ -265,6 +270,10 @@ export function createGoogleContentAuthorityRepository(
           providerOriginProfileSha256: binding.providerOriginProfileSha256,
           runtimeIsolationProfileVersion: binding.runtimeIsolationProfileVersion,
           runtimeIsolationProfileSha256: binding.runtimeIsolationProfileSha256,
+          railwayClosedBetaCohort: binding.railwayClosedBetaCohort,
+          railwayClosedBetaCohortSha256: binding.railwayClosedBetaCohortSha256,
+          railwayClosedBetaResidualRiskSha256:
+            binding.railwayClosedBetaResidualRiskSha256,
           performanceCatalogVersion: binding.performanceCatalogVersion,
           capabilityPolicyVersion: binding.capabilityPolicyVersion,
           executionPolicyVersion: binding.executionPolicyVersion,
@@ -428,6 +437,9 @@ export function createGoogleContentAuthorityRepository(
             updatedAt: input.deniedAt,
           },
         })
+      // The global generation fences races; every capability row must observe
+      // the same generation or unrelated capabilities fail closed.
+      await tx.update(capabilityExecutionControl).set({ emergencyKillVersion })
       return emergencyKillVersion
     },
 
@@ -468,6 +480,9 @@ export function createGoogleContentAuthorityRepository(
             updatedAt: input.changedAt,
           },
         })
+      // Preserve capability-local allow/deny state while advancing the shared
+      // emergency generation used by transactional authorization checks.
+      await tx.update(capabilityExecutionControl).set({ emergencyKillVersion })
       return emergencyKillVersion
     },
 

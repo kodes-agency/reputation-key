@@ -37,6 +37,7 @@ const dbStub = new Proxy(
 const EXPECTED_TOP_LEVEL_KEYS = [
   'activityPublicApi',
   'activityRepo',
+  'ai',
   'alertDispatcher',
   'backgroundQueue',
   'badgePublicApi',
@@ -65,11 +66,13 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'portalLinkRepo',
   'portalPublicApi',
   'portalRepo',
+  'propertyProcessingScopeApi',
   'providerEphemeralReadiness',
   'providerEphemeralRedis',
   'rateLimiter',
   'redis',
   'refreshPolicyStore',
+  'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
   'replyQueue',
   'replyRepo',
@@ -130,7 +133,6 @@ const EXPECTED_USE_CASE_KEYS = [
   'getFleetOverview',
   'getGoal',
   'getGoogleAuthUrl',
-  'getImportStatus',
   'getInboxFolderCounts',
   'getInboxItemDetail',
   'getInboxItems',
@@ -149,14 +151,12 @@ const EXPECTED_USE_CASE_KEYS = [
   'googleImportTransaction',
   'guestSessions',
   'handleGbpNotification',
-  'importProperty',
   'inspectGoogleImportV2Lifecycle',
   'inspectGoogleImportV2LifecycleScope',
   'inspectGoogleImportV2Request',
   'inviteMember',
   'issuePortalToken',
   'listActiveTeamScopesByUser',
-  'listGbpLocations',
   'listGoals',
   'listGoogleConnections',
   'listInvitations',
@@ -173,6 +173,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'listStaffPortals',
   'listTeamMemberships',
   'listTeams',
+  'merchantAiAuthorization',
   'prepareGoogleImportV2PropertyDeletion',
   'processGoogleImportV2Item',
   'rebuildInboxProjection',
@@ -209,6 +210,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'retryPublish',
   'revokePortalTokens',
   'rotatePortalToken',
+  'runReviewProviderSnapshot',
   'seedBadgeDefinitions',
   'setOrganizationBadgeEnablement',
   'setTeamLead',
@@ -217,12 +219,10 @@ const EXPECTED_USE_CASE_KEYS = [
   'softDeleteProperty',
   'softDeleteTeam',
   'stampLastInboxView',
-  'startPropertyImport',
   'submitFeedback',
   'submitRating',
   'submitReply',
   'sweepGoogleImportV2Lifecycle',
-  'syncReviews',
   'trackReviewLinkClick',
   'updateConnectionVisibility',
   'updateCustomRole',
@@ -248,6 +248,7 @@ const EXPECTED_POLICY_ADMIN_OPS = [
   'revokePropertyAccessOp',
   'setOrgCapability',
   'setOrgSuspension',
+  'setPropertyCapability',
   'setPropertySuspension',
 ]
 
@@ -286,6 +287,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
 
   it('exposes readiness/runtime contributions as functions', () => {
     expect(typeof container.refreshPolicyStore).toBe('function')
+    expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
   })
 

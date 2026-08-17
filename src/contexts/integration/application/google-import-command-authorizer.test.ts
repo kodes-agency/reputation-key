@@ -7,6 +7,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
+import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnection } from '../domain/types'
 import { createGoogleImportCommandAuthorizer } from './google-import-command-authorizer'
 
@@ -56,6 +57,30 @@ const allow = (policyVersion = 'beta-local-2'): ExecutionDecision => ({
   policyVersion,
 })
 
+const contentAuthorization = (
+  overrides: Partial<{
+    connectionLifecycleVersion: number
+    connectionAccessVersion: number
+    credentialGeneration: number
+  }> = {},
+) => ({
+  ok: true as const,
+  approvalBindingId,
+  policyVersion: 11,
+  emergencyKillVersion: 4,
+  authorizationVector: {
+    executionPolicyVersion: 'beta-local-2',
+    googleContentPolicyVersion: 11,
+    emergencyKillVersion: 4,
+    role: 'AccountAdmin',
+    permissionDigest: googleAuthorizationPermissionDigest(actor),
+    connectionLifecycleVersion: 3,
+    connectionAccessVersion: 4,
+    credentialGeneration: 5,
+    ...overrides,
+  },
+})
+
 function setup(
   input?: Readonly<{
     current?: GoogleConnection | null
@@ -85,13 +110,7 @@ function setup(
   const getAccessToken = vi.fn(async () => 'plain-access-token')
   const decide = vi.fn(input?.decide ?? (async () => allow()))
   const authorizeGoogleContent = vi.fn(
-    input?.authorizeGoogleContent ??
-      (async () => ({
-        ok: true as const,
-        approvalBindingId,
-        policyVersion: 11,
-        emergencyKillVersion: 4,
-      })),
+    input?.authorizeGoogleContent ?? (async () => contentAuthorization()),
   )
   const readProperty = vi.fn(async () => ({
     organizationId: actor.organizationId,
@@ -157,10 +176,63 @@ describe('authorizeGoogleImportCommand', () => {
           googleContentPolicyVersion: 11,
           emergencyKillVersion: 4,
           role: 'AccountAdmin',
+          connectionLifecycleVersion: 3,
+          connectionAccessVersion: 4,
+          credentialGeneration: 5,
         },
       },
       accessToken: 'plain-access-token',
     })
+  })
+
+  it('reauthorizes a provider call after an authorized credential refresh', async () => {
+    const fixture = setup()
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ credentialGeneration: 6 }))
+    fixture.authorizeGoogleContent
+      .mockResolvedValueOnce(contentAuthorization())
+      .mockResolvedValueOnce(contentAuthorization({ credentialGeneration: 6 }))
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      authorization: {
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 6,
+        authorizationVector: {
+          connectionLifecycleVersion: 3,
+          connectionAccessVersion: 4,
+          credentialGeneration: 6,
+        },
+      },
+      accessToken: 'plain-access-token',
+    })
+    expect(fixture.authorizeGoogleContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('fails closed when connection authority changes during token access', async () => {
+    const fixture = setup()
+    fixture.findById
+      .mockResolvedValueOnce(connection())
+      .mockResolvedValueOnce(connection({ lifecycleVersion: 4, credentialGeneration: 6 }))
+
+    await expect(
+      fixture.authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: true,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    expect(fixture.authorizeGoogleContent).toHaveBeenCalledOnce()
   })
 
   it('denies before token access for capability, visibility, status, or scope failure', async () => {

@@ -8,9 +8,28 @@ import type {
   ReviewId,
   GoogleConnectionId,
 } from '#/shared/domain/ids'
+import type {
+  AiReviewSourceDenial,
+  AiReviewSourceRequest,
+  AiReviewSourceResult,
+} from './ai-review-source.port'
 
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
+  readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  assertCurrentForAi(
+    input: AiReviewSourceRequest,
+  ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>
+  readAiAnalysisHead(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+    }>,
+  ): Promise<
+    | Readonly<{ status: 'current'; analysisSequence: number }>
+    | Readonly<{ status: 'not_found' | 'source_epoch_changed' | 'policy_unavailable' }>
+  >
   findByIds(
     ids: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,

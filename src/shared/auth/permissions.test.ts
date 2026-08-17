@@ -22,6 +22,7 @@ describe('permissions statement', () => {
     expect(resources).toContain('integration')
     expect(resources).toContain('inbox')
     expect(resources).toContain('goal')
+    expect(resources).toContain('ai')
   })
 
   it('defines expected actions for each resource', () => {
@@ -56,6 +57,7 @@ describe('permissions statement', () => {
     expect(statement.goal).toContain('create')
     expect(statement.goal).toContain('update')
     expect(statement.goal).toContain('cancel')
+    expect(statement.ai).toEqual(['reply.generate', 'trends.read', 'manage'])
   })
 })
 
@@ -102,6 +104,9 @@ describe('owner role (AccountAdmin)', () => {
     'inbox.write',
     'inbox.manage',
     'integration.manage',
+    'ai.reply.generate',
+    'ai.trends.read',
+    'ai.manage',
     'dashboard.read',
     'dashboard.fleet_read',
     'goal.read',
@@ -150,6 +155,9 @@ describe('admin role (PropertyManager)', () => {
     'inbox.manage',
     'organization.update',
     'integration.manage',
+    'ai.reply.generate',
+    'ai.trends.read',
+    'ai.manage',
     'dashboard.read',
     'dashboard.fleet_read',
     'goal.read',
@@ -252,6 +260,9 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'dashboard.fleet_read')).toBe(false)
     expect(can('Staff', 'property.admin')).toBe(false)
     expect(can('Staff', 'inbox.manage')).toBe(false)
+    expect(can('Staff', 'ai.reply.generate')).toBe(false)
+    expect(can('Staff', 'ai.trends.read')).toBe(false)
+    expect(can('Staff', 'ai.manage')).toBe(false)
   })
 })
 

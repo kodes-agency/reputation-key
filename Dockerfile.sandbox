@@ -14,7 +14,7 @@ WORKDIR /app
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
-COPY e2e/fixtures/gbp-stub.ts e2e/fixtures/mail-stub.ts ./e2e/fixtures/
+COPY e2e/fixtures/gbp-stub.ts e2e/fixtures/mail-stub.ts e2e/fixtures/ai-provider-stub.ts ./e2e/fixtures/
 COPY scripts/perf/cell-stub-server.ts ./scripts/perf/cell-stub-server.ts
 
 RUN pnpm exec tsup scripts/perf/cell-stub-server.ts \

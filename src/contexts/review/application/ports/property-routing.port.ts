@@ -8,14 +8,15 @@
 
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
+export type ReviewPropertyProcessingScope = Readonly<{
+  processingRegion: string | null
+  sourceEpoch: number
+}>
+
 export type PropertyRoutingPort = Readonly<{
-  /**
-   * The property's persisted processing region ('us' | 'europe' | 'global' |
-   * 'unresolved'). Null when the property is missing/deleted — callers treat
-   * null as not processable.
-   */
-  getProcessingRegion: (
+  /** Read region and binding generation from one property snapshot. */
+  getProcessingScope: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
-  ) => Promise<string | null>
+  ) => Promise<ReviewPropertyProcessingScope | null>
 }>

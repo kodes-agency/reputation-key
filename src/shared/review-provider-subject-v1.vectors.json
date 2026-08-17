@@ -1,0 +1,203 @@
+[
+  {
+    "vectorId": "base-domain-separated",
+    "resourceFixtureId": "google-review-primary",
+    "resourceFixtureCatalogueSha256": "44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87",
+    "inputPatch": {},
+    "expected": {
+      "status": "success",
+      "scopeHex": "00000000000040008000000000000001000000000000400080000000000000020000000000000007000000956163636f756e74732f7265706b65792d73796e7468657469632d646f2d6e6f742d7573652d6163636f756e742d303030312f6c6f636174696f6e732f7265706b65792d73796e7468657469632d646f2d6e6f742d7573652d6c6f636174696f6e2d303030312f726576696577732f7265706b65792d73796e7468657469632d646f2d6e6f742d7573652d7265766965772d30303031",
+      "locatorHmacHex": "80842c7a18a5c8f910eeeb420e3b621d036b4fd97f042b8c9f8a4ac57a484764",
+      "verifierHmacHex": "61b99536b9963148624b06a0eea84dd70bf9012b4904c10ea7c8b831d09027ad",
+      "relationToBase": "exact"
+    }
+  },
+  {
+    "vectorId": "duplicate-both-hmac",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": {},
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "80842c7a18a5c8f910eeeb420e3b621d036b4fd97f042b8c9f8a4ac57a484764",
+      "verifierHmacHex": "61b99536b9963148624b06a0eea84dd70bf9012b4904c10ea7c8b831d09027ad",
+      "relationToBase": "exact_duplicate"
+    }
+  },
+  {
+    "vectorId": "epoch-max-safe",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "sourceEpoch": 9007199254740991 },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "32661e8db80c782d22c721ba900109e3aaead0561e5fe1f71fc35f0cb3d07a92",
+      "verifierHmacHex": "c5501dd58147bb0b23b68486c56ca07c69de61fe0872ac3ab02296ca8804003a",
+      "relationToBase": "different_scope"
+    }
+  },
+  {
+    "vectorId": "epoch-negative-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "sourceEpoch": -1 },
+    "expected": {
+      "status": "failure",
+      "error": "sourceEpoch must be a nonnegative safe integer"
+    }
+  },
+  {
+    "vectorId": "epoch-over-safe-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "sourceEpoch": 9007199254740992 },
+    "expected": {
+      "status": "failure",
+      "error": "sourceEpoch must be a nonnegative safe integer"
+    }
+  },
+  {
+    "vectorId": "epoch-zero",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "sourceEpoch": 0 },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "33ff4267399bb88a80caa8e21ec19822d8d993c75e32ece60766528023e5907a",
+      "verifierHmacHex": "7abefb58b09c78089feb8317bb1530afd5569f503b607241181a73a8a4df727b",
+      "relationToBase": "different_scope"
+    }
+  },
+  {
+    "vectorId": "forced-locator-collision",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "propertyId": "00000000-0000-4000-8000-000000000004" },
+    "simulateLocatorFromVectorId": "base-domain-separated",
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "506e820cf7cfa28254814a286f291a8e87798ba303d9165076ab56a5939143b2",
+      "verifierHmacHex": "6209727a2d9b037e29a285d58f1aaf8589d4dec76a28510a36a7fde9c611d710",
+      "relationToBase": "locator_collision_verifier_mismatch"
+    }
+  },
+  {
+    "vectorId": "key-change",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "keyFillByte": 165 },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "9353f1827b8c7ce92c6285e62c9f0adda0f029c37a8977281b26b9be88ce86ba",
+      "verifierHmacHex": "1ed9d94d68a1c0b0c3931d9dee107ae84084c4c9ccc3ebcc3c788abd483bff7b",
+      "relationToBase": "different_key"
+    }
+  },
+  {
+    "vectorId": "key-length-31-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "keyByteLength": 31 },
+    "expected": {
+      "status": "failure",
+      "error": "key must contain at least 32 bytes"
+    }
+  },
+  {
+    "vectorId": "key-version-only",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "keyVersion": "k2" },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "80842c7a18a5c8f910eeeb420e3b621d036b4fd97f042b8c9f8a4ac57a484764",
+      "verifierHmacHex": "61b99536b9963148624b06a0eea84dd70bf9012b4904c10ea7c8b831d09027ad",
+      "relationToBase": "same_hmac_different_key_version"
+    }
+  },
+  {
+    "vectorId": "key-version-uppercase-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "keyVersion": "K1" },
+    "expected": {
+      "status": "failure",
+      "error": "keyVersion is invalid"
+    }
+  },
+  {
+    "vectorId": "organization-scope-change",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "organizationId": "00000000-0000-4000-8000-000000000003" },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "69a7d8920a5184fd9e7cddac50c8a30eb4e97f0104a3db5468aab759cfe3bef7",
+      "verifierHmacHex": "b8691618f0b11ec5158bc111917a82fcf3d8c2cbc23aebd085fe263aa789c2ab",
+      "relationToBase": "different_scope"
+    }
+  },
+  {
+    "vectorId": "prefix-case-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "resourceMutation": { "kind": "uppercase_prefix" },
+    "inputPatch": {},
+    "expected": {
+      "status": "failure",
+      "error": "resourceName does not match the canonical Google review grammar"
+    }
+  },
+  {
+    "vectorId": "property-scope-change",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "propertyId": "00000000-0000-4000-8000-000000000004" },
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "506e820cf7cfa28254814a286f291a8e87798ba303d9165076ab56a5939143b2",
+      "verifierHmacHex": "6209727a2d9b037e29a285d58f1aaf8589d4dec76a28510a36a7fde9c611d710",
+      "relationToBase": "different_scope"
+    }
+  },
+  {
+    "vectorId": "resource-case-sensitive",
+    "resourceFixtureId": "google-review-primary",
+    "resourceMutation": { "kind": "append_review_segment", "value": "A" },
+    "inputPatch": {},
+    "expected": {
+      "status": "success",
+      "locatorHmacHex": "868048e60d9fab9b0669c7c3bd1b6ecab9b8707e7b5f00568f7fbb99adf1aaf7",
+      "verifierHmacHex": "82d4f54cc2826fd955f650e52cb45af37db7f1a68da7fee69ccfd1d652ad3335",
+      "relationToBase": "different_resource_bytes"
+    }
+  },
+  {
+    "vectorId": "resource-percent-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "resourceMutation": { "kind": "append_review_segment", "value": "%2F" },
+    "inputPatch": {},
+    "expected": {
+      "status": "failure",
+      "error": "resourceName does not match the canonical Google review grammar"
+    }
+  },
+  {
+    "vectorId": "segment-length-255",
+    "resourceFixtureId": "google-review-primary",
+    "resourceMutation": { "kind": "replace_all_segments", "scalar": "r", "count": 255 },
+    "inputPatch": {},
+    "expected": {
+      "status": "success",
+      "resourceByteLength": 794,
+      "segmentByteLength": 255,
+      "relationToBase": "different_resource_bytes"
+    }
+  },
+  {
+    "vectorId": "segment-length-256-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "resourceMutation": { "kind": "replace_review_segment", "scalar": "r", "count": 256 },
+    "inputPatch": {},
+    "expected": {
+      "status": "failure",
+      "error": "resourceName does not match the canonical Google review grammar"
+    }
+  },
+  {
+    "vectorId": "uuid-uppercase-rejected",
+    "resourceFixtureId": "google-review-primary",
+    "inputPatch": { "organizationId": "ABCDEF00-0000-4000-8000-000000000001" },
+    "expected": {
+      "status": "failure",
+      "error": "organizationId must be a canonical lowercase UUID"
+    }
+  }
+]

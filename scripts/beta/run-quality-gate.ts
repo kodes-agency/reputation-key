@@ -19,6 +19,7 @@ export const QUALITY_STEP_IDS = [
   'integration',
   'build-web',
   'build-worker',
+  'build-ai-egress-gateway',
   'component-a11y',
   'storybook-browser',
   'stack-up',
@@ -43,6 +44,10 @@ const STATIC_STEPS: readonly Readonly<{
   {
     id: 'build-worker',
     command: { executable: 'pnpm', args: ['build:worker'] },
+  },
+  {
+    id: 'build-ai-egress-gateway',
+    command: { executable: 'pnpm', args: ['build:ai-egress-gateway'] },
   },
   {
     id: 'component-a11y',

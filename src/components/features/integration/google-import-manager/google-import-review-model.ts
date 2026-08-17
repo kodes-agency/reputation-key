@@ -1,3 +1,4 @@
+import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import type {
   ImportCandidateDto,
   StartPropertyImportItemInput,
@@ -8,7 +9,6 @@ const ISO_COUNTRY_CODES = new Set(
     ' ',
   ),
 )
-const VALID_IANA_TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'))
 const whitespace = /\s+/gu
 
 function normalizeText(value: string): string {
@@ -149,7 +149,7 @@ export function validateImportReviewDraft(
         addError(errors, item, 'countryConfirmed', 'Confirm the selected country.')
       }
     }
-    if (!VALID_IANA_TIMEZONES.has(item.timezone)) {
+    if (!isValidIanaTimezone(item.timezone)) {
       addError(errors, item, 'timezone', 'Select a valid IANA timezone.')
     }
     if (!item.timezoneConfirmed) {

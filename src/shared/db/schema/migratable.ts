@@ -11,6 +11,7 @@
 // drift test (../migration-verification.test.ts) fails if a migration-owned
 // table is missing from the model.
 
+export * from './ai.schema'
 export * from './activity.schema'
 export * from './audit'
 export * from './badge.schema'
@@ -27,6 +28,7 @@ export * from './notification.schema'
 export * from './outbox.schema'
 export * from './people-access.schema'
 export * from './policy.schema'
+export * from './merchant-ai-authorization.schema'
 export * from './portal.schema'
 export * from './portal-group.schema'
 export * from './property.schema'

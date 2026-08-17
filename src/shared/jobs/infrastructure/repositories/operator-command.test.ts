@@ -81,15 +81,17 @@ function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
   }
 }
 
-async function auditRowsFor(actorId: string, min: number) {
+async function auditRowsFor(actorId: string, correlationId: string) {
   let rows: Array<Record<string, unknown>> = []
-  for (let i = 0; i < 20 && rows.length < min; i++) {
+  for (let i = 0; i < 20 && rows.length === 0; i++) {
     const result = await db.execute(
       sql`SELECT actor_type, actor_id, action, execution_kind, decision, reason, policy_version, correlation_id
-          FROM policy_decision_audit WHERE actor_id = ${actorId} ORDER BY occurred_at`,
+          FROM policy_decision_audit
+          WHERE actor_id = ${actorId} AND correlation_id = ${correlationId}
+          ORDER BY occurred_at`,
     )
     rows = result.rows as Array<Record<string, unknown>>
-    if (rows.length >= min) break
+    if (rows.length > 0) break
     await new Promise((r) => setTimeout(r, 50))
   }
   return rows
@@ -187,7 +189,7 @@ describe('operator command proof (BQC-7.5)', () => {
     expect(result.decision?.allowed).toBe(true)
     expect(result.correlationId).toBeTruthy()
 
-    const rows = await auditRowsFor(OPERATOR, 1)
+    const rows = await auditRowsFor(OPERATOR, result.correlationId!)
     expect(rows.length).toBeGreaterThanOrEqual(1)
     expect(rows[rows.length - 1]).toMatchObject({
       actor_type: 'operator',
@@ -233,7 +235,7 @@ describe('operator command proof (BQC-7.5)', () => {
       (data.redriveMetadata as { originalQuarantineId: string }).originalQuarantineId,
     ).toBe(quarantineJobId)
 
-    const rows = await auditRowsFor(OPERATOR, 1)
+    const rows = await auditRowsFor(OPERATOR, result.correlationId!)
     const row = rows[rows.length - 1]
     expect(row).toMatchObject({
       actor_type: 'operator',
@@ -269,7 +271,7 @@ describe('operator command proof (BQC-7.5)', () => {
     const entries = await listQuarantinedJobs(quarantineQueue)
     expect(entries.map((e) => e.quarantineJobId)).toContain(quarantineJobId)
 
-    const rows = await auditRowsFor(OPERATOR, 1)
+    const rows = await auditRowsFor(OPERATOR, result.correlationId!)
     expect(rows[rows.length - 1]).toMatchObject({
       actor_id: OPERATOR,
       decision: 'allow',
@@ -296,7 +298,7 @@ describe('operator command proof (BQC-7.5)', () => {
     expect(result.decision?.reason).toBe('operator_not_registered')
     expect(actionCalled).toHaveLength(0)
 
-    const rows = await auditRowsFor(STRANGER, 1)
+    const rows = await auditRowsFor(STRANGER, result.correlationId!)
     expect(rows.length).toBeGreaterThanOrEqual(1)
     expect(rows[rows.length - 1]).toMatchObject({
       actor_type: 'operator',

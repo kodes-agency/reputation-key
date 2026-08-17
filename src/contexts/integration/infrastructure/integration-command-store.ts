@@ -93,26 +93,39 @@ export function createAtomicIntegrationCommandStore(
 
     reconnectGoogleAccount: async (command: ReconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.reconnectGoogleAccount', async () => {
-        const updated = await db.transaction(async (tx) => {
-          const rows = await updateConnectionRow(tx, command, {
-            encryptedAccessToken: command.encryptedAccessToken,
-            encryptedRefreshToken: command.encryptedRefreshToken,
-            tokenExpiresAt: command.tokenExpiresAt,
-            status: 'active',
-            visibility: command.visibility,
-            credentialUseState: 'active',
-            cleanupMaterialDeadlineAt: null,
-            lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
-            accessVersion: sql`${googleConnections.accessVersion} + 1`,
-            credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-            updatedAt: new Date(),
-          }).returning()
-          if (!rows[0]) {
-            throw integrationError('connection_not_found', 'Google connection not found')
+        let updated: typeof googleConnections.$inferSelect
+        try {
+          updated = await db.transaction(async (tx) => {
+            const rows = await updateConnectionRow(tx, command, {
+              googleSubject: command.googleSubject,
+              encryptedAccessToken: command.encryptedAccessToken,
+              encryptedRefreshToken: command.encryptedRefreshToken,
+              tokenExpiresAt: command.tokenExpiresAt,
+              scopes: [...command.scopes],
+              status: 'active',
+              visibility: command.visibility,
+              credentialUseState: 'active',
+              cleanupMaterialDeadlineAt: null,
+              lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+              accessVersion: sql`${googleConnections.accessVersion} + 1`,
+              credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+              updatedAt: new Date(),
+            }).returning()
+            if (!rows[0]) {
+              throw integrationError(
+                'connection_not_found',
+                'Google connection not found',
+              )
+            }
+            await insertOutboxRow(tx, command.event)
+            return rows[0]
+          })
+        } catch (error) {
+          if (isPgUniqueViolation(error)) {
+            throw uniqueViolationError('Duplicate Google connection identity')
           }
-          await insertOutboxRow(tx, command.event)
-          return rows[0]
-        })
+          throw error
+        }
         await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(updated)
       })

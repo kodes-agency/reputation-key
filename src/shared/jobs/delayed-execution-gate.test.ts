@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   gateJob,
+  createJobExecutionEnvelope,
   gateBusConsumer,
   gateDispatcherConsumer,
   TENANT_CROSS_ORG,
@@ -38,6 +39,14 @@ import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 
 const PROP = 'd4000000-0000-4000-8000-000000000051'
+const CONSENT_FENCE = {
+  authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
+  capabilityEpoch: 9,
+  authorizedSourceEpoch: 3,
+  stateVersion: 5,
+  noticeDigest: 'a'.repeat(64),
+  runtimeProfileVersion: 'reply-drafting-runtime-v1',
+} as const
 
 const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>>()
 
@@ -215,6 +224,58 @@ describe('gateJob — request building (stubbed policy)', () => {
     expect(lastRequest().propertyId).toBeUndefined()
   })
 
+  it('requires Merchant AI consent to bind a positive epoch to the exact property', () => {
+    const base = {
+      organizationId: 'org-1',
+      propertyId: PROP,
+      capability: 'ai.generate_reply' as const,
+      initiator: { kind: 'user' as const, id: 'user-9' },
+    }
+
+    expect(
+      createJobExecutionEnvelope({
+        ...base,
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: CONSENT_FENCE,
+        },
+      }),
+    ).toMatchObject({
+      consent: {
+        subjectType: 'property',
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+    })
+
+    for (const consent of [
+      {
+        subjectType: 'property' as const,
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+      },
+      {
+        subjectType: 'organization' as const,
+        subjectId: 'org-1',
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+      {
+        subjectType: 'property' as const,
+        subjectId: 'd4000000-0000-4000-8000-000000000099',
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+    ]) {
+      expect(() => createJobExecutionEnvelope({ ...base, consent })).toThrow(
+        'consent selector does not match scope',
+      )
+    }
+  })
+
   it('forwards the flat content-free execution envelope', async () => {
     installStub()
     decideMock.mockResolvedValue(ALLOW)
@@ -227,6 +288,12 @@ describe('gateJob — request building (stubbed policy)', () => {
         propertyId: PROP,
         capability: 'gbp.reply.publish',
         initiator: { kind: 'user', id: 'user-9' },
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: CONSENT_FENCE,
+        },
         correlationId: 'corr-1',
         policyVersionAtEnqueue: 'bqc-0.3',
       },
@@ -237,6 +304,12 @@ describe('gateJob — request building (stubbed policy)', () => {
     expect(lastRequest()).toMatchObject({
       capabilityAtEnqueue: 'gbp.reply.publish',
       initiator: { kind: 'user', id: 'user-9' },
+      consent: {
+        subjectType: 'property',
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
       correlationId: 'corr-1',
       policyVersionAtEnqueue: 'bqc-0.3',
     })

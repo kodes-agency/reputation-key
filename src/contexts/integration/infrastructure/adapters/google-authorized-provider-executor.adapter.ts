@@ -37,6 +37,9 @@ export function createGoogleAuthorizedProviderExecutor(
     admit: GoogleProviderPermitAdmitter
     gateway: GoogleEgressGatewayClient
     routeTarget?: GoogleProviderRouteTarget
+    logger?: Readonly<{
+      warn(fields: Readonly<Record<string, unknown>>, message: string): void
+    }>
   }>,
 ): GoogleAuthorizedProviderExecutor {
   return Object.freeze({
@@ -52,15 +55,27 @@ export function createGoogleAuthorizedProviderExecutor(
           deps.routeTarget,
         ).admission
       } catch {
+        deps.logger?.warn(
+          { routeKey: descriptor.routeKey, stage: 'compile', code: 'malformed_request' },
+          'Google provider execution rejected',
+        )
         return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
       }
       let permit: Awaited<ReturnType<GoogleProviderPermitAdmitter>>
       try {
         permit = await deps.admit({ authorization: options.authorization, admission })
       } catch {
+        deps.logger?.warn(
+          { routeKey: descriptor.routeKey, stage: 'admit', code: 'admission_error' },
+          'Google provider execution rejected',
+        )
         return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
       }
       if (!permit.ok) {
+        deps.logger?.warn(
+          { routeKey: descriptor.routeKey, stage: 'admit', code: permit.code },
+          'Google provider execution rejected',
+        )
         return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
       }
       if (options.signal?.aborted) {
@@ -73,6 +88,10 @@ export function createGoogleAuthorizedProviderExecutor(
           deadlineMs: options.deadlineMs,
         })
       } catch {
+        deps.logger?.warn(
+          { routeKey: descriptor.routeKey, stage: 'gateway', code: 'transport_error' },
+          'Google provider execution rejected',
+        )
         return { ok: false, code: 'transport_error', retryAfterMs: 0 }
       }
     },

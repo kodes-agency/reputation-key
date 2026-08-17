@@ -46,6 +46,36 @@ describe('Google provider route catalogue', () => {
     expect(compiled.method).toBe('GET')
   })
 
+  it('compiles bounded Review list and targeted get routes', () => {
+    const locationName = ['accounts', 'account-1', 'locations', 'location-1'].join('/')
+    const reviewName = [locationName, 'reviews', 'review-1'].join('/')
+    const list = compileGoogleProviderRequest(
+      {
+        routeKey: 'reviews.list',
+        accessToken: 'access-token',
+        locationName,
+        pageToken: 'opaque-provider-page',
+      },
+      bindCredential,
+    )
+    expect(list.url).toBe(
+      `https://mybusiness.googleapis.com/v4/${locationName}/reviews?pageSize=50&pageToken=opaque-provider-page`,
+    )
+    expect(list.method).toBe('GET')
+
+    const get = compileGoogleProviderRequest(
+      {
+        routeKey: 'reviews.get',
+        accessToken: 'access-token',
+        reviewName,
+      },
+      bindCredential,
+    )
+    expect(get.url).toBe(`https://mybusiness.googleapis.com/v4/${reviewName}`)
+    expect(get.method).toBe('GET')
+    expect(get.admission.maxResponseBytes).toBe(64 * 1024)
+  })
+
   it('compiles OAuth refresh and revoke as fixed form routes with bounded bodies', () => {
     const refresh = compileGoogleProviderRequest(
       {

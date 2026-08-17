@@ -22,6 +22,8 @@ describe('local beta stack contract', () => {
         'badge.use',
         'leaderboard.use',
         'notification.send_email',
+        'property.import_gbp_v2',
+        'property.read_gbp_performance',
       ]),
     )
     expect(LOCAL_BETA_CAPABILITIES).not.toEqual(

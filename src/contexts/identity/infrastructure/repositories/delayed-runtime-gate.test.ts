@@ -13,6 +13,7 @@
 //
 // Setup pattern mirrors delayed-policy-init.test.ts (BQC-2.5 wiring proof).
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -37,7 +38,7 @@ const SYNC_DATA = {
   propertyId: PROP,
   organizationId: ORG,
   connectionId: CONN,
-  locationName: 'accounts/111/locations/222',
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
 beforeAll(async () => {

@@ -32,7 +32,7 @@ export {
   refreshGoogleToken,
   type RefreshGoogleTokenDeps,
   type RefreshGoogleToken,
-  type RefreshGoogleTokenInput,
+  type RefreshGoogleTokenOptions,
 } from './refresh-google-token'
 
 export {

@@ -19,6 +19,10 @@ export type ActiveConnectionTokenProviderDeps = Readonly<{
   refreshGoogleToken: (
     orgId: OrganizationId,
     connectionId: string,
+    options?: Readonly<{
+      force?: boolean
+      expectedCredentialGeneration?: number
+    }>,
   ) => Promise<GoogleConnection>
 }>
 
@@ -38,6 +42,12 @@ export function decideTokenFreshness(expiresAtMs: number, nowMs: number): TokenF
 export type ActiveConnectionTokenProvider = Readonly<{
   /** Access token for the org's active connection — refreshing it first when stale. */
   getAccessToken: (orgId: OrganizationId, connectionId: string) => Promise<string>
+  /** Force a provider refresh after a 401, fenced to the credential that failed. */
+  forceRefreshAccessToken: (
+    orgId: OrganizationId,
+    connectionId: string,
+    expectedCredentialGeneration: number,
+  ) => Promise<string>
 }>
 
 export const createActiveConnectionTokenProvider = (
@@ -69,10 +79,27 @@ export const createActiveConnectionTokenProvider = (
         deps.clock().getTime(),
       )
       if (freshness === 'refresh-required') {
-        const refreshed = await deps.refreshGoogleToken(orgId, connectionId)
+        const refreshed = await deps.refreshGoogleToken(orgId, connectionId, {
+          expectedCredentialGeneration: connection.credentialGeneration,
+        })
         return deps.encryption.decrypt(refreshed.encryptedAccessToken)
       }
       return deps.encryption.decrypt(connection.encryptedAccessToken)
+    },
+    forceRefreshAccessToken: async (
+      orgId,
+      connectionId,
+      expectedCredentialGeneration,
+    ) => {
+      const connection = await getActiveConnection(orgId, connectionId)
+      if (connection.credentialGeneration !== expectedCredentialGeneration) {
+        return deps.encryption.decrypt(connection.encryptedAccessToken)
+      }
+      const refreshed = await deps.refreshGoogleToken(orgId, connectionId, {
+        force: true,
+        expectedCredentialGeneration,
+      })
+      return deps.encryption.decrypt(refreshed.encryptedAccessToken)
     },
   }
 }

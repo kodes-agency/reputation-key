@@ -221,8 +221,20 @@ describe('credential lifecycle repository', () => {
     expect(terminal.rows[0]).toEqual({
       revoke_state: 'confirmed_revoked',
       source_state: 'terminal',
-      guard_state: 'drained',
+      guard_state: 'open',
     })
+
+    const nextPermitId = '9d000000-0000-4000-8000-000000000003'
+    await seedStartedPermit(nextPermitId)
+    await expect(
+      repository.registerSource(
+        registration({
+          sourceOperationId: '9b000000-0000-4000-8000-000000000002',
+          revokePermitId: '9c000000-0000-4000-8000-000000000002',
+          sourceWorkPermitId: nextPermitId,
+        }),
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { sequence: 2 } })
   })
 
   it('records a pre-dispatch denial and erases token authorization atomically', async () => {
@@ -265,8 +277,20 @@ describe('credential lifecycle repository', () => {
       state: 'confirmed_not_sent',
       token_hmac: null,
       send_authorization_expires_at: null,
-      guard_state: 'drained',
+      guard_state: 'provider_reset_required',
     })
+
+    const nextPermitId = '9d000000-0000-4000-8000-000000000002'
+    await seedStartedPermit(nextPermitId)
+    await expect(
+      repository.registerSource(
+        registration({
+          sourceOperationId: '9b000000-0000-4000-8000-000000000002',
+          revokePermitId: '9c000000-0000-4000-8000-000000000002',
+          sourceWorkPermitId: nextPermitId,
+        }),
+      ),
+    ).resolves.toEqual({ ok: false, code: 'concurrent_operation' })
   })
 
   it('expires unconsumed token authorization and its HMAC atomically', async () => {
@@ -305,7 +329,32 @@ describe('credential lifecycle repository', () => {
       state: 'confirmed_not_sent',
       token_hmac: null,
       send_authorization_expires_at: null,
-      guard_state: 'drained',
+      guard_state: 'provider_reset_required',
+    })
+  })
+
+  it('expires a source that never reached the provider without requiring cleanup', async () => {
+    await seedStartedPermit()
+    await repository.registerSource(registration())
+
+    await expect(
+      repository.expireDeadlines({
+        now: CLEANUP_DEADLINE,
+        limit: 100,
+      }),
+    ).resolves.toEqual({ expired: 1 })
+    const rows = await pool.query(
+      `SELECT r.state AS revoke_state, s.state AS source_state, g.state AS guard_state
+       FROM credential_revoke_permits r
+       JOIN google_credential_source_operations s ON s.id = r.source_operation_id
+       JOIN google_subject_authority_guards g ON g.id = r.guard_id
+       WHERE r.id = $1`,
+      [REVOKE_ID],
+    )
+    expect(rows.rows[0]).toEqual({
+      revoke_state: 'consumed_no_revoke',
+      source_state: 'terminal',
+      guard_state: 'open',
     })
   })
 

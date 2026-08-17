@@ -45,7 +45,10 @@ function snapshot(
     connectionAccessVersion: 5,
     credentialGeneration: 6,
     approvalBindingId: '33333333-3333-4333-8333-333333333333',
-    authorizationVector: Object.freeze({ policyVersion: 'beta-local-2' }),
+    authorizationVector: Object.freeze({
+      policyVersion: 'beta-local-2',
+      credentialGeneration: 6,
+    }),
     authorizationVectorSha256: 'a'.repeat(64),
     principalHmacKeyVersion: 'v1',
     principalHmac: 'c'.repeat(43),
@@ -150,7 +153,6 @@ describe('getPropertyGooglePerformance', () => {
       actor: ACTOR,
       propertyId: PROPERTY_ID,
       phase: 'before_return',
-      expected: current,
     })
     expect(issueLease).toHaveBeenCalledWith({
       actor: ACTOR,
@@ -205,6 +207,72 @@ describe('getPropertyGooglePerformance', () => {
       retryAfterSeconds: null,
     })
     expect(fetchReport).toHaveBeenCalledTimes(1)
+    expect(issueLease).not.toHaveBeenCalled()
+  })
+
+  it('publishes after refresh when only the credential generation changes', async () => {
+    const initial = snapshot()
+    const refreshed = snapshot({
+      credentialGeneration: 7,
+      authorizationVector: Object.freeze({
+        policyVersion: 'beta-local-2',
+        credentialGeneration: 7,
+      }),
+      authorizationVectorSha256: 'd'.repeat(64),
+    })
+    const authorize = vi
+      .fn<PerformanceDeps['authorize']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: initial,
+        accessToken: 'access-token',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: refreshed,
+        accessToken: null,
+      })
+    const { getPerformance, issueLease } = setup({ authorize })
+
+    await expect(
+      getPerformance({ propertyId: PROPERTY_ID, preset: '7d', actor: ACTOR }),
+    ).resolves.toMatchObject({ status: 'ready' })
+    expect(issueLease).toHaveBeenCalledWith(
+      expect.objectContaining({ snapshot: refreshed }),
+    )
+  })
+
+  it('discards a response when a non-credential authorization vector changes', async () => {
+    const initial = snapshot()
+    const changed = snapshot({
+      authorizationVector: Object.freeze({
+        policyVersion: 'beta-local-3',
+        credentialGeneration: 6,
+      }),
+      authorizationVectorSha256: 'e'.repeat(64),
+    })
+    const authorize = vi
+      .fn<PerformanceDeps['authorize']>()
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: initial,
+        accessToken: 'access-token',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        snapshot: changed,
+        accessToken: null,
+      })
+    const { getPerformance, issueLease } = setup({ authorize })
+
+    await expect(
+      getPerformance({ propertyId: PROPERTY_ID, preset: '7d', actor: ACTOR }),
+    ).resolves.toEqual({
+      status: 'error',
+      errorCode: 'stale_source',
+      retryable: true,
+      retryAfterSeconds: null,
+    })
     expect(issueLease).not.toHaveBeenCalled()
   })
 

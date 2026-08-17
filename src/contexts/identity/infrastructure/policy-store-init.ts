@@ -32,6 +32,7 @@ import {
   createExecutionPolicy,
   initExecutionPolicy,
   parseOperatorIdentities,
+  type MerchantAiConsentFence,
 } from '#/shared/auth/execution-policy'
 import {
   createDelayedExecutionPolicy,
@@ -45,6 +46,13 @@ import {
 import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
 import { getActiveConsent } from './repositories/policy-consent.repository'
 import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
+import { hasActiveMerchantAiConsent } from './repositories/merchant-ai-authorization.repository'
+
+const MERCHANT_AI_PURPOSES = new Set([
+  'ai.analyze',
+  'ai.generate_reply',
+  'ai.detect_trends',
+])
 
 /** Revocation/suspension bound: tenant policy state is at most this stale. */
 const POLICY_REFRESH_INTERVAL_MS = 5_000
@@ -86,16 +94,33 @@ export function initPersistedCapabilityPolicyStore(deps: {
   // OPS_OPERATOR_IDENTITIES (absent/empty = every operator command denies).
   const grantLookup = createGrantAccessLookup(deps.db)
   const operatorIdentities = parseOperatorIdentities(deps.env)
+  const hasActiveConsent = async (input: {
+    organizationId: string
+    subjectType: 'organization' | 'property' | 'user'
+    subjectId: string
+    purpose: string
+    expectedFence?: MerchantAiConsentFence
+    at: Date
+  }): Promise<boolean> => {
+    if (MERCHANT_AI_PURPOSES.has(input.purpose)) {
+      if (input.subjectType !== 'property') return false
+      return hasActiveMerchantAiConsent(deps.db, {
+        organizationId: input.organizationId,
+        propertyId: input.subjectId,
+        purpose: input.purpose,
+        expectedFence: input.expectedFence,
+      })
+    }
+    const consent = await getActiveConsent(deps.db, input)
+    return consent !== null
+  }
   initExecutionPolicy(
     createExecutionPolicy({
       listAccessiblePropertyIds: async (orgId, uid) => {
         const ids = await grantLookup(organizationId(orgId), userId(uid))
         return ids.map((id) => id as string)
       },
-      hasActiveConsent: async (input) => {
-        const consent = await getActiveConsent(deps.db, input)
-        return consent !== null
-      },
+      hasActiveConsent,
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
       onAuditError: (err) => logger.warn({ err }, 'policy decision audit write failed'),
       isRegisteredOperator: (id) => operatorIdentities.has(id),
@@ -108,10 +133,7 @@ export function initPersistedCapabilityPolicyStore(deps: {
   initDelayedExecutionPolicy(
     createDelayedExecutionPolicy({
       refreshPolicy: () => persisted.refresh(),
-      hasActiveConsent: async (input) => {
-        const consent = await getActiveConsent(deps.db, input)
-        return consent !== null
-      },
+      hasActiveConsent,
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
       onAuditError: (err) => logger.warn({ err }, 'delayed decision audit write failed'),
     }),

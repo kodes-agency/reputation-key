@@ -40,6 +40,45 @@ describe('refreshGoogleToken', () => {
     expect(result.encryptedAccessToken).toBe(connection.encryptedAccessToken)
   })
 
+  it('forces a refresh after a provider 401 even when the token is not near expiry', async () => {
+    const { useCase, connectionRepo, oauth } = setup()
+    const connection = buildTestGoogleConnection({
+      status: 'active',
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
+      credentialGeneration: 7,
+    })
+    connectionRepo.seed([connection])
+    oauth.setRefreshResult({ accessToken: 'forced-access-token', expiresIn: 3600 })
+
+    const result = await useCase(ORG_ID, connection.id, {
+      force: true,
+      expectedCredentialGeneration: 7,
+    })
+
+    expect(result.encryptedAccessToken).toBe('enc:forced-access-token')
+    expect(result.credentialGeneration).toBe(8)
+    expect(result.accessVersion).toBe(connection.accessVersion)
+  })
+
+  it('uses a newer credential without refreshing when the failed generation is stale', async () => {
+    const { useCase, connectionRepo, oauth } = setup()
+    const connection = buildTestGoogleConnection({
+      status: 'active',
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
+      credentialGeneration: 8,
+      encryptedAccessToken: 'enc:newer-access-token',
+    })
+    connectionRepo.seed([connection])
+
+    const result = await useCase(ORG_ID, connection.id, {
+      force: true,
+      expectedCredentialGeneration: 7,
+    })
+
+    expect(result).toEqual(connection)
+    expect(oauth.refreshAccessTokenCalls()).toEqual([])
+  })
+
   it('refreshes token when expired, encrypts, updates, and returns updated', async () => {
     const { useCase, connectionRepo, oauth } = setup()
     // Token expired 1 hour before FIXED_NOW

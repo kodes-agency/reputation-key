@@ -1,3 +1,4 @@
+import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import { z } from 'zod/v4'
 
 const ISO_COUNTRY_CODES = new Set(
@@ -5,7 +6,6 @@ const ISO_COUNTRY_CODES = new Set(
     ' ',
   ),
 )
-const VALID_IANA_TIMEZONES = new Set(Intl.supportedValuesOf('timeZone'))
 
 const OPAQUE_REFERENCE = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/
 const whitespace = /\s+/gu
@@ -23,7 +23,7 @@ const timezoneSchema = z
   .string()
   .min(1)
   .max(64)
-  .refine((value) => VALID_IANA_TIMEZONES.has(value), 'Invalid IANA timezone')
+  .refine(isValidIanaTimezone, 'Invalid IANA timezone')
 
 const countryCodeSchema = z
   .string()

@@ -9,6 +9,7 @@ import {
   Bell,
   Award,
   Plug,
+  BrainCircuit,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -80,6 +81,16 @@ export function SettingsSidebar() {
             label: 'Recognition',
             icon: Award,
             href: '/settings/recognition',
+          },
+        ]
+      : []),
+    ...(can('ai.manage')
+      ? [
+          {
+            key: 'ai',
+            label: 'AI data use',
+            icon: BrainCircuit,
+            href: '/settings/ai',
           },
         ]
       : []),

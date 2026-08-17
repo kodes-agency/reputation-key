@@ -1,4 +1,7 @@
-import { createHash } from 'node:crypto'
+import {
+  googleAuthorizationPermissionDigest,
+  sameGoogleContentAuthorizationVector,
+} from '#/shared/domain/google-content-authorization-vector'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '../domain/types'
@@ -33,18 +36,6 @@ type GoogleImportExecutionDecision = Readonly<{
   policyVersion: string
 }>
 
-function permissionDigest(
-  actor: Parameters<GoogleImportCommandAuthorizer>[0]['actor'],
-): string {
-  const permissions = [...(actor.effectivePermissions ?? [])].sort()
-  const scopes = [...(actor.scopeByPermission ?? new Map())]
-    .map(([permission, scope]) => [permission, scope] as const)
-    .sort(([left], [right]) => left.localeCompare(right))
-  return createHash('sha256')
-    .update(JSON.stringify({ permissions, scopes }))
-    .digest('hex')
-}
-
 function connectionIsUsable(
   connection: GoogleConnection,
   input: Parameters<GoogleImportCommandAuthorizer>[0],
@@ -78,6 +69,7 @@ export type GoogleImportContentAuthorizationResult =
       approvalBindingId: string
       policyVersion: number
       emergencyKillVersion: number
+      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
     }>
   | Readonly<{
       ok: false
@@ -96,7 +88,7 @@ export type GoogleImportContentAuthorizer = (
 export function createGoogleImportCommandAuthorizer(
   deps: Readonly<{
     connectionRepo: Pick<GoogleConnectionRepository, 'findById'>
-    tokenProvider: ActiveConnectionTokenProvider
+    tokenProvider: Pick<ActiveConnectionTokenProvider, 'getAccessToken'>
     decide: (
       request: GoogleImportDecisionRequest,
     ) => Promise<GoogleImportExecutionDecision>
@@ -189,6 +181,7 @@ export function createGoogleImportCommandAuthorizer(
     } catch {
       return deny('runtime_unavailable')
     }
+    const connectionBeforeTokenAccess = connection
     let contentAuthorization: Extract<
       GoogleImportContentAuthorizationResult,
       { ok: true }
@@ -226,8 +219,49 @@ export function createGoogleImportCommandAuthorizer(
       if (input.expected && !sameExpectedConnection(connection, input.expected)) {
         return deny('authorization_changed')
       }
+      if (
+        connection.lifecycleVersion !== connectionBeforeTokenAccess.lifecycleVersion ||
+        connection.accessVersion !== connectionBeforeTokenAccess.accessVersion ||
+        connection.credentialGeneration < connectionBeforeTokenAccess.credentialGeneration
+      ) {
+        return deny('authorization_changed')
+      }
+      if (
+        connection.credentialGeneration > connectionBeforeTokenAccess.credentialGeneration
+      ) {
+        try {
+          const refreshed = await deps.authorizeGoogleContent({
+            actor: input.actor,
+            connectionId: input.connectionId,
+            phase: input.phase,
+            properties: input.properties ?? [],
+          })
+          if (!refreshed.ok) return deny(refreshed.code)
+          contentAuthorization = refreshed
+        } catch {
+          return deny('runtime_unavailable')
+        }
+      }
     }
 
+    const expectedAuthorizationVector = {
+      executionPolicyVersion: importDecision.policyVersion,
+      googleContentPolicyVersion: contentAuthorization.policyVersion,
+      emergencyKillVersion: contentAuthorization.emergencyKillVersion,
+      role: input.actor.role,
+      permissionDigest: googleAuthorizationPermissionDigest(input.actor),
+      connectionLifecycleVersion: connection.lifecycleVersion,
+      connectionAccessVersion: connection.accessVersion,
+      credentialGeneration: connection.credentialGeneration,
+    } as const
+    if (
+      !sameGoogleContentAuthorizationVector(
+        contentAuthorization.authorizationVector,
+        expectedAuthorizationVector,
+      )
+    ) {
+      return deny('authorization_changed')
+    }
     const authorization = {
       organizationId: input.actor.organizationId,
       userId: input.actor.userId,
@@ -236,27 +270,15 @@ export function createGoogleImportCommandAuthorizer(
       connectionAccessVersion: connection.accessVersion,
       credentialGeneration: connection.credentialGeneration,
       approvalBindingId: contentAuthorization.approvalBindingId,
-      authorizationVector: {
-        executionPolicyVersion: importDecision.policyVersion,
-        googleContentPolicyVersion: contentAuthorization.policyVersion,
-        emergencyKillVersion: contentAuthorization.emergencyKillVersion,
-        role: input.actor.role,
-        permissionDigest: permissionDigest(input.actor),
-      },
+      authorizationVector: contentAuthorization.authorizationVector,
     } as const
     if (input.expected) {
-      const expectedVector = input.expected.authorizationVector
       if (
         input.expected.approvalBindingId !== authorization.approvalBindingId ||
-        expectedVector.executionPolicyVersion !==
-          authorization.authorizationVector.executionPolicyVersion ||
-        expectedVector.googleContentPolicyVersion !==
-          authorization.authorizationVector.googleContentPolicyVersion ||
-        expectedVector.emergencyKillVersion !==
-          authorization.authorizationVector.emergencyKillVersion ||
-        expectedVector.role !== authorization.authorizationVector.role ||
-        expectedVector.permissionDigest !==
-          authorization.authorizationVector.permissionDigest
+        !sameGoogleContentAuthorizationVector(
+          input.expected.authorizationVector,
+          authorization.authorizationVector,
+        )
       ) {
         return deny('authorization_changed')
       }

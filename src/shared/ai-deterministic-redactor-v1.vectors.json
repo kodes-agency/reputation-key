@@ -1,0 +1,54 @@
+[
+  {
+    "vectorId": "all-closed-placeholders",
+    "text": "The visit was pleasant and the service team was helpful. [PERSON] wrote owner@example.com from 25 Main Street using 4111 1111 1111 1111, passport X12345678, and sk_test_1234567890abcdefghijklmnop.",
+    "countryCode": "US",
+    "expected": {
+      "status": "redacted",
+      "text": "The visit was pleasant and the service team was helpful. [PERSON] wrote [CONTACT] from [ADDRESS] using [FINANCIAL], [IDENTIFIER], and [SECRET].",
+      "counts": {
+        "[PERSON]": 1,
+        "[CONTACT]": 1,
+        "[ADDRESS]": 1,
+        "[FINANCIAL]": 1,
+        "[IDENTIFIER]": 1,
+        "[SECRET]": 1
+      }
+    }
+  },
+  {
+    "vectorId": "country-phone-profile",
+    "text": "The UK office phone is 020 7946 0958 and service was helpful.",
+    "countryCode": "GB",
+    "expected": {
+      "status": "redacted",
+      "text": "The UK office phone is [CONTACT] and service was helpful.",
+      "counts": {
+        "[PERSON]": 0,
+        "[CONTACT]": 1,
+        "[ADDRESS]": 0,
+        "[FINANCIAL]": 0,
+        "[IDENTIFIER]": 0,
+        "[SECRET]": 0
+      }
+    }
+  },
+  {
+    "vectorId": "person-heavy-ratio",
+    "text": "[PERSON] okay",
+    "countryCode": "US",
+    "expected": {
+      "status": "redaction_blocked",
+      "reason": "redaction_ratio_exceeded"
+    }
+  },
+  {
+    "vectorId": "ambiguous-over-bound",
+    "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+    "countryCode": "US",
+    "expected": {
+      "status": "redaction_blocked",
+      "reason": "ambiguous_candidate"
+    }
+  }
+]

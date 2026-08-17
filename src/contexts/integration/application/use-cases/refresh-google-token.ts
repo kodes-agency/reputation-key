@@ -11,9 +11,9 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
-export type RefreshGoogleTokenInput = Readonly<{
-  orgId: OrganizationId
-  connectionId: string
+export type RefreshGoogleTokenOptions = Readonly<{
+  force?: boolean
+  expectedCredentialGeneration?: number
 }>
 
 export type RefreshGoogleTokenDeps = Readonly<{
@@ -25,7 +25,11 @@ export type RefreshGoogleTokenDeps = Readonly<{
 
 export const refreshGoogleToken =
   (deps: RefreshGoogleTokenDeps) =>
-  async (orgId: OrganizationId, connectionIdStr: string): Promise<GoogleConnection> => {
+  async (
+    orgId: OrganizationId,
+    connectionIdStr: string,
+    options: RefreshGoogleTokenOptions = {},
+  ): Promise<GoogleConnection> => {
     const connectionId = googleConnectionId(connectionIdStr)
 
     // 1. Find connection
@@ -46,8 +50,13 @@ export const refreshGoogleToken =
     const now = deps.clock().getTime()
     const expiresAt = connection.tokenExpiresAt.getTime()
 
-    if (expiresAt > now + TOKEN_EXPIRY_BUFFER_MS) {
-      // Token is still valid, return as-is
+    if (!options.force && expiresAt > now + TOKEN_EXPIRY_BUFFER_MS) {
+      return connection
+    }
+    if (
+      options.expectedCredentialGeneration !== undefined &&
+      connection.credentialGeneration !== options.expectedCredentialGeneration
+    ) {
       return connection
     }
 
@@ -65,6 +74,10 @@ export const refreshGoogleToken =
     const updated = await deps.connectionRepo.updateTokens(
       orgId,
       connectionId,
+      {
+        lifecycleVersion: connection.lifecycleVersion,
+        credentialGeneration: connection.credentialGeneration,
+      },
       encryptedAccessToken,
       connection.encryptedRefreshToken, // Keep same refresh token
       tokenExpiresAt,

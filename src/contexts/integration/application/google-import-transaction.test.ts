@@ -53,7 +53,7 @@ const authorization: ImportDiscoveryAuthorization = {
   credentialGeneration: 4,
   approvalBindingId: APPROVAL_ID,
   authorizationVector: {
-    executionPolicyVersion: 5,
+    executionPolicyVersion: 'beta-local-2',
     googleContentPolicyVersion: 6,
     emergencyKillVersion: 7,
     role: 'owner',

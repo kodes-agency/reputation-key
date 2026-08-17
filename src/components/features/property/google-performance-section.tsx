@@ -159,7 +159,7 @@ export function GooglePerformanceSection({
                 <Link
                   to={
                     unavailable.action === 'set_timezone'
-                      ? '/import'
+                      ? '/properties/import-google'
                       : '/settings/integrations'
                   }
                 >

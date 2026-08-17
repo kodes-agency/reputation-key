@@ -260,6 +260,8 @@ describe('createAtomicIntegrationCommandStore', () => {
       const result = await store.reconnectGoogleAccount({
         organizationId: ORG_ID,
         connectionId: CONN_ID,
+        googleSubject: 'google-subject-2',
+        scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
         encryptedAccessToken: 'enc-a2',
         encryptedRefreshToken: 'enc-r2',
         tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
@@ -271,6 +273,8 @@ describe('createAtomicIntegrationCommandStore', () => {
       expect(updateSets[0]).toMatchObject({
         status: 'active',
         visibility: 'organization',
+        googleSubject: 'google-subject-2',
+        scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       })
       expect(outboxRows).toHaveLength(1)
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
@@ -287,6 +291,8 @@ describe('createAtomicIntegrationCommandStore', () => {
         store.reconnectGoogleAccount({
           organizationId: ORG_ID,
           connectionId: CONN_ID,
+          googleSubject: 'google-subject-2',
+          scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
           encryptedAccessToken: 'enc-a2',
           encryptedRefreshToken: 'enc-r2',
           tokenExpiresAt: NOW,

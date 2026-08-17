@@ -49,6 +49,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.goto(
       `/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=settings`,
     )
+    await waitForHydration(page)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     const description = page.getByLabel('Description')
     await description.fill('Persisted Portal manager change.')
@@ -883,17 +884,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(page.getByRole('button', { name: /Theme mode: light/i })).toBeVisible()
 
-    const integrationEmail = `beta-integration-${e2eRunId}@e2e.example.com`
+    const integrationSubject = `beta-integration-${e2eRunId}`
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
       connectedBy: seed.managerUserId,
-      googleAccountId: `beta-integration-${e2eRunId}`,
-      googleEmail: integrationEmail,
+      googleSubject: integrationSubject,
     })
     await page.goto('/settings/integrations')
-    await expect(page.getByText(integrationEmail, { exact: true })).toBeVisible()
+    await expect(page.getByText('Connected', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText(integrationSubject, { exact: true })).toHaveCount(0)
     await page.reload()
-    await expect(page.getByText(integrationEmail, { exact: true })).toBeVisible()
+    await expect(page.getByText('Connected', { exact: true }).first()).toBeVisible()
     await callServerFn(page, {
       file: 'src/contexts/integration/server/google-connections.ts',
       exportName: 'disconnectGoogle',
@@ -912,16 +913,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
     const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
-    await expect(p1Row).toContainText('40 reviews')
-    await expect(p2Row).toContainText('20 reviews')
+    await expect(p1Row).toContainText('30 reviews')
+    await expect(p2Row).toContainText('15 reviews')
     await expect(page.getByText('E2E Bounded Property 1', { exact: true })).toBeVisible()
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
     await p1Row.click()
     await expect(page).toHaveURL(
-      new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=all$`),
+      new RegExp(
+        `/properties/${seed.p1PropertyId}\\?timeRange=all&performanceRange=30d$`,
+      ),
     )
     await page.goBack()
-    await expect(p1Row).toContainText('40 reviews')
+    await expect(p1Row).toContainText('30 reviews')
 
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
     const onePage = await oneContext.newPage()
@@ -933,7 +936,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     await onePage.goto('/dashboard')
     await expect(onePage).toHaveURL(
-      new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=all$`),
+      new RegExp(
+        `/properties/${seed.p1PropertyId}\\?timeRange=all&performanceRange=30d$`,
+      ),
     )
     await expect(onePage.getByText('E2E Beta Hotel P2', { exact: true })).toHaveCount(0)
     await oneContext.close()

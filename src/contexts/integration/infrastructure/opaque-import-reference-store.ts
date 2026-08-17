@@ -388,6 +388,7 @@ export function createOpaqueImportReferenceStore(
       audience: 'import',
       capability: 'property.import_gbp_v2',
       organizationId: authorization.organizationId,
+      initiatorUserId: authorization.userId,
       propertyId: null,
       connectionId: authorization.connectionId,
       ...leaseBinding(authorization),

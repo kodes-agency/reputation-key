@@ -10,7 +10,7 @@ export const GOOGLE_ENDPOINT_CLASSES = [
 ] as const
 export type GoogleEndpointClass = (typeof GOOGLE_ENDPOINT_CLASSES)[number]
 
-export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-08-05' as const
+export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-08-16' as const
 
 export const GOOGLE_PERFORMANCE_CATALOG_VERSION = '2026-08-05' as const
 export const GOOGLE_PERFORMANCE_DAILY_METRICS = Object.freeze([
@@ -50,6 +50,7 @@ export const GOOGLE_PROVIDER_ROUTE_KEYS = [
   'oauth.jwks',
   'oauth.revoke',
   'reviews.list',
+  'reviews.get',
   'reviews.reply',
 ] as const
 export type GoogleProviderRouteKey = (typeof GOOGLE_PROVIDER_ROUTE_KEYS)[number]

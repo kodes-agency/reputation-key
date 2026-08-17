@@ -83,7 +83,7 @@ describe('connectGoogleAccount', () => {
     ).rejects.toThrow('OAuth provider unreachable')
   })
 
-  it('reconnects the same signed subject in the same organization', async () => {
+  it('reconnects only the exact targeted subject in the same organization', async () => {
     const { useCase, connectionRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
@@ -93,12 +93,21 @@ describe('connectGoogleAccount', () => {
     })
     connectionRepo.seed([existing])
 
-    const result = await useCase(input('organization'), ctx)
+    const result = await useCase(
+      {
+        ...input('organization'),
+        connectionMode: 'reconnect',
+        targetConnectionId: existing.id,
+      },
+      ctx,
+    )
 
     expect(result).toMatchObject({
       id: existing.id,
+      googleSubject: 'google-subject-123',
       status: 'active',
       visibility: 'organization',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
     })
     expect(connectionRepo.all()).toHaveLength(1)
     expect(events.capturedByTag('integration.google_account.connected')[0]).toMatchObject(
@@ -106,6 +115,55 @@ describe('connectGoogleAccount', () => {
         connectionId: existing.id,
       },
     )
+  })
+  it('does not let a new ceremony adopt an existing same-organization subject', async () => {
+    const { useCase, connectionRepo, events } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const existing = buildTestGoogleConnection({
+      googleSubject: 'google-subject-123',
+      status: 'disconnected',
+    })
+    connectionRepo.seed([existing])
+
+    await expect(useCase(input('organization'), ctx)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) &&
+        (error as { code: string }).code === 'account_already_connected',
+    )
+    expect(connectionRepo.all()).toEqual([existing])
+    expect(events.capturedByTag('integration.google_account.connected')).toEqual([])
+  })
+
+  it('rejects a targeted ceremony when the returned subject belongs to another row', async () => {
+    const { useCase, connectionRepo, events } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const target = buildTestGoogleConnection({
+      id: '00000000-0000-4000-8000-000000000111',
+      googleSubject: 'different-subject',
+      status: 'disconnected',
+    })
+    const mapped = buildTestGoogleConnection({
+      id: '00000000-0000-4000-8000-000000000222',
+      googleSubject: 'google-subject-123',
+    })
+    connectionRepo.seed([target, mapped])
+
+    await expect(
+      useCase(
+        {
+          ...input(),
+          connectionMode: 'reauth',
+          targetConnectionId: target.id,
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) &&
+        (error as { code: string }).code === 'account_already_connected',
+    )
+    expect(connectionRepo.all()).toEqual([target, mapped])
+    expect(events.capturedByTag('integration.google_account.connected')).toEqual([])
   })
 
   it('rejects a signed subject already claimed by another organization', async () => {

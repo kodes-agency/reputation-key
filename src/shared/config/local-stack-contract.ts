@@ -22,6 +22,8 @@ export const LOCAL_BETA_CAPABILITIES = [
   'goal.use',
   'badge.use',
   'leaderboard.use',
+  'property.import_gbp_v2',
+  'property.read_gbp_performance',
 ] as const satisfies ReadonlyArray<Capability>
 
 /**

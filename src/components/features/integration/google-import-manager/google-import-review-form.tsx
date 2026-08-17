@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -38,30 +39,50 @@ export function GoogleImportReviewForm({
   const [attempted, setAttempted] = useState(false)
   const [bulkTimezone, setBulkTimezone] = useState('')
   const validation = useMemo(() => validateImportReviewDraft(draft), [draft])
+  const form = useForm({
+    defaultValues: { draft },
+    onSubmit: ({ value }) => {
+      setAttempted(true)
+      const currentValidation = validateImportReviewDraft(value.draft)
+      if (!currentValidation.valid) {
+        if (currentValidation.firstInvalidControlId) {
+          document.getElementById(currentValidation.firstInvalidControlId)?.focus()
+        }
+        return
+      }
+      onSubmit()
+    },
+  })
+  const updateDraft = (next: ImportReviewDraft) => {
+    form.setFieldValue('draft', next)
+    onChange(next)
+  }
   const updateItem = (index: number, item: ImportReviewItem) => {
-    onChange({
+    updateDraft({
       items: draft.items.map((current, itemIndex) =>
         itemIndex === index ? item : current,
       ),
     })
   }
-  const submit = () => {
-    setAttempted(true)
-    if (!validation.valid) {
-      if (validation.firstInvalidControlId) {
-        document.getElementById(validation.firstInvalidControlId)?.focus()
-      }
-      return
-    }
-    onSubmit()
-  }
 
   return (
-    <div className="space-y-6">
+    <form
+      className="space-y-6"
+      aria-busy={isSubmitting}
+      onSubmit={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        void form.handleSubmit()
+      }}
+    >
       <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-end sm:justify-between">
         <Field className="max-w-md">
           <FieldLabel htmlFor="import-bulk-timezone">Timezone for all rows</FieldLabel>
-          <Select value={bulkTimezone} onValueChange={setBulkTimezone}>
+          <Select
+            value={bulkTimezone}
+            onValueChange={setBulkTimezone}
+            disabled={isSubmitting}
+          >
             <SelectTrigger id="import-bulk-timezone" className="w-full bg-background">
               <SelectValue placeholder="Choose a timezone" />
             </SelectTrigger>
@@ -77,8 +98,8 @@ export function GoogleImportReviewForm({
         <Button
           type="button"
           variant="outline"
-          disabled={!bulkTimezone}
-          onClick={() => onChange(applyBulkTimezone(draft, bulkTimezone))}
+          disabled={isSubmitting || !bulkTimezone}
+          onClick={() => updateDraft(applyBulkTimezone(draft, bulkTimezone))}
         >
           Apply to all
         </Button>
@@ -103,6 +124,7 @@ export function GoogleImportReviewForm({
             total={draft.items.length}
             attempted={attempted}
             validation={validation}
+            disabled={isSubmitting}
             onChange={(next) => updateItem(index, next)}
           />
         ))}
@@ -120,10 +142,13 @@ export function GoogleImportReviewForm({
         <Button type="button" variant="outline" onClick={onBack} disabled={isSubmitting}>
           Back to locations
         </Button>
-        <Button type="button" onClick={submit} disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
-              <Loader2 className="animate-spin" aria-hidden="true" />
+              <Loader2
+                className="animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
               Starting import…
             </>
           ) : (
@@ -134,6 +159,6 @@ export function GoogleImportReviewForm({
           )}
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

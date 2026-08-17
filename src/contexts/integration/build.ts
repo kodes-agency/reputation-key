@@ -56,6 +56,7 @@ import { createMyBusinessNotificationsAdapter } from './infrastructure/adapters/
 import { createGoogleReviewApiAdapter } from './infrastructure/adapters/google-review-api.adapter'
 import { createGoogleAccountManagementAdapter } from './infrastructure/adapters/google-account-management.adapter'
 import { createGoogleBusinessInformationAdapter } from './infrastructure/adapters/google-business-information.adapter'
+import { createSingle401RefreshExecutor } from './infrastructure/adapters/google-single-401-refresh-executor'
 import { createActiveConnectionTokenProvider } from './application/active-connection-token-provider'
 import {
   createGoogleImportCommandAuthorizer,
@@ -86,6 +87,28 @@ import { randomUUID } from 'node:crypto'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
+import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
+import {
+  createGoogleReviewCursorStore,
+  createUnavailableGoogleReviewCursorStore,
+  type GoogleReviewCursorStore,
+} from './infrastructure/google-review-cursor-store'
+function sameAuthorizationVectorExceptCredentialGeneration(
+  left: Readonly<Record<string, string | number | boolean | null>>,
+  right: Readonly<Record<string, string | number | boolean | null>>,
+): boolean {
+  const leftKeys = Object.keys(left).sort()
+  const rightKeys = Object.keys(right).sort()
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] &&
+        (key === 'credentialGeneration' || left[key] === right[key]),
+    )
+  )
+}
+
 type IntegrationContextDeps = Readonly<{
   db: Database
   events: EventBus
@@ -93,6 +116,7 @@ type IntegrationContextDeps = Readonly<{
   jobQueue: Queue | undefined
   propertyApi: PropertyPublicApi
   propertyBindingApi?: PropertyGoogleBindingPublicApi
+  enqueueReviewSync?: ReviewQueuePort['addSyncJob']
   logger: LoggerPort
   /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
    * content. Constructed once by the composition root (the only layer that
@@ -113,8 +137,12 @@ type IntegrationContextDeps = Readonly<{
   authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
   googlePerformancePrincipalKeys?: VersionedHmacKeyring
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
+  providerEphemeralStore?: ProviderEphemeralStore
+  googleOpaqueReferenceKeys?: VersionedHmacKeyring
+  googleReviewCursorStore?: GoogleReviewCursorStore
   oauthStateHandles?: OAuthStateHandleService
   oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
+  refreshPolicyStoreRequired?: () => Promise<unknown>
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -276,6 +304,37 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     encryption: encryptionPort,
     clock: deps.clock,
   })
+  const activeConnectionTokenProvider = createActiveConnectionTokenProvider({
+    connectionRepo,
+    encryption: encryptionPort,
+    clock: deps.clock,
+    refreshGoogleToken: refreshGoogleTokenUseCase,
+  })
+  let reauthorizeGoogleImportProviderCall:
+    | Parameters<typeof createSingle401RefreshExecutor>[0]['reauthorize']
+    | undefined
+  const googleImportProviderExecutor = deps.googleAuthorizedProviderExecutor
+    ? createSingle401RefreshExecutor({
+        executor: deps.googleAuthorizedProviderExecutor,
+        refreshAccessToken: ({ authorization }) =>
+          activeConnectionTokenProvider.forceRefreshAccessToken(
+            authorization.organizationId,
+            authorization.connectionId,
+            authorization.expectedCredentialGeneration,
+          ),
+        getAccessToken: ({ authorization }) =>
+          activeConnectionTokenProvider.getAccessToken(
+            authorization.organizationId,
+            authorization.connectionId,
+          ),
+        reauthorize: async (input) => {
+          if (!reauthorizeGoogleImportProviderCall) {
+            throw new Error('Google provider reauthorization is unavailable')
+          }
+          return reauthorizeGoogleImportProviderCall(input)
+        },
+      })
+    : undefined
 
   const manageNotificationsUseCase = manageNotifications({
     connectionRepo,
@@ -293,6 +352,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   let googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null =
     null
   let googleImportV2Processor: GoogleImportV2Processor | null = null
+  const resolveActiveMember = createActiveMemberAuthResolver(deps.db)
+  let authorizeGoogleReviewProviderCall:
+    | Parameters<typeof createGoogleReviewApiAdapter>[0]['authorizeProviderCall']
+    | undefined
   const googleImportV2Lifecycle = deps.propertyBindingApi
     ? createGoogleImportV2Lifecycle({
         store: googleImportV2Store,
@@ -305,15 +368,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const sweepGoogleImportV2Lifecycle = googleImportV2Lifecycle?.sweep ?? null
   if (deps.propertyBindingApi) {
     const propertyBindingApi = deps.propertyBindingApi
-    const decideGoogleImport = (
+    const decideGoogleImport = async (
       request: Parameters<ReturnType<typeof getExecutionPolicy>['decide']>[0],
-    ) => getExecutionPolicy().decide(request)
-    const activeConnectionTokenProvider = createActiveConnectionTokenProvider({
-      connectionRepo,
-      encryption: encryptionPort,
-      clock: deps.clock,
-      refreshGoogleToken: refreshGoogleTokenUseCase,
-    })
+    ) => {
+      await deps.refreshPolicyStoreRequired?.()
+      return getExecutionPolicy().decide(request)
+    }
     const authorizeGoogleImportCommand = createGoogleImportCommandAuthorizer({
       connectionRepo,
       tokenProvider: activeConnectionTokenProvider,
@@ -335,15 +395,85 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       },
       clock: deps.clock,
     })
+    reauthorizeGoogleImportProviderCall = async ({ authorization }) => {
+      const actor = await resolveActiveMember(
+        authorization.organizationId,
+        authorization.initiatorUserId,
+      )
+      if (!actor) {
+        throw new Error('Google provider reauthorization is unavailable')
+      }
+      const refreshed = await authorizeGoogleImportCommand({
+        actor,
+        connectionId: authorization.connectionId,
+        phase: 'provider_call',
+        properties: [],
+        requireAccessToken: false,
+      })
+      if (!refreshed.ok) {
+        throw new Error('Google provider reauthorization is unavailable')
+      }
+      return {
+        capability: 'property.import_gbp_v2',
+        organizationId: authorization.organizationId,
+        propertyId: null,
+        connectionId: authorization.connectionId,
+        initiatorUserId: refreshed.authorization.userId,
+        approvalBindingId: refreshed.authorization.approvalBindingId,
+        expectedCredentialGeneration: refreshed.authorization.credentialGeneration,
+        authorizationVector: refreshed.authorization.authorizationVector,
+      }
+    }
+    authorizeGoogleReviewProviderCall = async (organizationIdValue, connectionId) => {
+      const connection = await connectionRepo.findById(organizationIdValue, connectionId)
+      if (!connection) {
+        throw new Error('Google review provider authorization is unavailable')
+      }
+      const actor = await resolveActiveMember(organizationIdValue, connection.connectedBy)
+      if (!actor) {
+        throw new Error('Google review provider authorization is unavailable')
+      }
+      const authorized = await authorizeGoogleImportCommand({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        properties: [],
+        requireAccessToken: true,
+      })
+      if (!authorized.ok) {
+        throw new Error(
+          `Google review provider authorization is unavailable: ${authorized.code}`,
+        )
+      }
+      if (authorized.accessToken === null) {
+        throw new Error(
+          'Google review provider authorization is unavailable: token_missing',
+        )
+      }
+      return {
+        accessToken: authorized.accessToken,
+        authorization: {
+          capability: 'property.import_gbp_v2',
+          organizationId: organizationIdValue,
+          propertyId: null,
+          connectionId,
+          initiatorUserId: authorized.authorization.userId,
+          approvalBindingId: authorized.authorization.approvalBindingId,
+          expectedCredentialGeneration: authorized.authorization.credentialGeneration,
+          authorizationVector: authorized.authorization.authorizationVector,
+        },
+      }
+    }
     googleImportV2Processor = createGoogleImportV2Processor({
       store: googleImportV2Store,
       propertyBindingApi,
       authorizeGoogleImportCommand,
-      resolveActor: createActiveMemberAuthResolver(deps.db),
+      enqueueReviewSync: deps.enqueueReviewSync,
+      resolveActor: resolveActiveMember,
       clock: deps.clock,
       newClaimFence: randomUUID,
     })
-    if (deps.googleAuthorizedProviderExecutor && deps.googleImportReferences) {
+    if (googleImportProviderExecutor && deps.googleImportReferences) {
       googleImportDiscovery = createGoogleImportDiscovery({
         authorizeGoogleImportCommand,
         classifyCandidates: createGoogleImportPropertyClassifier({
@@ -363,11 +493,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         }),
         references: deps.googleImportReferences,
         accounts: createGoogleAccountManagementAdapter({
-          executor: deps.googleAuthorizedProviderExecutor,
+          executor: googleImportProviderExecutor,
           nowMs: () => deps.clock().getTime(),
         }),
         locations: createGoogleBusinessInformationAdapter({
-          executor: deps.googleAuthorizedProviderExecutor,
+          executor: googleImportProviderExecutor,
           nowMs: () => deps.clock().getTime(),
         }),
         nowMs: () => deps.clock().getTime(),
@@ -414,8 +544,62 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       principalKeys: deps.googlePerformancePrincipalKeys,
       clock: deps.clock,
     })
-    const source = createGooglePerformanceAdapter({
+    const performanceProviderExecutor = createSingle401RefreshExecutor({
       executor: deps.googleAuthorizedProviderExecutor,
+      refreshAccessToken: ({ authorization }) =>
+        performanceTokenProvider.forceRefreshAccessToken(
+          authorization.organizationId,
+          authorization.connectionId,
+          authorization.expectedCredentialGeneration,
+        ),
+      getAccessToken: ({ authorization }) =>
+        performanceTokenProvider.getAccessToken(
+          authorization.organizationId,
+          authorization.connectionId,
+        ),
+      reauthorize: async ({ authorization }) => {
+        if (authorization.propertyId === null) {
+          throw new Error('Google Performance reauthorization is unavailable')
+        }
+        const actor = await resolveActiveMember(
+          authorization.organizationId,
+          authorization.initiatorUserId,
+        )
+        if (!actor) {
+          throw new Error('Google Performance reauthorization is unavailable')
+        }
+        const refreshed = await authorize({
+          actor,
+          propertyId: authorization.propertyId,
+          phase: 'before_provider',
+          requireAccessToken: false,
+        })
+        if (!refreshed.ok) {
+          throw new Error('Google Performance reauthorization is unavailable')
+        }
+        if (
+          refreshed.snapshot.approvalBindingId !== authorization.approvalBindingId ||
+          !sameAuthorizationVectorExceptCredentialGeneration(
+            refreshed.snapshot.authorizationVector,
+            authorization.authorizationVector,
+          )
+        ) {
+          throw new Error('Google Performance reauthorization changed')
+        }
+        return {
+          capability: 'property.read_gbp_performance',
+          organizationId: refreshed.snapshot.organizationId,
+          propertyId: refreshed.snapshot.propertyId,
+          connectionId: refreshed.snapshot.connectionId,
+          initiatorUserId: actor.userId,
+          approvalBindingId: refreshed.snapshot.approvalBindingId,
+          expectedCredentialGeneration: refreshed.snapshot.credentialGeneration,
+          authorizationVector: refreshed.snapshot.authorizationVector,
+        }
+      },
+    })
+    const source = createGooglePerformanceAdapter({
+      executor: performanceProviderExecutor,
       nowMs: () => deps.clock().getTime(),
     })
     getPropertyGooglePerformance = createGetPropertyGooglePerformance({
@@ -427,14 +611,16 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           propertyId: snapshot.propertyId,
           connectionId: snapshot.connectionId,
           initiatorUserId: actor.userId,
+          expectedCredentialGeneration: snapshot.credentialGeneration,
           approvalBindingId: snapshot.approvalBindingId,
           authorizationVector: snapshot.authorizationVector,
         }),
-      issueLease: ({ snapshot, absoluteDeadlineMs, nowMs }) =>
+      issueLease: ({ actor, snapshot, absoluteDeadlineMs, nowMs }) =>
         deps.providerAuthorizationLeases!.issue({
           audience: 'performance',
           capability: 'property.read_gbp_performance',
           organizationId: snapshot.organizationId,
+          initiatorUserId: actor.userId,
           propertyId: snapshot.propertyId,
           connectionId: snapshot.connectionId,
           approvalBindingId: snapshot.approvalBindingId,
@@ -552,6 +738,16 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     findByGbpLocationId: deps.propertyApi.findByGbpLocationId,
   }
 
+  const googleReviewCursorStore =
+    deps.googleReviewCursorStore ??
+    (deps.providerEphemeralStore && deps.googleOpaqueReferenceKeys
+      ? createGoogleReviewCursorStore({
+          store: deps.providerEphemeralStore,
+          keys: deps.googleOpaqueReferenceKeys,
+          nowMs: () => deps.clock().getTime(),
+        })
+      : createUnavailableGoogleReviewCursorStore())
+
   // Integration owns the Google review API adapter (connection repo + token
   // encryption + refresh); the review context consumes it via its port.
   const googleReviewApi: GoogleReviewApiPort = createGoogleReviewApiAdapter({
@@ -560,6 +756,10 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     refreshToken: refreshGoogleTokenUseCase,
     logger: deps.logger,
     baseUrl: deps.providerEndpoints.reviewsApiBaseUrl,
+    executor: googleImportProviderExecutor,
+    authorizeProviderCall: authorizeGoogleReviewProviderCall,
+    nowMs: () => deps.clock().getTime(),
+    cursorStore: googleReviewCursorStore,
   })
 
   // The review queue is review-owned and builds after integration — the

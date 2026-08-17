@@ -31,6 +31,8 @@ const envSchema = z.object({
   // Dedicated non-persistent Redis for provider Content and short-lived
   // authorization records. Production composition requires a distinct TLS URL.
   PROVIDER_EPHEMERAL_REDIS_URL: z.string().optional(),
+  // Optional private CA scoped only to the provider-Redis TLS client.
+  PROVIDER_EPHEMERAL_REDIS_CA_PEM: z.string().min(1).optional(),
 
   // BQC-7.2: operator token gating /api/health/metrics (private ops
   // diagnostics). Optional in the SCHEMA on purpose — the fail-closed posture
@@ -117,10 +119,31 @@ const envSchema = z.object({
   GOOGLE_SESSION_BINDING_HMAC_KEYS: z.string().optional(),
   GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS: z.string().optional(),
   GOOGLE_REPLAY_HMAC_KEYS: z.string().optional(),
+  // Review-provider correlation key material is worker-only. The sealed
+  // contract migrator receives the same versions through a distinct one-run
+  // variable so no normal process can accidentally select migrator authority.
+  // Format: key-version:<exactly 64 lowercase hex>[,...], at most two entries.
+  REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: z.string().max(195).optional(),
+  REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: z.string().max(195).optional(),
   // Runtime-isolation declaration plus independent control-plane live-probe
   // evidence. Protected production issuance requires exact, fresh parity.
   GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON: z.string().optional(),
   GOOGLE_CONTROL_PLANE_POLICY_GENERATION: z.string().min(1).optional(),
+  // Strict capability-keyed runtime bindings for the currently deployed
+  // Google Content approval. Required whenever a protected capability is enabled.
+  GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON: z.string().optional(),
+  GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON: z
+    .string()
+    .max(100 * 1024)
+    .optional(),
+  // App/worker -> Google egress gateway. All six values are an all-or-none
+  // protected transport configuration validated by the composition root.
+  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  GOOGLE_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_CA_PATH: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
 
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),

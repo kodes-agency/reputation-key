@@ -35,9 +35,9 @@ export function PropertyListPage({ properties, deleteAction }: PropertyListPageP
         description="Manage your organization's properties and locations."
         breadcrumbs={[{ label: 'Properties' }]}
         actions={
-          can('property.create') ? (
+          can('property.import_gbp_v2') ? (
             <Button asChild>
-              <Link to="/import">
+              <Link to="/properties/import-google">
                 <Plus />
                 Import Properties
               </Link>

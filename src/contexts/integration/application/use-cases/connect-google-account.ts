@@ -13,6 +13,7 @@ export type { ConnectGoogleInput as ConnectGoogleAccountInput } from '../dto/con
 import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { buildGoogleConnection } from '../../domain/constructors'
+import type { GoogleConnectionId } from '../../domain/types'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
 
@@ -39,7 +40,20 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
       )
     }
 
-    // 2. Opaque state redemption has already consumed and bound the PKCE/OIDC
+    // 2. Freeze an exact targeted row before any provider call. A targeted
+    // ceremony cannot be redirected to another row by the returned subject.
+    const targetConnection =
+      input.connectionMode === 'new'
+        ? null
+        : await deps.connectionRepo.findById(
+            ctx.organizationId,
+            input.targetConnectionId as GoogleConnectionId,
+          )
+    if (input.connectionMode !== 'new' && !targetConnection) {
+      throw integrationError('connection_not_found', 'Google connection not found')
+    }
+
+    // 3. Opaque state redemption has already consumed and bound the PKCE/OIDC
     // verifier material to this tenant, user, and session.
     const verifierMaterial = input.verifierMaterial
     const oauthResult = await deps.oauth.exchangeCode({
@@ -55,10 +69,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     const now = deps.clock()
     const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1000)
 
-    // 4. Encrypt tokens
-    const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
-    const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
-
     // 5. Signed OIDC subjects enforce one provider identity per organization.
     const identityLookup = {
       googleSubject: oauthResult.identity.googleSubject,
@@ -66,34 +76,56 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     const existingConnection =
       await deps.connectionRepo.findByGoogleIdentityGlobal(identityLookup)
 
-    if (existingConnection) {
-      if (existingConnection.organizationId !== ctx.organizationId) {
-        // Account is claimed by another org — hard reject; the user must disconnect
-        // it there first. Global uniqueness makes this a hard boundary.
+    if (input.connectionMode === 'new') {
+      if (existingConnection) {
         throw integrationError(
           'account_already_connected',
-          'This Google account is already connected in another organization',
+          'This Google account is already connected',
         )
       }
-      // Same org → reactivate, update tokens, apply new visibility (+ fact,
-      // atomic via the command store).
-      const updatedConnection = await deps.commandStore.reconnectGoogleAccount({
-        organizationId: ctx.organizationId,
-        connectionId: existingConnection.id,
-        encryptedAccessToken,
-        encryptedRefreshToken,
-        tokenExpiresAt,
-        visibility: input.visibility,
-        event: integrationGoogleAccountConnected({
-          connectionId: existingConnection.id,
+    } else {
+      if (
+        !targetConnection ||
+        (targetConnection.googleSubject !== null &&
+          targetConnection.googleSubject !== oauthResult.identity.googleSubject) ||
+        (existingConnection !== null && existingConnection.id !== targetConnection.id)
+      ) {
+        throw integrationError(
+          'account_already_connected',
+          'This Google account does not match the requested connection',
+        )
+      }
+      const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
+      const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
+      try {
+        return await deps.commandStore.reconnectGoogleAccount({
           organizationId: ctx.organizationId,
-          connectedBy: ctx.userId,
-          occurredAt: now,
-        }),
-      })
-
-      return updatedConnection
+          connectionId: targetConnection.id,
+          googleSubject: oauthResult.identity.googleSubject,
+          encryptedAccessToken,
+          encryptedRefreshToken,
+          tokenExpiresAt,
+          scopes: oauthResult.scopes,
+          visibility: input.visibility,
+          event: integrationGoogleAccountConnected({
+            connectionId: targetConnection.id,
+            organizationId: ctx.organizationId,
+            connectedBy: ctx.userId,
+            occurredAt: now,
+          }),
+        })
+      } catch (error) {
+        if (!isUniqueViolationError(error)) throw error
+        throw integrationError(
+          'account_already_connected',
+          'This Google account is already connected',
+        )
+      }
     }
+
+    // Encrypt only after the server-authoritative mode/target/identity checks.
+    const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
+    const encryptedRefreshToken = deps.encryption.encrypt(oauthResult.refreshToken)
 
     // 6. Build new connection
     const connectionId = googleConnectionId(deps.idGen())
@@ -117,8 +149,8 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
 
     const connection = buildResult.value
 
-    // 7. Persist + fact — atomic via the command store. The global unique
-    //    index still backstops a raced insert between our check and this write.
+    // Persist + fact atomically. The global unique index backstops a raced
+    // first connection between the global lookup and this write.
     try {
       await deps.commandStore.connectGoogleAccount({
         connection,
@@ -132,18 +164,11 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     } catch (err) {
       if (!isUniqueViolationError(err)) throw err
 
-      // Concurrent insert raced past the check — fetch globally and decide by org.
-      const concurrentConnection =
-        await deps.connectionRepo.findByGoogleIdentityGlobal(identityLookup)
-      if (!concurrentConnection) throw err
-      if (concurrentConnection.organizationId !== ctx.organizationId) {
-        throw integrationError(
-          'account_already_connected',
-          'This Google account is already connected in another organization',
-        )
-      }
-
-      return concurrentConnection
+      // A raced `new` ceremony never adopts or mutates the winning row.
+      throw integrationError(
+        'account_already_connected',
+        'This Google account is already connected',
+      )
     }
 
     return connection

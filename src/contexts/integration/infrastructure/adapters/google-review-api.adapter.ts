@@ -1,19 +1,41 @@
-// Integration context — Google Review API adapter implementing review context's facade port
-// Standalone adapter — does NOT share code with gbp-api.adapter.ts (GbpApiPort).
-// Uses RefreshGoogleToken use case for token management. Pagination handled internally.
-
-import type { GoogleReviewApiPort } from '#/contexts/review/application/public-api'
-import type { GoogleReview, StarRating } from '#/contexts/review/application/public-api'
+import { createHash } from 'node:crypto'
+import { z } from 'zod/v4'
+import type {
+  GoogleReview,
+  GoogleReviewApiErrorCode,
+  GoogleReviewApiPort,
+  StarRating,
+} from '#/contexts/review/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { integrationError } from '../../domain/errors'
+import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
+import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
+import { canonicalProviderAuthorizationVector } from '#/shared/provider-ephemeral/authorization-binding'
+import {
+  parseReviewProviderResource,
+  type ReviewProviderResource,
+} from '#/shared/review-provider-subject-contract'
+import {
+  executeGoogleProviderJson,
+  executeGoogleProviderRaw,
+} from './google-provider-adapter'
+import type {
+  GoogleReviewCursorAuthorization,
+  GoogleReviewCursorFailureCode,
+  GoogleReviewCursorStore,
+} from '../google-review-cursor-store'
 
-/** GBP returns star ratings as uppercase words 'ONE' through 'FIVE' */
-const STAR_RATING_MAP: Record<string, StarRating | undefined> = {
+const PAGE_SIZE = 50
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+const JSON_CONTENT_TYPE = /^application\/json(?:\s*;|$)/iu
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+
+const STAR_RATING_MAP: Readonly<Record<string, StarRating | undefined>> = {
   ONE: 1,
   TWO: 2,
   THREE: 3,
@@ -21,142 +43,663 @@ const STAR_RATING_MAP: Record<string, StarRating | undefined> = {
   FIVE: 5,
 }
 
-// ── GBP Reviews API response types ──────────────────────────────────
+const gbpReviewItemSchema = z
+  .object({
+    name: z.string().min(1).max(1_024),
+    starRating: z.string(),
+    comment: z.string().optional(),
+    reviewer: z
+      .object({
+        displayName: z.string().optional(),
+        profilePhotoUrl: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    reviewReply: z
+      .object({
+        comment: z.string().optional(),
+        updateTime: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    createTime: z.string().min(1).max(64),
+  })
+  .strict()
 
-type GbpReviewsPageResponse = Readonly<{
-  reviews?: ReadonlyArray<GbpReviewItem>
-  nextPageToken?: string
-}>
+const gbpReviewsPageSchema = z
+  .object({
+    reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
+    totalReviewCount: z.number().int().safe().nonnegative(),
+    nextPageToken: z.string().min(1).max(2_048).optional(),
+  })
+  .strict()
 
-type GbpReviewItem = Readonly<{
-  name: string
-  starRating?: string
-  comment?: string
-  reviewer?: { displayName?: string; profilePhotoUrl?: string }
-  reviewReply?: { comment?: string; updateTime?: string }
-  createTime: string
-}>
-
-// ── Adapter ─────────────────────────────────────────────────────────
+type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
 type GoogleReviewApiAdapterDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   encryption: TokenEncryptionPort
   refreshToken: RefreshGoogleToken
   logger: LoggerPort
-  /** BQC-4.3: base URL from the composition root's providerConfigFor mapping —
-   * the only source of provider endpoints (no hardcoded/fallback URL). */
   baseUrl: string
+  cursorStore: GoogleReviewCursorStore
+  executor?: GoogleAuthorizedProviderExecutor
+  authorizeProviderCall?: (
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+  ) => Promise<
+    Readonly<{
+      accessToken: string
+      authorization: GoogleProviderCallAuthorization
+    }>
+  >
+  nowMs?: () => number
 }>
+
+type ProviderContext = Readonly<{
+  accessToken: string
+  authorization: GoogleProviderCallAuthorization | null
+  cursorAuthorization: GoogleReviewCursorAuthorization
+}>
+
+function defineEnumerable<T>(value: T): PropertyDescriptor {
+  return {
+    value,
+    enumerable: true,
+    writable: false,
+    configurable: false,
+  }
+}
+
+function reviewApiError(
+  code: GoogleReviewApiErrorCode,
+  recoverable: boolean,
+): Error & {
+  readonly _tag: 'GoogleReviewApiError'
+  readonly code: GoogleReviewApiErrorCode
+  readonly recoverable: boolean
+} {
+  const error = new Error('Google review API request failed') as Error & {
+    readonly _tag: 'GoogleReviewApiError'
+    readonly code: GoogleReviewApiErrorCode
+    readonly recoverable: boolean
+  }
+  Object.defineProperties(error, {
+    name: defineEnumerable('GoogleReviewApiError'),
+    _tag: defineEnumerable('GoogleReviewApiError'),
+    code: defineEnumerable(code),
+    recoverable: defineEnumerable(recoverable),
+  })
+  return error
+}
+
+function isGoogleReviewApiError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    '_tag' in error &&
+    error._tag === 'GoogleReviewApiError'
+  )
+}
+
+function cursorFailureCode(
+  code: GoogleReviewCursorFailureCode,
+): GoogleReviewApiErrorCode {
+  const mapping: Readonly<
+    Record<GoogleReviewCursorFailureCode, GoogleReviewApiErrorCode>
+  > = {
+    not_found: 'cursor_not_found',
+    expired: 'cursor_expired',
+    binding_mismatch: 'cursor_binding_mismatch',
+    exhausted: 'cursor_exhausted',
+    capacity_exceeded: 'cursor_capacity_exceeded',
+    conflict: 'provider_unavailable',
+    unavailable: 'provider_unavailable',
+  }
+  return mapping[code]
+}
+
+function withTimeout(ms: number): Readonly<{
+  signal: AbortSignal
+  clear: () => void
+}> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  return { signal: controller.signal, clear: () => clearTimeout(timer) }
+}
+
+async function callCursorStore<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call()
+  } catch {
+    throw reviewApiError('provider_unavailable', true)
+  }
+}
+
+function exactKeys(input: object, expected: readonly string[]): boolean {
+  const actual = Object.keys(input).sort()
+  const sortedExpected = [...expected].sort()
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  )
+}
+
+function isCanonicalUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID.test(value)
+}
+
+function isSafeScopeId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9._:@/-]{1,255}$/u.test(value)
+}
+
+function assertLocationName(locationName: string): void {
+  try {
+    parseReviewProviderResource(`${locationName}/reviews/validation`)
+  } catch {
+    throw reviewApiError('invalid_request', false)
+  }
+}
+
+function assertReviewName(reviewName: string, locationName: string): void {
+  try {
+    parseReviewProviderResource(reviewName)
+  } catch {
+    throw reviewApiError('invalid_request', false)
+  }
+  if (!reviewName.startsWith(`${locationName}/reviews/`)) {
+    throw reviewApiError('invalid_request', false)
+  }
+}
+
+function parseDate(value: string): Date {
+  const parsed = new Date(value)
+  if (!Number.isFinite(parsed.getTime()))
+    throw reviewApiError('malformed_response', false)
+  return parsed
+}
+
+function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
+  let resource: ReviewProviderResource
+  try {
+    resource = parseReviewProviderResource(raw.name)
+  } catch {
+    throw reviewApiError('malformed_response', false)
+  }
+  if (
+    `accounts/${resource.accountId}/locations/${resource.locationId}` !== locationName
+  ) {
+    throw reviewApiError('malformed_response', false)
+  }
+  const rating = STAR_RATING_MAP[raw.starRating]
+  if (!rating) throw reviewApiError('malformed_response', false)
+  return {
+    reviewName: raw.name,
+    externalId: resource.reviewId,
+    externalLocationId: locationName,
+    reviewerName: raw.reviewer?.displayName ?? null,
+    reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
+    rating,
+    text: raw.comment ?? null,
+    languageCode: null,
+    reviewedAt: parseDate(raw.createTime),
+    replyText: raw.reviewReply?.comment ?? null,
+    replyUpdatedAt: raw.reviewReply?.updateTime
+      ? parseDate(raw.reviewReply.updateTime)
+      : null,
+  }
+}
+
+function authorizationDigest(
+  authorization: GoogleProviderCallAuthorization | null,
+): string {
+  const canonical = authorization
+    ? JSON.stringify({
+        capability: authorization.capability,
+        organizationId: authorization.organizationId,
+        propertyId: authorization.propertyId,
+        connectionId: authorization.connectionId,
+        initiatorUserId: authorization.initiatorUserId,
+        approvalBindingId: authorization.approvalBindingId,
+        expectedCredentialGeneration: authorization.expectedCredentialGeneration,
+        authorizationVector: canonicalProviderAuthorizationVector(
+          authorization.authorizationVector,
+        ),
+      })
+    : '{}'
+  return createHash('sha256').update(canonical, 'utf8').digest('hex')
+}
+
+function sameCursorAuthorization(
+  left: GoogleReviewCursorAuthorization,
+  right: GoogleReviewCursorAuthorization,
+): boolean {
+  return (
+    left.connectionLifecycleVersion === right.connectionLifecycleVersion &&
+    left.connectionAccessVersion === right.connectionAccessVersion &&
+    left.credentialGeneration === right.credentialGeneration &&
+    left.approvalBindingId === right.approvalBindingId &&
+    left.authorizationVectorSha256 === right.authorizationVectorSha256
+  )
+}
+
+function parseJsonBytes(bytes: Uint8Array): unknown {
+  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
+    throw reviewApiError('malformed_response', false)
+  }
+  try {
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    return JSON.parse(decoded)
+  } catch {
+    throw reviewApiError('malformed_response', false)
+  }
+}
+
+async function readBoundedResponseBody(response: Response): Promise<Uint8Array> {
+  const declaredLength = response.headers.get('content-length')
+  if (
+    declaredLength !== null &&
+    (!/^(?:0|[1-9][0-9]*)$/u.test(declaredLength) ||
+      Number(declaredLength) > MAX_RESPONSE_BYTES)
+  ) {
+    await response.body?.cancel()
+    throw reviewApiError('malformed_response', false)
+  }
+  if (!response.body) return new Uint8Array()
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let byteLength = 0
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      byteLength += chunk.value.byteLength
+      if (byteLength > MAX_RESPONSE_BYTES) {
+        await reader.cancel()
+        throw reviewApiError('malformed_response', false)
+      }
+      chunks.push(chunk.value)
+    }
+    const bytes = new Uint8Array(byteLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+    return bytes
+  } catch (error) {
+    if (isGoogleReviewApiError(error)) throw error
+    throw reviewApiError('provider_unavailable', true)
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 export const createGoogleReviewApiAdapter = (
   deps: GoogleReviewApiAdapterDeps,
 ): GoogleReviewApiPort => {
-  const baseUrl = deps.baseUrl
-  const resolveAccessToken = async (
+  const nowMs = deps.nowMs ?? Date.now
+
+  const resolveProviderContext = async (
     organizationId: OrganizationId,
     connectionId: GoogleConnectionId,
-  ): Promise<string> => {
-    const connection = await deps.refreshToken(organizationId, connectionId)
-    return deps.encryption.decrypt(connection.encryptedAccessToken)
-  }
-
-  const withTimeout = (ms: number) => {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), ms)
-    return { signal: controller.signal, clear: () => clearTimeout(timer) }
-  }
-
-  const throwApiError = (operation: string, status: number, body: string): never => {
-    const isRateLimited = status === 429
-    throw integrationError(
-      isRateLimited ? 'gbp_api_rate_limited' : 'gbp_api_error',
-      // Fixed client-facing message — the raw upstream body (HTML/JSON error page,
-      // possibly review text or account hints) must not leak through e.message,
-      // which the server boundary serializes to the client (cc-errors §13 BLOCKER).
-      'Failed to reach Google review API',
-      isRateLimited,
-      // BQC-1.6: server-side diagnostics carry status and body LENGTH only —
-      // the raw body may contain review text/account hints and pino has no
-      // redaction. Content-free context; see protected-field-registry.
-      { operation, status, bodyBytes: body.length },
-    )
-  }
-
-  const mapReview = (raw: GbpReviewItem): GoogleReview | null => {
-    const reviewName = raw.name
-    const reviewId = reviewName.split('/').pop() ?? ''
-    const rating = raw.starRating ? STAR_RATING_MAP[raw.starRating] : undefined
-
-    if (!rating) {
-      deps.logger.warn(
-        { starRating: raw.starRating },
-        'Unknown star rating, skipping review',
-      )
-      return null
+  ): Promise<ProviderContext> => {
+    let accessToken: string
+    let authorization: GoogleProviderCallAuthorization | null
+    let connection
+    if (deps.executor) {
+      if (!deps.authorizeProviderCall) {
+        throw reviewApiError('provider_unavailable', true)
+      }
+      const authorized = await deps.authorizeProviderCall(organizationId, connectionId)
+      accessToken = authorized.accessToken
+      authorization = authorized.authorization
+      connection = await deps.connectionRepo.findById(organizationId, connectionId)
+    } else {
+      connection = await deps.refreshToken(organizationId, connectionId)
+      accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
+      authorization = null
+    }
+    if (
+      !connection ||
+      connection.status !== 'active' ||
+      connection.credentialUseState !== 'active' ||
+      (authorization !== null &&
+        (authorization.organizationId !== organizationId ||
+          authorization.connectionId !== connectionId ||
+          authorization.expectedCredentialGeneration !== connection.credentialGeneration))
+    ) {
+      throw reviewApiError('authorization_changed', false)
     }
     return {
-      reviewName,
-      externalId: reviewId,
-      externalLocationId: '',
-      reviewerName: raw.reviewer?.displayName ?? null,
-      reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
-      rating,
-      text: raw.comment ?? null,
-      languageCode: null,
-      reviewedAt: new Date(raw.createTime),
-      replyText: raw.reviewReply?.comment ?? null,
-      replyUpdatedAt: raw.reviewReply?.updateTime
-        ? new Date(raw.reviewReply.updateTime)
-        : null,
+      accessToken,
+      authorization,
+      cursorAuthorization: {
+        connectionLifecycleVersion: connection.lifecycleVersion,
+        connectionAccessVersion: connection.accessVersion,
+        credentialGeneration: connection.credentialGeneration,
+        approvalBindingId: authorization?.approvalBindingId ?? null,
+        authorizationVectorSha256: authorizationDigest(authorization),
+      },
     }
   }
 
-  const fetchReviews: GoogleReviewApiPort['fetchReviews'] = async (
-    organizationId,
-    connectionId,
-    locationName,
-  ) => {
-    const accessToken = await resolveAccessToken(organizationId, connectionId)
-    const allReviews: GoogleReview[] = []
-    let pageToken: string | undefined
+  const assertAuthorizationCurrent = async (
+    organizationId: OrganizationId,
+    connectionId: GoogleConnectionId,
+    expected: GoogleReviewCursorAuthorization,
+  ): Promise<void> => {
+    const current = await resolveProviderContext(organizationId, connectionId)
+    if (!sameCursorAuthorization(current.cursorAuthorization, expected)) {
+      throw reviewApiError('authorization_changed', false)
+    }
+  }
 
-    do {
-      const params = new URLSearchParams({ pageSize: '100' })
-      if (pageToken) params.set('pageToken', pageToken)
-
-      const url = `${baseUrl}/${locationName}/reviews?${params.toString()}`
-      const { signal, clear } = withTimeout(30_000)
-      let response: Response
+  const requestJson = async (
+    operation: string,
+    descriptor: GoogleProviderRouteDescriptor,
+    context: ProviderContext,
+    directUrl: string,
+  ): Promise<unknown> => {
+    if (deps.executor && context.authorization) {
       try {
-        response = await trace('googleReviewApi.fetchReviews', () =>
-          fetch(url, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            signal,
+        return await trace(`googleReviewApi.${operation}`, () =>
+          executeGoogleProviderJson({
+            operation,
+            descriptor,
+            authorization: context.authorization!,
+            executor: deps.executor!,
+            nowMs,
           }),
         )
-      } finally {
-        clear()
-      }
-
-      if (!response.ok) {
-        const body = await response.text()
-        throwApiError('reviews fetch', response.status, body)
-      }
-
-      const data = (await response.json()) as GbpReviewsPageResponse
-
-      for (const raw of data.reviews ?? []) {
-        const mapped = mapReview(raw)
-        if (mapped) {
-          allReviews.push({ ...mapped, externalLocationId: locationName })
+      } catch (error) {
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'kind' in error &&
+          error.kind === 'rate_limited'
+        ) {
+          throw reviewApiError('provider_rate_limited', true)
         }
+        throw reviewApiError('provider_unavailable', true)
       }
+    }
+    const timeout = withTimeout(30_000)
+    let response: Response
+    try {
+      response = await trace(`googleReviewApi.${operation}`, () =>
+        fetch(directUrl, {
+          headers: { Authorization: `Bearer ${context.accessToken}` },
+          signal: timeout.signal,
+        }),
+      )
+    } catch {
+      throw reviewApiError('provider_unavailable', true)
+    } finally {
+      timeout.clear()
+    }
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw reviewApiError(
+        response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
+        response.status === 429 || response.status >= 500,
+      )
+    }
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !JSON_CONTENT_TYPE.test(contentType)) {
+      await response.body?.cancel()
+      throw reviewApiError('malformed_response', false)
+    }
+    return parseJsonBytes(await readBoundedResponseBody(response))
+  }
 
-      pageToken = data.nextPageToken
-    } while (pageToken)
+  const listReviewsPage: GoogleReviewApiPort['listReviewsPage'] = async (input) => {
+    if (
+      !exactKeys(input, [
+        'organizationId',
+        'propertyId',
+        'connectionId',
+        'sourceEpoch',
+        'locationName',
+        'runId',
+        'phase',
+        'pageIndex',
+        'cursorRef',
+      ]) ||
+      !isSafeScopeId(input.organizationId) ||
+      !isCanonicalUuid(input.propertyId) ||
+      !isCanonicalUuid(input.connectionId) ||
+      !isCanonicalUuid(input.runId) ||
+      !Number.isSafeInteger(input.sourceEpoch) ||
+      input.sourceEpoch < 0 ||
+      !Number.isInteger(input.pageIndex) ||
+      input.pageIndex < 0 ||
+      input.pageIndex > 199 ||
+      (input.phase !== 'main' && input.phase !== 'confirmation') ||
+      (input.cursorRef !== null &&
+        !/^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/u.test(input.cursorRef))
+    ) {
+      throw reviewApiError('invalid_request', false)
+    }
+    assertLocationName(input.locationName)
+    const context = await resolveProviderContext(input.organizationId, input.connectionId)
+    const scope = {
+      organizationId: String(input.organizationId),
+      propertyId: String(input.propertyId),
+      connectionId: String(input.connectionId),
+      sourceEpoch: input.sourceEpoch,
+      locationName: input.locationName,
+      runId: input.runId,
+      phase: input.phase,
+      pageIndex: input.pageIndex,
+    } as const
+    let pageToken: string | undefined
+    const cursorRef = input.cursorRef
+    if (cursorRef) {
+      const redeemed = await callCursorStore(() =>
+        deps.cursorStore.redeem({
+          cursorRef,
+          scope,
+          authorization: context.cursorAuthorization,
+        }),
+      )
+      if (!redeemed.ok) {
+        throw reviewApiError(
+          cursorFailureCode(redeemed.code),
+          redeemed.code === 'conflict' || redeemed.code === 'unavailable',
+        )
+      }
+      pageToken = redeemed.value.pageToken
+    }
+    const params = new URLSearchParams({ pageSize: String(PAGE_SIZE) })
+    if (pageToken) params.set('pageToken', pageToken)
+    const raw = await requestJson(
+      'reviews.list',
+      {
+        routeKey: 'reviews.list',
+        accessToken: context.accessToken,
+        locationName: input.locationName,
+        ...(pageToken ? { pageToken } : {}),
+      },
+      context,
+      `${deps.baseUrl}/${input.locationName}/reviews?${params.toString()}`,
+    )
+    await assertAuthorizationCurrent(
+      input.organizationId,
+      input.connectionId,
+      context.cursorAuthorization,
+    )
+    const parsed = gbpReviewsPageSchema.safeParse(raw)
+    if (!parsed.success) throw reviewApiError('malformed_response', false)
+    const reviews =
+      parsed.data.reviews?.map((review) => mapReview(review, input.locationName)) ?? []
+    let nextCursorRef: string | null = null
+    const nextPageToken = parsed.data.nextPageToken
+    if (nextPageToken) {
+      if (input.pageIndex === 199) throw reviewApiError('malformed_response', false)
+      const published = await callCursorStore(() =>
+        deps.cursorStore.publishNext({
+          parentCursorRef: input.cursorRef,
+          scope,
+          nextScope: { ...scope, pageIndex: input.pageIndex + 1 },
+          authorization: context.cursorAuthorization,
+          nextPageToken,
+        }),
+      )
+      if (!published.ok) {
+        throw reviewApiError(
+          cursorFailureCode(published.code),
+          published.code === 'conflict' || published.code === 'unavailable',
+        )
+      }
+      nextCursorRef = published.value.nextCursorRef
+    }
+    return {
+      reviews,
+      totalReviewCount: parsed.data.totalReviewCount,
+      nextCursorRef,
+    }
+  }
 
-    return allReviews
+  const getReview: GoogleReviewApiPort['getReview'] = async (input) => {
+    if (
+      !exactKeys(input, [
+        'organizationId',
+        'propertyId',
+        'connectionId',
+        'sourceEpoch',
+        'locationName',
+        'reviewName',
+      ]) ||
+      !isSafeScopeId(input.organizationId) ||
+      !isCanonicalUuid(input.propertyId) ||
+      !isCanonicalUuid(input.connectionId) ||
+      !Number.isSafeInteger(input.sourceEpoch) ||
+      input.sourceEpoch < 0
+    ) {
+      throw reviewApiError('invalid_request', false)
+    }
+    assertLocationName(input.locationName)
+    assertReviewName(input.reviewName, input.locationName)
+    const context = await resolveProviderContext(input.organizationId, input.connectionId)
+    let raw: unknown
+    if (deps.executor && context.authorization) {
+      const timeout = withTimeout(30_000)
+      try {
+        const result = await deps.executor.execute(
+          {
+            routeKey: 'reviews.get',
+            accessToken: context.accessToken,
+            reviewName: input.reviewName,
+          },
+          {
+            authorization: context.authorization,
+            deadlineMs: nowMs() + 30_000,
+            signal: timeout.signal,
+          },
+        )
+        if (!result.ok) {
+          throw reviewApiError('provider_unavailable', true)
+        }
+        if (result.status === 404) {
+          result.body.fill(0)
+          await assertAuthorizationCurrent(
+            input.organizationId,
+            input.connectionId,
+            context.cursorAuthorization,
+          )
+          return { status: 'not_found' }
+        }
+        if (
+          result.status !== 200 ||
+          !result.headers.contentType ||
+          !JSON_CONTENT_TYPE.test(result.headers.contentType)
+        ) {
+          result.body.fill(0)
+          throw reviewApiError(
+            result.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
+            result.status === 429 || result.status >= 500,
+          )
+        }
+        try {
+          raw = parseJsonBytes(result.body)
+        } finally {
+          result.body.fill(0)
+        }
+      } catch (error) {
+        if (isGoogleReviewApiError(error)) throw error
+        throw reviewApiError('provider_unavailable', true)
+      } finally {
+        timeout.clear()
+      }
+    } else {
+      const timeout = withTimeout(30_000)
+      let response: Response
+      try {
+        response = await fetch(`${deps.baseUrl}/${input.reviewName}`, {
+          headers: { Authorization: `Bearer ${context.accessToken}` },
+          signal: timeout.signal,
+        })
+      } catch {
+        throw reviewApiError('provider_unavailable', true)
+      } finally {
+        timeout.clear()
+      }
+      if (response.status === 404) {
+        await response.body?.cancel()
+        await assertAuthorizationCurrent(
+          input.organizationId,
+          input.connectionId,
+          context.cursorAuthorization,
+        )
+        return { status: 'not_found' }
+      }
+      if (!response.ok) {
+        await response.body?.cancel()
+        throw reviewApiError(
+          response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
+          response.status === 429 || response.status >= 500,
+        )
+      }
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !JSON_CONTENT_TYPE.test(contentType)) {
+        await response.body?.cancel()
+        throw reviewApiError('malformed_response', false)
+      }
+      raw = parseJsonBytes(await readBoundedResponseBody(response))
+    }
+    await assertAuthorizationCurrent(
+      input.organizationId,
+      input.connectionId,
+      context.cursorAuthorization,
+    )
+    const parsed = gbpReviewItemSchema.safeParse(raw)
+    if (!parsed.success) throw reviewApiError('malformed_response', false)
+    return { status: 'found', review: mapReview(parsed.data, input.locationName) }
+  }
+
+  const discardReviewCursors: GoogleReviewApiPort['discardReviewCursors'] = async (
+    input,
+  ) => {
+    if (
+      !exactKeys(input, ['organizationId', 'propertyId', 'sourceEpoch', 'runId']) ||
+      !isSafeScopeId(input.organizationId) ||
+      !isCanonicalUuid(input.propertyId) ||
+      !isCanonicalUuid(input.runId) ||
+      !Number.isSafeInteger(input.sourceEpoch) ||
+      input.sourceEpoch < 0
+    ) {
+      throw reviewApiError('invalid_request', false)
+    }
+    const discarded = await callCursorStore(() =>
+      deps.cursorStore.discardRun({
+        organizationId: String(input.organizationId),
+        propertyId: String(input.propertyId),
+        sourceEpoch: input.sourceEpoch,
+        runId: input.runId,
+      }),
+    )
+    if (!discarded) throw reviewApiError('provider_unavailable', true)
   }
 
   const replyToReview: GoogleReviewApiPort['replyToReview'] = async (
@@ -165,31 +708,53 @@ export const createGoogleReviewApiAdapter = (
     reviewName,
     text,
   ) => {
-    const accessToken = await resolveAccessToken(organizationId, connectionId)
-
-    const { signal, clear } = withTimeout(30_000)
-    let response: Response
-    try {
-      response = await trace('googleReviewApi.replyToReview', () =>
-        fetch(`${baseUrl}/${reviewName}/reply`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+    const context = await resolveProviderContext(organizationId, connectionId)
+    if (deps.executor && context.authorization) {
+      const response = await trace('googleReviewApi.replyToReview', () =>
+        executeGoogleProviderRaw({
+          operation: 'review reply',
+          descriptor: {
+            routeKey: 'reviews.reply',
+            accessToken: context.accessToken,
+            reviewName,
+            comment: text,
           },
-          body: JSON.stringify({ comment: text }),
-          signal,
+          authorization: context.authorization!,
+          executor: deps.executor!,
+          nowMs,
         }),
       )
-    } finally {
-      clear()
+      response.body.fill(0)
+      return
     }
-
+    const timeout = withTimeout(30_000)
+    let response: Response
+    try {
+      response = await fetch(`${deps.baseUrl}/${reviewName}/reply`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${context.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comment: text }),
+        signal: timeout.signal,
+      })
+    } finally {
+      timeout.clear()
+    }
     if (!response.ok) {
-      const body = await response.text()
-      throwApiError('reply', response.status, body)
+      await response.body?.cancel()
+      throw reviewApiError(
+        response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
+        response.status === 429 || response.status >= 500,
+      )
     }
   }
 
-  return { fetchReviews, replyToReview }
+  return Object.freeze({
+    listReviewsPage,
+    getReview,
+    discardReviewCursors,
+    replyToReview,
+  })
 }

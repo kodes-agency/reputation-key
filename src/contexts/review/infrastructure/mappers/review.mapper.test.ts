@@ -1,5 +1,6 @@
 // Review context — review mapper tests
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
 import { reviewFromRow, reviewToRow } from './review.mapper'
 import type { reviews } from '#/shared/db/schema/review.schema'
@@ -17,7 +18,7 @@ const sampleRow: ReviewRow = {
   propertyId: 'prop-uuid-001',
   platform: 'google',
   externalId: 'google-review-123',
-  externalLocationId: 'accounts/111/locations/222',
+  externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   googleConnectionId: 'conn-uuid-001',
   reviewerName: 'Jane Doe',
   reviewerProfilePhotoUrl: 'https://example.com/photo.jpg',
@@ -35,6 +36,11 @@ const sampleRow: ReviewRow = {
   contentExpiresAt: null,
   contentHash: null,
   sourceSeenGeneration: null,
+  sourceEpoch: 3,
+  sourceRevision: 7,
+  analysisSequence: 11,
+  aiSourceByteLength: 32,
+  aiSourceDigest: 'a'.repeat(64),
   createdAt: now,
   updatedAt: now,
 }
@@ -52,7 +58,7 @@ describe('reviewFromRow', () => {
     const review = reviewFromRow(sampleRow)
     expect(review.platform).toBe('google')
     expect(review.externalId).toBe('google-review-123')
-    expect(review.externalLocationId).toBe('accounts/111/locations/222')
+    expect(review.externalLocationId).toBe(GOOGLE_LOCATION_PRIMARY_RESOURCE)
     expect(review.reviewerName).toBe('Jane Doe')
     expect(review.reviewerProfilePhotoUrl).toBe('https://example.com/photo.jpg')
     expect(review.rating).toBe(5)
@@ -62,6 +68,8 @@ describe('reviewFromRow', () => {
     expect(review.expiresAt).toBe(expiresAt)
     expect(review.sentimentLabel).toBe('positive')
     expect(review.sentimentScore).toBe(0.92)
+    expect(review.sourceEpoch).toBe(3)
+    expect(review.sourceRevision).toBe(7)
     expect(review.createdAt).toBe(now)
     expect(review.updatedAt).toBe(now)
   })

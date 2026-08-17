@@ -1,82 +1,70 @@
-// Review context — BullMQ job handler for syncing property reviews
-// Per architecture: job handlers live in context/infrastructure/jobs/.
-
 import type { Job } from 'bullmq'
-
-export const JOB_NAME = 'sync-property-reviews' as const
 import type { SyncPropertyReviewsJobData } from '../../application/ports/review-queue.port'
-import type { syncReviews } from '../../application/use-cases/sync-reviews'
-import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { PropertyRoutingPort } from '../../application/ports/property-routing.port'
+import type { RunReviewProviderSnapshot } from '../../application/use-cases/run-review-provider-snapshot'
+import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
+export const JOB_NAME = 'sync-property-reviews' as const
+
 type SyncHandlerDeps = Readonly<{
-  /** Pre-wired use case from composition (includes BQR-2.3 command store). */
-  syncReviews: ReturnType<typeof syncReviews>
+  runSnapshot: RunReviewProviderSnapshot
+  propertyRouting: PropertyRoutingPort
+  enqueueContinuation(data: SyncPropertyReviewsJobData): Promise<void>
 }>
 
-export const createSyncPropertyReviewsHandler = (deps: SyncHandlerDeps) => {
-  return async (job: Job<SyncPropertyReviewsJobData>) => {
-    return trace('job.syncPropertyReviews', async () => {
-      const logger = getLogger()
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
+const SAFE_SCOPE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/u
 
-      // BQC-3.2: capability authorization happens at dispatch in the delayed
-      // execution gate — job handlers no longer re-check capabilities.
-
-      logger.info('Syncing property reviews')
-
-      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-      for (const id of [job.data.propertyId, job.data.connectionId]) {
-        if (!UUID_RE.test(id)) {
-          // BQC-7.3: the raw job payload (provider-derived locationName) must
-          // never reach logs — jobName + the failure class carry the context.
-          logger.error({ jobName: job.name }, 'Invalid UUID in job data, skipping')
-          return
-        }
+/**
+ * Executes exactly one bounded provider-snapshot step. Each successful page,
+ * targeted confirmation, or deletion batch checkpoints before a continuation
+ * is enqueued; provider tokens never enter the BullMQ payload.
+ */
+export const createSyncPropertyReviewsHandler =
+  (deps: SyncHandlerDeps) => async (job: Job<SyncPropertyReviewsJobData>) =>
+    trace('job.syncPropertyReviews', async () => {
+      const data = job.data
+      if (
+        !SAFE_SCOPE_ID.test(data.organizationId) ||
+        !CANONICAL_UUID.test(data.propertyId) ||
+        !CANONICAL_UUID.test(data.connectionId) ||
+        (data.runId != null && !CANONICAL_UUID.test(data.runId))
+      ) {
+        throw new TypeError('Invalid Review provider snapshot job identity')
+      }
+      const organization = organizationId(data.organizationId)
+      const property = propertyId(data.propertyId)
+      const connection = googleConnectionId(data.connectionId)
+      const currentScope = await deps.propertyRouting.getProcessingScope(
+        organization,
+        property,
+      )
+      if (currentScope == null) throw new Error('Review provider source unavailable')
+      const sourceEpoch = data.sourceEpoch ?? currentScope.sourceEpoch
+      if (
+        !Number.isSafeInteger(sourceEpoch) ||
+        sourceEpoch < 0 ||
+        currentScope.sourceEpoch !== sourceEpoch
+      ) {
+        throw new Error('Review provider source changed')
       }
 
-      try {
-        const result = await deps.syncReviews({
-          propertyId: propertyId(job.data.propertyId),
-          organizationId: organizationId(job.data.organizationId),
-          connectionId: googleConnectionId(job.data.connectionId),
-          locationName: job.data.locationName,
+      const result = await deps.runSnapshot({
+        organizationId: organization,
+        propertyId: property,
+        connectionId: connection,
+        sourceEpoch,
+        locationName: data.locationName,
+        ...(data.runId == null ? {} : { runId: data.runId }),
+      })
+      if (result.status === 'checkpointed' || result.status === 'deleting') {
+        await deps.enqueueContinuation({
+          ...data,
+          sourceEpoch,
+          runId: result.runId,
         })
-
-        if (result.isErr()) {
-          const e = result.error
-          logger.error({ err: e }, 'Property reviews sync failed')
-          throw e // Re-throw so BullMQ retries
-        }
-
-        const syncResult = result.value
-        if (syncResult.partialFailure) {
-          logger.warn(
-            {
-              fetched: syncResult.fetched,
-              created: syncResult.created,
-              updated: syncResult.updated,
-              refreshed: syncResult.refreshed,
-              failed: syncResult.failed,
-            },
-            'Property reviews sync completed with partial failures',
-          )
-        } else {
-          logger.info(
-            {
-              fetched: syncResult.fetched,
-              created: syncResult.created,
-              updated: syncResult.updated,
-              refreshed: syncResult.refreshed,
-              repliesMirrored: syncResult.repliesMirrored,
-            },
-            'Property reviews synced',
-          )
-        }
-      } catch (err) {
-        logger.error({ err }, 'Failed to sync property reviews')
-        throw err
       }
+      if (result.status === 'failed') throw new Error(result.code)
+      return result
     })
-  }
-}

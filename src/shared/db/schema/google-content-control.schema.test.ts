@@ -5,6 +5,8 @@ import {
   capabilityComplianceApprovals,
   capabilityExecutionControl,
   credentialRevokePermits,
+  googleContentApprovalTargetPhaseEnum,
+  googleContentEnvironmentProfileEnum,
   googleCredentialSourceOperations,
   googleSubjectAuthorityGuards,
 } from './google-content-control.schema'
@@ -32,6 +34,24 @@ describe('Google Content control schema', () => {
         'approved_at',
         'expires_at',
         'status',
+      ]),
+    )
+    expect(googleContentApprovalTargetPhaseEnum.enumValues).toEqual([
+      'local_sandbox',
+      'railway_closed_beta',
+      'production_expand_canary',
+      'production_final',
+    ])
+    expect(googleContentEnvironmentProfileEnum.enumValues).toEqual([
+      'sandbox',
+      'railway-closed-beta-1',
+      'production',
+    ])
+    expect(columnNames(capabilityComplianceApprovals)).toEqual(
+      expect.arrayContaining([
+        'railway_closed_beta_cohort',
+        'railway_closed_beta_cohort_sha256',
+        'railway_closed_beta_residual_risk_sha256',
       ]),
     )
   })

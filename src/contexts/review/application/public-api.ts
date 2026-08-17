@@ -19,6 +19,7 @@ export type {
   ReviewCreated,
   ReviewUpdated,
   ReviewExpired,
+  ReviewSourceTransitioned,
   ReviewReplyPublished,
   ReviewReplySubmitted,
   ReviewReplyApproved,
@@ -32,6 +33,7 @@ export {
   reviewCreated,
   reviewUpdated,
   reviewExpired,
+  reviewSourceTransitioned,
   reviewReplyPublished,
   reviewReplySubmitted,
   reviewReplyApproved,
@@ -42,12 +44,31 @@ export {
 } from '../domain/events'
 
 // Port types needed by cross-context consumers (e.g., integration context)
-export type { GoogleReviewApiPort } from './ports/google-review-api.port'
+export type {
+  GoogleReviewApiPort,
+  GoogleReviewApiErrorCode,
+  GoogleReviewApiError,
+  GoogleReviewPage,
+  GoogleReviewPageRequest,
+  GoogleReviewGetRequest,
+  GoogleReviewGetResult,
+} from './ports/google-review-api.port'
 export type {
   ReviewQueuePort,
   SyncPropertyReviewsJobData,
   AddSyncJobOptions,
 } from './ports/review-queue.port'
+export type {
+  ReviewProviderObservationWriter,
+  ReviewProviderSnapshotRepository,
+  ReviewProviderSnapshotRun,
+  ReviewProviderSnapshotFailureCode,
+} from './ports/review-provider-snapshot.repository'
+export type {
+  RunReviewProviderSnapshot,
+  RunReviewProviderSnapshotInput,
+  RunReviewProviderSnapshotResult,
+} from './use-cases/run-review-provider-snapshot'
 // BQC-1.7: lifecycle purge port consumed by integration + property use cases.
 export type {
   SourceContentPurge,
@@ -58,6 +79,14 @@ export type {
 // eligibility enforced at the owner, clock-injected). The dashboard build
 // depends on this type; composition wires the infrastructure implementation.
 export type { ReviewServingStats } from './ports/serving-stats.port'
+export type {
+  AiReviewSourcePort,
+  AiReviewObservation,
+  AiReviewSourceDenial,
+  AiReviewSourceExpectation,
+  AiReviewSourceRequest,
+  AiReviewSourceResult,
+} from './ports/ai-review-source.port'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────
 export type StaffRecentReview = {

@@ -75,6 +75,9 @@ async function main() {
   // BQC-2.2: strong read of persisted policy state before any job runs —
   // worker decisions see DB truth from the start (allowlist/suspension).
   await container.refreshPolicyStore()
+  // Review provider-subject writers may start only after the decoded worker
+  // key set exactly matches the database's masked active/rotation inventory.
+  await container.refreshReviewProviderSubjectKeys()
 
   // Register all event handlers and job handlers BEFORE starting the BullMQ
   // worker — otherwise early jobs (badge/leaderboard reconciliation fire

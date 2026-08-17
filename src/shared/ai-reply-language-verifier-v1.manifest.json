@@ -1,0 +1,118 @@
+{
+  "attestationDigest": "e1a1873388c6d92a7fb2d91688c8267a0998d08076c6202ad0e612131dce012e",
+  "constants": {
+    "minimumLetters": 24,
+    "minimumProbability": 0.85,
+    "reliableRequired": true
+  },
+  "dependencies": {
+    "languageCatalogueDigest": "24a40ff70877122ece7c7db0dcbc35c5a882eda1d9accfe8cbd829715bafbc03",
+    "languageScriptConsistencyDigest": "16be4d6ec7e2bf13a4f059bc6249de7972fcb543e7989543b18903791fcb65fa",
+    "zhOrthographyDigest": "e9f945b7c0b8e6982de737a63819640263e14aad9c97e837056f5e1a952b729d"
+  },
+  "embeddedWasmRuntime": {
+    "path": "node_modules/cld3-asm/dist/cjs/lib/node/cld3.js",
+    "sha256": "3f14aa4639bcf6e4cdf29f2125b337ed7cff41f49dad291621ce8f5a414f8840"
+  },
+  "icuVersion": "78.2",
+  "labelMap": {
+    "ar": "ar-Arab",
+    "bn": "bn-Beng",
+    "de": "de-Latn",
+    "en": "en-Latn",
+    "es": "es-Latn",
+    "fr": "fr-Latn",
+    "he": "he-Hebr",
+    "hi": "hi-Deva",
+    "id": "id-Latn",
+    "it": "it-Latn",
+    "iw": "he-Hebr",
+    "ja": "ja-Jpan",
+    "ko": "ko-Kore",
+    "nl": "nl-Latn",
+    "pl": "pl-Latn",
+    "pt": "pt-Latn",
+    "ru": "ru-Cyrl",
+    "ta": "ta-Taml",
+    "th": "th-Thai",
+    "tr": "tr-Latn",
+    "uk": "uk-Cyrl",
+    "vi": "vi-Latn",
+    "zh": "zh-Hans|zh-Hant"
+  },
+  "package": {
+    "integrity": "sha512-eQq2detA7A54X9NSeunvHf4KcWlZKE/i98+V6NjWNDqF28GGk8Qk9XWApSywBjEcmPKR48zkabFWBoa1ExM/AQ==",
+    "name": "cld3-asm",
+    "version": "4.0.0"
+  },
+  "unicodeVersion": "17.0.0",
+  "vectors": {
+    "cases": [
+      {
+        "id": "letters-23",
+        "letters": 23,
+        "probability": 0.85,
+        "reliable": true,
+        "status": "insufficient_language_evidence"
+      },
+      {
+        "id": "letters-24",
+        "letters": 24,
+        "probability": 0.85,
+        "reliable": true,
+        "status": "resolved"
+      },
+      {
+        "id": "letters-25",
+        "letters": 25,
+        "probability": 0.85,
+        "reliable": true,
+        "status": "resolved"
+      },
+      {
+        "id": "unreliable",
+        "letters": 24,
+        "probability": 1,
+        "reliable": false,
+        "status": "insufficient_language_evidence"
+      },
+      {
+        "id": "confidence-below",
+        "letters": 24,
+        "probability": 0.849999,
+        "reliable": true,
+        "status": "insufficient_language_evidence"
+      },
+      {
+        "id": "wrong-primary",
+        "letters": 24,
+        "probability": 1,
+        "reliable": true,
+        "status": "metadata_language_mismatch"
+      },
+      {
+        "detected": "es",
+        "group": "es-Latn",
+        "id": "und-inference",
+        "metadata": "und",
+        "status": "resolved",
+        "tag": "es-Latn"
+      },
+      {
+        "detected": "es",
+        "group": "es-Latn",
+        "id": "region-retained",
+        "metadata": "es-MX",
+        "status": "resolved",
+        "tag": "es-Latn-MX"
+      }
+    ],
+    "path": "src/shared/ai-reply-language-verifier-v1.vectors.json",
+    "sha256": "9f127189da5e82d1dd56ec1b5045c01f1f6ba39b0b221f247b769e889102d7ec"
+  },
+  "version": "reply-language-verifier-v1",
+  "wrapper": {
+    "path": "src/shared/ai-reply-language-verifier.ts",
+    "sha256": "b1d62819a231812faa5c06234cc870df92e57fd2e043a76cb834dfb7c5e47fb2"
+  }
+}

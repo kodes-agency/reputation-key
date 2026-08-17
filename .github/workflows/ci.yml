@@ -54,7 +54,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -192,6 +192,11 @@ jobs:
       - name: Worker build
         run: pnpm build:worker
 
+      - name: AI execution admission build
+        run: pnpm build:ai-execution-admission
+      - name: AI egress gateway build
+        run: pnpm build:ai-egress-gateway
+
       - name: Google import compatibility build
         run: pnpm build:google-import-compatibility
 
@@ -205,13 +210,14 @@ jobs:
       # the step output and job summary as build evidence.
       - name: Artifact digest
         run: |
-          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - .output dist-worker \
+          tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
+            .output dist-worker dist-ai-execution-admission dist-ai-egress-gateway \
             | gzip -n > /tmp/artifact.tgz
           DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
-          echo "sha256:$DIGEST  (.output + dist-worker)"
+          echo "sha256:$DIGEST  (.output + dist-worker + dist-ai-execution-admission + dist-ai-egress-gateway)"
           {
             echo "### Build artifact digest"
-            echo "\`sha256:$DIGEST\` — .output + dist-worker (deterministic tar)"
+            echo "\`sha256:$DIGEST\` — .output + dist-worker + dist-ai-execution-admission + dist-ai-egress-gateway (deterministic tar)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # BQC-7.1: source SBOM (SPDX JSON) retained as a build artifact.
@@ -238,7 +244,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
@@ -248,6 +254,11 @@ jobs:
       - name: Build worker image
         run: docker build -f Dockerfile.worker -t repkey-worker:ci .
 
+      - name: Build AI execution admission image
+        run: docker build -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
+      - name: Build AI egress gateway image
+        run: docker build -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
+
       - name: Build rollout-only Google import compatibility image
         run: docker build -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
 
@@ -256,6 +267,12 @@ jobs:
           docker run --rm repkey-web:ci node -e "process.exit(0)"
           docker run --rm repkey-worker:ci node -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
+          docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
+          docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+          for governed_entry in index.js canary.js runtime-egress-probe.js; do
+            docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
+          done
+          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{json .Config.Cmd}}')" = '["node","dist-ai-egress-gateway/index.js"]'
           for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
             test "$(docker image inspect "$img" --format '{{.Config.User}}')" = "node"
             docker run --rm --entrypoint test "$img" -e /app/node_modules/pg
@@ -267,6 +284,14 @@ jobs:
               fi
             done
           done
+          test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+          docker run --rm --entrypoint node \
+            -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
+            repkey-ai-execution-admission:ci /tmp/verify-ai-runtime-image.mjs admission
+          docker run --rm --entrypoint node \
+            -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
+            repkey-ai-egress-gateway:ci /tmp/verify-ai-runtime-image.mjs gateway
           for img in repkey-web:ci repkey-worker:ci; do
             test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
             test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
@@ -276,8 +301,8 @@ jobs:
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'
           {
-            echo "### Google import image digests"
-            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
+            echo "### Governed image digests"
+            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci; do
               echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -403,7 +428,7 @@ jobs:
         # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Build Storybook
@@ -421,7 +446,7 @@ jobs:
         # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
@@ -459,7 +484,7 @@ jobs:
         # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
@@ -528,7 +553,7 @@ jobs:
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium

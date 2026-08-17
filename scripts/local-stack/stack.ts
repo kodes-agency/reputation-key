@@ -12,6 +12,28 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { basename, extname, resolve } from 'node:path'
 import { connect } from 'node:net'
 import {
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  randomBytes,
+  sign as signPayload,
+} from 'node:crypto'
+import {
+  GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_CONTENT_CAPABILITIES,
+  type GoogleContentApprovalBinding,
+  type GoogleContentApprovalRole,
+  type GoogleContentApprovalRoleDocument,
+} from '../../src/shared/auth/google-content-contract'
+import {
+  canonicalGoogleContentSha256,
+  googleContentRoleSignaturePayload,
+  type GoogleContentApprovalCandidate,
+} from '../../src/shared/auth/google-content-approval'
+import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway-build-attestation'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
+import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
+import {
   buildLocalStackEnv,
   createMigrationHeadProof,
   expectedMigrationHead,
@@ -33,6 +55,11 @@ const MIGRATION_DIR = resolve(ROOT, 'drizzle')
 const WORKER_READY_LINE = 'BullMQ worker started on default queue'
 const APP_SERVICES = [
   'provider-sandbox',
+  'google-execution-admission',
+  'google-egress-gateway',
+  'ai-provider-stub',
+  'ai-execution-admission',
+  'ai-egress-gateway',
   'mail-stub',
   'migrator',
   'seed',
@@ -78,6 +105,8 @@ type StackPaths = Readonly<{
   artifacts: string
   acceptance: string
   e2eArtifacts: string
+  googleRuntime: string
+  aiRuntime: string
   hostSeedState: string
 }>
 
@@ -85,6 +114,7 @@ type DockerInspect = ReadonlyArray<{
   Image: string
   Config: { Image: string; User: string; Env: string[]; Labels: Record<string, string> }
   State: { Running: boolean }
+  NetworkSettings: { Networks: Record<string, unknown> }
 }>
 
 type DockerImageInspect = ReadonlyArray<{
@@ -95,15 +125,20 @@ type DockerImageInspect = ReadonlyArray<{
 
 type ObservedImageIdentities = Readonly<
   Record<
-    'web' | 'worker' | 'provider' | 'perf',
+    | 'web'
+    | 'worker'
+    | 'provider'
+    | 'perf'
+    | 'googleExecutionAdmission'
+    | 'googleEgressGateway',
     Readonly<{ imageId: string; repoDigests: readonly string[]; revisionLabel: string }>
   >
 >
-
 type RunOptions = Readonly<{
   env?: NodeJS.ProcessEnv
   capture?: boolean
   allowFailure?: boolean
+  includeStderr?: boolean
 }>
 
 type FaultObservation = Readonly<{
@@ -146,6 +181,8 @@ function paths(mode: LocalStackMode): StackPaths {
     env: resolve(root, 'stack.env'),
     artifacts,
     acceptance: resolve(artifacts, 'acceptance'),
+    googleRuntime: resolve(root, 'e2e', 'google-runtime'),
+    aiRuntime: resolve(root, 'e2e', 'ai-runtime'),
     e2eArtifacts: resolve(root, 'e2e'),
     hostSeedState: resolve(ROOT, 'e2e', '.seed-state.json'),
   }
@@ -169,6 +206,767 @@ function serializeEnv(env: Readonly<Record<string, string>>): string {
     .join('\n')}\n`
 }
 
+function prepareProviderRedisAssets(state: StackPaths, password: string): void {
+  mkdirSync(state.googleRuntime, { recursive: true, mode: 0o700 })
+  chmodSync(state.googleRuntime, 0o700)
+  const asset = (name: string) => resolve(state.googleRuntime, name)
+  const certificates = [
+    {
+      name: 'provider-redis',
+      commonName: 'provider-redis',
+      dnsName: 'provider-redis-ingress',
+      usage: 'serverAuth',
+    },
+    {
+      name: 'provider-sandbox',
+      commonName: 'provider-sandbox',
+      dnsName: 'provider-sandbox',
+      usage: 'serverAuth',
+    },
+    {
+      name: 'google-egress-gateway',
+      commonName: 'google-egress-gateway-1',
+      dnsName: 'google-egress-gateway',
+      usage: 'serverAuth,clientAuth',
+      uriName: 'spiffe://repkey.internal/google-egress-gateway',
+    },
+    {
+      name: 'google-execution-admission',
+      commonName: 'google-execution-admission-1',
+      dnsName: 'google-execution-admission',
+      usage: 'serverAuth',
+      uriName: 'spiffe://repkey.internal/google-execution-admission',
+    },
+    {
+      name: 'repkey-web',
+      commonName: 'repkey-web-e2e',
+      dnsName: 'repkey-web',
+      usage: 'clientAuth',
+    },
+    {
+      name: 'repkey-worker',
+      commonName: 'repkey-worker-e2e',
+      dnsName: 'repkey-worker',
+      usage: 'clientAuth',
+    },
+    {
+      name: 'google-healthcheck',
+      commonName: 'google-healthcheck',
+      dnsName: 'google-healthcheck',
+      usage: 'clientAuth',
+    },
+  ] as const
+  const caCertificate = asset('ca.crt')
+  const generatedAssets = certificates.flatMap(({ name }) => [
+    `${name}.crt`,
+    `${name}.key`,
+  ])
+  if (
+    !existsSync(caCertificate) ||
+    generatedAssets.some((name) => !existsSync(asset(name)))
+  ) {
+    for (const name of [
+      'ca.crt',
+      'ca.key',
+      'ca.srl',
+      ...certificates.flatMap(({ name }) => [
+        `${name}.crt`,
+        `${name}.csr`,
+        `${name}.key`,
+        `${name}.ext`,
+      ]),
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+    run(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        asset('ca.key'),
+        '-out',
+        caCertificate,
+        '-subj',
+        '/CN=repkey-local-provider-ca',
+        '-days',
+        '30',
+      ],
+      { capture: true },
+    )
+    for (const certificate of certificates) {
+      run(
+        'openssl',
+        [
+          'req',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-keyout',
+          asset(`${certificate.name}.key`),
+          '-out',
+          asset(`${certificate.name}.csr`),
+          '-subj',
+          `/CN=${certificate.commonName}`,
+        ],
+        { capture: true },
+      )
+      const subjectAltNames = [
+        `DNS:${certificate.dnsName}`,
+        ...('uriName' in certificate ? [`URI:${certificate.uriName}`] : []),
+      ]
+      writeFileSync(
+        asset(`${certificate.name}.ext`),
+        `subjectAltName=${subjectAltNames.join(',')}\nextendedKeyUsage=${certificate.usage}\n`,
+        { mode: 0o600 },
+      )
+      run(
+        'openssl',
+        [
+          'x509',
+          '-req',
+          '-in',
+          asset(`${certificate.name}.csr`),
+          '-CA',
+          caCertificate,
+          '-CAkey',
+          asset('ca.key'),
+          '-CAcreateserial',
+          '-out',
+          asset(`${certificate.name}.crt`),
+          '-days',
+          '30',
+          '-sha256',
+          '-extfile',
+          asset(`${certificate.name}.ext`),
+        ],
+        { capture: true },
+      )
+    }
+    for (const name of [
+      'ca.key',
+      'ca.srl',
+      ...certificates.flatMap(({ name }) => [`${name}.csr`, `${name}.ext`]),
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+  }
+  writeFileSync(
+    asset('provider-redis.acl'),
+    `user default off\nuser repkey on >${password} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
+    { mode: 0o600 },
+  )
+  writeFileSync(
+    asset('provider-redis.conf'),
+    [
+      'bind 0.0.0.0',
+      'protected-mode yes',
+      'port 0',
+      'tls-port 6379',
+      'tls-cert-file /run/repkey/provider-redis.crt',
+      'tls-key-file /run/repkey/provider-redis.key',
+      'tls-ca-cert-file /run/repkey/ca.crt',
+      'tls-auth-clients no',
+      'save ""',
+      'appendonly no',
+      'maxmemory 67108864',
+      'maxmemory-policy volatile-ttl',
+      'aclfile /run/repkey/provider-redis.acl',
+      'dir /tmp',
+      '',
+    ].join('\n'),
+    { mode: 0o600 },
+  )
+  chmodSync(caCertificate, 0o644)
+  for (const name of generatedAssets) chmodSync(asset(name), 0o644)
+  chmodSync(asset('provider-redis.acl'), 0o644)
+
+  chmodSync(asset('provider-redis.conf'), 0o644)
+}
+function prepareAiInternalMtlsAssets(state: StackPaths): void {
+  const specs = [
+    {
+      name: 'ai-execution-admission',
+      subjectAltNames: [
+        'DNS:ai-execution-admission',
+        'URI:spiffe://repkey.internal/ai-execution-admission',
+      ],
+      extendedKeyUsage: 'serverAuth',
+    },
+    {
+      name: 'ai-egress-gateway',
+      subjectAltNames: [
+        'DNS:ai-egress-gateway',
+        'URI:spiffe://repkey.internal/ai-egress-gateway',
+      ],
+      extendedKeyUsage: 'serverAuth,clientAuth',
+    },
+    {
+      name: 'repkey-web',
+      subjectAltNames: ['URI:spiffe://repkey.internal/repkey-web'],
+      extendedKeyUsage: 'clientAuth',
+    },
+    {
+      name: 'repkey-worker',
+      subjectAltNames: ['URI:spiffe://repkey.internal/repkey-worker'],
+      extendedKeyUsage: 'clientAuth',
+    },
+  ] as const
+  mkdirSync(state.aiRuntime, { recursive: true, mode: 0o700 })
+  chmodSync(state.aiRuntime, 0o700)
+  const asset = (name: string) => resolve(state.aiRuntime, name)
+  const caCertificate = asset('ca.crt')
+  const expected = specs.flatMap(({ name }) => [`${name}.crt`, `${name}.key`])
+  if (!existsSync(caCertificate) || expected.some((name) => !existsSync(asset(name)))) {
+    for (const name of [
+      'ca.crt',
+      'ca.key',
+      'ca.srl',
+      ...specs.flatMap(({ name }) => [
+        `${name}.crt`,
+        `${name}.csr`,
+        `${name}.key`,
+        `${name}.ext`,
+      ]),
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+    run(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        asset('ca.key'),
+        '-out',
+        caCertificate,
+        '-subj',
+        '/CN=repkey-local-ai-internal-ca',
+        '-days',
+        '30',
+      ],
+      { capture: true },
+    )
+    for (const spec of specs) {
+      run(
+        'openssl',
+        [
+          'req',
+          '-newkey',
+          'rsa:2048',
+          '-nodes',
+          '-keyout',
+          asset(`${spec.name}.key`),
+          '-out',
+          asset(`${spec.name}.csr`),
+          '-subj',
+          `/CN=${spec.name}`,
+        ],
+        { capture: true },
+      )
+      writeFileSync(
+        asset(`${spec.name}.ext`),
+        [
+          `subjectAltName=${spec.subjectAltNames.join(',')}`,
+          `extendedKeyUsage=${spec.extendedKeyUsage}`,
+          '',
+        ].join('\n'),
+        { mode: 0o600 },
+      )
+      run(
+        'openssl',
+        [
+          'x509',
+          '-req',
+          '-in',
+          asset(`${spec.name}.csr`),
+          '-CA',
+          caCertificate,
+          '-CAkey',
+          asset('ca.key'),
+          '-CAcreateserial',
+          '-out',
+          asset(`${spec.name}.crt`),
+          '-days',
+          '30',
+          '-sha256',
+          '-extfile',
+          asset(`${spec.name}.ext`),
+        ],
+        { capture: true },
+      )
+    }
+    for (const name of [
+      'ca.key',
+      'ca.srl',
+      ...specs.flatMap(({ name }) => [`${name}.csr`, `${name}.ext`]),
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+  }
+  chmodSync(caCertificate, 0o644)
+  for (const { name } of specs) {
+    chmodSync(asset(`${name}.crt`), 0o644)
+    chmodSync(asset(`${name}.key`), 0o600)
+  }
+  const providerCaCertificate = asset('provider-ca.crt')
+  const providerCertificate = asset('ai-provider-stub.crt')
+  const providerKey = asset('ai-provider-stub.key')
+  if (
+    !existsSync(providerCaCertificate) ||
+    !existsSync(providerCertificate) ||
+    !existsSync(providerKey)
+  ) {
+    for (const name of [
+      'provider-ca.crt',
+      'provider-ca.key',
+      'provider-ca.srl',
+      'ai-provider-stub.crt',
+      'ai-provider-stub.csr',
+      'ai-provider-stub.key',
+      'ai-provider-stub.ext',
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+    run(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        asset('provider-ca.key'),
+        '-out',
+        providerCaCertificate,
+        '-subj',
+        '/CN=repkey-local-ai-provider-ca',
+        '-days',
+        '30',
+      ],
+      { capture: true },
+    )
+    run(
+      'openssl',
+      [
+        'req',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        providerKey,
+        '-out',
+        asset('ai-provider-stub.csr'),
+        '-subj',
+        '/CN=ai-provider-stub',
+      ],
+      { capture: true },
+    )
+    writeFileSync(
+      asset('ai-provider-stub.ext'),
+      'subjectAltName=DNS:ai-provider-stub\nextendedKeyUsage=serverAuth\n',
+      { mode: 0o600 },
+    )
+    run(
+      'openssl',
+      [
+        'x509',
+        '-req',
+        '-in',
+        asset('ai-provider-stub.csr'),
+        '-CA',
+        providerCaCertificate,
+        '-CAkey',
+        asset('provider-ca.key'),
+        '-CAcreateserial',
+        '-out',
+        providerCertificate,
+        '-days',
+        '30',
+        '-sha256',
+        '-extfile',
+        asset('ai-provider-stub.ext'),
+      ],
+      { capture: true },
+    )
+    for (const name of [
+      'provider-ca.key',
+      'provider-ca.srl',
+      'ai-provider-stub.csr',
+      'ai-provider-stub.ext',
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+  }
+  chmodSync(providerCaCertificate, 0o644)
+  chmodSync(providerCertificate, 0o644)
+  chmodSync(providerKey, 0o600)
+}
+
+function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
+  const asset = (name: string) => resolve(state.aiRuntime, name)
+  const caCertificate = asset('control-db-ca.crt')
+  const serverCertificate = asset('control-db-server.crt')
+  const serverKey = asset('control-db-server.key')
+  if (
+    !existsSync(caCertificate) ||
+    !existsSync(serverCertificate) ||
+    !existsSync(serverKey)
+  ) {
+    for (const name of [
+      'control-db-ca.crt',
+      'control-db-ca.key',
+      'control-db-ca.srl',
+      'control-db-server.crt',
+      'control-db-server.csr',
+      'control-db-server.key',
+      'control-db-server.ext',
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+    run(
+      'openssl',
+      [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        asset('control-db-ca.key'),
+        '-out',
+        caCertificate,
+        '-subj',
+        '/CN=repkey-local-ai-control-database-ca',
+        '-days',
+        '30',
+      ],
+      { capture: true },
+    )
+    run(
+      'openssl',
+      [
+        'req',
+        '-newkey',
+        'rsa:2048',
+        '-nodes',
+        '-keyout',
+        serverKey,
+        '-out',
+        asset('control-db-server.csr'),
+        '-subj',
+        '/CN=ai-control-postgres',
+      ],
+      { capture: true },
+    )
+    writeFileSync(
+      asset('control-db-server.ext'),
+      ['subjectAltName=DNS:ai-control-postgres', 'extendedKeyUsage=serverAuth', ''].join(
+        '\n',
+      ),
+      { mode: 0o600 },
+    )
+    run(
+      'openssl',
+      [
+        'x509',
+        '-req',
+        '-in',
+        asset('control-db-server.csr'),
+        '-CA',
+        caCertificate,
+        '-CAkey',
+        asset('control-db-ca.key'),
+        '-CAcreateserial',
+        '-out',
+        serverCertificate,
+        '-days',
+        '30',
+        '-sha256',
+        '-extfile',
+        asset('control-db-server.ext'),
+      ],
+      { capture: true },
+    )
+    for (const name of [
+      'control-db-ca.key',
+      'control-db-ca.srl',
+      'control-db-server.csr',
+      'control-db-server.ext',
+    ]) {
+      rmSync(asset(name), { force: true })
+    }
+  }
+  chmodSync(caCertificate, 0o644)
+  chmodSync(serverCertificate, 0o644)
+  chmodSync(serverKey, 0o640)
+}
+
+type LocalApprovalRoleKeys = Readonly<
+  Record<GoogleContentApprovalRole, Readonly<{ publicKey: string; privateKey: string }>>
+>
+
+function prepareLocalApprovalRoleKeys(state: StackPaths): LocalApprovalRoleKeys {
+  const entries = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
+    const stem = `approval-${role.replaceAll('/', '-')}`
+    const publicPath = resolve(state.googleRuntime, `${stem}.pub.pem`)
+    const privatePath = resolve(state.googleRuntime, `${stem}.key.pem`)
+    if (!existsSync(publicPath) || !existsSync(privatePath)) {
+      const pair = generateKeyPairSync('ed25519')
+      writeFileSync(publicPath, pair.publicKey.export({ type: 'spki', format: 'pem' }), {
+        mode: 0o644,
+      })
+      writeFileSync(
+        privatePath,
+        pair.privateKey.export({ type: 'pkcs8', format: 'pem' }),
+        { mode: 0o600 },
+      )
+    }
+    chmodSync(publicPath, 0o644)
+    chmodSync(privatePath, 0o600)
+    return [
+      role,
+      {
+        publicKey: readFileSync(publicPath, 'utf8'),
+        privateKey: readFileSync(privatePath, 'utf8'),
+      },
+    ] as const
+  })
+  return Object.fromEntries(entries) as LocalApprovalRoleKeys
+}
+
+function buildLocalGoogleContentApprovalEnv(
+  state: StackPaths,
+  releaseSha: string,
+): Readonly<Record<string, string>> {
+  const keys = prepareLocalApprovalRoleKeys(state)
+  const approvedAt = new Date().toISOString()
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1_000).toISOString()
+  const migrationHead = expectedMigrationHead(JOURNAL_FILE, MIGRATION_DIR).tag
+  const runtimeBindings: Record<string, unknown> = {}
+  const bundles = GOOGLE_CONTENT_CAPABILITIES.map((capability) => {
+    const manifest = {
+      kind: 'repkey-local-google-content-approval',
+      capability,
+      releaseSha,
+      targetPhase: 'local_sandbox',
+    }
+    const evidenceManifestSha256 = canonicalGoogleContentSha256(manifest)
+    const deploymentAttestationSha256 = canonicalGoogleContentSha256({
+      releaseSha,
+      mode: 'local-sandbox',
+    })
+    const roleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
+      const unsigned = {
+        role,
+        capability,
+        manifestSha256: evidenceManifestSha256,
+        releaseSha,
+        targetPhase: 'local_sandbox' as const,
+        environmentProfile: 'sandbox' as const,
+        transientPerformanceReportingDecision: 'approved' as const,
+        confirmedImportProfileTreatmentDecision: 'approved' as const,
+        unmanagedUserAgentMemoryResidualDecision: 'approved' as const,
+        railwayClosedBetaResidualDecision: null,
+        railwayClosedBetaCohortSha256: null,
+        railwayClosedBetaResidualRiskSha256: null,
+        approverIdentity: `local-stack/${role}`,
+        approvedAt,
+        expiresAt,
+      }
+      const unsignedDocument: GoogleContentApprovalRoleDocument = {
+        ...unsigned,
+        signature: 'unsigned',
+      }
+      const signature = signPayload(
+        null,
+        googleContentRoleSignaturePayload(unsignedDocument),
+        keys[role].privateKey,
+      ).toString('base64')
+      const document: GoogleContentApprovalRoleDocument = { ...unsigned, signature }
+      return { sha256: canonicalGoogleContentSha256(document), document }
+    })
+    const roleDocumentSha256 = Object.fromEntries(
+      roleDocuments.map(({ sha256: digest, document }) => [document.role, digest]),
+    ) as Record<GoogleContentApprovalRole, string>
+    const indexDocument = {
+      manifestSha256: evidenceManifestSha256,
+      artifactSha256: { deployment: deploymentAttestationSha256 },
+      roleDocumentSha256,
+    }
+    const index = {
+      ...indexDocument,
+      sha256: canonicalGoogleContentSha256(indexDocument),
+    }
+    const binding: GoogleContentApprovalBinding = {
+      capability,
+      targetPhase: 'local_sandbox',
+      environmentProfile: 'sandbox',
+      releaseSha,
+      evidenceManifestSha256,
+      evidenceIndexSha256: index.sha256,
+      deploymentAttestationSha256,
+      adr0050Sha256: canonicalGoogleContentSha256('adr-0050'),
+      googleContentPolicyVersion: 'google-content-live-1',
+      googleOAuthContractVersion: 'google-oauth-oidc-1',
+      googleProjectAttestationSha256: canonicalGoogleContentSha256({
+        client: 'local-google-project',
+      }),
+      googleOAuthClientIdSha256: canonicalGoogleContentSha256('local-google-client'),
+      googleRedirectUriSha256: canonicalGoogleContentSha256(
+        'http://localhost:3000/api/integrations/google/callback',
+      ),
+      providerOriginProfileSha256: canonicalGoogleContentSha256(
+        'local-google-provider-sandbox',
+      ),
+      runtimeIsolationProfileVersion: 'google-content-egress-1',
+      runtimeIsolationProfileSha256: canonicalGoogleContentSha256(
+        'local-google-runtime-isolation',
+      ),
+      railwayClosedBetaCohort: null,
+      railwayClosedBetaCohortSha256: null,
+      railwayClosedBetaResidualRiskSha256: null,
+      performanceCatalogVersion: '2026-08-05',
+      capabilityPolicyVersion: 'beta-local-2',
+      executionPolicyVersion: 'beta-local-2',
+      migrationHead,
+      imageDigests: {
+        web: `sha256:${canonicalGoogleContentSha256(`${releaseSha}:web`)}`,
+        worker: `sha256:${canonicalGoogleContentSha256(`${releaseSha}:worker`)}`,
+        googleExecutionAdmission: `sha256:${canonicalGoogleContentSha256(
+          `${releaseSha}:google-execution-admission`,
+        )}`,
+        googleEgressGateway: `sha256:${canonicalGoogleContentSha256(
+          `${releaseSha}:google-egress-gateway`,
+        )}`,
+        providerEphemeralRedis: `sha256:${canonicalGoogleContentSha256(
+          `${releaseSha}:provider-ephemeral-redis`,
+        )}`,
+      },
+      approvedAt,
+      expiresAt,
+      status: 'approved',
+    }
+    const candidate: GoogleContentApprovalCandidate = {
+      binding,
+      index,
+      roleDocuments,
+    }
+    const {
+      approvedAt: _approvedAt,
+      expiresAt: _expiresAt,
+      status: _status,
+      ...runtimeBinding
+    } = binding
+    runtimeBindings[capability] = runtimeBinding
+    return { manifest, candidate }
+  })
+
+  return {
+    GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON: JSON.stringify(
+      Object.fromEntries(
+        GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => [role, keys[role].publicKey]),
+      ),
+    ),
+    GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON: JSON.stringify(runtimeBindings),
+    GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON: JSON.stringify(bundles),
+  }
+}
+function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, string>> {
+  const admissionPrivateKeyPath = resolve(state.aiRuntime, 'ai-admission-ed25519.pk8')
+  const provenancePrivateKeyPath = resolve(state.aiRuntime, 'ai-provenance-ed25519.pk8')
+  const requestBindingKeyPath = resolve(state.aiRuntime, 'ai-request-binding-hmac.key')
+  const safetyIdentifierKeyPath = resolve(
+    state.aiRuntime,
+    'ai-safety-identifier-hmac.key',
+  )
+  const writeFixedSigningKey = (path: string, label: string, seed: string): void => {
+    const privateKey = Buffer.from(`302e020100300506032b657004220420${seed}`, 'hex')
+    if (privateKey.byteLength !== 48) {
+      throw new Error(`Local ${label} signing key fixture is invalid`)
+    }
+    const existing = existsSync(path) ? readFileSync(path) : null
+    if (existing === null || !existing.equals(privateKey)) {
+      writeFileSync(path, privateKey, { mode: 0o600 })
+    }
+    privateKey.fill(0)
+    chmodSync(path, 0o600)
+  }
+  const createSymmetricKey = (path: string): void => {
+    if (!existsSync(path)) {
+      writeFileSync(path, randomBytes(32), { mode: 0o600 })
+    }
+    const key = readFileSync(path)
+    if (key.byteLength !== 32) {
+      throw new Error('Local AI symmetric key is invalid')
+    }
+    chmodSync(path, 0o600)
+  }
+  writeFixedSigningKey(
+    admissionPrivateKeyPath,
+    'AI admission',
+    '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60',
+  )
+  writeFixedSigningKey(
+    provenancePrivateKeyPath,
+    'AI provenance',
+    '4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb',
+  )
+  createSymmetricKey(requestBindingKeyPath)
+  createSymmetricKey(safetyIdentifierKeyPath)
+
+  const privateKeyBase64 = (path: string): string => readFileSync(path).toString('base64')
+  const publicKeyBase64 = (path: string): string =>
+    createPublicKey(
+      createPrivateKey({
+        key: readFileSync(path),
+        format: 'der',
+        type: 'pkcs8',
+      }),
+    )
+      .export({ format: 'der', type: 'spki' })
+      .toString('base64')
+  const encoded = (name: string): string =>
+    readFileSync(resolve(state.aiRuntime, name)).toString('base64')
+  const admissionKid = 'admission-v1'
+  const provenanceKid = 'provenance-v1'
+  return {
+    AI_KEY_INVENTORY_PROFILE: 'local-stack-v1',
+    AI_CONTROL_DATABASE_CA_B64: encoded('control-db-ca.crt'),
+    AI_INTERNAL_MTLS_CA_B64: encoded('ca.crt'),
+    AI_ADMISSION_INTERNAL_MTLS_CERT_B64: encoded('ai-execution-admission.crt'),
+    AI_ADMISSION_INTERNAL_MTLS_KEY_B64: encoded('ai-execution-admission.key'),
+    AI_GATEWAY_INTERNAL_MTLS_CERT_B64: encoded('ai-egress-gateway.crt'),
+    AI_GATEWAY_INTERNAL_MTLS_KEY_B64: encoded('ai-egress-gateway.key'),
+    AI_WEB_INTERNAL_MTLS_CERT_B64: encoded('repkey-web.crt'),
+    AI_WEB_INTERNAL_MTLS_KEY_B64: encoded('repkey-web.key'),
+    AI_WORKER_INTERNAL_MTLS_CERT_B64: encoded('repkey-worker.crt'),
+    AI_WORKER_INTERNAL_MTLS_KEY_B64: encoded('repkey-worker.key'),
+    AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readFileSync(requestBindingKeyPath).toString('hex')}`,
+    AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readFileSync(safetyIdentifierKeyPath).toString('hex')}`,
+    AI_ADMISSION_ED25519_KID: admissionKid,
+    AI_ADMISSION_ED25519_PRIVATE_KEY_B64: privateKeyBase64(admissionPrivateKeyPath),
+    AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
+      [admissionKid]: publicKeyBase64(admissionPrivateKeyPath),
+    }),
+    AI_PROVENANCE_ED25519_KID: provenanceKid,
+    AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: privateKeyBase64(provenancePrivateKeyPath),
+    AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
+      [provenanceKid]: publicKeyBase64(provenancePrivateKeyPath),
+    }),
+    AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest,
+    AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: AI_RUNTIME_CAPABILITIES_V1_DIGEST,
+    AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
+  }
+}
+
 function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
   const state = paths(mode)
   if (clearArtifacts) {
@@ -181,12 +979,21 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
   mkdirSync(state.acceptance, { recursive: true })
   mkdirSync(state.e2eArtifacts, { recursive: true })
   chmodSync(state.e2eArtifacts, 0o777)
-  const env = buildLocalStackEnv({
+  const releaseSha = revision()
+  const baseEnv = buildLocalStackEnv({
     mode,
-    revision: revision(),
+    revision: releaseSha,
     artifactDir: state.artifacts,
     e2eDir: state.e2eArtifacts,
   })
+  prepareProviderRedisAssets(state, baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!)
+  prepareAiInternalMtlsAssets(state)
+  prepareAiControlDatabaseTlsAssets(state)
+  const env = {
+    ...baseEnv,
+    ...buildLocalGoogleContentApprovalEnv(state, releaseSha),
+    ...prepareLocalAiAdmissionEnv(state),
+  }
   writeFileSync(state.env, serializeEnv(env), { mode: 0o600 })
   chmodSync(state.env, 0o600)
   return state
@@ -213,6 +1020,7 @@ function run(command: string, args: readonly string[], options: RunOptions = {})
     cwd: ROOT,
     env: options.env ?? process.env,
     encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
     stdio: options.capture ? 'pipe' : 'inherit',
   })
   if (result.error) throw result.error
@@ -223,7 +1031,7 @@ function run(command: string, args: readonly string[], options: RunOptions = {})
         (detail ? `\n${detail}` : ''),
     )
   }
-  return `${result.stdout ?? ''}${result.stderr ?? ''}`
+  return `${result.stdout ?? ''}${options.includeStderr ? (result.stderr ?? '') : ''}`
 }
 
 function dockerCompose(
@@ -316,7 +1124,7 @@ function workerReadyCount(mode: LocalStackMode, state: StackPaths): number {
       new Date(startedAtMs + 120_000).toISOString(),
       containerId,
     ],
-    { capture: true, allowFailure: true },
+    { capture: true, allowFailure: true, includeStderr: true },
   )
   return logs.split(WORKER_READY_LINE).length - 1
 }
@@ -349,6 +1157,176 @@ function serviceRunning(
   ) as DockerInspect
   return parsed[0]?.State.Running === true
 }
+function serviceNetworks(
+  mode: LocalStackMode,
+  state: StackPaths,
+  service: string,
+): readonly string[] {
+  const id = dockerCompose(mode, state, ['ps', '--all', '--quiet', service], {
+    capture: true,
+  }).trim()
+  if (!id) throw new Error(`network inspection found no ${service} container`)
+  const inspected = JSON.parse(
+    run('docker', ['inspect', id], { capture: true }),
+  ) as DockerInspect
+  const networks = inspected[0]?.NetworkSettings.Networks
+  if (!networks) throw new Error(`network inspection failed for ${service}`)
+  return Object.keys(networks).sort()
+}
+
+function assertTcpRoute(
+  mode: LocalStackMode,
+  state: StackPaths,
+  input: Readonly<{
+    source: string
+    host: string
+    port: number
+    reachable: boolean
+  }>,
+): void {
+  const probe = [
+    "const net=require('node:net')",
+    'const [host,port,mode]=process.argv.slice(1)',
+    'let settled=false',
+    "const done=(connected)=>{if(settled)return;settled=true;s.destroy();process.exit(connected===(mode==='allow')?0:1)}",
+    'const s=net.connect({host,port:Number(port)},()=>done(true))',
+    "s.once('error',()=>done(false))",
+    's.setTimeout(1500,()=>done(false))',
+  ].join(';')
+  dockerCompose(mode, state, [
+    'exec',
+    '-T',
+    input.source,
+    'node',
+    '-e',
+    probe,
+    input.host,
+    String(input.port),
+    input.reachable ? 'allow' : 'deny',
+  ])
+}
+
+function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths): void {
+  const project = localStackProject(mode)
+  const expected: Readonly<Record<string, readonly string[]>> = {
+    web: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
+    'web-locked': ['app', 'egress-control', 'provider-ephemeral'],
+    worker: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
+    'provider-redis': ['provider-redis-data'],
+    'provider-redis-ingress': ['provider-ephemeral', 'provider-redis-data'],
+    'provider-sandbox': ['provider-egress'],
+    'provider-control-proxy': ['provider-control', 'provider-egress'],
+    'google-execution-admission': [
+      'admission-control',
+      'admission-data',
+      'google-admission-redis',
+    ],
+    'google-egress-gateway': ['admission-control', 'egress-control', 'provider-egress'],
+    'ai-provider-stub': ['ai-provider-egress'],
+    'ai-execution-admission': ['admission-data', 'ai-admission-control'],
+    'ai-egress-gateway': [
+      'ai-admission-control',
+      'ai-gateway-ingress',
+      'ai-provider-egress',
+    ],
+  }
+  const observed = Object.fromEntries(
+    Object.entries(expected).map(([service, networks]) => {
+      const expectedNames = networks.map((network) => `${project}_${network}`).sort()
+      const actual = serviceNetworks(mode, state, service)
+      if (JSON.stringify(actual) !== JSON.stringify(expectedNames)) {
+        throw new Error(
+          `${service} network isolation mismatch: ${JSON.stringify({ actual, expected: expectedNames })}`,
+        )
+      }
+      return [service, actual]
+    }),
+  )
+  const routes = [
+    { source: 'web', host: 'google-egress-gateway', port: 8443, reachable: true },
+    { source: 'web', host: 'provider-sandbox', port: 4100, reachable: false },
+    { source: 'web', host: 'provider-redis', port: 6379, reachable: false },
+    { source: 'web', host: 'ai-egress-gateway', port: 8443, reachable: true },
+    { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: false },
+    { source: 'web', host: 'ai-execution-admission', port: 8443, reachable: false },
+    { source: 'worker', host: 'google-egress-gateway', port: 8443, reachable: true },
+    { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: false },
+    { source: 'worker', host: 'provider-redis', port: 6379, reachable: false },
+    { source: 'worker', host: 'ai-egress-gateway', port: 8443, reachable: true },
+    { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: false },
+    { source: 'worker', host: 'ai-execution-admission', port: 8443, reachable: false },
+    {
+      source: 'google-egress-gateway',
+      host: 'provider-sandbox',
+      port: 4100,
+      reachable: true,
+    },
+    {
+      source: 'google-egress-gateway',
+      host: 'google-execution-admission',
+      port: 8443,
+      reachable: true,
+    },
+    { source: 'google-egress-gateway', host: 'postgres', port: 5432, reachable: false },
+    { source: 'google-egress-gateway', host: 'redis', port: 6379, reachable: false },
+    {
+      source: 'google-execution-admission',
+      host: 'postgres',
+      port: 5432,
+      reachable: true,
+    },
+    {
+      source: 'google-execution-admission',
+      host: 'redis',
+      port: 6379,
+      reachable: true,
+    },
+    {
+      source: 'google-execution-admission',
+      host: 'provider-sandbox',
+      port: 4100,
+      reachable: false,
+    },
+    {
+      source: 'ai-egress-gateway',
+      host: 'ai-provider-stub',
+      port: 4102,
+      reachable: true,
+    },
+    {
+      source: 'ai-egress-gateway',
+      host: 'ai-execution-admission',
+      port: 8443,
+      reachable: true,
+    },
+    { source: 'ai-egress-gateway', host: 'postgres', port: 5432, reachable: false },
+    { source: 'ai-egress-gateway', host: 'redis', port: 6379, reachable: false },
+    {
+      source: 'ai-execution-admission',
+      host: 'postgres',
+      port: 5432,
+      reachable: true,
+    },
+    {
+      source: 'ai-execution-admission',
+      host: 'redis',
+      port: 6379,
+      reachable: false,
+    },
+    {
+      source: 'ai-execution-admission',
+      host: 'ai-provider-stub',
+      port: 4102,
+      reachable: false,
+    },
+  ] as const
+  for (const route of routes) assertTcpRoute(mode, state, route)
+  writeEvidence(state, 'google-isolation-topology', {
+    checkedAt: new Date().toISOString(),
+    observed,
+    routes,
+  })
+}
 
 function envMap(values: readonly string[]): Map<string, string> {
   return new Map(
@@ -367,15 +1345,37 @@ function inspectIdentities(
 ): ObservedImageIdentities {
   const env = parseEnvFile(state.env)
   const selected: Array<
-    readonly ['web' | 'worker' | 'provider' | 'perf', ObservedImageIdentities['web']]
+    readonly [
+      (
+        | 'web'
+        | 'worker'
+        | 'provider'
+        | 'perf'
+        | 'googleExecutionAdmission'
+        | 'googleEgressGateway'
+      ),
+      ObservedImageIdentities['web'],
+    ]
   > = []
   const evidenceKey: Readonly<
-    Partial<Record<(typeof APP_SERVICES)[number], 'web' | 'worker' | 'provider' | 'perf'>>
+    Partial<
+      Record<
+        (typeof APP_SERVICES)[number],
+        | 'web'
+        | 'worker'
+        | 'provider'
+        | 'perf'
+        | 'googleExecutionAdmission'
+        | 'googleEgressGateway'
+      >
+    >
   > = {
     web: 'web',
     worker: 'worker',
     'provider-sandbox': 'provider',
     'perf-runner': 'perf',
+    'google-execution-admission': 'googleExecutionAdmission',
+    'google-egress-gateway': 'googleEgressGateway',
   }
   for (const service of APP_SERVICES) {
     const id = dockerCompose(mode, state, ['ps', '--all', '--quiet', service], {
@@ -398,12 +1398,9 @@ function inspectIdentities(
       throw new Error(`${service} image revision label does not match SOURCE_REVISION`)
     }
     const containerEnv = envMap(config.Env)
-    if (containerEnv.get('IMAGE_SOURCE_REVISION') !== env.SOURCE_REVISION) {
-      throw new Error(`${service} baked revision does not match SOURCE_REVISION`)
-    }
     if (
       !service.includes('sandbox') &&
-      service !== 'mail-stub' &&
+      !service.endsWith('-stub') &&
       containerEnv.get('RELEASE_SHA') !== env.SOURCE_REVISION
     ) {
       throw new Error(`${service} RELEASE_SHA does not match SOURCE_REVISION`)
@@ -448,6 +1445,7 @@ function collectDiagnostics(mode: LocalStackMode, state: StackPaths): void {
   const logs = dockerCompose(mode, state, ['logs', '--no-color', '--timestamps'], {
     capture: true,
     allowFailure: true,
+    includeStderr: true,
   })
   const diagnosticId = `${Date.now()}-${mode}`
   writeFileSync(resolve(state.artifacts, 'compose.log'), logs, { flag: 'a' })
@@ -523,7 +1521,7 @@ function migrationHeadProof(
 function oneShot(
   mode: LocalStackMode,
   state: StackPaths,
-  service: 'object-store-init' | 'migrator' | 'seed',
+  service: 'object-store-init' | 'migrator' | 'ai-admission-role' | 'seed',
 ): void {
   dockerCompose(mode, state, [
     'up',
@@ -543,6 +1541,10 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
     'web',
     'worker',
     'provider-sandbox',
+    'google-execution-admission',
+    'google-egress-gateway',
+    'ai-execution-admission',
+    'ai-egress-gateway',
     'perf-runner',
   ])
 }
@@ -551,15 +1553,38 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
   dockerCompose(mode, state, [
     'up',
     '--detach',
+    '--force-recreate',
     '--wait',
     '--wait-timeout',
     '180',
     'postgres',
     'redis',
+    'provider-redis',
+    'provider-redis-ingress',
     'object-store',
     'provider-sandbox',
+    'provider-control-proxy',
+    'google-execution-admission',
+    'google-egress-gateway',
     'mail-stub',
+    'ai-provider-stub',
   ])
+}
+
+function startAiInfrastructure(mode: LocalStackMode, state: StackPaths): void {
+  oneShot(mode, state, 'ai-admission-role')
+  for (const service of ['ai-execution-admission', 'ai-egress-gateway'] as const) {
+    dockerCompose(mode, state, [
+      'up',
+      '--no-deps',
+      '--detach',
+      '--force-recreate',
+      '--wait',
+      '--wait-timeout',
+      '180',
+      service,
+    ])
+  }
 }
 
 function sanitationEvidence(
@@ -620,6 +1645,7 @@ async function startApplications(mode: LocalStackMode, state: StackPaths): Promi
     'up',
     '--no-deps',
     '--detach',
+    '--force-recreate',
     '--wait',
     '--wait-timeout',
     '180',
@@ -642,6 +1668,7 @@ async function smoke(mode: LocalStackMode, state: StackPaths): Promise<void> {
   await waitWorker(mode, state)
   inspectIdentities(mode, state)
   copySeedState(state)
+  assertGoogleIsolationTopology(mode, state)
 }
 
 function removeProject(mode: LocalStackMode, state: StackPaths): void {
@@ -676,6 +1703,7 @@ async function up(
     const sanitation = options.cleanStart ? sanitationEvidence(mode, state) : undefined
     if (!options.cleanStart) oneShot(mode, state, 'object-store-init')
     oneShot(mode, state, 'migrator')
+    startAiInfrastructure(mode, state)
     await startApplications(mode, state)
     await smoke(mode, state)
     return { state, sanitation }

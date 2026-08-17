@@ -34,6 +34,8 @@ import {
   setPropertyPolicy,
   addOrganizationCapability,
   removeOrganizationCapability,
+  addPropertyCapability,
+  removePropertyCapability,
   isOrgMember,
   getMemberRole,
   loadOrgPolicyState,
@@ -90,6 +92,10 @@ const ops = createPolicyAdminOps({
     addOrganizationCapability(db, orgId, cap, by),
   removeOrganizationCapability: (orgId, cap) =>
     removeOrganizationCapability(db, orgId, cap),
+  addPropertyCapability: (propertyId, cap, by) =>
+    addPropertyCapability(db, propertyId, cap, by),
+  removePropertyCapability: (propertyId, cap) =>
+    removePropertyCapability(db, propertyId, cap),
   isOrgMember: (orgId, uid) => isOrgMember(db, orgId, uid),
   loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
   grantPropertyAccess: (input) => grantPropertyAccess(db, input),

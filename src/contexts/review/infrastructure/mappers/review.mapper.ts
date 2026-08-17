@@ -59,6 +59,11 @@ export const reviewFromRow = (row: ReviewRow): Review => {
     contentExpiresAt: row.contentExpiresAt ?? null,
     contentHash: row.contentHash ?? null,
     sourceSeenGeneration: row.sourceSeenGeneration ?? null,
+    sourceEpoch: row.sourceEpoch,
+    sourceRevision: row.sourceRevision,
+    analysisSequence: row.analysisSequence,
+    aiSourceByteLength: row.aiSourceByteLength,
+    aiSourceDigest: row.aiSourceDigest,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -91,4 +96,9 @@ export const reviewToRow = (
   contentExpiresAt: review.contentExpiresAt,
   contentHash: review.contentHash,
   sourceSeenGeneration: review.sourceSeenGeneration,
+  sourceEpoch: review.sourceEpoch,
+  sourceRevision: review.sourceRevision,
+  analysisSequence: review.analysisSequence,
+  aiSourceByteLength: review.aiSourceByteLength,
+  aiSourceDigest: review.aiSourceDigest,
 })

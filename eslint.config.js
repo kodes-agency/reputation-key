@@ -22,6 +22,7 @@ export default tseslint.config(
       '**/.output/**',
       '**/dist-worker/**',
       '**/dist-google-*/**',
+      '**/dist-ai-*/**',
       '**/dist-provider-services/**',
       '**/storybook-static/**',
       '**/node_modules/**',

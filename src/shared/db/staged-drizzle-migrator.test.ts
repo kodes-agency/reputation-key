@@ -19,11 +19,15 @@ function createMigrationClient(input: {
   latestMigration: number
   enumTypePresent: boolean
   cleanupRequiredPresent: boolean
+  railwayTargetPresent: boolean
+  railwayProfilePresent: boolean
 }): Readonly<{ client: Client; queries: string[] }> {
   const queries: string[] = []
   let latestMigration = input.latestMigration
   let enumTypePresent = input.enumTypePresent
   let cleanupRequiredPresent = input.cleanupRequiredPresent
+  let railwayTargetPresent = input.railwayTargetPresent
+  let railwayProfilePresent = input.railwayProfilePresent
   let pendingEnumType = false
   let inTransaction = false
 
@@ -60,10 +64,34 @@ function createMigrationClient(input: {
           ],
         }
       }
+      if (statement.includes('AS railway_target_present')) {
+        return {
+          rows: [
+            {
+              railway_target_present: railwayTargetPresent,
+              railway_profile_present: railwayProfilePresent,
+            },
+          ],
+        }
+      }
       if (statement.includes("ADD VALUE IF NOT EXISTS 'cleanup_required'")) {
         if (!cleanupRequiredPresent) {
           if (inTransaction) throw new Error('unsafe enum use in migration transaction')
           cleanupRequiredPresent = true
+        }
+        return { rows: [] }
+      }
+      if (statement.includes("ADD VALUE IF NOT EXISTS 'railway_closed_beta'")) {
+        if (!railwayTargetPresent) {
+          if (inTransaction) throw new Error('unsafe Railway phase enum use')
+          railwayTargetPresent = true
+        }
+        return { rows: [] }
+      }
+      if (statement.includes("ADD VALUE IF NOT EXISTS 'railway-closed-beta-1'")) {
+        if (!railwayProfilePresent) {
+          if (inTransaction) throw new Error('unsafe Railway profile enum use')
+          railwayProfilePresent = true
         }
         return { rows: [] }
       }
@@ -86,11 +114,13 @@ describe('staged Drizzle migrator', () => {
       latestMigration: migrationTime('0016_region-moves'),
       enumTypePresent: false,
       cleanupRequiredPresent: false,
+      railwayTargetPresent: false,
+      railwayProfilePresent: false,
     })
 
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
       preEnumCommitApplied: 17,
-      postEnumCommitApplied: 7,
+      postEnumCommitApplied: 16,
       outcome: {
         typePresent: true,
         cleanupRequiredPresent: true,
@@ -106,15 +136,26 @@ describe('staged Drizzle migrator', () => {
     expect(firstCommit).toBeGreaterThan(0)
     expect(enumAddition).toBeGreaterThan(firstCommit)
     expect(secondBegin).toBeGreaterThan(enumAddition)
+    const railwayTargetAddition = queries.findIndex((query) =>
+      query.includes("ADD VALUE IF NOT EXISTS 'railway_closed_beta'"),
+    )
+    const railwayProfileAddition = queries.findIndex((query) =>
+      query.includes("ADD VALUE IF NOT EXISTS 'railway-closed-beta-1'"),
+    )
+    expect(railwayTargetAddition).toBeGreaterThan(firstCommit)
+    expect(railwayTargetAddition).toBeLessThan(secondBegin)
+    expect(railwayProfileAddition).toBeGreaterThan(firstCommit)
+    expect(railwayProfileAddition).toBeLessThan(secondBegin)
   })
 
   it('is a no-op when the complete journal and enum label already exist', async () => {
     const { client, queries } = createMigrationClient({
-      latestMigration: migrationTime('0040_google-import-effect-lease-control-fk'),
+      latestMigration: migrationTime('0049_ai-execution-admission'),
       enumTypePresent: true,
       cleanupRequiredPresent: true,
+      railwayTargetPresent: true,
+      railwayProfilePresent: true,
     })
-
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
       preEnumCommitApplied: 0,
       postEnumCommitApplied: 0,

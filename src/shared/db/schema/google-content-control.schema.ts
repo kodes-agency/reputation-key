@@ -28,11 +28,16 @@ export const googleContentCapabilityEnum = pgEnum('google_content_capability', [
 ])
 export const googleContentApprovalTargetPhaseEnum = pgEnum(
   'google_content_approval_target_phase',
-  ['local_sandbox', 'production_expand_canary', 'production_final'],
+  [
+    'local_sandbox',
+    'railway_closed_beta',
+    'production_expand_canary',
+    'production_final',
+  ],
 )
 export const googleContentEnvironmentProfileEnum = pgEnum(
   'google_content_environment_profile',
-  ['sandbox', 'production'],
+  ['sandbox', 'railway-closed-beta-1', 'production'],
 )
 export const googleContentApprovalStatusEnum = pgEnum('google_content_approval_status', [
   'approved',
@@ -121,10 +126,20 @@ export const capabilityComplianceApprovals = pgTable(
     }).notNull(),
     runtimeIsolationProfileVersion: varchar('runtime_isolation_profile_version', {
       length: 100,
-    }).notNull(),
+    }),
     runtimeIsolationProfileSha256: varchar('runtime_isolation_profile_sha256', {
       length: 128,
-    }).notNull(),
+    }),
+    railwayClosedBetaCohort: jsonb('railway_closed_beta_cohort').$type<
+      readonly string[]
+    >(),
+    railwayClosedBetaCohortSha256: varchar('railway_closed_beta_cohort_sha256', {
+      length: 128,
+    }),
+    railwayClosedBetaResidualRiskSha256: varchar(
+      'railway_closed_beta_residual_risk_sha256',
+      { length: 128 },
+    ),
     performanceCatalogVersion: varchar('performance_catalog_version', {
       length: 32,
     }).notNull(),
@@ -180,6 +195,28 @@ export const capabilityComplianceApprovals = pgTable(
     check(
       'capability_compliance_approvals_window_check',
       sql`${table.expiresAt} > ${table.approvedAt}`,
+    ),
+    check(
+      'capability_compliance_approvals_phase_profile_check',
+      sql`(
+        (${table.targetPhase} = 'railway_closed_beta'
+          AND ${table.environmentProfile} = 'railway-closed-beta-1'
+          AND ${table.runtimeIsolationProfileVersion} IS NULL
+          AND ${table.runtimeIsolationProfileSha256} IS NULL
+          AND ${table.railwayClosedBetaCohort} IS NOT NULL
+          AND ${table.railwayClosedBetaCohortSha256} IS NOT NULL
+          AND ${table.railwayClosedBetaResidualRiskSha256} IS NOT NULL)
+        OR
+        (${table.targetPhase} <> 'railway_closed_beta'
+          AND ((${table.targetPhase} = 'local_sandbox' AND ${table.environmentProfile} = 'sandbox')
+            OR (${table.targetPhase} IN ('production_expand_canary', 'production_final')
+              AND ${table.environmentProfile} = 'production'))
+          AND ${table.runtimeIsolationProfileVersion} = 'google-content-egress-1'
+          AND ${table.runtimeIsolationProfileSha256} IS NOT NULL
+          AND ${table.railwayClosedBetaCohort} IS NULL
+          AND ${table.railwayClosedBetaCohortSha256} IS NULL
+          AND ${table.railwayClosedBetaResidualRiskSha256} IS NULL)
+      )`,
     ),
   ],
 )

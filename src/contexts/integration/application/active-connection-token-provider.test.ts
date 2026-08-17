@@ -103,6 +103,19 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
     expect(token).toBe('refreshed-access-token')
   })
 
+  it('forces one provider refresh after a 401 even when the stored access token is fresh', async () => {
+    const { provider, conn, refreshCalls } = setup()
+
+    const token = await provider.forceRefreshAccessToken(
+      ORG_ID,
+      conn.id as string,
+      conn.credentialGeneration,
+    )
+
+    expect(refreshCalls()).toEqual([{ orgId: ORG_ID, connectionId: conn.id }])
+    expect(token).toBe('refreshed-access-token')
+  })
+
   it('rejects when the connection does not exist', async () => {
     const { provider } = setup()
 

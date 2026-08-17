@@ -1,3 +1,4 @@
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
@@ -7,6 +8,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { googleAuthorizationPermissionDigest } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnection } from '../domain/types'
 import { createGooglePerformanceAuthorizer } from './google-performance-authorizer'
 
@@ -21,6 +23,7 @@ const actor: AuthContext = Object.freeze({
   role: 'PropertyManager',
   effectivePermissions: new Set([
     'property.read',
+    'property.read_gbp_performance',
     'property.update',
     'integration.manage',
   ] as const),
@@ -65,7 +68,7 @@ function binding(overrides: Record<string, unknown> = {}) {
     propertyId: PROPERTY_ID,
     state: 'active' as const,
     connectionId: CONNECTION_ID,
-    accountId: 'accounts/123',
+    accountId: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
     locationId: 'locations/456',
     sourceEpoch: 7,
     profileVersion: 8,
@@ -93,11 +96,11 @@ function setup(
       policyVersion: string
     }
     contentAllowed?: boolean
+    contentVector?: Readonly<Record<string, string | number | boolean | null>>
   } = {},
 ) {
-  const readBinding = vi.fn(async () =>
-    overrides.binding === undefined ? binding() : overrides.binding,
-  )
+  const currentBinding = overrides.binding === undefined ? binding() : overrides.binding
+  const readBinding = vi.fn(async () => currentBinding)
   const findConnection = vi.fn(async () =>
     overrides.connection === undefined ? connection() : overrides.connection,
   )
@@ -118,6 +121,22 @@ function setup(
           approvalBindingId: APPROVAL_ID,
           policyVersion: 12,
           emergencyKillVersion: 3,
+          authorizationVector: overrides.contentVector ?? {
+            executionPolicyVersion: 'beta-local-2',
+            googleContentPolicyVersion: 12,
+            emergencyKillVersion: 3,
+            role: 'PropertyManager',
+            permissionDigest: googleAuthorizationPermissionDigest(actor),
+            connectionLifecycleVersion: 4,
+            connectionAccessVersion: 5,
+            credentialGeneration: 6,
+            propertySourceEpoch: currentBinding?.sourceEpoch ?? 7,
+            propertyProfileVersion: currentBinding?.profileVersion ?? 8,
+            propertyBindingState: currentBinding?.state ?? 'active',
+            propertyLifecycleState: currentBinding?.lifecycleState ?? 'active',
+            propertyProfileSource: currentBinding?.profileSource ?? 'tenant_confirmed',
+            propertyTimezoneConfirmed: currentBinding?.profileConfirmedAt !== null,
+          },
         },
   )
   const authorize = createGooglePerformanceAuthorizer({
@@ -175,10 +194,30 @@ describe('createGooglePerformanceAuthorizer', () => {
       googleContentPolicyVersion: 12,
       emergencyKillVersion: 3,
       role: 'PropertyManager',
+      propertySourceEpoch: 7,
+      propertyProfileVersion: 8,
+      propertyBindingState: 'active',
+      propertyLifecycleState: 'active',
+      propertyProfileSource: 'tenant_confirmed',
+      propertyTimezoneConfirmed: true,
     })
     expect(result.snapshot.authorizationVectorSha256).toMatch(/^[a-f0-9]{64}$/)
     expect(result.snapshot.principalHmac).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(getAccessToken).toHaveBeenCalledOnce()
+  })
+
+  it('revalidates a provider retry without decrypting a credential', async () => {
+    const { authorize, getAccessToken } = setup()
+
+    await expect(
+      authorize({
+        actor,
+        propertyId: PROPERTY_ID,
+        phase: 'before_provider',
+        requireAccessToken: false,
+      }),
+    ).resolves.toMatchObject({ ok: true, accessToken: null })
+    expect(getAccessToken).not.toHaveBeenCalled()
   })
 
   it('fails closed without reading provider state when current membership disappeared', async () => {
@@ -344,6 +383,33 @@ describe('createGooglePerformanceAuthorizer', () => {
       },
     })
     expect(changedSetup.getAccessToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a content permit vector that omits the current Property binding generations', async () => {
+    const { authorize, getAccessToken } = setup({
+      contentVector: {
+        executionPolicyVersion: 'beta-local-2',
+        googleContentPolicyVersion: 12,
+        emergencyKillVersion: 3,
+        role: 'PropertyManager',
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 4,
+        connectionAccessVersion: 5,
+        credentialGeneration: 6,
+      },
+    })
+
+    await expect(
+      authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+    ).resolves.toEqual({
+      ok: false,
+      result: {
+        status: 'unavailable',
+        reason: 'policy_disabled',
+        action: null,
+      },
+    })
+    expect(getAccessToken).not.toHaveBeenCalled()
   })
 
   it('fails closed when fresh Google Content approval is unavailable', async () => {

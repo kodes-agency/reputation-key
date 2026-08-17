@@ -1,0 +1,86 @@
+[
+  {
+    "vectorId": "email",
+    "text": "Write to owner@example.com.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "international-phone",
+    "text": "Call +44 20 7946 0958 today.",
+    "countryCode": "GB",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "unicode-decimal-phone",
+    "text": "Call +٩٧١ ٥٠ ١٢٣ ٤٥٦٧ today.",
+    "countryCode": "AE",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]"]
+  },
+  {
+    "vectorId": "url-social-ip",
+    "text": "See https://example.com, @repkey_support, and 192.0.2.12.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[CONTACT]", "[CONTACT]", "[CONTACT]"]
+  },
+  {
+    "vectorId": "coordinate-and-address",
+    "text": "Meet at 37.774900,-122.419400 or 25 Main Street, 94105.",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]", "[ADDRESS]"]
+  },
+  {
+    "vectorId": "financial-card-and-iban",
+    "text": "Use 4111 1111 1111 1111 or GB82 WEST 1234 5698 7654 32.",
+    "countryCode": "GB",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[FINANCIAL]", "[FINANCIAL]"]
+  },
+  {
+    "vectorId": "labelled-identifier",
+    "text": "Passport: X12345678",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[IDENTIFIER]"]
+  },
+  {
+    "vectorId": "secret-prefix",
+    "text": "token sk_test_1234567890abcdefghijklmnop",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[SECRET]"]
+  },
+  {
+    "vectorId": "nfkc-required",
+    "text": "owner＠example.com",
+    "countryCode": "US",
+    "expectedStatus": "blocked",
+    "expectedReason": "noncanonical_unicode"
+  },
+  {
+    "vectorId": "postal-label-is-address",
+    "text": "Postal code: 94105",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[ADDRESS]"]
+  },
+  {
+    "vectorId": "contained-secret-promotes-full-contact-boundary",
+    "text": "https://example.com/sk_test_1234567890abcdefghijklmnop",
+    "countryCode": "US",
+    "expectedStatus": "safe",
+    "expectedPlaceholders": ["[SECRET]"]
+  },
+  {
+    "vectorId": "invalid-country",
+    "text": "owner@example.com",
+    "countryCode": "ZZ",
+    "expectedStatus": "blocked",
+    "expectedReason": "invalid_country"
+  }
+]

@@ -5,7 +5,11 @@
 import type { Database } from '#/shared/db'
 
 import type { PropertyRepository } from './application/ports/property.repository'
-import type { PropertyFactsPublicApi, PropertyPublicApi } from './application/public-api'
+import type {
+  PropertyFactsPublicApi,
+  PropertyProcessingScopePublicApi,
+  PropertyPublicApi,
+} from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
@@ -122,7 +126,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
   } as const
 
-  const publicApi: PropertyPublicApi & PropertyFactsPublicApi = {
+  const publicApi: PropertyPublicApi &
+    PropertyFactsPublicApi &
+    PropertyProcessingScopePublicApi = {
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -164,6 +170,12 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getProcessingRegion: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p?.processingRegion ?? null
+    },
+    getProcessingScope: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p
+        ? { processingRegion: p.processingRegion, sourceEpoch: p.sourceEpoch }
+        : null
     },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,

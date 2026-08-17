@@ -19,7 +19,9 @@ export type ReviewCreated = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   platform: ReviewPlatform
-  externalId: string
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
   // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
   // BQC-1.2: rating removed — raw content resolves via authorized read.
   occurredAt: Date
@@ -31,6 +33,18 @@ export const reviewCreated = (
   },
 ): ReviewCreated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
+    'sourceRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
+    'analysisSequence must be a positive safe integer',
+  )
   return {
     ...args,
     _tag: 'review.created',
@@ -46,7 +60,9 @@ export type ReviewUpdated = Readonly<{
   propertyId: PropertyId
   organizationId: OrganizationId
   platform: ReviewPlatform
-  externalId: string
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
   // BQR-4.2 / ADR 0030: identifier-only — no raw reviewer/text on the bus.
   // BQC-1.2: rating removed — raw content resolves via authorized read.
   occurredAt: Date
@@ -58,6 +74,18 @@ export const reviewUpdated = (
   },
 ): ReviewUpdated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
+    'sourceRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
+    'analysisSequence must be a positive safe integer',
+  )
   return {
     ...args,
     _tag: 'review.updated',
@@ -89,6 +117,45 @@ export const reviewExpired = (
   }
 }
 
+export type ReviewSourceTransitioned = Readonly<{
+  _tag: 'review.source_transitioned'
+  eventId: string
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  change: 'source_expired' | 'provider_deleted'
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewSourceTransitioned = (
+  args: Omit<ReviewSourceTransitioned, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewSourceTransitioned => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceRevision) && args.sourceRevision > 0,
+    'sourceRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisSequence) && args.analysisSequence > 0,
+    'analysisSequence must be a positive safe integer',
+  )
+  return {
+    ...args,
+    _tag: 'review.source_transitioned',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
 export type ReviewReplyPublished = Readonly<{
   _tag: 'review.reply.published'
   eventId: string
@@ -288,6 +355,7 @@ export type ReviewEvent =
   | ReviewCreated
   | ReviewUpdated
   | ReviewExpired
+  | ReviewSourceTransitioned
   | ReviewReplyPublished
   | ReviewReplySubmitted
   | ReviewReplyApproved

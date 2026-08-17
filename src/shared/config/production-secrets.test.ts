@@ -21,6 +21,8 @@ const REAL = {
   OAUTH_STATE_SECRET:
     '4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f0a2c4e6f8a0b2c4d',
   GUEST_SESSION_SALT: 'f4a6c8b1d3e5f7a9c0e2b4d6',
+  REVIEW_PROVIDER_SUBJECT_HMAC_KEYS:
+    'v1:9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f0',
 } as const
 
 describe('findPlaceholderSecrets (BQC-7.6)', () => {
@@ -48,6 +50,8 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
         'abababababababababababababababababababababababababababababababab',
       ],
       ['GUEST_SESSION_SALT', 'dev-only-salt-not-for-production'],
+      ['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS', `v1:${'11'.repeat(32)}`],
+      ['REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS', `initial:${'22'.repeat(32)}`],
       ['OPS_METRICS_TOKEN', 'e2e-ops-metrics-token-0123456789abcdef'],
       ['BETTER_AUTH_SECRET', 'replace-me-with-a-long-random-secret-min-32-chars'],
     ]

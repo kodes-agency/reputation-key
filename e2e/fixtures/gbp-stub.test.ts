@@ -6,23 +6,49 @@
 // throttling/transient-failure drills can script 429s (with Retry-After) and
 // 5xx without touching reply-publication behavior.
 
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   startGbpStub,
   type FetchBehavior,
   type GbpStub,
+  type PerformanceBehavior,
   type StubScope,
 } from './gbp-stub'
 
 const PORT = 4199
 const BASE = `http://localhost:${PORT}`
 
-const ACCOUNT = 'accounts/fetch-behavior-account'
+const ACCOUNT = GOOGLE_ACCOUNT_PRIMARY_RESOURCE
 const LOC_A = `${ACCOUNT}/locations/loc-a`
 const LOC_B = `${ACCOUNT}/locations/loc-b`
 
+const PERFORMANCE_RESPONSE = {
+  multiDailyMetricTimeSeries: [
+    {
+      dailyMetricTimeSeries: [
+        {
+          dailyMetric: 'WEBSITE_CLICKS',
+          timeSeries: {
+            datedValues: [
+              {
+                date: { year: 2026, month: 8, day: 1 },
+                value: '7',
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ],
+}
+
 const SCOPE: StubScope = {
-  account: { name: ACCOUNT },
+  account: {
+    name: ACCOUNT,
+    accountName: 'Fetch behavior account',
+    role: 'OWNER',
+  },
   locations: [
     { name: LOC_A, title: 'Location A' },
     { name: LOC_B, title: 'Location B' },
@@ -37,6 +63,9 @@ const SCOPE: StubScope = {
       },
     ],
     [LOC_B]: [],
+  },
+  performance: {
+    [LOC_A]: { response: PERFORMANCE_RESPONSE },
   },
 }
 
@@ -62,6 +91,22 @@ const batchGet = (locationNames: string[]) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ locationNames }),
   })
+
+const fetchPerformance = (locationId = 'loc-a') =>
+  fetch(
+    `${BASE}/v1/locations/${locationId}:fetchMultiDailyMetricsTimeSeries?dailyMetrics=WEBSITE_CLICKS`,
+  )
+
+async function setPerformanceBehavior(
+  locationName: string,
+  behavior: PerformanceBehavior,
+): Promise<Response> {
+  return fetch(`${BASE}/__control/performance-behavior`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ locationName, behavior }),
+  })
+}
 
 beforeAll(async () => {
   stub = await startGbpStub(PORT)
@@ -150,7 +195,7 @@ describe('GBP stub fetch-behavior scripting (BQC-8.3)', () => {
   })
 
   it('unknown account scope is rejected on the control route', async () => {
-    const res = await setFetchBehavior('accounts/nope', {
+    const res = await setFetchBehavior(`${GOOGLE_ACCOUNT_PRIMARY_RESOURCE}-unknown`, {
       mode: 'always-fail',
       status: 429,
     })
@@ -173,6 +218,71 @@ describe('GBP stub fetch-behavior scripting (BQC-8.3)', () => {
   it('unknown account fetch returns 404 regardless of scripting', async () => {
     const res = await fetch(`${BASE}/accounts/nope/locations/x/reviews`)
     expect(res.status).toBe(404)
+  })
+})
+
+describe('GBP stub Performance scripting', () => {
+  it('serves the exact configured multi-metric response', async () => {
+    const response = await fetchPerformance()
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual(PERFORMANCE_RESPONSE)
+  })
+
+  it('delays a response without changing its provider body', async () => {
+    await setPerformanceBehavior(LOC_A, { mode: 'delay', delayMs: 20 })
+    const startedAt = Date.now()
+
+    const response = await fetchPerformance()
+
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(15)
+    expect(await response.json()).toEqual(PERFORMANCE_RESPONSE)
+    await setPerformanceBehavior(LOC_A, { mode: 'success' })
+  })
+
+  it('scripts typed status and Retry-After responses', async () => {
+    await setPerformanceBehavior(LOC_A, {
+      mode: 'status',
+      status: 429,
+      retryAfterSeconds: 17,
+    })
+
+    const response = await fetchPerformance()
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('17')
+    await setPerformanceBehavior(LOC_A, { mode: 'success' })
+  })
+
+  it('serves malformed and oversize response faults', async () => {
+    await setPerformanceBehavior(LOC_A, { mode: 'malformed' })
+    const malformed = await fetchPerformance()
+    expect(malformed.status).toBe(200)
+    expect(await malformed.text()).toBe('{"broken"')
+
+    await setPerformanceBehavior(LOC_A, {
+      mode: 'oversize',
+      bytes: 5 * 1024 * 1024 + 1,
+    })
+    const oversize = await fetchPerformance()
+    expect((await oversize.arrayBuffer()).byteLength).toBeGreaterThan(5 * 1024 * 1024)
+    await setPerformanceBehavior(LOC_A, { mode: 'success' })
+  })
+
+  it('rejects malformed behavior and unknown location controls', async () => {
+    const malformed = await fetch(`${BASE}/__control/performance-behavior`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ locationName: LOC_A, behavior: { mode: 'delay' } }),
+    })
+    expect(malformed.status).toBe(400)
+    expect((await fetchPerformance()).status).toBe(200)
+
+    const missing = await setPerformanceBehavior(`${ACCOUNT}/locations/not-configured`, {
+      mode: 'status',
+      status: 500,
+    })
+    expect(missing.status).toBe(404)
   })
 })
 

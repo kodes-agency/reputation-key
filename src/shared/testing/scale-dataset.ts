@@ -24,6 +24,7 @@
 // recomputed ids (contrast scripts/cleanup-all.ts, which deletes everything).
 
 import { createHash } from 'node:crypto'
+import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -392,6 +393,14 @@ export function reviewRowValues(
 ): readonly unknown[] {
   const reviewedAt = new Date(baseTime.getTime() - review.daysAgo * DAY_MS)
   const expiresAt = new Date(reviewedAt.getTime() + REVIEW_TTL_DAYS * DAY_MS)
+  const aiSource = canonicalizeRawAiReviewSource({
+    text: null,
+    rating: review.rating,
+    languageCode: null,
+    reviewedAtEpochMillis: reviewedAt.getTime(),
+    reviewerDisplayName: null,
+  })
+  const aiSourceDigest = createHash('sha256').update(aiSource.bytes).digest('hex')
   return [
     review.id,
     review.orgId,
@@ -407,6 +416,11 @@ export function reviewRowValues(
     sourceLifecycle
       ? sha256Hex(`scale-review-content|${review.externalId}|${review.rating}`)
       : null,
+    0,
+    1,
+    0,
+    aiSource.bytes.byteLength,
+    aiSourceDigest,
   ]
 }
 
@@ -525,6 +539,11 @@ const REVIEW_COLUMNS = [
   'last_fetched_at',
   'content_expires_at',
   'content_hash',
+  'source_epoch',
+  'source_revision',
+  'analysis_sequence',
+  'ai_source_byte_length',
+  'ai_source_digest',
 ] as const
 
 export type VerifyCheck = Readonly<{ check: string; passed: boolean; detail: string }>

@@ -47,8 +47,8 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
-        type: 'LOCATION_GROUP',
-        roleInfo: { name: 'OWNER' },
+        accountName: `E2E notification account ${e2eRunId}`,
+        role: 'OWNER',
       },
       locations: [
         {
@@ -74,14 +74,17 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
       connectedBy: admin!.id,
-      googleAccountId: ACCOUNT,
+      googleSubject: ACCOUNT,
     })
     const { propertyId } = await seedProperty({
       organizationId: seed.organizationId,
       name: `E2E Notify Hotel ${e2eRunId}`,
       slug: `${PREFIX}prop-${e2eRunId}`,
-      gbpPlaceId: 'not-loc',
-      googleConnectionId: connectionId,
+      googleBinding: {
+        connectionId,
+        accountId: ACCOUNT,
+        locationId: 'not-loc',
+      },
     })
     // The admin is a notification recipient for the property
     // (findAssignedManagers reads staff_assignments).

@@ -30,6 +30,7 @@
 // assertions are scoped to this suite's marker org, and evidence counts are
 // lower bounds.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -103,10 +104,13 @@ async function seedReview(id: string, contentExpiresAt: Date): Promise<void> {
   await db.execute(sql`
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
-      external_location_id, rating, reviewed_at, expires_at, content_expires_at
+      external_location_id, rating, reviewed_at, expires_at, content_expires_at,
+      source_epoch, source_revision, analysis_sequence,
+      ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${PROPERTY}, 'google', ${'ext-' + id},
-      'accounts/1/locations/2', 4, now(), now(), ${contentExpiresAt}
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 4, now(), now(), ${contentExpiresAt},
+      0, 0, 0, 1, ${'0'.repeat(64)}
     )
     ON CONFLICT (id) DO NOTHING
   `)

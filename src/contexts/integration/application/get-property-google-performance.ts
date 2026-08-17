@@ -52,6 +52,7 @@ export type GooglePerformanceAuthorizer = (
     propertyId: PropertyId
     phase: 'before_provider' | 'before_return'
     expected?: GooglePerformanceAuthorizationSnapshot
+    requireAccessToken?: boolean
   }>,
 ) => Promise<GooglePerformanceAuthorizationResult>
 
@@ -120,6 +121,22 @@ function mapProviderError(error: unknown): UnavailablePerformanceResult {
   }
 }
 
+function sameAuthorizationVectorExceptCredentialGeneration(
+  current: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
+  expected: GooglePerformanceAuthorizationSnapshot['authorizationVector'],
+): boolean {
+  const currentKeys = Object.keys(current).sort()
+  const expectedKeys = Object.keys(expected).sort()
+  return (
+    currentKeys.length === expectedKeys.length &&
+    currentKeys.every(
+      (key, index) =>
+        key === expectedKeys[index] &&
+        (key === 'credentialGeneration' || current[key] === expected[key]),
+    )
+  )
+}
+
 function sameSnapshot(
   current: GooglePerformanceAuthorizationSnapshot,
   expected: GooglePerformanceAuthorizationSnapshot,
@@ -134,9 +151,11 @@ function sameSnapshot(
     current.profileVersion === expected.profileVersion &&
     current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     current.connectionAccessVersion === expected.connectionAccessVersion &&
-    current.credentialGeneration === expected.credentialGeneration &&
     current.approvalBindingId === expected.approvalBindingId &&
-    current.authorizationVectorSha256 === expected.authorizationVectorSha256 &&
+    sameAuthorizationVectorExceptCredentialGeneration(
+      current.authorizationVector,
+      expected.authorizationVector,
+    ) &&
     current.principalHmacKeyVersion === expected.principalHmacKeyVersion &&
     current.principalHmac === expected.principalHmac
   )
@@ -219,7 +238,6 @@ export function createGetPropertyGooglePerformance(
         actor: input.actor,
         propertyId: input.propertyId,
         phase: 'before_return',
-        expected: initial.snapshot,
       })
     } catch {
       return errorResult('temporarily_unavailable', true)

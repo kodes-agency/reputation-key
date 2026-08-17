@@ -37,6 +37,7 @@
 // paths stamp identical timestamps from the same event. Skips cleanly when
 // Redis is unreachable (same convention as the BQC-3.6 quarantine suite).
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Pool } from 'pg'
 import { Queue, Worker, type Job } from 'bullmq'
@@ -176,7 +177,7 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     propertyId: PROP,
     platform: 'google',
     externalId,
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
@@ -194,6 +195,11 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     contentExpiresAt: new Date('2027-07-01T00:00:00.000Z'),
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 1,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: reviewedAt,
     updatedAt: reviewedAt,
   }
@@ -597,7 +603,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       propertyId: PROP,
       organizationId: ORG,
       platform: 'google',
-      externalId: 'bqc39-r1',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: T1,
     })
     await reviewStore.upsertAndRecord(makeReview(R1, T1, 'bqc39-r1'), e1, T1)
@@ -618,7 +626,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       propertyId: PROP,
       organizationId: ORG,
       platform: 'google',
-      externalId: 'bqc39-r1',
+      sourceEpoch: 0,
+      sourceRevision: 2,
+      analysisSequence: 2,
       occurredAt: T2,
     })
     await reviewStore.upsertAndRecord(makeReview(R1, T2, 'bqc39-r1'), e2, T2)
@@ -728,7 +738,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       propertyId: PROP as string,
       organizationId: ORG as string,
       connectionId: '4e000000-0000-4000-8000-0000000000ee',
-      locationName: 'accounts/111/locations/222',
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     }
     const syncOpts = {
       jobId: 'bqc39-sync-dedup',
@@ -757,7 +767,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
         propertyId: PROP,
         organizationId: ORG,
         platform: 'google',
-        externalId: `bqc39-backlog-${i}`,
+        sourceEpoch: 0,
+        sourceRevision: 1,
+        analysisSequence: 1,
         occurredAt: T1,
       })
       await reviewStore.upsertAndRecord(
@@ -895,7 +907,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       propertyId: PROP,
       organizationId: ORG,
       platform: 'google',
-      externalId: 'bqc39-r4',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: T5,
     })
     await reviewStore.upsertAndRecord(makeReview(R4, T5, 'bqc39-r4'), e5, T5)

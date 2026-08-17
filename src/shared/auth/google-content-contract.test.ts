@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_CONTENT_APPROVAL_TARGET_PHASES,
   GOOGLE_CONTENT_CAPABILITIES,
+  GOOGLE_CONTENT_ENVIRONMENT_PROFILES,
   GOOGLE_CONTENT_IMAGE_ROLES,
   GOOGLE_CONTENT_POLICY_VERSION,
   GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
@@ -21,6 +23,17 @@ describe('Google Content approval contract', () => {
     expect(GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION).toBe(
       'google-content-egress-1',
     )
+    expect(GOOGLE_CONTENT_APPROVAL_TARGET_PHASES).toEqual([
+      'local_sandbox',
+      'railway_closed_beta',
+      'production_expand_canary',
+      'production_final',
+    ])
+    expect(GOOGLE_CONTENT_ENVIRONMENT_PROFILES).toEqual([
+      'sandbox',
+      'railway-closed-beta-1',
+      'production',
+    ])
   })
 
   it('requires all five role approvals and runtime image identities', () => {

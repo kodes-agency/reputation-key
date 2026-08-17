@@ -23,14 +23,17 @@ export function localStackProject(mode: LocalStackMode): string {
 }
 
 const HOST_PORTS = {
-  e2e: { postgres: 55432, redis: 56379 },
-  perf: { postgres: 55433, redis: 56380 },
-  beta: { postgres: 55434, redis: 56381 },
-} as const satisfies Record<LocalStackMode, Readonly<{ postgres: number; redis: number }>>
+  e2e: { postgres: 55432, redis: 56379, googleGateway: 58443 },
+  perf: { postgres: 55433, redis: 56380, googleGateway: 58444 },
+  beta: { postgres: 55434, redis: 56381, googleGateway: 58445 },
+} as const satisfies Record<
+  LocalStackMode,
+  Readonly<{ postgres: number; redis: number; googleGateway: number }>
+>
 
 export function localStackHostPorts(
   mode: LocalStackMode,
-): Readonly<{ postgres: number; redis: number }> {
+): Readonly<{ postgres: number; redis: number; googleGateway: number }> {
   return HOST_PORTS[mode]
 }
 
@@ -137,6 +140,10 @@ export function buildLocalStackEnv(
   const minio = secret(input.revision, 'minio')
   const testUser = secret(input.revision, 'test-user')
   const override = localStackEnvironment(input.mode)
+  const reviewProviderSubjectKeys = `local:${secret(
+    input.revision,
+    'review-provider-subject',
+  )}`
   const hostPorts = localStackHostPorts(input.mode)
 
   return {
@@ -150,12 +157,25 @@ export function buildLocalStackEnv(
     POSTGRES_PASSWORD: database,
     POSTGRES_HOST_PORT: String(hostPorts.postgres),
     REDIS_HOST_PORT: String(hostPorts.redis),
+    GOOGLE_EGRESS_GATEWAY_HOST_PORT: String(hostPorts.googleGateway),
     BETTER_AUTH_SECRET: auth,
     RESEND_API_KEY: `re_${secret(input.revision, 'resend')}`,
     GOOGLE_CLIENT_ID: `local-${secret(input.revision, 'google-id').slice(0, 32)}`,
     GOOGLE_CLIENT_SECRET: secret(input.revision, 'google-secret'),
     ENCRYPTION_KEY: secret(input.revision, 'token-encryption'),
     OAUTH_STATE_SECRET: secret(input.revision, 'oauth-state'),
+    PROVIDER_EPHEMERAL_REDIS_PASSWORD: secret(input.revision, 'provider-redis'),
+    GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS: `local:${secret(input.revision, 'google-opaque-reference')}`,
+    GOOGLE_REPLAY_HMAC_KEYS: `local:${secret(input.revision, 'google-replay')}`,
+    GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS: `local:${secret(input.revision, 'google-oauth-state-handle')}`,
+    GOOGLE_SESSION_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'google-session-binding')}`,
+    GOOGLE_ADMISSION_GRANT_HMAC_KEYS: `local:${secret(input.revision, 'google-admission-grant')}`,
+    GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'google-credential-binding')}`,
+    REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: reviewProviderSubjectKeys,
+    AI_CONTROL_DATABASE_PASSWORD: secret(input.revision, 'ai-control-database'),
+    AI_REQUEST_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'ai-request-binding')}`,
+    AI_ADMISSION_ED25519_KID: 'admission-v1',
+    REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: reviewProviderSubjectKeys,
     GUEST_SESSION_SALT: secret(input.revision, 'guest-session'),
     GUEST_CONTACT_ENCRYPTION_KEY: secret(input.revision, 'guest-contact'),
     GUEST_ABUSE_HASH_SECRET: secret(input.revision, 'guest-abuse'),

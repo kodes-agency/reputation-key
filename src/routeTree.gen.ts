@@ -28,7 +28,6 @@ import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
-import { Route as AuthenticatedImportIndexRouteImport } from './routes/_authenticated/import/index'
 import { Route as ApiHealthStartedRouteImport } from './routes/api/health/started'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
 import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
@@ -42,11 +41,13 @@ import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
+import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authenticated/settings/ai'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
-import { Route as AuthenticatedImportImportIdRouteImport } from './routes/_authenticated/import/$importId'
+import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
+import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
@@ -160,12 +161,6 @@ const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   path: '/inbox/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedImportIndexRoute =
-  AuthenticatedImportIndexRouteImport.update({
-    id: '/import/',
-    path: '/import/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const ApiHealthStartedRoute = ApiHealthStartedRouteImport.update({
   id: '/api/health/started',
   path: '/api/health/started',
@@ -239,16 +234,21 @@ const AuthenticatedSettingsIntegrationsRoute =
     path: '/integrations',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
+const AuthenticatedSettingsAiRoute = AuthenticatedSettingsAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
 const AuthenticatedPropertiesPropertyIdRoute =
   AuthenticatedPropertiesPropertyIdRouteImport.update({
     id: '/properties/$propertyId',
     path: '/properties/$propertyId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedImportImportIdRoute =
-  AuthenticatedImportImportIdRouteImport.update({
-    id: '/import/$importId',
-    path: '/import/$importId',
+const AuthenticatedPropertiesImportGoogleIndexRoute =
+  AuthenticatedPropertiesImportGoogleIndexRouteImport.update({
+    id: '/properties/import-google/',
+    path: '/properties/import-google/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
@@ -268,6 +268,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedPropertiesImportGoogleImportIdRoute =
+  AuthenticatedPropertiesImportGoogleImportIdRouteImport.update({
+    id: '/properties/import-google/$importId',
+    path: '/properties/import-google/$importId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdReviewsRoute =
   AuthenticatedPropertiesPropertyIdReviewsRouteImport.update({
     id: '/reviews',
@@ -374,8 +380,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
-  '/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -389,7 +395,6 @@ export interface FileRoutesByFullPath {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/import/': typeof AuthenticatedImportIndexRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -398,9 +403,11 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -427,7 +434,7 @@ export interface FileRoutesByTo {
   '/progress': typeof AuthenticatedProgressRoute
   '/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
-  '/import/$importId': typeof AuthenticatedImportImportIdRoute
+  '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -441,7 +448,6 @@ export interface FileRoutesByTo {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/import': typeof AuthenticatedImportIndexRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -449,9 +455,11 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/properties/import-google': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -480,8 +488,8 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
-  '/_authenticated/import/$importId': typeof AuthenticatedImportImportIdRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
+  '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -495,7 +503,6 @@ export interface FileRoutesById {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
-  '/_authenticated/import/': typeof AuthenticatedImportIndexRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -504,9 +511,11 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
+  '/_authenticated/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
@@ -536,8 +545,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/team'
     | '/p/$token'
-    | '/import/$importId'
     | '/properties/$propertyId'
+    | '/settings/ai'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -551,7 +560,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/import/'
     | '/inbox/'
     | '/properties/'
     | '/settings/'
@@ -560,9 +568,11 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
+    | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId/'
+    | '/properties/import-google/'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
@@ -589,7 +599,7 @@ export interface FileRouteTypes {
     | '/progress'
     | '/team'
     | '/p/$token'
-    | '/import/$importId'
+    | '/settings/ai'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -603,7 +613,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/import'
     | '/inbox'
     | '/properties'
     | '/settings'
@@ -611,9 +620,11 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
+    | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
     | '/properties/$propertyId'
+    | '/properties/import-google'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
@@ -641,8 +652,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/team'
     | '/p/$token'
-    | '/_authenticated/import/$importId'
     | '/_authenticated/properties/$propertyId'
+    | '/_authenticated/settings/ai'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/notifications'
@@ -656,7 +667,6 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
-    | '/_authenticated/import/'
     | '/_authenticated/inbox/'
     | '/_authenticated/properties/'
     | '/_authenticated/settings/'
@@ -665,9 +675,11 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/metrics'
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
+    | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
     | '/_authenticated/properties/$propertyId/'
+    | '/_authenticated/properties/import-google/'
     | '/_authenticated/properties/$propertyId/goals/$goalId'
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
@@ -837,13 +849,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/import/': {
-      id: '/_authenticated/import/'
-      path: '/import'
-      fullPath: '/import/'
-      preLoaderRoute: typeof AuthenticatedImportIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/api/health/started': {
       id: '/api/health/started'
       path: '/api/health/started'
@@ -935,6 +940,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIntegrationsRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
+    '/_authenticated/settings/ai': {
+      id: '/_authenticated/settings/ai'
+      path: '/ai'
+      fullPath: '/settings/ai'
+      preLoaderRoute: typeof AuthenticatedSettingsAiRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
     '/_authenticated/properties/$propertyId': {
       id: '/_authenticated/properties/$propertyId'
       path: '/properties/$propertyId'
@@ -942,11 +954,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/import/$importId': {
-      id: '/_authenticated/import/$importId'
-      path: '/import/$importId'
-      fullPath: '/import/$importId'
-      preLoaderRoute: typeof AuthenticatedImportImportIdRouteImport
+    '/_authenticated/properties/import-google/': {
+      id: '/_authenticated/properties/import-google/'
+      path: '/properties/import-google'
+      fullPath: '/properties/import-google/'
+      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/$propertyId/': {
@@ -969,6 +981,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/properties/import-google/$importId': {
+      id: '/_authenticated/properties/import-google/$importId'
+      path: '/properties/import-google/$importId'
+      fullPath: '/properties/import-google/$importId'
+      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleImportIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/$propertyId/reviews': {
       id: '/_authenticated/properties/$propertyId/reviews'
@@ -1079,6 +1098,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedSettingsRouteChildren {
+  AuthenticatedSettingsAiRoute: typeof AuthenticatedSettingsAiRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
@@ -1091,6 +1111,7 @@ interface AuthenticatedSettingsRouteChildren {
 }
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
+  AuthenticatedSettingsAiRoute: AuthenticatedSettingsAiRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
@@ -1198,11 +1219,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
-  AuthenticatedImportImportIdRoute: typeof AuthenticatedImportImportIdRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
-  AuthenticatedImportIndexRoute: typeof AuthenticatedImportIndexRoute
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
   AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
+  AuthenticatedPropertiesImportGoogleImportIdRoute: typeof AuthenticatedPropertiesImportGoogleImportIdRoute
+  AuthenticatedPropertiesImportGoogleIndexRoute: typeof AuthenticatedPropertiesImportGoogleIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1212,12 +1233,14 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
-  AuthenticatedImportImportIdRoute: AuthenticatedImportImportIdRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
-  AuthenticatedImportIndexRoute: AuthenticatedImportIndexRoute,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,
   AuthenticatedPropertiesIndexRoute: AuthenticatedPropertiesIndexRoute,
+  AuthenticatedPropertiesImportGoogleImportIdRoute:
+    AuthenticatedPropertiesImportGoogleImportIdRoute,
+  AuthenticatedPropertiesImportGoogleIndexRoute:
+    AuthenticatedPropertiesImportGoogleIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

@@ -15,7 +15,15 @@ export type ReviewCommandStore = Readonly<{
    */
   upsertAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
-    event: DomainEvent,
+    event: DomainEvent | ((persisted: Review) => DomainEvent),
+    now?: Date,
+  ): Promise<Review>
+  /**
+   * At the database expiry equality boundary, atomically emit the old source
+   * expiry and recreate the same internal Review UUID as a fresh revision.
+   */
+  reobserveExpiredAndRecord(
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
   ): Promise<Review>
 }>

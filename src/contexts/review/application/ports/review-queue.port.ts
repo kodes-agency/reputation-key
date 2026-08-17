@@ -13,6 +13,10 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
     organizationId: string
     connectionId: string
     locationName: string
+    /** Present only on snapshot continuations; initial jobs resolve it fresh. */
+    sourceEpoch?: number
+    /** Content-free active snapshot run identity. */
+    runId?: string
     /**
      * BQC-4.2: content-free routing envelope stamped at enqueue. Telemetry
      * only — the worker re-resolves routing at dispatch; a payload region is

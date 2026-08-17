@@ -31,6 +31,14 @@ import type { Permission } from '#/shared/domain/permissions'
 const ORG = 'org-policy'
 const USER = 'user-policy'
 const PROP = 'd4000000-0000-4000-8000-000000000001'
+const CONSENT_FENCE = {
+  authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
+  capabilityEpoch: 7,
+  authorizedSourceEpoch: 3,
+  stateVersion: 5,
+  noticeDigest: 'a'.repeat(64),
+  runtimeProfileVersion: 'review-analysis-runtime-v1',
+} as const
 
 function ctx(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
@@ -195,19 +203,42 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.reason).toBe('policy_unavailable')
   })
 
-  it('purpose required: consent active → allow; missing → consent_required', async () => {
-    const withConsent = createExecutionPolicy(
-      deps({ hasActiveConsent: async () => true }),
-    )
-    const allow = await withConsent.decide(request({ purpose: 'ai.analyze' }))
+  it('explicit consent selector: active → allow; missing → consent_required', async () => {
+    const consent = {
+      subjectType: 'property' as const,
+      subjectId: PROP,
+      purpose: 'ai.analyze',
+      expectedFence: CONSENT_FENCE,
+    }
+    const hasActiveConsent = vi.fn(async () => true)
+    const withConsent = createExecutionPolicy(deps({ hasActiveConsent }))
+    const allow = await withConsent.decide(request({ propertyId: PROP, consent }))
     expect(allow.allowed).toBe(true)
+    expect(hasActiveConsent).toHaveBeenCalledWith({
+      organizationId: ORG,
+      ...consent,
+      at: new Date('2026-07-17T12:00:00Z'),
+    })
 
     const withoutConsent = createExecutionPolicy(
       deps({ hasActiveConsent: async () => false }),
     )
-    const deny = await withoutConsent.decide(request({ purpose: 'ai.analyze' }))
+    const deny = await withoutConsent.decide(request({ consent }))
     expect(deny.allowed).toBe(false)
     expect(deny.reason).toBe('consent_required')
+
+    const malformedReader = vi.fn(async () => true)
+    const malformed = await createExecutionPolicy(
+      deps({ hasActiveConsent: malformedReader }),
+    ).decide(
+      request({
+        propertyId: PROP,
+        consent: { ...consent, subjectType: 'organization', subjectId: ORG },
+      }),
+    )
+    expect(malformed.allowed).toBe(false)
+    expect(malformed.reason).toBe('consent_required')
+    expect(malformedReader).not.toHaveBeenCalled()
   })
 
   it('public principal: global capability on → allow, off → deny', async () => {
@@ -451,15 +482,21 @@ describe('operator principal (BQC-7.5)', () => {
     expect(writeDecisionAudit.mock.calls[0][0].reason).toBe('operator_not_registered')
   })
 
-  it('purpose declared: consent active → allow; no consent reader → consent_required', async () => {
+  it('explicit consent declared: active → allow; no reader → consent_required', async () => {
+    const consent = {
+      subjectType: 'property' as const,
+      subjectId: PROP,
+      purpose: 'ai.analyze',
+      expectedFence: CONSENT_FENCE,
+    }
     const withConsent = createExecutionPolicy(
       deps({ isRegisteredOperator: () => true, hasActiveConsent: async () => true }),
     )
-    const allow = await withConsent.decide(operatorRequest({ purpose: 'ai.analyze' }))
+    const allow = await withConsent.decide(operatorRequest({ propertyId: PROP, consent }))
     expect(allow.allowed).toBe(true)
 
     const without = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
-    const deny = await without.decide(operatorRequest({ purpose: 'ai.analyze' }))
+    const deny = await without.decide(operatorRequest({ propertyId: PROP, consent }))
     expect(deny.allowed).toBe(false)
     expect(deny.reason).toBe('consent_required')
   })

@@ -207,7 +207,8 @@ export const startPropertyImportV2 = createServerFn({ method: 'POST' })
           capability: 'property.import_gbp_v2',
         })
         try {
-          return await requireGoogleImportTransaction().start(data, ctx)
+          const result = await requireGoogleImportTransaction().start(data, ctx)
+          return { ...result, requestId: data.requestId }
         } catch (error) {
           return translateTransactionError(error)
         }
@@ -230,7 +231,11 @@ export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
           capability: 'property.import_gbp_v2',
         })
         try {
-          return await requireGoogleImportTransaction().recover(data.requestId, ctx)
+          const result = await requireGoogleImportTransaction().recover(
+            data.requestId,
+            ctx,
+          )
+          return { ...result, requestId: data.requestId }
         } catch (error) {
           return translateTransactionError(error)
         }

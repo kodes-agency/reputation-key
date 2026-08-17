@@ -72,6 +72,10 @@ export type GoogleConnectionRepository = Readonly<{
   updateTokens: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
+    expected: Readonly<{
+      lifecycleVersion: number
+      credentialGeneration: number
+    }>,
     encryptedAccessToken: string,
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
@@ -87,10 +91,12 @@ export type GoogleConnectionRepository = Readonly<{
   updateReconnection: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
+    googleSubject: string,
     encryptedAccessToken: string,
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
     visibility: GoogleConnectionVisibility,
+    scopes: ReadonlyArray<string>,
   ) => Promise<void>
   delete: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
 }>

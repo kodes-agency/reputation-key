@@ -108,7 +108,7 @@ export type EventFamilyRow = Readonly<{
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7'
+  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PR3'
   notes?: string
 }>
 
@@ -337,6 +337,24 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       repairCommand: 'reconcileReplyPublication',
       notes:
         'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; durable dispatch disabled (BQR-0 containment)',
+    },
+  ),
+  ev(
+    'review.source_transitioned',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.connect_gbp',
+      action: 'system:review.sync',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      ownerSlice: 'PR3',
+      notes:
+        'identifier-only source_expired/provider_deleted transition with the exact source epoch, revision, and analysis sequence; PR3 consumes it into the AI control plane',
     },
   ),
   ev(
@@ -752,6 +770,24 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
         'atomic command-store outbox write (BQC-3.5); schema gained memberUserId in place at v1 (target id was silently stripped; never recorded — zero historical rows)',
     },
   ),
+  ev(
+    'identity.merchant_ai.changed',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'ai.analyze',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      ownerSlice: 'PR3',
+      notes:
+        'identifier-only Merchant AI authorization lineage/epoch transition; PR3 consumes it into the AI control plane',
+    },
+  ),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -764,12 +800,12 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('review.event-handlers', REVIEW_HANDLERS)],
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
       disposition: 'enabled',
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); all producers (create-property, GBP import via propertyApi.importProperty, and the integration import job through the same api) route through the store — the plain-bus integration property-event adapter was removed; consumer enqueues initial GBP sync',
+        'atomic command-store outbox write (BQC-3.5); activity records the creation fact while v2 import effects enqueue initial review sync only after receipt-backed Property reconciliation',
     },
   ),
   ev(
@@ -1235,23 +1271,6 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
-    'integration.property_import.completed',
-    INTEGRATION_EVENTS,
-    {
-      stateOwner: 'integration',
-      capability: 'integration.use',
-      action: 'system:property.import',
-      schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-      disposition: 'enabled',
-    },
-    {
-      notes:
-        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer (content-free counts)',
-    },
-  ),
-  ev(
     'integration.property_import.retention_released',
     INTEGRATION_EVENTS,
     {
@@ -1429,6 +1448,38 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'GBP review sync; in-handler gate; enqueued manual/cron/webhook/sweep; paged GBP fetch warrants 5m',
+    },
+  ),
+  job(
+    'expire-review-provider-source',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.purge',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row raw-source expiry continuation; initial activation is owned by the later lifecycle release automation',
+    },
+  ),
+  job(
+    'sweep-review-provider-tombstones',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.purge',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row provider-correlation tombstone continuation; initial activation is owned by the later lifecycle release automation',
     },
   ),
   job(

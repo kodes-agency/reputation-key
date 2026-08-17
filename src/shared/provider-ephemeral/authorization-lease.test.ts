@@ -10,21 +10,33 @@ const NOW = 1_800_000_000_000
 const VECTOR = 'a'.repeat(64)
 const PRINCIPAL = 'p'.repeat(43)
 const NONCE = 'n'.repeat(43)
+const KEYRING = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
+const STORE_KEY = KEYRING.sign('provider-authorization-lease-handle-v1', NONCE).digest
 const ORG_ID = 'org-1'
+const USER_ID = 'user-1'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
 const APPROVAL_ID = '00000000-0000-4000-8000-000000000003'
 
 function setup(
-  revalidate = vi.fn(async (_record: ProviderAuthorizationLeaseRecord) => ({
-    allowed: true,
-    approvalBindingId: APPROVAL_ID,
-  })),
+  revalidate = vi.fn(
+    async (
+      _record: ProviderAuthorizationLeaseRecord,
+    ): Promise<{
+      allowed: boolean
+      approvalBindingId: string | null
+      authorizationVectorSha256: string | null
+    }> => ({
+      allowed: true,
+      approvalBindingId: APPROVAL_ID,
+      authorizationVectorSha256: VECTOR,
+    }),
+  ),
 ) {
   const store = createInMemoryProviderEphemeralStore(() => NOW)
   const service = createProviderAuthorizationLeaseService({
     store,
-    handleKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
+    handleKeys: KEYRING,
     randomNonce: () => NONCE,
     revalidate,
   })
@@ -33,6 +45,7 @@ function setup(
       audience: 'performance',
       capability: 'property.read_gbp_performance',
       organizationId: ORG_ID,
+      initiatorUserId: USER_ID,
       propertyId: PROPERTY_ID,
       connectionId: CONNECTION_ID,
       approvalBindingId: APPROVAL_ID,
@@ -74,7 +87,7 @@ describe('provider authorization leases', () => {
     expect(JSON.stringify(result)).not.toContain(CONNECTION_ID)
   })
 
-  it('revalidates the exact authorization vector before renewal', async () => {
+  it('revalidates the exact actor and authorization vector before issue and renewal', async () => {
     const { issue, renew, revalidate } = setup()
     const issued = await issue()
     if (!issued.ok) throw new Error('expected lease')
@@ -82,12 +95,28 @@ describe('provider authorization leases', () => {
       ok: true,
       lease: { expiresAt: new Date(NOW + 40_000).toISOString() },
     })
-    expect(revalidate).toHaveBeenCalledTimes(1)
+    expect(revalidate).toHaveBeenCalledTimes(2)
     expect(revalidate.mock.calls[0]![0]).toMatchObject({
       organizationId: ORG_ID,
+      initiatorUserId: USER_ID,
       propertyId: PROPERTY_ID,
       authorizationVectorSha256: VECTOR,
     })
+  })
+
+  it('publishes no lease when fresh compound authorization denies issuance', async () => {
+    const revalidate = vi.fn(async () => ({
+      allowed: false,
+      approvalBindingId: null,
+      authorizationVectorSha256: null,
+    }))
+    const { issue, store } = setup(revalidate)
+
+    await expect(issue()).resolves.toEqual({
+      ok: false,
+      code: 'authorization_denied',
+    })
+    expect(await store.read('authorization-lease', STORE_KEY)).toBeUndefined()
   })
 
   it('fails closed and removes a lease when authorization changes', async () => {
@@ -118,7 +147,7 @@ describe('provider authorization leases', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'principal_mismatch' })
     await expect(renew(issued.lease.leaseRef)).resolves.toMatchObject({ ok: true })
-    expect(revalidate).toHaveBeenCalledTimes(1)
+    expect(revalidate).toHaveBeenCalledTimes(2)
   })
 
   it('caps renewal at the immutable absolute content deadline', async () => {

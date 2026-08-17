@@ -7,9 +7,14 @@ type Props = Readonly<{
   getAuthUrl: (opts: {
     data: { visibility: 'private' | 'organization' }
   }) => Promise<{ url: string }>
+  disabled?: boolean
 }>
 
-export function ConnectGoogleButton({ visibility = 'private', getAuthUrl }: Props) {
+export function ConnectGoogleButton({
+  visibility = 'private',
+  getAuthUrl,
+  disabled = false,
+}: Props) {
   const [error, setError] = useState<string | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
 
@@ -27,9 +32,16 @@ export function ConnectGoogleButton({ visibility = 'private', getAuthUrl }: Prop
 
   return (
     <div>
-      <Button onClick={handleClick} disabled={isConnecting} aria-busy={isConnecting}>
+      <Button
+        onClick={handleClick}
+        disabled={disabled || isConnecting}
+        aria-busy={isConnecting}
+      >
         {isConnecting && (
-          <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+          <Loader2
+            className="mr-2 size-4 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
         )}
         Connect Google Account
       </Button>

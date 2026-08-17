@@ -7,6 +7,8 @@ export type PerformanceClearReason =
 
 type ClearPerformance = (reason: PerformanceClearReason) => void
 
+const MAX_TIMEOUT_MS = 2_147_000_000
+
 export function usePageVisibleAndFocused(): boolean {
   const [active, setActive] = useState(false)
 
@@ -56,13 +58,25 @@ function useExpiryDeadline(
 ): void {
   useEffect(() => {
     if (expiresAt === null || clearReason !== null) return
-    const remainingMs = new Date(expiresAt).getTime() - Date.now()
-    if (remainingMs <= 0) {
+    const deadlineMs = Date.parse(expiresAt)
+    if (!Number.isFinite(deadlineMs)) {
       clear(reason)
       return
     }
-    const timeout = window.setTimeout(() => clear(reason), remainingMs)
-    return () => window.clearTimeout(timeout)
+
+    let timeout: number | undefined
+    const schedule = () => {
+      const remainingMs = deadlineMs - Date.now()
+      if (remainingMs <= 0) {
+        clear(reason)
+        return
+      }
+      timeout = window.setTimeout(schedule, Math.min(remainingMs, MAX_TIMEOUT_MS))
+    }
+    schedule()
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout)
+    }
   }, [clear, clearReason, expiresAt, reason])
 }
 

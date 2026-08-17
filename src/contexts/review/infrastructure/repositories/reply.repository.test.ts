@@ -2,6 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createReplyRepository } from './reply.repository'
 import { createReviewRepository } from './review.repository'
@@ -86,7 +87,7 @@ async function seedReview(
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'rpl-ext-001',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
@@ -104,6 +105,11 @@ async function seedReview(
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     ...overrides,
   })
 }

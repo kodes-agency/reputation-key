@@ -602,6 +602,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'allowlist non-core capability; reason required' },
     ),
     sf(
+      'setPropertyCapabilityFn',
+      `${IDENTITY}/policy-admin.ts`,
+      'policy.admin',
+      'identity.invite',
+      'property',
+      { notes: 'allowlist non-core capability for one tenant Property; reason required' },
+    ),
+    sf(
       'setOrgSuspensionFn',
       `${IDENTITY}/policy-admin.ts`,
       'policy.admin',
@@ -650,6 +658,54 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         notes:
           'BQC-4.4: read-only region diagnostic (region/source/policy version/processable/blocked reason/cell/provider ref — content-free); every read writes an operator audit row',
+      },
+    ),
+    // ── Merchant AI authorization (private beta) ──
+    sf(
+      'getMerchantAiAuthorizationFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'shared helper enforces property-scoped ai.manage authorization',
+      },
+    ),
+    sf(
+      'enableMerchantAiFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'changeMerchantAiCapabilitiesFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'revokeMerchantAiFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
       },
     ),
   ],
@@ -748,14 +804,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { externalEffect: true, notes: 'generates Google OAuth consent URL' },
     ),
     sf(
-      'listGbpLocations',
-      `${INTEGRATION}/gbp-import.ts`,
-      'integration.manage',
-      'integration.use',
-      'organization',
-      { externalEffect: true, notes: 'calls Google GBP API; POST used for a read' },
-    ),
-    sf(
       'listImportAccounts',
       `${INTEGRATION}/gbp-import.ts`,
       'integration.manage',
@@ -847,25 +895,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         notes:
           'renews only the bounded volatile Performance authorization lease after a fresh authorization recheck',
       },
-    ),
-    sf(
-      'startPropertyImport',
-      `${INTEGRATION}/gbp-import.ts`,
-      'property.create',
-      'property.create',
-      'organization',
-      {
-        externalEffect: true,
-        notes: 'enqueues GBP import/sync jobs; effect executes in worker',
-      },
-    ),
-    sf(
-      'getImportStatus',
-      `${INTEGRATION}/gbp-import.ts`,
-      'integration.manage',
-      'integration.use',
-      'organization',
-      { notes: 'POST used for a read' },
     ),
   ],
 
@@ -1894,16 +1923,16 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'placeholder page (dark)',
     }),
     ui(
-      '/import',
-      `${AUTHED}/import/index.tsx`,
+      '/properties/import-google',
+      `${AUTHED}/properties/import-google/index.tsx`,
       'integration.manage',
       'integration.use',
       'organization',
       { notes: 'Google OAuth connect + GBP import start' },
     ),
     ui(
-      '/import/$importId',
-      `${AUTHED}/import/$importId.tsx`,
+      '/properties/import-google/$importId',
+      `${AUTHED}/properties/import-google/$importId.tsx`,
       'system:ui.render',
       'integration.use',
       'organization',
@@ -1986,6 +2015,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'badge.use',
       'organization',
       { notes: 'badge admin surface (dark)' },
+    ),
+    ui(
+      '/settings/ai',
+      `${AUTHED}/settings/ai.tsx`,
+      'ai.manage',
+      'property.create',
+      'property',
+      { notes: 'property-scoped Merchant AI authorization and notice' },
     ),
     ui(
       '/settings/integrations',
@@ -2303,6 +2340,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'DB delete + review.expired event; retention evidence rows' },
   ),
   job(
+    'expire-review-provider-source',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'system:review.purge',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded Review raw-source expiry continuation; identifier-only source transition is committed with the row deletion',
+    },
+  ),
+  job(
+    'sweep-review-provider-tombstones',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'system:review.purge',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded expired provider-correlation tombstone continuation after the fixed retention fence',
+    },
+  ),
+  job(
     'publish-reply',
     'src/contexts/review/infrastructure/jobs/publish-reply.job.ts',
     'system:reply.publish',
@@ -2493,7 +2552,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'integration.google_account.connected',
       'integration.google_account.disconnected',
       'integration.google_connection.visibility_changed',
-      'integration.property_import.completed',
+      'property.created',
       'property.updated',
       'property.deleted',
     ],
@@ -2830,6 +2889,150 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
   }),
+  ops(
+    'scripts/check-google-import-artifacts.mjs',
+    'scripts/check-google-import-artifacts.mjs',
+    'none',
+    {
+      notes:
+        'check:google-import-artifacts — fails when browser/build/log artifacts contain protected Google import identifiers or Content',
+    },
+  ),
+  ops(
+    'scripts/check-ai-contract-attestations.ts',
+    'scripts/check-ai-contract-attestations.ts',
+    'none',
+    {
+      notes:
+        'build gate recomputing the exact source/provider-subject ordered-manifest attestations and rejecting drift or local runtime imports',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-egress-gateway-bundle.mjs',
+    'scripts/verify-ai-egress-gateway-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving the gateway bundle alone owns the OpenAI SDK and excludes caller, database, Google, browser, probe, and local-stub paths',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-execution-admission-bundle.mjs',
+    'scripts/verify-ai-execution-admission-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving the admission bundle excludes provider SDKs, gateway dependencies, browsers, queues, and Google clients',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-gateway-runtime-assets.ts',
+    'scripts/verify-ai-gateway-runtime-assets.ts',
+    'none',
+    {
+      notes:
+        'build-time digest and inventory gate for immutable AI gateway runtime assets',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-runtime-image.mjs',
+    'scripts/verify-ai-runtime-image.mjs',
+    'none',
+    {
+      notes:
+        'build-time image-profile gate for the pinned AI runtime, ICU, Unicode, and production dependency inventory',
+    },
+  ),
+  ops(
+    'scripts/check-google-provider-identifiers.mjs',
+    'scripts/check-google-provider-identifiers.mjs',
+    'none',
+    {
+      notes:
+        'static gate rejecting uncatalogued Google provider-resource literals outside the generated fixture targets',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-governance-artifacts.ts',
+    'scripts/generate-ai-governance-artifacts.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the immutable AI governance policy catalogue and evidence artifacts',
+    },
+  ),
+  ops(
+    'scripts/ai-language-attestation.ts',
+    'scripts/ai-language-attestation.ts',
+    'none',
+    {
+      notes:
+        'dependency-neutral build helper for domain-separated, length-prefixed AI language-profile attestations',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-language-script-table.ts',
+    'scripts/generate-ai-language-script-table.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned Unicode script-extension table used by the reply language gate',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-reply-language-profile.ts',
+    'scripts/generate-ai-reply-language-profile.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned reply-language verifier profile and CLD3 attestation',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-review-language-profile.ts',
+    'scripts/generate-ai-review-language-profile.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the immutable Review-language catalogue profile',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-review-language-regions.ts',
+    'scripts/generate-ai-review-language-regions.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the closed supported regional language-tag data',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-zh-orthography-table.ts',
+    'scripts/generate-ai-zh-orthography-table.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned allocation-free Chinese orthography evidence table',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-unicode-case-folding.ts',
+    'scripts/generate-ai-unicode-case-folding.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned Unicode case-fold table consumed by ai-source-v1',
+    },
+  ),
+  ops(
+    'scripts/generate-google-provider-fixtures.ts',
+    'scripts/generate-google-provider-fixtures.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the canonical synthetic Google provider-resource fixture catalogue and test targets',
+    },
+  ),
   ops('scripts/check-changed-code.mjs', 'scripts/check-changed-code.mjs', 'none', {
     notes:
       'check:changed-code — CI gate (BQC-6.9): every added src production file must carry a colocated test (or a registered exemption)',
@@ -2902,10 +3105,23 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
   }),
+  ops('scripts/migrate-drizzle.ts', 'scripts/migrate-drizzle.ts', 'tenant_cross', {
+    notes:
+      'db:migrate — staged local Drizzle runner that commits required enum additions before dependent migrations',
+  }),
   ops('scripts/migrate-deploy.ts', 'scripts/migrate-deploy.ts', 'tenant_cross', {
     notes:
       'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
   }),
+  ops(
+    'scripts/google-import-final-schema-probe.ts',
+    'scripts/google-import-final-schema-probe.ts',
+    'tenant_cross',
+    {
+      notes:
+        'read-only release gate proving the final Google import contract schema after the compatibility migration drill',
+    },
+  ),
   ops(
     'scripts/google-property-binding-index.ts',
     'scripts/google-property-binding-index.ts',
@@ -2931,6 +3147,33 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-import-lifecycle — tenant-scoped import backlog inspection and guarded cancellation',
+    },
+  ),
+  ops(
+    'scripts/local-stack/provision-ai-admission-role.ts',
+    'scripts/local-stack/provision-ai-admission-role.ts',
+    'tenant_cross',
+    {
+      notes:
+        'local acceptance provisioner for the execute-only AI admission PostgreSQL role; rejects owner/superuser/BYPASSRLS and verifies exact grants plus session limits',
+    },
+  ),
+  ops(
+    'scripts/ops/ai-canary-authorization.ts',
+    'scripts/ops/ai-canary-authorization.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:ai-canary — ticketed inspect/issue/revoke lifecycle for one release-bound synthetic canary authorization generation',
+    },
+  ),
+  ops(
+    'scripts/ops/ai-execution-control.ts',
+    'scripts/ops/ai-execution-control.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
     },
   ),
   ops(
@@ -2986,6 +3229,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/add-materialized-views-and-gbp-index.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): db:matviews — 3 materialized views + GBP unique index' },
+  ),
+  ops(
+    'scripts/migrations/google-import-contract.sql',
+    'scripts/migrations/google-import-contract.sql',
+    'tenant_cross',
+    {
+      notes:
+        'DIRECT-DB compatibility contract probe for additive Google import schema and final cutover invariants',
+    },
   ),
   ops(
     'scripts/migrations/verify-existing-emails.sql',
@@ -3063,6 +3315,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'Generates revision-bound loopback configuration and orchestrates the isolated Docker acceptance stack',
   }),
+  ops(
+    'scripts/local-stack/google-import-release-drill.ts',
+    'scripts/local-stack/google-import-release-drill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'Runs the immutable local Google import expand/backfill/contract lifecycle drill against disposable stack databases',
+    },
+  ),
   ops(
     'scripts/local-stack/fault-operation.ts',
     'scripts/local-stack/fault-operation.ts',

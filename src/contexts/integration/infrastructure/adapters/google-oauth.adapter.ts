@@ -87,6 +87,9 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
     return JSON.parse(new TextDecoder().decode(bytes))
   } catch {
     throw integrationError('oauth_failed', 'Google OAuth response was malformed')
+  } finally {
+    bytes.fill(0)
+    for (const chunk of chunks) chunk.fill(0)
   }
 }
 

@@ -13,7 +13,7 @@ import {
   type OrganizationId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import { VALID_TIMEZONES } from '#/shared/domain/timezones'
+import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import {
   isGoogleBindingTupleValid,
   isGoogleResourceSuffix,
@@ -60,7 +60,7 @@ function normalizeConfirmedProfile(profile: {
     name.length < 1 ||
     name.length > 100 ||
     (address !== null && address.length > 500) ||
-    !VALID_TIMEZONES.includes(profile.timezone) ||
+    !isValidIanaTimezone(profile.timezone) ||
     confirmedBy.length < 1 ||
     confirmedBy.length > 255
   ) {

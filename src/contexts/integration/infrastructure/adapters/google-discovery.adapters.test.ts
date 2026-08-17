@@ -1,3 +1,7 @@
+import {
+  GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import { isGbpApiError } from '../../domain/gbp-api-error'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
@@ -6,6 +10,8 @@ import { createGoogleBusinessInformationAdapter } from './google-business-inform
 import { createSingle401RefreshExecutor } from './google-single-401-refresh-executor'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 
+const PRIMARY_ACCOUNT_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-account-primary'].expectedSegments.accountId
 const jsonBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const authorization = Object.freeze({
   capability: 'property.import_gbp_v2' as const,
@@ -14,7 +20,13 @@ const authorization = Object.freeze({
   connectionId: googleConnectionId('22222222-2222-4222-8222-222222222222'),
   initiatorUserId: 'user-1',
   approvalBindingId: '33333333-3333-4333-8333-333333333333',
+  expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({ policyVersion: 1 }),
+})
+const reauthorized = Object.freeze({
+  ...authorization,
+  expectedCredentialGeneration: 4,
+  authorizationVector: Object.freeze({ policyVersion: 2 }),
 })
 
 function executorReturning(value: unknown, status = 200) {
@@ -36,13 +48,13 @@ describe('Google Account Management adapter', () => {
     const executor = executorReturning({
       accounts: [
         {
-          name: 'accounts/account-1',
+          name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
           accountName: 'Acme Group',
           role: 'PRIMARY_OWNER',
           type: 'PERSONAL',
         },
         {
-          name: 'accounts/account-2',
+          name: `${GOOGLE_ACCOUNT_PRIMARY_RESOURCE}-secondary`,
           accountName: 'Second Group',
           role: 'FUTURE_ROLE',
         },
@@ -66,14 +78,14 @@ describe('Google Account Management adapter', () => {
     ).resolves.toEqual({
       items: [
         {
-          resourceName: 'accounts/account-1',
-          accountId: 'account-1',
+          resourceName: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+          accountId: PRIMARY_ACCOUNT_ID,
           displayName: 'Acme Group',
           role: 'primary_owner',
         },
         {
-          resourceName: 'accounts/account-2',
-          accountId: 'account-2',
+          resourceName: `${GOOGLE_ACCOUNT_PRIMARY_RESOURCE}-secondary`,
+          accountId: `${PRIMARY_ACCOUNT_ID}-secondary`,
           displayName: 'Second Group',
           role: 'unknown',
         },
@@ -86,7 +98,7 @@ describe('Google Account Management adapter', () => {
         accessToken: 'access-token',
         pageToken: 'account-page-token',
       },
-      { authorization, deadlineMs: 15_000, signal },
+      { authorization, deadlineMs: 15_000, signal: expect.any(AbortSignal) },
     )
   })
 
@@ -149,11 +161,15 @@ describe('Google Account Management adapter', () => {
         },
         body: jsonBytes({ accounts: [] }),
       })
-    const refreshAccessToken = vi.fn(async () => 'refreshed-access-token')
+    const refreshAccessToken = vi.fn(async () => 'leader-only-token')
+    const getAccessToken = vi.fn(async () => 'refreshed-access-token')
+    const reauthorize = vi.fn(async () => reauthorized)
     const adapter = createGoogleAccountManagementAdapter({
       executor: createSingle401RefreshExecutor({
         executor: { execute },
         refreshAccessToken,
+        getAccessToken,
+        reauthorize,
       }),
       nowMs: () => 1_000,
     })
@@ -165,13 +181,19 @@ describe('Google Account Management adapter', () => {
       }),
     ).resolves.toEqual({ items: [], nextPageToken: null })
     expect(refreshAccessToken).toHaveBeenCalledTimes(1)
+    expect(getAccessToken).toHaveBeenCalledTimes(1)
+    expect(reauthorize).toHaveBeenCalledWith({ authorization })
+    expect(reauthorize.mock.invocationCallOrder[0]).toBeLessThan(
+      getAccessToken.mock.invocationCallOrder[0]!,
+    )
+    expect(getAccessToken).toHaveBeenCalledWith({ authorization: reauthorized })
     expect(execute).toHaveBeenNthCalledWith(
       1,
       {
         routeKey: 'account-management.accounts.list',
         accessToken: 'expired-access-token',
       },
-      { authorization, deadlineMs: 16_000 },
+      { authorization, deadlineMs: 16_000, signal: expect.any(AbortSignal) },
     )
     expect(execute).toHaveBeenNthCalledWith(
       2,
@@ -179,7 +201,11 @@ describe('Google Account Management adapter', () => {
         routeKey: 'account-management.accounts.list',
         accessToken: 'refreshed-access-token',
       },
-      { authorization, deadlineMs: 16_000 },
+      {
+        authorization: reauthorized,
+        deadlineMs: 16_000,
+        signal: expect.any(AbortSignal),
+      },
     )
 
     execute.mockClear()
@@ -202,6 +228,214 @@ describe('Google Account Management adapter', () => {
       (error: unknown) => isGbpApiError(error) && error.kind === 'auth_failed',
     )
     expect(execute).toHaveBeenCalledTimes(2)
+  })
+
+  it('shares one refresh leader per connection while every caller reacquires execution', async () => {
+    let releaseRefresh: ((value: string) => void) | undefined
+    const refreshAccessToken = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseRefresh = resolve
+        }),
+    )
+    const getAccessToken = vi.fn(async () => 'shared-access-token')
+    const reauthorize = vi.fn(async () => reauthorized)
+    const firstBodies = [
+      jsonBytes({ error: 'expired-1' }),
+      jsonBytes({ error: 'expired-2' }),
+    ]
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(
+      async (descriptor) => {
+        if (
+          !('accessToken' in descriptor) ||
+          descriptor.accessToken !== 'shared-access-token'
+        ) {
+          return {
+            ok: true,
+            status: 401,
+            headers: {
+              contentType: 'application/json',
+              cacheControl: 'private',
+              retryAfter: null,
+            },
+            body: firstBodies.shift()!,
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: {
+            contentType: 'application/json',
+            cacheControl: 'private',
+            retryAfter: null,
+          },
+          body: jsonBytes({ accounts: [] }),
+        }
+      },
+    )
+    const adapter = createGoogleAccountManagementAdapter({
+      executor: createSingle401RefreshExecutor({
+        executor: { execute },
+        refreshAccessToken,
+        getAccessToken,
+        reauthorize,
+      }),
+      nowMs: () => 1_000,
+    })
+
+    const first = adapter.listAccounts({
+      accessToken: 'expired-access-token-1',
+      authorization,
+    })
+    const second = adapter.listAccounts({
+      accessToken: 'expired-access-token-2',
+      authorization,
+    })
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledTimes(1))
+    releaseRefresh?.('leader-only-token')
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { items: [], nextPageToken: null },
+      { items: [], nextPageToken: null },
+    ])
+    expect(execute).toHaveBeenCalledTimes(4)
+    expect(
+      execute.mock.calls
+        .slice(2)
+        .map(([descriptor]) =>
+          'accessToken' in descriptor ? descriptor.accessToken : null,
+        ),
+    ).toEqual(['shared-access-token', 'shared-access-token'])
+    expect(getAccessToken).toHaveBeenCalledTimes(2)
+    expect(reauthorize).toHaveBeenCalledTimes(2)
+    expect(
+      execute.mock.calls.slice(2).map(([, options]) => options.authorization),
+    ).toEqual([reauthorized, reauthorized])
+  })
+
+  it('stops an aborted caller waiting on shared refresh without retrying', async () => {
+    const expiredBody = jsonBytes({ error: 'expired' })
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(async () => ({
+      ok: true,
+      status: 401,
+      headers: {
+        contentType: 'application/json',
+        cacheControl: 'private',
+        retryAfter: null,
+      },
+      body: expiredBody,
+    }))
+    let releaseRefresh: (() => void) | undefined
+    const refreshAccessToken = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseRefresh = resolve
+        }),
+    )
+    const getAccessToken = vi.fn(async () => 'unused-access-token')
+    const reauthorize = vi.fn(async () => reauthorized)
+    const adapter = createGoogleAccountManagementAdapter({
+      executor: createSingle401RefreshExecutor({
+        executor: { execute },
+        refreshAccessToken,
+        getAccessToken,
+        reauthorize,
+      }),
+      nowMs: () => 1_000,
+    })
+    const controller = new AbortController()
+
+    const request = adapter.listAccounts({
+      accessToken: 'expired-access-token',
+      authorization,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledOnce())
+    controller.abort(new DOMException('caller aborted', 'AbortError'))
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+    expect(expiredBody.every((byte) => byte === 0)).toBe(true)
+    releaseRefresh?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(execute).toHaveBeenCalledOnce()
+    expect(getAccessToken).not.toHaveBeenCalled()
+    expect(reauthorize).not.toHaveBeenCalled()
+  })
+
+  it('returns on caller cancellation and overwrites a late provider body', async () => {
+    let resolveExecution:
+      | ((
+          value: Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>,
+        ) => void)
+      | undefined
+    const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(
+      () =>
+        new Promise((resolve) => {
+          resolveExecution = resolve
+        }),
+    )
+    const controller = new AbortController()
+    const adapter = createGoogleAccountManagementAdapter({
+      executor: { execute },
+      nowMs: () => 1_000,
+    })
+
+    const request = adapter.listAccounts({
+      accessToken: 'access-token',
+      authorization,
+      signal: controller.signal,
+    })
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce())
+    controller.abort(new DOMException('cancelled', 'AbortError'))
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+
+    const lateBody = jsonBytes({
+      accounts: [{ name: `${GOOGLE_ACCOUNT_PRIMARY_RESOURCE}-late` }],
+    })
+    resolveExecution?.({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json',
+        cacheControl: 'private',
+        retryAfter: null,
+      },
+      body: lateBody,
+    })
+    await vi.waitFor(() =>
+      expect([...lateBody]).toEqual(new Array(lateBody.length).fill(0)),
+    )
+  })
+
+  it('aborts an unresolved provider execution at the 15-second deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      let observedSignal: AbortSignal | undefined
+      const execute = vi.fn<GoogleAuthorizedProviderExecutor['execute']>(
+        (_descriptor, options) => {
+          observedSignal = options.signal
+          return new Promise(() => undefined)
+        },
+      )
+      const adapter = createGoogleAccountManagementAdapter({
+        executor: { execute },
+        nowMs: () => 1_000,
+      })
+      const result = adapter.listAccounts({
+        accessToken: 'access-token',
+        authorization,
+      })
+      const rejection = expect(result).rejects.toSatisfy(
+        (error: unknown) => isGbpApiError(error) && error.kind === 'upstream_error',
+      )
+
+      await vi.advanceTimersByTimeAsync(15_000)
+
+      await rejection
+      expect(observedSignal?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -261,7 +495,7 @@ describe('Google Business Information adapter', () => {
         accountId: 'account-1',
         pageToken: 'location-page-token',
       },
-      { authorization, deadlineMs: 15_000, signal },
+      { authorization, deadlineMs: 15_000, signal: expect.any(AbortSignal) },
     )
   })
 

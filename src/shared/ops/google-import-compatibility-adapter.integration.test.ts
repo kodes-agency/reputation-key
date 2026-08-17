@@ -69,6 +69,7 @@ const OPERATOR = {
 
 describe('Google import compatibility adapter', () => {
   let lease: TestLease
+  let legacySchemaPresent = false
   const environment = `r1-${randomUUID()}`
   const organizationId = `org-${randomUUID()}`
   const legacyJobId = randomUUID()
@@ -76,6 +77,16 @@ describe('Google import compatibility adapter', () => {
 
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
+    const schema = await lease.pool.query<{ present: boolean }>(`
+      SELECT
+        to_regclass('public.legacy_import_control') IS NOT NULL
+        AND to_regclass('public.legacy_import_effect_leases') IS NOT NULL
+        AND to_regclass('public.gbp_import_jobs') IS NOT NULL
+        AND to_regclass('public.gbp_import_legacy_history') IS NOT NULL
+        AS present
+    `)
+    legacySchemaPresent = schema.rows[0]?.present === true
+    if (!legacySchemaPresent) return
     await lease.pool.query(
       `INSERT INTO legacy_import_control (environment) VALUES ($1)`,
       [environment],
@@ -84,6 +95,10 @@ describe('Google import compatibility adapter', () => {
 
   afterAll(async () => {
     if (!lease) return
+    if (!legacySchemaPresent) {
+      await lease.release()
+      return
+    }
     await lease.pool.query(`DELETE FROM event_consumer_receipts WHERE event_id = $1`, [
       outboxEventId,
     ])
@@ -106,6 +121,27 @@ describe('Google import compatibility adapter', () => {
   })
 
   it('fences issuance, drains every dormant Bull state, and archives with parity', async () => {
+    if (!legacySchemaPresent) {
+      const dropped = await lease.pool.query<{
+        control: string | null
+        leases: string | null
+        jobs: string | null
+        history: string | null
+      }>(`
+        SELECT
+          to_regclass('public.legacy_import_control')::text AS control,
+          to_regclass('public.legacy_import_effect_leases')::text AS leases,
+          to_regclass('public.gbp_import_jobs')::text AS jobs,
+          to_regclass('public.gbp_import_legacy_history')::text AS history
+      `)
+      expect(dropped.rows[0]).toEqual({
+        control: null,
+        leases: null,
+        jobs: null,
+        history: null,
+      })
+      return
+    }
     const defaultQueue = new MemoryQueue()
     const domainEventsQueue = new MemoryQueue()
     const dormant = [

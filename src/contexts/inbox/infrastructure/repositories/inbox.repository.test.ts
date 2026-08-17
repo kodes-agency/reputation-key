@@ -120,8 +120,17 @@ async function seedProperties(pool: Pool) {
 
 async function seedReviews(pool: Pool) {
   await pool.query(
-    `INSERT INTO reviews (id, organization_id, property_id, external_id, external_location_id, platform, rating, text, reviewer_name, reviewed_at, expires_at, created_at, updated_at)
-     VALUES ($1, $2, $3, 'ext-rev-001', 'ext-loc-001', 'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year', NOW(), NOW())
+    `INSERT INTO reviews (
+       id, organization_id, property_id, external_id, external_location_id,
+       platform, rating, text, reviewer_name, reviewed_at, expires_at,
+       source_epoch, source_revision, analysis_sequence,
+       ai_source_byte_length, ai_source_digest, created_at, updated_at
+     )
+     VALUES (
+       $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
+       'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
+       0, 0, 0, 1, repeat('0', 64), NOW(), NOW()
+     )
      ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
     [REVIEW_ID_A, ORG_A as string, PROP_A as string],
   )

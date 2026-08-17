@@ -13,6 +13,14 @@ x-app-environment: &app-environment
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY}
   OAUTH_STATE_SECRET: ${OAUTH_STATE_SECRET}
+  PROVIDER_EPHEMERAL_REDIS_URL: rediss://repkey:${PROVIDER_EPHEMERAL_REDIS_PASSWORD}@provider-redis-ingress:6379
+  GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS: ${GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS}
+  GOOGLE_REPLAY_HMAC_KEYS: ${GOOGLE_REPLAY_HMAC_KEYS}
+  GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS: ${GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS}
+  GOOGLE_SESSION_BINDING_HMAC_KEYS: ${GOOGLE_SESSION_BINDING_HMAC_KEYS}
+  GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON: ${GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON}
+  GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON: ${GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON}
+  NODE_EXTRA_CA_CERTS: /run/repkey/provider-ca.crt
   GUEST_SESSION_SALT: ${GUEST_SESSION_SALT}
   GUEST_CONTACT_ENCRYPTION_KEY: ${GUEST_CONTACT_ENCRYPTION_KEY}
   GUEST_ABUSE_HASH_SECRET: ${GUEST_ABUSE_HASH_SECRET}
@@ -30,7 +38,7 @@ x-app-environment: &app-environment
   S3_FORCE_PATH_STYLE: 'true'
   GOOGLE_PROVIDER_ENDPOINT_PROFILE: local-sandbox
   GBP_ACCOUNT_MANAGEMENT_BASE_URL: http://provider-sandbox:4100
-  GBP_API_BASE_URL: http://provider-sandbox:4100
+  GBP_API_BASE_URL: https://provider-sandbox:4100
   GBP_PERFORMANCE_BASE_URL: http://provider-sandbox:4100
   GBP_REVIEWS_API_BASE_URL: http://provider-sandbox:4100
   GBP_NOTIFICATIONS_API_BASE_URL: http://provider-sandbox:4100
@@ -44,6 +52,8 @@ x-app-runtime: &app-runtime
   read_only: true
   tmpfs:
     - /tmp:rw,noexec,nosuid,size=64m
+  volumes:
+    - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
   security_opt:
     - no-new-privileges:true
   cap_drop:
@@ -51,6 +61,8 @@ x-app-runtime: &app-runtime
   restart: 'no'
   networks:
     - app
+    - provider-ephemeral
+    - egress-control
 
 x-web-image: &web-image
   image: repkey-local-web:${SOURCE_REVISION}
@@ -61,15 +73,43 @@ x-web-image: &web-image
       SOURCE_REVISION: ${SOURCE_REVISION}
 
 services:
+  postgres-tls-init:
+    profiles: [backend]
+    image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+    user: '0:0'
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - >-
+        install -d -m 0700 -o postgres -g postgres /run/repkey/postgres-tls &&
+        install -m 0644 -o postgres -g postgres /source/control-db-server.crt /run/repkey/postgres-tls/server.crt &&
+        install -m 0600 -o postgres -g postgres /source/control-db-server.key /run/repkey/postgres-tls/server.key
+    volumes:
+      - ${STACK_E2E_DIR}/ai-runtime:/source:ro
+      - postgres-tls:/run/repkey/postgres-tls
+    security_opt:
+      - no-new-privileges:true
+    restart: 'no'
+
   postgres:
     profiles: [backend]
     image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/run/repkey/postgres-tls/server.crt
+      - -c
+      - ssl_key_file=/run/repkey/postgres-tls/server.key
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - '127.0.0.1:${POSTGRES_HOST_PORT}:5432'
+    depends_on:
+      postgres-tls-init:
+        condition: service_completed_successfully
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 2s
@@ -77,10 +117,13 @@ services:
       retries: 30
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - postgres-tls:/run/repkey/postgres-tls:ro
     security_opt:
       - no-new-privileges:true
     networks:
-      - app
+      app:
+      admission-data:
+        aliases: [ai-control-postgres]
 
   redis:
     profiles: [backend]
@@ -99,6 +142,74 @@ services:
       - no-new-privileges:true
     networks:
       - app
+      - google-admission-redis
+
+  provider-redis:
+    profiles: [backend]
+    image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b
+    user: '999:999'
+    command: [redis-server, /run/repkey/provider-redis.conf]
+    environment:
+      PROVIDER_EPHEMERAL_REDIS_PASSWORD: ${PROVIDER_EPHEMERAL_REDIS_PASSWORD}
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'redis-cli --tls --cacert /run/repkey/ca.crt --user repkey --pass "$$PROVIDER_EPHEMERAL_REDIS_PASSWORD" ping | grep -qx PONG',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-redis.crt:/run/repkey/provider-redis.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-redis.key:/run/repkey/provider-redis.key:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-redis.acl:/run/repkey/provider-redis.acl:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-redis.conf:/run/repkey/provider-redis.conf:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - provider-redis-data
+
+  provider-redis-ingress:
+    profiles: [backend]
+    image: repkey-local-google-egress-gateway:${SOURCE_REVISION}
+    command: [node, dist-google-egress-gateway/tcp-relay.js]
+    environment:
+      HOST: 0.0.0.0
+      PORT: '6379'
+      HEALTH_PORT: '8080'
+      TARGET_HOST: provider-redis
+      TARGET_PORT: '6379'
+      RELEASE_SHA: ${SOURCE_REVISION}
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:8080').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      provider-redis:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - provider-ephemeral
+      - provider-redis-data
 
   object-store:
     profiles: [backend]
@@ -151,18 +262,131 @@ services:
     networks:
       - app
 
-  provider-sandbox:
+  google-execution-admission:
     profiles: [backend]
-    image: repkey-local-provider:${SOURCE_REVISION}
+    image: repkey-local-google-execution-admission:${SOURCE_REVISION}
     build:
       context: .
-      dockerfile: Dockerfile.sandbox
+      dockerfile: Dockerfile.google-execution-admission
       args:
         SOURCE_REVISION: ${SOURCE_REVISION}
     environment:
-      BQC_STUB_KIND: gbp
+      RELEASE_SHA: ${SOURCE_REVISION}
+      PORT: '8443'
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      GOOGLE_EGRESS_GATEWAY_IDENTITY: google-egress-gateway-1
+      GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
+      GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/ca.crt
+      GOOGLE_INTERNAL_MTLS_CERT_PATH: /run/repkey/google-execution-admission.crt
+      GOOGLE_INTERNAL_MTLS_KEY_PATH: /run/repkey/google-execution-admission.key
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const h=require('node:https'),f=require('node:fs');const r=h.get({host:'127.0.0.1',port:8443,path:'/health/ready',ca:f.readFileSync('/run/repkey/ca.crt'),cert:f.readFileSync('/run/repkey/google-healthcheck.crt'),key:f.readFileSync('/run/repkey/google-healthcheck.key'),servername:'google-execution-admission',minVersion:'TLSv1.3'},x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-execution-admission.crt:/run/repkey/google-execution-admission.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-execution-admission.key:/run/repkey/google-execution-admission.key:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-healthcheck.crt:/run/repkey/google-healthcheck.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-healthcheck.key:/run/repkey/google-healthcheck.key:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - admission-control
+      - admission-data
+      - google-admission-redis
+
+  google-egress-gateway:
+    profiles: [backend]
+    image: repkey-local-google-egress-gateway:${SOURCE_REVISION}
+    build:
+      context: .
+      dockerfile: Dockerfile.google-egress-gateway
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION}
+    environment:
+      RELEASE_SHA: ${SOURCE_REVISION}
+      PORT: '8443'
+      GOOGLE_EGRESS_GATEWAY_IDENTITY: google-egress-gateway-1
+      GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES: repkey-web-e2e,repkey-worker-e2e
+      GOOGLE_EXECUTION_ADMISSION_ORIGIN: https://google-execution-admission:8443
+      GOOGLE_EXECUTION_ADMISSION_SERVER_NAME: google-execution-admission
+      GOOGLE_PROVIDER_ROUTE_PROFILE: local_sandbox
+      GOOGLE_PROVIDER_SIMULATOR_ORIGIN: https://provider-sandbox:4100
+      GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
+      GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}
+      GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/ca.crt
+      GOOGLE_INTERNAL_MTLS_CERT_PATH: /run/repkey/google-egress-gateway.crt
+      GOOGLE_INTERNAL_MTLS_KEY_PATH: /run/repkey/google-egress-gateway.key
+      NODE_EXTRA_CA_CERTS: /run/repkey/ca.crt
+    ports:
+      - '127.0.0.1:${GOOGLE_EGRESS_GATEWAY_HOST_PORT}:8443'
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const h=require('node:https'),f=require('node:fs');const r=h.get({host:'127.0.0.1',port:8443,path:'/health/ready',ca:f.readFileSync('/run/repkey/ca.crt'),cert:f.readFileSync('/run/repkey/google-healthcheck.crt'),key:f.readFileSync('/run/repkey/google-healthcheck.key'),servername:'google-egress-gateway',minVersion:'TLSv1.3'},x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-egress-gateway.crt:/run/repkey/google-egress-gateway.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-egress-gateway.key:/run/repkey/google-egress-gateway.key:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-healthcheck.crt:/run/repkey/google-healthcheck.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-healthcheck.key:/run/repkey/google-healthcheck.key:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    depends_on:
+      google-execution-admission:
+        condition: service_healthy
+      provider-sandbox:
+        condition: service_healthy
+    networks:
+      - egress-control
+      - admission-control
+      - provider-egress
+
+  provider-control-proxy:
+    profiles: [backend]
+    image: repkey-local-google-egress-gateway:${SOURCE_REVISION}
+    command: [node, dist-google-egress-gateway/control-proxy.js]
+    environment:
+      HOST: 0.0.0.0
       PORT: '4100'
-      BQC_STUB_HOST: 0.0.0.0
+      PROVIDER_CONTROL_TARGET: https://provider-sandbox:4100
+      RELEASE_SHA: ${SOURCE_REVISION}
+      NODE_EXTRA_CA_CERTS: /run/repkey/ca.crt
     ports:
       - 127.0.0.1:4100:4100
     healthcheck:
@@ -176,6 +400,69 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+    depends_on:
+      provider-sandbox:
+        condition: service_healthy
+    networks:
+      - provider-control
+      - provider-egress
+    <<: *app-runtime
+  provider-sandbox:
+    profiles: [backend]
+    image: repkey-local-provider:${SOURCE_REVISION}
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION}
+    environment:
+      BQC_STUB_KIND: gbp
+      PORT: '4100'
+      BQC_STUB_HOST: 0.0.0.0
+      BQC_STUB_TLS_CERT_PATH: /run/repkey/provider-sandbox.crt
+      BQC_STUB_TLS_KEY_PATH: /run/repkey/provider-sandbox.key
+      NODE_EXTRA_CA_CERTS: /run/repkey/ca.crt
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('https://provider-sandbox:4100/__control/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-sandbox.crt:/run/repkey/provider-sandbox.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/provider-sandbox.key:/run/repkey/provider-sandbox.key:ro
+    networks:
+      - provider-egress
+    <<: *app-runtime
+
+  ai-provider-stub:
+    profiles: [backend]
+    image: repkey-local-provider:${SOURCE_REVISION}
+    environment:
+      BQC_STUB_KIND: ai
+      PORT: '4102'
+      BQC_STUB_HOST: 0.0.0.0
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const s=require('node:net').connect(4102,'127.0.0.1');s.once('connect',()=>{s.destroy();process.exit(0)});s.once('error',()=>process.exit(1));setTimeout(()=>process.exit(1),1000)",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks:
+      - ai-provider-egress
     <<: *app-runtime
 
   mail-stub:
@@ -210,10 +497,157 @@ services:
     environment:
       <<: *app-environment
       BETTER_AUTH_URL: http://127.0.0.1:3000
+      REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: ${REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS}
     depends_on:
       postgres:
         condition: service_healthy
 
+  ai-admission-role:
+    profiles: [backend]
+    image: repkey-local-worker:${SOURCE_REVISION}
+    command: [node, dist-worker/provision-ai-admission-role.js]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AI_CONTROL_DATABASE_PASSWORD: ${AI_CONTROL_DATABASE_PASSWORD}
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - admission-data
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
+  ai-execution-admission:
+    profiles: [backend]
+    image: repkey-local-ai-execution-admission:${SOURCE_REVISION}
+    build:
+      context: .
+      dockerfile: Dockerfile.ai-execution-admission
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION}
+    environment:
+      NODE_ENV: production
+      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
+      HOST: '::'
+      PORT: '8443'
+      AI_CONTROL_DATABASE_URL: postgresql://repkey_ai_admission_local:${AI_CONTROL_DATABASE_PASSWORD}@ai-control-postgres:5432/${POSTGRES_DB}
+      AI_CONTROL_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
+      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
+      AI_INTERNAL_MTLS_CERT_B64: ${AI_ADMISSION_INTERNAL_MTLS_CERT_B64}
+      AI_INTERNAL_MTLS_KEY_B64: ${AI_ADMISSION_INTERNAL_MTLS_KEY_B64}
+      AI_REQUEST_BINDING_HMAC_KEYS: ${AI_REQUEST_BINDING_HMAC_KEYS}
+      AI_REQUEST_BINDING_KEYRING_GENERATION: '1'
+      AI_ADMISSION_ED25519_PRIVATE_KEY_B64: ${AI_ADMISSION_ED25519_PRIVATE_KEY_B64}
+      AI_ADMISSION_ED25519_KID: ${AI_ADMISSION_ED25519_KID}
+      AI_ADMISSION_KEYRING_GENERATION: '1'
+      AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: private-beta-global-v1
+      AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: ${AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST}
+      AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: ${AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST}
+      RELEASE_SHA: ${SOURCE_REVISION}
+    expose:
+      - '8443'
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      ai-admission-control:
+        aliases:
+          - ai-execution-admission.railway.internal
+      admission-data:
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const s=require('node:net').connect(8443,'::1');s.once('connect',()=>{s.destroy();process.exit(0)});s.once('error',()=>process.exit(1));setTimeout(()=>process.exit(1),1000)",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      ai-admission-role:
+        condition: service_completed_successfully
+
+  ai-egress-gateway:
+    profiles: [backend]
+    image: repkey-local-ai-egress-gateway:${SOURCE_REVISION}
+    build:
+      context: .
+      dockerfile: Dockerfile.ai-egress-gateway
+      target: local-provider
+      args:
+        SOURCE_REVISION: ${SOURCE_REVISION}
+    command: [node, dist-ai-egress-gateway-local/local-provider-entry.js]
+    environment:
+      NODE_ENV: production
+      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
+      HOST: '::'
+      PORT: '8443'
+      RELEASE_SHA: ${SOURCE_REVISION}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-local-ai-provider-stub-not-live}
+      AI_EXECUTION_ADMISSION_ORIGIN: https://ai-execution-admission.railway.internal:8443
+      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
+      AI_INTERNAL_MTLS_CERT_B64: ${AI_GATEWAY_INTERNAL_MTLS_CERT_B64}
+      AI_INTERNAL_MTLS_KEY_B64: ${AI_GATEWAY_INTERNAL_MTLS_KEY_B64}
+      AI_REQUEST_BINDING_HMAC_KEYS: ${AI_REQUEST_BINDING_HMAC_KEYS}
+      AI_REQUEST_BINDING_KEYRING_GENERATION: '1'
+      AI_SAFETY_IDENTIFIER_HMAC_KEYS: ${AI_SAFETY_IDENTIFIER_HMAC_KEYS}
+      AI_SAFETY_IDENTIFIER_KEYRING_GENERATION: '1'
+      AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: ${AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON}
+      AI_ADMISSION_KEYRING_GENERATION: '1'
+      AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: ${AI_PROVENANCE_ED25519_PRIVATE_KEY_B64}
+      AI_PROVENANCE_ED25519_KID: ${AI_PROVENANCE_ED25519_KID}
+      AI_PROVENANCE_KEYRING_GENERATION: '1'
+      AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: private-beta-global-v1
+      AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: ${AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST}
+      AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: ${AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST}
+      AI_GATEWAY_BUILD_ATTESTATION_DIGEST: ${AI_GATEWAY_BUILD_ATTESTATION_DIGEST}
+    expose:
+      - '8443'
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - ai-gateway-ingress
+      - ai-admission-control
+      - ai-provider-egress
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "const s=require('node:net').connect(8443,'::1');s.once('connect',()=>{s.destroy();process.exit(0)});s.once('error',()=>process.exit(1));setTimeout(()=>process.exit(1),1000)",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      ai-execution-admission:
+        condition: service_healthy
+      ai-provider-stub:
+        condition: service_healthy
   seed:
     profiles: [backend]
     <<: [*web-image, *app-runtime]
@@ -223,6 +657,7 @@ services:
       BETTER_AUTH_URL: http://127.0.0.1:3000
       E2E_TEST_EMAIL: ${E2E_TEST_EMAIL}
       E2E_TEST_PASSWORD: ${E2E_TEST_PASSWORD}
+      GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON: ${GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON}
     volumes:
       - ${STACK_E2E_DIR}:/app/e2e
     depends_on:
@@ -241,6 +676,27 @@ services:
       NITRO_PORT: '3000'
       BETA_E2E_GLOBAL_CAPABILITIES: ${E2E_WEB_CAPABILITY_OVERRIDE}
       BETA_E2E_EXECUTION_IDENTITY: ${E2E_WEB_EXECUTION_IDENTITY}
+      GOOGLE_EGRESS_GATEWAY_ORIGIN: https://google-egress-gateway:8443
+      GOOGLE_EGRESS_GATEWAY_SERVER_NAME: google-egress-gateway
+      GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/provider-ca.crt
+      GOOGLE_INTERNAL_MTLS_CERT_PATH: /run/repkey/repkey-web.crt
+      GOOGLE_INTERNAL_MTLS_KEY_PATH: /run/repkey/repkey-web.key
+      GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}
+      AI_EGRESS_GATEWAY_ORIGIN: https://ai-egress-gateway:8443
+      AI_EGRESS_GATEWAY_SERVER_NAME: ai-egress-gateway
+      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
+      AI_INTERNAL_MTLS_CERT_B64: ${AI_WEB_INTERNAL_MTLS_CERT_B64}
+      AI_INTERNAL_MTLS_KEY_B64: ${AI_WEB_INTERNAL_MTLS_KEY_B64}
+      AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: ${AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON}
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/repkey-web.crt:/run/repkey/repkey-web.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/repkey-web.key:/run/repkey/repkey-web.key:ro
+    networks:
+      - app
+      - provider-ephemeral
+      - egress-control
+      - ai-gateway-ingress
     ports:
       - 127.0.0.1:3000:3000
     healthcheck:
@@ -259,9 +715,15 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      provider-redis-ingress:
+        condition: service_healthy
       provider-sandbox:
         condition: service_healthy
       mail-stub:
+        condition: service_healthy
+      google-egress-gateway:
+        condition: service_healthy
+      ai-egress-gateway:
         condition: service_healthy
 
   web-locked:
@@ -293,6 +755,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      provider-redis-ingress:
+        condition: service_healthy
       provider-sandbox:
         condition: service_healthy
       mail-stub:
@@ -311,6 +775,27 @@ services:
       BETTER_AUTH_URL: http://web:3000
       BETA_E2E_GLOBAL_CAPABILITIES: ''
       BETA_E2E_EXECUTION_IDENTITY: ''
+      GOOGLE_EGRESS_GATEWAY_ORIGIN: https://google-egress-gateway:8443
+      GOOGLE_EGRESS_GATEWAY_SERVER_NAME: google-egress-gateway
+      GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/provider-ca.crt
+      GOOGLE_INTERNAL_MTLS_CERT_PATH: /run/repkey/repkey-worker.crt
+      GOOGLE_INTERNAL_MTLS_KEY_PATH: /run/repkey/repkey-worker.key
+      GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}
+      REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: ${REVIEW_PROVIDER_SUBJECT_HMAC_KEYS}
+      AI_EGRESS_GATEWAY_ORIGIN: https://ai-egress-gateway:8443
+      AI_EGRESS_GATEWAY_SERVER_NAME: ai-egress-gateway
+      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
+      AI_INTERNAL_MTLS_CERT_B64: ${AI_WORKER_INTERNAL_MTLS_CERT_B64}
+      AI_INTERNAL_MTLS_KEY_B64: ${AI_WORKER_INTERNAL_MTLS_KEY_B64}
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/repkey-worker.crt:/run/repkey/repkey-worker.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/repkey-worker.key:/run/repkey/repkey-worker.key:ro
+    networks:
+      - app
+      - provider-ephemeral
+      - egress-control
+      - ai-gateway-ingress
     healthcheck:
       test:
         [CMD, node, -e, 'try{process.kill(1,0);process.exit(0)}catch{process.exit(1)}']
@@ -322,9 +807,15 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      provider-redis-ingress:
+        condition: service_healthy
       provider-sandbox:
         condition: service_healthy
       mail-stub:
+        condition: service_healthy
+      google-egress-gateway:
+        condition: service_healthy
+      ai-egress-gateway:
         condition: service_healthy
     <<: *app-runtime
 
@@ -354,8 +845,31 @@ services:
 networks:
   app:
     internal: false
+  provider-control:
+    internal: false
+  provider-ephemeral:
+    internal: true
+  provider-redis-data:
+    internal: true
+  egress-control:
+    internal: true
+  admission-control:
+    internal: true
+  admission-data:
+    internal: true
+  google-admission-redis:
+    internal: true
+  provider-egress:
+    internal: true
+  ai-gateway-ingress:
+    internal: true
+  ai-admission-control:
+    internal: true
+  ai-provider-egress:
+    internal: true
 
 volumes:
   postgres-data:
   redis-data:
   object-store-data:
+  postgres-tls:

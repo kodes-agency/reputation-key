@@ -3,6 +3,7 @@
 // semantics (never acknowledged as success), run-state persistence,
 // oldest-due alerting.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import type { Review } from '../../domain/types'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -51,7 +52,7 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'ext-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_ID,
     reviewerName: null,
     reviewerProfilePhotoUrl: null,
@@ -69,6 +70,11 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt,
     contentHash: 'abc',
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: lastFetchedAt,
     updatedAt: lastFetchedAt,
     ...overrides,

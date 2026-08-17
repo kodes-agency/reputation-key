@@ -86,7 +86,68 @@ export type ExecutionDecision = Readonly<{
 }>
 export type PublicConsent = 'analytics' | 'response' | 'freeText' | 'contact' | 'media'
 
+export type MerchantAiConsentFence = Readonly<{
+  authorizationLineageId: string
+  capabilityEpoch: number
+  authorizedSourceEpoch: number
+  stateVersion: number
+  noticeDigest: string
+  runtimeProfileVersion: string
+}>
+
 export type PublicConsentAssertions = Readonly<Record<PublicConsent, boolean>>
+export type ConsentSelector = Readonly<{
+  subjectType: 'organization' | 'property' | 'user'
+  subjectId: string
+  purpose: string
+  expectedFence?: MerchantAiConsentFence
+}>
+
+const MERCHANT_AI_CONSENT_PURPOSES: ReadonlySet<string> = new Set([
+  'ai.analyze',
+  'ai.generate_reply',
+  'ai.detect_trends',
+])
+
+export function isConsentSelectorBoundToScope(
+  consent: ConsentSelector,
+  scope: Readonly<{
+    organizationId: string
+    propertyId?: string
+    userId?: string
+  }>,
+): boolean {
+  if (MERCHANT_AI_CONSENT_PURPOSES.has(consent.purpose)) {
+    const fence = consent.expectedFence
+    return (
+      consent.subjectType === 'property' &&
+      scope.propertyId !== undefined &&
+      consent.subjectId === scope.propertyId &&
+      fence !== undefined &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        fence.authorizationLineageId,
+      ) &&
+      Number.isSafeInteger(fence.capabilityEpoch) &&
+      fence.capabilityEpoch >= 1 &&
+      Number.isSafeInteger(fence.authorizedSourceEpoch) &&
+      fence.authorizedSourceEpoch >= 1 &&
+      Number.isSafeInteger(fence.stateVersion) &&
+      fence.stateVersion >= 1 &&
+      /^[0-9a-f]{64}$/.test(fence.noticeDigest) &&
+      fence.runtimeProfileVersion.length > 0
+    )
+  }
+  return (
+    (consent.subjectType === 'organization' &&
+      consent.subjectId === scope.organizationId) ||
+    (consent.subjectType === 'property' &&
+      scope.propertyId !== undefined &&
+      consent.subjectId === scope.propertyId) ||
+    (consent.subjectType === 'user' &&
+      scope.userId !== undefined &&
+      consent.subjectId === scope.userId)
+  )
+}
 
 export type DecisionRequest = Readonly<{
   principal: Principal
@@ -97,8 +158,8 @@ export type DecisionRequest = Readonly<{
   /** The actual target property — grant check applies for assigned-scope roles. */
   propertyId?: string
   executionKind: ExecutionKind
-  /** Purpose/consent class; when present, an active consent is required. */
-  purpose?: string
+  /** Explicit consent subject; when present, current matching consent is required. */
+  consent?: ConsentSelector
   /** Public requests carry pre-resolved, request-bound consent assertions. */
   consentAssertions?: PublicConsentAssertions
   /** Every named assertion must be true; content/redirect reads omit this. */
@@ -146,15 +207,14 @@ export type ExecutionPolicyDeps = Readonly<{
     organizationId: string,
     userId: string,
   ) => Promise<ReadonlyArray<string>>
-  /** Consent reader (BQC-2.2); required only when a request declares a purpose. */
+  /** Consent reader; required only when a request declares an explicit selector. */
   hasActiveConsent?: (
-    input: Readonly<{
-      organizationId: string
-      subjectType: string
-      subjectId: string
-      purpose: string
-      at: Date
-    }>,
+    input: Readonly<
+      ConsentSelector & {
+        organizationId: string
+        at: Date
+      }
+    >,
   ) => Promise<boolean>
   /** Content-free audit sink (BQC-2.2). Best-effort: errors are reported, never thrown. */
   writeDecisionAudit?: (entry: DecisionAuditEntry) => Promise<void>
@@ -307,17 +367,21 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     ctx: AuthContext,
     capability: Capability | undefined,
   ): Promise<ExecutionDecision | null> {
-    if (!request.purpose) return null
-    const orgId = (request.organizationId ?? ctx.organizationId) as string
-    const consented = deps.hasActiveConsent
-      ? await deps.hasActiveConsent({
-          organizationId: orgId,
-          subjectType: 'organization',
-          subjectId: orgId,
-          purpose: request.purpose,
-          at: request.now,
-        })
-      : false
+    if (!request.consent) return null
+    const organizationId = (request.organizationId ?? ctx.organizationId) as string
+    const subjectMatchesRequest = isConsentSelectorBoundToScope(request.consent, {
+      organizationId,
+      propertyId: request.propertyId,
+      userId: ctx.userId as string,
+    })
+    const consented =
+      subjectMatchesRequest && deps.hasActiveConsent
+        ? await deps.hasActiveConsent({
+            organizationId,
+            ...request.consent,
+            at: request.now,
+          })
+        : false
     return consented
       ? null
       : finish(deps, pendingAudits, request, capability, false, 'consent_required')
@@ -385,15 +449,19 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
   async function operatorConsentDecision(
     request: DecisionRequest,
   ): Promise<ExecutionDecision | null> {
-    if (!request.purpose) return null
-    const orgId = request.organizationId
+    if (!request.consent) return null
+    const organizationId = request.organizationId
+    const subjectMatchesRequest =
+      organizationId !== undefined &&
+      isConsentSelectorBoundToScope(request.consent, {
+        organizationId,
+        propertyId: request.propertyId,
+      })
     const consented =
-      orgId && deps.hasActiveConsent
+      subjectMatchesRequest && deps.hasActiveConsent
         ? await deps.hasActiveConsent({
-            organizationId: orgId,
-            subjectType: 'organization',
-            subjectId: orgId,
-            purpose: request.purpose,
+            organizationId,
+            ...request.consent,
             at: request.now,
           })
         : false
@@ -602,7 +670,7 @@ export async function requireExecutionAllowed(input: {
   action: Permission
   capability?: Capability
   propertyId?: string
-  purpose?: string
+  consent?: ConsentSelector
   correlationId?: string
 }): Promise<void> {
   const decision = await getExecutionPolicy().decide({
@@ -612,7 +680,7 @@ export async function requireExecutionAllowed(input: {
     organizationId: input.actor.organizationId as string,
     propertyId: input.propertyId,
     executionKind: 'interactive',
-    purpose: input.purpose,
+    consent: input.consent,
     now: new Date(),
     correlationId: input.correlationId,
   })

@@ -55,11 +55,14 @@ function intent(now = NOW): GoogleImportV2Intent {
           credentialGeneration: 1,
           approvalBindingId: 'approval-1',
           authorizationVector: {
-            executionPolicyVersion: 1,
+            executionPolicyVersion: 'beta-local-2',
             googleContentPolicyVersion: 1,
             emergencyKillVersion: 1,
             role: 'Admin',
             permissionDigest: 'a'.repeat(64),
+            connectionLifecycleVersion: 1,
+            connectionAccessVersion: 1,
+            credentialGeneration: 1,
           },
         },
         expectedSourceEpoch: null,
@@ -133,7 +136,12 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         now: NOW,
         leaseExpiresAt,
       }),
-    ).resolves.toMatchObject({ kind: 'claimed' })
+    ).resolves.toMatchObject({
+      kind: 'claimed',
+      item: {
+        authorization: intent().items[0]!.authorization,
+      },
+    })
     await expect(
       store.claimItem({
         organizationId: ORG_ID,

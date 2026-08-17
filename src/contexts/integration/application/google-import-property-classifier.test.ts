@@ -57,7 +57,7 @@ const view = (
 })
 
 describe('Google import Property candidate classifier', () => {
-  it('classifies create, imported, relink, conflict, region, and inaccessible rows', async () => {
+  it('classifies create, imported, relink, conflict, resolved-region, and inaccessible rows', async () => {
     const rows = [
       view('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'already'),
       view('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'relink', {
@@ -130,7 +130,7 @@ describe('Google import Property candidate classifier', () => {
       { kind: 'active_binding_conflict' },
       { kind: 'unavailable' },
       { kind: 'unavailable' },
-      { kind: 'region_unavailable' },
+      { kind: 'create' },
       { kind: 'region_unavailable' },
     ])
     expect(result[2]).toMatchObject({

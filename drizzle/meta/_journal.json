@@ -288,6 +288,69 @@
       "when": 1786557257383,
       "tag": "0040_google-import-effect-lease-control-fk",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786624182596,
+      "tag": "0041_railway-closed-beta-approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786703761879,
+      "tag": "0042_google-import-execution-policy-version",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786811862145,
+      "tag": "0043_review-source-provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786813064371,
+      "tag": "0044_merchant-ai-authorization",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786900000000,
+      "tag": "0045_merchant-ai-source-epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786900001000,
+      "tag": "0046_ai-control-plane-and-operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786900002000,
+      "tag": "0047_ai-derivatives-and-property-calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786900003000,
+      "tag": "0048_ai-lifecycle-authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786900004000,
+      "tag": "0049_ai-execution-admission",
+      "breakpoints": true
     }
   ]
 }

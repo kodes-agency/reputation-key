@@ -4,6 +4,7 @@ import {
   assertGoogleImportRuntimePackagePurity,
   createGoogleImportReleaseSourcePlan,
   releaseSourcePlanSha256,
+  redactedReleaseCommandText,
 } from './google-import-release-source'
 
 const BASELINE = '1'.repeat(40)
@@ -133,5 +134,22 @@ describe('Google import release runtime package purity', () => {
         hasScripts: false,
       }),
     ).not.toThrow()
+  })
+})
+
+describe('Google import release command evidence', () => {
+  it('redacts release credentials while preserving command identity', () => {
+    expect(
+      redactedReleaseCommandText('docker', [
+        'run',
+        '-e',
+        'DATABASE_URL=postgresql://user:password@postgres:5432/repkey',
+        '-e',
+        'BETTER_AUTH_SECRET=secret',
+        'release-image',
+      ]),
+    ).toBe(
+      'docker run -e DATABASE_URL=[redacted] -e BETTER_AUTH_SECRET=[redacted] release-image',
+    )
   })
 })

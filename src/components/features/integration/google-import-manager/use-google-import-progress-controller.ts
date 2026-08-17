@@ -12,7 +12,31 @@ import type {
   GoogleImportStep,
 } from './google-import-manager-contract'
 
-export const GOOGLE_IMPORT_REQUEST_STORAGE_KEY = 'repkey.google-import.request-id'
+type RetryRequest = Readonly<{
+  retryRevision: number
+  retryRequestId: string
+}>
+
+export function getRetryRequest(
+  requests: Map<string, RetryRequest>,
+  itemId: string,
+  retryRevision: number,
+  createRequestId: () => string,
+): RetryRequest {
+  const existing = requests.get(itemId)
+  if (existing?.retryRevision === retryRevision) return existing
+  const request = { retryRevision, retryRequestId: createRequestId() }
+  requests.set(itemId, request)
+  return request
+}
+
+export async function sendRetryWithOneReplay<T>(send: () => Promise<T>): Promise<T> {
+  try {
+    return await send()
+  } catch {
+    return send()
+  }
+}
 
 type Props = Pick<
   GoogleImportManagerProps,
@@ -34,11 +58,14 @@ export function useGoogleImportProgressController({
   const router = useRouter()
   const queryClient = useQueryClient()
   const mounted = useRef(true)
+  const retryRequests = useRef(new Map<string, RetryRequest>())
+  const refreshInFlight = useRef<Promise<ImportProgressDto | null> | null>(null)
   const [progress, setProgress] = useState<ImportProgressDto | null>(
     initialProgress ?? null,
   )
   const [pollingError, setPollingError] = useState(false)
   const [retryingItemId, setRetryingItemId] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     mounted.current = true
@@ -57,44 +84,83 @@ export function useGoogleImportProgressController({
   const loadProgress = useCallback(
     async (importJobId: string) => {
       const next = await getImportStatus({ data: { importJobId } })
-      sessionStorage.removeItem(GOOGLE_IMPORT_REQUEST_STORAGE_KEY)
       setProgress(next)
       setStep('progress')
-      await navigate({ to: '/import/$importId', params: { importId: importJobId } })
+      await navigate({
+        to: '/properties/import-google/$importId',
+        params: { importId: importJobId },
+      })
     },
     [getImportStatus, navigate, setStep],
   )
 
-  const refresh = useCallback(async () => {
-    if (!progress) return
+  const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
+    if (!progress) return null
+    if (refreshInFlight.current) return refreshInFlight.current
+    if (mounted.current) setIsRefreshing(true)
+    const operation = (async () => {
+      try {
+        const next = await getImportStatus({
+          data: { importJobId: progress.importJobId },
+        })
+        if (!mounted.current) return next
+        setProgress(next)
+        setPollingError(false)
+        if (next.status !== 'queued' && next.status !== 'processing') {
+          await invalidateCompletedImport()
+        }
+        return next
+      } catch {
+        if (mounted.current) setPollingError(true)
+        return null
+      }
+    })()
+    refreshInFlight.current = operation
     try {
-      setProgress(await getImportStatus({ data: { importJobId: progress.importJobId } }))
-      setPollingError(false)
-    } catch {
-      setPollingError(true)
+      return await operation
+    } finally {
+      refreshInFlight.current = null
+      if (mounted.current) setIsRefreshing(false)
     }
-  }, [getImportStatus, progress])
+  }, [getImportStatus, invalidateCompletedImport, progress])
 
   const retry = useCallback(
     async (item: ImportProgressItemDto) => {
-      if (!progress) return
-      setRetryingItemId(item.itemId)
-      try {
-        await retryImportItem({
+      if (!progress || retryingItemId !== null) return
+      const request = getRetryRequest(
+        retryRequests.current,
+        item.itemId,
+        item.retryRevision,
+        () => crypto.randomUUID(),
+      )
+      const send = () =>
+        retryImportItem({
           data: {
             itemId: item.itemId,
-            retryRequestId: crypto.randomUUID(),
-            expectedRetryRevision: item.retryRevision,
+            retryRequestId: request.retryRequestId,
+            expectedRetryRevision: request.retryRevision,
           },
         })
+      setRetryingItemId(item.itemId)
+      try {
+        await sendRetryWithOneReplay(send)
+        retryRequests.current.delete(item.itemId)
         await refresh()
       } catch {
-        toast.error('This item could not be retried. Refresh its status and try again.')
+        const recovered = await refresh()
+        const recoveredItem = recovered?.items.find(
+          (candidate) => candidate.itemId === item.itemId,
+        )
+        if (recoveredItem && recoveredItem.retryRevision > item.retryRevision) {
+          retryRequests.current.delete(item.itemId)
+        } else {
+          toast.error('This item could not be retried. Refresh its status and try again.')
+        }
       } finally {
         if (mounted.current) setRetryingItemId(null)
       }
     },
-    [progress, refresh, retryImportItem],
+    [progress, refresh, retryImportItem, retryingItemId],
   )
 
   useEffect(() => {
@@ -119,5 +185,13 @@ export function useGoogleImportProgressController({
     return () => window.clearTimeout(timeout)
   }, [getImportStatus, invalidateCompletedImport, progress, step])
 
-  return { progress, pollingError, retryingItemId, loadProgress, refresh, retry }
+  return {
+    progress,
+    pollingError,
+    isRefreshing,
+    retryingItemId,
+    loadProgress,
+    refresh,
+    retry,
+  }
 }

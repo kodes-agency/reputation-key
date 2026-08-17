@@ -8,6 +8,7 @@
 // moved on — or that the purge already deleted — are skipped by the store
 // (count 0) without failing the run.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import { cancelPublicationsForConnection } from './cancel-publications'
 import type { ReviewRepository } from '../ports/review.repository'
@@ -36,7 +37,7 @@ function makeReview(id: string): Review {
     propertyId: PROP_ID,
     platform: 'google',
     externalId: `ext-${id}`,
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_ID,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
@@ -54,6 +55,11 @@ function makeReview(id: string): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
   }

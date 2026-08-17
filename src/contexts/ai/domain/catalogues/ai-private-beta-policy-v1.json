@@ -1,0 +1,163 @@
+{
+  "version": "ai-private-beta-policy-v1",
+  "region": "global",
+  "manualPublicationRequired": true,
+  "initialBundle": ["property_trends", "reply_drafting", "review_analysis"],
+  "capabilities": [
+    {
+      "id": "property_trends",
+      "platformCapability": "ai.detect_trends",
+      "permission": "ai.trends.read",
+      "actorKind": "worker",
+      "routeId": "property-trend",
+      "runtimeProfileVersion": "property-trends-runtime-v1",
+      "requires": ["review_analysis"]
+    },
+    {
+      "id": "reply_drafting",
+      "platformCapability": "ai.generate_reply",
+      "permission": "ai.reply.generate",
+      "actorKind": "manager",
+      "routeId": "reply-suggestion",
+      "runtimeProfileVersion": "reply-drafting-runtime-v1",
+      "requires": []
+    },
+    {
+      "id": "review_analysis",
+      "platformCapability": "ai.analyze",
+      "permission": "background_system_policy",
+      "actorKind": "worker",
+      "routeId": "review-analysis",
+      "runtimeProfileVersion": "review-analysis-runtime-v1",
+      "requires": []
+    }
+  ],
+  "roles": [
+    {
+      "id": "manager",
+      "permissions": ["ai.reply.generate", "ai.trends.read", "reply.manage"]
+    },
+    {
+      "id": "settings-manager",
+      "permissions": ["ai.manage", "property.manage"]
+    },
+    {
+      "id": "worker",
+      "permissions": ["background_system_policy"]
+    }
+  ],
+  "routes": [
+    {
+      "id": "property-trend",
+      "sourceClassId": "aggregate-only",
+      "outputClassId": "trend-selection",
+      "retentionPolicyId": "trend-report-24-months"
+    },
+    {
+      "id": "reply-suggestion",
+      "sourceClassId": "identity-minimized-review",
+      "outputClassId": "ephemeral-template-selection",
+      "retentionPolicyId": "browser-ephemeral"
+    },
+    {
+      "id": "review-analysis",
+      "sourceClassId": "identity-minimized-review",
+      "outputClassId": "review-derivative",
+      "retentionPolicyId": "review-derivative-24-months"
+    }
+  ],
+  "sourceClasses": [
+    {
+      "id": "aggregate-only",
+      "containsRawReviewContent": false
+    },
+    {
+      "id": "identity-minimized-review",
+      "containsRawReviewContent": true
+    }
+  ],
+  "outputClasses": [
+    {
+      "id": "ephemeral-template-selection",
+      "durable": false
+    },
+    {
+      "id": "review-derivative",
+      "durable": true
+    },
+    {
+      "id": "trend-selection",
+      "durable": true
+    }
+  ],
+  "retentionPolicies": [
+    {
+      "id": "browser-ephemeral",
+      "duration": "response_lifetime"
+    },
+    {
+      "id": "review-derivative-24-months",
+      "duration": "24_months"
+    },
+    {
+      "id": "trend-report-24-months",
+      "duration": "24_months"
+    }
+  ],
+  "releaseGates": [
+    {
+      "id": "ai-boundary-tests",
+      "stage": "candidate",
+      "owner": "PR3",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-canary-terminal",
+      "stage": "activation",
+      "owner": "PR10",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-egress-gateway-build",
+      "stage": "candidate",
+      "owner": "PR5",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-governance-drift",
+      "stage": "candidate",
+      "owner": "PR3",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-openai-provider-profile",
+      "stage": "candidate",
+      "owner": "PR5",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-provider-quality",
+      "stage": "candidate",
+      "owner": "PR6",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-provider-stub-isolation",
+      "stage": "candidate",
+      "owner": "PR5",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-runtime-egress-probe",
+      "stage": "activation",
+      "owner": "PR10",
+      "contentClass": "content_free"
+    },
+    {
+      "id": "ai-runtime-isolation",
+      "stage": "activation",
+      "owner": "PR11",
+      "contentClass": "content_free"
+    }
+  ]
+}

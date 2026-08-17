@@ -306,8 +306,8 @@ export function createGoogleImportTransaction(
             currentAuthorization.organizationId !== scope.organizationId ||
             currentAuthorization.userId !== scope.userId ||
             currentAuthorization.connectionId !== item.connectionId ||
-            typeof vector.executionPolicyVersion !== 'number' ||
-            !Number.isSafeInteger(vector.executionPolicyVersion) ||
+            typeof vector.executionPolicyVersion !== 'string' ||
+            !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(vector.executionPolicyVersion) ||
             typeof vector.googleContentPolicyVersion !== 'number' ||
             !Number.isSafeInteger(vector.googleContentPolicyVersion) ||
             typeof vector.emergencyKillVersion !== 'number' ||

@@ -14,6 +14,7 @@ export type {
   IdentityInvitationAccepted,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
+  IdentityMerchantAiChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events
@@ -74,6 +75,7 @@ export type {
   ReviewCreated,
   ReviewUpdated,
   ReviewExpired,
+  ReviewSourceTransitioned,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyPublicationCancelled,

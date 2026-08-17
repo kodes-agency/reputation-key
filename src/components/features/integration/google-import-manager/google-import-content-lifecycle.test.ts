@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   StaleGoogleImportViewError,
   createGoogleImportContentLifecycle,
+  contentExpiryDelayMs,
 } from './google-import-content-lifecycle'
 
 describe('Google import provider-content lifecycle', () => {
@@ -60,5 +61,14 @@ describe('Google import provider-content lifecycle', () => {
 
     expect(order).toEqual(['cancel', 'remove', 'clear'])
     expect(lifecycle.epoch()).toBe(1)
+  })
+
+  it('fails closed for invalid and expired deadlines and bounds timer delays', () => {
+    const now = Date.parse('2026-08-12T10:00:00.000Z')
+
+    expect(contentExpiryDelayMs('invalid', now)).toBe(0)
+    expect(contentExpiryDelayMs('2026-08-12T09:59:59.999Z', now)).toBe(0)
+    expect(contentExpiryDelayMs('2026-08-12T10:15:00.000Z', now)).toBe(900_000)
+    expect(contentExpiryDelayMs('2099-01-01T00:00:00.000Z', now)).toBe(2_147_483_647)
   })
 })

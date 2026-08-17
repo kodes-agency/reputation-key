@@ -234,7 +234,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             AND route_key = $7
             AND route_catalog_version = $8
             AND quota_policy_id = $9
-            AND authorization_vector = $10::jsonb`,
+            AND authorization_vector @> $10::jsonb`,
         [
           permit.permitId,
           now,

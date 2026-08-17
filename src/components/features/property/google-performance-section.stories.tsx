@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from 'react'
+import { useMemo, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent } from 'storybook/test'
 import type {
@@ -197,6 +197,16 @@ const getExpired = (async () => ({
 const neverResolves = (() =>
   new Promise(() => {})) as unknown as typeof getPropertyGooglePerformance
 
+let resolveDelayedReady: (() => void) | null = null
+const getDelayedReady = ((input: { data: { preset: PropertyPerformancePreset } }) =>
+  new Promise((resolve) => {
+    resolveDelayedReady = () =>
+      resolve({
+        status: 'ready' as const,
+        data: report(input.data.preset),
+      })
+  })) as unknown as typeof getPropertyGooglePerformance
+
 function ControlledPerformanceSection(
   props: ComponentProps<typeof GooglePerformanceSection>,
 ) {
@@ -211,6 +221,39 @@ function ControlledPerformanceSection(
       }}
     />
   )
+}
+
+function RefreshFailurePerformanceSection(
+  props: ComponentProps<typeof GooglePerformanceSection>,
+) {
+  const serverFns = useMemo(() => {
+    let calls = 0
+    const getPerformance = (async (input: {
+      data: { preset: PropertyPerformancePreset }
+    }) => {
+      calls += 1
+      if (calls === 1) {
+        return {
+          status: 'ready' as const,
+          data: report(input.data.preset),
+        }
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 25))
+      return {
+        status: 'error' as const,
+        errorCode: 'provider_timeout' as const,
+        retryable: true,
+        retryAfterSeconds: null,
+      }
+    }) as unknown as typeof getPropertyGooglePerformance
+
+    return {
+      getPerformance,
+      renewLease,
+    }
+  }, [])
+
+  return <ControlledPerformanceSection {...props} serverFns={serverFns} />
 }
 
 const meta = {
@@ -283,6 +326,18 @@ export const ProviderUnavailable: Story = {
   },
 }
 
+export const RefreshFailureRetainsReport: Story = {
+  render: (args) => <RefreshFailurePerformanceSection {...args} />,
+  play: async ({ canvas }) => {
+    await expect(canvas.findByText('4,872')).resolves.toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Refresh' }))
+    await expect(
+      canvas.findByText('Showing the last successful report'),
+    ).resolves.toBeVisible()
+    await expect(canvas.getByText('4,872')).toBeVisible()
+  },
+}
+
 export const ExpiredContent: Story = {
   args: {
     serverFns: { getPerformance: getExpired, renewLease },
@@ -323,6 +378,23 @@ export const PageLifecycleClearsContent: Story = {
     await expect(canvas.findByText('4,872')).resolves.toBeVisible()
     window.dispatchEvent(new Event('pagehide'))
     await expect(canvas.findByText('Authorization changed')).resolves.toBeVisible()
+    await expect(canvas.queryByText('4,872')).not.toBeInTheDocument()
+  },
+}
+
+export const LateResponseAfterPagehideIsDiscarded: Story = {
+  args: {
+    serverFns: { getPerformance: getDelayedReady, renewLease },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.findByLabelText('Loading Google Business Profile performance'),
+    ).resolves.toBeVisible()
+    window.dispatchEvent(new Event('pagehide'))
+    await expect(canvas.findByText('Authorization changed')).resolves.toBeVisible()
+    resolveDelayedReady?.()
+    resolveDelayedReady = null
+    await new Promise((resolve) => setTimeout(resolve, 10))
     await expect(canvas.queryByText('4,872')).not.toBeInTheDocument()
   },
 }

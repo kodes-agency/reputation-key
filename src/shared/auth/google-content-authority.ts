@@ -124,6 +124,8 @@ export type GoogleContentAuthorizationCheck<Tx> = (
 export type GoogleContentAdmissionInput = Readonly<{
   runtimeBinding: GoogleContentRuntimeBinding
   scope: GoogleContentAuthorizationScope
+  expectedApprovalBindingId: string
+  expectedAuthorizationVector: GoogleContentAuthorizationVector
   operationKey: string
   routeKey: string
   routeCatalogVersion: string
@@ -132,6 +134,23 @@ export type GoogleContentAdmissionInput = Readonly<{
   startVectorMode: AuthorizationCommitVectorMode
   commitVectorMode: AuthorizationCommitVectorMode
 }>
+
+export type GoogleContentPreauthorizationInput = Readonly<{
+  runtimeBinding: GoogleContentRuntimeBinding
+  scope: GoogleContentAuthorizationScope
+  operationKey: string
+  vectorMode: AuthorizationCommitVectorMode
+}>
+
+export type GoogleContentPreauthorizationResult =
+  | Readonly<{
+      ok: true
+      approvalBindingId: string
+      policyVersion: number
+      emergencyKillVersion: number
+      authorizationVector: GoogleContentAuthorizationVector
+    }>
+  | Readonly<{ ok: false; code: GoogleContentAuthorityDenyCode }>
 
 export type GoogleContentAuthorityDenyCode =
   | GoogleContentApprovalValidationCode
@@ -163,6 +182,9 @@ export type GoogleContentAuthorizationAuthority = Readonly<{
     | Readonly<{ ok: true; approvalBindingId: string }>
     | Readonly<{ ok: false; code: GoogleContentApprovalValidationCode }>
   >
+  preauthorize(
+    input: GoogleContentPreauthorizationInput,
+  ): Promise<GoogleContentPreauthorizationResult>
   admit(input: GoogleContentAdmissionInput): Promise<GoogleContentPermitResult>
   start(
     permitId: string,
@@ -243,6 +265,15 @@ function sameRuntimeBinding(
     actual.providerOriginProfileSha256 === expected.providerOriginProfileSha256 &&
     actual.runtimeIsolationProfileVersion === expected.runtimeIsolationProfileVersion &&
     actual.runtimeIsolationProfileSha256 === expected.runtimeIsolationProfileSha256 &&
+    actual.railwayClosedBetaCohortSha256 === expected.railwayClosedBetaCohortSha256 &&
+    actual.railwayClosedBetaResidualRiskSha256 ===
+      expected.railwayClosedBetaResidualRiskSha256 &&
+    actual.railwayClosedBetaCohort?.length === expected.railwayClosedBetaCohort?.length &&
+    (actual.railwayClosedBetaCohort === null ||
+      actual.railwayClosedBetaCohort.every(
+        (organizationId, index) =>
+          organizationId === expected.railwayClosedBetaCohort?.[index],
+      )) &&
     actual.performanceCatalogVersion === expected.performanceCatalogVersion &&
     actual.capabilityPolicyVersion === expected.capabilityPolicyVersion &&
     actual.executionPolicyVersion === expected.executionPolicyVersion &&
@@ -319,6 +350,15 @@ function validationCode(
     ? null
     : 'runtime_binding_mismatch'
 }
+function bindingAuthorizesOrganization(
+  binding: GoogleContentApprovalBinding,
+  organizationId: string,
+): boolean {
+  return (
+    binding.targetPhase !== 'railway_closed_beta' ||
+    binding.railwayClosedBetaCohort?.includes(organizationId) === true
+  )
+}
 
 export function createGoogleContentAuthorizationAuthority<Tx>(
   deps: Readonly<{
@@ -389,6 +429,15 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       await fenceAndPersist(tx, record.permit, now)
       return approvalCode
     }
+    if (
+      !bindingAuthorizesOrganization(
+        approval.candidate.binding,
+        record.permit.organizationId,
+      )
+    ) {
+      await fenceAndPersist(tx, record.permit, now)
+      return 'authorization_denied'
+    }
 
     const decision = await deps.authorize(tx, {
       capability: record.permit.capability,
@@ -417,8 +466,85 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     return 'unavailable' in control ? null : control
   }
 
+  const authorizeRuntime = async (
+    tx: Tx,
+    input: GoogleContentPreauthorizationInput,
+    refreshedControl: Exclude<RequiredPolicyRefreshResult, { unavailable: true }>,
+    now: Date,
+  ) => {
+    const control = await deps.store.loadControl(tx)
+    if (control.policyVersion !== refreshedControl.version) {
+      return { ok: false as const, code: 'policy_version_changed' as const }
+    }
+    if (control.emergencyKillVersion !== refreshedControl.emergencyKillVersion) {
+      return { ok: false as const, code: 'emergency_kill_changed' as const }
+    }
+    if (control.killedCapabilities.includes(input.runtimeBinding.capability)) {
+      return { ok: false as const, code: 'capability_killed' as const }
+    }
+
+    const approval = await deps.store.loadApprovalForRuntime(tx, input.runtimeBinding)
+    if (!approval) {
+      return { ok: false as const, code: 'approval_unavailable' as const }
+    }
+    const approvalCode = validationCode(
+      approval,
+      input.runtimeBinding,
+      now,
+      deps.verifyRoleApproval,
+    )
+    if (approvalCode) return { ok: false as const, code: approvalCode }
+    if (
+      !bindingAuthorizesOrganization(
+        approval.candidate.binding,
+        input.scope.organizationId,
+      )
+    ) {
+      return { ok: false as const, code: 'authorization_denied' as const }
+    }
+
+    const decision = await deps.authorize(tx, {
+      capability: input.runtimeBinding.capability,
+      scope: input.scope,
+      operationKey: input.operationKey,
+      vectorMode: input.vectorMode,
+    })
+    if (!decision.allowed) {
+      return { ok: false as const, code: 'authorization_denied' as const }
+    }
+    if (
+      Object.keys(decision.vector).some((key) => PROVIDER_REQUEST_BINDING_KEYS.has(key))
+    ) {
+      return { ok: false as const, code: 'authorization_denied' as const }
+    }
+    return { ok: true as const, control, approval, decision }
+  }
+
   return {
     installApproval: approvalInstaller.installApproval,
+
+    preauthorize: async (input) => {
+      const refreshedControl = await refreshControl()
+      if (!refreshedControl) {
+        return { ok: false as const, code: 'policy_refresh_unavailable' as const }
+      }
+      return deps.store.transaction(async (tx) => {
+        const authorized = await authorizeRuntime(
+          tx,
+          input,
+          refreshedControl,
+          deps.clock(),
+        )
+        if (!authorized.ok) return authorized
+        return {
+          ok: true as const,
+          approvalBindingId: authorized.approval.id,
+          policyVersion: authorized.control.policyVersion,
+          emergencyKillVersion: authorized.control.emergencyKillVersion,
+          authorizationVector: authorized.decision.vector,
+        }
+      })
+    },
 
     admit: async (input) => {
       const refreshedControl = await refreshControl()
@@ -427,44 +553,30 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       }
       return deps.store.transaction(async (tx) => {
         const admittedAt = deps.clock()
-        const control = await deps.store.loadControl(tx)
-        if (control.policyVersion !== refreshedControl.version) {
-          return { ok: false as const, code: 'policy_version_changed' as const }
-        }
-        if (control.emergencyKillVersion !== refreshedControl.emergencyKillVersion) {
-          return { ok: false as const, code: 'emergency_kill_changed' as const }
-        }
-        if (control.killedCapabilities.includes(input.runtimeBinding.capability)) {
-          return { ok: false as const, code: 'capability_killed' as const }
-        }
-
-        const approval = await deps.store.loadApprovalForRuntime(tx, input.runtimeBinding)
-        if (!approval) {
-          return { ok: false as const, code: 'approval_unavailable' as const }
-        }
-        const approvalCode = validationCode(
-          approval,
-          input.runtimeBinding,
+        const authorized = await authorizeRuntime(
+          tx,
+          {
+            runtimeBinding: input.runtimeBinding,
+            scope: input.scope,
+            operationKey: input.operationKey,
+            vectorMode: input.startVectorMode,
+          },
+          refreshedControl,
           admittedAt,
-          deps.verifyRoleApproval,
         )
-        if (approvalCode) return { ok: false as const, code: approvalCode }
-
-        const decision = await deps.authorize(tx, {
-          capability: input.runtimeBinding.capability,
-          scope: input.scope,
-          operationKey: input.operationKey,
-          vectorMode: input.startVectorMode,
-        })
-        if (!decision.allowed) {
-          return { ok: false as const, code: 'authorization_denied' as const }
+        if (!authorized.ok) return authorized
+        if (authorized.approval.id !== input.expectedApprovalBindingId) {
+          return { ok: false as const, code: 'approval_binding_changed' as const }
         }
         if (
-          !validProviderRequestBinding(input.providerRequestBinding) ||
-          Object.keys(decision.vector).some((key) =>
-            PROVIDER_REQUEST_BINDING_KEYS.has(key),
+          !sameAuthorizationVector(
+            authorized.decision.vector,
+            input.expectedAuthorizationVector,
           )
         ) {
+          return { ok: false as const, code: 'authorization_changed' as const }
+        }
+        if (!validProviderRequestBinding(input.providerRequestBinding)) {
           return { ok: false as const, code: 'authorization_denied' as const }
         }
 
@@ -482,9 +594,9 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
             routeKey: input.routeKey,
             routeCatalogVersion: input.routeCatalogVersion,
             quotaPolicyId: input.quotaPolicyId,
-            policyVersion: control.policyVersion,
-            emergencyKillVersion: control.emergencyKillVersion,
-            approvalBindingId: approval.id,
+            policyVersion: authorized.control.policyVersion,
+            emergencyKillVersion: authorized.control.emergencyKillVersion,
+            approvalBindingId: authorized.approval.id,
             permitGeneration,
             startVectorMode: input.startVectorMode,
             commitVectorMode: input.commitVectorMode,
@@ -494,7 +606,7 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
         await deps.store.insertPermit(tx, {
           permit,
           authorizationVector: {
-            ...decision.vector,
+            ...authorized.decision.vector,
             ...input.providerRequestBinding,
           },
         })

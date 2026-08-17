@@ -117,13 +117,13 @@ export const LongPropertyName: Story = {
   },
 }
 
-// Empty state — org has no properties yet (CTA: Create Property).
+// Empty state — org has no properties yet (CTA: Import property).
 export const Empty: Story = {
   render: () => <FleetOverviewEmpty />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { name: /no properties yet/i })).toBeVisible()
-    expect(canvas.getByRole('link', { name: /create property/i })).toBeVisible()
+    expect(canvas.getByRole('link', { name: /import property/i })).toBeVisible()
   },
 }
 

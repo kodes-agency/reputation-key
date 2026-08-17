@@ -86,7 +86,11 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['src/**/*.test.ts', 'e2e/fixtures/**/*.test.ts'],
+          include: [
+            'src/**/*.test.ts',
+            'services/**/*.test.ts',
+            'e2e/fixtures/**/*.test.ts',
+          ],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',
             'src/**/*.integration.test.ts',

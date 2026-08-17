@@ -25,6 +25,7 @@ import type { GoogleImportContentAuthorizer } from './application/google-import-
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PerformanceContentAuthorizer } from './application/google-performance-authorizer'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
+import type { OAuthStateHandleService } from './application/oauth-state-handle'
 
 /** Query-free guard: any DB access during construction throws. */
 const dbStub = new Proxy(
@@ -60,6 +61,7 @@ function buildDeps(overrides: {
   authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
   googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
+  oauthStateHandles?: OAuthStateHandleService
 }) {
   return {
     db: dbStub,
@@ -70,6 +72,7 @@ function buildDeps(overrides: {
     logger: createMockLogger(),
     sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
+    oauthStateHandles: {} as unknown as OAuthStateHandleService,
     ...overrides,
   }
 }

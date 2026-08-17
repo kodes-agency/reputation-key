@@ -2,6 +2,7 @@
 // Disconnect/property/org purges remove source content + replies in bounded,
 // evidenced steps — and nothing else.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -38,10 +39,13 @@ async function seedReview(
   await db.execute(sql`
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
-      external_location_id, google_connection_id, rating, reviewed_at, expires_at
+      external_location_id, google_connection_id, rating, reviewed_at, expires_at,
+      source_epoch, source_revision, analysis_sequence,
+      ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${propertyId}, 'google', ${'ext-' + id},
-      'accounts/1/locations/2', ${connectionId}, 5, now(), now()
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connectionId}, 5, now(), now(),
+      0, 0, 0, 1, ${'0'.repeat(64)}
     )
     ON CONFLICT (id) DO NOTHING
   `)

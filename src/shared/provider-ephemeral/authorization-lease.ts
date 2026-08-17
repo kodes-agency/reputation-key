@@ -18,6 +18,7 @@ const leaseRecordSchema = z
     audience: z.enum(['import', 'performance']),
     capability: z.enum(GOOGLE_CONTENT_CAPABILITIES),
     organizationId: z.string().min(1).max(255),
+    initiatorUserId: z.string().min(1).max(255),
     propertyId: z.uuid().nullable(),
     connectionId: z.uuid(),
     approvalBindingId: z.uuid(),
@@ -53,6 +54,7 @@ export type ProviderAuthorizationLeaseService = Readonly<{
       audience: 'import' | 'performance'
       capability: GoogleContentCapability
       organizationId: string
+      initiatorUserId: string
       propertyId: string | null
       connectionId: string
       approvalBindingId: string
@@ -126,6 +128,7 @@ export function createProviderAuthorizationLeaseService(
       Readonly<{
         allowed: boolean
         approvalBindingId: string | null
+        authorizationVectorSha256: string | null
       }>
     >
   }>,
@@ -160,6 +163,7 @@ export function createProviderAuthorizationLeaseService(
         audience: input.audience,
         capability: input.capability,
         organizationId: input.organizationId,
+        initiatorUserId: input.initiatorUserId,
         propertyId: input.propertyId,
         connectionId: input.connectionId,
         approvalBindingId: input.approvalBindingId,
@@ -172,6 +176,21 @@ export function createProviderAuthorizationLeaseService(
         absoluteDeadlineMs: input.absoluteDeadlineMs,
       })
       if (!parsed.success) return { ok: false, code: 'malformed' }
+      let authorization: Awaited<ReturnType<typeof deps.revalidate>>
+      try {
+        authorization = await deps.revalidate(parsed.data)
+      } catch {
+        return { ok: false, code: 'runtime_unavailable' }
+      }
+      if (!authorization.allowed) {
+        return { ok: false, code: 'authorization_denied' }
+      }
+      if (
+        authorization.approvalBindingId !== parsed.data.approvalBindingId ||
+        authorization.authorizationVectorSha256 !== parsed.data.authorizationVectorSha256
+      ) {
+        return { ok: false, code: 'authorization_changed' }
+      }
       const ttlSeconds = Math.max(1, Math.ceil((expiresAtMs - input.nowMs) / 1_000))
       try {
         const stored = await deps.store.putIfAbsent(
@@ -251,7 +270,10 @@ export function createProviderAuthorizationLeaseService(
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_denied' }
       }
-      if (authorization.approvalBindingId !== record.approvalBindingId) {
+      if (
+        authorization.approvalBindingId !== record.approvalBindingId ||
+        authorization.authorizationVectorSha256 !== record.authorizationVectorSha256
+      ) {
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
       }

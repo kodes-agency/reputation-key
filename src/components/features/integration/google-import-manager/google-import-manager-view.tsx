@@ -48,6 +48,9 @@ export function GoogleImportManagerView({
   startError,
   onSubmit,
 }: Props) {
+  const hasActiveConnection = connections.some(
+    (connection) => connection.status === 'active',
+  )
   return (
     <div className="space-y-6">
       <Breadcrumb>
@@ -55,7 +58,11 @@ export function GoogleImportManagerView({
           <BreadcrumbItem>
             {discovery.step === 'review' ? (
               <BreadcrumbLink asChild>
-                <button type="button" onClick={() => discovery.setStep('discover')}>
+                <button
+                  type="button"
+                  disabled={startPending}
+                  onClick={() => discovery.setStep('discover')}
+                >
                   Select locations
                 </button>
               </BreadcrumbLink>
@@ -94,12 +101,20 @@ export function GoogleImportManagerView({
             <GoogleAccountSelector
               connections={connections}
               value={discovery.connectionId ?? undefined}
+              disabled={startPending}
               onValueChange={(value) => void discovery.changeConnection(value)}
             />
           </Field>
-          <ConnectGoogleButton getAuthUrl={getAuthUrl} />
+          <ConnectGoogleButton getAuthUrl={getAuthUrl} disabled={startPending} />
         </CardContent>
       </Card>
+
+      {startError && !(discovery.step === 'review' && discovery.reviewDraft) ? (
+        <Alert variant="destructive">
+          <AlertTitle>Import unavailable</AlertTitle>
+          <AlertDescription>{startError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {connections.length === 0 ? (
         <Alert>
@@ -107,6 +122,27 @@ export function GoogleImportManagerView({
           <AlertDescription>
             Use the connection button above. RepKey only shows provider content while this
             page is active.
+          </AlertDescription>
+        </Alert>
+      ) : !hasActiveConnection ? (
+        <Alert>
+          <AlertTitle>Reconnect Google to continue</AlertTitle>
+          <AlertDescription>
+            None of the saved Google connections can be used for discovery. Connect Google
+            again to restore access.
+          </AlertDescription>
+        </Alert>
+      ) : !discovery.contentActive ? (
+        <Alert>
+          <AlertTitle>Google location details were cleared</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              RepKey removes temporary provider content when this page is hidden, expires,
+              or loses authorization.
+            </p>
+            <Button type="button" variant="outline" onClick={discovery.resumeDiscovery}>
+              Rediscover locations
+            </Button>
           </AlertDescription>
         </Alert>
       ) : discovery.step === 'review' && discovery.reviewDraft ? (
@@ -143,7 +179,9 @@ export function GoogleImportManagerView({
         />
       )}
 
-      {discovery.reviewCandidates.length > 0 && discovery.step === 'discover' ? (
+      {discovery.contentActive &&
+      discovery.reviewCandidates.length > 0 &&
+      discovery.step === 'discover' ? (
         <Button type="button" variant="ghost" onClick={() => discovery.setStep('review')}>
           Return to current review
         </Button>

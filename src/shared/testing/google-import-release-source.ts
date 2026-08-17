@@ -2,6 +2,28 @@ import { createHash } from 'node:crypto'
 
 const FULL_GIT_COMMIT = /^[a-f0-9]{40}$/
 
+const RELEASE_SECRET_ENV = new Set([
+  'BETTER_AUTH_SECRET',
+  'DATABASE_URL',
+  'ENCRYPTION_KEY',
+  'GOOGLE_CLIENT_SECRET',
+  'OAUTH_STATE_SECRET',
+  'POSTGRES_PASSWORD',
+])
+
+export function redactedReleaseCommandText(
+  command: string,
+  args: readonly string[],
+): string {
+  const redacted = args.map((arg) => {
+    const separator = arg.indexOf('=')
+    if (separator <= 0) return arg
+    const name = arg.slice(0, separator)
+    return RELEASE_SECRET_ENV.has(name) ? `${name}=[redacted]` : arg
+  })
+  return [command, ...redacted].join(' ')
+}
+
 export type GoogleImportReleaseSourcePlan = Readonly<{
   schemaVersion: 'google-import-release-source-v1'
   baselineCommit: string

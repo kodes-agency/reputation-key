@@ -19,13 +19,18 @@ export const GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION = '2026-08-05' as const
 
 export const GOOGLE_CONTENT_APPROVAL_TARGET_PHASES = [
   'local_sandbox',
+  'railway_closed_beta',
   'production_expand_canary',
   'production_final',
 ] as const
 export type GoogleContentApprovalTargetPhase =
   (typeof GOOGLE_CONTENT_APPROVAL_TARGET_PHASES)[number]
 
-export const GOOGLE_CONTENT_ENVIRONMENT_PROFILES = ['sandbox', 'production'] as const
+export const GOOGLE_CONTENT_ENVIRONMENT_PROFILES = [
+  'sandbox',
+  'railway-closed-beta-1',
+  'production',
+] as const
 export type GoogleContentEnvironmentProfile =
   (typeof GOOGLE_CONTENT_ENVIRONMENT_PROFILES)[number]
 
@@ -72,8 +77,13 @@ export type GoogleContentApprovalBinding = Readonly<{
   googleOAuthClientIdSha256: string
   googleRedirectUriSha256: string
   providerOriginProfileSha256: string
-  runtimeIsolationProfileVersion: typeof GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION
-  runtimeIsolationProfileSha256: string
+  runtimeIsolationProfileVersion:
+    | typeof GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION
+    | null
+  runtimeIsolationProfileSha256: string | null
+  railwayClosedBetaCohort: readonly string[] | null
+  railwayClosedBetaCohortSha256: string | null
+  railwayClosedBetaResidualRiskSha256: string | null
   performanceCatalogVersion: typeof GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION
   capabilityPolicyVersion: typeof GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION
   executionPolicyVersion: typeof GOOGLE_CONTENT_EXECUTION_POLICY_VERSION
@@ -96,6 +106,9 @@ export type GoogleContentApprovalRoleDocument = Readonly<{
   transientPerformanceReportingDecision: GoogleContentDecision
   confirmedImportProfileTreatmentDecision: GoogleContentDecision
   unmanagedUserAgentMemoryResidualDecision: GoogleContentDecision
+  railwayClosedBetaResidualDecision: GoogleContentDecision | null
+  railwayClosedBetaCohortSha256: string | null
+  railwayClosedBetaResidualRiskSha256: string | null
   approverIdentity: string
   approvedAt: string
   expiresAt: string
