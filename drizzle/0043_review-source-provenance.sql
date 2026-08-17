@@ -1,16 +1,6 @@
-ALTER TABLE "gbp_cache" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "gbp_import_jobs" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "gbp_import_legacy_history" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "legacy_import_control" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "legacy_import_effect_leases" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP TABLE "gbp_cache" CASCADE;--> statement-breakpoint
-DROP TABLE "gbp_import_jobs" CASCADE;--> statement-breakpoint
-DROP TABLE "gbp_import_legacy_history" CASCADE;--> statement-breakpoint
-DROP TABLE "legacy_import_control" CASCADE;--> statement-breakpoint
-DROP TABLE "legacy_import_effect_leases" CASCADE;--> statement-breakpoint
-ALTER TABLE "google_connections" DROP CONSTRAINT "google_connections_identity_check";--> statement-breakpoint
-DROP INDEX "google_connections_google_account_idx";--> statement-breakpoint
-DROP INDEX "properties_org_gbp_place_id_unique";--> statement-breakpoint
+-- Google import compatibility teardown is intentionally excluded from the
+-- Drizzle journal. The controlled R4 cutover applies
+-- scripts/migrations/google-import-contract.sql after its quiescence gate.
 ALTER TABLE "reviews" ADD COLUMN "source_epoch" integer;--> statement-breakpoint
 ALTER TABLE "reviews" ADD COLUMN "source_revision" integer;--> statement-breakpoint
 CREATE TABLE "review_source_provenance_quarantine" (
@@ -54,18 +44,8 @@ WHERE p."id" = r."property_id"
   AND p."organization_id" = r."organization_id";--> statement-breakpoint
 ALTER TABLE "reviews" ALTER COLUMN "source_epoch" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "reviews" ALTER COLUMN "source_revision" SET NOT NULL;--> statement-breakpoint
-ALTER TABLE "google_connections" DROP COLUMN "google_account_id";--> statement-breakpoint
-ALTER TABLE "google_connections" DROP COLUMN "google_email";--> statement-breakpoint
-ALTER TABLE "properties" DROP COLUMN "gbp_place_id";--> statement-breakpoint
-ALTER TABLE "google_connections" ADD CONSTRAINT "google_connections_identity_check" CHECK ("google_connections"."google_subject" IS NOT NULL OR "google_connections"."status" = 'disconnected');--> statement-breakpoint
-DROP TYPE "public"."gbp_cache_data_type";--> statement-breakpoint
-DROP TYPE "public"."import_job_status";--> statement-breakpoint
-DROP TYPE "public"."google_connected_event_issuance_version";--> statement-breakpoint
-DROP TYPE "public"."google_oauth_state_issuance_version";--> statement-breakpoint
-DROP TYPE "public"."legacy_import_control_state";--> statement-breakpoint
-DROP TYPE "public"."legacy_import_effect_lease_state";--> statement-breakpoint
-DROP TYPE "public"."legacy_import_history_status";
---> statement-breakpoint
+-- The controlled Google import contract migration removes the legacy identity
+-- columns and enum types after the review provenance expansion is complete.
 CREATE OR REPLACE FUNCTION "ai_epoch_millis_v1"(p_timestamp timestamptz)
 RETURNS bigint
 LANGUAGE plpgsql
