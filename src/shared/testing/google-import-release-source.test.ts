@@ -146,10 +146,12 @@ describe('Google import release command evidence', () => {
         'DATABASE_URL=postgresql://user:password@postgres:5432/repkey',
         '-e',
         'BETTER_AUTH_SECRET=secret',
+        '-e',
+        'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS=local:secret',
         'release-image',
       ]),
     ).toBe(
-      'docker run -e DATABASE_URL=[redacted] -e BETTER_AUTH_SECRET=[redacted] release-image',
+      'docker run -e DATABASE_URL=[redacted] -e BETTER_AUTH_SECRET=[redacted] -e REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS=[redacted] release-image',
     )
   })
 })

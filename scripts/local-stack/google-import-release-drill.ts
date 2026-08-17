@@ -305,7 +305,7 @@ function imageSmoke(
   return result
 }
 
-function migrationEnvironment(databaseUrl: string): readonly string[] {
+export function migrationEnvironment(databaseUrl: string): readonly string[] {
   return [
     '-e',
     'NODE_ENV=production',
@@ -325,6 +325,8 @@ function migrationEnvironment(databaseUrl: string): readonly string[] {
     `ENCRYPTION_KEY=${'ab'.repeat(32)}`,
     '-e',
     `OAUTH_STATE_SECRET=${'cd'.repeat(16)}`,
+    '-e',
+    `REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS=local:${'ef'.repeat(32)}`,
   ]
 }
 
@@ -767,7 +769,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error))
-  process.exit(1)
-})
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? (error.stack ?? error.message) : String(error))
+    process.exit(1)
+  })
+}

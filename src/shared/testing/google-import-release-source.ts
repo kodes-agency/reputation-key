@@ -9,6 +9,7 @@ const RELEASE_SECRET_ENV = new Set([
   'GOOGLE_CLIENT_SECRET',
   'OAUTH_STATE_SECRET',
   'POSTGRES_PASSWORD',
+  'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS',
 ])
 
 export function redactedReleaseCommandText(
