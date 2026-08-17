@@ -62,19 +62,21 @@ export async function initializeReviewProviderSubjectKeyInventory(
 }
 
 /**
- * Enforces the sealed migrator's distinct secret placement. A normal writer
- * key variable is rejected even when the separate migrator value is present.
+ * Enforces the sealed migrator's distinct secret placement. Once the database
+ * inventory exists, ordinary deploys need no copy of the one-run migrator
+ * secret. A normal writer key variable is always rejected.
  */
 export async function initializeReviewProviderSubjectKeyInventoryFromEnvironment(
   input: Readonly<{
     db: Database
     env: ReviewProviderSubjectMigratorEnvironment
   }>,
-): Promise<InitializedReviewProviderSubjectKey> {
-  if (
-    input.env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined ||
-    input.env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS === undefined
-  ) {
+): Promise<InitializedReviewProviderSubjectKey | null> {
+  if (input.env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined) {
+    throw new Error('provider_subject_key_initialization_invalid')
+  }
+  if (input.env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS === undefined) {
+    if (await hasInitializedInventory(input.db)) return null
     throw new Error('provider_subject_key_initialization_invalid')
   }
   return initializeReviewProviderSubjectKeyInventory({

@@ -101,6 +101,17 @@ describe('sealed Review provider-subject key initialization', () => {
     expect((failure as Error).message).not.toContain(KEY)
   })
 
+  it('allows a normal redeploy without a migrator secret after initialization', async () => {
+    const execute = vi.fn(async () => ({ rows: [{ present: 1 }] }))
+
+    await expect(
+      initializeReviewProviderSubjectKeyInventoryFromEnvironment({
+        db: database(execute),
+        env: {},
+      }),
+    ).resolves.toBeNull()
+    expect(execute).toHaveBeenCalledOnce()
+  })
   it('accepts only the distinct sealed-migrator variable', async () => {
     const execute = vi.fn(async () => ({ rows: [] }))
 
@@ -113,7 +124,6 @@ describe('sealed Review provider-subject key initialization', () => {
     expect(execute).toHaveBeenCalledTimes(2)
 
     for (const env of [
-      {},
       { REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: `v1:${KEY}` },
       {
         REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: `v1:${KEY}`,
@@ -127,6 +137,13 @@ describe('sealed Review provider-subject key initialization', () => {
         }),
       ).rejects.toThrow('provider_subject_key_initialization_invalid')
     }
+
+    await expect(
+      initializeReviewProviderSubjectKeyInventoryFromEnvironment({
+        db: database(async () => ({ rows: [] })),
+        env: {},
+      }),
+    ).rejects.toThrow('provider_subject_key_initialization_invalid')
     expect(execute).toHaveBeenCalledTimes(2)
   })
 })
