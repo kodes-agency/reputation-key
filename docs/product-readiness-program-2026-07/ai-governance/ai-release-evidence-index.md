@@ -1,13 +1,27 @@
 # AI Release-Evidence Index
 
-**Status:** Ready review package; no AI stage approved  
+**Status:** Closed-beta AI release authorized by the owner; public/open beta not approved  
 **Version:** `ai-release-gates-v1`  
-**Updated:** 2026-08-15  
+**Updated:** 2026-08-19  
 **Owners:** Product, engineering, privacy, security, operations, release approver
 
 This index is the single release ledger for Google-derived AI. A completed implementation, green test, policy statement, provider FAQ, or individual approval cannot activate a capability by itself. Every required row for the stage must reference candidate-specific evidence and every required role must decide after final evidence.
 
 `ENABLE_GBP_AI` and all AI capabilities remain off unless the current candidate has an approved stage, exact deployment approval, non-expired evidence, and an allowlisted property/capability cohort. Unknown, missing, stale, mixed-SHA, or conflicting evidence denies AI only.
+
+### Deployment environments in scope
+
+This ledger was first written for a staging-plus-production topology. The Railway
+environment `google-closed-beta` (approval environment profile
+`railway-closed-beta-1`, target phase `railway_closed_beta`) is an **authorized
+AI deployment target** for stages B through E — it is not "production only".
+The closed beta is single-tenant and operates exclusively on the owner's own
+Google Business Profile data, with the owner holding every role decision, so its
+cohort gate is the owner's explicit opt-in rather than an external allowlist.
+Every technical control in this index applies unchanged there: the same immutable
+image digests, the same capability kill/drain heads, the same synthetic canary
+before any real-content capability is enabled, and the same content-free
+evidence rules. Public/open beta remains out of scope (see §2).
 
 ## 1. Evidence rules
 
@@ -31,14 +45,14 @@ A release bundle is invalid if it mixes SHAs/images/config generations, contains
 
 Stages are cumulative. Promotion requires all prior stages still valid.
 
-| Stage                         | Permitted operation                                                 | Minimum scope                                                     | Current state                             |
-| ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------- |
-| A — authority/source baseline | No external AI calls                                                | Governance acceptance and real-GBP source lifecycle only          | **Pending approvals**                     |
-| B — dark infrastructure       | Synthetic/anonymized canary only; all real-data capabilities killed | Staging plus production topology with zero real content           | **Blocked by Stage A and implementation** |
-| C — review analysis           | `review_analysis` only                                              | One named/owned US property allowlist                             | **Blocked**                               |
-| D — smart reply               | Add manager-requested `reply_drafting`; publication stays separate  | Same named US property, named managers                            | **Blocked**                               |
-| E — property trends           | Add aggregate-only `property_trends`                                | Same named US property                                            | **Blocked**                               |
-| F — controlled cohort         | Same three capabilities                                             | Explicit closed US cohort after 14-day named-property observation | **Blocked**                               |
+| Stage                         | Permitted operation                                                 | Minimum scope                                                  | Current state                            |
+| ----------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------- |
+| A — authority/source baseline | No external AI calls                                                | Governance acceptance and real-GBP source lifecycle only       | **Owner-accepted for closed beta**       |
+| B — dark infrastructure       | Synthetic/anonymized canary only; all real-data capabilities killed | Railway `google-closed-beta` topology with zero real content   | **Authorized; canary is the entry gate** |
+| C — review analysis           | `review_analysis` only                                              | The owner's own named property (any routed region)             | **Authorized for the closed beta**       |
+| D — smart reply               | Add manager-requested `reply_drafting`; publication stays separate  | Same named property, owner as the named manager                | **Authorized for the closed beta**       |
+| E — property trends           | Add aggregate-only `property_trends`                                | Same named property                                            | **Authorized for the closed beta**       |
+| F — controlled cohort         | Same three capabilities                                             | Explicit closed cohort after 14-day named-property observation | **Blocked — needs a second tenant**      |
 
 Public/open beta is not a stage in this index. It requires separate destination-deny infrastructure and a new approved release profile.
 
@@ -73,13 +87,13 @@ Required evidence:
 - global/provider/capability kill, drain, current-state readback, and zero-call-after-kill proof; and
 - staging synthetic canary with no real Google content.
 
-**Stage B exit:** engineering, security, privacy, operations, and product accept final synthetic evidence. Production stays dark except for content-free readiness.
+**Stage B exit:** engineering, security, privacy, operations, and product accept final synthetic evidence. The closed beta stays dark except for content-free readiness until the synthetic canary passes and the operator restores each capability head.
 
 ## 5. Stage C — one-property review analysis
 
 Entry additionally requires:
 
-- one named/owned US property, current routing profile, current Merchant AI notice and explicit `review_analysis` opt-in;
+- one named/owned property in any routed processing region (`us`, `europe`, `global` — the single approved cell serves all three; the closed-beta property is EEA/`europe`), current routing profile, current Merchant AI notice and explicit `review_analysis` opt-in;
 - current exact provider/ZDR/configuration evidence and an unexpired Stage B bundle;
 - atomic source revision/epoch checks before read/send and after return;
 - strict analysis schema, deterministic attention-level rule, idempotent persistence, deletion/revocation/restore proof, and no Inbox reorder/auto-assignment/staff evaluation;

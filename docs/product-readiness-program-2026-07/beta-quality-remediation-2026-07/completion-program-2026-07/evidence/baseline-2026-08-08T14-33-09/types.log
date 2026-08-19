@@ -1,8 +1,0 @@
-$ pnpm typecheck
-started: 2026-08-08T14:33:24.390Z  durationMs: 13100  exit: 0
-
-
-> reputation-key@ typecheck /Users/bozhidardenev/kodes/projects/rep-key
-> tsc --noEmit
-
-
