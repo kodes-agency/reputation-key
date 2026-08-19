@@ -122,6 +122,12 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+          # One-run sealed migrator key. CI migrates an empty database, so the
+          # provider-subject inventory has no seeded row and the initializer
+          # fails closed (provider_subject_key_initialization_invalid) unless a
+          # migrator key is injected exactly once — the same contract production
+          # follows, with the key removed before normal services start.
+          REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: 'v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd'
         run: pnpm db:migrate-deploy
 
       # BQC-7.7: migration artifact consistency as a NAMED gate — the semantic
