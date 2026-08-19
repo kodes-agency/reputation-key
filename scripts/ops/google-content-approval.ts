@@ -89,8 +89,12 @@ async function main(): Promise<void> {
 
       const binding = validation.binding
       if (ctx.dryRun) {
+        // routeCatalogue is approval-bound: the bundle must carry the exact
+        // compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION or parsing above
+        // already refused it. Printed so the operator can confirm which
+        // catalogue this approval authorizes.
         io.out(
-          `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} expires=${binding.expiresAt}; re-run with --apply`,
+          `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} routeCatalogue=${binding.routeCatalogueVersion} performanceCatalog=${binding.performanceCatalogVersion} expires=${binding.expiresAt}; re-run with --apply`,
         )
         return
       }
@@ -106,7 +110,7 @@ async function main(): Promise<void> {
         return 1
       }
       io.out(
-        `approval_installed capability=${binding.capability} phase=${binding.targetPhase} binding=${installed.approvalBindingId}`,
+        `approval_installed capability=${binding.capability} phase=${binding.targetPhase} routeCatalogue=${binding.routeCatalogueVersion} binding=${installed.approvalBindingId}`,
       )
     },
   )

@@ -53,6 +53,7 @@ const profileManifest = {
   constants: { minimumLetters: 24, minimumProbability: 0.85, reliableRequired: true },
   labelMap: {
     ar: 'ar-Arab',
+    bg: 'bg-Cyrl',
     bn: 'bn-Beng',
     de: 'de-Latn',
     en: 'en-Latn',

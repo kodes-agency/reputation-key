@@ -44,6 +44,7 @@ const GROUPS = Object.freeze([
   'zh-Hant',
   'ja-Jpan',
   'ko-Kore',
+  'bg-Cyrl',
 ] as const)
 
 function sha256(value: Uint8Array | string): string {

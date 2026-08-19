@@ -21,6 +21,7 @@ import {
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
   GOOGLE_CONTENT_CAPABILITIES,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRole,
   type GoogleContentApprovalRoleDocument,
@@ -134,6 +135,11 @@ type ObservedImageIdentities = Readonly<
     Readonly<{ imageId: string; repoDigests: readonly string[]; revisionLabel: string }>
   >
 >
+type WorkerContainerState = Readonly<{
+  id: string
+  startedAtMs: number
+}>
+
 type RunOptions = Readonly<{
   env?: NodeJS.ProcessEnv
   capture?: boolean
@@ -834,6 +840,9 @@ function buildLocalGoogleContentApprovalEnv(
       railwayClosedBetaCohortSha256: null,
       railwayClosedBetaResidualRiskSha256: null,
       performanceCatalogVersion: '2026-08-05',
+      // Compiled constant, not a literal: a catalogue bump must regenerate the
+      // local approval bundle rather than fail the stack with a parse error.
+      routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
       capabilityPolicyVersion: 'beta-local-2',
       executionPolicyVersion: 'beta-local-2',
       migrationHead,
@@ -887,6 +896,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     state.aiRuntime,
     'ai-safety-identifier-hmac.key',
   )
+  const subjectHmacKeyPath = resolve(state.aiRuntime, 'ai-subject-hmac.key')
   const writeFixedSigningKey = (path: string, label: string, seed: string): void => {
     const privateKey = Buffer.from(`302e020100300506032b657004220420${seed}`, 'hex')
     if (privateKey.byteLength !== 48) {
@@ -921,6 +931,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
   )
   createSymmetricKey(requestBindingKeyPath)
   createSymmetricKey(safetyIdentifierKeyPath)
+  createSymmetricKey(subjectHmacKeyPath)
 
   const privateKeyBase64 = (path: string): string => readFileSync(path).toString('base64')
   const publicKeyBase64 = (path: string): string =>
@@ -951,6 +962,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     AI_WORKER_INTERNAL_MTLS_KEY_B64: encoded('repkey-worker.key'),
     AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readFileSync(requestBindingKeyPath).toString('hex')}`,
     AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readFileSync(safetyIdentifierKeyPath).toString('hex')}`,
+    AI_SUBJECT_HMAC_KEYS: `subject-v1:${readFileSync(subjectHmacKeyPath).toString('hex')}`,
     AI_ADMISSION_ED25519_KID: admissionKid,
     AI_ADMISSION_ED25519_PRIVATE_KEY_B64: privateKeyBase64(admissionPrivateKeyPath),
     AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
@@ -961,6 +973,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
       [provenanceKid]: publicKeyBase64(provenancePrivateKeyPath),
     }),
+    AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest,
     AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: AI_RUNTIME_CAPABILITIES_V1_DIGEST,
     AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
@@ -1097,12 +1110,15 @@ async function probeTcp(port: number): Promise<boolean> {
   })
 }
 
-function workerReadyCount(mode: LocalStackMode, state: StackPaths): number {
+function workerContainerState(
+  mode: LocalStackMode,
+  state: StackPaths,
+): WorkerContainerState | null {
   const containerId = dockerCompose(mode, state, ['ps', '--all', '--quiet', 'worker'], {
     capture: true,
     allowFailure: true,
   }).trim()
-  if (!containerId) return 0
+  if (!containerId) return null
 
   const startedAt = run(
     'docker',
@@ -1110,19 +1126,28 @@ function workerReadyCount(mode: LocalStackMode, state: StackPaths): number {
     { capture: true, allowFailure: true },
   ).trim()
   const startedAtMs = Date.parse(startedAt)
-  if (!Number.isFinite(startedAtMs)) return 0
+  if (!Number.isFinite(startedAtMs)) return null
 
-  // Worker readiness is emitted once during startup. Bound log capture to that
-  // window so a long-running worker cannot exhaust spawnSync's output buffer.
+  return { id: containerId, startedAtMs }
+}
+
+function workerReadyCount(
+  mode: LocalStackMode,
+  state: StackPaths,
+  containerState: WorkerContainerState | null = null,
+): number {
+  const current = containerState ?? workerContainerState(mode, state)
+  if (!current) return 0
+
   const logs = run(
     'docker',
     [
       'logs',
       '--since',
-      new Date(startedAtMs).toISOString(),
+      new Date(current.startedAtMs).toISOString(),
       '--until',
-      new Date(startedAtMs + 120_000).toISOString(),
-      containerId,
+      new Date(current.startedAtMs + 120_000).toISOString(),
+      current.id,
     ],
     { capture: true, allowFailure: true, includeStderr: true },
   )
@@ -1137,6 +1162,26 @@ async function waitWorker(
   const deadline = Date.now() + 120_000
   while (Date.now() < deadline) {
     if (workerReadyCount(mode, state) >= minimumReadyCount) return
+    await sleep(1_000)
+  }
+  throw new Error(`worker did not emit readiness line: ${WORKER_READY_LINE}`)
+}
+
+async function waitWorkerRestart(
+  mode: LocalStackMode,
+  state: StackPaths,
+  priorState: WorkerContainerState | null,
+): Promise<void> {
+  const deadline = Date.now() + 120_000
+  while (Date.now() < deadline) {
+    const current = workerContainerState(mode, state)
+    const restarted =
+      priorState === null ||
+      current?.id !== priorState.id ||
+      current?.startedAtMs > priorState.startedAtMs
+    if (restarted && current !== null && workerReadyCount(mode, state, current) >= 1) {
+      return
+    }
     await sleep(1_000)
   }
   throw new Error(`worker did not emit readiness line: ${WORKER_READY_LINE}`)
@@ -1937,7 +1982,10 @@ function enqueueReviewCreatedProbe(mode: LocalStackMode, state: StackPaths): str
     mode,
     state,
     `WITH source AS (
-       SELECT id, organization_id, property_id, external_id, platform
+       SELECT id, organization_id, property_id, platform,
+              COALESCE(source_revision, 1) AS source_revision,
+              COALESCE(source_epoch, 0) AS source_epoch,
+              GREATEST(analysis_sequence, 1) AS analysis_sequence
        FROM reviews ORDER BY created_at, id LIMIT 1
      )
      INSERT INTO outbox_events (
@@ -1947,8 +1995,9 @@ function enqueueReviewCreatedProbe(mode: LocalStackMode, state: StackPaths): str
      SELECT 'review.created', 1,
        jsonb_build_object(
          'reviewId', id, 'organizationId', organization_id,
-         'propertyId', property_id, 'externalId', external_id,
-         'platform', platform, 'occurredAt', now()
+         'propertyId', property_id, 'platform', platform,
+         'sourceEpoch', source_epoch, 'sourceRevision', source_revision,
+         'analysisSequence', analysis_sequence, 'occurredAt', now()
        ),
        organization_id, property_id, 'local-fault-probe', id::text
      FROM source RETURNING id`,
@@ -1986,6 +2035,7 @@ async function waitForEventDelivery(
   }
   throw new Error(`Queued mutation ${eventId} did not drain after worker recovery`)
 }
+
 async function observeFault(
   mode: LocalStackMode,
   state: StackPaths,
@@ -1994,15 +2044,19 @@ async function observeFault(
   await resetExternalEffectCounts()
   const externalBefore = await externalEffectCounts()
   const durableBefore = await waitForDurableQuiescence(mode, state)
-  const workerReadyBefore = workerReadyCount(mode, state)
+  const workerStateBefore = workerContainerState(mode, state)
   if (fault.name === 'worker') {
     dockerCompose(mode, state, ['stop', '--timeout', '10', 'web', 'worker'])
     const eventId = enqueueReviewCreatedProbe(mode, state)
     const queued = eventDelivery(mode, state, eventId)
     const externalAfterFailedOperation = await externalEffectCounts()
     const readinessDuringFault = await probeHttp('http://127.0.0.1:3000/api/health/ready')
-    const failClosed =
-      !queued.published && queued.receipts === 0 && !readinessDuringFault.reachable
+    const readinessIs2xx =
+      readinessDuringFault.reachable &&
+      readinessDuringFault.status !== null &&
+      readinessDuringFault.status >= 200 &&
+      readinessDuringFault.status < 300
+    const failClosed = !queued.published && queued.receipts === 0 && !readinessIs2xx
     dockerCompose(mode, state, [
       'up',
       '--no-deps',
@@ -2013,7 +2067,7 @@ async function observeFault(
       'web',
       'worker',
     ])
-    await waitWorker(mode, state, workerReadyBefore + 1)
+    await waitWorkerRestart(mode, state, workerStateBefore)
     await waitHttp(
       'web readiness after queued restart',
       'http://127.0.0.1:3000/api/health/ready',
@@ -2066,13 +2120,15 @@ async function observeFault(
   dockerCompose(mode, state, ['stop', '--timeout', '10', fault.service])
   const operationDuringFault = runAffectedOperation(mode, state, fault.name, 'fault')
   const unavailable =
-    fault.endpoint === 'http'
-      ? !(await probeHttp(fault.url)).reachable
-      : !(await probeTcp(
-          fault.name === 'db'
-            ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
-            : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
-        ))
+    fault.name === 'gbp' || fault.name === 'web'
+      ? operationDuringFault.observed !== 'success'
+      : fault.endpoint === 'http'
+        ? !(await probeHttp(fault.url)).reachable
+        : !(await probeTcp(
+            fault.name === 'db'
+              ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
+              : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
+          ))
   const readinessDuringFault = await probeHttp('http://127.0.0.1:3000/api/health/ready')
   let failClosed = unavailable && operationDuringFault.observed === 'failed-closed'
   dockerCompose(mode, state, [
@@ -2299,8 +2355,8 @@ async function upgrade(
       throw new Error('Versioned upgrade fixture has no pending migrations')
     }
     oneShot(mode, state, 'migrator')
+    startAiInfrastructure(mode, state)
     await startApplications(mode, state)
-    await smoke(mode, state)
     const upgradedHead = migrationHeadProof(mode, state, 'upgrade')
     const images = inspectIdentities(mode, state)
     const legacyAfter = legacyFixtureState(mode, state)

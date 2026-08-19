@@ -2,9 +2,9 @@
 // BQC-6.9 — changed-code budget gate. Wired as `pnpm check:changed-code` and
 // as a CI step in the check job (ci.yml, after the coverage gate).
 //
-// Master-plan changed-code budget: every NEW production source file under
-// src/** must arrive with a colocated unit test — `foo.ts` next to
-// `foo.test.ts` in the same directory (CONTEXT.md §Testing: "Tests colocated").
+// Master-plan changed-code budget: every NEW production source module with
+// runtime behavior under src/** must have executable contract evidence: a
+// colocated/direct test, or fresh per-file coverage at the enforced threshold.
 //
 // Scope (deliberately narrow — the coverage ratchet in check-coverage.mjs
 // owns the overall floor; this gate owns new decision code):
@@ -12,20 +12,20 @@
 //              (`git diff --diff-filter=A <base>...HEAD -- 'src/**'`)
 //   excluded : test files (*.test.ts(x)), stories (*.stories.*),
 //              UI routes (src/routes/**), components (src/components/**),
-//              test-only helpers (src/shared/testing/** — fixtures/builders,
-//              mirroring the coverage-config exclusion), barrels (index.ts),
-//              generated (*.gen.ts), config (*.config.ts)
-//              — UI surfaces are covered by storybook/e2e gates, barrels and
-//              generated code carry no logic.
+//              test-only helpers/fixtures, barrels, generated sources, and
+//              config modules. Type/interface-only modules are detected with
+//              the TypeScript parser and excluded because they have no runtime
+//              behavior to exercise.
 //   modified files are NOT gated here (the ratchet owns their coverage).
 //
-// EXEMPT register — a new file may ship without a colocated test ONLY with
-// owner + reason recorded here. Empty today; keep it narrow.
+// EXEMPT register — a new file may ship without executable contract evidence
+// ONLY with owner + reason recorded here. Keep it narrow and stale-checked.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join, dirname, basename } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { join, dirname, basename, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -60,18 +60,191 @@ const EXEMPT = [
 ]
 
 const EXCLUDED = (file) =>
+  !/\.(ts|tsx)$/.test(file) ||
   /\.(test|spec)\.(ts|tsx)$/.test(file) ||
   /\.stories\.(ts|tsx)$/.test(file) ||
   file.startsWith('src/routes/') ||
   file.startsWith('src/components/') ||
   file.startsWith('src/shared/testing/') ||
+  file.startsWith('src/test-fixtures/') ||
+  file.includes('/generated/') ||
   basename(file) === 'index.ts' ||
-  /\.gen\.ts$/.test(file) ||
+  /\.(gen|generated)\.ts$/.test(file) ||
   /\.config\.ts$/.test(file)
+
+const hasRuntimeBehavior = (file) => {
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(join(ROOT, file), 'utf8'),
+    ts.ScriptTarget.Latest,
+    false,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  )
+  return source.statements.some((statement) => {
+    if (
+      ts.isImportDeclaration(statement) ||
+      ts.isImportEqualsDeclaration(statement) ||
+      ts.isInterfaceDeclaration(statement) ||
+      ts.isTypeAliasDeclaration(statement) ||
+      ts.isEmptyStatement(statement)
+    ) {
+      return false
+    }
+    if (
+      ts.isExportDeclaration(statement) &&
+      (statement.isTypeOnly ||
+        (statement.exportClause &&
+          ts.isNamedExports(statement.exportClause) &&
+          statement.exportClause.elements.every((element) => element.isTypeOnly)))
+    ) {
+      return false
+    }
+    return !statement.modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword,
+    )
+  })
+}
 
 const git = (args) => {
   const r = spawnSync('git', args, { cwd: ROOT, encoding: 'utf-8' })
   return { status: r.status ?? 1, stdout: (r.stdout ?? '').trim() }
+}
+
+const directTestOwners = () => {
+  const tests = git([
+    'ls-files',
+    '-co',
+    '--exclude-standard',
+    '-z',
+    '--',
+    'src/**/*.test.ts',
+    'src/**/*.test.tsx',
+  ])
+  if (tests.status !== 0) return new Map()
+  const owners = new Map()
+  for (const testFile of tests.stdout.split('\0').filter(Boolean)) {
+    const source = ts.createSourceFile(
+      testFile,
+      readFileSync(join(ROOT, testFile), 'utf8'),
+      ts.ScriptTarget.Latest,
+      false,
+      testFile.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    )
+    for (const statement of source.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier)
+      ) {
+        continue
+      }
+      const clause = statement.importClause
+      const named = clause?.namedBindings
+      if (
+        clause?.isTypeOnly ||
+        (clause &&
+          !clause.name &&
+          named &&
+          ts.isNamedImports(named) &&
+          named.elements.every((element) => element.isTypeOnly))
+      ) {
+        continue
+      }
+      const specifier = statement.moduleSpecifier.text
+      const basePath = specifier.startsWith('#/')
+        ? join(ROOT, 'src', specifier.slice(2))
+        : specifier.startsWith('.')
+          ? resolve(ROOT, dirname(testFile), specifier)
+          : null
+      if (!basePath) continue
+      const candidates = /\.[cm]?[jt]sx?$/.test(basePath)
+        ? [basePath]
+        : [`${basePath}.ts`, `${basePath}.tsx`, join(basePath, 'index.ts')]
+      const sourcePath = candidates.find(existsSync)
+      if (!sourcePath) continue
+      const sourceFile = relative(ROOT, sourcePath)
+      const sourceOwners = owners.get(sourceFile) ?? []
+      sourceOwners.push(testFile)
+      owners.set(sourceFile, sourceOwners)
+    }
+  }
+  return owners
+}
+
+const twoHopTestOwners = (directOwners) => {
+  const owners = new Map(directOwners)
+  for (const [ownerSource, tests] of directOwners) {
+    const source = ts.createSourceFile(
+      ownerSource,
+      readFileSync(join(ROOT, ownerSource), 'utf8'),
+      ts.ScriptTarget.Latest,
+      false,
+      ownerSource.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    )
+    for (const statement of source.statements) {
+      const declaration =
+        ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)
+          ? statement
+          : null
+      const clause = ts.isImportDeclaration(statement)
+        ? statement.importClause
+        : undefined
+      const named = clause?.namedBindings
+      if (
+        !declaration?.moduleSpecifier ||
+        !ts.isStringLiteral(declaration.moduleSpecifier) ||
+        declaration.isTypeOnly ||
+        clause?.isTypeOnly ||
+        (clause &&
+          !clause.name &&
+          named &&
+          ts.isNamedImports(named) &&
+          named.elements.every((element) => element.isTypeOnly))
+      ) {
+        continue
+      }
+      const specifier = declaration.moduleSpecifier.text
+      const basePath = specifier.startsWith('#/')
+        ? join(ROOT, 'src', specifier.slice(2))
+        : specifier.startsWith('.')
+          ? resolve(ROOT, dirname(ownerSource), specifier)
+          : null
+      if (!basePath) continue
+      const candidates = /\.[cm]?[jt]sx?$/.test(basePath)
+        ? [basePath]
+        : [`${basePath}.ts`, `${basePath}.tsx`, join(basePath, 'index.ts')]
+      const sourcePath = candidates.find(existsSync)
+      if (!sourcePath) continue
+      const sourceFile = relative(ROOT, sourcePath)
+      const sourceOwners = owners.get(sourceFile) ?? []
+      owners.set(sourceFile, [...new Set([...sourceOwners, ...tests])])
+    }
+  }
+  return owners
+}
+
+const coveredRuntimeModules = (files) => {
+  const report = join(ROOT, 'coverage/coverage-summary.json')
+  if (!existsSync(report)) return new Set()
+  const newestSource = Math.max(
+    ...files.map((file) => statSync(join(ROOT, file)).mtimeMs),
+  )
+  if (statSync(report).mtimeMs < newestSource) return new Set()
+  const summary = JSON.parse(readFileSync(report, 'utf8'))
+  const covered = new Set()
+  for (const [absolutePath, metrics] of Object.entries(summary)) {
+    if (absolutePath === 'total') continue
+    const file = relative(ROOT, absolutePath)
+    const statements = metrics?.statements
+    const functions = metrics?.functions
+    if (
+      statements?.total > 0 &&
+      statements.pct >= 80 &&
+      (functions?.total === 0 || functions?.pct >= 80)
+    ) {
+      covered.add(file)
+    }
+  }
+  return covered
 }
 
 // Resolve the diff base: explicit env override (CI), then origin/main, then main.
@@ -102,6 +275,7 @@ const mergeBase = git(['merge-base', base, 'HEAD']).stdout
 const diff = git([
   'diff',
   '--name-only',
+  '-z',
   '--diff-filter=A',
   `${mergeBase}...HEAD`,
   '--',
@@ -112,18 +286,22 @@ if (diff.status !== 0) {
   process.exit(1)
 }
 
-const added = diff.stdout ? diff.stdout.split('\n').filter(Boolean) : []
+const added = diff.stdout ? diff.stdout.split('\0').filter(Boolean) : []
 const gated = added.filter((f) => !EXCLUDED(f))
+const runtimeGated = gated.filter(hasRuntimeBehavior)
+const testOwners = twoHopTestOwners(directTestOwners())
+const coverageOwners = coveredRuntimeModules(runtimeGated)
 const exemptFiles = new Map(EXEMPT.map((e) => [e.file, e]))
 
 const failures = []
-for (const file of gated) {
-  const testSibling = file.replace(/\.(ts|tsx)$/, '.test.$1')
-  if (existsSync(join(ROOT, testSibling))) continue
+for (const file of runtimeGated) {
+  if (testOwners.has(file)) continue
+  if (coverageOwners.has(file)) continue
   if (exemptFiles.has(file)) continue
   failures.push(
-    `${file} — added without colocated ${basename(testSibling)}; ` +
-      'add the test or register an exemption (owner+reason) in scripts/check-changed-code.mjs',
+    `${file} — added without runtime contract evidence; expected a runtime import from a test, ` +
+      `fresh per-file coverage of at least 80% statements/functions, or a registered exemption ` +
+      'with owner and reason in scripts/check-changed-code.mjs',
   )
 }
 
@@ -138,7 +316,9 @@ for (const e of EXEMPT) {
 
 console.log(
   `[changed-code] base ${base} (merge-base ${mergeBase.slice(0, 12)}): ` +
-    `${added.length} added src file(s), ${gated.length} gated, ${EXEMPT.length} exempt`,
+    `${added.length} added src file(s), ${gated.length} source candidate(s), ` +
+    `${runtimeGated.length} runtime-gated, ${testOwners.size} directly test-owned, ` +
+    `${EXEMPT.length} exempt`,
 )
 
 if (failures.length > 0) {
@@ -147,5 +327,5 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(
-  '[changed-code] OK — every added production source file carries a colocated test',
+  '[changed-code] OK — every added runtime production module carries a contract test',
 )

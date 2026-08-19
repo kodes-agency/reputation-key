@@ -200,7 +200,18 @@ async function main(): Promise<void> {
         if (issued.status !== 'issued') {
           throw new Error('AI canary authorization is not eligible for issue')
         }
-        io.out(JSON.stringify(issued.claim))
+        // The canary entry point parses its stdin with a STRICT schema whose
+        // top level is exactly {operationId, permitId, attemptNumber,
+        // deadlineEpochMillis, binding}. `issued.claim` also carries a
+        // convenience top-level releaseSha (the authoritative copy lives in
+        // binding.releaseSha, which the canary constant-compares against its
+        // own RELEASE_SHA), and emitting it made every canary run fail input
+        // validation. Emit the wire shape only.
+        const { releaseSha: claimReleaseSha, ...wireClaim } = issued.claim
+        if (claimReleaseSha !== issued.claim.binding.releaseSha) {
+          throw new Error('AI canary claim release SHA is inconsistent')
+        }
+        io.out(JSON.stringify(wireClaim))
         return
       }
 
