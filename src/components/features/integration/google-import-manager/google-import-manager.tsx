@@ -33,8 +33,17 @@ export function GoogleImportManager({
   const ownedRequestId = useRef<string | null>(null)
   const recoveryStartedRequestId = useRef<string | null>(null)
   const [startPending, setStartPending] = useState(false)
+  // Copy mirrors the route-level banner in
+  // routes/_authenticated/properties/import-google/index.tsx so the same callback
+  // code never reads as two different outcomes.
   const [startError, setStartError] = useState<string | null>(
-    initialError ? 'Google Account connection failed. Try connecting again.' : null,
+    initialError === 'account_already_connected'
+      ? 'That Google account is already connected. Select it above instead of authorizing again.'
+      : initialError === 'denied'
+        ? 'Google authorization was cancelled.'
+        : initialError
+          ? 'Google Account connection failed. Try connecting again.'
+          : null,
   )
   const [isRecoveringRequest, setIsRecoveringRequest] = useState(false)
   const clearStartError = useCallback(() => setStartError(null), [])

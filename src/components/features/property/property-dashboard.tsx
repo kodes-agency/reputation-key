@@ -16,6 +16,10 @@ import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
 import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
+import {
+  PropertyAiTrendSection,
+  type PropertyAiTrendServerFn,
+} from './property-ai-trend-section'
 
 export interface PropertyDashboardProps {
   property: Readonly<{ id: string; name: string }> | null | undefined
@@ -27,6 +31,7 @@ export interface PropertyDashboardProps {
   performanceRange: PropertyPerformancePreset
   onPerformanceRangeChange: (value: PropertyPerformancePreset) => void
   performanceFns: GooglePerformanceServerFns
+  getAiTrend: PropertyAiTrendServerFn
 }
 
 export function PropertyDashboard({
@@ -39,6 +44,7 @@ export function PropertyDashboard({
   performanceRange,
   onPerformanceRangeChange,
   performanceFns,
+  getAiTrend,
 }: PropertyDashboardProps) {
   if (!property) return null
 
@@ -104,6 +110,7 @@ export function PropertyDashboard({
         onPresetChange={onPerformanceRangeChange}
         serverFns={performanceFns}
       />
+      <PropertyAiTrendSection propertyId={propertyId} getTrend={getAiTrend} />
 
       {engagementFunnel && (
         <div>

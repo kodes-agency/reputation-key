@@ -35,21 +35,36 @@ const feedbackItem: InboxItem = makeInboxItem({
 const reviewDetail: InboxItemDetailResult = {
   item: reviewItem,
   reviewText: 'Wonderful stay — the front desk went above and beyond!',
+  reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
   reviewContentStatus: 'available',
   feedbackComment: null,
   feedbackRatingValue: null,
   reply: null,
+  analysis: null,
 }
 
 const feedbackDetail: InboxItemDetailResult = {
   item: feedbackItem,
   reviewText: null,
+  reviewTranslatedText: null,
   reviewerProfilePhotoUrl: null,
   reviewContentStatus: null,
   feedbackComment: 'Loved the breakfast spread.',
   feedbackRatingValue: 5,
   reply: null,
+  analysis: null,
+}
+
+// Google returns its machine translation and the guest's original words in one
+// field; ingestion splits them so `reviewText` is always the original.
+const BG_ORIGINAL = 'Хотелът беше чист и уютен, а закуската беше много вкусна.'
+const EN_TRANSLATION = 'The hotel was clean and cosy, and the breakfast was very tasty.'
+
+const translatedReviewDetail: InboxItemDetailResult = {
+  ...reviewDetail,
+  reviewText: BG_ORIGINAL,
+  reviewTranslatedText: EN_TRANSLATION,
 }
 
 const notes: ReadonlyArray<InboxNote> = [
@@ -131,6 +146,30 @@ export const ReviewAsPropertyManager: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+}
+
+export const ReviewWithAnalysis: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    ...ReviewAsPropertyManager.args,
+    detail: {
+      ...reviewDetail,
+      analysis: {
+        status: 'ready',
+        sentiment: 'positive',
+        primaryCategory: 'service',
+        attention: 'high',
+        generatedAtEpochMillis: Date.parse('2026-08-16T12:00:00Z'),
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('region', { name: 'AI review analysis' })).toBeVisible()
+    await expect(canvas.getByText('high attention')).toBeVisible()
+    await expect(canvas.getByText('positive sentiment')).toBeVisible()
+    await expect(canvas.getByText('Service')).toBeVisible()
   },
 }
 
@@ -256,7 +295,7 @@ export const ReviewContentExpired: Story = {
   args: {
     currentItem: reviewItem,
     detail: {
-      ...reviewDetail,
+      ...translatedReviewDetail,
       reviewText: null,
       reviewContentStatus: 'expired',
     },
@@ -278,6 +317,10 @@ export const ReviewContentExpired: Story = {
     await expect(
       canvas.queryByText(/wonderful stay — the front desk went above and beyond/i),
     ).toBeNull()
+    // The translation lives inside the reviewText branch, so an ineligible
+    // source renders neither the original nor Google's translation of it.
+    await expect(canvas.queryByText(EN_TRANSLATION)).toBeNull()
+    await expect(canvas.queryByText(/translated by google/i)).toBeNull()
   },
 }
 
@@ -309,5 +352,54 @@ export const ReviewContentNotFound: Story = {
     await expect(
       canvas.queryByText(/wonderful stay — the front desk went above and beyond/i),
     ).toBeNull()
+  },
+}
+
+// A foreign-language review — the guest's original words stay primary and
+// Google's translation renders beneath them, labelled with its provenance.
+export const ReviewWithGoogleTranslation: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detail: translatedReviewDetail,
+    statusActions: getStatusActions(reviewItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(BG_ORIGINAL)).toBeInTheDocument()
+    await expect(canvas.getByText(EN_TRANSLATION)).toBeInTheDocument()
+    await expect(canvas.getByText('Translated by Google')).toBeInTheDocument()
+  },
+}
+
+// No translation available (an English review) — only the original renders,
+// with no caption and no empty translation block.
+export const ReviewWithoutTranslation: Story = {
+  decorators: [withRole('PropertyManager')],
+  args: {
+    currentItem: reviewItem,
+    detail: reviewDetail,
+    statusActions: getStatusActions(reviewItem.status),
+    updateStatus: makeStatusAction(),
+    escalate: makeIdAction(),
+    resolveEscalation: makeIdAction(),
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/wonderful stay — the front desk went above and beyond/i),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/translated by google/i)).toBeNull()
   },
 }

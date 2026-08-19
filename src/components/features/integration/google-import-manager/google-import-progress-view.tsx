@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, CheckCircle2, Clock3, RefreshCcw } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock3, Link2, RefreshCcw } from 'lucide-react'
 import type {
   ImportProgressDto,
   ImportProgressItemDto,
@@ -11,6 +11,7 @@ import { Card, CardContent } from '#/components/ui/card'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
   importProgressPercent,
+  importProgressSummary,
   isImportParentTerminal,
   parentStatusMessage,
 } from './google-import-progress-model'
@@ -34,11 +35,7 @@ export function GoogleImportProgressView({
 }: Props) {
   const percent = importProgressPercent(progress)
   const terminal = isImportParentTerminal(progress.status)
-  const completedCount = progress.counts.imported + progress.counts.relinked
-  const issueCount =
-    progress.counts.failed +
-    progress.counts.cancelled +
-    progress.counts.region_unavailable
+  const summary = importProgressSummary(progress)
 
   return (
     <div className="space-y-6">
@@ -105,13 +102,22 @@ export function GoogleImportProgressView({
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="gap-0 py-4">
           <CardContent className="flex items-center gap-3 px-4">
             <CheckCircle2 className="size-5 text-emerald-600" aria-hidden="true" />
             <div>
-              <p className="text-2xl font-semibold">{completedCount}</p>
+              <p className="text-2xl font-semibold">{summary.completed}</p>
               <p className="text-xs text-muted-foreground">Imported or linked</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="gap-0 py-4">
+          <CardContent className="flex items-center gap-3 px-4">
+            <Link2 className="size-5 text-sky-600" aria-hidden="true" />
+            <div>
+              <p className="text-2xl font-semibold">{summary.alreadyLinked}</p>
+              <p className="text-xs text-muted-foreground">Already linked</p>
             </div>
           </CardContent>
         </Card>
@@ -119,7 +125,7 @@ export function GoogleImportProgressView({
           <CardContent className="flex items-center gap-3 px-4">
             <AlertCircle className="size-5 text-amber-600" aria-hidden="true" />
             <div>
-              <p className="text-2xl font-semibold">{issueCount}</p>
+              <p className="text-2xl font-semibold">{summary.issues}</p>
               <p className="text-xs text-muted-foreground">Need attention</p>
             </div>
           </CardContent>
@@ -128,9 +134,7 @@ export function GoogleImportProgressView({
           <CardContent className="flex items-center gap-3 px-4">
             <Clock3 className="size-5 text-muted-foreground" aria-hidden="true" />
             <div>
-              <p className="text-2xl font-semibold">
-                {progress.counts.pending + progress.counts.processing}
-              </p>
+              <p className="text-2xl font-semibold">{summary.remaining}</p>
               <p className="text-xs text-muted-foreground">Remaining</p>
             </div>
           </CardContent>

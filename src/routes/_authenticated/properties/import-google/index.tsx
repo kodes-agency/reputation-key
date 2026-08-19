@@ -27,7 +27,10 @@ import { PageHeader } from '#/components/layout/page-header'
 const importSearchSchema = z.object({
   connectionId: z.uuid().optional().catch(undefined),
   requestId: z.uuid().optional().catch(undefined),
-  error: z.enum(['denied', 'connection_failed']).optional().catch(undefined),
+  error: z
+    .enum(['denied', 'connection_failed', 'account_already_connected'])
+    .optional()
+    .catch(undefined),
 })
 
 const connectionsQuery = queryOptions({
@@ -82,9 +85,11 @@ function ImportPage() {
           <p className="text-sm text-destructive">
             {search.error === 'denied'
               ? 'Google authorization was cancelled.'
-              : search.error === 'connection_failed'
-                ? 'Google could not be connected. Try again.'
-                : 'Google authorization could not be completed.'}
+              : search.error === 'account_already_connected'
+                ? 'That Google account is already connected. Select it in “Connected Google account” above — you do not need to authorize again.'
+                : search.error === 'connection_failed'
+                  ? 'Google could not be connected. Try again.'
+                  : 'Google authorization could not be completed.'}
           </p>
         </div>
       ) : null}

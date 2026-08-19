@@ -19,6 +19,7 @@ const emptyFilters: InboxFilterValues = {
   platform: undefined,
   ratingMin: undefined,
   ratingMax: undefined,
+  attention: undefined,
   q: undefined,
 }
 

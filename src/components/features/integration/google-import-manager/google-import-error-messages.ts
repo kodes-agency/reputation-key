@@ -10,6 +10,10 @@ export function discoveryErrorMessage(error: unknown): string {
       return 'This discovery page expired. Start again to fetch current locations.'
     case 'unauthorized':
       return 'Your access changed. Refresh the page or ask an administrator for access.'
+    case 'reauthentication_required':
+      return 'Google no longer accepts this connection. Reconnect Google to continue.'
+    case 'provider_rejected':
+      return 'Google rejected the request for this account. Check that it still has access to these locations.'
     case 'provider_unavailable':
     case 'temporarily_unavailable':
       return 'Google Business Profile is temporarily unavailable. Try again shortly.'

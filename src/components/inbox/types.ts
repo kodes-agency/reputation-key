@@ -21,6 +21,7 @@ import type {
   bulkUpdateInboxStatusFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export type InboxServerFns = Readonly<{
   getInboxItems: typeof getInboxItemsFn
@@ -33,7 +34,11 @@ export type InboxServerFns = Readonly<{
   resolveEscalation: typeof resolveEscalationFn
   addInboxNote: typeof addInboxNoteFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn
+  generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
 /** The 2 fns the inbox detail content subtree consumes (timeline, notes). */
-export type InboxDetailFns = Pick<InboxServerFns, 'getActivityTimeline' | 'addInboxNote'>
+export type InboxDetailFns = Pick<
+  InboxServerFns,
+  'getActivityTimeline' | 'addInboxNote' | 'generateReplySuggestion'
+>

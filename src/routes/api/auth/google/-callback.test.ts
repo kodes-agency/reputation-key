@@ -120,6 +120,20 @@ describe('GET /api/auth/google/callback', () => {
     })
     expect(mocks.admitTenant).toHaveBeenCalledAfter(mocks.redeemState)
     expect(mocks.connectGoogleAccount).not.toHaveBeenCalled()
+    // A declined consent screen is the user's own choice, not a broken connection.
+    expect(response.headers.get('location')).toBe(
+      'https://app.example.test/properties/import-google?error=denied',
+    )
+  })
+
+  it.each([
+    ['state=v2.v2.secret.handle&error=server_error'],
+    ['state=v2.v2.secret.handle&error=invalid_scope'],
+    ['state=v2.v2.secret.handle'],
+  ])('reports a non-denial callback failure as a failure: %s', async (query) => {
+    const response = await handleGoogleOAuthCallback(request(query))
+
+    expect(mocks.connectGoogleAccount).not.toHaveBeenCalled()
     expect(response.headers.get('location')).toBe(
       'https://app.example.test/properties/import-google?error=connection_failed',
     )

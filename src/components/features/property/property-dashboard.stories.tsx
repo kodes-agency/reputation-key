@@ -11,6 +11,7 @@ import type {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
 } from '#/contexts/integration/server/google-performance'
+import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import {
   activeSignals,
   calmSignals,
@@ -29,6 +30,26 @@ const performanceFns = {
     ok: false,
   })) as unknown as typeof renewPropertyGooglePerformanceLease,
 }
+const getAiTrend = (async () => ({
+  status: 'ready',
+  sourceEpoch: 1,
+  reviewAnalysisEpoch: 1,
+  propertyTrendsEpoch: 1,
+  propertyProfileVersion: 1,
+  dueLocalDate: '2026-08-15',
+  terminalAnalysisSequence: 24,
+  aggregateRevision: 24,
+  reportProfileVersion: 'property-trend-v1',
+  report: {
+    signalKey: 'sentiment',
+    direction: 'improving',
+    confidenceBasisPoints: 8600,
+    supportingReviewCount: 24,
+    headline: 'Review signals improved',
+    sentences: ['Positive service mentions increased in the current period.'],
+  },
+  generatedAtEpochMillis: Date.UTC(2026, 7, 15, 12),
+})) as unknown as typeof getPropertyAiTrendFn
 
 const meta: Meta<typeof PropertyDashboard> = {
   title: 'Property/PropertyDashboard',
@@ -57,6 +78,7 @@ export const Default: Story = {
     performanceRange: '30d',
     onPerformanceRangeChange: () => {},
     performanceFns,
+    getAiTrend,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -75,6 +97,10 @@ export const Default: Story = {
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
     expect(canvas.getByText('5★')).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
+    expect(await canvas.findByText('Review signals improved')).toBeVisible()
+    // The basis-point field is a change magnitude, never a confidence score.
+    expect(await canvas.findByText(/largest change 86 pts/i)).toBeVisible()
+    expect(canvas.queryByText(/confidence/i)).toBeNull()
   },
 }
 

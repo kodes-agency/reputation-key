@@ -71,3 +71,31 @@ export function importProgressPercent(progress: ImportProgressDto): number {
     Math.max(0, Math.round((progress.processedCount / progress.totalCount) * 100)),
   )
 }
+
+export type ImportProgressSummary = Readonly<{
+  completed: number
+  alreadyLinked: number
+  issues: number
+  remaining: number
+}>
+
+/**
+ * Partitions every item status into exactly one summary figure. `already_exists`
+ * gets its own bucket: the location was already bound, so nothing was imported and
+ * nothing needs attention — folding it into either one, or into neither, made an
+ * all-already-bound import render as 0 / 0 / 0.
+ *
+ * Every status is named explicitly and no figure is derived by subtraction, so the
+ * colocated partition test detects a status that is dropped or double counted.
+ */
+export function importProgressSummary(
+  progress: ImportProgressDto,
+): ImportProgressSummary {
+  const { counts } = progress
+  return {
+    completed: counts.imported + counts.relinked,
+    alreadyLinked: counts.already_exists,
+    issues: counts.failed + counts.cancelled + counts.region_unavailable,
+    remaining: counts.pending + counts.processing,
+  }
+}

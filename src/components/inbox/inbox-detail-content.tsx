@@ -10,6 +10,7 @@ import { formatDateTime } from './utils'
 import { getStatusActions, getEscalationActions } from './inbox-detail-helpers'
 import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxActivityTimeline } from './inbox-activity-timeline'
+import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
 import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -63,6 +64,9 @@ export function InboxDetailContent({
   return (
     <div className="flex flex-col gap-6 p-4">
       <InboxDetailSourceContent currentItem={currentItem} detail={detail} />
+      {currentItem.sourceType === 'review' && (
+        <InboxReviewAnalysisPanel analysis={detail?.analysis ?? null} />
+      )}
 
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
         <span>
@@ -135,6 +139,7 @@ export function InboxDetailContent({
           initialReply={detail?.reply ?? null}
           loading={!detail}
           onReplyChanged={onReplyMutated}
+          generateReplySuggestion={detailFns.generateReplySuggestion}
         />
       )}
 

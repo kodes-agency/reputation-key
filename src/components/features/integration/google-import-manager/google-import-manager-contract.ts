@@ -23,7 +23,7 @@ export type GoogleImportManagerProps = Readonly<{
   initialConnectionId?: string
   initialProgress?: ImportProgressDto | null
   initialRequestId?: string
-  initialError?: 'connection_failed' | 'denied'
+  initialError?: 'connection_failed' | 'denied' | 'account_already_connected'
   getAuthUrl: GoogleImportGetAuthUrl
   listAccounts: typeof listImportAccounts
   listCandidates: typeof listImportCandidates

@@ -5,11 +5,20 @@ import { Menu, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Input } from '#/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 
 type Props = Readonly<{
   folderLabel: string
   openCount: number
   searchQ: string | undefined
+  attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
+  onAttentionChange: (attention: 'urgent' | 'high' | 'medium' | 'low' | undefined) => void
   onSearchChange: (q: string | undefined) => void
   /** Opens the folder sidebar drawer (mobile only). */
   onOpenSidebar?: () => void
@@ -19,6 +28,8 @@ export function InboxListHeader({
   folderLabel,
   openCount,
   searchQ,
+  attention,
+  onAttentionChange,
   onSearchChange,
   onOpenSidebar,
 }: Props) {
@@ -45,15 +56,41 @@ export function InboxListHeader({
           )}
         </div>
       </div>
-      {/* Search bar */}
-      <div className="relative mt-2">
-        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search reviews..."
-          value={searchQ ?? ''}
-          onChange={(e) => onSearchChange(e.target.value || undefined)}
-          className="h-8 pl-8 text-sm"
-        />
+      <div className="mt-2 flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search reviews..."
+            value={searchQ ?? ''}
+            onChange={(e) => onSearchChange(e.target.value || undefined)}
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+        <Select
+          value={attention ?? 'all'}
+          onValueChange={(value) =>
+            onAttentionChange(
+              value === 'all'
+                ? undefined
+                : (value as 'urgent' | 'high' | 'medium' | 'low'),
+            )
+          }
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Filter by AI attention"
+            className="w-[112px] shrink-0"
+          >
+            <SelectValue placeholder="Attention" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All signals</SelectItem>
+            <SelectItem value="urgent">Urgent</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
   )

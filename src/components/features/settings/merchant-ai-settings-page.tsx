@@ -92,6 +92,16 @@ export function MerchantAiSettingsPage({
         selectedCapabilities.includes(id) !== snapshot.capabilities.includes(id),
     )
   }, [notice.payload.capabilities, selectedCapabilities, snapshot])
+  // A re-versioned notice is a real change even when the capability set is
+  // identical: the server's `executionContractChanged` accepts it, and consent
+  // has to be re-granted against the notice actually on screen. Without this the
+  // Save button stays disabled and the only way through is to drop a capability
+  // and re-add it — which revokes it briefly, writes an extra evidence row and
+  // bumps that capability's epoch twice. Mirrors the notice half of
+  // `executionContractChanged` in merchant-ai-authorization.repository.ts.
+  const contractChanged =
+    snapshot !== null &&
+    (snapshot.noticeVersion !== notice.version || snapshot.noticeDigest !== notice.digest)
 
   const toggleCapability = (
     capability: CurrentMerchantAiCapability,
@@ -179,7 +189,11 @@ export function MerchantAiSettingsPage({
             canRevoke={canRevoke}
             isEnabled={isEnabled}
             canEnable={canSubmit}
-            canSave={canSubmit && selectionChanged && selectedCapabilities.length > 0}
+            canSave={
+              canSubmit &&
+              (selectionChanged || contractChanged) &&
+              selectedCapabilities.length > 0
+            }
             passwordPresent={Boolean(password)}
             pending={pending}
             onEnable={() => void run(() => enable({ data: commandData() }))}

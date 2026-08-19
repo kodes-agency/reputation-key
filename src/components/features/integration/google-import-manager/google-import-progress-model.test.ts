@@ -7,6 +7,7 @@ import {
 import {
   importItemMessage,
   importProgressPercent,
+  importProgressSummary,
   isImportParentTerminal,
   parentStatusMessage,
 } from './google-import-progress-model'
@@ -63,5 +64,42 @@ describe('Google import progress presentation', () => {
     expect(importProgressPercent(progress(0, 0))).toBe(0)
     expect(importProgressPercent(progress(3, 4))).toBe(75)
     expect(importProgressPercent(progress(8, 4))).toBe(100)
+  })
+
+  it('gives every item status exactly one summary figure', () => {
+    const counts = Object.fromEntries(
+      GBP_IMPORT_ITEM_STATUSES.map((status, index) => [status, index + 1]),
+    ) as ImportProgressDto['counts']
+    const summary = importProgressSummary({ ...progress(0, 0), counts })
+    const total = GBP_IMPORT_ITEM_STATUSES.reduce((sum, s) => sum + counts[s], 0)
+
+    // Any status dropped from — or double-counted across — the cards breaks this.
+    expect(
+      summary.completed + summary.alreadyLinked + summary.issues + summary.remaining,
+    ).toBe(total)
+  })
+
+  it('reports an all-already-bound import as already linked, not as zero work', () => {
+    const summary = importProgressSummary({
+      ...progress(3, 3),
+      status: 'completed_with_issues',
+      counts: {
+        pending: 0,
+        processing: 0,
+        imported: 0,
+        relinked: 0,
+        already_exists: 3,
+        region_unavailable: 0,
+        failed: 0,
+        cancelled: 0,
+      },
+    })
+
+    expect(summary).toEqual({
+      completed: 0,
+      alreadyLinked: 3,
+      issues: 0,
+      remaining: 0,
+    })
   })
 })

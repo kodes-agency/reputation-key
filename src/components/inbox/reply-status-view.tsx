@@ -15,6 +15,7 @@ import {
   ReplyPublishFailed,
   ReviewReplyRejected,
 } from './reply-editor-actions'
+import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
 
 export type ReplyData = Awaited<ReturnType<typeof getReplyFn>>
 
@@ -45,13 +46,14 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
 type ReplyStatusViewProps = Readonly<{
   view: ResolvedReplyView
   isSaving: boolean
-  onSaveDraft: (text: string) => Promise<unknown>
-  onSubmitReply: (text: string) => Promise<unknown>
+  onSaveDraft: (text: string, provenanceToken?: string) => Promise<unknown>
+  onSubmitReply: (text: string, provenanceToken?: string) => Promise<unknown>
   onDeleteDraft: (() => Promise<unknown>) | undefined
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   onRetry: () => Promise<unknown>
   onSaveEdit: (text: string) => Promise<unknown>
+  onGenerateSuggestion?: (tone: ReplyTone) => Promise<ReplySuggestionResult>
 }>
 
 /** Renders the reply in its current state (compose / read-only status views). */
@@ -65,6 +67,7 @@ export function ReplyStatusView({
   onReject,
   onRetry,
   onSaveEdit,
+  onGenerateSuggestion,
 }: ReplyStatusViewProps) {
   switch (view.kind) {
     case 'compose':
@@ -75,6 +78,7 @@ export function ReplyStatusView({
           onSaveDraft={onSaveDraft}
           onSubmit={onSubmitReply}
           onDelete={onDeleteDraft}
+          onGenerateSuggestion={onGenerateSuggestion}
         />
       )
     case 'pending':

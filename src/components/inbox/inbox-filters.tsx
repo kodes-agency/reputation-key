@@ -21,6 +21,7 @@ export type InboxFilterValues = Readonly<{
   platform: string | undefined
   ratingMin: number | undefined
   ratingMax: number | undefined
+  attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
   q: string | undefined
 }>
 

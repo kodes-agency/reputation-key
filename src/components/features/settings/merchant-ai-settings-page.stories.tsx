@@ -151,6 +151,43 @@ export const EnabledSelectiveControls: Story = {
   },
 }
 
+// A re-versioned consent notice must be submittable WITHOUT touching the
+// capability set. Before this was fixed the Save button stayed disabled here, and
+// the only way to re-consent was to drop a capability and re-add it — which
+// briefly revoked it, wrote an extra evidence row and bumped that capability's
+// epoch twice. The snapshot below is the shape a merchant is in the moment a new
+// notice ships: identical capabilities, stale notice version and digest.
+export const ReconsentAfterNoticeReversion: Story = {
+  args: {
+    snapshot: {
+      ...enabled,
+      noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
+      noticeDigest: 'a'.repeat(64),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    changeAction.mockClear()
+    const canvas = within(canvasElement)
+    for (const checkbox of canvas.getAllByRole('checkbox')) {
+      expect(checkbox).toBeChecked()
+    }
+    await userEvent.type(
+      canvas.getByLabelText(/confirm with your password/i),
+      'correct-password',
+    )
+    const save = canvas.getByRole('button', { name: /save feature access/i })
+    expect(save).toBeEnabled()
+    await userEvent.click(save)
+    await waitFor(() => expect(changeAction).toHaveBeenCalledOnce())
+    // Re-consent re-affirms the same set; nothing is dropped on the way through.
+    expect(changeAction.mock.calls[0]?.[0].data.capabilities).toEqual([
+      'review_analysis',
+      'reply_drafting',
+      'property_trends',
+    ])
+  },
+}
+
 export const Revoked: Story = {
   args: {
     snapshot: {

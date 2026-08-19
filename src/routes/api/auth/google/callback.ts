@@ -16,14 +16,35 @@ import { isOAuthStateInvalidError } from '#/contexts/integration/server/error-he
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Every callback failure returns one fixed route and client-safe code. */
-const redirectWithError = (env: ReturnType<typeof getEnv>) =>
+/**
+ * Callback failures return one fixed route and a client-safe code. `denied` is the
+ * user's own choice at Google's consent screen, not a failure of the connection —
+ * reporting it as one tells the operator to debug something that is working.
+ */
+type CallbackErrorCode = 'connection_failed' | 'account_already_connected' | 'denied'
+
+const redirectWithError = (
+  env: ReturnType<typeof getEnv>,
+  code: CallbackErrorCode = 'connection_failed',
+) =>
   new Response(null, {
     status: 302,
     headers: {
-      Location: `${env.BETTER_AUTH_URL}/properties/import-google?error=connection_failed`,
+      Location: `${env.BETTER_AUTH_URL}/properties/import-google?error=${code}`,
     },
   })
+
+/**
+ * Content-free classification of a connect failure. `account_already_connected`
+ * is terminal for the ceremony the browser just completed — retrying the same
+ * consent can never succeed, so it must not be reported as a generic retry.
+ */
+const connectFailureCode = (error: unknown): CallbackErrorCode =>
+  typeof error === 'object' &&
+  error !== null &&
+  (error as { code?: unknown }).code === 'account_already_connected'
+    ? 'account_already_connected'
+    : 'connection_failed'
 
 /** Log a state rejection without echoing the handle, tenant, or provider input. */
 const rejectState = (
@@ -89,13 +110,17 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     })
     if (!tenantAdmission.ok) return rejectState(env, 'abuse_denied')
 
-    // Provider denial consumes the legitimate state without a token call.
+    // Provider denial consumes the legitimate state without a token call. Only the
+    // OAuth 2.0 `access_denied` value means the user declined consent (RFC 6749
+    // §4.1.2.1); any other provider error or a missing code is a real failure.
     if (error || !code) {
+      const denialCode: CallbackErrorCode =
+        error === 'access_denied' ? 'denied' : 'connection_failed'
       getLogger().warn(
-        { security: true, reason: 'provider_callback_denied' },
+        { security: true, reason: 'provider_callback_denied', outcome: denialCode },
         'Google OAuth callback denied',
       )
-      return redirectWithError(env)
+      return redirectWithError(env, denialCode)
     }
     const connectInput: ConnectGoogleInput = buildOpaqueOAuthConnectInput(code, redeemed)
     try {
@@ -111,11 +136,12 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
       if (isOAuthStateInvalidError(e)) {
         return rejectState(env, 'pkce_redeem_failed')
       }
+      const failureCode = connectFailureCode(e)
       getLogger().error(
-        { security: true, reason: 'connection_failed' },
+        { security: true, reason: failureCode },
         'Google OAuth connection failed',
       )
-      return redirectWithError(env)
+      return redirectWithError(env, failureCode)
     }
   })
 }

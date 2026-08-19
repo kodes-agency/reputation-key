@@ -49,6 +49,14 @@ export function InboxDetailSourceContent({ currentItem, detail }: Props) {
               <p className="whitespace-pre-wrap text-sm leading-relaxed">
                 {detail.reviewText}
               </p>
+              {detail.reviewTranslatedText && (
+                <div className="mt-3 border-t pt-3 text-muted-foreground">
+                  <p className="text-xs">Translated by Google</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
+                    {detail.reviewTranslatedText}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

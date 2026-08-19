@@ -13,7 +13,6 @@ const items: readonly ImportProgressItemDto[] = [
     propertyName: 'The Meridian Grand Resort',
     action: 'create',
     status: 'imported',
-    propertyId: '10000000-0000-4000-8000-000000000011' as never,
     outcomeCode: 'imported',
     messageKey: 'property_import.imported',
     retryable: false,
@@ -25,7 +24,6 @@ const items: readonly ImportProgressItemDto[] = [
     propertyName: 'Juniper Street Café',
     action: 'create',
     status: 'failed',
-    propertyId: null,
     outcomeCode: 'temporarily_unavailable',
     messageKey: 'property_import.temporarily_unavailable',
     retryable: true,
@@ -110,6 +108,47 @@ export const CompletedWithIssues: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('link', { name: /view properties/i })).toBeVisible()
+  },
+}
+
+/**
+ * Every selected location was already bound. Before `already_exists` was surfaced
+ * this rendered 0 / 0 / 0 under "Import complete with issues".
+ */
+export const AllAlreadyLinked: Story = {
+  render: () => (
+    <ProgressHarness
+      snapshot={{
+        ...processing,
+        status: 'completed_with_issues',
+        totalCount: 3,
+        processedCount: 3,
+        pollAfterMs: null,
+        canRetry: false,
+        items: [],
+        counts: {
+          pending: 0,
+          processing: 0,
+          imported: 0,
+          relinked: 0,
+          already_exists: 3,
+          region_unavailable: 0,
+          failed: 0,
+          cancelled: 0,
+        },
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const figure = (label: RegExp) =>
+      canvas.getByText(label).parentElement?.querySelector('p')?.textContent
+
+    await expect(figure(/^Already linked$/)).toBe('3')
+    await expect(figure(/^Imported or linked$/)).toBe('0')
+    await expect(figure(/^Need attention$/)).toBe('0')
+    await expect(figure(/^Remaining$/)).toBe('0')
+    await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
   },
 }
 
