@@ -11,7 +11,16 @@
     "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",
     "vite.config.ts",
-    "drizzle.config.ts"
+    "drizzle.config.ts",
+    "services/ai-egress-gateway/canary-entry.ts",
+    "services/ai-egress-gateway/index.ts",
+    "services/ai-egress-gateway/local-provider-entry.ts",
+    "services/ai-egress-gateway/runtime-egress-probe.ts",
+    "services/ai-execution-admission/index.ts",
+    "services/google-egress-gateway/control-proxy.ts",
+    "services/google-egress-gateway/index.ts",
+    "services/google-egress-gateway/tcp-relay.ts",
+    "services/google-execution-admission/index.ts"
   ],
   "ignorePatterns": [
     "src/routeTree.gen.ts",
@@ -36,8 +45,14 @@
     "opencc-js"
   ],
   "ignoreExports": [
-    { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },
-    { "file": "src/shared/jobs/*.job.ts", "exports": ["JOB_NAME"] },
+    {
+      "file": "src/contexts/*/infrastructure/jobs/*.job.ts",
+      "exports": ["JOB_NAME"]
+    },
+    {
+      "file": "src/shared/jobs/*.job.ts",
+      "exports": ["JOB_NAME"]
+    },
     {
       "file": "src/contexts/identity/server/organizations.*.ts",
       "exports": [
@@ -190,15 +205,22 @@
         "src/contexts/identity/server/merchant-ai.ts",
         "src/contexts/property/server/region-move.ts"
       ],
-      "rules": { "unused-files": "off" }
+      "rules": {
+        "unused-files": "off"
+      }
     },
     {
       "files": ["src/components/ui/**"],
-      "rules": { "unused-exports": "off", "unused-types": "off" }
+      "rules": {
+        "unused-exports": "off",
+        "unused-types": "off"
+      }
     },
     {
       "files": ["**/*.dto.ts", "**/domain/events.ts"],
-      "rules": { "unused-types": "off" }
+      "rules": {
+        "unused-types": "off"
+      }
     }
   ],
   "duplicates": {
@@ -217,30 +239,72 @@
   },
   "boundaries": {
     "zones": [
-      { "name": "domain", "patterns": ["src/contexts/*/domain/**"] },
-      { "name": "application", "patterns": ["src/contexts/*/application/**"] },
-      { "name": "infrastructure", "patterns": ["src/contexts/*/infrastructure/**"] },
-      { "name": "server", "patterns": ["src/contexts/*/server/**"] },
-      { "name": "shared-testing", "patterns": ["src/shared/testing/**"] },
-      { "name": "shared-events", "patterns": ["src/shared/events/**"] },
-      { "name": "shared", "patterns": ["src/shared/**"] },
-      { "name": "routes", "patterns": ["src/routes/**"] },
-      { "name": "components", "patterns": ["src/components/**"] }
+      {
+        "name": "domain",
+        "patterns": ["src/contexts/*/domain/**"]
+      },
+      {
+        "name": "application",
+        "patterns": ["src/contexts/*/application/**"]
+      },
+      {
+        "name": "infrastructure",
+        "patterns": ["src/contexts/*/infrastructure/**"]
+      },
+      {
+        "name": "server",
+        "patterns": ["src/contexts/*/server/**"]
+      },
+      {
+        "name": "shared-testing",
+        "patterns": ["src/shared/testing/**"]
+      },
+      {
+        "name": "shared-events",
+        "patterns": ["src/shared/events/**"]
+      },
+      {
+        "name": "shared",
+        "patterns": ["src/shared/**"]
+      },
+      {
+        "name": "routes",
+        "patterns": ["src/routes/**"]
+      },
+      {
+        "name": "components",
+        "patterns": ["src/components/**"]
+      }
     ],
     "rules": [
-      { "from": "domain", "allow": ["shared", "shared-events"] },
-      { "from": "application", "allow": ["domain", "shared", "shared-events"] },
+      {
+        "from": "domain",
+        "allow": ["shared", "shared-events"]
+      },
+      {
+        "from": "application",
+        "allow": ["domain", "shared", "shared-events"]
+      },
       {
         "from": "infrastructure",
         "allow": ["domain", "application", "shared", "shared-events"]
       },
-      { "from": "server", "allow": ["application", "domain", "shared", "shared-events"] },
+      {
+        "from": "server",
+        "allow": ["application", "domain", "shared", "shared-events"]
+      },
       {
         "from": "shared-testing",
         "allow": ["domain", "application", "shared", "shared-events"]
       },
-      { "from": "shared-events", "allow": ["domain", "shared"] },
-      { "from": "shared", "allow": ["shared-events"] }
+      {
+        "from": "shared-events",
+        "allow": ["domain", "shared"]
+      },
+      {
+        "from": "shared",
+        "allow": ["shared-events"]
+      }
     ]
   },
   "regression": {
