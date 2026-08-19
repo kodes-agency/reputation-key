@@ -351,6 +351,125 @@
       "when": 1786900004000,
       "tag": "0049_ai-execution-admission",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1786959866167,
+      "tag": "0050_youthful_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1786963598434,
+      "tag": "0051_puzzling_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1786964091357,
+      "tag": "0052_misty_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1786966147761,
+      "tag": "0053_assert_ai_reply_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1786967307183,
+      "tag": "0054_rare_hercules",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787070323258,
+      "tag": "0055_ai-key-inventory-rotation",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787089921794,
+      "tag": "0056_google-content-route-catalogue-approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1787116860321,
+      "tag": "0057_ai-property-trend-contract-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1787135262380,
+      "tag": "0058_ai-review-event-source-epoch-zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1787135952168,
+      "tag": "0059_restore-ai-review-event-source-epoch-guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787137185946,
+      "tag": "0060_ai-plane-source-epoch-zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1787148133533,
+      "tag": "0061_review-translation-envelope-and-notice-v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787148931221,
+      "tag": "0062_ai-runtime-catalogue-notice-v2-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1787155924460,
+      "tag": "0063_ai-admission-authority-repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1787159658328,
+      "tag": "0064_ai-reply-grant-expiry-order",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1787160893298,
+      "tag": "0065_ai-reply-output-schema-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1787166059207,
+      "tag": "0066_ai-reasoning-effort-per-route",
+      "breakpoints": true
     }
   ]
 }

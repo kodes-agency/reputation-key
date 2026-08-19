@@ -318,7 +318,7 @@ ALTER TABLE "ai_property_aggregate_contributions" ADD CONSTRAINT "ai_property_ag
 ALTER TABLE "ai_property_calendar_authorities" ADD CONSTRAINT "ai_property_calendar_authorities_profile_valid" CHECK ("ai_property_calendar_authorities"."profile_version" = 'property-calendar-v1');--> statement-breakpoint
 ALTER TABLE "ai_property_calendar_authorities" ADD CONSTRAINT "ai_property_calendar_authorities_function_valid" CHECK ("ai_property_calendar_authorities"."epoch_millis_function_name" = 'ai_epoch_millis_v1' AND "ai_property_calendar_authorities"."local_date_function_name" = 'ai_property_local_date_v1' AND "ai_property_calendar_authorities"."local_midnight_function_name" = 'ai_property_local_midnight_v1');--> statement-breakpoint
 ALTER TABLE "ai_property_calendar_authorities" ADD CONSTRAINT "ai_property_calendar_authorities_digests_valid" CHECK ("ai_property_calendar_authorities"."epoch_millis_function_digest" = '9367a74304ab003cf57e2aa988883d72b4b9782a9cc9e7e639033c4b1604fa35' AND "ai_property_calendar_authorities"."local_date_function_digest" = '6521dba5d8bc579bf55f8bf47d5db5c642032795949af54cb370189cac0d61a0' AND "ai_property_calendar_authorities"."local_midnight_function_digest" = 'ab121d8706ff847aea69b565d9571b3561e8289f0a417b8a35f13abb20edcbe1' AND "ai_property_calendar_authorities"."image_digest" = '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20' AND "ai_property_calendar_authorities"."vector_digest" = '0108713532775ad86be18c94c69eed42c9f2dfd24766608ff3592d87e7739545');--> statement-breakpoint
-ALTER TABLE "ai_property_calendar_authorities" ADD CONSTRAINT "ai_property_calendar_authorities_range_valid" CHECK ("ai_property_calendar_authorities"."vector_count" = 10 AND "ai_property_calendar_authorities"."minimum_year" = 1970 AND "ai_property_calendar_authorities"."maximum_year" = 2100 AND "ai_property_calendar_authorities"."tested_postgres_major_versions" = ARRAY[16]::integer[] AND jsonb_typeof("ai_property_calendar_authorities"."test_vectors") = 'array' AND jsonb_array_length("ai_property_calendar_authorities"."test_vectors") = "ai_property_calendar_authorities"."vector_count");
+ALTER TABLE "ai_property_calendar_authorities" ADD CONSTRAINT "ai_property_calendar_authorities_range_valid" CHECK ("ai_property_calendar_authorities"."vector_count" = 10 AND "ai_property_calendar_authorities"."minimum_year" = 1970 AND "ai_property_calendar_authorities"."maximum_year" = 2100 AND "ai_property_calendar_authorities"."tested_postgres_major_versions" = ARRAY[16,17]::integer[] AND jsonb_typeof("ai_property_calendar_authorities"."test_vectors") = 'array' AND jsonb_array_length("ai_property_calendar_authorities"."test_vectors") = "ai_property_calendar_authorities"."vector_count");
 --> statement-breakpoint
 CREATE TRIGGER "ai_governance_policies_immutable"
 BEFORE UPDATE OR DELETE ON "ai_governance_policies"
@@ -1332,7 +1332,7 @@ BEGIN
     FROM public.ai_provider_deployment_profiles AS provider_profile
     WHERE provider_profile.profile_version = 'private-beta-global-v1'
       AND provider_profile.profile_digest =
-        'ca16fd5b5870237e23482bd234f2d61b951e643c86e38170f3aec1bba2aa76eb'
+        'c362776c6ae85ed4825717cab18ee842e77292031e25c012e1abc6b26f79a501'
       AND provider_profile.provider = 'openai'
       AND provider_profile.model_snapshot = 'gpt-5.4-mini-2026-03-17'
   )
@@ -1341,7 +1341,7 @@ BEGIN
       FROM public.ai_operation_profiles AS operation_profile
       WHERE operation_profile.profile_version = p_canary_profile_version
         AND operation_profile.profile_digest =
-          '808506f6121460cf6f6e5d9ddbf3e7637b8e582f63d19358c376500e4487a9dc'
+          '735f1c6ced7c3a3ef766e7503a1cd82b8e3223026a02077b8d71b7b30cf36317'
         AND operation_profile.command = 'synthetic_canary'
         AND operation_profile.capability IS NULL
         AND operation_profile.purpose = 'ai.synthetic_canary'
@@ -1954,8 +1954,8 @@ BEGIN
     OR v_authority.image_digest <> '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20'
     OR v_authority.vector_digest <> v_vector_digest
     OR v_authority.vector_count <> jsonb_array_length(v_authority.test_vectors)
-    OR v_authority.tested_postgres_major_versions <> ARRAY[16]::integer[]
-    OR v_postgres_major <> 16
+    OR v_authority.tested_postgres_major_versions <> ARRAY[16,17]::integer[]
+    OR v_postgres_major NOT IN (16,17)
   THEN
     RETURN NULL;
   END IF;
@@ -2088,7 +2088,7 @@ SELECT
   jsonb_array_length(test_vectors),
   1970,
   2100,
-  ARRAY[16],
+  ARRAY[16,17],
   test_vectors,
   '2026-08-16T00:00:00Z'::timestamp with time zone
 FROM calendar_vectors;
