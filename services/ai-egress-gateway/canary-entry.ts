@@ -188,7 +188,28 @@ async function main(): Promise<void> {
   if (cleanupFailure !== null) throw cleanupFailure
 }
 
-await main().catch(() => {
-  process.stderr.write('AI synthetic canary failed\n')
+await main().catch((error: unknown) => {
+  // Failure classification for an ops tool that handles NO tenant content: the
+  // canary's only inputs are its own configuration, its operator-issued claim
+  // and a synthetic corpus, so its error text is code-authored and safe to
+  // surface. A bare "failed" line made a configuration fault, an input-contract
+  // rejection and a provider outage indistinguishable, which is why the release
+  // gate could never be diagnosed. Schema rejections additionally report the
+  // offending field PATHS (never received values).
+  const name = error instanceof Error ? error.name : 'unknown'
+  const reason = error instanceof Error ? error.message.slice(0, 200) : ''
+  const issues =
+    error !== null &&
+    typeof error === 'object' &&
+    'issues' in error &&
+    Array.isArray((error as { issues: unknown[] }).issues)
+      ? (error as { issues: Array<{ path?: ReadonlyArray<string | number> }> }).issues
+          .map((issue) => (issue.path ?? []).join('.'))
+          .filter((path) => path.length > 0)
+          .slice(0, 12)
+      : []
+  process.stderr.write(
+    `AI synthetic canary failed ${JSON.stringify({ error: name, reason, fields: issues })}\n`,
+  )
   process.exitCode = 1
 })

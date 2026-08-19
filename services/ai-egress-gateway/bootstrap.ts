@@ -196,6 +196,22 @@ export async function startAiEgressGateway(
       throw new Error('AI gateway startup readiness failed')
     }
     server.listen(port, host)
+    // This service emitted nothing at all — not one line — which meant a silent
+    // no_dispatch on the critical route was indistinguishable from a service that
+    // was never reached. One bounded line per boot: what is serving, and the
+    // contract identities it will enforce. No secrets; digests are public
+    // contract identifiers.
+    process.stderr.write(
+      `${JSON.stringify({
+        event: 'gateway_listening',
+        port,
+        releaseSha: process.env.RELEASE_SHA ?? null,
+        runtimeCapabilityCatalogueDigest:
+          process.env.AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST ?? null,
+        providerDeploymentProfileVersion:
+          process.env.AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION ?? null,
+      })}\n`,
+    )
     process.once('SIGTERM', () => {
       void shutdown().finally(() => process.exit(0))
     })

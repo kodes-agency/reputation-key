@@ -7,7 +7,10 @@ import {
 import { AI_REDACTION_PROFILE_VERSION } from '../../src/shared/ai-deterministic-redactor'
 import { parseAiGatewayRouteRequest } from '../../src/shared/ai-gateway-transport-contract'
 import { LANGUAGE_CATALOGUE_DIGEST } from '../../src/shared/ai-review-language-catalogue'
-import { MERCHANT_AI_NOTICE_DIGEST } from '../../src/shared/merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '../../src/shared/merchant-ai-notice-contract'
 import { createVersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 import {
   AI_REVIEW_LANGUAGE_REGION_ICU_VERSION,
@@ -39,7 +42,7 @@ function analysisRequest() {
     actorId: null,
     binding: {
       authorizationLineageId: UUID.lineage,
-      noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
       sourceEpoch: 1,

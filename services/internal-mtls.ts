@@ -499,7 +499,10 @@ export function createInternalMtlsWebServer(
   })
   server.headersTimeout = 5_000
   server.requestTimeout = input.streamRequestBody === true ? 115_000 : 5_000
-  server.keepAliveTimeout = 1_000
+  // Must stay well above the caller pool's idle window so a pooled socket is
+  // never closed underneath an in-flight reuse (Node does not retry a POST on
+  // a reset reused socket). Draining still closes idle sockets immediately.
+  server.keepAliveTimeout = 65_000
   server.timeout = input.streamRequestBody === true ? 115_000 : 5_000
   server.maxHeadersCount = 32
   const stopAndDrain = (): Promise<void> => {
@@ -679,11 +682,19 @@ export function createInternalMtlsJsonTransport(
   ) {
     throw new Error('internal mTLS client configuration is invalid')
   }
+  // Connection reuse inside one service->service channel: every request
+  // otherwise pays a full TLS 1.3 handshake (~0.6s measured on Railway
+  // private networking), which dominates interactive latency and burns the
+  // permit start-deadline budget. The channel carries a single client
+  // identity, so a pooled socket never crosses principals. `keepAliveMsecs`
+  // is the TCP probe delay; idle sockets are retired by the peer's
+  // `keepAliveTimeout`, which is set well above this pool's idle window.
   const agent = new HttpsAgent({
-    keepAlive: false,
+    keepAlive: true,
+    keepAliveMsecs: 1_000,
     maxSockets: 8,
     maxTotalSockets: 8,
-    maxFreeSockets: 0,
+    maxFreeSockets: 4,
   })
 
   const send = async (

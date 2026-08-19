@@ -422,6 +422,7 @@ export function createAiGatewayRoutePreparer(
         untrustedData: canonicalizeRfc8785(providerPayload),
         format: formatFor(profile, outputSchema),
         maxOutputTokens: profile.maxOutputTokens,
+        reasoningEffort: profile.reasoningEffort,
         safetyIdentifier,
       })
       const sourceBytes =

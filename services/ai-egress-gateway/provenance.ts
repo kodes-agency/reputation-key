@@ -24,7 +24,8 @@ const payloadSchema = z
     propertyId: canonicalUuid,
     reviewId: safeId,
     requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-    sourceEpoch: positive,
+    // 0-based source epoch (drizzle/0060); mirrors src/shared/ai-reply-provenance.ts.
+    sourceEpoch: nonnegative,
     sourceRevision: positive,
     baseReplyStateRevision: nonnegative,
     replyDraftingEpoch: positive,

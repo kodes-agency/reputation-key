@@ -18,7 +18,9 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'TMPDIR',
   'TZ',
   'YARN_VERSION',
+  'RAILWAY_BETA_ENABLE_RUNTIME_V2',
   'RAILWAY_DEPLOYMENT_ID',
+  'RAILWAY_ENVIRONMENT',
   'RAILWAY_ENVIRONMENT_ID',
   'RAILWAY_ENVIRONMENT_NAME',
   'RAILWAY_GIT_AUTHOR',
@@ -33,6 +35,9 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'RAILWAY_REPLICA_ID',
   'RAILWAY_REPLICA_REGION',
   'RAILWAY_SERVICE_ID',
+  'RAILWAY_SERVICE_GBP_SANDBOX_URL',
+  'RAILWAY_SERVICE_MAIL_SANDBOX_URL',
+  'RAILWAY_SERVICE_WEB_URL',
   'RAILWAY_SERVICE_NAME',
   'RAILWAY_SNAPSHOT_ID',
 ] as const)
@@ -57,6 +62,23 @@ const ADMISSION_OWNED_NAMES = Object.freeze([
   'RELEASE_SHA',
 ] as const)
 export const AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = ADMISSION_OWNED_NAMES
+
+const AI_ADMISSION_RUNTIME_DEFAULT_HOST = '::'
+const AI_ADMISSION_RUNTIME_DEFAULT_PORT = '8443'
+const AI_ADMISSION_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE = 'production-v1'
+
+function normalizeAiAdmissionRuntimeDefaults(
+  environment: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  return {
+    ...environment,
+    HOST: environment.HOST ?? AI_ADMISSION_RUNTIME_DEFAULT_HOST,
+    PORT: environment.PORT ?? AI_ADMISSION_RUNTIME_DEFAULT_PORT,
+    AI_KEY_INVENTORY_PROFILE:
+      environment.AI_KEY_INVENTORY_PROFILE ??
+      AI_ADMISSION_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE,
+  } as Record<string, string>
+}
 
 const ADMISSION_ALLOWED = new Set<string>([
   ...RUNTIME_METADATA_NAMES,
@@ -93,43 +115,44 @@ export function assertAiAdmissionEnvironmentIsIsolated(
 export function assertAiAdmissionRequiredEnvironment(
   environment: Readonly<Record<string, string | undefined>>,
 ): void {
-  assertAiAdmissionEnvironmentIsIsolated(environment)
-  resolveAiGatewayRuntimeKeyInventory(environment)
-  for (const name of ADMISSION_OWNED_NAMES) required(environment, name)
+  const normalizedEnvironment = normalizeAiAdmissionRuntimeDefaults(environment)
+  assertAiAdmissionEnvironmentIsIsolated(normalizedEnvironment)
+  resolveAiGatewayRuntimeKeyInventory(normalizedEnvironment)
+  for (const name of ADMISSION_OWNED_NAMES) required(normalizedEnvironment, name)
   if (
-    required(environment, 'AI_REQUEST_BINDING_KEYRING_GENERATION') !==
+    required(normalizedEnvironment, 'AI_REQUEST_BINDING_KEYRING_GENERATION') !==
       String(AI_GATEWAY_KEY_INVENTORY_V1.requestBinding.keyringGeneration) ||
-    required(environment, 'AI_ADMISSION_KEYRING_GENERATION') !==
+    required(normalizedEnvironment, 'AI_ADMISSION_KEYRING_GENERATION') !==
       String(AI_GATEWAY_KEY_INVENTORY_V1.admissionSigning.keyringGeneration) ||
-    required(environment, 'AI_ADMISSION_ED25519_KID') !==
+    required(normalizedEnvironment, 'AI_ADMISSION_ED25519_KID') !==
       AI_GATEWAY_KEY_INVENTORY_V1.admissionSigning.activeKid
   ) {
     throw new Error('AI admission key inventory is invalid')
   }
   if (
-    required(environment, 'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION') !==
+    required(normalizedEnvironment, 'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION') !==
     AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
   ) {
     throw new Error('AI admission deployment profile version is invalid')
   }
   if (
-    required(environment, 'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST') !==
+    required(normalizedEnvironment, 'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST') !==
     AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileDigest
   ) {
     throw new Error('AI admission deployment profile digest is invalid')
   }
   if (
-    required(environment, 'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST') !==
+    required(normalizedEnvironment, 'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST') !==
     AI_RUNTIME_CAPABILITIES_V1_DIGEST
   ) {
     throw new Error('AI admission runtime capability catalogue digest is invalid')
   }
-  if (!/^[0-9a-f]{40}$/u.test(required(environment, 'RELEASE_SHA'))) {
+  if (!/^[0-9a-f]{40}$/u.test(required(normalizedEnvironment, 'RELEASE_SHA'))) {
     throw new Error('AI admission release SHA is invalid')
   }
   if (
-    required(environment, 'HOST') !== '::' ||
-    required(environment, 'PORT') !== '8443'
+    required(normalizedEnvironment, 'HOST') !== '::' ||
+    required(normalizedEnvironment, 'PORT') !== '8443'
   ) {
     throw new Error('AI admission bind address is invalid')
   }

@@ -49,6 +49,7 @@ const request = buildClosedOpenAiRequest({
     },
   },
   maxOutputTokens: 4_096,
+  reasoningEffort: 'low',
   safetyIdentifier: `rk1_${'A'.repeat(43)}`,
 })
 const canonical = Buffer.from(canonicalizeRfc8785(request), 'utf8')
@@ -120,6 +121,25 @@ describe('one-shot OpenAI fetch boundary', () => {
     expect(boundary.state.outboundFetchUsed).toBe(true)
     await expect(sdkRequest(boundary.fetch)).rejects.toThrow()
     expect(outboundFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('delivers a 200 body that echoes fractional provider sampling parameters', async () => {
+    const body = '{"output":[],"usage":{},"top_p":0.98,"temperature":1.5}'
+    const boundary = createOneShotOpenAiFetch({
+      apiKey: 'test-key',
+      permitId: PERMIT_ID,
+      canonicalProviderBytes: canonical,
+      responseBytes: 131_072,
+      outboundFetch: async () =>
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      signal: new AbortController().signal,
+    })
+    const response = await sdkRequest(boundary.fetch)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(body)
   })
 
   it('never follows redirects and discards poisoned non-200 bodies', async () => {
@@ -649,6 +669,7 @@ function createConnectorHarness(outboundFetch: typeof fetch) {
     untrustedData: '{"canary":true}',
     format: connectorFormat,
     maxOutputTokens: 4_096,
+    reasoningEffort: 'low',
     safetyIdentifier: `rk1_${'A'.repeat(43)}`,
   })
   const invocation = createPreparedAiInvocation({

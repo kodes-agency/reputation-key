@@ -41,8 +41,20 @@ export type GoogleEgressGatewayResult =
         | 'deadline_exceeded'
         | 'transport_error'
         | 'response_too_large'
+      /**
+       * Content-free execution-admission denial reason. Present only for
+       * `admission_denied`, so callers can separate genuine provider quota
+       * pressure (`quota_exhausted` / `in_flight_exhausted`) from permit and
+       * policy fences, which are not rate limiting.
+       */
+      admissionCode?: AdmissionDenialCode
       retryAfterMs: number
     }>
+
+export type AdmissionDenialCode = Extract<
+  GoogleAdmissionStartResult,
+  { ok: false }
+>['code']
 
 export type GoogleEgressGateway = Readonly<{
   execute(input: GoogleEgressGatewayRequest): Promise<GoogleEgressGatewayResult>
@@ -153,12 +165,18 @@ export function createGoogleEgressGateway(
       try {
         started = await deps.admission.start(admissionInput)
       } catch {
-        return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
+        return {
+          ok: false,
+          code: 'admission_denied',
+          admissionCode: 'coordination_unavailable',
+          retryAfterMs: 0,
+        }
       }
       if (!admissionAccepted(started)) {
         return {
           ok: false,
           code: 'admission_denied',
+          admissionCode: started.code,
           retryAfterMs: started.retryAfterMs,
         }
       }

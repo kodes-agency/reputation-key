@@ -121,6 +121,13 @@ describe('AI gateway startup isolation', () => {
       ).toThrow()
     }
   })
+  it('defaults missing gateway host, port, and profile metadata', () => {
+    const environment = gatewayEnvironment()
+    delete environment.HOST
+    delete environment.PORT
+    delete environment.AI_KEY_INVENTORY_PROFILE
+    expect(() => assertAiGatewayRequiredEnvironment(environment)).not.toThrow()
+  })
   it.each([
     ['HOST', '0.0.0.0'],
     ['HOST', '::1'],
@@ -145,6 +152,7 @@ describe('AI gateway startup isolation', () => {
       PWD: '/app',
       SHLVL: '1',
       YARN_VERSION: '1.22.22',
+      RAILWAY_BETA_ENABLE_RUNTIME_V2: '1',
       RAILWAY_DEPLOYMENT_ID: 'deployment',
       RAILWAY_ENVIRONMENT_ID: 'environment',
       RAILWAY_ENVIRONMENT_NAME: 'google-closed-beta',

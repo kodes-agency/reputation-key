@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MERCHANT_AI_NOTICE_DIGEST } from '../../src/shared/merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '../../src/shared/merchant-ai-notice-contract'
 import { parseAiGatewayRouteRequest } from '../../src/shared/ai-gateway-transport-contract'
 import { handleAiEgressGatewayRequest } from './http-api'
 import type { AiEgressGatewayService } from './service'
@@ -16,7 +19,7 @@ const body = {
   actorId: null,
   binding: {
     authorizationLineageId: '10000000-0000-4000-8000-000000000005',
-    noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
     sourceEpoch: 1,

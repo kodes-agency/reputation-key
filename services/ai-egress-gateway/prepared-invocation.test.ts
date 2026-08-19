@@ -133,6 +133,7 @@ describe('prepared AI invocation', () => {
       untrustedData: '{"canary":true}',
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     const stages: string[] = []
@@ -183,6 +184,7 @@ describe('prepared AI invocation', () => {
       untrustedData: '{}',
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     expect(() =>
@@ -236,6 +238,7 @@ describe('prepared AI invocation', () => {
       untrustedData: '{}',
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     const sparse: unknown[] = []
@@ -271,6 +274,7 @@ describe('prepared AI invocation', () => {
       untrustedData: '{}',
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     let invoked = false
@@ -328,6 +332,7 @@ describe('prepared AI invocation', () => {
         untrustedData: '{}',
         format,
         maxOutputTokens: 4_096,
+        reasoningEffort: 'low',
         safetyIdentifier: `rk1_${'A'.repeat(43)}`,
       })
       const realFrom = Buffer.from.bind(Buffer)
@@ -400,6 +405,7 @@ describe('prepared AI invocation', () => {
       untrustedData: providerJson,
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
 
@@ -460,6 +466,7 @@ describe('prepared AI invocation', () => {
         untrustedData: '{}',
         format,
         maxOutputTokens: 4_096,
+        reasoningEffort: 'low',
         safetyIdentifier: `rk1_${'A'.repeat(43)}`,
       }),
     ).toThrow(/Invalid closed OpenAI request input/)
@@ -472,6 +479,7 @@ describe('prepared AI invocation', () => {
       untrustedData: '{}',
       format,
       maxOutputTokens: 4_096,
+      reasoningEffort: 'low',
       safetyIdentifier: `rk1_${'A'.repeat(43)}`,
     })
     const mutated = {

@@ -93,6 +93,18 @@ export function enforceOutboundFetchDisposition<T>(
   const claimsNoDispatch = outcome.disposition === 'no_dispatch'
   if (claimsNoDispatch === !outcome.outboundFetchUsed) return outcome
   const disposition = outcome.outboundFetchUsed ? 'transport_ambiguous' : 'no_dispatch'
+  // This rewrite DISCARDS the connector's original disposition, so a real provider
+  // or output failure that never touched the network is reported as a bare
+  // `no_dispatch`. Record what was overwritten before it is lost.
+  process.stderr.write(
+    `${JSON.stringify({
+      event: 'gateway_disposition_rewritten',
+      from: outcome.disposition,
+      to: disposition,
+      outboundFetchUsed: outcome.outboundFetchUsed,
+      usageKnown: outcome.usageKnown,
+    })}\n`,
+  )
   return Object.freeze({
     disposition,
     reportedDisposition: disposition,

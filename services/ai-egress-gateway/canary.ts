@@ -143,6 +143,7 @@ export function createAiOneShotCanary(
         untrustedData: canonicalizeRfc8785(CANARY_SOURCE),
         format,
         maxOutputTokens: profile.maxOutputTokens,
+        reasoningEffort: profile.reasoningEffort,
         safetyIdentifier: deriveCanarySafetyIdentifier(),
       })
       const sourceBytes = Buffer.from(

@@ -7,8 +7,10 @@ import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
 import { z } from 'zod'
 import { AI_OPERATION_PROFILES } from '../../src/shared/ai-operation-profiles'
 import {
+  explainJsonBytesRejection,
   parseAiExecutionGrant,
   parseAiInternalJsonBytes,
+  parseAiProviderJsonBytes,
   verifyAiExecutionGrant,
   verifyAiRequestBinding,
   type AiExecutionGrantV1,
@@ -57,9 +59,12 @@ export class AmbiguousOpenAiTransportError extends Error {
 }
 
 export class InvalidOpenAiOutputError extends Error {
-  constructor() {
+  readonly reason: string
+
+  constructor(reason = 'unspecified') {
     super('OpenAI output is invalid')
     this.name = 'InvalidOpenAiOutputError'
+    this.reason = reason
   }
 }
 
@@ -67,6 +72,20 @@ class InvalidOpenAiRequestError extends Error {
   constructor() {
     super('OpenAI request is invalid')
     this.name = 'InvalidOpenAiRequestError'
+  }
+}
+
+// Canary-only diagnostic. The OpenAI SDK masks post-200 failures as
+// `Connection error.`, which names neither the rejecting frame nor the
+// underlying fault; the stack and the cause chain do.
+function describeCanaryThrow(value: unknown, depth = 3): unknown {
+  if (!(value instanceof Error))
+    return value === undefined ? null : String(value).slice(0, 160)
+  return {
+    name: value.name,
+    message: value.message.slice(0, 160),
+    stack: (value.stack ?? '').slice(0, 1600),
+    cause: depth > 0 ? describeCanaryThrow(value.cause, depth - 1) : null,
   }
 }
 
@@ -167,6 +186,8 @@ function preparedBytesDigest(bytes: Uint8Array): Buffer {
 }
 export function createOneShotOpenAiFetch(
   input: Readonly<{
+    /** Route name; used only to attribute canary-only diagnostics. */
+    route?: string
     apiKey: string
     permitId: string
     canonicalProviderBytes: Uint8Array
@@ -200,6 +221,27 @@ export function createOneShotOpenAiFetch(
   const fetchImpl: typeof fetch = async (requestInfo, init) => {
     if (fetchInvoked) {
       state.sdkRequestBytes?.fill(0)
+      if (input.route === 'synthetic-canary') {
+        const url =
+          typeof requestInfo === 'string' || requestInfo instanceof URL
+            ? String(requestInfo)
+            : requestInfo.url
+        process.stderr.write(
+          `${JSON.stringify({
+            event: 'canary_second_call_rejected',
+            method:
+              init?.method ??
+              (requestInfo instanceof Request ? requestInfo.method : 'GET'),
+            path: (() => {
+              try {
+                return new URL(url).pathname
+              } catch {
+                return 'unparseable'
+              }
+            })(),
+          })}\n`,
+        )
+      }
       throw new InvalidOpenAiRequestError()
     }
     fetchInvoked = true
@@ -277,29 +319,38 @@ export function createOneShotOpenAiFetch(
         response.headers.has('content-encoding') ||
         !parseOpenAiJsonContentType(response.headers.get('content-type'))
       ) {
-        throw new InvalidOpenAiOutputError()
+        throw new InvalidOpenAiOutputError(
+          response.headers.has('content-encoding') ? 'content_encoding' : 'content_type',
+        )
       }
       try {
-        parseAiInternalJsonBytes(bytes, input.responseBytes, z.unknown())
+        parseAiProviderJsonBytes(bytes, input.responseBytes, z.unknown())
       } catch {
-        throw new InvalidOpenAiOutputError()
+        if (input.route === 'synthetic-canary') {
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'canary_response_json_rejected',
+              bytes: bytes.byteLength,
+              contentType: response.headers.get('content-type'),
+              explain: explainJsonBytesRejection(
+                bytes,
+                input.responseBytes,
+                'finite-numbers',
+              ),
+            })}\n`,
+          )
+        }
+        throw new InvalidOpenAiOutputError('response_json')
       }
-      let delivered = false
-      const body = new ReadableStream<Uint8Array>({
-        pull(controller) {
-          if (delivered) {
-            controller.error(new InvalidOpenAiOutputError())
-            return
-          }
-          delivered = true
-          controller.enqueue(bytes)
-          controller.close()
-        },
-        cancel() {
-          bytes.fill(0)
-        },
-      })
-      return new Response(body, {
+      // A plain byte body, not a hand-rolled ReadableStream. The SDK clones the
+      // response (which tees the stream and pulls both branches), and the old
+      // stream errored on the second pull — the SDK reported that as
+      // "Connection error." and the release canary surfaced it as
+      // `output_invalid` after a perfectly good 200. Single delivery is already
+      // guaranteed by the one-shot fetch gate and the grant nonce registry, so
+      // the stream added fragility and no safety. The buffer is copied here and
+      // the caller's copy is zeroed in its `finally`.
+      return new Response(Buffer.from(bytes), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
@@ -575,36 +626,77 @@ function inputTokenCeiling(invocation: PreparedAiInvocation): number | null {
   return Number.isSafeInteger(ceiling) ? ceiling : null
 }
 
+/**
+ * A rejected usage block is reported for the SYNTHETIC-CANARY route only, where
+ * the corpus is synthetic and the operator is holding a release gate: naming the
+ * failed invariant (and its counts) is the difference between a diagnosable gate
+ * and an unactionable `output_invalid`. Tenant routes stay silent.
+ */
+function usageRejected(
+  invocation: PreparedAiInvocation,
+  invariant: string,
+  counts?: Readonly<Record<string, number>>,
+): null {
+  if (invocation.descriptor.route === 'synthetic-canary') {
+    process.stderr.write(
+      `${JSON.stringify({ event: 'canary_usage_rejected', invariant, ...(counts ?? {}) })}\n`,
+    )
+  }
+  return null
+}
+
 function parseUsage(
   value: unknown,
   invocation: PreparedAiInvocation,
 ): OpenAiUsageV1 | null {
+  // `input_tokens_details` / `output_tokens_details` are optional in the
+  // Responses payload. Requiring them classified an otherwise successful,
+  // fully-accounted call as `output_invalid` with usage unknown, which failed
+  // the release gate for a provider-shape difference rather than a real fault.
+  // Absent sub-counters default to 0; every inequality below still holds
+  // because 0 can only make the checks stricter.
   const parsed = z
     .object({
       input_tokens: z.number().int().nonnegative().safe(),
       input_tokens_details: z
-        .object({ cached_tokens: z.number().int().nonnegative().safe() })
-        .passthrough(),
+        .object({ cached_tokens: z.number().int().nonnegative().safe().default(0) })
+        .passthrough()
+        .default({ cached_tokens: 0 }),
       output_tokens: z.number().int().nonnegative().safe(),
       output_tokens_details: z
-        .object({ reasoning_tokens: z.number().int().nonnegative().safe() })
-        .passthrough(),
+        .object({ reasoning_tokens: z.number().int().nonnegative().safe().default(0) })
+        .passthrough()
+        .default({ reasoning_tokens: 0 }),
       total_tokens: z.number().int().nonnegative().safe(),
     })
     .passthrough()
     .safeParse(value)
-  if (!parsed.success) return null
+  if (!parsed.success) return usageRejected(invocation, 'usage_shape')
   const maximumInputTokens = inputTokenCeiling(invocation)
-  if (maximumInputTokens === null) return null
+  if (maximumInputTokens === null)
+    return usageRejected(invocation, 'input_ceiling_unknown')
   const usage = parsed.data
-  if (
-    usage.input_tokens_details.cached_tokens > usage.input_tokens ||
-    usage.output_tokens_details.reasoning_tokens > usage.output_tokens ||
-    usage.total_tokens !== usage.input_tokens + usage.output_tokens ||
-    usage.output_tokens > invocation.descriptor.limits.outputTokens ||
-    usage.input_tokens > maximumInputTokens
-  ) {
-    return null
+  const violated =
+    usage.input_tokens_details.cached_tokens > usage.input_tokens
+      ? 'cached_above_input'
+      : usage.output_tokens_details.reasoning_tokens > usage.output_tokens
+        ? 'reasoning_above_output'
+        : usage.total_tokens !== usage.input_tokens + usage.output_tokens
+          ? 'total_mismatch'
+          : usage.output_tokens > invocation.descriptor.limits.outputTokens
+            ? 'output_above_limit'
+            : usage.input_tokens > maximumInputTokens
+              ? 'input_above_ceiling'
+              : null
+  if (violated !== null) {
+    return usageRejected(invocation, violated, {
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      reasoningTokens: usage.output_tokens_details.reasoning_tokens,
+      totalTokens: usage.total_tokens,
+      outputLimit: invocation.descriptor.limits.outputTokens,
+      inputCeiling: maximumInputTokens,
+    })
   }
   return Object.freeze({
     inputTokens: usage.input_tokens,
@@ -697,6 +789,103 @@ function invocationAttestationIsCurrent(
   )
 }
 
+// `invocationAttestationIsCurrent` folds twelve independent checks into one
+// boolean, and the caller turns a false into a silent `no_dispatch` — no log, no
+// code, no provider call. From the outside that is indistinguishable from a
+// deadline abort or a dead outbound boundary, which cost a full debugging cycle on
+// the closed beta. This names the failing check. It runs ONLY on the failure path,
+// so the happy path is untouched, and it emits identifiers and booleans only —
+// never key material, never provider bytes.
+function describeAttestationFailure(
+  invocation: PreparedAiInvocation,
+  grant: AiExecutionGrantV1,
+  requestBindingKeys: VersionedHmacKeyring,
+  admissionPublicKeys: ReadonlyMap<string, KeyObject>,
+): readonly string[] {
+  const reasons: string[] = []
+  let parsedGrant: AiExecutionGrantV1
+  try {
+    parsedGrant = parseAiExecutionGrant(grant)
+  } catch {
+    return Object.freeze(['grant_unparseable'])
+  }
+  const canonical = Buffer.from(canonicalizeRfc8785(invocation.sdkRequest), 'utf8')
+  const outboundBytes = Buffer.from(invocation.canonicalProviderBytes)
+  let digest: string
+  let exactOutboundBytes: boolean
+  try {
+    digest = createHash('sha256')
+      .update(PREPARED_DOMAIN, 'utf8')
+      .update(canonical)
+      .digest('hex')
+    exactOutboundBytes =
+      canonical.byteLength === outboundBytes.byteLength &&
+      timingSafeEqual(canonical, outboundBytes)
+  } finally {
+    canonical.fill(0)
+    outboundBytes.fill(0)
+  }
+  if (!verifyAiExecutionGrant(parsedGrant, admissionPublicKeys)) {
+    reasons.push('grant_signature_unverified')
+  }
+  if (!exactOutboundBytes) reasons.push('outbound_bytes_differ')
+  if (
+    invocation.descriptor.preparedByteCount !==
+    invocation.canonicalProviderBytes.byteLength
+  ) {
+    reasons.push('prepared_byte_count_mismatch')
+  }
+  if (invocation.descriptor.preparedDigest !== digest) {
+    reasons.push('prepared_digest_mismatch')
+  }
+  if (parsedGrant.subjectKind !== invocation.descriptor.subjectKind) {
+    reasons.push('subject_kind_mismatch')
+  }
+  if (parsedGrant.route !== invocation.descriptor.route) reasons.push('route_mismatch')
+  if (parsedGrant.operationId !== invocation.descriptor.operationId) {
+    reasons.push('operation_id_mismatch')
+  }
+  if (parsedGrant.permitId !== invocation.descriptor.permitId) {
+    reasons.push('permit_id_mismatch')
+  }
+  if (parsedGrant.attemptNumber !== invocation.descriptor.attemptNumber) {
+    reasons.push('attempt_mismatch')
+  }
+  if (
+    !verifyAiRequestBinding(
+      {
+        descriptor: invocation.descriptor,
+        requestBindingKeyId: invocation.requestBindingKeyId,
+        requestBindingHmac: invocation.requestBindingHmac,
+      },
+      requestBindingKeys,
+    )
+  ) {
+    reasons.push('request_binding_unverified')
+  }
+  if (parsedGrant.requestBindingKeyId !== invocation.requestBindingKeyId) {
+    reasons.push('request_binding_key_id_mismatch')
+  }
+  if (parsedGrant.requestBindingHmac !== invocation.requestBindingHmac) {
+    reasons.push('request_binding_hmac_mismatch')
+  }
+  if (
+    canonicalizeRfc8785(parsedGrant.limits) !==
+    canonicalizeRfc8785(invocation.descriptor.limits)
+  ) {
+    reasons.push('limits_mismatch')
+  }
+  if (
+    parsedGrant.callerDeadlineEpochMillis !==
+    invocation.descriptor.callerDeadlineEpochMillis
+  ) {
+    reasons.push('caller_deadline_mismatch')
+  }
+  return Object.freeze(
+    reasons.length === 0 ? ['attestation_current_on_recheck'] : reasons,
+  )
+}
+
 async function closePinnedOutbound(outbound: PinnedOpenAiOutbound): Promise<boolean> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -742,20 +931,59 @@ export function createOpenAiConnector(
       let currentTime: number
       try {
         currentTime = now()
+        // Evaluate the six gates separately so the log can name the one that
+        // fired. Nonce consumption stays LAST and is only reached when every other
+        // gate passed, so a diagnostic can never burn a nonce that would otherwise
+        // have dispatched.
+        const attestationCurrent = invocationAttestationIsCurrent(
+          invocation,
+          grant,
+          dependencies.requestBindingKeys,
+          dependencies.admissionPublicKeys,
+        )
+        const grantTimingReasons: string[] = []
         if (
-          !invocationAttestationIsCurrent(
-            invocation,
-            grant,
-            dependencies.requestBindingKeys,
-            dependencies.admissionPublicKeys,
-          ) ||
-          grant.expiresAtEpochMillis !==
-            invocation.descriptor.callerDeadlineEpochMillis ||
-          grant.issuedAtEpochMillis >= grant.expiresAtEpochMillis ||
-          grant.issuedAtEpochMillis > currentTime ||
-          grant.expiresAtEpochMillis <= currentTime ||
-          !nonceRegistry.consume(grant.nonce, grant.expiresAtEpochMillis, currentTime)
+          grant.expiresAtEpochMillis !== invocation.descriptor.callerDeadlineEpochMillis
         ) {
+          grantTimingReasons.push('grant_expiry_not_caller_deadline')
+        }
+        if (grant.issuedAtEpochMillis >= grant.expiresAtEpochMillis) {
+          grantTimingReasons.push('grant_issued_after_expiry')
+        }
+        if (grant.issuedAtEpochMillis > currentTime)
+          grantTimingReasons.push('grant_issued_in_future')
+        if (grant.expiresAtEpochMillis <= currentTime)
+          grantTimingReasons.push('grant_expired')
+        const nonceAccepted =
+          attestationCurrent &&
+          grantTimingReasons.length === 0 &&
+          nonceRegistry.consume(grant.nonce, grant.expiresAtEpochMillis, currentTime)
+        if (!attestationCurrent || grantTimingReasons.length > 0 || !nonceAccepted) {
+          const reasons = [
+            ...(attestationCurrent
+              ? []
+              : describeAttestationFailure(
+                  invocation,
+                  grant,
+                  dependencies.requestBindingKeys,
+                  dependencies.admissionPublicKeys,
+                )),
+            ...grantTimingReasons,
+            ...(attestationCurrent && grantTimingReasons.length === 0 && !nonceAccepted
+              ? ['nonce_replayed']
+              : []),
+          ]
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_no_dispatch',
+              route: invocation.descriptor.route,
+              operationId: invocation.descriptor.operationId,
+              permitId: invocation.descriptor.permitId,
+              attempt: invocation.descriptor.attemptNumber,
+              grantTtlMillis: grant.expiresAtEpochMillis - currentTime,
+              reasons,
+            })}\n`,
+          )
           invocation.canonicalProviderBytes.fill(0)
           return connectorOutcome({
             disposition: 'no_dispatch',
@@ -767,7 +995,22 @@ export function createOpenAiConnector(
             outboundFetchUsed: false,
           })
         }
-      } catch {
+      } catch (error) {
+        // Swallowing this made an attestation crash look identical to a clean
+        // "declined to dispatch". Name it.
+        process.stderr.write(
+          `${JSON.stringify({
+            event: 'gateway_no_dispatch',
+            stage: 'attestation_threw',
+            route: invocation.descriptor.route,
+            operationId: invocation.descriptor.operationId,
+            errorName: error instanceof Error ? error.name : 'unknown',
+            errorMessage:
+              error instanceof Error
+                ? error.message.slice(0, 200)
+                : String(error).slice(0, 200),
+          })}\n`,
+        )
         invocation.canonicalProviderBytes.fill(0)
         return connectorOutcome({
           disposition: 'no_dispatch',
@@ -788,6 +1031,7 @@ export function createOpenAiConnector(
         const outboundFetch = dependencies.outboundFetch ?? pinned?.fetch
         if (outboundFetch === undefined) throw new InvalidOpenAiRequestError()
         boundary = createOneShotOpenAiFetch({
+          route: invocation.descriptor.route,
           apiKey: dependencies.apiKey,
           permitId: grant.permitId,
           canonicalProviderBytes: invocation.canonicalProviderBytes,
@@ -855,6 +1099,27 @@ export function createOpenAiConnector(
             outboundFetchUsed: true,
           })
         }
+        // A truncated response is a successful, fully-billed provider call that
+        // returns an EMPTY body, so `outputSchema.safeParse` below fails and the
+        // whole route reports a bare `output_invalid`. That is indistinguishable
+        // from a malformed answer, and it is what hid a global reasoning-effort
+        // fault: every tenant route spent its entire output budget on reasoning
+        // and returned nothing, while the operator saw only four words.
+        //
+        // Content-free by construction: a provider enum and three integers. No
+        // tenant text, so unlike `usageRejected` this is safe on every route.
+        if (response.status === 'incomplete' || response.incomplete_details) {
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'openai_output_truncated',
+              route: invocation.descriptor.route,
+              reason: response.incomplete_details?.reason ?? 'unknown',
+              outputTokens: usage.outputTokens,
+              reasoningTokens: usage.reasoningTokens,
+              maxOutputTokens: invocation.sdkRequest.max_output_tokens,
+            })}\n`,
+          )
+        }
         const parsedOutput = outputSchema.safeParse(response.output_parsed)
         if (!parsedOutput.success) {
           return connectorOutcome({
@@ -897,6 +1162,24 @@ export function createOpenAiConnector(
           })
         }
         if (boundary === null || !boundary.state.outboundFetchUsed) {
+          // The dispatch threw before any byte left the process. Discarding the
+          // error here is what made a broken pinned-outbound path look like a
+          // deliberate no-dispatch.
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_no_dispatch',
+              stage: 'dispatch_threw_before_outbound',
+              route: invocation.descriptor.route,
+              operationId: invocation.descriptor.operationId,
+              pinnedNull: pinned === null,
+              boundaryNull: boundary === null,
+              errorName: error instanceof Error ? error.name : 'unknown',
+              errorMessage:
+                error instanceof Error
+                  ? error.message.slice(0, 300)
+                  : String(error).slice(0, 300),
+            })}\n`,
+          )
           return connectorOutcome({
             disposition: 'no_dispatch',
             result: null,
@@ -921,6 +1204,11 @@ export function createOpenAiConnector(
           })
         }
         if (error instanceof InvalidOpenAiOutputError) {
+          if (invocation.descriptor.route === 'synthetic-canary') {
+            process.stderr.write(
+              `${JSON.stringify({ event: 'canary_output_invalid', reason: error.reason })}\n`,
+            )
+          }
           return connectorOutcome({
             disposition: 'output_invalid',
             reportedDisposition: 'success',
@@ -933,6 +1221,11 @@ export function createOpenAiConnector(
           })
         }
         if (boundary !== null && boundary.state.completeStatus === 200) {
+          if (invocation.descriptor.route === 'synthetic-canary') {
+            process.stderr.write(
+              `${JSON.stringify({ event: 'canary_output_invalid', reason: 'post_200_throw', error: describeCanaryThrow(error) })}\n`,
+            )
+          }
           return connectorOutcome({
             disposition: 'output_invalid',
             reportedDisposition: 'success',

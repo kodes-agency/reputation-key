@@ -50,15 +50,28 @@ async function readBoundedJson(request: Request): Promise<unknown> {
   }
 }
 
-function errorResponse(code: string, retryAfterMs: number, status: number): Response {
-  return new Response(JSON.stringify({ ok: false, code, retryAfterMs }), {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-      'x-content-type-options': 'nosniff',
+function errorResponse(
+  code: string,
+  retryAfterMs: number,
+  status: number,
+  admissionCode?: string,
+): Response {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      code,
+      retryAfterMs,
+      ...(admissionCode === undefined ? {} : { admissionCode }),
+    }),
+    {
+      status,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      },
     },
-  })
+  )
 }
 
 function hasJsonContentType(request: Request): boolean {
@@ -131,15 +144,20 @@ export async function handleGoogleEgressGatewayRequest(
     return errorResponse('transport_error', 0, 503)
   }
   if (!result.ok) {
+    const quotaPressure =
+      result.admissionCode === 'quota_exhausted' ||
+      result.admissionCode === 'in_flight_exhausted'
     const status =
       result.code === 'malformed_request'
         ? 400
         : result.code === 'admission_denied'
-          ? 429
+          ? quotaPressure
+            ? 429
+            : 409
           : result.code === 'deadline_exceeded'
             ? 504
             : 502
-    return errorResponse(result.code, result.retryAfterMs, status)
+    return errorResponse(result.code, result.retryAfterMs, status, result.admissionCode)
   }
   return new Response(Buffer.from(result.body), {
     status: 200,
@@ -185,6 +203,21 @@ const gatewayErrorSchema = z
       'transport_error',
       'response_too_large',
     ]),
+    admissionCode: z
+      .enum([
+        'malformed_request',
+        'permit_unknown',
+        'permit_expired',
+        'gateway_mismatch',
+        'route_mismatch',
+        'request_mismatch',
+        'coordination_unavailable',
+        'quota_exhausted',
+        'in_flight_exhausted',
+        'authorization_changed',
+        'grant_unavailable',
+      ])
+      .optional(),
     retryAfterMs: z.number().int().safe().min(0).max(300_000),
   })
   .strict()

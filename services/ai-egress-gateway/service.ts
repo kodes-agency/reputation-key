@@ -381,10 +381,27 @@ export function createAiEgressGatewayService(
         const providerDeadlineMillis = route === 'property-trend' ? 90_000 : 60_000
         const providerAndSettlementMillis = providerDeadlineMillis + 5_000
         let outcome: OpenAiConnectorOutcome<unknown>
-        if (
-          grant.expiresAtEpochMillis - now() < providerAndSettlementMillis ||
-          deadline.signal.aborted
-        ) {
+        // This branch skips the connector entirely, so the connector's own
+        // `gateway_no_dispatch` diagnostic never fires for it. Both conditions were
+        // silent, which made a real closed-beta failure undiagnosable: the caller
+        // sees only `operation_ambiguous`. Report the numbers behind the decision.
+        const grantTtlMillis = grant.expiresAtEpochMillis - now()
+        const deadlineAborted = deadline.signal.aborted
+        if (grantTtlMillis < providerAndSettlementMillis || deadlineAborted) {
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_no_dispatch',
+              stage: 'pre_connector',
+              route,
+              operationId: prepared.invocation.descriptor.operationId,
+              permitId: prepared.invocation.descriptor.permitId,
+              attempt: prepared.invocation.descriptor.attemptNumber,
+              grantTtlMillis,
+              requiredTtlMillis: providerAndSettlementMillis,
+              deadlineAborted,
+              reason: deadlineAborted ? 'caller_deadline_aborted' : 'grant_ttl_too_short',
+            })}\n`,
+          )
           prepared.invocation.canonicalProviderBytes.fill(0)
           outcome = {
             disposition: 'no_dispatch',
