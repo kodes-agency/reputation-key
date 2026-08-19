@@ -7,6 +7,7 @@ export type AiMerchantAuthorizationSnapshot = Readonly<{
   state: 'disabled' | 'enabled' | 'revoked'
   stateVersion: number
   authorizationLineageId: string | null
+  authorizedSourceEpoch: number
   capabilities: ReadonlyArray<MerchantAiCapability>
   capabilityRuntimeProfileVersions: Readonly<
     Partial<Record<MerchantAiCapability, string>>

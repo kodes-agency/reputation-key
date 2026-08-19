@@ -2,7 +2,10 @@ import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { signAiSettlementReceipt } from '#/shared/ai-internal-transport-contract'
 import type { InternalMtlsRawResponse } from '../../../../../services/internal-mtls'
-import { MERCHANT_AI_NOTICE_DIGEST } from '../../../../../src/shared/merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '../../../../../src/shared/merchant-ai-notice-contract'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import {
   CLOSED_TREND_SIGNAL_IDS,
@@ -53,7 +56,7 @@ function analysisInput(deadlineEpochMillis = NOW + 70_000): ReviewAnalysisSource
     actorId: null,
     binding: {
       authorizationLineageId: UUIDS.lineage,
-      noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
       sourceEpoch: 1,
@@ -131,7 +134,6 @@ function replyInput(): ReplySuggestionSourceInput {
 
 const baselineWindow = {
   reviewCount: 10,
-  valenceSum: -200,
   sentimentCounts: { positive: 2, neutral: 4, negative: 3, mixed: 1 },
   attentionCounts: { urgent: 1, high: 2, medium: 3, low: 4 },
   categoryCounts: {
@@ -149,7 +151,6 @@ const baselineWindow = {
 } as const
 const currentWindow = {
   reviewCount: 10,
-  valenceSum: 500,
   sentimentCounts: { positive: 7, neutral: 1, negative: 1, mixed: 1 },
   attentionCounts: { urgent: 0, high: 1, medium: 2, low: 7 },
   categoryCounts: {

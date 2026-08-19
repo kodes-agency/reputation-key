@@ -1,12 +1,19 @@
-import { and, desc, eq, gt } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { ReviewId } from '#/shared/domain/ids'
+import {
+  AI_TREND_RENDER_PROFILE_DIGEST,
+  AI_TREND_RENDER_PROFILE_VERSION,
+} from '#/shared/ai-property-trend-contract'
 import {
   aiOperationAttempts,
   aiOperations,
   aiProductVolumeConsumptions,
+  aiExecutionControlHeads,
   aiPropertyAggregateHeads,
   aiPropertyProcessingProfiles,
-  aiPropertyTrendReports,
+  aiPropertyTrendOutcomes,
+  aiPropertyTrendSchedules,
   aiReviewAnalyses,
   aiReviewEventCursors,
   merchantAiEnablement,
@@ -51,6 +58,184 @@ function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | nu
     : null
 }
 
+type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
+
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+type AuthorizedEffectOperation = Readonly<{
+  organizationId: string | null
+  propertyId: string | null
+  sourceEpoch: number | null
+  authorizationLineageId: string | null
+  noticeVersion: string | null
+  noticeDigest: string | null
+  propertyProfileVersion: number | null
+  routingPolicyVersion: number | null
+  sourcePolicyId: string | null
+  redactionProfileVersion: string | null
+  providerDeploymentProfileVersion: string
+  capabilityRuntimeProfileVersion: string | null
+  globalControlId: string
+  globalControlGeneration: number
+  providerControlId: string
+  providerControlGeneration: number
+  capabilityControlId: string | null
+  capabilityControlGeneration: number | null
+}>
+
+async function isCurrentAuthorizedEffect(
+  tx: Transaction,
+  input: Readonly<{
+    capability: AiOutputCapability
+    operation: AuthorizedEffectOperation
+    capabilityFence: Readonly<Record<string, unknown>>
+  }>,
+): Promise<boolean> {
+  const operation = input.operation
+  if (
+    operation.organizationId === null ||
+    operation.propertyId === null ||
+    operation.sourceEpoch === null ||
+    operation.authorizationLineageId === null ||
+    operation.noticeVersion === null ||
+    operation.noticeDigest === null ||
+    operation.propertyProfileVersion === null ||
+    operation.routingPolicyVersion === null ||
+    operation.sourcePolicyId === null ||
+    operation.redactionProfileVersion === null ||
+    operation.capabilityRuntimeProfileVersion === null ||
+    operation.capabilityControlId === null ||
+    operation.capabilityControlGeneration === null
+  ) {
+    return false
+  }
+
+  const [authorization] = await tx
+    .select({
+      state: merchantAiEnablement.state,
+      authorizationLineageId: merchantAiEnablement.authorizationLineageId,
+      capabilities: merchantAiEnablement.capabilities,
+      capabilityRuntimeProfileVersions:
+        merchantAiEnablement.capabilityRuntimeProfileVersions,
+      reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
+      replyDraftingEpoch: merchantAiEnablement.replyDraftingEpoch,
+      propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
+      authorizedSourceEpoch: merchantAiEnablement.authorizedSourceEpoch,
+      noticeVersion: merchantAiEnablement.noticeVersion,
+      noticeDigest: merchantAiEnablement.noticeDigest,
+      sourcePolicyId: merchantAiEnablement.sourcePolicyId,
+      routingPolicyVersion: merchantAiEnablement.routingPolicyVersion,
+      providerDeploymentProfileVersion:
+        merchantAiEnablement.providerDeploymentProfileVersion,
+      redactionProfileFamily: merchantAiEnablement.redactionProfileFamily,
+    })
+    .from(merchantAiEnablement)
+    .where(
+      and(
+        eq(merchantAiEnablement.organizationId, operation.organizationId),
+        eq(merchantAiEnablement.propertyId, operation.propertyId),
+      ),
+    )
+    .limit(1)
+    .for('share')
+  if (
+    !authorization ||
+    authorization.state !== 'enabled' ||
+    authorization.authorizationLineageId !== operation.authorizationLineageId ||
+    !authorization.capabilities.includes(input.capability) ||
+    authorization.capabilityRuntimeProfileVersions[input.capability] !==
+      operation.capabilityRuntimeProfileVersion ||
+    authorization.authorizedSourceEpoch !== operation.sourceEpoch ||
+    authorization.noticeVersion !== operation.noticeVersion ||
+    authorization.noticeDigest !== operation.noticeDigest ||
+    authorization.sourcePolicyId !== operation.sourcePolicyId ||
+    authorization.routingPolicyVersion !== operation.routingPolicyVersion ||
+    authorization.providerDeploymentProfileVersion !==
+      operation.providerDeploymentProfileVersion ||
+    authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
+    (input.capability !== 'reply_drafting' &&
+      authorization.reviewAnalysisEpoch !== input.capabilityFence.reviewAnalysisEpoch) ||
+    (input.capability === 'reply_drafting' &&
+      authorization.replyDraftingEpoch !== input.capabilityFence.replyDraftingEpoch) ||
+    (input.capability === 'property_trends' &&
+      authorization.propertyTrendsEpoch !== input.capabilityFence.propertyTrendsEpoch)
+  ) {
+    return false
+  }
+
+  const [profile] = await tx
+    .select({
+      lifecycleState: aiPropertyProcessingProfiles.lifecycleState,
+      sourceEpoch: aiPropertyProcessingProfiles.sourceEpoch,
+      profileVersion: aiPropertyProcessingProfiles.profileVersion,
+      routingPolicyVersion: aiPropertyProcessingProfiles.routingPolicyVersion,
+      providerDeploymentProfileVersion:
+        aiPropertyProcessingProfiles.providerDeploymentProfileVersion,
+    })
+    .from(aiPropertyProcessingProfiles)
+    .where(
+      and(
+        eq(aiPropertyProcessingProfiles.organizationId, operation.organizationId),
+        eq(aiPropertyProcessingProfiles.propertyId, operation.propertyId),
+      ),
+    )
+    .limit(1)
+    .for('share')
+  if (
+    !profile ||
+    profile.lifecycleState !== 'active' ||
+    profile.sourceEpoch !== operation.sourceEpoch ||
+    profile.profileVersion !== operation.propertyProfileVersion ||
+    profile.routingPolicyVersion !== operation.routingPolicyVersion ||
+    profile.providerDeploymentProfileVersion !==
+      operation.providerDeploymentProfileVersion
+  ) {
+    return false
+  }
+
+  const controls = await tx
+    .select({
+      scopeKey: aiExecutionControlHeads.scopeKey,
+      controlId: aiExecutionControlHeads.controlId,
+      generation: aiExecutionControlHeads.generation,
+      executionState: aiExecutionControlHeads.executionState,
+      admissionState: aiExecutionControlHeads.admissionState,
+    })
+    .from(aiExecutionControlHeads)
+    .where(
+      inArray(aiExecutionControlHeads.scopeKey, [
+        'global',
+        `provider:${operation.providerDeploymentProfileVersion}`,
+        `capability:${input.capability}`,
+      ]),
+    )
+    .for('share')
+  if (controls.length !== 3) return false
+  const byScope = new Map(controls.map((control) => [control.scopeKey, control]))
+  const matches = (scopeKey: string, controlId: string, generation: number): boolean => {
+    const control = byScope.get(scopeKey)
+    return (
+      control?.controlId === controlId &&
+      control.generation === generation &&
+      control.executionState === 'enabled' &&
+      control.admissionState === 'accepting'
+    )
+  }
+  return (
+    matches('global', operation.globalControlId, operation.globalControlGeneration) &&
+    matches(
+      `provider:${operation.providerDeploymentProfileVersion}`,
+      operation.providerControlId,
+      operation.providerControlGeneration,
+    ) &&
+    matches(
+      `capability:${input.capability}`,
+      operation.capabilityControlId,
+      operation.capabilityControlGeneration,
+    )
+  )
+}
+
 export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
   return {
     async storeAnalysis(input) {
@@ -66,14 +251,27 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             reviewId: aiOperations.reviewId,
             sourceEpoch: aiOperations.sourceEpoch,
             sourceRevision: aiOperations.sourceRevision,
+            sourceDigest: aiOperations.sourceDigest,
+            sourceByteCount: aiOperations.sourceByteCount,
             analysisSequence: aiOperations.analysisSequence,
             authorizationLineageId: aiOperations.authorizationLineageId,
+            noticeVersion: aiOperations.noticeVersion,
+            noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
+            routingPolicyVersion: aiOperations.routingPolicyVersion,
+            sourcePolicyId: aiOperations.sourcePolicyId,
+            redactionProfileVersion: aiOperations.redactionProfileVersion,
             operationProfileVersion: aiOperations.operationProfileVersion,
             providerDeploymentProfileVersion:
               aiOperations.providerDeploymentProfileVersion,
             capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
             capabilityFences: aiOperations.capabilityFences,
+            globalControlId: aiOperations.globalControlId,
+            globalControlGeneration: aiOperations.globalControlGeneration,
+            providerControlId: aiOperations.providerControlId,
+            providerControlGeneration: aiOperations.providerControlGeneration,
+            capabilityControlId: aiOperations.capabilityControlId,
+            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
           })
           .from(aiOperations)
           .where(eq(aiOperations.id, input.operationId))
@@ -100,12 +298,23 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
         ) {
           return false
         }
+        if (
+          !(await isCurrentAuthorizedEffect(tx, {
+            capability: 'review_analysis',
+            operation,
+            capabilityFence: fence,
+          }))
+        ) {
+          return false
+        }
         const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
         const [currentSource] = await tx
           .select({
             sourceEpoch: reviews.sourceEpoch,
             sourceRevision: reviews.sourceRevision,
             analysisSequence: reviews.analysisSequence,
+            sourceDigest: reviews.aiSourceDigest,
+            sourceByteCount: reviews.aiSourceByteLength,
             contentExpiresAt: reviews.contentExpiresAt,
             headSequence: reviewAiAnalysisHeads.headSequence,
           })
@@ -132,6 +341,8 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           currentSource.sourceEpoch !== input.sourceEpoch ||
           currentSource.sourceRevision !== input.sourceRevision ||
           currentSource.analysisSequence !== input.analysisSequence ||
+          currentSource.sourceDigest !== operation.sourceDigest ||
+          currentSource.sourceByteCount !== operation.sourceByteCount ||
           currentSource.headSequence !== input.analysisSequence ||
           currentSource.contentExpiresAt === null ||
           currentSource.contentExpiresAt <= completedAt
@@ -231,6 +442,224 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
         return true
       })
     },
+    async settleEphemeralReply(input) {
+      return db.transaction(async (tx) => {
+        const [operation] = await tx
+          .select({
+            state: aiOperations.state,
+            executionAttempt: aiOperations.executionAttempt,
+            command: aiOperations.command,
+            capability: aiOperations.capability,
+            organizationId: aiOperations.organizationId,
+            propertyId: aiOperations.propertyId,
+            reviewId: aiOperations.reviewId,
+            actorUserId: aiOperations.actorUserId,
+            sourceEpoch: aiOperations.sourceEpoch,
+            sourceRevision: aiOperations.sourceRevision,
+            sourceDigest: aiOperations.sourceDigest,
+            sourceByteCount: aiOperations.sourceByteCount,
+            baseReplyStateRevision: aiOperations.baseReplyStateRevision,
+            authorizationLineageId: aiOperations.authorizationLineageId,
+            noticeVersion: aiOperations.noticeVersion,
+            noticeDigest: aiOperations.noticeDigest,
+            propertyProfileVersion: aiOperations.propertyProfileVersion,
+            routingPolicyVersion: aiOperations.routingPolicyVersion,
+            sourcePolicyId: aiOperations.sourcePolicyId,
+            redactionProfileVersion: aiOperations.redactionProfileVersion,
+            operationProfileVersion: aiOperations.operationProfileVersion,
+            providerDeploymentProfileVersion:
+              aiOperations.providerDeploymentProfileVersion,
+            capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
+            capabilityFences: aiOperations.capabilityFences,
+            globalControlId: aiOperations.globalControlId,
+            globalControlGeneration: aiOperations.globalControlGeneration,
+            providerControlId: aiOperations.providerControlId,
+            providerControlGeneration: aiOperations.providerControlGeneration,
+            capabilityControlId: aiOperations.capabilityControlId,
+            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
+          })
+          .from(aiOperations)
+          .where(eq(aiOperations.id, input.operationId))
+          .limit(1)
+          .for('update')
+        const fence = capabilityFence(operation?.capabilityFences)
+        if (
+          operation?.state !== 'executing' ||
+          operation.executionAttempt !== input.providerCompletion.expectedAttempt ||
+          operation.command !== 'reply' ||
+          operation.capability !== 'reply_drafting' ||
+          operation.organizationId !== input.organizationId ||
+          operation.propertyId !== input.propertyId ||
+          operation.reviewId !== input.reviewId ||
+          operation.actorUserId !== input.actorUserId ||
+          operation.sourceEpoch !== input.sourceEpoch ||
+          operation.sourceRevision !== input.sourceRevision ||
+          operation.baseReplyStateRevision !== input.baseReplyStateRevision ||
+          operation.authorizationLineageId !== input.authorizationLineageId ||
+          operation.propertyProfileVersion !== input.propertyProfileVersion ||
+          operation.operationProfileVersion !== input.replyProfileVersion ||
+          operation.capabilityRuntimeProfileVersion !== 'reply-drafting-runtime-v1' ||
+          fence?.capability !== 'reply_drafting' ||
+          fence.replyDraftingEpoch !== input.replyDraftingEpoch
+        ) {
+          return false
+        }
+        if (
+          !(await isCurrentAuthorizedEffect(tx, {
+            capability: 'reply_drafting',
+            operation,
+            capabilityFence: fence,
+          }))
+        ) {
+          return false
+        }
+        const completedAt = new Date(input.providerCompletion.completedAtEpochMillis)
+        const [currentSource] = await tx
+          .select({
+            sourceEpoch: reviews.sourceEpoch,
+            sourceRevision: reviews.sourceRevision,
+            contentExpiresAt: reviews.contentExpiresAt,
+            sourceDigest: reviews.aiSourceDigest,
+            sourceByteCount: reviews.aiSourceByteLength,
+            replyStateRevision: reviews.replyStateRevision,
+          })
+          .from(reviews)
+          .where(
+            and(
+              eq(reviews.organizationId, input.organizationId),
+              eq(reviews.propertyId, input.propertyId),
+              eq(reviews.id, input.reviewId),
+            ),
+          )
+          .limit(1)
+          .for('share')
+        if (
+          !currentSource ||
+          currentSource.sourceEpoch !== input.sourceEpoch ||
+          currentSource.sourceRevision !== input.sourceRevision ||
+          currentSource.sourceDigest !== operation.sourceDigest ||
+          currentSource.sourceByteCount !== operation.sourceByteCount ||
+          currentSource.contentExpiresAt === null ||
+          currentSource.contentExpiresAt <= completedAt ||
+          currentSource.replyStateRevision !== input.baseReplyStateRevision
+        ) {
+          return false
+        }
+        const settledAttempts = await tx
+          .update(aiOperationAttempts)
+          .set({
+            state: 'completed',
+            modelSnapshot: input.providerCompletion.modelSnapshot,
+            inputTokens: input.providerCompletion.inputTokens,
+            outputTokens: input.providerCompletion.outputTokens,
+            settledAt: completedAt,
+          })
+          .where(
+            and(
+              eq(aiOperationAttempts.operationId, input.operationId),
+              eq(aiOperationAttempts.attempt, input.providerCompletion.expectedAttempt),
+              eq(aiOperationAttempts.state, 'executing'),
+            ),
+          )
+          .returning({ attempt: aiOperationAttempts.attempt })
+        if (settledAttempts.length !== 1) {
+          throw new Error('AI reply provider completion commit conflict')
+        }
+        await tx.insert(aiProductVolumeConsumptions).values({
+          operationId: input.operationId,
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          capability: 'reply_drafting',
+          providerDeploymentProfileVersion: operation.providerDeploymentProfileVersion,
+          modelSnapshot: input.providerCompletion.modelSnapshot,
+          inputTokens: input.providerCompletion.inputTokens,
+          outputTokens: input.providerCompletion.outputTokens,
+          totalTokens:
+            input.providerCompletion.inputTokens + input.providerCompletion.outputTokens,
+          completedAt,
+        })
+        const completed = await tx
+          .update(aiOperations)
+          .set({ state: 'succeeded_pending_delivery', updatedAt: completedAt })
+          .where(
+            and(
+              eq(aiOperations.id, input.operationId),
+              eq(aiOperations.state, 'executing'),
+              eq(aiOperations.executionAttempt, input.providerCompletion.expectedAttempt),
+            ),
+          )
+          .returning({ id: aiOperations.id })
+        if (completed.length !== 1) {
+          throw new Error('AI reply operation completion commit conflict')
+        }
+        return true
+      })
+    },
+    async findCurrentReviewIdsByAttention(input) {
+      if (input.attention.length === 0 || input.propertyIds?.length === 0) return []
+      const now = new Date(input.nowEpochMillis)
+      const conditions = [
+        eq(aiReviewAnalyses.organizationId, input.organizationId),
+        eq(aiReviewAnalyses.status, 'ready'),
+        inArray(aiReviewAnalyses.attention, [...input.attention]),
+        gt(aiReviewAnalyses.expiresAt, now),
+        eq(merchantAiEnablement.state, 'enabled'),
+        sql`${merchantAiEnablement.capabilities} @> ARRAY['review_analysis']::text[]`,
+        eq(
+          aiReviewAnalyses.authorizationLineageId,
+          merchantAiEnablement.authorizationLineageId,
+        ),
+        eq(
+          aiReviewAnalyses.reviewAnalysisEpoch,
+          merchantAiEnablement.reviewAnalysisEpoch,
+        ),
+        eq(aiReviewAnalyses.sourceEpoch, merchantAiEnablement.authorizedSourceEpoch),
+        eq(aiReviewAnalyses.sourceEpoch, reviews.sourceEpoch),
+        eq(aiReviewAnalyses.sourceRevision, reviews.sourceRevision),
+        eq(aiReviewAnalyses.analysisSequence, reviews.analysisSequence),
+        gt(reviews.contentExpiresAt, now),
+        eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
+        eq(
+          aiReviewAnalyses.propertyProfileVersion,
+          aiPropertyProcessingProfiles.profileVersion,
+        ),
+        eq(aiReviewAnalyses.sourceEpoch, aiPropertyProcessingProfiles.sourceEpoch),
+        eq(aiReviewAnalyses.analysisProfileVersion, 'review-analysis-v1'),
+      ]
+      if (input.propertyIds) {
+        conditions.push(inArray(aiReviewAnalyses.propertyId, [...input.propertyIds]))
+      }
+      const rows = await db
+        .selectDistinct({ reviewId: aiReviewAnalyses.reviewId })
+        .from(aiReviewAnalyses)
+        .innerJoin(
+          reviews,
+          and(
+            eq(reviews.organizationId, aiReviewAnalyses.organizationId),
+            eq(reviews.propertyId, aiReviewAnalyses.propertyId),
+            eq(reviews.id, aiReviewAnalyses.reviewId),
+          ),
+        )
+        .innerJoin(
+          merchantAiEnablement,
+          and(
+            eq(merchantAiEnablement.organizationId, aiReviewAnalyses.organizationId),
+            eq(merchantAiEnablement.propertyId, aiReviewAnalyses.propertyId),
+          ),
+        )
+        .innerJoin(
+          aiPropertyProcessingProfiles,
+          and(
+            eq(
+              aiPropertyProcessingProfiles.organizationId,
+              aiReviewAnalyses.organizationId,
+            ),
+            eq(aiPropertyProcessingProfiles.propertyId, aiReviewAnalyses.propertyId),
+          ),
+        )
+        .where(and(...conditions))
+      return rows.map((row) => row.reviewId as ReviewId)
+    },
 
     async storeTrendReport(input) {
       return db.transaction(async (tx) => {
@@ -246,17 +675,46 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             dueLocalDate: aiOperations.dueLocalDate,
             terminalAnalysisSequence: aiOperations.terminalAnalysisSequence,
             aggregateRevision: aiOperations.aggregateRevision,
+            authorizationLineageId: aiOperations.authorizationLineageId,
+            noticeVersion: aiOperations.noticeVersion,
+            noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
+            routingPolicyVersion: aiOperations.routingPolicyVersion,
+            sourcePolicyId: aiOperations.sourcePolicyId,
+            redactionProfileVersion: aiOperations.redactionProfileVersion,
             operationProfileVersion: aiOperations.operationProfileVersion,
             capabilityRuntimeProfileVersion: aiOperations.capabilityRuntimeProfileVersion,
             providerDeploymentProfileVersion:
               aiOperations.providerDeploymentProfileVersion,
             capabilityFences: aiOperations.capabilityFences,
+            globalControlId: aiOperations.globalControlId,
+            globalControlGeneration: aiOperations.globalControlGeneration,
+            providerControlId: aiOperations.providerControlId,
+            providerControlGeneration: aiOperations.providerControlGeneration,
+            capabilityControlId: aiOperations.capabilityControlId,
+            capabilityControlGeneration: aiOperations.capabilityControlGeneration,
           })
           .from(aiOperations)
           .where(eq(aiOperations.id, input.operationId))
           .limit(1)
           .for('update')
+        const [schedule] = await tx
+          .select({
+            organizationId: aiPropertyTrendSchedules.organizationId,
+            propertyId: aiPropertyTrendSchedules.propertyId,
+            dueLocalDate: aiPropertyTrendSchedules.dueLocalDate,
+            sourceEpoch: aiPropertyTrendSchedules.sourceEpoch,
+            reviewAnalysisEpoch: aiPropertyTrendSchedules.reviewAnalysisEpoch,
+            propertyTrendsEpoch: aiPropertyTrendSchedules.propertyTrendsEpoch,
+            propertyProfileVersion: aiPropertyTrendSchedules.propertyProfileVersion,
+            terminalAnalysisSequence: aiPropertyTrendSchedules.terminalAnalysisSequence,
+            aggregateRevision: aiPropertyTrendSchedules.aggregateRevision,
+            reportProfileVersion: aiPropertyTrendSchedules.reportProfileVersion,
+          })
+          .from(aiPropertyTrendSchedules)
+          .where(eq(aiPropertyTrendSchedules.id, input.scheduleId))
+          .limit(1)
+          .for('share')
         const fence = capabilityFence(operation?.capabilityFences)
         if (
           operation?.state !== 'executing' ||
@@ -272,9 +730,32 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
           operation.operationProfileVersion !== input.reportProfileVersion ||
           operation.capabilityRuntimeProfileVersion !== 'property-trends-runtime-v1' ||
+          !schedule ||
+          schedule.organizationId !== input.organizationId ||
+          schedule.propertyId !== input.propertyId ||
+          schedule.dueLocalDate !== input.dueLocalDate ||
+          schedule.sourceEpoch !== input.sourceEpoch ||
+          schedule.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
+          schedule.propertyTrendsEpoch !== input.propertyTrendsEpoch ||
+          schedule.propertyProfileVersion !== input.propertyProfileVersion ||
+          schedule.terminalAnalysisSequence !== input.terminalAnalysisSequence ||
+          schedule.aggregateRevision !== input.aggregateRevision ||
+          schedule.reportProfileVersion !== input.reportProfileVersion ||
+          input.report.headline === undefined ||
+          input.report.sentences === undefined ||
+          input.report.summary === undefined ||
           fence?.capability !== 'property_trends' ||
           fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
           fence.propertyTrendsEpoch !== input.propertyTrendsEpoch
+        ) {
+          return false
+        }
+        if (
+          !(await isCurrentAuthorizedEffect(tx, {
+            capability: 'property_trends',
+            operation,
+            capabilityFence: fence,
+          }))
         ) {
           return false
         }
@@ -375,28 +856,29 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
         }
 
         const [inserted] = await tx
-          .insert(aiPropertyTrendReports)
+          .insert(aiPropertyTrendOutcomes)
           .values({
+            scheduleId: input.scheduleId,
             organizationId: input.organizationId,
             propertyId: input.propertyId,
-            dueLocalDate: input.dueLocalDate,
-            sourceEpoch: input.sourceEpoch,
-            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-            propertyTrendsEpoch: input.propertyTrendsEpoch,
-            propertyProfileVersion: input.propertyProfileVersion,
-            terminalAnalysisSequence: input.terminalAnalysisSequence,
-            aggregateRevision: input.aggregateRevision,
+            disposition: 'ready',
             operationId: input.operationId,
-            reportProfileVersion: input.reportProfileVersion,
+            selectedSignalIds: [...input.selectedSignalIds],
             signalKey: input.report.signalKey,
             direction: input.report.direction,
             confidenceBasisPoints: input.report.confidenceBasisPoints,
             supportingReviewCount: input.report.supportingReviewCount,
-            generatedAt: new Date(input.generatedAtEpochMillis),
+            headline: input.report.headline,
+            sentences: [...input.report.sentences],
+            summary: input.report.summary,
+            renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+            renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+            providerSelectionRecordedAt: completedAt,
+            recordedAt: completedAt,
             expiresAt: new Date(input.expiresAtEpochMillis),
           })
           .onConflictDoNothing()
-          .returning({ operationId: aiPropertyTrendReports.operationId })
+          .returning({ operationId: aiPropertyTrendOutcomes.operationId })
         if (!inserted) return false
         await tx.insert(aiProductVolumeConsumptions).values({
           operationId: input.operationId,
@@ -803,14 +1285,20 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
         const now = new Date(input.nowEpochMillis)
         const [report] = await tx
           .select({
-            dueLocalDate: aiPropertyTrendReports.dueLocalDate,
-            terminalAnalysisSequence: aiPropertyTrendReports.terminalAnalysisSequence,
-            aggregateRevision: aiPropertyTrendReports.aggregateRevision,
-            signalKey: aiPropertyTrendReports.signalKey,
-            direction: aiPropertyTrendReports.direction,
-            confidenceBasisPoints: aiPropertyTrendReports.confidenceBasisPoints,
-            supportingReviewCount: aiPropertyTrendReports.supportingReviewCount,
-            generatedAt: aiPropertyTrendReports.generatedAt,
+            disposition: aiPropertyTrendOutcomes.disposition,
+            dueLocalDate: aiPropertyTrendSchedules.dueLocalDate,
+            terminalAnalysisSequence: aiPropertyTrendSchedules.terminalAnalysisSequence,
+            aggregateRevision: aiPropertyTrendSchedules.aggregateRevision,
+            signalKey: aiPropertyTrendOutcomes.signalKey,
+            direction: aiPropertyTrendOutcomes.direction,
+            confidenceBasisPoints: aiPropertyTrendOutcomes.confidenceBasisPoints,
+            supportingReviewCount: aiPropertyTrendOutcomes.supportingReviewCount,
+            headline: aiPropertyTrendOutcomes.headline,
+            sentences: aiPropertyTrendOutcomes.sentences,
+            summary: aiPropertyTrendOutcomes.summary,
+            renderProfileVersion: aiPropertyTrendOutcomes.renderProfileVersion,
+            renderProfileDigest: aiPropertyTrendOutcomes.renderProfileDigest,
+            generatedAt: aiPropertyTrendOutcomes.recordedAt,
             operationState: aiOperations.state,
             operationCommand: aiOperations.command,
             operationCapability: aiOperations.capability,
@@ -834,32 +1322,41 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             operationRedactionProfileVersion: aiOperations.redactionProfileVersion,
             operationCapabilityFences: aiOperations.capabilityFences,
           })
-          .from(aiPropertyTrendReports)
+          .from(aiPropertyTrendOutcomes)
           .innerJoin(
+            aiPropertyTrendSchedules,
+            eq(aiPropertyTrendSchedules.id, aiPropertyTrendOutcomes.scheduleId),
+          )
+          .leftJoin(
             aiOperations,
-            eq(aiOperations.id, aiPropertyTrendReports.operationId),
+            eq(aiOperations.id, aiPropertyTrendOutcomes.operationId),
           )
           .where(
             and(
-              eq(aiPropertyTrendReports.organizationId, input.organizationId),
-              eq(aiPropertyTrendReports.propertyId, input.propertyId),
-              eq(aiPropertyTrendReports.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyTrendReports.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiPropertyTrendReports.propertyTrendsEpoch, input.propertyTrendsEpoch),
+              eq(aiPropertyTrendSchedules.organizationId, input.organizationId),
+              eq(aiPropertyTrendSchedules.propertyId, input.propertyId),
+              eq(aiPropertyTrendSchedules.sourceEpoch, input.sourceEpoch),
+              eq(aiPropertyTrendSchedules.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+              eq(aiPropertyTrendSchedules.propertyTrendsEpoch, input.propertyTrendsEpoch),
               eq(
-                aiPropertyTrendReports.propertyProfileVersion,
+                aiPropertyTrendSchedules.propertyProfileVersion,
                 input.propertyProfileVersion,
               ),
-              eq(aiPropertyTrendReports.reportProfileVersion, input.reportProfileVersion),
-              gt(aiPropertyTrendReports.expiresAt, now),
+              eq(
+                aiPropertyTrendSchedules.reportProfileVersion,
+                input.reportProfileVersion,
+              ),
+              or(
+                isNull(aiPropertyTrendOutcomes.expiresAt),
+                gt(aiPropertyTrendOutcomes.expiresAt, now),
+              ),
             ),
           )
           .orderBy(
-            desc(aiPropertyTrendReports.dueLocalDate),
-            desc(aiPropertyTrendReports.aggregateRevision),
+            desc(aiPropertyTrendSchedules.dueLocalDate),
+            desc(aiPropertyTrendSchedules.aggregateRevision),
           )
           .limit(1)
-          .for('share')
         if (
           report &&
           (report.terminalAnalysisSequence !== cursor.terminalAnalysisSequence ||
@@ -875,9 +1372,25 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             aggregateRevision: cursor.aggregateRevision,
           })
         }
+        if (
+          report?.disposition === 'insufficient_data' ||
+          report?.disposition === 'no_material_change'
+        ) {
+          return deliverCurrent({
+            status: report.disposition,
+            sourceEpoch: input.sourceEpoch,
+            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+            propertyTrendsEpoch: input.propertyTrendsEpoch,
+            propertyProfileVersion: input.propertyProfileVersion,
+            dueLocalDate: report.dueLocalDate,
+            terminalAnalysisSequence: report.terminalAnalysisSequence,
+            aggregateRevision: report.aggregateRevision,
+          })
+        }
         const fence = capabilityFence(report?.operationCapabilityFences)
         if (
           !report ||
+          report.disposition !== 'ready' ||
           (report.operationState !== 'succeeded' &&
             report.operationState !== 'succeeded_pending_delivery') ||
           report.operationCommand !== 'trend' ||
@@ -905,6 +1418,15 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             profile.providerDeploymentProfileVersion ||
           report.operationRedactionProfileVersion !==
             authorization.redactionProfileFamily ||
+          report.renderProfileVersion !== AI_TREND_RENDER_PROFILE_VERSION ||
+          report.renderProfileDigest !== AI_TREND_RENDER_PROFILE_DIGEST ||
+          report.signalKey === null ||
+          report.direction === null ||
+          report.confidenceBasisPoints === null ||
+          report.supportingReviewCount === null ||
+          report.headline === null ||
+          !Array.isArray(report.sentences) ||
+          report.summary === null ||
           fence?.capability !== 'property_trends' ||
           fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
           fence.propertyTrendsEpoch !== input.propertyTrendsEpoch
@@ -926,6 +1448,12 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             direction: report.direction as 'improving' | 'stable' | 'declining',
             confidenceBasisPoints: report.confidenceBasisPoints,
             supportingReviewCount: report.supportingReviewCount,
+            headline: report.headline as
+              | 'Review signals improved'
+              | 'Review signals need attention'
+              | 'Notable review changes',
+            sentences: report.sentences as readonly string[],
+            summary: report.summary,
           },
           generatedAtEpochMillis: report.generatedAt.getTime(),
         })

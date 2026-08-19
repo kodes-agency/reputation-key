@@ -171,29 +171,13 @@ export function parseAiPrivateBetaPolicy(
   const outputClasses = asRows(value.outputClasses, 'outputClass')
   const retentionPolicies = asRows(value.retentionPolicies, 'retention')
   const releaseGates = asRows(value.releaseGates, 'gate')
-  const rowResults = [
-    capabilities,
-    roles,
-    routes,
-    sourceClasses,
-    outputClasses,
-    retentionPolicies,
-    releaseGates,
-  ] as const
-  for (const result of rowResults) {
-    if (result.isErr()) return err(result.error)
-  }
-  if (
-    capabilities.isErr() ||
-    roles.isErr() ||
-    routes.isErr() ||
-    sourceClasses.isErr() ||
-    outputClasses.isErr() ||
-    retentionPolicies.isErr() ||
-    releaseGates.isErr()
-  ) {
-    return invalid('policy row validation failed')
-  }
+  if (capabilities.isErr()) return err(capabilities.error)
+  if (roles.isErr()) return err(roles.error)
+  if (routes.isErr()) return err(routes.error)
+  if (sourceClasses.isErr()) return err(sourceClasses.error)
+  if (outputClasses.isErr()) return err(outputClasses.error)
+  if (retentionPolicies.isErr()) return err(retentionPolicies.error)
+  if (releaseGates.isErr()) return err(releaseGates.error)
 
   for (const [rowsToCheck, label] of [
     [capabilities.value, 'capability'],
@@ -351,7 +335,10 @@ function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
     nonEmptyString(value.noticeVersion, 100) &&
     typeof value.noticeDigest === 'string' &&
     SHA256.test(value.noticeDigest) &&
-    isPositiveSafeInteger(value.sourceEpoch) &&
+    // 0-based source epoch (drizzle/0060): a property that has never been edited
+    // sits at 0. propertyProfileVersion and routingPolicyVersion below are
+    // genuinely 1-based.
+    isNonnegativeSafeInteger(value.sourceEpoch) &&
     isPositiveSafeInteger(value.propertyProfileVersion) &&
     isPositiveSafeInteger(value.routingPolicyVersion) &&
     nonEmptyString(value.sourcePolicyId, 150) &&
@@ -612,7 +599,8 @@ export function createAiOperationIdentity(
       typeof value.subjectHmac !== 'string' ||
       !SHA256.test(value.subjectHmac) ||
       !nonEmptyString(value.subjectHmacKeyVersion, 100) ||
-      !isPositiveSafeInteger(value.sourceEpoch) ||
+      // 0-based source epoch; sourceRevision and analysisSequence stay 1-based.
+      !isNonnegativeSafeInteger(value.sourceEpoch) ||
       !isPositiveSafeInteger(value.sourceRevision) ||
       !isNonnegativeSafeInteger(value.reviewedAtEpochMillis) ||
       !isPositiveSafeInteger(value.analysisSequence)
@@ -645,7 +633,9 @@ export function createAiOperationIdentity(
       !nonEmptyString(value.actorId) ||
       value.systemPrincipal !== null ||
       !UUID.test(String(value.reviewId)) ||
-      !isPositiveSafeInteger(value.sourceEpoch) ||
+      // 0-based source epoch; this is the site that rejected the owner's first
+      // reply suggestion on a freshly imported property.
+      !isNonnegativeSafeInteger(value.sourceEpoch) ||
       !isPositiveSafeInteger(value.sourceRevision) ||
       !isNonnegativeSafeInteger(value.reviewedAtEpochMillis) ||
       !['professional', 'friendly', 'casual'].includes(String(value.tone)) ||
@@ -676,7 +666,8 @@ export function createAiOperationIdentity(
       !UUID.test(String(value.propertyId)) ||
       value.actorId !== null ||
       value.systemPrincipal !== 'property_trend_coordinator' ||
-      !isPositiveSafeInteger(value.sourceEpoch) ||
+      // 0-based source epoch (drizzle/0060).
+      !isNonnegativeSafeInteger(value.sourceEpoch) ||
       typeof value.dueLocalDate !== 'string' ||
       !LOCAL_DATE.test(value.dueLocalDate) ||
       !isNonnegativeSafeInteger(value.terminalAnalysisSequence) ||

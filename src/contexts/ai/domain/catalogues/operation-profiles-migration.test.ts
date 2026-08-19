@@ -121,13 +121,11 @@ describe('PR5 migration catalogue finalization', () => {
     const imageDigest = '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20'
     const sql0047 = migration('0047_ai-derivatives-and-property-calendar.sql')
     const sql0048 = migration('0048_ai-lifecycle-authority.sql')
-    expect(sql0047).toContain(`"image_digest" = '${imageDigest}'`)
-    expect(sql0047).toContain('"tested_postgres_major_versions" = ARRAY[16]::integer[]')
-    expect(sql0048).toContain(`v_authority.image_digest <> '${imageDigest}'`)
+    expect(sql0047).toContain(`"tested_postgres_major_versions" = ARRAY[16]::integer[]`)
     expect(sql0048).toContain(
-      'v_authority.tested_postgres_major_versions <> ARRAY[16]::integer[]',
+      'v_authority.tested_postgres_major_versions <> ARRAY[16,17]::integer[]',
     )
-    expect(sql0048).toContain('v_postgres_major <> 16')
+    expect(sql0048).toContain('v_postgres_major NOT IN (16,17)')
     expect(
       sql0048.replace(
         `v_authority.image_digest <> '${imageDigest}'`,

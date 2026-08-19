@@ -66,6 +66,7 @@ export function createAiAuthorizationAdapter(db: Database): AiAuthorizationPort 
         stateVersion: row.stateVersion,
         authorizationLineageId:
           row.state === 'enabled' ? row.authorizationLineageId : null,
+        authorizedSourceEpoch: row.authorizedSourceEpoch,
         capabilities: parseCapabilities(row.capabilities),
         capabilityRuntimeProfileVersions: parseRuntimeProfiles(
           row.capabilityRuntimeProfileVersions,

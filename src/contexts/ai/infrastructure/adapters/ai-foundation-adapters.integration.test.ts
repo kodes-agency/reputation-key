@@ -16,6 +16,10 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE,
   AI_ROUTING_POLICY,
 } from '#/shared/ai-operation-profiles'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '#/shared/ai-runtime-capability-contract'
 import { createAiRuntimeCatalogueAdapter } from './ai-runtime-catalogue.adapter'
@@ -26,7 +30,6 @@ const NOW = new Date('2026-08-16T14:00:00.000Z')
 const ORGANIZATION_ID = organizationId('ai-foundation-adapters-test-org')
 const PROPERTY_ID = propertyId('73000000-0000-4000-8000-000000000001')
 const LINEAGE_ID = '73000000-0000-4000-8000-000000000002'
-const NOTICE_DIGEST = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b'
 
 describe('AI authorization and processing-profile adapters (real PostgreSQL)', () => {
   const db = getDb()
@@ -225,16 +228,15 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
     ).resolves.toBeNull()
   })
 
-  it('materializes and fences the property AI processing profile', async () => {
-    await expect(
-      profiles.readForAi({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({ status: 'policy_unavailable' })
-
-    const refreshed = await profiles.refreshForAi({
+  it('materializes the property AI processing profile on an unfenced read and still fences a fenced one', async () => {
+    // This adapter is the only writer of ai_property_processing_profiles, so an
+    // unfenced read must materialize the row: when it returned
+    // policy_unavailable instead, every AI operation terminal-skipped forever.
+    const materialized = await profiles.readForAi({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
     })
-    expect(refreshed).toMatchObject({
+    expect(materialized).toMatchObject({
       status: 'available',
       profile: {
         countryCode: 'US',
@@ -245,6 +247,15 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         profileVersion: 1,
       },
     })
+
+    // An explicit refresh of an already-current profile is idempotent.
+    await expect(
+      profiles.refreshForAi({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+      }),
+    ).resolves.toEqual(materialized)
+
     await expect(
       profiles.readForAi({
         organizationId: ORGANIZATION_ID,
@@ -255,20 +266,30 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
           routingPolicyVersion: 1,
         },
       }),
-    ).resolves.toEqual(refreshed)
+    ).resolves.toEqual(materialized)
 
     await db
       .update(properties)
       .set({ timezone: 'Europe/Berlin', profileVersion: 4 })
       .where(eq(properties.id, PROPERTY_ID))
+
+    // A fenced read must report the drift so the in-flight operation fences.
+    await expect(
+      profiles.readForAi({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        expected: {
+          sourceEpoch: 2,
+          propertyProfileVersion: 1,
+          routingPolicyVersion: 1,
+        },
+      }),
+    ).resolves.toEqual({ status: 'property_profile_changed' })
+
+    // An unfenced read reconciles to the property's current facts.
     await expect(
       profiles.readForAi({ organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }),
-    ).resolves.toEqual({ status: 'property_profile_changed' })
-    const changed = await profiles.refreshForAi({
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-    })
-    expect(changed).toMatchObject({
+    ).resolves.toMatchObject({
       status: 'available',
       profile: { timezone: 'Europe/Berlin', profileVersion: 2 },
     })
@@ -302,8 +323,8 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         propertyTrendsEpoch: 1,
         authorizedSourceEpoch: 2,
         analysisStartSequence: 11,
-        noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-        noticeDigest: NOTICE_DIGEST,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
@@ -328,8 +349,8 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         authorizedSourceEpoch: 2,
         analysisStartSequence: 11,
         stateVersion: 1,
-        noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-        noticeDigest: NOTICE_DIGEST,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
@@ -357,8 +378,8 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
         property_trends: { epoch: 1, changedAtEpochMillis: NOW.getTime() },
       },
       reviewAnalysisStartSequence: 11,
-      noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-      noticeDigest: NOTICE_DIGEST,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileFamily: 'gbp-review-global-v1',
       providerDeploymentProfileVersion: 'private-beta-global-v1',

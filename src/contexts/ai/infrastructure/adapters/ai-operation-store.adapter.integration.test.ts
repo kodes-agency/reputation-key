@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
@@ -19,23 +19,32 @@ import {
   aiExecutionPermits,
   aiExecutionPermitSettlements,
   aiOperations,
-  aiPropertyTrendReports,
+  aiOperationProfiles,
+  aiPropertyTrendOutcomes,
+  aiPropertyTrendSchedules,
   aiReviewEventCursors,
+  outboxEvents,
   aiPropertyProcessingProfiles,
   merchantAiConsentEvidence,
   merchantAiEnablement,
   reviewAiAnalysisHeads,
   reviews,
+  replies,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { properties } from '#/shared/db/schema/property.schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from '#/shared/merchant-ai-notice-contract'
 import { createAiOperationIdentity } from '../../domain/rules'
 import type { AiExecutionBinding } from '../../domain/types'
 import { createAiControlAdapter } from './ai-control.adapter'
 import { createAiCanaryAuthorizationAdapter } from './ai-canary-authorization.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
+import { createAiPropertyTrendScheduleStore } from './ai-property-trend-schedule-store.adapter'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createPostgresAiAdmissionAuthority } from '../../../../../services/ai-execution-admission/postgres-admission-authority'
 import {
@@ -46,6 +55,7 @@ import {
 import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 
 const NOW = Date.parse('2026-08-16T12:00:00.000Z')
+const CONTENT_EXPIRES_AT = Date.now() + 86_400_000
 const ORGANIZATION_ID = 'ai-operation-store-test-org'
 const PROPERTY_ID = '71000000-0000-4000-8000-000000000001'
 const UNAVAILABLE_REVIEW_ID = '71000000-0000-4000-8000-000000000005'
@@ -53,7 +63,6 @@ const UNAVAILABLE_ORIGIN_EVENT_ID = '71000000-0000-4000-8000-000000000006'
 const REVIEW_ID = '71000000-0000-4000-8000-000000000002'
 const ORIGIN_EVENT_ID = '71000000-0000-4000-8000-000000000003'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000004'
-const NOTICE_DIGEST = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b'
 const DIGEST = 'a'.repeat(64)
 const SOURCE_PROVENANCE = Object.freeze({ digest: DIGEST, byteCount: 17 })
 const REVIEW_OPERATION_PROFILE = AI_OPERATION_PROFILES.find(
@@ -79,6 +88,32 @@ const REVIEW_ADMISSION_LIMITS = Object.freeze({
   outputTokens: REVIEW_OPERATION_PROFILE.maxOutputTokens,
   costMicros: REVIEW_RESERVED_COST_MICROS,
 })
+const REPLY_OPERATION_PROFILE = AI_OPERATION_PROFILES.find(
+  (profile) => profile.profileVersion === 'reply-suggestion-v1',
+)
+if (!REPLY_OPERATION_PROFILE) {
+  throw new Error('reply-suggestion-v1 operation profile is missing')
+}
+const REPLY_PROVIDER_PAYLOAD_BYTE_COUNT = 256
+// `admit_ai_property_v1` recomputes the claimed cost from the operation profile
+// row in the database, and drizzle/0062 pins the reply profile's static
+// token-bearing byte count to a number the TypeScript catalogue no longer
+// reproduces. Take that byte count from the admission authority's own row so
+// this test measures the reply grant expiries rather than the catalogue drift.
+const replyAdmissionLimits = (staticTokenBearingBytes: number) =>
+  Object.freeze({
+    sourceBytes: REPLY_OPERATION_PROFILE.sourceByteLimit,
+    providerPayloadBytes: REPLY_OPERATION_PROFILE.providerPayloadByteLimit,
+    preparedRequestBytes: REPLY_OPERATION_PROFILE.preparedRequestByteLimit,
+    responseBytes: REPLY_OPERATION_PROFILE.responseByteLimit,
+    outputTokens: REPLY_OPERATION_PROFILE.maxOutputTokens,
+    costMicros: Math.floor(
+      ((staticTokenBearingBytes + REPLY_PROVIDER_PAYLOAD_BYTE_COUNT) * 750_000 +
+        REPLY_OPERATION_PROFILE.maxOutputTokens * 4_500_000 +
+        999_999) /
+        1_000_000,
+    ),
+  })
 
 type Fence = Readonly<{ controlId: string; generation: number }>
 async function runCanaryOperatorChild(
@@ -156,8 +191,8 @@ function binding(
 ): AiExecutionBinding {
   return {
     authorizationLineageId: LINEAGE_ID,
-    noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-    noticeDigest: NOTICE_DIGEST,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
     sourceEpoch: 2,
     evaluatedLanguage: 'en',
@@ -206,6 +241,72 @@ function trendIdentity() {
   if (result.isErr()) throw new Error(result.error.message)
   return result.value
 }
+function replyIdentity() {
+  const result = createAiOperationIdentity({
+    command: 'reply',
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    actorId: 'ai-operation-test-actor',
+    systemPrincipal: null,
+    reviewId: REVIEW_ID,
+    sourceEpoch: 2,
+    sourceRevision: 5,
+    tone: 'professional',
+    reviewedAtEpochMillis: NOW - 1_000,
+    baseReplyStateRevision: 0,
+  })
+  if (result.isErr()) throw new Error(result.error.message)
+  return result.value
+}
+
+function replyBinding(
+  fences: Readonly<{
+    global: Fence
+    provider: Fence
+    reply: Fence
+  }>,
+): AiExecutionBinding {
+  return {
+    authorizationLineageId: LINEAGE_ID,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    capabilityFence: {
+      capability: 'reply_drafting',
+      replyDraftingEpoch: 1,
+      baseReplyStateRevision: 0,
+    },
+    sourceEpoch: 2,
+    evaluatedLanguage: 'en',
+    concreteReplyLanguage: { tag: 'en-Latn', templateGroup: 'en-Latn' },
+    languageCatalogueDigest: DIGEST,
+    replyLanguageVerifierDigest: DIGEST,
+    languageScriptConsistencyDigest: DIGEST,
+    zhOrthographyVerifierDigest: DIGEST,
+    sourceRevision: 5,
+    reviewedAtEpochMillis: NOW - 1_000,
+    propertyProfileVersion: 3,
+    routingPolicyVersion: 1,
+    sourcePolicyId: 'google-business-profile-source-policy-v1',
+    sourceCanonicalizerDigest: DIGEST,
+    redactionProfileVersion: 'gbp-review-global-v1',
+    outputLeakageProfileVersion: 'reply-output-leakage-v1',
+    outputLeakageProfileDigest: DIGEST,
+    replyTemplateCatalogueVersion: 'reply-template-catalogue-v1',
+    replyTemplateCatalogueDigest: DIGEST,
+    providerDeploymentProfileVersion: 'private-beta-global-v1',
+    operationProfileVersion: 'reply-suggestion-v1',
+    capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+    aiSubjectHmacKeyVersion: null,
+    stopFence: {
+      globalControlId: fences.global.controlId,
+      globalGeneration: fences.global.generation,
+      providerControlId: fences.provider.controlId,
+      providerGeneration: fences.provider.generation,
+      capabilityControlId: fences.reply.controlId,
+      capabilityGeneration: fences.reply.generation,
+    },
+  }
+}
 
 function trendBinding(
   fences: Readonly<{
@@ -216,8 +317,8 @@ function trendBinding(
 ): AiExecutionBinding {
   return {
     authorizationLineageId: LINEAGE_ID,
-    noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-    noticeDigest: NOTICE_DIGEST,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
     capabilityFence: {
       capability: 'property_trends',
       reviewAnalysisEpoch: 1,
@@ -264,6 +365,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     provider: Fence
     capability: Fence
     trend: Fence
+    reply: Fence
   }>
 
   const clear = async () => {
@@ -275,6 +377,16 @@ describe('AI operation store (real PostgreSQL)', () => {
       sql`DELETE FROM ai_canary_authorizations WHERE release_sha IN (${'8'.repeat(40)}, ${'a'.repeat(40)}, ${'c'.repeat(40)}, ${'e'.repeat(40)})`,
       sql`ALTER TABLE ai_canary_authorizations ENABLE TRIGGER USER`,
       sql`ALTER TABLE ai_canary_authorization_heads ENABLE TRIGGER USER`,
+      sql`DELETE FROM ai_admission_rate_windows WHERE scope_key IN (
+        'global',
+        'provider:private-beta-global-v1',
+        ${`organization:${ORGANIZATION_ID}`},
+        ${`property:${PROPERTY_ID}`},
+        ${`canary-release:${'8'.repeat(40)}`},
+        ${`canary-release:${'a'.repeat(40)}`},
+        ${`canary-release:${'c'.repeat(40)}`},
+        ${`canary-release:${'e'.repeat(40)}`}
+      )`,
       sql`ALTER TABLE ai_read_barrier_heads DISABLE TRIGGER USER`,
       sql`DELETE FROM ai_read_barrier_heads WHERE scope_id IN (${ORGANIZATION_ID}, ${PROPERTY_ID}, 'ai-operation-test-read-barrier-actor')`,
       sql`ALTER TABLE ai_read_barrier_heads ENABLE TRIGGER USER`,
@@ -337,29 +449,34 @@ describe('AI operation store (real PostgreSQL)', () => {
       text: 'Excellent service',
       languageCode: 'en',
       reviewedAt: new Date(NOW - 1_000),
-      expiresAt: new Date(NOW + 86_400_000),
-      contentExpiresAt: new Date(NOW + 86_400_000),
+      expiresAt: new Date(CONTENT_EXPIRES_AT),
+      contentExpiresAt: new Date(CONTENT_EXPIRES_AT),
       sourceEpoch: 2,
       sourceRevision: 5,
       analysisSequence: 7,
       aiSourceByteLength: 17,
       aiSourceDigest: DIGEST,
     })
+    // `organization_capability` is keyed by PURPOSE, which is what
+    // provisionPropertyCapabilities writes in production — not by capability.
+    // This fixture used to insert 'review_analysis'/'reply_drafting'/
+    // 'property_trends', which made admission pass here while denying every real
+    // property with `authorization_changed` (repaired in drizzle/0063).
     await db.execute(sql`
       INSERT INTO organization_capability (
         organization_id, capability, created_by, created_at
       ) VALUES
-        (${ORGANIZATION_ID}, 'review_analysis', 'ai-operation-test-actor', ${new Date(NOW)}),
-        (${ORGANIZATION_ID}, 'property_trends', 'ai-operation-test-actor', ${new Date(NOW)})
+        (${ORGANIZATION_ID}, 'ai.analyze', 'ai-operation-test-actor', ${new Date(NOW)}),
+        (${ORGANIZATION_ID}, 'ai.generate_reply', 'ai-operation-test-actor', ${new Date(NOW)}),
+        (${ORGANIZATION_ID}, 'ai.detect_trends', 'ai-operation-test-actor', ${new Date(NOW)})
       ON CONFLICT DO NOTHING
     `)
-    await db.execute(sql`
-      INSERT INTO property_policy (property_id, updated_at)
-      VALUES (${PROPERTY_ID}::uuid, ${new Date(NOW)})
-      ON CONFLICT (property_id) DO NOTHING
-    `)
+    // Deliberately NO property_policy row: rows are written only by
+    // setPropertyPolicy (the suspend/restore command), so a property that has
+    // never been suspended has none. Seeding one here hid the inverted guard.
     const capabilityRuntimeProfileVersions = {
       review_analysis: 'review-analysis-runtime-v1',
+      reply_drafting: 'reply-drafting-runtime-v1',
       property_trends: 'property-trends-runtime-v1',
     } as const
     await db.insert(reviewAiAnalysisHeads).values({
@@ -378,15 +495,15 @@ describe('AI operation store (real PostgreSQL)', () => {
         propertyId: PROPERTY_ID,
         transitionKind: 'enable',
         state: 'enabled',
-        capabilities: ['review_analysis', 'property_trends'],
+        capabilities: ['review_analysis', 'reply_drafting', 'property_trends'],
         capabilityRuntimeProfileVersions,
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,
         propertyTrendsEpoch: 1,
         authorizedSourceEpoch: 2,
         analysisStartSequence: 1,
-        noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-        noticeDigest: NOTICE_DIGEST,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
@@ -403,7 +520,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         organizationId: ORGANIZATION_ID,
         authorizationLineageId: LINEAGE_ID,
         state: 'enabled',
-        capabilities: ['review_analysis', 'property_trends'],
+        capabilities: ['review_analysis', 'reply_drafting', 'property_trends'],
         capabilityRuntimeProfileVersions,
         reviewAnalysisEpoch: 1,
         replyDraftingEpoch: 1,
@@ -411,8 +528,8 @@ describe('AI operation store (real PostgreSQL)', () => {
         authorizedSourceEpoch: 2,
         analysisStartSequence: 1,
         stateVersion: 1,
-        noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-        noticeDigest: NOTICE_DIGEST,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
@@ -448,14 +565,16 @@ describe('AI operation store (real PostgreSQL)', () => {
           'provider:private-beta-global-v1',
           'capability:review_analysis',
           'capability:property_trends',
+          'capability:reply_drafting',
         ]),
       )
     const byScope = new Map(rows.map((row) => [row.scopeKey, row]))
     const global = byScope.get('global')
     const provider = byScope.get('provider:private-beta-global-v1')
     const capability = byScope.get('capability:review_analysis')
+    const reply = byScope.get('capability:reply_drafting')
     const trend = byScope.get('capability:property_trends')
-    if (!global || !provider || !capability || !trend) {
+    if (!global || !provider || !capability || !reply || !trend) {
       throw new Error('seeded AI controls missing')
     }
     const candidateReleaseSha = 'a'.repeat(40)
@@ -545,7 +664,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     const control = createAiControlAdapter(db)
     const activate = async (
       head: Fence,
-      capability: 'review_analysis' | 'property_trends',
+      capability: 'review_analysis' | 'reply_drafting' | 'property_trends',
     ) => {
       const activated = await control.transition({
         scope: { kind: 'capability', capability },
@@ -563,12 +682,14 @@ describe('AI operation store (real PostgreSQL)', () => {
       return { controlId: activated.controlId, generation: activated.generation }
     }
     const activatedCapability = await activate(capability, 'review_analysis')
+    const activatedReply = await activate(reply, 'reply_drafting')
     const activatedTrend = await activate(trend, 'property_trends')
     fences = {
       global,
       provider,
       capability: activatedCapability,
       trend: activatedTrend,
+      reply: activatedReply,
     }
   })
 
@@ -780,7 +901,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       canaryBinding: null,
       releaseSha: null,
       canaryAuthorizationId: null,
-      observedContentExpiresAtEpochMillis: NOW + 86_400_000,
+      observedContentExpiresAtEpochMillis: CONTENT_EXPIRES_AT,
       redactionCountry: 'US',
       redactionProfileVersion: liveBinding.redactionProfileVersion,
       outputLeakageProfileVersion: null,
@@ -847,6 +968,101 @@ describe('AI operation store (real PostgreSQL)', () => {
     ).resolves.toEqual({ status: 'denied', code: 'settlement_conflict' })
   })
 
+  it('admits a reply grant whose token expiry precedes its draft expiry', async () => {
+    const liveNow = Date.now()
+    const liveReplyBinding = replyBinding(fences)
+    const claimed = await store.claim({
+      identity: replyIdentity(),
+      binding: liveReplyBinding,
+      idempotencyKey: 'live-reply-admission-key',
+      requestFingerprint: '7'.repeat(64),
+      sourceProvenance: SOURCE_PROVENANCE,
+      nowEpochMillis: liveNow,
+      expiresAtEpochMillis: liveNow + 120_000,
+    })
+    if (claimed.status !== 'created') throw new Error('reply operation claim failed')
+    const executing = await store.claimExecution({
+      operationId: claimed.operation.id,
+      expectedAttempt: 1,
+      nowEpochMillis: liveNow + 1,
+    })
+    if (!executing?.executionPermitId) throw new Error('execution permit was not issued')
+
+    // The property admission rate budget is 4 per 60 seconds and this file admits
+    // more often than that inside one window, so reset the property window: a
+    // `rate_limited` denial here would never reach the reply grant columns.
+    await db
+      .update(aiAdmissionRateWindows)
+      .set({ consumedCount: 0 })
+      .where(eq(aiAdmissionRateWindows.scopeKey, `property:${PROPERTY_ID}`))
+    const [replyProfileRow] = await db
+      .select({ staticTokenBearingBytes: aiOperationProfiles.staticTokenBearingBytes })
+      .from(aiOperationProfiles)
+      .where(eq(aiOperationProfiles.profileVersion, 'reply-suggestion-v1'))
+    if (!replyProfileRow) throw new Error('reply-suggestion-v1 profile row is missing')
+
+    const descriptor = {
+      version: 'ai-admission-descriptor-v1' as const,
+      subjectKind: 'property' as const,
+      route: 'reply-suggestion' as const,
+      operationId: executing.id,
+      permitId: executing.executionPermitId,
+      attemptNumber: 1,
+      sourceDigest: DIGEST,
+      preparedDigest: '3'.repeat(64),
+      sourceByteCount: SOURCE_PROVENANCE.byteCount,
+      preparedByteCount: 256,
+      providerPayloadByteCount: REPLY_PROVIDER_PAYLOAD_BYTE_COUNT,
+      promptCacheShard: 1,
+      limits: replyAdmissionLimits(replyProfileRow.staticTokenBearingBytes),
+      callerDeadlineEpochMillis:
+        liveNow + REPLY_OPERATION_PROFILE.requestDeadlineMs - 2_000,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      internalSubjectId: REVIEW_ID,
+      actorId: 'ai-operation-test-actor',
+      binding: liveReplyBinding,
+      canaryBinding: null,
+      releaseSha: null,
+      canaryAuthorizationId: null,
+      observedContentExpiresAtEpochMillis: CONTENT_EXPIRES_AT,
+      redactionCountry: 'US',
+      redactionProfileVersion: liveReplyBinding.redactionProfileVersion,
+      outputLeakageProfileVersion: liveReplyBinding.outputLeakageProfileVersion,
+      outputLeakageProfileDigest: liveReplyBinding.outputLeakageProfileDigest,
+      replyTemplateCatalogueVersion: liveReplyBinding.replyTemplateCatalogueVersion,
+      replyTemplateCatalogueDigest: liveReplyBinding.replyTemplateCatalogueDigest,
+    }
+    const authority = createPostgresAiAdmissionAuthority({
+      pool: getPool(),
+      signingKid: 'grant-v1',
+    })
+    const admitted = await authority.authorizeProperty(descriptor, {
+      keyId: 'binding-v1',
+      hmac: 'B'.repeat(43),
+    })
+    if (admitted.status !== 'admitted') {
+      throw new Error(`property admission denied: ${admitted.code}`)
+    }
+    expect(admitted).toMatchObject({
+      status: 'admitted',
+      expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
+    })
+
+    // The gateway (grantMatchesInvocation) and the signed grant contract
+    // (validateGrantFields) both refuse a reply grant whose token outlives its
+    // draft: the token is request-scoped, the draft lives until the review's
+    // content expires. Swapping these two columns denied every reply suggestion.
+    const tokenExpiresAt = admitted.replyTokenExpiresAtEpochMillis
+    const draftExpiresAt = admitted.replyDraftExpiresAtEpochMillis
+    if (tokenExpiresAt === null || draftExpiresAt === null) {
+      throw new Error('reply admission returned no reply grant expiries')
+    }
+    expect(tokenExpiresAt).toBeLessThanOrEqual(draftExpiresAt)
+    expect(tokenExpiresAt).toBeLessThanOrEqual(descriptor.callerDeadlineEpochMillis)
+    expect(draftExpiresAt).toBe(CONTENT_EXPIRES_AT)
+  })
+
   it('charges retries per attempt but consumes the product quota once', async () => {
     const liveNow = Date.now()
     const liveBinding = binding(fences)
@@ -894,7 +1110,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         canaryBinding: null,
         releaseSha: null,
         canaryAuthorizationId: null,
-        observedContentExpiresAtEpochMillis: NOW + 86_400_000,
+        observedContentExpiresAtEpochMillis: CONTENT_EXPIRES_AT,
         redactionCountry: 'US',
         redactionProfileVersion: descriptorBinding.redactionProfileVersion,
         outputLeakageProfileVersion: null,
@@ -1295,7 +1511,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       canaryBinding: null,
       releaseSha: null,
       canaryAuthorizationId: null,
-      observedContentExpiresAtEpochMillis: NOW + 86_400_000,
+      observedContentExpiresAtEpochMillis: CONTENT_EXPIRES_AT,
       redactionCountry: 'US',
       redactionProfileVersion: liveBinding.redactionProfileVersion,
       outputLeakageProfileVersion: null,
@@ -1448,7 +1664,166 @@ describe('AI operation store (real PostgreSQL)', () => {
       .select({ state: aiOperations.state, attempt: aiOperations.executionAttempt })
       .from(aiOperations)
       .where(eq(aiOperations.id, operationId))
+
     expect(row).toEqual({ state: 'executing', attempt: 2 })
+  })
+  it('schedules one DB-clock-fenced trend request and suppresses duplicate snapshots', async () => {
+    const utcHour = new Date().getUTCHours()
+    const offsetHours = ((4 - utcHour + 12) % 24) - 12
+    const schedulerTimezone =
+      offsetHours === 0
+        ? 'UTC'
+        : offsetHours > 0
+          ? `Etc/GMT-${offsetHours}`
+          : `Etc/GMT+${Math.abs(offsetHours)}`
+    await db
+      .update(aiPropertyProcessingProfiles)
+      .set({ timezone: schedulerTimezone, updatedAt: new Date() })
+      .where(eq(aiPropertyProcessingProfiles.propertyId, PROPERTY_ID))
+    await db
+      .update(reviewAiAnalysisHeads)
+      .set({ headSequence: 7, updatedAt: new Date() })
+      .where(eq(reviewAiAnalysisHeads.propertyId, PROPERTY_ID))
+    await db.insert(aiReviewEventCursors).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      analysisStartSequence: 6,
+      consumedSequence: 7,
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      lastConsumedEventId: ORIGIN_EVENT_ID,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await db.insert(aiPropertyAggregateHeads).values({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyProfileVersion: 3,
+      aggregateRevision: 5,
+      terminalAnalysisSequence: 7,
+      updatedAt: new Date(),
+    })
+
+    try {
+      const scheduler = createAiPropertyTrendScheduleStore(db)
+      await expect(
+        scheduler.scheduleDueBatch({
+          leaseOwner: '71000000-0000-4000-8000-000000000030',
+        }),
+      ).resolves.toMatchObject({
+        status: 'scheduled',
+        scheduledCount: 1,
+      })
+
+      const [scheduled] = await db
+        .select({
+          scheduleId: aiPropertyTrendSchedules.id,
+          outboxEventId: aiPropertyTrendSchedules.outboxEventId,
+          timezone: aiPropertyTrendSchedules.timezone,
+          terminalAnalysisSequence: aiPropertyTrendSchedules.terminalAnalysisSequence,
+          aggregateRevision: aiPropertyTrendSchedules.aggregateRevision,
+        })
+        .from(aiPropertyTrendSchedules)
+        .where(eq(aiPropertyTrendSchedules.propertyId, PROPERTY_ID))
+        .limit(1)
+      expect(scheduled).toMatchObject({
+        timezone: schedulerTimezone,
+        terminalAnalysisSequence: 7,
+        aggregateRevision: 5,
+      })
+      const [event] = await db
+        .select({
+          eventType: outboxEvents.eventType,
+          payload: outboxEvents.payload,
+          organizationId: outboxEvents.organizationId,
+          propertyId: outboxEvents.propertyId,
+        })
+        .from(outboxEvents)
+        .where(eq(outboxEvents.id, scheduled!.outboxEventId))
+        .limit(1)
+      expect(event).toEqual({
+        eventType: 'ai.property_trend.generation_requested',
+        payload: {
+          scheduleId: scheduled!.scheduleId,
+          organizationId: ORGANIZATION_ID,
+          propertyId: PROPERTY_ID,
+        },
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+      })
+      await expect(
+        scheduler.scheduleDueBatch({
+          leaseOwner: '71000000-0000-4000-8000-000000000030',
+        }),
+      ).resolves.toMatchObject({
+        status: 'scheduled',
+        scheduledCount: 0,
+      })
+    } finally {
+      const eventRows = await db
+        .select({ id: aiPropertyTrendSchedules.outboxEventId })
+        .from(aiPropertyTrendSchedules)
+        .where(eq(aiPropertyTrendSchedules.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiPropertyTrendSchedules)
+        .where(eq(aiPropertyTrendSchedules.propertyId, PROPERTY_ID))
+      if (eventRows.length > 0) {
+        await db.delete(outboxEvents).where(
+          inArray(
+            outboxEvents.id,
+            eventRows.map((row) => row.id),
+          ),
+        )
+      }
+      await db
+        .delete(aiPropertyAggregateHeads)
+        .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+      await db
+        .delete(aiReviewEventCursors)
+        .where(eq(aiReviewEventCursors.propertyId, PROPERTY_ID))
+      await db
+        .update(aiPropertyProcessingProfiles)
+        .set({ timezone: 'America/New_York', updatedAt: new Date() })
+        .where(eq(aiPropertyProcessingProfiles.propertyId, PROPERTY_ID))
+    }
+  })
+
+  it('resolves the PostgreSQL property calendar across DST and date-line boundaries', async () => {
+    const result = await db.execute<{
+      caseName: string
+      localDate: string
+    }>(sql`
+      SELECT
+        calendar_case.case_name AS "caseName",
+        resolve_ai_property_local_date_v1(
+          calendar_case.instant,
+          calendar_case.timezone,
+          'property-calendar-v1'
+        )::text AS "localDate"
+      FROM (
+        VALUES
+          ('spring-before', '2026-03-08T09:59:00.000Z'::timestamptz, 'America/Los_Angeles'),
+          ('spring-after', '2026-03-08T10:01:00.000Z'::timestamptz, 'America/Los_Angeles'),
+          ('fall-first', '2026-11-01T05:30:00.000Z'::timestamptz, 'America/New_York'),
+          ('fall-second', '2026-11-01T06:30:00.000Z'::timestamptz, 'America/New_York'),
+          ('date-line-east', '2026-01-01T10:30:00.000Z'::timestamptz, 'Pacific/Kiritimati'),
+          ('date-line-west', '2026-01-01T09:30:00.000Z'::timestamptz, 'Pacific/Honolulu')
+      ) AS calendar_case(case_name, instant, timezone)
+      ORDER BY calendar_case.case_name
+    `)
+
+    expect(result.rows).toEqual([
+      { caseName: 'date-line-east', localDate: '2026-01-02' },
+      { caseName: 'date-line-west', localDate: '2025-12-31' },
+      { caseName: 'fall-first', localDate: '2026-11-01' },
+      { caseName: 'fall-second', localDate: '2026-11-01' },
+      { caseName: 'spring-after', localDate: '2026-03-08' },
+      { caseName: 'spring-before', localDate: '2026-03-08' },
+    ])
   })
 
   it('stores one immutable trend report only after provider completion', async () => {
@@ -1479,6 +1854,25 @@ describe('AI operation store (real PostgreSQL)', () => {
       terminalAnalysisSequence: 7,
       updatedAt: new Date(NOW),
     })
+    const scheduleId = '71000000-0000-4000-8000-000000000020'
+    await db.insert(aiPropertyTrendSchedules).values({
+      id: scheduleId,
+      outboxEventId: '71000000-0000-4000-8000-000000000021',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      dueLocalDate: '2026-08-16',
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyTrendsEpoch: 1,
+      propertyProfileVersion: 3,
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      timezone: 'UTC',
+      calendarProfileVersion: 'property-calendar-v1',
+      reportProfileVersion: 'property-trend-v1',
+      schedulerGeneration: 1,
+      scheduledAt: new Date(NOW),
+    })
 
     const claimed = await store.claim({
       identity: trendIdentity(),
@@ -1493,6 +1887,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     const operationId = claimed.operation.id
     const outputStore = createAiOutputStoreAdapter(db)
     const report = {
+      scheduleId,
       operationId,
       providerCompletion: {
         expectedAttempt: 1,
@@ -1511,11 +1906,15 @@ describe('AI operation store (real PostgreSQL)', () => {
       terminalAnalysisSequence: 7,
       aggregateRevision: 5,
       reportProfileVersion: 'property-trend-v1',
+      selectedSignalIds: ['sentiment.positive.up'],
       report: {
-        signalKey: 'service_sentiment',
+        signalKey: 'sentiment.positive.up',
         direction: 'improving',
         confidenceBasisPoints: 8_750,
         supportingReviewCount: 12,
+        headline: 'Review signals improved',
+        sentences: ['Positive sentiment improved in the current period.'],
+        summary: 'Positive sentiment improved in the current period.',
       },
       generatedAtEpochMillis: NOW,
       expiresAtEpochMillis: NOW + 86_400_000,
@@ -1530,13 +1929,16 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     const [stored] = await db
       .select({
-        signalKey: aiPropertyTrendReports.signalKey,
-        direction: aiPropertyTrendReports.direction,
-        confidenceBasisPoints: aiPropertyTrendReports.confidenceBasisPoints,
-        supportingReviewCount: aiPropertyTrendReports.supportingReviewCount,
+        signalKey: aiPropertyTrendOutcomes.signalKey,
+        direction: aiPropertyTrendOutcomes.direction,
+        confidenceBasisPoints: aiPropertyTrendOutcomes.confidenceBasisPoints,
+        supportingReviewCount: aiPropertyTrendOutcomes.supportingReviewCount,
+        headline: aiPropertyTrendOutcomes.headline,
+        sentences: aiPropertyTrendOutcomes.sentences,
+        summary: aiPropertyTrendOutcomes.summary,
       })
-      .from(aiPropertyTrendReports)
-      .where(eq(aiPropertyTrendReports.operationId, operationId))
+      .from(aiPropertyTrendOutcomes)
+      .where(eq(aiPropertyTrendOutcomes.operationId, operationId))
       .limit(1)
     expect(stored).toEqual(report.report)
     await expect(
@@ -1559,8 +1961,177 @@ describe('AI operation store (real PostgreSQL)', () => {
       dueLocalDate: '2026-08-16',
       terminalAnalysisSequence: 7,
       aggregateRevision: 5,
+      generatedAtEpochMillis: NOW + 1,
       report: report.report,
     })
+
+    const noDataScheduleId = '71000000-0000-4000-8000-000000000022'
+    await db.insert(aiPropertyTrendSchedules).values({
+      id: noDataScheduleId,
+      outboxEventId: '71000000-0000-4000-8000-000000000023',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      dueLocalDate: '2026-08-15',
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyTrendsEpoch: 1,
+      propertyProfileVersion: 3,
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      timezone: 'America/New_York',
+      calendarProfileVersion: 'property-calendar-v1',
+      reportProfileVersion: 'property-trend-v1',
+      schedulerGeneration: 1,
+      scheduledAt: new Date(NOW),
+    })
+    const scheduleStore = createAiPropertyTrendScheduleStore(db)
+    await expect(
+      scheduleStore.recordProviderFreeOutcome({
+        scheduleId: noDataScheduleId,
+        disposition: 'insufficient_data',
+      }),
+    ).resolves.toBe('recorded')
+    await expect(
+      scheduleStore.recordProviderFreeOutcome({
+        scheduleId: noDataScheduleId,
+        disposition: 'insufficient_data',
+      }),
+    ).resolves.toBe('replayed')
+    const [noDataOutcome] = await db
+      .select({
+        disposition: aiPropertyTrendOutcomes.disposition,
+        operationId: aiPropertyTrendOutcomes.operationId,
+        selectedSignalIds: aiPropertyTrendOutcomes.selectedSignalIds,
+        providerSelectionRecordedAt: aiPropertyTrendOutcomes.providerSelectionRecordedAt,
+        expiresAt: aiPropertyTrendOutcomes.expiresAt,
+      })
+      .from(aiPropertyTrendOutcomes)
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, noDataScheduleId))
+      .limit(1)
+    expect(noDataOutcome).toEqual({
+      disposition: 'insufficient_data',
+      operationId: null,
+      selectedSignalIds: null,
+      providerSelectionRecordedAt: null,
+      expiresAt: null,
+    })
+    await db
+      .delete(aiPropertyTrendOutcomes)
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
+    await expect(
+      outputStore.readTrendReportForDelivery(
+        {
+          organizationId: report.organizationId,
+          actorUserId: userId('ai-operation-test-trend-reader'),
+          propertyId: report.propertyId,
+          sourceEpoch: report.sourceEpoch,
+          reviewAnalysisEpoch: report.reviewAnalysisEpoch,
+          propertyTrendsEpoch: report.propertyTrendsEpoch,
+          propertyProfileVersion: report.propertyProfileVersion,
+          reportProfileVersion: report.reportProfileVersion,
+          nowEpochMillis: NOW + 2,
+        },
+        async (_lease, result) => result,
+      ),
+    ).resolves.toEqual({
+      status: 'insufficient_data',
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyTrendsEpoch: 1,
+      propertyProfileVersion: 3,
+      dueLocalDate: '2026-08-15',
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+    })
+    await db
+      .update(aiReviewEventCursors)
+      .set({ aggregateRevision: 6, updatedAt: new Date(NOW + 3) })
+      .where(eq(aiReviewEventCursors.propertyId, PROPERTY_ID))
+    await db
+      .update(aiPropertyAggregateHeads)
+      .set({ aggregateRevision: 6, updatedAt: new Date(NOW + 3) })
+      .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+    await expect(
+      outputStore.readTrendReportForDelivery(
+        {
+          organizationId: report.organizationId,
+          actorUserId: userId('ai-operation-test-trend-reader'),
+          propertyId: report.propertyId,
+          sourceEpoch: report.sourceEpoch,
+          reviewAnalysisEpoch: report.reviewAnalysisEpoch,
+          propertyTrendsEpoch: report.propertyTrendsEpoch,
+          propertyProfileVersion: report.propertyProfileVersion,
+          reportProfileVersion: report.reportProfileVersion,
+          nowEpochMillis: NOW + 4,
+        },
+        async (_lease, result) => result,
+      ),
+    ).resolves.toEqual({
+      status: 'snapshot_superseded',
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyTrendsEpoch: 1,
+      propertyProfileVersion: 3,
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 6,
+    })
+    await db
+      .update(aiReviewEventCursors)
+      .set({ aggregateRevision: 5, updatedAt: new Date(NOW + 5) })
+      .where(eq(aiReviewEventCursors.propertyId, PROPERTY_ID))
+    await db
+      .update(aiPropertyAggregateHeads)
+      .set({ aggregateRevision: 5, updatedAt: new Date(NOW + 5) })
+      .where(eq(aiPropertyAggregateHeads.propertyId, PROPERTY_ID))
+  })
+
+  it('settles an ephemeral reply without persisting generated text', async () => {
+    const claimed = await store.claim({
+      identity: replyIdentity(),
+      binding: replyBinding(fences),
+      idempotencyKey: 'reply-ephemeral-output-key',
+      requestFingerprint: '8'.repeat(64),
+      sourceProvenance: SOURCE_PROVENANCE,
+      nowEpochMillis: NOW,
+      expiresAtEpochMillis: NOW + 60_000,
+    })
+    if (claimed.status === 'conflict') throw new Error('unexpected conflict')
+    const operationId = claimed.operation.id
+    const outputStore = createAiOutputStoreAdapter(db)
+    const settlement = {
+      operationId,
+      providerCompletion: {
+        expectedAttempt: 1,
+        modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+        inputTokens: 20,
+        outputTokens: 4,
+        completedAtEpochMillis: NOW + 1,
+      },
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      reviewId: reviewId(REVIEW_ID),
+      actorUserId: userId('ai-operation-test-actor'),
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      baseReplyStateRevision: 0,
+      authorizationLineageId: LINEAGE_ID,
+      replyDraftingEpoch: 1,
+      propertyProfileVersion: 3,
+      replyProfileVersion: 'reply-suggestion-v1',
+    } as const
+
+    await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
+    await expect(
+      store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
+    ).resolves.toMatchObject({ state: 'executing', executionAttempt: 1 })
+    await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(true)
+    await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
+
+    const persistedReplies = await db
+      .select({ id: replies.id })
+      .from(replies)
+      .where(eq(replies.reviewId, REVIEW_ID))
+    expect(persistedReplies).toEqual([])
   })
 
   it('stores one immutable analysis and reads it only through a delivery lease', async () => {
@@ -1577,8 +2148,8 @@ describe('AI operation store (real PostgreSQL)', () => {
         text: 'Excellent service',
         languageCode: 'en',
         reviewedAt: new Date(NOW - 1_000),
-        expiresAt: new Date(NOW + 86_400_000),
-        contentExpiresAt: new Date(NOW + 86_400_000),
+        expiresAt: new Date(CONTENT_EXPIRES_AT),
+        contentExpiresAt: new Date(CONTENT_EXPIRES_AT),
         sourceEpoch: 2,
         sourceRevision: 5,
         analysisSequence: 7,
@@ -1643,6 +2214,15 @@ describe('AI operation store (real PostgreSQL)', () => {
         nowEpochMillis: NOW,
       }),
     ).resolves.toMatchObject({ state: 'executing', executionAttempt: 1 })
+    await db
+      .update(aiPropertyProcessingProfiles)
+      .set({ lifecycleState: 'deleting', updatedAt: new Date(NOW + 1) })
+      .where(eq(aiPropertyProcessingProfiles.propertyId, PROPERTY_ID))
+    await expect(outputStore.storeAnalysis(analysis)).resolves.toBe(false)
+    await db
+      .update(aiPropertyProcessingProfiles)
+      .set({ lifecycleState: 'active', updatedAt: new Date(NOW + 2) })
+      .where(eq(aiPropertyProcessingProfiles.propertyId, PROPERTY_ID))
 
     await expect(outputStore.storeAnalysis(analysis)).resolves.toBe(true)
     await expect(outputStore.storeAnalysis(analysis)).resolves.toBe(false)
@@ -1686,8 +2266,8 @@ describe('AI operation store (real PostgreSQL)', () => {
       text: '言語は対象外です',
       languageCode: 'ja',
       reviewedAt: new Date(NOW - 1_000),
-      expiresAt: new Date(NOW + 86_400_000),
-      contentExpiresAt: new Date(NOW + 86_400_000),
+      expiresAt: new Date(CONTENT_EXPIRES_AT),
+      contentExpiresAt: new Date(CONTENT_EXPIRES_AT),
       sourceEpoch: 2,
       sourceRevision: 6,
       analysisSequence: 8,
@@ -1944,8 +2524,8 @@ describe('AI operation store (real PostgreSQL)', () => {
         propertyTrendsEpoch: 2,
         authorizedSourceEpoch: 2,
         analysisStartSequence: 1,
-        noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
-        noticeDigest: NOTICE_DIGEST,
+        noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+        noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
         routingPolicyVersion: 1,
         processingRegion: 'global',
@@ -1988,6 +2568,42 @@ describe('AI operation store (real PostgreSQL)', () => {
         async (_lease, result) => result,
       ),
     ).resolves.toEqual({ status: 'disabled' })
+  })
+
+  it('consumes review events at the domain default source epoch of 0', async () => {
+    // `properties.source_epoch` starts at 0 and only advances on a timezone
+    // change, soft delete or region move. Before drizzle/0060 the AI plane
+    // demanded >= 1 here and in eleven CHECK constraints, so a freshly imported
+    // property could never have a single review analyzed.
+    const reviewEvents = createAiReviewEventStoreAdapter(db)
+    const event = {
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      sourceEpoch: 0,
+      reviewAnalysisEpoch: 1,
+      analysisStartSequence: 0,
+      analysisSequence: 1,
+      eventEnvelopeId: '71000000-0000-4000-8000-0000000000f0',
+      disposition: 'pending',
+    } as const
+
+    await expect(reviewEvents.consumeNext(event)).resolves.toEqual({
+      status: 'accepted',
+      consumedSequence: 1,
+      terminalAnalysisSequence: 0,
+    })
+
+    const [cursor] = await db
+      .select()
+      .from(aiReviewEventCursors)
+      .where(
+        and(
+          eq(aiReviewEventCursors.propertyId, PROPERTY_ID),
+          eq(aiReviewEventCursors.sourceEpoch, 0),
+        ),
+      )
+      .limit(1)
+    expect(cursor?.consumedSequence).toBe(1)
   })
 
   it('atomically issues and terminalizes bounded canary generations before admission', async () => {
@@ -2115,9 +2731,20 @@ describe('AI operation store (real PostgreSQL)', () => {
     expect(childIssue.exitCode, childIssue.stderr).toBe(0)
     const childClaim: unknown = JSON.parse(childIssue.stdout)
     expect(childIssue.stdout).toBe(`${JSON.stringify(childClaim)}\n`)
+    // The canary entry point parses stdin with a STRICT schema: exactly these
+    // five top-level keys, with the authoritative release SHA inside `binding`.
+    // Emitting a convenience top-level `releaseSha` made every canary run fail
+    // input validation before it could reach the provider.
+    expect(Object.keys(childClaim as Record<string, unknown>).sort()).toEqual([
+      'attemptNumber',
+      'binding',
+      'deadlineEpochMillis',
+      'operationId',
+      'permitId',
+    ])
     expect(childClaim).toMatchObject({
-      releaseSha: childReleaseSha,
       attemptNumber: 1,
+      binding: { releaseSha: childReleaseSha },
     })
     const deniedChild = await runCanaryOperatorChild(
       [

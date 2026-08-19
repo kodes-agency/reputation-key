@@ -75,16 +75,43 @@ export function createPropertyProcessingProfileAdapter(
 
     if (!row) return { status: 'not_found' }
     if (row.propertyLifecycleState !== 'active') return { status: 'deleting' }
-    if (row.propertyCountryCode === null || row.propertySourceEpoch < 1) {
+    // 0-based source epoch (drizzle/0060). Only a missing country blocks profile
+    // resolution; the sibling guard in `refreshForAi` says the same.
+    if (row.propertyCountryCode === null) {
       return { status: 'policy_unavailable' }
     }
     const cell = resolveAiProcessingCell({
       countryCode: row.propertyCountryCode,
       timezone: row.propertyTimezone,
     })
-    if (cell.status === 'policy_unavailable' || row.profileVersion === null) {
-      return { status: 'policy_unavailable' }
+    if (cell.status === 'policy_unavailable') return { status: 'policy_unavailable' }
+
+    const drifted =
+      row.profileVersion === null ||
+      row.profileSourceEpoch !== row.propertySourceEpoch ||
+      row.profileRoutingPolicyVersion !== row.propertyRoutingPolicyVersion ||
+      row.profileOrganizationId !== row.propertyOrganizationId ||
+      row.profileCountryCode !== row.propertyCountryCode ||
+      row.profileTimezone !== row.propertyTimezone ||
+      row.profileProcessingRegion !== cell.processingRegion ||
+      row.profileProviderVersion !== cell.providerDeploymentProfileVersion ||
+      row.profileLifecycleState !== 'active'
+
+    // Self-healing read. An unfenced read asks for the property's CURRENT AI
+    // profile, and this adapter is the only writer of the row, so materialize
+    // it here: otherwise a property that never had a row (or whose country,
+    // timezone, source epoch or routing policy changed) resolves
+    // `policy_unavailable` forever and every AI operation terminal-skips.
+    // A FENCED read (expected supplied) must never self-heal — the caller is
+    // checking for drift mid-operation and has to observe it.
+    if (drifted && !input.expected) {
+      return refreshForAi({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+      })
     }
+
+    if (row.profileVersion === null) return { status: 'policy_unavailable' }
     if (row.profileSourceEpoch !== row.propertySourceEpoch) {
       return { status: 'source_epoch_changed' }
     }
@@ -101,7 +128,6 @@ export function createPropertyProcessingProfileAdapter(
     ) {
       return { status: 'property_profile_changed' }
     }
-
     return compareExpected(
       {
         status: 'available',
@@ -148,7 +174,10 @@ export function createPropertyProcessingProfileAdapter(
 
       if (!property) return { status: 'not_found' }
       if (property.lifecycleState !== 'active') return { status: 'deleting' }
-      if (property.countryCode === null || property.sourceEpoch < 1) {
+      // Source epoch is a 0-based generation tag (see drizzle/0060): a property
+      // that has never been edited sits at 0 and is perfectly eligible. Only a
+      // missing country blocks profile resolution.
+      if (property.countryCode === null) {
         return { status: 'policy_unavailable' }
       }
       const cell = resolveAiProcessingCell({
