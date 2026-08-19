@@ -39,6 +39,7 @@ function bindingBase(): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
     railwayClosedBetaCohortSha256: cohortSha256,
     railwayClosedBetaResidualRiskSha256: residualRiskSha256,
     performanceCatalogVersion: '2026-08-05',
+    routeCatalogueVersion: '2026-08-16',
     capabilityPolicyVersion: 'beta-local-2',
     executionPolicyVersion: 'beta-local-2',
     migrationHead: '0040_google-import-effect-lease-control-fk',

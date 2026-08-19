@@ -134,4 +134,45 @@ describe('calendarPeriodRange', () => {
       end: new Date('2026-06-22T07:00:00.000Z'),
     })
   })
+
+  it('uses property-local quarter boundaries', () => {
+    expect(
+      calendarPeriodRange(
+        new Date('2026-05-15T12:00:00.000Z'),
+        'Asia/Tokyo',
+        'quarterly',
+      ),
+    ).toEqual({
+      start: new Date('2026-03-31T15:00:00.000Z'),
+      end: new Date('2026-06-30T15:00:00.000Z'),
+    })
+  })
+
+  it('reuses timezone formatting without changing boundaries', () => {
+    const now = new Date('2026-06-18T12:00:00.000Z')
+
+    expect(calendarPeriodRange(now, 'UTC', 'weekly')).toEqual(
+      calendarPeriodRange(now, 'UTC', 'weekly'),
+    )
+  })
+
+  it('chooses the earliest instant when a monthly midnight repeats', () => {
+    expect(
+      calendarPeriodRange(
+        new Date('2015-11-15T12:00:00.000Z'),
+        'America/Havana',
+        'monthly',
+      ).start,
+    ).toEqual(new Date('2015-11-01T04:00:00.000Z'))
+  })
+
+  it('rejects a monthly boundary skipped by a midnight DST transition', () => {
+    expect(() =>
+      calendarPeriodRange(
+        new Date('2014-08-15T12:00:00.000Z'),
+        'Africa/Cairo',
+        'monthly',
+      ),
+    ).toThrow(/Unresolvable calendar boundary/)
+  })
 })

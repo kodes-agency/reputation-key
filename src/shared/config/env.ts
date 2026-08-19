@@ -145,6 +145,19 @@ const envSchema = z.object({
   GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
 
+  // Web/worker -> AI egress gateway. All transport and settlement-verification
+  // values are configured together; composition rejects partial configuration.
+  AI_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  AI_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
+  AI_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
+  AI_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
+  AI_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
+  AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
+  AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
+  AI_KEY_INVENTORY_PROFILE: z.enum(['production-v1', 'local-stack-v1']).optional(),
+  // Worker-only keyed pseudonym authority for durable AI operation subjects.
+  AI_SUBJECT_HMAC_KEYS: z.string().max(195).optional(),
+
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),
   // GBP Pub/Sub notification lifecycle (ADR-deferred item #2). One shared topic; empty

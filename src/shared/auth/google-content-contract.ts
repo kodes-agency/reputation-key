@@ -1,3 +1,5 @@
+import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from '#/shared/google-provider-control/contracts'
+
 export const GOOGLE_CONTENT_CAPABILITIES = [
   'property.import_gbp_v2',
   'property.read_gbp_performance',
@@ -16,6 +18,15 @@ export const GOOGLE_OAUTH_CONTRACT_VERSION = 'google-oauth-oidc-1' as const
 export const GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION =
   'google-content-egress-1' as const
 export const GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION = '2026-08-05' as const
+/**
+ * The provider route catalogue version is approval-bound material, not merely a
+ * cross-service consistency check. It fixes the Performance route URL, the wire
+ * `dailyMetrics` set, the dailyRange encoding, page size and the response cap —
+ * i.e. exactly what the compliance approval attests to. Sourced from the single
+ * definition in `#/shared/google-provider-control/contracts` rather than copied,
+ * so a catalogue bump cannot silently satisfy a stale approval row.
+ */
+export { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION }
 
 export const GOOGLE_CONTENT_APPROVAL_TARGET_PHASES = [
   'local_sandbox',
@@ -85,6 +96,7 @@ export type GoogleContentApprovalBinding = Readonly<{
   railwayClosedBetaCohortSha256: string | null
   railwayClosedBetaResidualRiskSha256: string | null
   performanceCatalogVersion: typeof GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION
+  routeCatalogueVersion: typeof GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION
   capabilityPolicyVersion: typeof GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION
   executionPolicyVersion: typeof GOOGLE_CONTENT_EXECUTION_POLICY_VERSION
   migrationHead: string

@@ -9,6 +9,7 @@ import {
   GOOGLE_CONTENT_POLICY_VERSION,
   GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
   GOOGLE_OAUTH_CONTRACT_VERSION,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentCapability,
 } from './google-content-contract'
 import type { GoogleContentRuntimeBinding } from './google-content-authority'
@@ -43,6 +44,7 @@ const bindingSchema = z
     railwayClosedBetaCohortSha256: sha256.nullable(),
     railwayClosedBetaResidualRiskSha256: sha256.nullable(),
     performanceCatalogVersion: z.literal(GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION),
+    routeCatalogueVersion: z.literal(GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION),
     capabilityPolicyVersion: z.literal(GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION),
     executionPolicyVersion: z.literal(GOOGLE_CONTENT_EXECUTION_POLICY_VERSION),
     migrationHead: z.string().min(1).max(128),

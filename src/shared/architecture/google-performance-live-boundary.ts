@@ -19,7 +19,14 @@ export type GooglePerformanceDependencyBoundaryResult =
   | Readonly<{ ok: false; violations: readonly string[] }>
 
 const ALLOWED_KIND_SET = new Set<string>(GOOGLE_PERFORMANCE_ALLOWED_DEPENDENCY_KINDS)
-const FORBIDDEN_MODULE_PATHS = [
+/**
+ * ADR 0050 §10 forbidden module classes for the live Performance path: Metric,
+ * any write/queue/job/cache infrastructure module, and any Performance-specific
+ * repository/queue/cache/job. Exported so the architecture test can apply the
+ * same list to the use case's transitive runtime module graph, not only to the
+ * declared injection descriptors.
+ */
+export const FORBIDDEN_MODULE_PATHS = [
   /\/contexts\/metric\//,
   /\/infrastructure\/(?:repositories|jobs|queues|cache)(?:\/|$)/,
   /google-performance.*(?:repository|queue|cache|job)/i,

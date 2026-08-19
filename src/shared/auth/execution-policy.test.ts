@@ -241,6 +241,32 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(malformedReader).not.toHaveBeenCalled()
   })
 
+  it('accepts a consent fence at the domain default source epoch of 0', async () => {
+    // A property that has never been edited sits at source epoch 0, so its
+    // consent fence carries 0. Requiring >= 1 here made every AI operation on a
+    // freshly imported property deny `consent_required` (see drizzle/0060).
+    const hasActiveConsent = vi.fn(async () => true)
+    const policy = createExecutionPolicy(deps({ hasActiveConsent }))
+    const decision = await policy.decide(
+      request({
+        propertyId: PROP,
+        consent: {
+          subjectType: 'property' as const,
+          subjectId: PROP,
+          purpose: 'ai.analyze',
+          expectedFence: { ...CONSENT_FENCE, authorizedSourceEpoch: 0 },
+        },
+      }),
+    )
+
+    expect(decision.allowed).toBe(true)
+    expect(hasActiveConsent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedFence: expect.objectContaining({ authorizedSourceEpoch: 0 }),
+      }),
+    )
+  })
+
   it('public principal: global capability on → allow, off → deny', async () => {
     const policy = createExecutionPolicy(deps())
     const allow = await policy.decide(

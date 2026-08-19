@@ -1,6 +1,11 @@
 import { z } from 'zod/v4'
 
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-08-15.v1' as const
+// Bumped from merchant-ai-notice-2026-08-15.v1 when bg-Cyrl entered the review
+// language catalogue: the notice enumerates the groups whose review text may be
+// sent for provider work, so widening the catalogue widens what the merchant is
+// being asked to consent to. Historical consent stays recorded at its own
+// version — see the known-version set in the enablement/evidence CHECKs.
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-08-19.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -73,7 +78,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       body: Object.freeze([
         'RepKey may use the Google review body, star rating, review time, evaluated language, and property context needed for the selected feature. Reviewer names, profile photos, Google identifiers, exact provider resource names, and raw organization, property, user, and review identifiers are excluded from the provider request.',
         'Before provider processing, RepKey applies automated minimization and redaction. Unstructured personal details can still be missed. A rotating pseudonymous safety identifier contains no raw actor, organization, property, or review identifier.',
-        'Supported analysis groups are und, en-Latn, es-Latn, fr-Latn, de-Latn, pt-Latn, it-Latn, nl-Latn, pl-Latn, tr-Latn, uk-Cyrl, ru-Cyrl, ar-Arab, he-Hebr, hi-Deva, bn-Beng, ta-Taml, th-Thai, vi-Latn, id-Latn, zh-Hans, zh-Hant, ja-Jpan, and ko-Kore. Explicit languages outside this catalogue are skipped before provider work.',
+        'Supported analysis groups are und, en-Latn, es-Latn, fr-Latn, de-Latn, pt-Latn, it-Latn, nl-Latn, pl-Latn, tr-Latn, uk-Cyrl, ru-Cyrl, ar-Arab, he-Hebr, hi-Deva, bn-Beng, ta-Taml, th-Thai, vi-Latn, id-Latn, zh-Hans, zh-Hant, ja-Jpan, ko-Kore, and bg-Cyrl. Explicit languages outside this catalogue are skipped before provider work.',
       ]),
       links: Object.freeze([
         Object.freeze({ label: 'RepKey privacy notice', target: '/privacy' }),
@@ -273,7 +278,7 @@ export function canonicalizeRfc8785(value: unknown): string {
 }
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b' as const
+  'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31' as const
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

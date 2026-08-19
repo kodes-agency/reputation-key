@@ -56,13 +56,34 @@ export type RelayConfig = Readonly<{
 const LEASE_RENEW_EVERY = 10
 
 /**
- * Dispatch retry policy. Mirrors the jobEnqueueOptions shape (3 attempts,
- * exponential 30s backoff, 0.5 jitter — the catalogue defaults) but is
- * hand-set here because domain-events jobs are EVENT-TYPED (named by
- * eventType), not job-named, so the job-family catalogue cannot resolve them.
+ * Dispatch retry policy. Hand-set here because domain-events jobs are
+ * EVENT-TYPED (named by eventType), not job-named, so the job-family catalogue
+ * cannot resolve them.
+ *
+ * `attempts` is 8, not the catalogue default of 3, because the AI review
+ * analysis consumer is the tightest budget on this queue and 3 could not reach
+ * its terminal branch:
+ *   - the domain terminal-settles a provider failure only on its 4th attempt
+ *     (`aiRetryAt` returns null at attempt >= 4), which alone needs 4 dispatch
+ *     attempts, and
+ *   - quota/rate backpressure, an in-progress execution lease, language-runtime
+ *     drift and a not-yet-written Property processing profile all retry BEFORE a
+ *     provider attempt is claimed, so they consume dispatch attempts without
+ *     consuming a domain attempt.
+ * The domain therefore also bounds itself by a 15-minute (900s) operation
+ * horizon and terminal-settles at it. With exponential 30s backoff and 0.5
+ * jitter the minimum delay before attempt n+1 is 15s * 2^(n-1), so attempt 7
+ * starts at least 15+30+60+120+240+480 = 945s after attempt 1 — strictly past
+ * the horizon. 8 attempts leave one spare after the attempt that is guaranteed
+ * to observe the horizon, so a `pending` outcome row can never be quarantined
+ * and freeze a property's terminal analysis watermark.
+ *
+ * Raising the shared value only widens every other consumer's transient-failure
+ * budget (~32 minutes before quarantine instead of ~1.5); BQC-3.6 quarantine and
+ * the UnrecoverableError poison path are unchanged.
  */
-const DISPATCH_JOB_OPTIONS = {
-  attempts: 3,
+export const DISPATCH_JOB_OPTIONS = {
+  attempts: 8,
   backoff: { type: 'exponential', delay: 30_000, jitter: 0.5 },
 } as const
 

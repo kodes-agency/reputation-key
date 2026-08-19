@@ -32,11 +32,12 @@ const createPermit = () =>
   )
 
 describe('authorization execution permit', () => {
-  it('admits one attempt with a one-second start deadline', () => {
+  it('admits one attempt with a ten-second start deadline', () => {
     const permit = createPermit()
 
     expect(permit.state).toBe('admitted')
-    expect(permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:01.000Z'))
+    // The fence must outlast the real web -> gateway -> admission path cost.
+    expect(permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:10.000Z'))
     expect(permit.startedAt).toBeNull()
     expect(permit.operationDeadlineAt).toBeNull()
   })
@@ -74,7 +75,7 @@ describe('authorization execution permit', () => {
 
   it('fences an expired or substituted permit before protected access', () => {
     const expired = startExecutionPermit(createPermit(), {
-      now: new Date('2026-08-10T10:00:01.000Z'),
+      now: new Date('2026-08-10T10:00:10.000Z'),
       policyVersion: 12,
       emergencyKillVersion: 4,
       approvalBindingId: 'approval-1',

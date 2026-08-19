@@ -114,7 +114,7 @@ function wallClockAt(date: Date, timezone: string): WallClock {
   }
   const parts = formatter.formatToParts(date)
   const value = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((part) => part.type === type)?.value ?? '0')
+    Number(parts.find((part) => part.type === type)!.value)
   return {
     year: value('year'),
     month: value('month'),

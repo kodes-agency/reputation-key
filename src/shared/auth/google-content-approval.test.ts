@@ -2,6 +2,7 @@ import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRoleDocument,
 } from './google-content-contract'
@@ -40,6 +41,7 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   railwayClosedBetaCohortSha256: null,
   railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
+  routeCatalogueVersion: '2026-08-16',
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
   migrationHead: '0029_google-content-control',
@@ -288,5 +290,61 @@ describe('Google Content approval candidate', () => {
         verifyRoleApproval,
       ),
     ).toEqual({ ok: false, code: 'binding_not_approved' })
+  })
+
+  // The provider route catalogue fixes the Performance route URL, the wire
+  // dailyMetrics set, the dailyRange encoding, page size and the response cap.
+  // It is approval-bound material: a bump must invalidate the persisted approval
+  // rather than ship under it.
+  describe('provider route catalogue binding', () => {
+    it('binds the compiled catalogue version into the accepted binding', () => {
+      expect(binding().routeCatalogueVersion).toBe(
+        GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
+      )
+      expect(
+        validateGoogleContentApprovalCandidate(
+          candidate(),
+          new Date('2026-08-11T10:00:00.000Z'),
+          verifyRoleApproval,
+        ),
+      ).toMatchObject({
+        ok: true,
+        binding: { routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION },
+      })
+    })
+
+    it.each([
+      // A row minted before the current catalogue (the drift observed live).
+      '2026-08-05',
+      // A row minted for a future catalogue.
+      '2026-09-01',
+      // The migration 0056 backfill sentinel for pre-existing approvals.
+      'unapproved-pre-0056',
+    ])('refuses a persisted approval carrying catalogue %s', (routeCatalogueVersion) => {
+      const input = candidate()
+      // Bundle parsing is the persistence boundary: the repository re-parses the
+      // stored row through this schema, so a drifted catalogue makes the row
+      // unresolvable and the capability denies until re-approved.
+      expect(
+        parseGoogleContentApprovalBundle({
+          manifest: 'manifest',
+          candidate: {
+            ...input,
+            binding: { ...input.binding, routeCatalogueVersion },
+          },
+        }),
+      ).toEqual({ ok: false })
+    })
+
+    it('refuses a bundle with no route catalogue version at all', () => {
+      const input = candidate()
+      const { routeCatalogueVersion: _omitted, ...withoutCatalogue } = input.binding
+      expect(
+        parseGoogleContentApprovalBundle({
+          manifest: 'manifest',
+          candidate: { ...input, binding: withoutCatalogue },
+        }),
+      ).toEqual({ ok: false })
+    })
   })
 })

@@ -191,7 +191,8 @@ function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefine
     value.capabilityEpoch < 1 ||
     typeof value.authorizedSourceEpoch !== 'number' ||
     !Number.isSafeInteger(value.authorizedSourceEpoch) ||
-    value.authorizedSourceEpoch < 1 ||
+    // 0-based source epoch (drizzle/0060), unlike capabilityEpoch/stateVersion.
+    value.authorizedSourceEpoch < 0 ||
     typeof value.stateVersion !== 'number' ||
     !Number.isSafeInteger(value.stateVersion) ||
     value.stateVersion < 1 ||

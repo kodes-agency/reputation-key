@@ -266,6 +266,13 @@ const integrationPropertyImportRetentionReleasedSchema = z
     organizationId,
     idempotencyKeys,
   }))
+const aiPropertyTrendGenerationRequestedSchema = z
+  .object({
+    scheduleId: z.uuid(),
+    organizationId: z.string().min(1),
+    propertyId: z.uuid(),
+  })
+  .strict()
 const integrationPropertyImportRequestedSchema = z
   .object({
     _tag: z.literal('integration.property_import.requested').optional(),
@@ -405,7 +412,8 @@ const merchantAiChangedSchema = z
     reviewAnalysisEpoch: z.number().int().safe().positive(),
     replyDraftingEpoch: z.number().int().safe().positive(),
     propertyTrendsEpoch: z.number().int().safe().positive(),
-    authorizedSourceEpoch: z.number().int().safe().positive(),
+    // 0-based source epoch (drizzle/0060); the capability epochs above are 1-based.
+    authorizedSourceEpoch: z.number().int().safe().nonnegative(),
     analysisStartSequence: z.number().int().safe().nonnegative(),
     stateVersion: z.number().int().safe().positive(),
     occurredAt: z.string(),
@@ -661,6 +669,11 @@ export function registerAllEventSchemas(): void {
     type: 'integration.property_import.retention_released',
     version: EVENT_VERSION,
     schema: integrationPropertyImportRetentionReleasedSchema,
+  })
+  registerEventSchema({
+    type: 'ai.property_trend.generation_requested',
+    version: EVENT_VERSION,
+    schema: aiPropertyTrendGenerationRequestedSchema,
   })
 
   // Guest events (consumed by metric)

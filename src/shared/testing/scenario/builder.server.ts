@@ -194,6 +194,7 @@ async function createReviews(
       googleConnectionId: null,
       rating: spec.rating,
       text: spec.text ?? `Simulated ${spec.rating}-star review`,
+      translatedText: null,
       reviewerName: spec.reviewerName ?? `Sim Reviewer ${created + 1}`,
       reviewerProfilePhotoUrl: null,
       languageCode: 'en',

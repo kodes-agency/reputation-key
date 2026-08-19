@@ -41,6 +41,7 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   railwayClosedBetaCohortSha256: null,
   railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
+  routeCatalogueVersion: '2026-08-16',
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
   migrationHead: '0029_google-content-control',
@@ -212,6 +213,21 @@ function createStore() {
       permits.set(record.permit.id, record)
     },
     lockPermit: async (_tx, id) => permits.get(id) ?? null,
+    listElapsedAdmittedPermitIds: async (_tx, input) =>
+      [...permits.values()]
+        .filter(
+          (record) =>
+            input.capabilities.includes(record.permit.capability) &&
+            record.permit.state === 'admitted' &&
+            record.permit.startDeadlineAt.getTime() < input.before.getTime(),
+        )
+        .sort(
+          (left, right) =>
+            left.permit.startDeadlineAt.getTime() -
+            right.permit.startDeadlineAt.getTime(),
+        )
+        .slice(0, input.limit)
+        .map((record) => record.permit.id),
     updatePermit: async (_tx, permit) => {
       const existing = permits.get(permit.id)
       if (!existing) throw new Error('missing permit')
@@ -550,7 +566,7 @@ describe('Google Content authorization authority', () => {
       requestBodyBytes: 0,
     })
     if (!admitted.ok) throw new Error('expected admission')
-    expect(admitted.permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:01.000Z'))
+    expect(admitted.permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:10.000Z'))
 
     await expect(
       authority.start(admitted.permit.id, admissionInput().runtimeBinding),

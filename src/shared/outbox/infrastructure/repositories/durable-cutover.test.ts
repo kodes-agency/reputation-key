@@ -183,6 +183,7 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Synthetic cutover review',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt,
     expiresAt: new Date('2027-07-01T00:00:00.000Z'),
@@ -218,6 +219,7 @@ function makeApprovedReply(): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: new Date('2026-07-03T18:00:00.000Z'),
     approvedAt: new Date('2026-07-03T19:00:00.000Z'),
     publishedAt: null,
@@ -242,6 +244,7 @@ function makeReviewLookup(): ReviewLookupPort {
         snippet: {
           reviewerName: row.reviewerName,
           text: null,
+          translatedText: null,
           reviewerProfilePhotoUrl: null,
           rating: row.rating,
         },

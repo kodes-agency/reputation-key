@@ -32,7 +32,10 @@ export async function truncateTables(
 
 export async function seedOrgs(pool: Pool, ids: string[]): Promise<void> {
   for (const id of ids) {
-    const slug = 't-' + id.replace(/-/g, '').slice(-12)
+    // The slug must be derived from the WHOLE id: `slug` is uniquely indexed and
+    // integration files share one database, so a suffix-derived slug collides
+    // whenever two files pick ids ending in the same characters.
+    const slug = 't-' + id.replace(/-/g, '')
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
        VALUES ($1, $2, $3, NOW())

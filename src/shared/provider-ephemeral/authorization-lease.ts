@@ -24,7 +24,7 @@ const leaseRecordSchema = z
     approvalBindingId: z.uuid(),
     principalHmacKeyVersion: z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/),
     principalHmac: z.string().regex(DIGEST),
-    authorizationVectorSha256: z.string().regex(/^[a-f0-9]{64}$/),
+    authorizationFenceSha256: z.string().regex(/^[a-f0-9]{64}$/),
     generation: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
     issuedAtMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
     expiresAtMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -60,7 +60,7 @@ export type ProviderAuthorizationLeaseService = Readonly<{
       approvalBindingId: string
       principalHmacKeyVersion: string
       principalHmac: string
-      authorizationVectorSha256: string
+      authorizationFenceSha256: string
       absoluteDeadlineMs: number
       nowMs: number
     }>,
@@ -71,7 +71,7 @@ export type ProviderAuthorizationLeaseService = Readonly<{
       principalHmacKeyVersion: string
       principalHmac: string
       approvalBindingId: string
-      authorizationVectorSha256: string
+      authorizationFenceSha256: string
       nowMs: number
     }>,
   ): Promise<ProviderAuthorizationLeaseResult>
@@ -128,7 +128,7 @@ export function createProviderAuthorizationLeaseService(
       Readonly<{
         allowed: boolean
         approvalBindingId: string | null
-        authorizationVectorSha256: string | null
+        authorizationFenceSha256: string | null
       }>
     >
   }>,
@@ -169,7 +169,7 @@ export function createProviderAuthorizationLeaseService(
         approvalBindingId: input.approvalBindingId,
         principalHmacKeyVersion: input.principalHmacKeyVersion,
         principalHmac: input.principalHmac,
-        authorizationVectorSha256: input.authorizationVectorSha256,
+        authorizationFenceSha256: input.authorizationFenceSha256,
         generation: 1,
         issuedAtMs: input.nowMs,
         expiresAtMs,
@@ -187,7 +187,7 @@ export function createProviderAuthorizationLeaseService(
       }
       if (
         authorization.approvalBindingId !== parsed.data.approvalBindingId ||
-        authorization.authorizationVectorSha256 !== parsed.data.authorizationVectorSha256
+        authorization.authorizationFenceSha256 !== parsed.data.authorizationFenceSha256
       ) {
         return { ok: false, code: 'authorization_changed' }
       }
@@ -247,15 +247,15 @@ export function createProviderAuthorizationLeaseService(
       if (
         !leaseRecordSchema.shape.approvalBindingId.safeParse(input.approvalBindingId)
           .success ||
-        !leaseRecordSchema.shape.authorizationVectorSha256.safeParse(
-          input.authorizationVectorSha256,
+        !leaseRecordSchema.shape.authorizationFenceSha256.safeParse(
+          input.authorizationFenceSha256,
         ).success
       ) {
         return { ok: false, code: 'malformed' }
       }
       if (
         record.approvalBindingId !== input.approvalBindingId ||
-        record.authorizationVectorSha256 !== input.authorizationVectorSha256
+        record.authorizationFenceSha256 !== input.authorizationFenceSha256
       ) {
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
@@ -272,7 +272,7 @@ export function createProviderAuthorizationLeaseService(
       }
       if (
         authorization.approvalBindingId !== record.approvalBindingId ||
-        authorization.authorizationVectorSha256 !== record.authorizationVectorSha256
+        authorization.authorizationFenceSha256 !== record.authorizationFenceSha256
       ) {
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }

@@ -98,6 +98,8 @@ export type SystemAction =
   | 'system:metric.record'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
+  | 'system:permit.start_deadline_fence'
+  | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
   | 'system:goal.spawn'
   | 'system:goal.progress'
@@ -110,6 +112,8 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
   | 'system:inbox.update'
+  | 'system:ai.trend'
+  | 'system:ai.trend_schedule'
   // operator commands
   | 'system:ops'
 
@@ -706,6 +710,29 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'generateReplySuggestionFn',
+      'src/contexts/ai/server/reply-suggestion.ts',
+      'ai.reply.generate',
+      'ai.generate_reply',
+      'property',
+      {
+        externalEffect: true,
+        purpose: 'ai.generate_reply',
+        notes: 'manager-only ephemeral reply suggestion; result is browser-held',
+      },
+    ),
+    sf(
+      'getPropertyAiTrendFn',
+      'src/contexts/ai/server/property-trend.ts',
+      'ai.trends.read',
+      'ai.detect_trends',
+      'property',
+      {
+        purpose: 'ai.detect_trends',
+        notes: 'property-scoped read of a current persisted deterministic trend report',
       },
     ),
   ],
@@ -2321,6 +2348,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'generate-property-ai-trend',
+    'src/contexts/ai/infrastructure/jobs/generate-property-trend.job.ts',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+    {
+      notes:
+        'content-free coalesced property trend generation after durable review analysis',
+    },
+  ),
+  job(
+    'schedule-property-ai-trends',
+    'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
+    'system:ai.trend_schedule',
+    'ai.detect_trends',
+    'tenant_cross',
+    {
+      notes:
+        'DB-fenced property-local calendar scheduler; scans at most 100 due properties per firing',
+    },
+  ),
+  job(
     'refresh-expiring-reviews',
     'src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job.ts',
     'system:review.refresh_sweep',
@@ -2431,6 +2480,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'permit-start-deadline-sweep',
+    'src/shared/jobs/permit-start-deadline-sweep.job.ts',
+    'system:permit.start_deadline_fence',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'ADR 0050: bounded CAS of admitted -> fenced past start_deadline_at through fenceElapsedStartDeadlinePermit; unblocks ON DELETE RESTRICT approval rotation',
+    },
+  ),
+  job(
+    'google-import-claim-reaper',
+    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    'system:property.import_claim_reap',
+    'property.import_gbp_v2',
+    'tenant_cross',
+    {
+      notes:
+        'bounded claim-lease recovery: releases or terminalizes items still processing past claim_lease_expires_at through the store CAS helpers; no provider effect',
+    },
+  ),
+  job(
     'insert-activity-log',
     'src/contexts/activity/infrastructure/jobs/insert-activity-log.job.ts',
     'system:activity.record',
@@ -2515,6 +2586,23 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'durable bounded retention-release projection; state and consumer receipt co-commit',
+    },
+  ),
+  consumer(
+    'ai.outbox-consumers',
+    'src/contexts/ai/infrastructure/outbox-consumers.ts',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+    [
+      'review.created',
+      'review.updated',
+      'review.source_transitioned',
+      'ai.property_trend.generation_requested',
+    ],
+    {
+      notes:
+        'durable review-analysis consumers plus identifier-only trend-generation dispatch; each event family retains its exact event-catalogue capability',
     },
   ),
   consumer(
@@ -2679,6 +2767,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     notes: 'every 5 min',
   }),
   schedule(
+    'schedule-property-ai-trends-recurring',
+    'system:ai.trend_schedule',
+    'ai.detect_trends',
+    'tenant_cross',
+    { notes: 'every minute; DB lease and property-local due date fence duplicate scans' },
+  ),
+  schedule(
     'refresh-expiring-reviews-recurring',
     'system:review.refresh_sweep',
     'none',
@@ -2712,6 +2807,23 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'daily, offset 4h (after retention sweep)' },
+  ),
+  schedule(
+    'permit-start-deadline-sweep-recurring',
+    'system:permit.start_deadline_fence',
+    'none',
+    'tenant_cross',
+    { notes: 'every 5 min (execution-permit start-deadline fence)' },
+  ),
+  schedule(
+    'google-import-claim-reaper-recurring',
+    'system:property.import_claim_reap',
+    'property.import_gbp_v2',
+    'tenant_cross',
+    {
+      notes:
+        'every 60s (one claim-lease width); tenant-cross enumeration only — each recovered item is re-authorized by the item job before any effect',
+    },
   ),
   schedule(
     'refresh-daily-metrics-recurring',
@@ -2845,6 +2957,24 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension (reason+ticket; own audit row + harness row) (BQC-7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/property-capabilities.ts',
+    'scripts/ops/property-capabilities.ts',
+    'property',
+    {
+      notes:
+        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default, harness audit row per invocation (BQC-7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/reparse-review-translations.ts',
+    'scripts/ops/reparse-review-translations.ts',
+    'property',
+    {
+      notes:
+        "ops:reparse-review-translations — re-splits Google's \"(Translated by Google) … (Original) …\" envelope on reviews stored before the adapter parsed it, so cld3 reads the guest's words instead of Google's English; recomputes content_hash and the ai_source_digest/byte_length pair with the same production functions the sync path uses, via a targeted column UPDATE that leaves source_revision, analysis_sequence and the review lifecycle untouched so no reviewUpdated event crosses the analysis watermark; report/repair, dry-run by default, idempotent (BQC-7.5)",
     },
   ),
   ops('scripts/ops/inspect-decision.ts', 'scripts/ops/inspect-decision.ts', 'property', {
@@ -3053,6 +3183,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'check:security-headers — CI gate (BQC-7.6, STD-P1-07): boots the built production server and asserts the full B0.7 header set on 200 AND 404 responses, x-request-id behavior, and the 413 body limit; exits 1 listing missing headers',
     },
   ),
+  ops(
+    'scripts/check-runtime-language-verifier.mjs',
+    'scripts/check-runtime-language-verifier.mjs',
+    'none',
+    {
+      notes:
+        'check:language-verifier — CI gate: asserts cld3-asm stayed external to the Nitro server bundle and still resolves, initializes its WASM and detects a language from inside .output/server, with the loader matching the sha256 attested by ai-reply-language-verifier-v1.manifest.json; bundling it throws "runtimeModule is not a function" and 500s every reply suggestion',
+    },
+  ),
   ops('scripts/check-test-quality.mjs', 'scripts/check-test-quality.mjs', 'none', {
     notes:
       'check:test-quality — lint gate (BQC-6.9): focused/skipped tests, generic-error acceptance, unasserted async failures; registered skips only',
@@ -3141,6 +3280,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/google-content-approval-sign.ts',
+    'scripts/ops/google-content-approval-sign.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-content-approval-sign — operator-held role keystore; re-signs the existing evidence for a moved approval-bound version and installs it through ops:google-content-approval',
+    },
+  ),
+  ops(
     'scripts/ops/google-import-lifecycle.ts',
     'scripts/ops/google-import-lifecycle.ts',
     'tenant_cross',
@@ -3174,6 +3322,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
+    },
+  ),
+  ops(
+    'scripts/ops/permit-start-deadline-backfill.ts',
+    'scripts/ops/permit-start-deadline-backfill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:permit-start-deadline-fence — one-off bounded backfill of admitted execution permits past start_deadline_at; reuses the recurring sweeper and its fenceElapsedStartDeadlinePermit path (no raw UPDATE)',
     },
   ),
   ops(

@@ -63,6 +63,19 @@ export function parseGoogleRetryAfterMs(
   return Math.min(Math.max(0, atMs - nowMs), GOOGLE_RETRY_MAX_MS)
 }
 
+/**
+ * Floor an already-parsed retry hint onto the same 5s..300s schedule as
+ * `googleRetryDelayMs`. The gateway reports milliseconds rather than a header,
+ * and a missing or zero hint must still produce a real wait: surfacing "retry
+ * now" told the caller to wait while enabling the action immediately.
+ */
+export function googleRetryFloorMs(retryAfterMs: number | null): number {
+  if (retryAfterMs === null || !Number.isSafeInteger(retryAfterMs)) {
+    return GOOGLE_RETRY_MIN_MS
+  }
+  return Math.min(GOOGLE_RETRY_MAX_MS, Math.max(GOOGLE_RETRY_MIN_MS, retryAfterMs))
+}
+
 export function googleRetryDelayMs(
   input: Readonly<{
     attempt: number
@@ -83,7 +96,7 @@ export function googleRetryDelayMs(
   }
   const retryAfterMs = parseGoogleRetryAfterMs(input.retryAfter, input.nowMs)
   if (retryAfterMs !== null) {
-    return Math.min(GOOGLE_RETRY_MAX_MS, Math.max(GOOGLE_RETRY_MIN_MS, retryAfterMs))
+    return googleRetryFloorMs(retryAfterMs)
   }
   const exponent = Math.min(input.attempt - 1, 16)
   const ceiling = Math.min(GOOGLE_RETRY_MAX_MS, GOOGLE_RETRY_MIN_MS * 2 ** exponent)

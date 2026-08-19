@@ -34,6 +34,41 @@ export function providerAuthorizationVectorSha256(
     .digest('hex')
 }
 
+/**
+ * `credentialGeneration` is the only authorization-vector member a routine
+ * Google token refresh moves, and a refresh changes nothing an authorization
+ * fence must protect. Content leases therefore bind this separate digest
+ * domain, which drops that one member and keeps every other fact — connection
+ * lifecycle/access versions, policy and emergency-kill versions, role,
+ * permission digest, property source/profile state — byte exact.
+ */
+export const PROVIDER_AUTHORIZATION_FENCE_EXCLUDED_KEY = 'credentialGeneration'
+
+export function providerAuthorizationFenceSha256(
+  input: Readonly<{
+    connectionLifecycleVersion: number
+    connectionAccessVersion: number
+    authorizationVector: Readonly<Record<string, ProviderAuthorizationVectorValue>>
+  }>,
+): string {
+  const fenced = Object.fromEntries(
+    Object.entries(input.authorizationVector).filter(
+      ([key]) => key !== PROVIDER_AUTHORIZATION_FENCE_EXCLUDED_KEY,
+    ),
+  )
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        'provider-authorization-fence-v1',
+        input.connectionLifecycleVersion,
+        input.connectionAccessVersion,
+        canonicalProviderAuthorizationVector(fenced),
+      ]),
+      'utf8',
+    )
+    .digest('hex')
+}
+
 export function createProviderAuthorizationPrincipalBinding(
   input: Readonly<{
     keys: VersionedHmacKeyring

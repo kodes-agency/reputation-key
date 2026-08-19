@@ -183,8 +183,20 @@ async function invokeConsumer(
     // attempt. The caller rethrows an aggregate so the BullMQ job fails and
     // configured attempts apply — receipts protect consumers that already
     // committed (they short-circuit on redelivery).
+    // `err` alone serializes to `{ name }` here, which tells an operator nothing:
+    // a schema rejection, a sequence gap and a provider retry all logged
+    // identically. `failureReason` mirrors the quarantine envelope's rule —
+    // error name plus the first message line, capped — and consumer failure
+    // messages are code-only by contract.
     logger.error(
-      { err, correlationId, consumerName: consumer.consumerName },
+      {
+        err,
+        correlationId,
+        consumerName: consumer.consumerName,
+        failureReason: `${err instanceof Error ? err.name : 'unknown'}: ${
+          err instanceof Error ? (err.message.split('\n')[0] ?? '') : ''
+        }`.slice(0, 200),
+      },
       'Consumer handler failed — job will fail after remaining consumers run',
     )
     return { kind: 'failed', consumerName: consumer.consumerName, err }

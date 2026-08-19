@@ -3,9 +3,9 @@
 // Phase BQC-4 §4/§4.2 + ADR 0048: the router is the ONE routing decision
 // model — it resolves (propertyId, workloadClass) to a typed ProcessingTarget
 // containing only approved execution references plus the routing-policy
-// version, or to a typed blocked decision. 'us' is the only APPROVED beta
-// cell; 'europe'/'global' are denied, 'unresolved'/missing region and a
-// missing property all fail closed.
+// version, or to a typed blocked decision. One approved beta cell serves all
+// three processable regions ('us','europe','global'); an unknown region,
+// 'unresolved', a missing region and a missing property all fail closed.
 //
 // The property-routing loader is a port: production wires a drizzle adapter
 // (property context infrastructure); these tests use a deterministic stub.
@@ -69,8 +69,34 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     }
   })
 
-  it.each(['europe', 'global'])(
-    "blocks the denied '%s' region with region_denied",
+  it.each(['us', 'europe', 'global'])(
+    "routes the processable '%s' region to the approved cell",
+    async (region) => {
+      const router = createProcessingRouter({
+        loadPropertyRouting: stubLoader({
+          'prop-1': { processingRegion: region, routingPolicyVersion: 1 },
+        }),
+        cell: 'us',
+      })
+
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'reply.publish',
+      )
+
+      expect(decision).toEqual({
+        kind: 'target',
+        cell: 'us',
+        region,
+        queue: 'default',
+        provider: 'gbp-default',
+        routingPolicyVersion: 1,
+      })
+    },
+  )
+
+  it.each(['ap-southeast-2', 'eu', 'US', ''])(
+    "blocks the unknown '%s' region with region_denied",
     async (region) => {
       const router = createProcessingRouter({
         loadPropertyRouting: stubLoader({
@@ -248,7 +274,7 @@ describe('providerRefForCell (BQC-4.3)', () => {
   it('blocked routing decisions never carry a provider reference', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({
-        'prop-1': { processingRegion: 'europe', routingPolicyVersion: 1 },
+        'prop-1': { processingRegion: 'ap-southeast-2', routingPolicyVersion: 1 },
       }),
       cell: 'us',
     })

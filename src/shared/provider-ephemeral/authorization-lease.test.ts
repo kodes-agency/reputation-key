@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
+  providerAuthorizationFenceSha256,
+  type ProviderAuthorizationVectorValue,
+} from './authorization-binding'
+import {
   createProviderAuthorizationLeaseService,
   type ProviderAuthorizationLeaseRecord,
 } from './authorization-lease'
 import { createInMemoryProviderEphemeralStore } from './in-memory-store'
 
 const NOW = 1_800_000_000_000
-const VECTOR = 'a'.repeat(64)
 const PRINCIPAL = 'p'.repeat(43)
 const NONCE = 'n'.repeat(43)
 const KEYRING = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
@@ -18,6 +21,35 @@ const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
 const APPROVAL_ID = '00000000-0000-4000-8000-000000000003'
 
+/** The full authorization vector a Google content preauthorization returns. */
+function authorizationVector(
+  overrides: Readonly<Record<string, ProviderAuthorizationVectorValue>> = {},
+): Readonly<Record<string, ProviderAuthorizationVectorValue>> {
+  return {
+    executionPolicyVersion: 11,
+    googleContentPolicyVersion: 5,
+    emergencyKillVersion: 1,
+    connectionLifecycleVersion: 4,
+    connectionAccessVersion: 2,
+    credentialGeneration: 7,
+    role: 'owner',
+    ...overrides,
+  }
+}
+
+function fenceOf(
+  overrides: Readonly<Record<string, ProviderAuthorizationVectorValue>> = {},
+): string {
+  const vector = authorizationVector(overrides)
+  return providerAuthorizationFenceSha256({
+    connectionLifecycleVersion: vector.connectionLifecycleVersion as number,
+    connectionAccessVersion: vector.connectionAccessVersion as number,
+    authorizationVector: vector,
+  })
+}
+
+const FENCE = fenceOf()
+
 function setup(
   revalidate = vi.fn(
     async (
@@ -25,11 +57,11 @@ function setup(
     ): Promise<{
       allowed: boolean
       approvalBindingId: string | null
-      authorizationVectorSha256: string | null
+      authorizationFenceSha256: string | null
     }> => ({
       allowed: true,
       approvalBindingId: APPROVAL_ID,
-      authorizationVectorSha256: VECTOR,
+      authorizationFenceSha256: FENCE,
     }),
   ),
 ) {
@@ -51,7 +83,7 @@ function setup(
       approvalBindingId: APPROVAL_ID,
       principalHmacKeyVersion: 'v1',
       principalHmac: PRINCIPAL,
-      authorizationVectorSha256: VECTOR,
+      authorizationFenceSha256: FENCE,
       absoluteDeadlineMs,
       nowMs: NOW,
     })
@@ -61,7 +93,7 @@ function setup(
       principalHmacKeyVersion: 'v1',
       principalHmac: PRINCIPAL,
       approvalBindingId: APPROVAL_ID,
-      authorizationVectorSha256: VECTOR,
+      authorizationFenceSha256: FENCE,
       nowMs: NOW + 10_000,
       ...overrides,
     })
@@ -100,7 +132,7 @@ describe('provider authorization leases', () => {
       organizationId: ORG_ID,
       initiatorUserId: USER_ID,
       propertyId: PROPERTY_ID,
-      authorizationVectorSha256: VECTOR,
+      authorizationFenceSha256: FENCE,
     })
   })
 
@@ -108,7 +140,7 @@ describe('provider authorization leases', () => {
     const revalidate = vi.fn(async () => ({
       allowed: false,
       approvalBindingId: null,
-      authorizationVectorSha256: null,
+      authorizationFenceSha256: null,
     }))
     const { issue, store } = setup(revalidate)
 
@@ -125,7 +157,7 @@ describe('provider authorization leases', () => {
     if (!issued.ok) throw new Error('expected lease')
     await expect(
       renew(issued.lease.leaseRef, {
-        authorizationVectorSha256: 'b'.repeat(64),
+        authorizationFenceSha256: 'b'.repeat(64),
       }),
     ).resolves.toEqual({
       ok: false,
@@ -174,4 +206,55 @@ describe('provider authorization leases', () => {
       code: 'not_found',
     })
   })
+
+  it('renews across a routine credential-generation bump', async () => {
+    // A Google token refresh bumps credential_generation only. Fencing the
+    // lease on that member destroyed the open report within one renewal.
+    let current = authorizationVector()
+    const revalidate = vi.fn(async () => ({
+      allowed: true,
+      approvalBindingId: APPROVAL_ID,
+      authorizationFenceSha256: providerAuthorizationFenceSha256({
+        connectionLifecycleVersion: current.connectionLifecycleVersion as number,
+        connectionAccessVersion: current.connectionAccessVersion as number,
+        authorizationVector: current,
+      }),
+    }))
+    const { issue, renew, store } = setup(revalidate)
+    const issued = await issue()
+    if (!issued.ok) throw new Error('expected lease')
+
+    current = authorizationVector({ credentialGeneration: 8 })
+
+    await expect(
+      renew(issued.lease.leaseRef, {
+        authorizationFenceSha256: fenceOf({ credentialGeneration: 8 }),
+      }),
+    ).resolves.toMatchObject({ ok: true })
+    expect(await store.read('authorization-lease', STORE_KEY)).toBeDefined()
+  })
+
+  it.each([
+    ['connection lifecycle version', { connectionLifecycleVersion: 5 }],
+    ['connection access version', { connectionAccessVersion: 3 }],
+    ['execution policy version', { executionPolicyVersion: 12 }],
+    ['emergency kill version', { emergencyKillVersion: 2 }],
+  ])(
+    'removes the lease when the %s changes',
+    async (
+      _label,
+      override: Readonly<Record<string, ProviderAuthorizationVectorValue>>,
+    ) => {
+      const { issue, renew, store } = setup()
+      const issued = await issue()
+      if (!issued.ok) throw new Error('expected lease')
+
+      await expect(
+        renew(issued.lease.leaseRef, {
+          authorizationFenceSha256: fenceOf(override),
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+      expect(await store.read('authorization-lease', STORE_KEY)).toBeUndefined()
+    },
+  )
 })

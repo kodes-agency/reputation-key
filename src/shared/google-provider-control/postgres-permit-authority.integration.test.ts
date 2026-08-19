@@ -50,7 +50,8 @@ async function seedApproval(): Promise<void> {
         google_project_attestation_sha256, google_oauth_client_id_sha256,
         google_redirect_uri_sha256, provider_origin_profile_sha256,
         runtime_isolation_profile_version, runtime_isolation_profile_sha256,
-        performance_catalog_version, capability_policy_version,
+        performance_catalog_version, route_catalog_version,
+        capability_policy_version,
         execution_policy_version, migration_head, evidence_index, image_digests,
         role_approvals, approved_at, expires_at, status
       ) VALUES (
@@ -64,7 +65,7 @@ async function seedApproval(): Promise<void> {
         'release', 'manifest', 'index', 'deployment', 'adr',
         'google-content-live-1', 'google-oauth-oidc-1', 'project', 'client',
         'redirect', 'origins', 'google-content-egress-1', 'runtime',
-        '2026-08-05', 'beta-local-2', 'beta-local-2',
+        '2026-08-05', '2026-08-16', 'beta-local-2', 'beta-local-2',
         '0032_property-operation-receipts-expand', '{}'::jsonb, '{}'::jsonb,
         '{}'::jsonb, $2, $3, 'approved'
       ) ON CONFLICT (id) DO NOTHING`,

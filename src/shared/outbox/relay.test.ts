@@ -101,7 +101,7 @@ describe('outbox relay (BQC-3.7)', () => {
     expect(added).toHaveLength(2)
     for (const [i, call] of added.entries()) {
       expect(call.opts.jobId).toBe(events[i]!.id)
-      expect(call.opts.attempts).toBe(3)
+      expect(call.opts.attempts).toBe(8)
       expect(call.opts.backoff).toEqual({
         type: 'exponential',
         delay: 30_000,

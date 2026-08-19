@@ -74,11 +74,17 @@ export const dashboardKeys = {
     [
       ...dashboardKeys.all,
       'google-performance',
+
       propertyId,
       preset,
       catalogVersion,
       viewEpoch,
     ] as const,
+}
+export const aiKeys = {
+  all: ['ai'] as const,
+  propertyTrend: (propertyId: string) =>
+    [...aiKeys.all, 'property-trend', propertyId] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────
@@ -88,15 +94,6 @@ export const goalKeys = {
   list: (args: Readonly<Record<string, unknown>>) =>
     [...goalKeys.all, 'list', args] as const,
   detail: (goalId: string) => [...goalKeys.all, 'detail', goalId] as const,
-}
-
-// ── Leaderboard ──────────────────────────────────────────────────────────
-export const leaderboardKeys = {
-  all: ['leaderboard'] as const,
-  matrix: (args: Readonly<Record<string, unknown>>) =>
-    [...leaderboardKeys.all, 'matrix', args] as const,
-  board: (args: Readonly<Record<string, unknown>>) =>
-    [...leaderboardKeys.all, 'board', args] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────

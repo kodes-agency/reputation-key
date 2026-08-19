@@ -276,6 +276,28 @@ describe('gateJob — request building (stubbed policy)', () => {
     }
   })
 
+  it('binds a consent fence at the domain default source epoch of 0', () => {
+    // Source epoch is 0-based; only the capability epoch and state version are
+    // 1-based. Rejecting 0 here dropped the fence from the envelope for every
+    // freshly imported property (see drizzle/0060).
+    const fence = { ...CONSENT_FENCE, authorizedSourceEpoch: 0 }
+
+    expect(
+      createJobExecutionEnvelope({
+        organizationId: 'org-1',
+        propertyId: PROP,
+        capability: 'ai.generate_reply' as const,
+        initiator: { kind: 'user' as const, id: 'user-9' },
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: fence,
+        },
+      }),
+    ).toMatchObject({ consent: { expectedFence: fence } })
+  })
+
   it('forwards the flat content-free execution envelope', async () => {
     installStub()
     decideMock.mockResolvedValue(ALLOW)

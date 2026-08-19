@@ -82,6 +82,21 @@ export type GoogleContentAuthorityStore<Tx> = Readonly<{
   ): Promise<number>
   insertPermit(tx: Tx, record: GoogleContentPermitRecord): Promise<void>
   lockPermit(tx: Tx, id: string): Promise<GoogleContentPermitRecord | null>
+  /**
+   * Bounded oldest-first candidate scan for the start-deadline sweeper, scoped to
+   * the leading `capability` column of
+   * `authorization_execution_permits_active_idx`. Every candidate is re-locked
+   * and re-decided by `fenceElapsedStartDeadlinePermit`, so this predicate is
+   * selection only, never the fence authority.
+   */
+  listElapsedAdmittedPermitIds(
+    tx: Tx,
+    input: Readonly<{
+      capabilities: readonly GoogleContentCapability[]
+      before: Date
+      limit: number
+    }>,
+  ): Promise<readonly string[]>
   updatePermit(tx: Tx, permit: AuthorizationExecutionPermit): Promise<void>
   denyCapability(
     tx: Tx,
@@ -275,6 +290,7 @@ function sameRuntimeBinding(
           organizationId === expected.railwayClosedBetaCohort?.[index],
       )) &&
     actual.performanceCatalogVersion === expected.performanceCatalogVersion &&
+    actual.routeCatalogueVersion === expected.routeCatalogueVersion &&
     actual.capabilityPolicyVersion === expected.capabilityPolicyVersion &&
     actual.executionPolicyVersion === expected.executionPolicyVersion &&
     actual.migrationHead === expected.migrationHead &&

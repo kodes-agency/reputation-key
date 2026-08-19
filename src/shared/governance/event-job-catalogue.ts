@@ -276,6 +276,7 @@ const LEADERBOARD_HANDLERS =
   'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const PROPERTY_RETENTION_OUTBOX =
   'src/contexts/property/infrastructure/outbox-consumers.ts'
 const INTEGRATION_IMPORT_OUTBOX =
@@ -310,6 +311,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-review-created', INBOX_OUTBOX),
+        durable('ai.analyze-review-event', AI_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -329,7 +331,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.sync',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [durable('inbox.on-review-updated', INBOX_OUTBOX)],
+      consumers: [
+        durable('inbox.on-review-updated', INBOX_OUTBOX),
+        durable('ai.analyze-review-event', AI_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -348,13 +353,30 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.sync',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [durable('ai.analyze-review-event', AI_OUTBOX)],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'PR3',
       notes:
-        'identifier-only source_expired/provider_deleted transition with the exact source epoch, revision, and analysis sequence; PR3 consumes it into the AI control plane',
+        'identifier-only source_expired/provider_deleted transition consumed by the ordered AI review-analysis cursor',
+    },
+  ),
+  ev(
+    'ai.property_trend.generation_requested',
+    'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
+    {
+      stateOwner: 'ai',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('ai.generate-property-trend', AI_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'ai',
+      notes:
+        'identifier-only schedule request emitted atomically with a fenced property trend schedule',
     },
   ),
   ev(
@@ -1451,6 +1473,39 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'generate-property-ai-trend',
+    'src/contexts/ai/infrastructure/jobs/generate-property-trend.job.ts',
+    {
+      queue: 'default',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'exponential:30000',
+      notes:
+        'content-free coalesced property trend generation after durable review analysis',
+    },
+  ),
+  job(
+    'schedule-property-ai-trends',
+    'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
+    {
+      queue: 'background',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend_schedule',
+      schedule: 'every:60000',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'fixed:5000',
+      timeoutMs: 30_000,
+      notes:
+        'DB-fenced property-local calendar scheduler; scans at most 100 due properties per firing',
+    },
+  ),
+  job(
     'expire-review-provider-source',
     'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
     {
@@ -1671,6 +1726,39 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'BQC-7.8: dead-letter lifecycle bound — job.remove() per expired entry (never obliterate/clean), capped per run, evidence subject quarantine.ttl',
+    },
+  ),
+  job(
+    'permit-start-deadline-sweep',
+    'src/shared/jobs/permit-start-deadline-sweep.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:permit.start_deadline_fence',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 60_000,
+      notes:
+        'ADR 0050 execution-permit lifecycle: CASes admitted -> fenced past start_deadline_at via the domain helper fenceElapsedStartDeadlinePermit (never a raw UPDATE); bounded 200-row oldest-first batch per run; unblocks ON DELETE RESTRICT approval rotation and deflates the active-permit index',
+    },
+  ),
+  job(
+    'google-import-claim-reaper',
+    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    {
+      queue: 'background',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_claim_reap',
+      schedule: 'every:60000',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'fixed:5000',
+      timeoutMs: 60_000,
+      notes:
+        'claim-lease recovery: items still processing past claim_lease_expires_at are released via releaseClaimForRetry, or terminalized temporarily_unavailable once the attempt budget is spent — always through the store CAS helpers, never a raw UPDATE; bounded 100-row oldest-lease-first batch, so recovery is bounded by the 60s lease instead of the effect deadline',
     },
   ),
   job(

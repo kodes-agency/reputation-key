@@ -12,6 +12,7 @@ import {
   GOOGLE_CONTENT_POLICY_VERSION,
   GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
   GOOGLE_OAUTH_CONTRACT_VERSION,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRole,
   type GoogleContentApprovalRoleDocument,
@@ -124,6 +125,12 @@ const approvalBindingSchema = z
     railwayClosedBetaCohortSha256: sha256Schema.nullable(),
     railwayClosedBetaResidualRiskSha256: sha256Schema.nullable(),
     performanceCatalogVersion: z.literal(GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION),
+    // Pinned to the compiled catalogue: a route/metric/encoding/page-size/cap
+    // change bumps the constant, so a persisted approval row minted for the old
+    // catalogue no longer parses and the capability fails closed until
+    // re-approved with a freshly role-signed bundle
+    // (`pnpm ops:google-content-approval-sign`).
+    routeCatalogueVersion: z.literal(GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION),
     capabilityPolicyVersion: z.literal(GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION),
     executionPolicyVersion: z.literal(GOOGLE_CONTENT_EXECUTION_POLICY_VERSION),
     migrationHead: z.string().min(1).max(128),

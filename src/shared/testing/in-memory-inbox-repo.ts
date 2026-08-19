@@ -187,6 +187,7 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
         return {
           item,
           reviewText: 'Test review text',
+          reviewTranslatedText: null,
           reviewerProfilePhotoUrl: null,
           reviewContentStatus: 'available' as const,
           feedbackComment: null,
@@ -196,6 +197,7 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       return {
         item,
         reviewText: null,
+        reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: null,
         feedbackComment: 'Test feedback comment',

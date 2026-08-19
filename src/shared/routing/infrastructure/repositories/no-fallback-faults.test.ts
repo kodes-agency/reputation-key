@@ -43,12 +43,12 @@
 //       with a fresh attempt budget + redriveMetadata; with healthy
 //       dependencies the dispatch succeeds and the handler runs EXACTLY ONCE
 //       across the whole saga.
-//   (f) DENIED EUROPE PROPERTY (the §4.6 repeat) — a property with
-//       processing_region='europe' dispatches a sync job; the 4.2 gate
-//       quarantines it with policyReason 'routing_blocked:region_denied' and
-//       the handler NEVER runs; a redrive (as after a region approval)
-//       re-queues it, but with the region unchanged the SECOND dispatch
-//       blocks again — no silent override.
+//   (f) DENIED REGION PROPERTY (the §4.6 repeat) — a property whose
+//       processing_region has no target in CELL_TARGETS dispatches a sync job;
+//       the 4.2 gate quarantines it with policyReason
+//       'routing_blocked:region_denied' and the handler NEVER runs; a redrive
+//       (as after a region approval) re-queues it, but with the region
+//       unchanged the SECOND dispatch blocks again — no silent override.
 //
 // Determinism: relay polls and dispatch closures are invoked directly (never
 // interval-driven); lease expiry is simulated by backdating lease_expires_at
@@ -478,6 +478,7 @@ function makeReviewC(): Review {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
     expiresAt: new Date(NOW_C.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -513,6 +514,7 @@ function makeReplyC(): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: NOW_C,
     approvedAt: NOW_C,
     publishedAt: null,
@@ -802,12 +804,12 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
   })
 })
 
-// ── (f) Denied Europe property (the §4.6 repeat) ─────────────────────
+// ── (f) Denied (unrouted) region property (the §4.6 repeat) ──────────
 
 const ORG_F = 'org-bqc46-faults-ff000001'
 const PROP_EU = '4e000000-0000-0000-0000-000000000001'
 
-describe('(f) denied Europe property (BQC-4.6 repeat)', () => {
+describe('(f) denied region property (BQC-4.6 repeat)', () => {
   beforeAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
     await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
@@ -817,13 +819,15 @@ describe('(f) denied Europe property (BQC-4.6 repeat)', () => {
     `)
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Europe Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
+      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
     `)
+    // The approved cell serves us/europe/global; a region with no target in
+    // CELL_TARGETS is what must fail closed.
     await db.execute(sql`
       UPDATE properties
-      SET processing_region = 'europe', processing_region_source = 'country_default',
+      SET processing_region = 'ap-southeast-2', processing_region_source = 'country_default',
           routing_policy_version = 1, processing_region_resolved_at = NOW(),
-          country_code = 'DE', country_source = 'google_address'
+          country_code = 'AU', country_source = 'google_address'
       WHERE id = ${PROP_EU}
     `)
   })

@@ -130,7 +130,9 @@ export function isConsentSelectorBoundToScope(
       Number.isSafeInteger(fence.capabilityEpoch) &&
       fence.capabilityEpoch >= 1 &&
       Number.isSafeInteger(fence.authorizedSourceEpoch) &&
-      fence.authorizedSourceEpoch >= 1 &&
+      // 0-based source epoch (drizzle/0060); capabilityEpoch and stateVersion
+      // above are genuinely 1-based.
+      fence.authorizedSourceEpoch >= 0 &&
       Number.isSafeInteger(fence.stateVersion) &&
       fence.stateVersion >= 1 &&
       /^[0-9a-f]{64}$/.test(fence.noticeDigest) &&

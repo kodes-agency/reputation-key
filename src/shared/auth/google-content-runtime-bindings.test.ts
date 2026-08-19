@@ -28,6 +28,7 @@ function binding(
     railwayClosedBetaCohortSha256: null,
     railwayClosedBetaResidualRiskSha256: null,
     performanceCatalogVersion: '2026-08-05',
+    routeCatalogueVersion: '2026-08-16',
     capabilityPolicyVersion: 'beta-local-2',
     executionPolicyVersion: 'beta-local-2',
     migrationHead: '0032_property-operation-receipts-expand',
