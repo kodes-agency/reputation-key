@@ -9,6 +9,7 @@ import { gbpStubControl, type StubScope } from '../../fixtures/gbp-stub'
 import type { PropertyGooglePerformanceResultV1 } from '../../../src/shared/google-performance-report-contract'
 import {
   callServerFn,
+  callServerFnGet,
   cleanupE2eData,
   dbQuery,
   e2eRunId,
@@ -154,7 +155,7 @@ async function getPerformance(
   page: Parameters<typeof callServerFn>[0],
   propertyId: string,
 ): Promise<PropertyGooglePerformanceResultV1> {
-  return callServerFn<PropertyGooglePerformanceResultV1>(page, {
+  return callServerFnGet<PropertyGooglePerformanceResultV1>(page, {
     file: SERVER_FILE,
     exportName: 'getPropertyGooglePerformance',
     data: { propertyId, preset: '30d' },

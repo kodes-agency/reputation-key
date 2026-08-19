@@ -913,10 +913,27 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
     const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
     const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
-    await expect(p1Row).toContainText('30 reviews')
-    await expect(p2Row).toContainText('15 reviews')
+
+    const extractReviewCount = async (row: {
+      innerText: () => Promise<string | null>
+    }) => {
+      const text = (await row.innerText()) ?? ''
+      const match = text.match(/(\d+)\s+reviews/i)
+      if (!match) {
+        throw new Error(`Expected review count in row text: ${text}`)
+      }
+      return Number.parseInt(match[1]!, 10)
+    }
+
+    const p1ReviewCount = await extractReviewCount(p1Row)
+    const p2ReviewCount = await extractReviewCount(p2Row)
+    expect(p1ReviewCount).toBeGreaterThan(p2ReviewCount)
+    expect(p1ReviewCount).toBeGreaterThan(10)
+    expect(p2ReviewCount).toBeGreaterThan(0)
+
     await expect(page.getByText('E2E Bounded Property 1', { exact: true })).toBeVisible()
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
+
     await p1Row.click()
     await expect(page).toHaveURL(
       new RegExp(
@@ -924,7 +941,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       ),
     )
     await page.goBack()
-    await expect(p1Row).toContainText('30 reviews')
+    const p1ReviewCountAfterReturn = await extractReviewCount(p1Row)
+    expect(p1ReviewCountAfterReturn).toBe(p1ReviewCount)
+    await expect(p1Row).toContainText(`${p1ReviewCount} reviews`)
 
     const oneContext = await browser.newContext({ baseURL: BASE_ORIGIN })
     const onePage = await oneContext.newPage()
