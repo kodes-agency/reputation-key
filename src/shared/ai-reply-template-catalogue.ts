@@ -63,7 +63,7 @@ const templateLookupSchema = z
 const templateCatalogueSchema = z
   .object({
     version: z.literal(AI_REPLY_TEMPLATE_CATALOGUE_VERSION),
-    entries: z.array(templateEntrySchema).length(276),
+    entries: z.array(templateEntrySchema).length(288),
   })
   .strict()
 
@@ -155,8 +155,8 @@ export function parseAiReplyTemplateCatalogue(value: unknown): AiReplyTemplateCa
     }
   }
 
-  if (index !== parsed.entries.length || seen.size !== 276) {
-    throw new TypeError('reply template catalogue must contain exactly 276 unique tuples')
+  if (index !== parsed.entries.length || seen.size !== 288) {
+    throw new TypeError('reply template catalogue must contain exactly 288 unique tuples')
   }
   return freezeCatalogue(parsed)
 }
@@ -175,7 +175,7 @@ export const AI_REPLY_TEMPLATE_CATALOGUE_DIGEST = digestCatalogue(catalogue)
 export type AiReplyTemplateCatalogueBuildValidation = Readonly<{
   version: typeof AI_REPLY_TEMPLATE_CATALOGUE_VERSION
   digest: string
-  entryCount: 276
+  entryCount: 288
 }>
 
 export async function validateAiReplyTemplateCatalogueBuild(
@@ -210,7 +210,7 @@ export async function validateAiReplyTemplateCatalogueBuild(
   return Object.freeze({
     version: parsed.version,
     digest: digestCatalogue(parsed),
-    entryCount: 276 as const,
+    entryCount: 288 as const,
   })
 }
 

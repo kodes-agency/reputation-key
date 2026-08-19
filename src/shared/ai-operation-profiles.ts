@@ -22,7 +22,10 @@ import {
   AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
   AI_GATEWAY_BUILD_ATTESTATION_VERSION,
 } from '#/shared/ai-gateway-build-attestation'
-import { renderOpenAiStaticTokenBearingMaterial } from '#/shared/ai-openai-request-contract'
+import {
+  renderOpenAiStaticTokenBearingMaterial,
+  type AiReasoningEffortV1,
+} from '#/shared/ai-openai-request-contract'
 import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-source-profile'
 
 export {
@@ -147,6 +150,7 @@ export type AiOperationProfile = Readonly<{
   preparedRequestByteLimit: number
   responseByteLimit: number
   maxOutputTokens: number
+  reasoningEffort: AiReasoningEffortV1
   providerDeadlineMs: number
   requestDeadlineMs: number
   executionLeaseMs: number
@@ -239,7 +243,11 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     providerPayloadByteLimit: 16_384,
     preparedRequestByteLimit: 65_536,
     responseByteLimit: 131_072,
-    maxOutputTokens: 4_096,
+    // Measured at 'low' against the live deployment: 204 output tokens for a mixed
+    // 3-star review. The ceiling keeps ~5x headroom and bounds a runaway: output is
+    // a fixed set of enums, so it does not grow with review length.
+    maxOutputTokens: 1_024,
+    reasoningEffort: 'low',
     providerDeadlineMs: 60_000,
     requestDeadlineMs: 70_000,
     executionLeaseMs: 120_000,
@@ -268,7 +276,10 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     providerPayloadByteLimit: 16_384,
     preparedRequestByteLimit: 65_536,
     responseByteLimit: 131_072,
-    maxOutputTokens: 6_144,
+    // Measured at 'low': 80 output tokens. At 'xhigh' this same review consumed the
+    // whole 6144 budget on reasoning and returned an empty body.
+    maxOutputTokens: 1_024,
+    reasoningEffort: 'low',
     providerDeadlineMs: 60_000,
     requestDeadlineMs: 70_000,
     executionLeaseMs: 120_000,
@@ -297,7 +308,10 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     providerPayloadByteLimit: 65_536,
     preparedRequestByteLimit: 131_072,
     responseByteLimit: 131_072,
-    maxOutputTokens: 8_192,
+    // Measured at 'low': 203 output tokens for six candidate signals. Up to four IDs
+    // are returned, so this carries more headroom than the single-selection routes.
+    maxOutputTokens: 2_048,
+    reasoningEffort: 'low',
     providerDeadlineMs: 90_000,
     requestDeadlineMs: 100_000,
     executionLeaseMs: 150_000,
@@ -326,7 +340,16 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
     providerPayloadByteLimit: 16_384,
     preparedRequestByteLimit: 65_536,
     responseByteLimit: 131_072,
-    maxOutputTokens: 64,
+    // Reasoning tokens count toward output_tokens, so a 64-token ceiling could not
+    // fit an answer and the release gate failed with `output_invalid`. The ceiling
+    // was raised to absorb that; at 'low' the marker costs 39 tokens.
+    //
+    // The canary carries the SAME effort as the tenant routes deliberately. Its task
+    // is trivial enough to survive any setting, which is exactly how it stayed green
+    // while every real route truncated: a gate that does not share production's
+    // provider configuration cannot detect a provider-configuration fault.
+    maxOutputTokens: 512,
+    reasoningEffort: 'low',
     providerDeadlineMs: 60_000,
     requestDeadlineMs: 70_000,
     executionLeaseMs: 120_000,

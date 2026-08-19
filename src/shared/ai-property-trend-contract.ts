@@ -19,7 +19,6 @@ export type ClosedTrendSignalId =
       | 'location'
       | 'accessibility'
       | 'other'}.${'up' | 'down'}`
-  | `valence.overall.${'up' | 'down'}`
 
 export const CLOSED_TREND_SIGNAL_IDS = Object.freeze([
   'attention.high.down',
@@ -58,13 +57,18 @@ export const CLOSED_TREND_SIGNAL_IDS = Object.freeze([
   'sentiment.neutral.up',
   'sentiment.positive.down',
   'sentiment.positive.up',
-  'valence.overall.down',
-  'valence.overall.up',
 ] as const satisfies readonly ClosedTrendSignalId[])
 
+/**
+ * Property-local derivative aggregates for one seven-day window.
+ *
+ * There is deliberately NO mean-valence member. The model's `sentimentValence`
+ * is consumed only by the attention rule and is never persisted, so no honest
+ * per-window valence sum exists; a share-derived proxy under a mean-valence
+ * label would report a fabricated statistic (and would feed it to the provider).
+ */
 export type DeterministicAggregateWindow = Readonly<{
   reviewCount: number
-  valenceSum: number
   sentimentCounts: Readonly<{
     positive: number
     neutral: number
@@ -99,11 +103,30 @@ export type DeterministicTrendCandidate = Readonly<{
   currentDenominator: number
 }>
 
+export type AiPropertyTrendSource = Readonly<{
+  languageCode: 'en'
+  currentWindow: DeterministicAggregateWindow
+  baselineWindow: DeterministicAggregateWindow
+  candidates: readonly DeterministicTrendCandidate[]
+}>
+
+export function encodeCanonicalAiPropertyTrendSource(
+  source: AiPropertyTrendSource,
+): Uint8Array {
+  return new TextEncoder().encode(`\u0002${canonicalizeRfc8785(source)}`)
+}
+
 export type PropertyTrendRender = Readonly<{
   headline:
     | 'Review signals improved'
     | 'Review signals need attention'
     | 'Notable review changes'
+  /**
+   * Dominant polarity of the selected signals. `stable` means "no polarised
+   * signal was selected" (neutral-sentiment/category shifts are material but
+   * directionless) — never "no material change".
+   */
+  direction: 'improving' | 'stable' | 'declining'
   sentences: readonly string[]
   summary: string
 }>
@@ -143,7 +166,6 @@ const categoryCountsSchema = z
 const aggregateWindowSchema = z
   .object({
     reviewCount: nonnegativeSafeInteger,
-    valenceSum: safeInteger,
     sentimentCounts: sentimentCountsSchema,
     attentionCounts: attentionCountsSchema,
     categoryCounts: categoryCountsSchema,
@@ -176,7 +198,6 @@ function freezeWindow(
 ): DeterministicAggregateWindow {
   return Object.freeze({
     reviewCount: value.reviewCount,
-    valenceSum: value.valenceSum,
     sentimentCounts: Object.freeze({ ...value.sentimentCounts }),
     attentionCounts: Object.freeze({ ...value.attentionCounts }),
     categoryCounts: Object.freeze({ ...value.categoryCounts }),
@@ -198,10 +219,6 @@ export function validateDeterministicAggregateWindow(
   }
   if (sum(Object.values(parsed.categoryCounts)) !== reviewCount) {
     throw new TypeError('category counts must sum to reviewCount')
-  }
-  const valence = BigInt(parsed.valenceSum)
-  if (valence < -100n * reviewCount || valence > 100n * reviewCount) {
-    throw new TypeError('valenceSum is outside the aggregate reviewCount bounds')
   }
   return freezeWindow(parsed)
 }
@@ -273,31 +290,6 @@ function shareCandidate(
   }
 }
 
-function valenceCandidate(
-  baseline: DeterministicAggregateWindow,
-  current: DeterministicAggregateWindow,
-): ScoredCandidate | null {
-  const baselineCount = BigInt(baseline.reviewCount)
-  const currentCount = BigInt(current.reviewCount)
-  const delta =
-    BigInt(current.valenceSum) * baselineCount -
-    BigInt(baseline.valenceSum) * currentCount
-  if (delta === 0n) return null
-  const denominatorProduct = currentCount * baselineCount
-  if (absolute(delta) < 15n * denominatorProduct) return null
-  return {
-    candidate: Object.freeze({
-      id: `valence.overall.${direction(delta)}`,
-      baselineNumerator: baseline.valenceSum,
-      baselineDenominator: baseline.reviewCount,
-      currentNumerator: current.valenceSum,
-      currentDenominator: current.reviewCount,
-    }),
-    scoreNumerator: absolute(delta),
-    scoreDenominator: 15n * denominatorProduct,
-  }
-}
-
 const SENTIMENT_NAMES = ['positive', 'neutral', 'negative', 'mixed'] as const
 const ATTENTION_NAMES = ['urgent', 'high', 'medium', 'low'] as const
 const CATEGORY_NAMES = [
@@ -359,9 +351,6 @@ export function computeDeterministicTrendCandidates(
     })
     if (item !== null) scored.push(item)
   }
-  const valence = valenceCandidate(baseline, current)
-  if (valence !== null) scored.push(valence)
-
   scored.sort(compareScoredCandidates)
   return Object.freeze(scored.slice(0, 12).map(({ candidate }) => candidate))
 }
@@ -380,19 +369,7 @@ function validateCandidate(candidate: DeterministicTrendCandidate): ScoredCandid
     throw new TypeError('candidate direction does not match its exact rational delta')
   }
   const denominatorProduct = baselineDenominator * currentDenominator
-  if (candidate.id.startsWith('valence.')) {
-    if (
-      absolute(baselineNumerator) > 100n * baselineDenominator ||
-      absolute(currentNumerator) > 100n * currentDenominator ||
-      absolute(delta) < 15n * denominatorProduct
-    )
-      throw new TypeError('invalid valence candidate')
-    return {
-      candidate,
-      scoreNumerator: absolute(delta),
-      scoreDenominator: 15n * denominatorProduct,
-    }
-  }
+  // Every closed signal is a share signal: there is no mean-valence family.
   if (
     baselineNumerator < 0n ||
     currentNumerator < 0n ||
@@ -470,7 +447,6 @@ const FAVORABLE_SIGNALS: Readonly<Partial<Record<ClosedTrendSignalId, true>>> =
     'attention.high.down': true,
     'attention.medium.down': true,
     'attention.low.up': true,
-    'valence.overall.up': true,
   })
 const ATTENTION_SIGNALS: Readonly<Partial<Record<ClosedTrendSignalId, true>>> =
   Object.freeze({
@@ -481,7 +457,6 @@ const ATTENTION_SIGNALS: Readonly<Partial<Record<ClosedTrendSignalId, true>>> =
     'attention.high.up': true,
     'attention.medium.up': true,
     'attention.low.down': true,
-    'valence.overall.down': true,
   })
 
 const TREND_RENDER_MANIFEST = Object.freeze({
@@ -499,8 +474,7 @@ const TREND_RENDER_MANIFEST = Object.freeze({
     CLOSED_TREND_SIGNAL_IDS.filter((id) => ATTENTION_SIGNALS[id] === true),
   ),
   shareSentence: '{label} rose|fell from {baseline}% to {current}%',
-  valenceSentence:
-    'Average sentiment score improved|declined from {baseline} to {current}',
+  directionRule: 'leading-signal-polarity-then-majority-polarity-then-stable',
   rounding: 'half-away-from-zero-to-one-decimal',
   maximumSummaryCharactersExclusive: 600,
 })
@@ -517,14 +491,14 @@ const PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
   shareThresholdPercentagePoints: 10,
   categoryMinimumWindowShareNumerator: 1,
   categoryMinimumWindowShareDenominator: 10,
-  meanValenceThreshold: 15,
+  meanValenceSignal: 'removed-no-persisted-per-review-valence',
   maximumProviderCandidates: 12,
   selectionMinimum: 1,
   selectionMaximum: 4,
   selectionUnique: true,
   candidateOrdering: 'normalized-magnitude-descending-then-id-lexical',
   shareNormalizedMagnitude: 'absolute-share-delta-divided-by-10',
-  valenceNormalizedMagnitude: 'absolute-mean-delta-divided-by-15',
+  directionRule: 'leading-signal-polarity-then-majority-polarity-then-stable',
   selectionMustBeCandidate: true,
   renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
   renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
@@ -551,20 +525,6 @@ function roundRatioToOneDecimal(
 }
 
 function renderCandidate(candidate: DeterministicTrendCandidate): string {
-  if (candidate.id.startsWith('valence.')) {
-    const verb = candidate.id.endsWith('.up') ? 'improved' : 'declined'
-    const baseline = roundRatioToOneDecimal(
-      candidate.baselineNumerator,
-      candidate.baselineDenominator,
-      10n,
-    )
-    const current = roundRatioToOneDecimal(
-      candidate.currentNumerator,
-      candidate.currentDenominator,
-      10n,
-    )
-    return `Average sentiment score ${verb} from ${baseline} to ${current}`
-  }
   const [, name, directionValue] = candidate.id.split('.')
   const label = name === undefined ? undefined : LABEL_BY_SIGNAL_NAME[name]
   if (label === undefined || (directionValue !== 'up' && directionValue !== 'down')) {
@@ -599,15 +559,40 @@ export function renderPropertyTrendReport(
     if (candidate === undefined) throw new TypeError('selected signal is not renderable')
     return renderCandidate(candidate)
   })
-  const allFavorable = selectedSignalIds.every((id) => FAVORABLE_SIGNALS[id] === true)
-  const allAttention = selectedSignalIds.every((id) => ATTENTION_SIGNALS[id] === true)
+  const favorable = selectedSignalIds.filter(
+    (id) => FAVORABLE_SIGNALS[id] === true,
+  ).length
+  const adverse = selectedSignalIds.filter((id) => ATTENTION_SIGNALS[id] === true).length
+  const allFavorable = favorable === selectedSignalIds.length
+  const allAttention = adverse === selectedSignalIds.length
   const headline = allFavorable
     ? 'Review signals improved'
     : allAttention
       ? 'Review signals need attention'
       : 'Notable review changes'
+  // `direction` is the report's dominant polarity: the leading (first selected)
+  // signal decides when it is polarised, otherwise the polarised majority does.
+  // `stable` is reserved for a selection with NO polarised signal at all —
+  // neutral-sentiment and category shifts are material but directionless — so a
+  // mixed report of real improvements and regressions never reads as unchanged.
+  const leading = selectedSignalIds[0]!
+  const direction: PropertyTrendRender['direction'] =
+    FAVORABLE_SIGNALS[leading] === true
+      ? 'improving'
+      : ATTENTION_SIGNALS[leading] === true
+        ? 'declining'
+        : favorable > adverse
+          ? 'improving'
+          : adverse > favorable
+            ? 'declining'
+            : 'stable'
   const summary = `${sentences.join('. ')}.`
   if (summary.length >= 600)
     throw new TypeError('rendered trend summary exceeds 600 characters')
-  return Object.freeze({ headline, sentences: Object.freeze(sentences), summary })
+  return Object.freeze({
+    headline,
+    direction,
+    sentences: Object.freeze(sentences),
+    summary,
+  })
 }

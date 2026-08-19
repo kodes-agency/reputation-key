@@ -95,6 +95,12 @@ describe('shared AI gateway key inventory', () => {
     ).toThrow('forbidden on Railway')
     expect(() =>
       resolveAiGatewayRuntimeKeyInventory({
+        AI_KEY_INVENTORY_PROFILE: 'local-stack-v1',
+        RAILWAY_GIT_COMMIT_SHA: 'g'.repeat(40),
+      }),
+    ).toThrow('forbidden on Railway')
+    expect(() =>
+      resolveAiGatewayRuntimeKeyInventory({
         AI_KEY_INVENTORY_PROFILE: 'unknown',
       }),
     ).toThrow('profile is invalid')

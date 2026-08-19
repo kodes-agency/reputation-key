@@ -1656,6 +1656,78 @@
       "tone": "casual",
       "templateId": "acknowledge_concern",
       "text": "걱정하신 부분을 알려 주셔서 감사합니다. 이번 경험이 왜 답답하게 느껴졌는지 충분히 이해합니다."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_positive",
+      "text": "Благодарим ви, че споделихте този положителен отзив. Радваме се, че преживяването ви е било приятно."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "professional",
+      "templateId": "appreciation_neutral",
+      "text": "Благодарим ви, че споделихте своята гледна точка. Оценяваме времето, което отделихте, за да опишете своето преживяване."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "professional",
+      "templateId": "recovery_service",
+      "text": "Съжаляваме, че обслужването не отговори на очакванията ви. Вашият отзив е важен за нашия екип."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "professional",
+      "templateId": "acknowledge_concern",
+      "text": "Благодарим ви, че обяснихте своите притеснения. Разбираме, че това преживяване е било разочароващо."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_positive",
+      "text": "Благодарим ви за милия отзив. Много се радваме, че прекарахте приятно при нас."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "friendly",
+      "templateId": "appreciation_neutral",
+      "text": "Благодарим ви, че отделихте време да споделите преживяването си. Наистина оценяваме вашата обмислена обратна връзка."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "friendly",
+      "templateId": "recovery_service",
+      "text": "Съжаляваме, че обслужването не беше на нужното ниво. Благодарим ви, че ни помагате да разберем преживяването ви."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "friendly",
+      "templateId": "acknowledge_concern",
+      "text": "Благодарим ви, че споделихте откровено притесненията си. Разбираме защо преживяването ви е било разочароващо."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_positive",
+      "text": "Благодарим за чудесния отзив. Наистина се радваме, че ви беше приятно при нас."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "casual",
+      "templateId": "appreciation_neutral",
+      "text": "Благодарим, че споделихте какво се случи. Оценяваме честното ви мнение за преживяването."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "casual",
+      "templateId": "recovery_service",
+      "text": "Съжаляваме, че обслужването не беше каквото очаквахте. Отзивът ви ни дава ценна перспектива."
+    },
+    {
+      "templateGroup": "bg-Cyrl",
+      "tone": "casual",
+      "templateId": "acknowledge_concern",
+      "text": "Благодарим, че ни разказахте за притесненията си. Разбираме защо преживяването е било неприятно."
     }
   ]
 }

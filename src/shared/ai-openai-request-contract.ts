@@ -11,6 +11,27 @@ export const OPENAI_PROMPT_VERSIONS = Object.freeze({
   'synthetic-canary': 'synthetic-canary-prompt-v1',
 } as const)
 
+/**
+ * The reasoning ladder this deployment governs. Mirrored EXACTLY by the
+ * `ai_operation_profiles_reasoning_effort_valid` CHECK, so a value that typechecks
+ * is always storable — widening this set means widening that constraint too.
+ *
+ * Excluded on purpose:
+ * - `minimal`: the pinned model snapshot rejects it with 400 `Unsupported value`.
+ * - `xhigh` / `max`: measured against the live deployment, these exhaust the whole
+ *   output budget on reasoning and return an EMPTY body on every non-trivial route
+ *   (analysis 4096, trend 8192, reply 6144 tokens, all `max_output_tokens`
+ *   truncated). Re-admitting either requires new measurements, not a type edit.
+ */
+export const AI_REASONING_EFFORTS_V1 = Object.freeze([
+  'none',
+  'low',
+  'medium',
+  'high',
+] as const)
+
+export type AiReasoningEffortV1 = (typeof AI_REASONING_EFFORTS_V1)[number]
+
 export type AiGatewayRoute = AiAdmissionDescriptorV1['route']
 
 export type ClosedJsonSchemaFormat = Readonly<{
@@ -26,7 +47,7 @@ export type ClosedOpenAiRequest = Readonly<{
     Readonly<{ role: 'developer'; content: string }>,
     Readonly<{ role: 'user'; content: string }>,
   ]
-  reasoning: Readonly<{ effort: 'xhigh' }>
+  reasoning: Readonly<{ effort: AiReasoningEffortV1 }>
   text: Readonly<{ format: ClosedJsonSchemaFormat }>
   max_output_tokens: number
   safety_identifier: `rk1_${string}`
@@ -118,6 +139,7 @@ export function buildClosedOpenAiRequest(
     untrustedData: string
     format: ClosedJsonSchemaFormat
     maxOutputTokens: number
+    reasoningEffort: AiReasoningEffortV1
     safetyIdentifier: `rk1_${string}`
   }>,
 ): ClosedOpenAiRequest {
@@ -129,6 +151,7 @@ export function buildClosedOpenAiRequest(
     input.promptCacheShard > 15 ||
     !Number.isSafeInteger(input.maxOutputTokens) ||
     input.maxOutputTokens < 1 ||
+    !AI_REASONING_EFFORTS_V1.includes(input.reasoningEffort) ||
     !/^rk1_[A-Za-z0-9_-]{43}$/.test(input.safetyIdentifier) ||
     input.developerMessage.length === 0 ||
     input.untrustedData.length === 0
@@ -150,7 +173,7 @@ export function buildClosedOpenAiRequest(
       { role: 'developer', content: input.developerMessage },
       { role: 'user', content: input.untrustedData },
     ],
-    reasoning: { effort: 'xhigh' },
+    reasoning: { effort: input.reasoningEffort },
     text: { format: input.format },
     max_output_tokens: input.maxOutputTokens,
     safety_identifier: input.safetyIdentifier,

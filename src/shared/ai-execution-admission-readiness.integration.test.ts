@@ -1,3 +1,4 @@
+import { DEFAULT_TEST_DATABASE_URL } from './testing/test-environment'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { createPostgresAiAdmissionAuthority } from '../../services/ai-execution-admission/postgres-admission-authority'
@@ -5,8 +6,9 @@ import { createPostgresAiAdmissionAuthority } from '../../services/ai-execution-
 let pool: Pool
 
 beforeAll(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (!databaseUrl) throw new Error('TEST_DATABASE_URL is required')
+  const databaseUrl =
+    process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL
+  if (!databaseUrl) throw new Error('TEST_DATABASE_URL or DATABASE_URL is required')
   pool = new Pool({
     connectionString: databaseUrl,
     max: 4,

@@ -12,6 +12,7 @@ import {
   validateAiReplyTemplateCatalogueBuild,
 } from './ai-reply-template-catalogue'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
+import { isAiReviewLanguageRuntimeAvailable } from './ai-review-language-catalogue'
 
 const GROUPS = [
   'en-Latn',
@@ -37,12 +38,13 @@ const GROUPS = [
   'zh-Hant',
   'ja-Jpan',
   'ko-Kore',
+  'bg-Cyrl',
 ] as const
 
 const CLOSED_PLACEHOLDER = /\[(?:person|contact|address|financial|identifier|secret)\]/iu
 const SLOT_OR_URL = /[{}]|https?:|www\.|\S+@\S+/iu
 const CATALOGUE_DIGEST_GOLDEN =
-  'dc0e767cfe8aa4694e2b37870e1f9510fe1b56ed4eea0ed91af4655ea3404f33'
+  'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
 const CONTACT_OR_PROMISE_BY_GROUP: Readonly<Record<(typeof GROUPS)[number], RegExp>> = {
   'en-Latn': /\b(?:call|contact|email|phone|promise|guarantee|visit)\b/iu,
   'es-Latn': /\b(?:llame|contacte|correo|teléfono|prometemos|garantizamos|visite)\b/iu,
@@ -73,6 +75,8 @@ const CONTACT_OR_PROMISE_BY_GROUP: Readonly<Record<(typeof GROUPS)[number], RegE
   'zh-Hant': /(?:聯絡|電話|電子郵件|承諾|保證|造訪)/u,
   'ja-Jpan': /(?:連絡|電話|メール|約束|保証|訪問)/u,
   'ko-Kore': /(?:연락|전화|이메일|약속|보장|방문)/u,
+  'bg-Cyrl':
+    /(?:обадете се|свържете се|електронна поща|телефон|обещаваме|гарантираме|посетете)/iu,
 }
 
 function letterCount(value: string): number {
@@ -80,7 +84,7 @@ function letterCount(value: string): number {
 }
 
 describe('gbp-reply-template-catalogue-v1', () => {
-  it('contains the exact sorted 23 by 3 by 4 tuple product', () => {
+  it('contains the exact sorted 24 by 3 by 4 tuple product', () => {
     const catalogue = parseAiReplyTemplateCatalogue(rawCatalogue)
     const expected = GROUPS.flatMap((templateGroup) =>
       REPLY_TONES.flatMap((tone) =>
@@ -89,7 +93,7 @@ describe('gbp-reply-template-catalogue-v1', () => {
     )
 
     expect(catalogue.version).toBe(AI_REPLY_TEMPLATE_CATALOGUE_VERSION)
-    expect(catalogue.entries).toHaveLength(276)
+    expect(catalogue.entries).toHaveLength(288)
     expect(
       catalogue.entries.map(({ templateGroup, tone, templateId }) => ({
         templateGroup,
@@ -125,13 +129,17 @@ describe('gbp-reply-template-catalogue-v1', () => {
     }
   })
 
-  it('passes the exact leakage, language, script, and orthography validators for every entry', async () => {
-    await expect(validateAiReplyTemplateCatalogueBuild(rawCatalogue)).resolves.toEqual({
-      version: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-      digest: CATALOGUE_DIGEST_GOLDEN,
-      entryCount: 276,
-    })
-  }, 20_000)
+  it.runIf(isAiReviewLanguageRuntimeAvailable())(
+    'passes the exact leakage, language, script, and orthography validators for every entry',
+    async () => {
+      await expect(validateAiReplyTemplateCatalogueBuild(rawCatalogue)).resolves.toEqual({
+        version: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
+        digest: CATALOGUE_DIGEST_GOLDEN,
+        entryCount: 288,
+      })
+    },
+    20_000,
+  )
 
   it('resolves by the complete group, tone, and template ID tuple only', () => {
     const professional = resolveAiReplyTemplate({
@@ -156,6 +164,22 @@ describe('gbp-reply-template-catalogue-v1', () => {
         extra: true,
       } as never),
     ).toThrow(ZodError)
+  })
+
+  it('resolves all 12 bg-Cyrl tone and template ID tuples to distinct Bulgarian text', () => {
+    const resolved = REPLY_TONES.flatMap((tone) =>
+      REPLY_TEMPLATE_IDS.map((templateId) =>
+        resolveAiReplyTemplate({ templateGroup: 'bg-Cyrl', tone, templateId }),
+      ),
+    )
+
+    expect(resolved).toHaveLength(12)
+    expect(new Set(resolved).size).toBe(12)
+    for (const text of resolved) {
+      expect(letterCount(text)).toBeGreaterThanOrEqual(24)
+      expect(text).toMatch(/^[\p{Script=Cyrillic}\p{White_Space}\p{Punctuation}]+$/u)
+      expect(text).not.toMatch(CONTACT_OR_PROMISE_BY_GROUP['bg-Cyrl'])
+    }
   })
 
   it.each([

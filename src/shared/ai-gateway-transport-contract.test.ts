@@ -11,7 +11,10 @@ import {
 } from './ai-gateway-transport-contract'
 import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
 import { computeDeterministicTrendCandidates } from './ai-property-trend-contract'
-import { MERCHANT_AI_NOTICE_DIGEST } from './merchant-ai-notice-contract'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+} from './merchant-ai-notice-contract'
 
 const UUIDS = {
   operation: '10000000-0000-4000-8000-000000000001',
@@ -37,7 +40,7 @@ function analysisRequest(): ReviewAnalysisGatewayRequestV1 {
     actorId: null,
     binding: {
       authorizationLineageId: UUIDS.lineage,
-      noticeVersion: 'merchant-ai-notice-2026-08-15.v1',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
       sourceEpoch: 1,
@@ -115,7 +118,6 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
 
 const baselineWindow = {
   reviewCount: 10,
-  valenceSum: -200,
   sentimentCounts: { positive: 2, neutral: 4, negative: 3, mixed: 1 },
   attentionCounts: { urgent: 1, high: 2, medium: 3, low: 4 },
   categoryCounts: {
@@ -133,7 +135,6 @@ const baselineWindow = {
 } as const
 const currentWindow = {
   reviewCount: 10,
-  valenceSum: 500,
   sentimentCounts: { positive: 7, neutral: 1, negative: 1, mixed: 1 },
   attentionCounts: { urgent: 0, high: 1, medium: 2, low: 7 },
   categoryCounts: {
@@ -221,6 +222,36 @@ describe('AI gateway caller-wire contract', () => {
       'reply-suggestion': '/v1/reply-suggestion',
       'property-trend': '/v1/property-trend',
     })
+  })
+
+  // `properties.source_epoch` is 0-based (drizzle/0060). Every fixture in this
+  // file used `sourceEpoch: 1`, so `sourceEpoch: positive` on the binding survived
+  // here and rejected the reply request for a freshly imported property with
+  // `Too small: expected number to be >0` — a 500, after the operation identity
+  // and consent had already been fixed.
+  it('accepts the domain default source epoch of 0 on the binding', () => {
+    for (const request of [analysisRequest(), replyRequest()]) {
+      const atZero = { ...request, binding: { ...request.binding, sourceEpoch: 0 } }
+      expect(parseAiGatewayRouteRequest(atZero)).toEqual(atZero)
+    }
+  })
+
+  it('still rejects a negative source epoch and keeps the 1-based versions strict', () => {
+    const request = replyRequest()
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...request,
+        binding: { ...request.binding, sourceEpoch: -1 },
+      }),
+    ).toThrow(ZodError)
+    for (const field of ['propertyProfileVersion', 'routingPolicyVersion']) {
+      expect(() =>
+        parseAiGatewayRouteRequest({
+          ...request,
+          binding: { ...request.binding, [field]: 0 },
+        }),
+      ).toThrow(ZodError)
+    }
   })
 
   it('shares the admission-safe identifier grammar for organization, actor, and subject IDs', () => {

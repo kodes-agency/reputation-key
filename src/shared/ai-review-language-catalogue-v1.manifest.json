@@ -26,11 +26,12 @@
     "zh-Hans",
     "zh-Hant",
     "ja-Jpan",
-    "ko-Kore"
+    "ko-Kore",
+    "bg-Cyrl"
   ],
   "wrapper": {
     "path": "src/shared/ai-review-language-catalogue.ts",
-    "sha256": "aa09af7a5c535bd807e577172647fc0b62fb8290eb87a7414969dde4885588ad"
+    "sha256": "e82018df628b4a0058fb905e8cb89b272f308e1951b72b31c3c03d744e707c04"
   },
   "vectors": {
     "path": "src/shared/ai-review-language-v1.vectors.json",
@@ -54,5 +55,5 @@
       "sha256": "5dfcf15ae19579ec5b07a2db15bd7b0765cea01c37152871891f93e321ccad77"
     }
   },
-  "attestationDigest": "24a40ff70877122ece7c7db0dcbc35c5a882eda1d9accfe8cbd829715bafbc03"
+  "attestationDigest": "2229287cf869db0a5dbf64efc4f823e5a0f23f6da34a24b581585b06462bf1a5"
 }

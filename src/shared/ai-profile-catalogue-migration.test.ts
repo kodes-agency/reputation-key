@@ -95,6 +95,7 @@ const expectedOperationRows = AI_OPERATION_PROFILES.map((profile) => ({
   prepared_request_byte_limit: profile.preparedRequestByteLimit,
   response_byte_limit: profile.responseByteLimit,
   max_output_tokens: profile.maxOutputTokens,
+  reasoning_effort: profile.reasoningEffort,
   provider_deadline_ms: profile.providerDeadlineMs,
   request_deadline_ms: profile.requestDeadlineMs,
   execution_lease_ms: profile.executionLeaseMs,

@@ -18,7 +18,15 @@ export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
       content: 'one-redacted-or-aggregate-untrusted-data-block',
     }),
   ]),
-  reasoning: Object.freeze({ effort: 'xhigh' }),
+  // Per-route, exactly like `maxOutputTokens`: these are constrained-vocabulary
+  // selection tasks, and a single global `xhigh` made every real route exhaust its
+  // whole output budget on reasoning and return NOTHING (`incomplete_details.reason
+  // = max_output_tokens` -> empty output -> `output_invalid`). Measured against the
+  // live deployment: analysis 26s/4096 truncated, trend 55s/8192 truncated, reply
+  // 42s/6144 truncated, all empty; at 'low' the same inputs answer correctly in
+  // 1-2s. Only the synthetic canary survived `xhigh`, which is why the release gate
+  // stayed green while no tenant route had ever produced a result.
+  reasoning: Object.freeze({ effort: 'route-profile-effort' }),
   text: Object.freeze({ format: 'strict-zod-text-format' }),
   maxOutputTokens: 'route-profile-integer',
   safetyIdentifier: 'route-closed-rk1-v1',
@@ -64,7 +72,10 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 = Object.freeze({
   endpoint: 'https://api.openai.com/v1/responses',
   modelSnapshot: 'gpt-5.4-mini-2026-03-17',
   structuredOutputs: 'strict-json-schema',
-  reasoningEffort: 'xhigh',
+  // Delegated to the route profile. This sits among literal request parameters
+  // (`serviceTier`, `store`), so a fixed value here would be a false claim about
+  // what is actually sent now that each route governs its own effort.
+  reasoningEffort: 'route-profile-effort',
   serviceTier: 'default',
   promptCacheRetention: 'in_memory',
   promptCacheMode: 'automatic_prefix_16_shards',
@@ -185,7 +196,7 @@ const AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V1 = Object.freeze({
   region: 'global',
   provider: 'openai',
   modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-  reasoningEffort: 'xhigh',
+  reasoningEffort: 'route-profile-effort',
   serviceTier: 'default',
   store: false,
   responseApiVersion: 'responses-v1',

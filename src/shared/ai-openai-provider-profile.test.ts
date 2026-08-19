@@ -62,13 +62,13 @@ describe('OpenAI private-beta provider profile', () => {
     })
     expect(OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1).toMatchObject({
       modelSnapshot: 'gpt-5.4-mini-2026-03-17',
-      reasoningEffort: 'xhigh',
+      reasoningEffort: 'route-profile-effort',
       providerIdempotencyMode: 'none',
       abuseMonitoringRetention: 'generally-up-to-30-days-with-legal-safety-exceptions',
     })
     expect(OPENAI_REQUEST_SHAPE_V1).toMatchObject({
       model: 'gpt-5.4-mini-2026-03-17',
-      reasoning: { effort: 'xhigh' },
+      reasoning: { effort: 'route-profile-effort' },
       serviceTier: 'default',
       promptCacheRetention: 'in_memory',
       store: false,

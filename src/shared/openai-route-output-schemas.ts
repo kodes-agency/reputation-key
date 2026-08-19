@@ -34,9 +34,15 @@ export const AI_REPLY_TEMPLATE_IDS = Object.freeze([
 ] as const)
 
 // Anchored finite alternatives with bounded suffixes; no overlapping repetition.
+// This list is INDEPENDENT of REPLY_TEMPLATE_LANGUAGE_GROUPS and must stay in step
+// with it: it is what the model's `languageCode` is validated against, and it is
+// derived into the JSON Schema sent to OpenAI. Adding bg-Cyrl to the catalogue
+// without adding it here made the provider answer `bg-Cyrl` correctly and the
+// gateway reject it as `output_invalid`. Guarded by a test that walks every
+// catalogue group.
 export const CONCRETE_REPLY_LANGUAGE_PATTERN =
   // eslint-disable-next-line security/detect-unsafe-regex
-  /^(?:(?:en|es|fr|de|pt|it|nl|pl|tr|vi|id)-Latn|(?:uk|ru)-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|zh-(?:Hans|Hant)|ja-Jpan|ko-Kore)(?:-(?:[A-Z]{2}|[0-9]{3}))?$/
+  /^(?:(?:en|es|fr|de|pt|it|nl|pl|tr|vi|id)-Latn|(?:uk|ru|bg)-Cyrl|ar-Arab|he-Hebr|hi-Deva|bn-Beng|ta-Taml|th-Thai|zh-(?:Hans|Hant)|ja-Jpan|ko-Kore)(?:-(?:[A-Z]{2}|[0-9]{3}))?$/
 
 // Anchored finite controlled vocabulary; every branch has a fixed terminal suffix.
 export const TREND_SIGNAL_PATTERN =
@@ -85,7 +91,12 @@ export const AI_TREND_SELECTION_OUTPUT_SCHEMA = z
 
 export const AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA = z
   .object({
-    marker: z.literal('synthetic_canary_ok'),
+    // A single-value ENUM, not `z.literal`: literal derives JSON Schema
+    // `{ const: … }` with no `type`, and OpenAI Structured Outputs rejects the
+    // whole request with 400 `invalid_json_schema` ("schema must have a 'type'
+    // key"). That 400 surfaced as `output_invalid`, so the release canary could
+    // never pass and no AI capability could ever be un-killed.
+    marker: z.enum(['synthetic_canary_ok']),
   })
   .strict()
 

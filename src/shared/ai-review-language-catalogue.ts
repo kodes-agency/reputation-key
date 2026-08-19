@@ -33,6 +33,7 @@ export const REPLY_TEMPLATE_LANGUAGE_GROUPS = Object.freeze([
   'zh-Hant',
   'ja-Jpan',
   'ko-Kore',
+  'bg-Cyrl',
 ] as const)
 
 export const REVIEW_LANGUAGE_GROUPS = Object.freeze([

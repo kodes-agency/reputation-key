@@ -1,5 +1,14 @@
-import { describe, expect, it } from 'vitest'
-import { mapReviewLanguageMetadata } from './ai-review-language-catalogue'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  evaluateLanguageScriptConsistency,
+  lookupAiLetterScriptExtensions,
+} from './ai-language-script-consistency'
+import {
+  REPLY_TEMPLATE_LANGUAGE_GROUPS,
+  isReplyTemplateLanguageGroup,
+  mapReviewLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
+} from './ai-review-language-catalogue'
 import {
   AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
   type ReplyLanguageDetector,
@@ -48,6 +57,7 @@ const PRIMARY_CASES = [
   ['zh-TW', 'zh', '漢語龍馬'],
   ['ja-JP', 'ja', 'あ'],
   ['ko-KR', 'ko', '가'],
+  ['bg-BG', 'bg', 'ѝщъ'],
 ] as const
 
 describe.runIf(PINNED_LANGUAGE_RUNTIME)('reply-language-verifier-v1', () => {
@@ -232,3 +242,88 @@ describe.runIf(!PINNED_LANGUAGE_RUNTIME)(
     })
   },
 )
+
+const BULGARIAN_REVIEW_TEXT = 'Хотелът беше чист и уютен, а закуската беше много вкусна.'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+/**
+ * Runs on every runtime, including unpinned ones, so the bg-Cyrl wiring is covered
+ * where the ICU-fenced suites above skip. The pinned versions are simulated rather
+ * than required: the und-inference path exercised here reads no ICU locale data, only
+ * GROUP_BY_CLD3_PRIMARY and the generated Script_Extensions table.
+ */
+describe('bg-Cyrl reply language wiring', () => {
+  function simulatePinnedLanguageRuntime(): void {
+    vi.spyOn(process.versions, 'node', 'get').mockReturnValue('22.23.2')
+    vi.spyOn(process.versions, 'unicode', 'get').mockReturnValue('17.0')
+    vi.spyOn(process.versions, 'icu', 'get').mockReturnValue('78.2')
+  }
+
+  it('is the 24th reply template group and a canonical concrete tag', () => {
+    expect(REPLY_TEMPLATE_LANGUAGE_GROUPS).toContain('bg-Cyrl')
+    expect(isReplyTemplateLanguageGroup('bg-Cyrl')).toBe(true)
+    expect(parseCanonicalReplyLanguageTag('bg-Cyrl')).toEqual({
+      tag: 'bg-Cyrl',
+      templateGroup: 'bg-Cyrl',
+    })
+    expect(parseCanonicalReplyLanguageTag('bg-Cyrl-BG')).toEqual({
+      tag: 'bg-Cyrl-BG',
+      templateGroup: 'bg-Cyrl',
+    })
+  })
+
+  it('maps the cld3 primary bg to bg-Cyrl for real Bulgarian review text', () => {
+    simulatePinnedLanguageRuntime()
+    expect(mapReviewLanguageMetadata('und')).toMatchObject({
+      status: 'supported',
+      language: { tag: 'und', group: 'und' },
+    })
+    expect(
+      resolveConcreteReplyLanguage({
+        text: BULGARIAN_REVIEW_TEXT,
+        evaluatedLanguage: supported('und'),
+        detector: detector('bg'),
+      }),
+    ).toMatchObject({
+      status: 'resolved',
+      language: { tag: 'bg-Cyrl', templateGroup: 'bg-Cyrl' },
+    })
+  })
+
+  it('accepts Bulgarian Cyrillic script consistency including ѝ, щ, and ъ', () => {
+    simulatePinnedLanguageRuntime()
+    expect(BULGARIAN_REVIEW_TEXT).toMatch(/[ѝщъ]/u)
+    expect(
+      evaluateLanguageScriptConsistency(BULGARIAN_REVIEW_TEXT, 'bg-Cyrl'),
+    ).toMatchObject({
+      status: 'consistent',
+      letterCount: 46,
+      expectedScriptLetterCount: 46,
+    })
+    for (const scalar of [...'ѝщъ']) {
+      expect(lookupAiLetterScriptExtensions(scalar.codePointAt(0)!) & 2).toBe(2)
+    }
+  })
+
+  it('rejects a Bulgarian reply drafted in the wrong script or language', () => {
+    simulatePinnedLanguageRuntime()
+    const bulgarian = parseCanonicalReplyLanguageTag('bg-Cyrl')
+    if (bulgarian === null) throw new Error('bg-Cyrl must be a canonical tag')
+    expect(
+      verifyReplyLanguageOutput(BULGARIAN_REVIEW_TEXT, bulgarian, detector('bg')),
+    ).toEqual({ status: 'valid' })
+    expect(
+      verifyReplyLanguageOutput(BULGARIAN_REVIEW_TEXT, bulgarian, detector('ru')),
+    ).toEqual({ status: 'output_invalid' })
+    expect(
+      verifyReplyLanguageOutput(
+        'Thank you for sharing this thoughtful review',
+        bulgarian,
+        detector('bg'),
+      ),
+    ).toEqual({ status: 'output_invalid' })
+  })
+})

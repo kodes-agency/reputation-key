@@ -37,6 +37,7 @@ const GROUP_CASES = [
   ['zh-TW', 'zh-Hant-TW', 'zh-Hant'],
   ['ja-JP', 'ja-Jpan-JP', 'ja-Jpan'],
   ['ko-KR', 'ko-Kore-KR', 'ko-Kore'],
+  ['bg-BG', 'bg-Cyrl-BG', 'bg-Cyrl'],
 ] as const
 
 afterEach(() => {
@@ -45,10 +46,10 @@ afterEach(() => {
 })
 
 describe.runIf(PINNED_LANGUAGE_RUNTIME)('AI review language catalogue', () => {
-  it('contains und plus exactly the 23 ordered concrete groups', () => {
+  it('contains und plus exactly the 24 ordered concrete groups', () => {
     expect(REVIEW_LANGUAGE_GROUPS).toEqual(['und', ...REPLY_TEMPLATE_LANGUAGE_GROUPS])
-    expect(REPLY_TEMPLATE_LANGUAGE_GROUPS).toHaveLength(23)
-    expect(new Set(REVIEW_LANGUAGE_GROUPS).size).toBe(24)
+    expect(REPLY_TEMPLATE_LANGUAGE_GROUPS).toHaveLength(24)
+    expect(new Set(REVIEW_LANGUAGE_GROUPS).size).toBe(25)
     expect(LANGUAGE_CATALOGUE_DIGEST).toMatch(/^[a-f0-9]{64}$/)
   })
 

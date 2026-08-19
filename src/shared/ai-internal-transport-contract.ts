@@ -43,7 +43,15 @@ function hasOnlyUnicodeScalars(value: string): boolean {
   return true
 }
 
-function validateParsedJson(value: unknown): void {
+/**
+ * `safe-integers` is the internal-transport invariant: our own services encode
+ * every number as a safe integer, so anything fractional is a defect or an
+ * injection. `finite-numbers` is for third-party provider bodies, which
+ * legitimately echo fractional sampling parameters such as `top_p`.
+ */
+export type AiJsonNumberPolicy = 'safe-integers' | 'finite-numbers'
+
+function validateParsedJson(value: unknown, numbers: AiJsonNumberPolicy): void {
   let nodeCount = 0
   const visit = (entry: unknown, depth: number): void => {
     nodeCount += 1
@@ -55,7 +63,8 @@ function validateParsedJson(value: unknown): void {
       return
     }
     if (typeof entry === 'number') {
-      if (!Number.isFinite(entry) || !Number.isSafeInteger(entry)) fail()
+      if (!Number.isFinite(entry)) fail()
+      if (numbers === 'safe-integers' && !Number.isSafeInteger(entry)) fail()
       return
     }
     if (entry === null || typeof entry === 'boolean') return
@@ -260,6 +269,7 @@ export function parseStrictInternalJsonBytes<T>(
   bytes: Uint8Array,
   maxBytes: number,
   schema: z.ZodType<T>,
+  numbers: AiJsonNumberPolicy = 'safe-integers',
 ): T {
   if (
     !Number.isSafeInteger(maxBytes) ||
@@ -275,11 +285,100 @@ export function parseStrictInternalJsonBytes<T>(
     const raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
     scanStrictJson(raw)
     const value = JSON.parse(raw) as unknown
-    validateParsedJson(value)
+    validateParsedJson(value, numbers)
     return schema.parse(value)
   } catch {
     fail()
   }
+}
+
+/**
+ * Diagnostic twin of `parseStrictInternalJsonBytes`: names the first rule the
+ * bytes violate and the JSON path that violates it, instead of the opaque
+ * `fail()`. Operator and canary diagnostics only — never on a caller path.
+ */
+export function explainJsonBytesRejection(
+  bytes: Uint8Array,
+  maxBytes: number,
+  numbers: AiJsonNumberPolicy = 'safe-integers',
+): string {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 8 * 1024 * 1024) {
+    return `max_bytes:${maxBytes}`
+  }
+  if (bytes.byteLength < 1 || bytes.byteLength > maxBytes) {
+    return `byte_length:${bytes.byteLength}`
+  }
+  if (
+    bytes.byteLength >= 3 &&
+    bytes[0] === 0xef &&
+    bytes[1] === 0xbb &&
+    bytes[2] === 0xbf
+  ) {
+    return 'bom'
+  }
+  let raw: string
+  try {
+    raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return 'utf8'
+  }
+  let scan = 'scan:ok'
+  try {
+    scanStrictJson(raw)
+  } catch {
+    scan = 'scan:fail'
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw) as unknown
+  } catch {
+    return `${scan};parse:fail`
+  }
+  let violation = 'ok'
+  let nodeCount = 0
+  const visit = (entry: unknown, depth: number, path: string): boolean => {
+    nodeCount += 1
+    if (depth > AI_INTERNAL_JSON_MAX_DEPTH) {
+      violation = `depth:${path}`
+      return false
+    }
+    if (nodeCount > AI_INTERNAL_JSON_MAX_NODES) {
+      violation = `nodes:${path}`
+      return false
+    }
+    if (typeof entry === 'string') {
+      if (!hasOnlyUnicodeScalars(entry)) violation = `string_surrogate:${path}`
+      return violation === 'ok'
+    }
+    if (typeof entry === 'number') {
+      if (!Number.isFinite(entry)) violation = `number_not_finite:${path}`
+      else if (numbers === 'safe-integers' && !Number.isSafeInteger(entry)) {
+        violation = `number_not_integer:${path}=${String(entry)}`
+      }
+      return violation === 'ok'
+    }
+    if (entry === null || typeof entry === 'boolean') return true
+    if (Array.isArray(entry)) {
+      for (const [index, child] of entry.entries()) {
+        if (!visit(child, depth + 1, `${path}[${index}]`)) return false
+      }
+      return true
+    }
+    if (typeof entry !== 'object' || Object.getPrototypeOf(entry) !== Object.prototype) {
+      violation = `prototype:${path}`
+      return false
+    }
+    for (const [key, child] of Object.entries(entry)) {
+      if (!hasOnlyUnicodeScalars(key)) {
+        violation = `key_surrogate:${path}.${key.length}ch`
+        return false
+      }
+      if (!visit(child, depth + 1, `${path}.${key}`)) return false
+    }
+    return true
+  }
+  visit(parsed, 1, '$')
+  return `${scan};parse:ok;validate:${violation};nodes:${nodeCount}`
 }
 
 export function parseAiInternalJsonBytes<T>(
@@ -289,6 +388,22 @@ export function parseAiInternalJsonBytes<T>(
 ): T {
   if (maxBytes > AI_TREND_ROUTE_MAX_BYTES) fail()
   return parseStrictInternalJsonBytes(bytes, maxBytes, schema)
+}
+
+/**
+ * Provider response bodies get every internal rule — byte cap, fatal UTF-8, no
+ * BOM, strict scan, no duplicate keys, depth and node caps, unicode scalars —
+ * except integers-only: a provider legitimately echoes fractional sampling
+ * parameters (`top_p`), and rejecting those turned a valid 200 into
+ * `output_invalid`.
+ */
+export function parseAiProviderJsonBytes<T>(
+  bytes: Uint8Array,
+  maxBytes: number,
+  schema: z.ZodType<T>,
+): T {
+  if (maxBytes > AI_TREND_ROUTE_MAX_BYTES) fail()
+  return parseStrictInternalJsonBytes(bytes, maxBytes, schema, 'finite-numbers')
 }
 
 async function cancelBodyQuietly(body: ReadableStream<Uint8Array>): Promise<void> {
@@ -459,7 +574,9 @@ export const aiExecutionBindingSchema = z
     noticeVersion: safeId,
     noticeDigest: digest,
     capabilityFence: capabilityFenceSchema,
-    sourceEpoch: positive,
+    // 0-based source epoch (drizzle/0060): a never-edited property sits at 0.
+    // propertyProfileVersion and routingPolicyVersion below stay 1-based.
+    sourceEpoch: nonnegative,
     evaluatedLanguage: z.union([safeId, z.null()]),
     concreteReplyLanguage: z.union([concreteLanguageSchema, z.null()]),
     languageCatalogueDigest: nullableDigest,

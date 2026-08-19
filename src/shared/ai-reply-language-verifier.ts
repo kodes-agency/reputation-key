@@ -57,6 +57,7 @@ const GROUP_BY_CLD3_PRIMARY: Readonly<Record<string, ReplyTemplateLanguageGroup>
     id: 'id-Latn',
     ja: 'ja-Jpan',
     ko: 'ko-Kore',
+    bg: 'bg-Cyrl',
   })
 
 export type ReplyLanguageDetection = Readonly<{

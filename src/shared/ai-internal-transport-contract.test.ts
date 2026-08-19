@@ -2,11 +2,14 @@ import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createVersionedHmacKeyring } from './security/versioned-hmac-keyring'
+import { MERCHANT_AI_NOTICE_VERSION } from './merchant-ai-notice-contract'
 import {
   AI_INTERNAL_JSON_MAX_DEPTH,
   AI_INTERNAL_JSON_MAX_NODES,
   AI_INTERNAL_RESPONSE_MAX_BYTES,
+  explainJsonBytesRejection,
   parseAiInternalJsonBytes,
+  parseAiProviderJsonBytes,
   aiSettlementRequestSchema,
   aiSettlementReceiptSchema,
   parseAiAdmissionRequest,
@@ -58,7 +61,7 @@ function descriptor(): AiAdmissionDescriptorV1 {
     actorId: null,
     binding: {
       authorizationLineageId: UUIDS.lineage,
-      noticeVersion: 'merchant-ai-notice-2026-08-15',
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: SHA,
       capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
       sourceEpoch: 1,
@@ -147,6 +150,42 @@ describe('AI internal raw JSON transport', () => {
     expect(() =>
       parseAiInternalJsonBytes(Uint8Array.of(0xef, 0xbb, 0xbf, 0x7b, 0x7d), 64, schema),
     ).toThrow(/AI internal request is invalid/)
+  })
+
+  it('accepts fractional numbers for provider bodies only, keeping every other rule', () => {
+    const fractional = new TextEncoder().encode('{"top_p":0.98}')
+    expect(parseAiProviderJsonBytes(fractional, 128, z.unknown())).toEqual({
+      top_p: 0.98,
+    })
+    expect(() => parseAiInternalJsonBytes(fractional, 128, z.unknown())).toThrow(
+      /AI internal request is invalid/,
+    )
+    for (const raw of [
+      '{"top_p":0.98,"top_p":0.5}',
+      '{"top_p":0.98} null',
+      '{"value":"\\ud800"}',
+    ]) {
+      expect(() =>
+        parseAiProviderJsonBytes(new TextEncoder().encode(raw), 128, z.unknown()),
+      ).toThrow(/AI internal request is invalid/)
+    }
+    expect(() => parseAiProviderJsonBytes(fractional, 4, z.unknown())).toThrow(
+      /AI internal request is invalid/,
+    )
+  })
+
+  it('names the rejected rule and JSON path for the number policy in force', () => {
+    const fractional = new TextEncoder().encode('{"a":{"b":[1,0.98]}}')
+    expect(explainJsonBytesRejection(fractional, 128)).toBe(
+      'scan:ok;parse:ok;validate:number_not_integer:$.a.b[1]=0.98;nodes:5',
+    )
+    expect(explainJsonBytesRejection(fractional, 128, 'finite-numbers')).toBe(
+      'scan:ok;parse:ok;validate:ok;nodes:5',
+    )
+    expect(explainJsonBytesRejection(new TextEncoder().encode('{'), 128)).toBe(
+      'scan:fail;parse:fail',
+    )
+    expect(explainJsonBytesRejection(new Uint8Array(0), 128)).toBe('byte_length:0')
   })
 
   it('rejects trailing high, mid-string high, and lone low surrogates in raw JSON strings', () => {

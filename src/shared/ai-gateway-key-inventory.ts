@@ -2,9 +2,9 @@ import { createHash, createPublicKey, type KeyObject } from 'node:crypto'
 import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
 const ADMISSION_V1_PUBLIC_KEY_SPKI_SHA256 =
-  '09cf620c37dfe9862f3ffe6084d505922e2efdb90ee47a295ee28dafff88650a'
+  'a57e62482c9eb0e88df509cd9dddbd5f520ae85f77214d919878e3cdb531de5f'
 const PROVENANCE_V1_PUBLIC_KEY_SPKI_SHA256 =
-  '445d4ca0533e44e28ca4e849fd9d8f548b20d7f7815a9cf8b7a7806fce6270b6'
+  'dbc930d7982f42eeae818aff4d8a8096fcc4aa7f51ed32e18cc7d8b8834e6842'
 const LOCAL_ADMISSION_V1_PUBLIC_KEY_SPKI_SHA256 =
   '06e3fd8fda29bb60ab59557de61edb0aecdb231134be30e75b455f8e1b792fa9'
 const LOCAL_PROVENANCE_V1_PUBLIC_KEY_SPKI_SHA256 =
@@ -93,16 +93,19 @@ export function resolveAiGatewayKeyInventory(
   throw new Error('AI gateway key inventory profile is invalid')
 }
 
+function isRailwayHosted(
+  environment: Readonly<Record<string, string | undefined>>,
+): boolean {
+  return Object.entries(environment).some(
+    ([name, value]) => name.startsWith('RAILWAY_') && value !== undefined,
+  )
+}
+
 export function resolveAiGatewayRuntimeKeyInventory(
   environment: Readonly<Record<string, string | undefined>>,
 ): AiGatewayKeyInventory {
   const profile = environment.AI_KEY_INVENTORY_PROFILE
-  if (
-    profile === 'local-stack-v1' &&
-    Object.entries(environment).some(
-      ([name, value]) => name.startsWith('RAILWAY_') && value !== undefined,
-    )
-  ) {
+  if (profile === 'local-stack-v1' && isRailwayHosted(environment)) {
     throw new Error('AI local-stack key inventory is forbidden on Railway')
   }
   return resolveAiGatewayKeyInventory(profile)
@@ -158,6 +161,21 @@ export function assertAiAdmissionPublicKeyringInventory(
     ) {
       throw new Error('AI admission public keyring inventory is invalid')
     }
+  }
+}
+
+export function assertAiProvenancePublicKeyringInventory(
+  keys: ReadonlyMap<string, KeyObject>,
+  keyInventory: AiGatewayKeyInventory = AI_GATEWAY_KEY_INVENTORY_V1,
+): void {
+  const inventory = keyInventory.provenance
+  const key = keys.get(inventory.activeKid)
+  if (
+    keys.size !== 1 ||
+    !key ||
+    ed25519PublicKeyDigest(key) !== inventory.publicKeyDigest
+  ) {
+    throw new Error('AI provenance public keyring inventory is invalid')
   }
 }
 
