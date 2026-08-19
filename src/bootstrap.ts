@@ -22,6 +22,12 @@ import {
 import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-v2-contract'
 import {
+  createGoogleImportClaimReaperHandler,
+  JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
+} from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
+import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
+import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
+import {
   createSyncPropertyReviewsHandler,
   JOB_NAME as SYNC_REVIEWS_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
@@ -53,6 +59,14 @@ import {
   type ReviewProviderLifecycleSweepJobData,
 } from '#/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job'
 import { createReviewProviderSnapshotRepository } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import {
+  createGeneratePropertyTrendJobHandler,
+  GENERATE_PROPERTY_TREND_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
+import {
+  createSchedulePropertyTrendsJobHandler,
+  SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
@@ -165,6 +179,23 @@ export async function bootstrap(
   ) {
     throw new Error('Google import v2 processor dependencies are unavailable')
   }
+
+  // Claim-lease reaper for the job above. Registered under the same
+  // capability so its posture cannot drift from the work it recovers, and
+  // built from the container db directly: it only needs the import store's
+  // CAS helpers, no processor dependencies, so it stays available even when
+  // the item processor could not be constructed.
+  registerCapabilityGatedJob(
+    GOOGLE_IMPORT_CLAIM_REAPER_JOB,
+    'property.import_gbp_v2',
+    createGoogleImportClaimReaperHandler({
+      reap: createGoogleImportV2ClaimReaper({
+        store: createGoogleImportV2Store(container.db),
+        clock: container.clock,
+      }),
+    }),
+  )
+
   // ── Review provider-snapshot jobs ────────────────────────────────
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: container.useCases.runReviewProviderSnapshot,
@@ -309,6 +340,30 @@ export async function bootstrap(
     )
   })
   logger.info({ job: PUBLISH_REPLY_JOB_NAME }, 'registered publish-reply job handler')
+  const generatePropertyTrendHandler = createGeneratePropertyTrendJobHandler({
+    generatePropertyTrend: container.useCases.generatePropertyTrend,
+  })
+  registerCapabilityGatedJob(
+    GENERATE_PROPERTY_TREND_JOB_NAME,
+    'ai.detect_trends',
+    generatePropertyTrendHandler,
+  )
+  logger.info(
+    { job: GENERATE_PROPERTY_TREND_JOB_NAME },
+    'registered property AI trend job handler',
+  )
+  const schedulePropertyTrendsHandler = createSchedulePropertyTrendsJobHandler({
+    schedulePropertyTrends: container.useCases.schedulePropertyTrends,
+  })
+  registerCapabilityGatedJob(
+    SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
+    'ai.detect_trends',
+    schedulePropertyTrendsHandler,
+  )
+  logger.info(
+    { job: SCHEDULE_PROPERTY_TRENDS_JOB_NAME },
+    'registered property AI trend scheduler job handler',
+  )
 
   // ── Reconcile ambiguous reply publications (BQC-3.8) ──────────────
   // Sweep over replies whose Google send outcome was ambiguous on the final
@@ -391,6 +446,34 @@ export async function bootstrap(
     'registered quarantine TTL sweep job handler',
   )
 
+  // ── Execution-permit start-deadline fence (bounded, every 5 minutes) ──
+  // `admitted` permits are only fenced lazily by `startExecutionPermit` or by
+  // the emergency-kill drain, so an abandoned admission pins its ON DELETE
+  // RESTRICT approval binding and inflates the active-permit index forever.
+  // Registered unconditionally: an unconfigured/killed Google Content runtime is
+  // precisely when nothing will ever start those permits.
+  const {
+    createPermitStartDeadlineSweepHandler,
+    JOB_NAME: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+  } = await import('#/shared/jobs/permit-start-deadline-sweep.job')
+  const { createExecutionPermitStartDeadlineSweeper } =
+    await import('#/shared/auth/execution-permit-start-deadline-sweep')
+  const { createGoogleContentAuthorityRepository } =
+    await import('#/contexts/identity/infrastructure/repositories/google-content-authority.repository')
+  container.jobRegistry.register(
+    PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+    createPermitStartDeadlineSweepHandler({
+      sweep: createExecutionPermitStartDeadlineSweeper({
+        store: createGoogleContentAuthorityRepository(container.db),
+        clock: container.clock,
+      }),
+    }),
+  )
+  logger.info(
+    { job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME },
+    'registered permit start-deadline sweep job handler',
+  )
+
   // ── Activity log insertion job ────────────────────────────────────
   const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
     await import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job')
@@ -427,7 +510,12 @@ export async function bootstrap(
   const { createResendEmailAdapter } =
     await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
-  const notifUserLookup = createNotifUserLookup(container.db)
+  const { createPropertyGrantHolderLookup } =
+    await import('#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter')
+  const notifUserLookup = createNotifUserLookup(
+    container.db,
+    createPropertyGrantHolderLookup(container.db),
+  )
   const notifEmailSender = createResendEmailAdapter()
   const { getPool } = await import('#/shared/db/pool')
   const { createNotificationPropertyScopeResolver } =
@@ -436,6 +524,16 @@ export async function bootstrap(
   const authorizeUrgentNotification = createScheduledScopeAuthorizer(
     'system:notification.email_urgent',
   )
+  const { createJobExecutionEnvelope } =
+    await import('#/shared/jobs/delayed-execution-gate')
+  // The insert handler must be able to dispatch the immediate email itself:
+  // the queue row alone is inert, so an urgent notification would sit pending
+  // until a digest sweep. `notification.send_email` is org-gated at execution,
+  // so enqueuing here is safe even when a tenant has email disabled.
+  const { URGENT_EMAIL_JOB_NAME: URGENT_EMAIL_JOB } =
+    await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
+  const { jobEnqueueOptions: urgentEnqueueOptions } =
+    await import('#/shared/jobs/job-policy')
   const insertNotifHandler = createInsertNotificationHandler({
     notificationRepo: container.notificationRepo,
     emailRepo: container.notificationEmailRepo,
@@ -444,6 +542,24 @@ export async function bootstrap(
     idGen: () => notificationId(crypto.randomUUID()),
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
+    enqueueImmediateEmail: container.jobQueue
+      ? async (data) => {
+          await container.jobQueue!.add(
+            URGENT_EMAIL_JOB,
+            {
+              ...data,
+              ...createJobExecutionEnvelope({
+                organizationId: data.organizationId,
+                propertyId: data.propertyId,
+                capability: 'notification.send_email',
+                initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+                correlationId: `notification-email:${data.notificationEmailId}`,
+              }),
+            },
+            { ...urgentEnqueueOptions(URGENT_EMAIL_JOB) },
+          )
+        }
+      : undefined,
   })
   container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
     await insertNotifHandler(
@@ -485,8 +601,6 @@ export async function bootstrap(
 
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
-  const { createJobExecutionEnvelope } =
-    await import('#/shared/jobs/delayed-execution-gate')
   const digestHandler = createDigestNotificationJobHandler({
     pool: getPool(),
     emailRepo: container.notificationEmailRepo,

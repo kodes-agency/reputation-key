@@ -88,6 +88,7 @@
     "check:ai-governance-artifacts": "tsx scripts/generate-ai-governance-artifacts.ts --check",
     "check:ai-contract-attestations": "tsx scripts/check-ai-contract-attestations.ts",
     "check:security-headers": "node scripts/check-security-headers.mjs",
+    "check:language-verifier": "node scripts/check-runtime-language-verifier.mjs",
     "check:coverage": "node scripts/check-coverage.mjs",
     "check:changed-code": "node scripts/check-changed-code.mjs",
     "check:dependency-audit": "node scripts/check-dependency-audit.mjs",
@@ -110,10 +111,14 @@
     "ops:restore-preflight": "tsx scripts/ops/restore-preflight.ts",
     "ops:restore-verify": "tsx scripts/ops/restore-verify.ts",
     "ops:google-content-approval": "tsx scripts/ops/google-content-approval.ts",
+    "ops:google-content-approval-sign": "tsx scripts/ops/google-content-approval-sign.ts",
     "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts",
     "release:google-import-drill": "tsx scripts/local-stack/google-import-release-drill.ts",
     "ops:ai-canary": "tsx scripts/ops/ai-canary-authorization.ts",
-    "ops:ai-control": "tsx scripts/ops/ai-execution-control.ts"
+    "ops:ai-control": "tsx scripts/ops/ai-execution-control.ts",
+    "ops:permit-start-deadline-fence": "tsx scripts/ops/permit-start-deadline-backfill.ts",
+    "ops:property-capabilities": "tsx scripts/ops/property-capabilities.ts",
+    "ops:reparse-review-translations": "tsx scripts/ops/reparse-review-translations.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1039.0",

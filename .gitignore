@@ -78,3 +78,6 @@ e2e/.seed-state.json
 
 # Generated Docker Compose stack environments (mode 0600; removed on teardown)
 /.local-stack/
+
+# Operator-held approval role keystore and generated approval bundles
+.secrets/

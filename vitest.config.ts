@@ -60,7 +60,7 @@ export default defineConfig({
       // Count every included source file, not just the ones tests import —
       // an untested file must lower the baseline, not vanish from it.
       all: true,
-      include: ['src/**'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.ts',
         'src/**/*.test.tsx',

@@ -49,7 +49,10 @@ import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/ap
 import type { GoogleImportReferenceStore } from '#/contexts/integration/application/ports/google-import-reference-store.port'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
-import { createGoogleAuthorizedProviderExecutor } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
+import {
+  authorityAdmissionCode,
+  createGoogleAuthorizedProviderExecutor,
+} from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
 import { createOpaqueImportReferenceStore } from '#/contexts/integration/infrastructure/opaque-import-reference-store'
 import type { GoogleReviewCursorStore } from '#/contexts/integration/infrastructure/google-review-cursor-store'
 import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
@@ -57,8 +60,20 @@ import { createGoogleEgressGatewayHttpClient } from '../services/google-egress-g
 import {
   createInternalMtlsJsonTransport,
   loadInternalMtlsMaterial,
+  loadInternalMtlsMaterialFromBase64,
 } from '../services/internal-mtls'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import {
+  createPropertyCapabilityProvisioning,
+  type PropertyCapabilityProvisioning,
+} from '#/contexts/identity/application/use-cases/policy-admin'
+import {
+  getPropertyOrganizationId,
+  listOrganizationCapabilities,
+  listPropertyCapabilities,
+  listProvisionablePropertyIds,
+  provisionPropertyCapabilitiesFromOrganization,
+} from '#/contexts/identity/infrastructure/repositories/policy-state.repository'
 import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
 import {
   createGoogleContentRoleSignatureVerifier,
@@ -108,7 +123,7 @@ import {
   createProviderAuthorizationLeaseService,
   type ProviderAuthorizationLeaseService,
 } from '#/shared/provider-ephemeral/authorization-lease'
-import { providerAuthorizationVectorSha256 } from '#/shared/provider-ephemeral/authorization-binding'
+import { providerAuthorizationFenceSha256 } from '#/shared/provider-ephemeral/authorization-binding'
 import {
   validateProviderEphemeralRedisUrls,
   verifyProviderEphemeralRedisRuntime,
@@ -140,6 +155,19 @@ import { buildActivityContext } from '#/contexts/activity/build'
 import { buildNotificationContext } from '#/contexts/notification/build'
 import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { buildAiContext } from '#/contexts/ai/build'
+import { GENERATE_PROPERTY_TREND_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inference.port'
+import type { AiSubjectHmacPort } from '#/contexts/ai/application/ports/ai-subject-hmac.port'
+import { createAiGatewayAdapter } from '#/contexts/ai/infrastructure/adapters/ai-gateway.adapter'
+import { createAiSubjectHmacAdapter } from '#/contexts/ai/infrastructure/adapters/ai-subject-hmac.adapter'
+import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
+import {
+  assertAiAdmissionPublicKeyringInventory,
+  assertAiProvenancePublicKeyringInventory,
+  resolveAiGatewayRuntimeKeyInventory,
+} from '#/shared/ai-gateway-key-inventory'
+import { AI_INTERNAL_RESPONSE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
 import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
 
 // ── Infrastructure ─────────────────────────────────────────────────
@@ -299,9 +327,125 @@ export type ProviderOverrides = Readonly<{
   googlePerformancePrincipalKeys?: VersionedHmacKeyring
   /** Provider-ephemeral Performance lease service. */
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
+  /** AI egress inference adapter (deterministic tests/simulations). */
+  aiInference?: AiInferencePort
+  /** Worker-only keyed pseudonym authority for AI operations. */
+  aiSubjectHmac?: AiSubjectHmacPort
   /** Object storage adapter (portal context). */
   storage?: StoragePort
 }>
+
+function createAiRuntimeProviders(
+  input: Readonly<{
+    env: Env
+    enableJobs: boolean
+    inferenceOverride?: AiInferencePort
+    subjectHmacOverride?: AiSubjectHmacPort
+  }>,
+): Readonly<{
+  inference?: AiInferencePort
+  subjectHmac?: AiSubjectHmacPort
+  provenancePublicKeys?: ReturnType<typeof loadNamedEd25519PublicKeyring>
+}> {
+  const keyInventory = resolveAiGatewayRuntimeKeyInventory({
+    ...process.env,
+    AI_KEY_INVENTORY_PROFILE: input.env.AI_KEY_INVENTORY_PROFILE,
+  })
+  const gatewayConfig = [
+    input.env.AI_EGRESS_GATEWAY_ORIGIN,
+    input.env.AI_EGRESS_GATEWAY_SERVER_NAME,
+    input.env.AI_INTERNAL_MTLS_CA_B64,
+    input.env.AI_INTERNAL_MTLS_CERT_B64,
+    input.env.AI_INTERNAL_MTLS_KEY_B64,
+    input.env.AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON,
+  ] as const
+  const configured = gatewayConfig.filter((value): value is string => value !== undefined)
+  if (configured.length !== 0 && configured.length !== gatewayConfig.length) {
+    throw new Error('AI egress gateway transport configuration is incomplete')
+  }
+  if (!input.enableJobs && input.env.AI_SUBJECT_HMAC_KEYS !== undefined) {
+    throw new Error('AI subject HMAC authority is worker-only')
+  }
+
+  let inference = input.inferenceOverride
+  if (!inference && configured.length > 0) {
+    const [origin, serverName, ca, cert, key, publicKeysJson] = configured
+    const publicKeys = loadNamedEd25519PublicKeyring(
+      publicKeysJson,
+      [
+        keyInventory.admissionSigning.activeKid,
+        ...keyInventory.admissionSigning.retainedKids,
+      ],
+      keyInventory.admissionSigning.maximumConfiguredKeys,
+    )
+    assertAiAdmissionPublicKeyringInventory(publicKeys, keyInventory)
+    inference = createAiGatewayAdapter({
+      transport: createInternalMtlsJsonTransport({
+        origin,
+        serverName,
+        tls: loadInternalMtlsMaterialFromBase64({ ca, cert, key }),
+        peerIdentityPolicy: {
+          uri: 'spiffe://repkey.internal/ai-egress-gateway',
+          dnsName: serverName,
+          extendedKeyUsages: ['serverAuth', 'clientAuth'],
+        },
+        timeoutMs: 105_000,
+        maxResponseBytes: AI_INTERNAL_RESPONSE_MAX_BYTES,
+      }),
+      caller: input.enableJobs ? 'worker' : 'web',
+      admissionSettlementPublicKeys: publicKeys,
+    })
+  }
+
+  const provenancePublicKeys = input.env.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON
+    ? loadNamedEd25519PublicKeyring(
+        input.env.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON,
+        [keyInventory.provenance.activeKid],
+        keyInventory.provenance.maximumPrivateKeysPerProcess,
+      )
+    : undefined
+  if (provenancePublicKeys) {
+    assertAiProvenancePublicKeyringInventory(provenancePublicKeys, keyInventory)
+  } else if (!input.enableJobs && configured.length > 0) {
+    throw new Error('AI provenance public keyring is unavailable')
+  }
+
+  const subjectHmac =
+    input.subjectHmacOverride ??
+    (input.env.AI_SUBJECT_HMAC_KEYS
+      ? createAiSubjectHmacAdapter(input.env.AI_SUBJECT_HMAC_KEYS)
+      : undefined)
+  if (input.enableJobs && inference !== undefined && subjectHmac === undefined) {
+    throw new Error('AI worker subject HMAC authority is unavailable')
+  }
+  return Object.freeze({ inference, subjectHmac, provenancePublicKeys })
+}
+
+/**
+ * BQC-2.7 property capability provisioning, bound to identity's persistence.
+ *
+ * A property created by the Google import (and any property imported before
+ * this wiring existed) starts with an EMPTY property_capability set, and an
+ * empty set denies every non-core capability (`property_not_allowlisted`).
+ * This binding grants a property its organization's allowlist idempotently.
+ *
+ * Exported because scripts/ is wiring-only: ops:property-capabilities binds
+ * the same provisioning against the running container.
+ */
+export function bindPropertyCapabilityProvisioning(
+  db: Database,
+  refreshPolicy: () => Promise<void>,
+): PropertyCapabilityProvisioning {
+  return createPropertyCapabilityProvisioning({
+    listOrganizationCapabilities: (orgId) => listOrganizationCapabilities(db, orgId),
+    listPropertyCapabilities: (propId) => listPropertyCapabilities(db, propId),
+    getPropertyOrganizationId: (propId) => getPropertyOrganizationId(db, propId),
+    listProvisionablePropertyIds: (orgId) => listProvisionablePropertyIds(db, orgId),
+    provisionPropertyCapabilities: (input) =>
+      provisionPropertyCapabilitiesFromOrganization(db, input),
+    refreshPolicy,
+  })
+}
 
 // Accepted residual (BQC-5.2/BQC-5.7): per-dependency override pattern is
 // inherently branchy; extraction would scatter the wiring. Owner: BQC-5.2.
@@ -639,7 +783,7 @@ export function createContainer(options?: {
               return {
                 allowed: false,
                 approvalBindingId: null,
-                authorizationVectorSha256: null,
+                authorizationFenceSha256: null,
               }
             }
             try {
@@ -658,7 +802,7 @@ export function createContainer(options?: {
                 return {
                   allowed: false,
                   approvalBindingId: null,
-                  authorizationVectorSha256: null,
+                  authorizationFenceSha256: null,
                 }
               }
               const lifecycleVersion =
@@ -673,16 +817,15 @@ export function createContainer(options?: {
                 return {
                   allowed: false,
                   approvalBindingId: null,
-                  authorizationVectorSha256: null,
+                  authorizationFenceSha256: null,
                 }
               }
               return {
                 allowed: true,
                 approvalBindingId: result.approvalBindingId,
-                authorizationVectorSha256: providerAuthorizationVectorSha256({
+                authorizationFenceSha256: providerAuthorizationFenceSha256({
                   connectionLifecycleVersion: lifecycleVersion as number,
                   connectionAccessVersion: accessVersion as number,
-                  credentialGeneration: credentialGeneration as number,
                   authorizationVector: result.authorizationVector,
                 }),
               }
@@ -690,7 +833,7 @@ export function createContainer(options?: {
               return {
                 allowed: false,
                 approvalBindingId: null,
-                authorizationVectorSha256: null,
+                authorizationFenceSha256: null,
               }
             }
           },
@@ -869,7 +1012,7 @@ export function createContainer(options?: {
         })
         return result.ok
           ? { ok: true as const, permitId: result.permit.id }
-          : { ok: false as const, code: result.code }
+          : { ok: false as const, code: authorityAdmissionCode(result.code) }
       },
       gateway,
       logger,
@@ -973,6 +1116,14 @@ export function createContainer(options?: {
     projectIdentity: env.GOOGLE_CLIENT_ID,
   })
 
+  // BQC-2.7: the import grants every property it creates the capability
+  // allowlist its organization already holds — without it a freshly imported
+  // property denies every non-core capability until an operator repairs it.
+  const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
+    db,
+    identity.internal.refreshPolicyStore,
+  )
+
   const integration = buildIntegrationContext({
     db,
     events: eventBus,
@@ -980,6 +1131,8 @@ export function createContainer(options?: {
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.bindingApi,
+    provisionPropertyCapabilities:
+      propertyCapabilityProvisioning.provisionCreatedProperty,
     enqueueReviewSync: (data, options) =>
       review.internal.repos.queue.addSyncJob(data, options),
     logger: getLogger(),
@@ -1015,6 +1168,12 @@ export function createContainer(options?: {
     },
   })
 
+  const aiRuntime = createAiRuntimeProviders({
+    env,
+    enableJobs,
+    inferenceOverride: options?.providers?.aiInference,
+    subjectHmacOverride: options?.providers?.aiSubjectHmac,
+  })
   const review = buildReviewContext({
     db,
     events: eventBus,
@@ -1023,13 +1182,34 @@ export function createContainer(options?: {
     googleReviewApi: integration.internal.googleReviewApi,
     jobQueue: infra.jobQueue,
     logger: getLogger(),
-    // BQC-4.1: review sync asserts the property's region before any external
     // effect; the property context owns the routing fact (ADR 0048).
     propertyApi: property.publicApi,
     // BQC-4.2: stamp the content-free routing envelope at enqueue (telemetry;
     // the worker's dispatch-time routing gate re-resolves and decides).
     processingRouter,
     providerSubjectKeyring: reviewProviderSubjectKeyring,
+    aiReplyProvenancePublicKeys: aiRuntime.provenancePublicKeys,
+  })
+  const ai = buildAiContext({
+    db,
+    redis,
+    reviewSources: review.internal.aiReviewSource,
+    inference: aiRuntime.inference,
+    subjectHmac: aiRuntime.subjectHmac,
+    enqueuePropertyTrend: infra.jobQueue
+      ? async (scheduleId) => {
+          await infra.jobQueue!.add(
+            GENERATE_PROPERTY_TREND_JOB_NAME,
+            { scheduleId },
+            {
+              jobId: `ai-trend-${scheduleId}`,
+              ...jobEnqueueOptions(GENERATE_PROPERTY_TREND_JOB_NAME),
+              removeOnComplete: true,
+              removeOnFail: { count: 50 },
+            },
+          )
+        }
+      : undefined,
   })
 
   const inbox = buildInboxContext({
@@ -1041,6 +1221,24 @@ export function createContainer(options?: {
     // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
     // No per-context eligibility adapters remain (single rule, one owner).
     reviewLookup: review.publicApi,
+    aiInsights: {
+      readCurrentReviewAnalysis: async (request) => {
+        const current = await review.internal.repos.reviewRepo.findById(
+          request.reviewId,
+          request.organizationId,
+        )
+        if (!current || current.propertyId !== request.propertyId) {
+          return { status: 'none' } as const
+        }
+        return ai.publicApi.readReviewAnalysis({
+          ...request,
+          sourceEpoch: current.sourceEpoch,
+          sourceRevision: current.sourceRevision,
+          analysisSequence: current.analysisSequence,
+        })
+      },
+      findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
+    },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {
       feedback: guest.internal.repos.guestRepo,
@@ -1073,8 +1271,6 @@ export function createContainer(options?: {
     getLogger,
     portalGroupApi: portal.publicApi.portalGroup,
   })
-
-  const ai = buildAiContext({ db, redis })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
   // Dashboard never queries review/reply/metric tables directly. BQC-5.5:
@@ -1132,6 +1328,7 @@ export function createContainer(options?: {
     queue: infra.jobQueue,
     clock,
     logger,
+    propertyAccessHolders: identity.internal.propertyAccessHolders,
   })
 
   // ── Wire invitation acceptance lifecycle ─────────────────────────
@@ -1241,6 +1438,10 @@ export function createContainer(options?: {
       retryPublish: review.internal.useCases.retryPublish,
       reconcileReplyPublication: review.internal.useCases.reconcileReplyPublication,
       getStaffRecentActivity: review.internal.useCases.getStaffRecentActivity,
+      generateReplySuggestion: ai.publicApi.generateReplySuggestion,
+      generatePropertyTrend: ai.internal.generatePropertyTrend,
+      schedulePropertyTrends: ai.internal.schedulePropertyTrends,
+      readPropertyAiTrend: ai.publicApi.readPropertyTrend,
       ...inbox.internal.useCases,
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
@@ -1297,6 +1498,7 @@ export function createContainer(options?: {
       property.internal.registerOutboxConsumers()
       inbox.internal.registerOutboxConsumers()
       metricApi.internal.registerOutboxConsumers()
+      ai.internal.registerOutboxConsumers()
     },
     providerEphemeralRedis,
   } as const

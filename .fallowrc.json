@@ -32,7 +32,8 @@
     "@tanstack/start-server-core",
     "eslint-import-resolver-typescript",
     "shadcn",
-    "@tailwindcss/typography"
+    "@tailwindcss/typography",
+    "opencc-js"
   ],
   "ignoreExports": [
     { "file": "src/contexts/*/infrastructure/jobs/*.job.ts", "exports": ["JOB_NAME"] },

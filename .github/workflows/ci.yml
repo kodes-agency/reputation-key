@@ -184,6 +184,14 @@ jobs:
       - name: Security headers (booted artifact)
         run: pnpm check:security-headers
 
+      # Built-artifact gate for the pinned reply-language runtime: cld3-asm must
+      # stay external and still load + detect from inside .output/server. When
+      # it gets bundled, its emscripten loader throws `runtimeModule is not a
+      # function` and every reply suggestion 500s — invisible to the unit suite,
+      # which injects a fake detector.
+      - name: Reply-language runtime (built artifact)
+        run: pnpm check:language-verifier
+
       # BQC-6.8: client bundle budgets on the production output (main entry /
       # initial payload / lazy chunks — see scripts/check-bundle-budget.mjs).
       - name: Bundle budget

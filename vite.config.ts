@@ -29,13 +29,35 @@ const config = defineConfig(({ mode }) => {
   const isE2E = !!process.env.E2E
 
   return {
-    build: {
-      rollupOptions: {
-        output: {
-          // Vite 8 / Rolldown requires manualChunks as a function, not an object.
-          manualChunks(id) {
-            if (id.includes('node_modules/recharts')) return 'vendor-charts'
-            if (id.includes('node_modules/@dnd-kit')) return 'vendor-dnd'
+    environments: {
+      client: {
+        build: {
+          rolldownOptions: {
+            output: {
+              codeSplitting: {
+                groups: [
+                  {
+                    name: 'vendor-charts',
+                    test: /node_modules[\\/](?:recharts|d3-|victory-vendor)/,
+                    priority: 30,
+                  },
+                  {
+                    name: 'vendor-dnd',
+                    test: /node_modules[\\/]@dnd-kit/,
+                    priority: 30,
+                  },
+                  {
+                    name: 'app-shared',
+                    test: /[\\/]src[\\/](?:components|contexts)[\\/]/,
+                    priority: 10,
+                    minShareCount: 2,
+                    entriesAwareMergeThreshold: 4 * 1024,
+                    entriesAware: true,
+                    includeDependenciesRecursively: false,
+                  },
+                ],
+              },
+            },
           },
         },
       },
@@ -46,7 +68,14 @@ const config = defineConfig(({ mode }) => {
       ...(isBuild && !isStorybook
         ? [
             nitro({
-              rollupConfig: { external: [/^@sentry\//] },
+              // `cld3-asm` ships emscripten glue whose loader expects to be
+              // called as a CJS factory; bundling it produces
+              // `runtimeModule is not a function` at the first
+              // `loadModule()` — reply drafting's language verifier. The
+              // manifest pins the package by sha256 under `node_modules`
+              // (ai-reply-language-verifier-v1.manifest.json), so runtime
+              // resolution is the attested path, not a workaround.
+              rollupConfig: { external: [/^@sentry\//, /^cld3-asm(\/|$)/] },
               // serverDir scanning stays off (default false under TanStack
               // Start), so this explicit list is the ONLY plugin registration
               // path. Wired plugins (init order):
