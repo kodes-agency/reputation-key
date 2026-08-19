@@ -176,6 +176,16 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
+  readReplyStateRevision: async (organizationId, reviewId) => {
+    return trace('review.readReplyStateRevision', async () => {
+      const [row] = await db
+        .select({ replyStateRevision: reviews.replyStateRevision })
+        .from(reviews)
+        .where(and(eq(reviews.organizationId, organizationId), eq(reviews.id, reviewId)))
+        .limit(1)
+      return row?.replyStateRevision ?? 0
+    })
+  },
   readForAi: async (input): Promise<AiReviewSourceResult> => {
     return await trace('review.readForAi', async () => {
       try {

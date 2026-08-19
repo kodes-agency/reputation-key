@@ -13,7 +13,10 @@ import {
 import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
-import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
+import {
+  createDbUserLookupAdapter,
+  type PropertyAccessHolderLookup,
+} from './infrastructure/adapters/db-user-lookup.adapter'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
@@ -40,13 +43,19 @@ type BuildInput = Readonly<{
   queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort
+  /**
+   * Identity-owned lookup for users holding active access to a property.
+   * `property_access_grant` is authoritative for property-scoped recipients, so
+   * this is required: without it every property-scoped notification is dropped.
+   */
+  propertyAccessHolders: PropertyAccessHolderLookup
 }>
 
 export const buildNotificationContext = (input: BuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
-  const userLookup = createDbUserLookupAdapter(input.db)
+  const userLookup = createDbUserLookupAdapter(input.db, input.propertyAccessHolders)
   const inboxItemLookup = createInboxItemLookupAdapter(input.db)
 
   // Register event handlers that enqueue BullMQ jobs.

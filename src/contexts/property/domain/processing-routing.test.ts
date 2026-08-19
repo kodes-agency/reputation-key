@@ -10,6 +10,8 @@ import {
   ROUTING_POLICY_VERSION,
 } from './processing-routing'
 import { isPropertyError } from './errors'
+import { ROUTED_REGIONS } from '#/shared/routing/processing-router'
+import { ALL_PROCESSING_REGIONS } from '#/shared/domain/processing-profile'
 
 const NOW = new Date('2026-07-16T12:00:00Z')
 
@@ -94,6 +96,26 @@ describe('isRegionProcessable', () => {
   it('is false for unresolved or missing regions', () => {
     expect(isRegionProcessable('unresolved')).toBe(false)
     expect(isRegionProcessable(null)).toBe(false)
+  })
+})
+
+// The domain predicate and the router's target table are one decision written
+// twice. A region that is processable here but absent from CELL_TARGETS is
+// accepted at import time and then quarantined at dispatch with no terminal
+// state — a silent, unbounded retry loop. Keep them in lockstep.
+describe('processable regions vs routed regions (contract)', () => {
+  it('every processable region has a routing target', () => {
+    const unrouted = ALL_PROCESSING_REGIONS.filter(
+      (region) => isRegionProcessable(region) && !ROUTED_REGIONS.has(region),
+    )
+    expect(unrouted).toEqual([])
+  })
+
+  it('every routed region is processable', () => {
+    const unprocessable = [...ROUTED_REGIONS].filter(
+      (region) => !isRegionProcessable(region),
+    )
+    expect(unprocessable).toEqual([])
   })
 })
 

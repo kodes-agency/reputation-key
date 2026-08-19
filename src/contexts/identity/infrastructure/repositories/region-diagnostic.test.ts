@@ -55,6 +55,7 @@ const PROP_US = 'd4000000-0000-4000-8000-0000000000a1'
 const PROP_UNRESOLVED = 'd4000000-0000-4000-8000-0000000000a2'
 const PROP_EUROPE = 'd4000000-0000-4000-8000-0000000000a3'
 const PROP_GLOBAL = 'd4000000-0000-4000-8000-0000000000a4'
+const PROP_DENIED = 'd4000000-0000-4000-8000-0000000000a5'
 const PROP_MISSING = 'd4000000-0000-4000-8000-0000000000ff'
 
 const CELL = 'us'
@@ -153,6 +154,7 @@ beforeAll(async () => {
   await seedProperty(PROP_UNRESOLVED, 'unresolved', 'organization_default', 1)
   await seedProperty(PROP_EUROPE, 'europe', 'google_address', 1)
   await seedProperty(PROP_GLOBAL, 'global', 'manual', 3)
+  await seedProperty(PROP_DENIED, 'ap-southeast-2', 'manual', 1)
 })
 
 afterAll(async () => {
@@ -189,22 +191,32 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
     expect(unresolved.blockedReason).toBe('region_unresolved')
     expect(unresolved.processingRegionSource).toBe('organization_default')
 
+    // The single approved cell serves every processable region.
     const europe = await ops.getRegionDiagnostic({
       organizationId: ORG,
       propertyId: PROP_EUROPE,
       actorUserId: ADMIN,
     })
-    expect(europe.processable).toBe(false)
-    expect(europe.blockedReason).toBe('region_denied')
+    expect(europe.processable).toBe(true)
+    expect(europe.blockedReason).toBeNull()
 
     const globalProp = await ops.getRegionDiagnostic({
       organizationId: ORG,
       propertyId: PROP_GLOBAL,
       actorUserId: ADMIN,
     })
-    expect(globalProp.processable).toBe(false)
-    expect(globalProp.blockedReason).toBe('region_denied')
+    expect(globalProp.processable).toBe(true)
+    expect(globalProp.blockedReason).toBeNull()
     expect(globalProp.routingPolicyVersion).toBe(3)
+
+    // A region with no routing target still fails closed.
+    const denied = await ops.getRegionDiagnostic({
+      organizationId: ORG,
+      propertyId: PROP_DENIED,
+      actorUserId: ADMIN,
+    })
+    expect(denied.processable).toBe(false)
+    expect(denied.blockedReason).toBe('region_denied')
   })
 
   it('reports a missing property as property_missing', async () => {
@@ -233,8 +245,8 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
 
   it('writes a content-free operator audit outcome for every diagnostic read', async () => {
     const rows = await diagnosticAuditRows()
-    // One row per getRegionDiagnostic call above (5 reads).
-    expect(rows.length).toBeGreaterThanOrEqual(5)
+    // One row per getRegionDiagnostic call above (6 reads).
+    expect(rows.length).toBeGreaterThanOrEqual(6)
     for (const row of rows) {
       expect(row.actor_type).toBe('operator')
       expect(row.execution_kind).toBe('operator')
@@ -247,6 +259,7 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
     expect(byProperty).toContain(
       `${PROP_UNRESOLVED}:region diagnostic: region_unresolved`,
     )
-    expect(byProperty).toContain(`${PROP_EUROPE}:region diagnostic: region_denied`)
+    expect(byProperty).toContain(`${PROP_EUROPE}:region diagnostic: processable`)
+    expect(byProperty).toContain(`${PROP_DENIED}:region diagnostic: region_denied`)
   })
 })

@@ -201,6 +201,61 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       item: { claimFence: freshFence, attemptOrdinal: 1 },
     })
   })
+
+  // The claim-lease reaper's selection predicate. Equality is expired — the
+  // same boundary claimItem uses for takeover — so the reaper can never
+  // release a lease those paths still consider live, and a pending row is
+  // never selected even though its lease columns are null.
+  it('selects only processing items whose claim lease has elapsed', async () => {
+    await resetIntent()
+    const claimFence = '10000000-0000-4000-8000-00000000000a'
+    const leaseExpiresAt = new Date(NOW.getTime() + 60_000)
+
+    // Pending: no claim, so never a reaper candidate.
+    await expect(store.listStaleClaimItems(NOW, 100)).resolves.toEqual([])
+
+    await expect(
+      store.claimItem({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+        claimFence,
+        now: NOW,
+        leaseExpiresAt,
+      }),
+    ).resolves.toMatchObject({ kind: 'claimed' })
+
+    await expect(
+      store.listStaleClaimItems(new Date(leaseExpiresAt.getTime() - 1), 100),
+    ).resolves.toEqual([])
+    await expect(store.listStaleClaimItems(leaseExpiresAt, 100)).resolves.toEqual([
+      {
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        claimFence,
+        attemptOrdinal: 1,
+      },
+    ])
+
+    // Released through the CAS helper: the row is pending again and drops out.
+    await expect(
+      store.releaseClaimForRetry({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        claimFence,
+        now: leaseExpiresAt,
+      }),
+    ).resolves.toBe('released')
+    await expect(store.listStaleClaimItems(leaseExpiresAt, 100)).resolves.toEqual([])
+  })
+
+  it('rejects an out-of-range stale-claim sweep limit', async () => {
+    await expect(store.listStaleClaimItems(NOW, 0)).rejects.toThrow(/between 1 and 100/)
+    await expect(store.listStaleClaimItems(NOW, 101)).rejects.toThrow(/between 1 and 100/)
+  })
   it('atomically accepts and exactly replays one authorized manual retry', async () => {
     await resetIntent()
     await expect(

@@ -285,12 +285,16 @@ export type StartPropertyImportInput = Readonly<{
   confirmation: 'apply'
 }>
 
+/**
+ * No destination Property ID: the terminal write scrubs `destination_property_id`
+ * for every non-retryable item (see the routing-retention check in migration 0037),
+ * so an `imported`/`relinked` row can never carry one by the time progress is read.
+ */
 export type ImportProgressItemDto = Readonly<{
   itemId: string
   propertyName: string
   action: 'create' | 'relink'
   status: GbpImportItemStatus
-  propertyId: PropertyId | null
   outcomeCode: ImportOutcomeCode | null
   messageKey: `property_import.${GbpImportItemStatus | ImportOutcomeCode}`
   retryable: boolean

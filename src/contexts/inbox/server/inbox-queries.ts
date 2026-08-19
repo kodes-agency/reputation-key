@@ -46,6 +46,11 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                 platform: data.platform,
                 ratingMin: data.ratingMin,
                 ratingMax: data.ratingMax,
+                attention: data.attention
+                  ? Array.isArray(data.attention)
+                    ? data.attention
+                    : [data.attention]
+                  : undefined,
                 sourceDateFrom: data.sourceDateFrom,
                 sourceDateTo: data.sourceDateTo,
                 q: data.q,

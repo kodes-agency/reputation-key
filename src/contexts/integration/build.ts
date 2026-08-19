@@ -93,6 +93,56 @@ import {
   createUnavailableGoogleReviewCursorStore,
   type GoogleReviewCursorStore,
 } from './infrastructure/google-review-cursor-store'
+import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
+
+/**
+ * ADR 0050 §10: the live Google Performance path may not depend on a write
+ * repository, a queue/job, a server cache, or Metric. This array is the machine-
+ * readable statement of what the real wiring below actually injects into
+ * `createGetPropertyGooglePerformance` (see the block that assigns
+ * `getPropertyGooglePerformance`) — one entry per injected dependency, naming
+ * the property it is injected as and the module specifier it comes from.
+ *
+ * `src/shared/architecture/google-performance-live-boundary.test.ts` asserts
+ * `validateGooglePerformanceLiveDependencies` over this array AND parses the
+ * real call site to require the injected property names to match `injectedAs`
+ * exactly, so a new injected dependency cannot be added without appearing here
+ * (and therefore without facing the validator). The same test walks the use
+ * case's transitive runtime module graph against the forbidden module paths, so
+ * a forbidden dependency reached indirectly also fails.
+ */
+export type GooglePerformanceWiringDescriptor = GooglePerformanceDependencyDescriptor &
+  Readonly<{ injectedAs: string }>
+
+export const GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS: readonly GooglePerformanceWiringDescriptor[] =
+  Object.freeze([
+    // Interactive authorization seam (ExecutionPolicy + Google Content authority
+    // + property binding read); no durable Performance write.
+    Object.freeze({
+      injectedAs: 'authorize',
+      kind: 'execution_policy',
+      modulePath: '#/contexts/integration/application/google-performance-authorizer',
+    }),
+    // Request-lifetime provider read adapter. It is under infrastructure/ but is
+    // an adapter, not a repositories/jobs/queues/cache module.
+    Object.freeze({
+      injectedAs: 'fetchReport',
+      kind: 'google_performance_source',
+      modulePath:
+        '#/contexts/integration/infrastructure/adapters/google-performance.adapter',
+    }),
+    Object.freeze({
+      injectedAs: 'issueLease',
+      kind: 'provider_content_lease',
+      modulePath: '#/shared/provider-ephemeral/authorization-lease',
+    }),
+    Object.freeze({
+      injectedAs: 'clock',
+      kind: 'clock',
+      modulePath: '#/shared/domain/clock',
+    }),
+  ])
+
 function sameAuthorizationVectorExceptCredentialGeneration(
   left: Readonly<Record<string, string | number | boolean | null>>,
   right: Readonly<Record<string, string | number | boolean | null>>,
@@ -117,6 +167,15 @@ type IntegrationContextDeps = Readonly<{
   propertyApi: PropertyPublicApi
   propertyBindingApi?: PropertyGoogleBindingPublicApi
   enqueueReviewSync?: ReviewQueuePort['addSyncJob']
+  /** BQC-2.7: grants a newly imported property its organization's capability
+   * allowlist (identity-owned, idempotent). Absent = no provisioning. */
+  provisionPropertyCapabilities?: (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      createdBy: string
+    }>,
+  ) => Promise<void>
   logger: LoggerPort
   /** BQC-1.7: bounded lifecycle purge of a revoked connection's source
    * content. Constructed once by the composition root (the only layer that
@@ -261,6 +320,14 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   if (!deps.jobQueue) throw new Error('jobQueue required')
   const jobQueue = deps.jobQueue
 
+  // One import request fans out up to 100 item jobs in a single addBulk, so
+  // the queue depth is intentionally far above what the pool can execute at
+  // once. Safety comes from the worker side, not from throttling here:
+  // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max
+  // (see #/shared/jobs/worker), because each item holds its fenced
+  // `FOR UPDATE` transaction while the nested Property effect opens a second
+  // one. If that budget is ever violated, every worker slot holds a client
+  // and the nested acquisitions deadlock until connectionTimeoutMillis.
   const googleImportV2Queue: GoogleImportV2QueuePort = {
     addImportItemJobs: async (jobs) => {
       if (jobs.length === 0) return
@@ -469,9 +536,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       propertyBindingApi,
       authorizeGoogleImportCommand,
       enqueueReviewSync: deps.enqueueReviewSync,
+      provisionPropertyCapabilities: deps.provisionPropertyCapabilities,
       resolveActor: resolveActiveMember,
       clock: deps.clock,
       newClaimFence: randomUUID,
+      logger: deps.logger,
     })
     if (googleImportProviderExecutor && deps.googleImportReferences) {
       googleImportDiscovery = createGoogleImportDiscovery({
@@ -501,6 +570,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           nowMs: () => deps.clock().getTime(),
         }),
         nowMs: () => deps.clock().getTime(),
+        logger: deps.logger,
       })
     }
     if (deps.googleImportReferences && deps.googleImportReplayKeys) {
@@ -602,6 +672,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       executor: performanceProviderExecutor,
       nowMs: () => deps.clock().getTime(),
     })
+    // ADR 0050 §10 live boundary. Every property injected here MUST have a
+    // matching entry in GOOGLE_PERFORMANCE_LIVE_DEPENDENCY_DESCRIPTORS above;
+    // the architecture test parses this call and fails on any drift.
     getPropertyGooglePerformance = createGetPropertyGooglePerformance({
       authorize,
       fetchReport: (input, actor, snapshot, accessToken) =>
@@ -626,7 +699,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           approvalBindingId: snapshot.approvalBindingId,
           principalHmacKeyVersion: snapshot.principalHmacKeyVersion,
           principalHmac: snapshot.principalHmac,
-          authorizationVectorSha256: snapshot.authorizationVectorSha256,
+          authorizationFenceSha256: snapshot.authorizationFenceSha256,
           absoluteDeadlineMs,
           nowMs,
         }),

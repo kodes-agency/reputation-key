@@ -18,6 +18,7 @@ import type {
 } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyProcessingScopePublicApi } from '#/contexts/property/application/public-api'
+import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createServingStats } from './infrastructure/serving-stats'
@@ -26,6 +27,7 @@ import { createAtomicReviewCommandStore } from './infrastructure/review-command-
 import { createAtomicReplyCommandStore } from './infrastructure/reply-command-store'
 import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
 import { createAiReviewSource } from './application/ai-review-source'
+import { createAiSuggestedDraftStore } from './infrastructure/ai-suggested-draft-store'
 import {
   createReviewProviderSubjectKeyService,
   createUnavailableReviewProviderSubjectKeyService,
@@ -84,6 +86,8 @@ export type ReviewContextBuildInput = Readonly<{
   processingRouter?: ProcessingRouter
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
+  /** Web-side verification keys for browser-held AI reply suggestions. */
+  aiReplyProvenancePublicKeys?: AiReplyProvenancePublicKeyring
 }>
 
 export type ReviewContextApi = Readonly<{
@@ -257,6 +261,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     reviewRepo,
     queue: replyQueue,
     commandStore: replyCommandStore,
+    aiSuggestedDraftStore: input.aiReplyProvenancePublicKeys
+      ? createAiSuggestedDraftStore(input.db, input.aiReplyProvenancePublicKeys)
+      : undefined,
     googleReviewApi: input.googleReviewApi,
     clock: input.clock,
     idGen: () => replyId(crypto.randomUUID()),
@@ -333,6 +340,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       aiReviewSource: createAiReviewSource({
         readForAi: reviewRepo.readForAi,
         assertCurrentForAi: reviewRepo.assertCurrentForAi,
+        readReplyStateRevision: reviewRepo.readReplyStateRevision,
       }),
       providerSubjectKeys,
     },

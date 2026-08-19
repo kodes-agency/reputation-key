@@ -24,6 +24,7 @@ const sampleRow: ReviewRow = {
   reviewerProfilePhotoUrl: 'https://example.com/photo.jpg',
   rating: 5,
   text: 'Great place!',
+  translatedText: null,
   languageCode: 'en',
   reviewedAt,
   expiresAt,
@@ -41,6 +42,7 @@ const sampleRow: ReviewRow = {
   analysisSequence: 11,
   aiSourceByteLength: 32,
   aiSourceDigest: 'a'.repeat(64),
+  replyStateRevision: 0,
   createdAt: now,
   updatedAt: now,
 }
@@ -97,6 +99,24 @@ describe('reviewFromRow', () => {
     expect(review.languageCode).toBeNull()
     expect(review.sentimentLabel).toBeNull()
     expect(review.sentimentScore).toBeNull()
+  })
+
+  it('carries the stored Google translation in both directions', () => {
+    // `text` holds the guest's original words; the machine translation is a
+    // separate column so the review display can show both without ever feeding
+    // the translation to language detection.
+    const row: ReviewRow = { ...sampleRow, text: 'Ок', translatedText: 'Ok' }
+
+    const review = reviewFromRow(row)
+    expect(review.text).toBe('Ок')
+    expect(review.translatedText).toBe('Ok')
+    expect(reviewToRow(review).translatedText).toBe('Ok')
+  })
+
+  it('keeps a missing translation null in both directions', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(review.translatedText).toBeNull()
+    expect(reviewToRow(review).translatedText).toBeNull()
   })
 
   it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {

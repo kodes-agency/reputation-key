@@ -63,6 +63,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: NOW,
@@ -99,6 +100,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
@@ -250,6 +252,12 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       replyToReview: vi.fn(async () => {}),
     } as unknown as GoogleReviewApiPort,
     commandStore: undefined as unknown as ReplyCommandStore,
+    aiSuggestedDraftStore: {
+      accept: vi.fn(async () => {
+        throw new Error('accept is not configured for this test')
+      }),
+      assertCurrentBinding: vi.fn(async () => 'current' as const),
+    },
     clock: () => NOW,
     idGen: () => REPLY_ID,
     staffPublicApi: makeStaffApi(null),
@@ -301,6 +309,96 @@ describe('draftReply', () => {
     )
     expect(result.text).toBe('Updated reply')
     expect(result.status).toBe('draft')
+  })
+
+  it('clears AI attribution when the manager edits without provenance', async () => {
+    const existing = makeReply({ status: 'draft', aiGenerated: true })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => existing),
+      } as unknown as ReplyRepository,
+    })
+
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Manager-edited reply' },
+      MANAGER_CTX,
+    )
+
+    expect(result.aiGenerated).toBe(false)
+    expect(deps.replyRepo.conditionalUpdate).toHaveBeenCalledWith(
+      REPLY_ID,
+      ORG_ID,
+      ['draft'],
+      expect.objectContaining({ aiGenerated: false }),
+      NOW,
+    )
+  })
+
+  it('accepts an AI suggestion only through the atomic provenance store', async () => {
+    const acceptedReply = makeReply({
+      text: 'Suggested reply',
+      aiGenerated: true,
+      stateRevision: 2,
+    })
+    const accept = vi.fn(async () => ({
+      status: 'accepted' as const,
+      reply: acceptedReply,
+    }))
+    const deps = makeDeps({
+      aiSuggestedDraftStore: {
+        accept,
+        assertCurrentBinding: vi.fn(async () => 'current' as const),
+      },
+    })
+
+    const result = await draftReply(deps)(
+      {
+        reviewId: REVIEW_ID,
+        text: 'Suggested reply',
+        provenanceToken: 'signed-token',
+      },
+      MANAGER_CTX,
+    )
+
+    expect(result).toBe(acceptedReply)
+    expect(accept).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      reviewId: REVIEW_ID,
+      actorUserId: USER_ID,
+      text: 'Suggested reply',
+      provenanceToken: 'signed-token',
+      now: NOW,
+    })
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['invalid', 'ai_suggestion_invalid'],
+    ['expired', 'ai_suggestion_expired'],
+    ['stale', 'ai_suggestion_stale'],
+  ] as const)('rejects %s AI provenance without persisting', async (reason, code) => {
+    const deps = makeDeps({
+      aiSuggestedDraftStore: {
+        accept: vi.fn(async () => ({ status: 'rejected' as const, reason })),
+        assertCurrentBinding: vi.fn(async () => 'current' as const),
+      },
+    })
+
+    await expect(
+      draftReply(deps)(
+        {
+          reviewId: REVIEW_ID,
+          text: 'Suggested reply',
+          provenanceToken: 'signed-token',
+        },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ReviewError', code })
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
   })
 
   it('allows re-drafting a rejected reply', async () => {

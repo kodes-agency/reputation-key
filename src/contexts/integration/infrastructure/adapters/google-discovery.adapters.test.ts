@@ -536,15 +536,17 @@ describe('Google Business Information adapter', () => {
         !JSON.stringify(error).includes('secret-provider-content'),
     )
 
-    const deniedExecutor: GoogleAuthorizedProviderExecutor = {
+    // Real provider quota pressure stays rate limiting…
+    const quotaExhausted: GoogleAuthorizedProviderExecutor = {
       execute: async () => ({
         ok: false,
         code: 'admission_denied',
+        admissionCode: 'quota_exhausted',
         retryAfterMs: 9_000,
       }),
     }
     await expect(
-      createGoogleBusinessInformationAdapter({ executor: deniedExecutor }).listLocations({
+      createGoogleBusinessInformationAdapter({ executor: quotaExhausted }).listLocations({
         accessToken: 'token',
         authorization,
         accountId: 'account-1',
@@ -555,6 +557,26 @@ describe('Google Business Information adapter', () => {
         isGbpApiError(error) &&
         error.kind === 'rate_limited' &&
         error.retryAfterMs === 9_000,
+    )
+
+    // …while a permit/policy fence must not masquerade as provider throttling.
+    const permitFenced: GoogleAuthorizedProviderExecutor = {
+      execute: async () => ({
+        ok: false,
+        code: 'admission_denied',
+        admissionCode: 'permit_expired',
+        retryAfterMs: 0,
+      }),
+    }
+    await expect(
+      createGoogleBusinessInformationAdapter({ executor: permitFenced }).listLocations({
+        accessToken: 'token',
+        authorization,
+        accountId: 'account-1',
+        accountDisplayName: 'Account',
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) => isGbpApiError(error) && error.kind === 'upstream_error',
     )
   })
 })

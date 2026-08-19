@@ -17,7 +17,7 @@ function disableProviderContentCaching(): void {
   setResponseHeader('Expires', '0')
 }
 
-export const getPropertyGooglePerformance = createServerFn({ method: 'POST' })
+export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
   .inputValidator(getPropertyGooglePerformanceInputSchema)
   .handler(
     tracedHandler(
@@ -44,7 +44,7 @@ export const getPropertyGooglePerformance = createServerFn({ method: 'POST' })
           throw catchUntagged(error)
         }
       },
-      'POST',
+      'GET',
       'integration.getPropertyGooglePerformance',
     ),
   )

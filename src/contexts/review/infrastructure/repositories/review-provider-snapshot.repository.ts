@@ -577,7 +577,7 @@ export const createReviewProviderSnapshotRepository = (
           AND m.review_id IS NULL
           AND s.first_missing_at IS NOT NULL
           AND s.first_missing_snapshot_run_id <> ${run.id}
-          AND s.first_missing_at <= ${run.startedAt} - interval '15 minutes'
+          AND s.first_missing_at <= ${run.startedAt}::timestamptz - interval '15 minutes'
         ON CONFLICT (run_id, review_id) DO NOTHING
       `)
       await tx.execute(sql`
@@ -601,7 +601,12 @@ export const createReviewProviderSnapshotRepository = (
           state: 'confirming',
           phase: 'confirmation',
           mainCursorRef: null,
-          confirmationDeadline: sql`${run.startedAt} + interval '12 hours'`,
+          // `::timestamptz` is load-bearing: with an untyped bind Postgres
+          // resolves `$n + interval` as `interval + interval`, so the parameter
+          // becomes an interval. That is what made `finishMainScan` fail with
+          // `operator does not exist: timestamp with time zone <= interval`
+          // the first time a run ever reached it.
+          confirmationDeadline: sql`${run.startedAt}::timestamptz + interval '12 hours'`,
           updatedAt: sql`transaction_timestamp()`,
         })
         .where(eq(reviewProviderSnapshotRuns.id, run.id))

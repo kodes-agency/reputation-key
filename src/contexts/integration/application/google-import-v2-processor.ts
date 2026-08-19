@@ -5,6 +5,7 @@ import {
   type PropertyGoogleBindingPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
@@ -40,7 +41,50 @@ function errorCode(error: unknown): string | null {
     : null
 }
 
+/**
+ * Infrastructure saturation, not a domain outcome. `propertyOutcome` returns
+ * null for these so the caller releases the claim and retries the attempt —
+ * they must NEVER be reported to the tenant as `internal_error`.
+ *
+ * pg-pool's acquisition timeout carries no `code` at all, so it is only
+ * recognizable by message; the SQLSTATEs cover a saturated server, a
+ * `lock_timeout` expiry and a session killed by
+ * `idle_in_transaction_session_timeout` (see #/shared/db/pool).
+ */
+const TRANSIENT_INFRASTRUCTURE_CODES: Readonly<Record<string, true>> = {
+  '08000': true, // connection_exception
+  '08003': true, // connection_does_not_exist
+  '08006': true, // connection_failure
+  '25P03': true, // idle_in_transaction_session_timeout
+  '40001': true, // serialization_failure
+  '40P01': true, // deadlock_detected
+  '53300': true, // too_many_connections
+  '53400': true, // configuration_limit_exceeded
+  '55P03': true, // lock_not_available (lock_timeout)
+  '57014': true, // query_canceled (statement_timeout)
+  '57P01': true, // admin_shutdown
+}
+
+const TRANSIENT_INFRASTRUCTURE_MESSAGE_RE =
+  /timeout exceeded when trying to connect|connection terminated|too many clients|connection is closed/i
+
+export function isTransientInfrastructureError(error: unknown): boolean {
+  const code = errorCode(error)
+  if (code !== null && TRANSIENT_INFRASTRUCTURE_CODES[code] === true) return true
+  const message =
+    typeof error === 'object' && error !== null && 'message' in error
+      ? (error as Readonly<{ message: unknown }>).message
+      : null
+  return typeof message === 'string' && TRANSIENT_INFRASTRUCTURE_MESSAGE_RE.test(message)
+}
+
 function propertyOutcome(error: unknown): ImportOutcomeCode | null {
+  // Explicit BEFORE the domain switch: pool exhaustion and lock/session
+  // timeouts share no code space with Property's domain errors, so leaving
+  // them on the `default` fallthrough made their transient handling
+  // accidental. Naming them keeps a future default-case change from turning a
+  // saturated pool into a permanent tenant-visible failure.
+  if (isTransientInfrastructureError(error)) return null
   switch (errorCode(error)) {
     case 'location_already_bound':
       return 'already_exists'
@@ -89,9 +133,30 @@ export function createGoogleImportV2Processor(
     propertyBindingApi: PropertyGoogleBindingPublicApi
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     enqueueReviewSync?: ReviewQueuePort['addSyncJob']
+    /**
+     * BQC-2.7: grants a property the capability allowlist of its organization
+     * (identity-owned, idempotent). A created property starts with an EMPTY
+     * property_capability set, and an empty set denies every non-core
+     * capability — provisioning is what makes an imported property usable.
+     * Optional and best-effort: a failure is logged and repairable with
+     * ops:property-capabilities, never a reason to fail the import effect.
+     */
+    provisionPropertyCapabilities?: (
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        createdBy: string
+      }>,
+    ) => Promise<void>
     resolveActor: (organizationId: string, userId: string) => Promise<AuthContext | null>
     clock: () => Date
     newClaimFence: () => string
+    /**
+     * Terminal item outcomes are deliberately content-free and the terminal write
+     * scrubs every attributable column, so an `internal_error` row keeps no trace of
+     * what produced it. This is the only place the originating error is observable.
+     */
+    logger: LoggerPort
   }>,
 ): GoogleImportV2Processor {
   const reconcileKnownReceipt = async (
@@ -321,6 +386,26 @@ export function createGoogleImportV2Processor(
               }),
               now: deps.clock(),
             })
+            if (deps.provisionPropertyCapabilities) {
+              try {
+                await deps.provisionPropertyCapabilities({
+                  organizationId: item.organizationId,
+                  propertyId: item.destinationPropertyId,
+                  createdBy: item.initiatedBy,
+                })
+              } catch (error) {
+                // Same content-free posture as the effect's own failure log:
+                // codes plus the item key, no tenant identifier.
+                deps.logger.warn(
+                  {
+                    itemId: item.itemId,
+                    errorName: error instanceof Error ? error.name : 'unknown',
+                    errorCode: errorCode(error),
+                  },
+                  'Google import property capability provisioning failed',
+                )
+              }
+            }
           } else {
             await deps.propertyBindingApi.relink({
               organizationId: organizationId(item.organizationId),
@@ -382,6 +467,21 @@ export function createGoogleImportV2Processor(
       )
     } catch (error) {
       const outcome = propertyOutcome(error)
+      // Codes plus the item's own key only: no tenant identifier (BANNED_LOG_KEYS),
+      // no provider resource name, no display string, no Property profile field.
+      // `itemId` alone locates the row — it is the table's primary key.
+      deps.logger.warn(
+        {
+          itemId: item.itemId,
+          action: item.action,
+          attemptOrdinal: item.attemptOrdinal,
+          retryRevision: item.retryRevision,
+          errorName: error instanceof Error ? error.name : 'unknown',
+          errorCode: errorCode(error),
+          outcome: outcome ?? 'transient',
+        },
+        'Google import item effect failed',
+      )
       return outcome ? complete(item, outcome) : transientFailure(item, error)
     }
   }
@@ -409,7 +509,25 @@ export function createGoogleImportV2Processor(
         leaseExpiresAt: new Date(now.getTime() + GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS),
       })
       if (claim.kind !== 'claimed') {
-        if (claim.reason === 'effect_expired') await terminalizeExpired(input)
+        if (claim.reason === 'effect_expired') {
+          await terminalizeExpired(input)
+          return
+        }
+        // A live claim lease means another attempt owns this item right now —
+        // or owned it inside a worker that was killed mid-effect. Returning
+        // normally would mark THIS BullMQ attempt completed, and if the
+        // arrival was BullMQ's single permitted stalled recovery
+        // (maxStalledCount 1) nothing would ever re-dispatch the item: the
+        // row would stay 'processing' until its effect deadline hours later.
+        // Throwing keeps the attempt budget alive, so the job retries after
+        // backoff; by then the 60s lease has expired (worker.ts pins
+        // lockDuration/stalledInterval above it) and claimItem takes the item
+        // over under a fresh fence. Re-claiming is safe: the claim path is
+        // idempotent and every effect is fenced by claimFence, so the loser
+        // of the race commits nothing.
+        if (claim.reason === 'claim_active') {
+          throw new Error('Google import item claim lease is still active')
+        }
         return
       }
       await processClaim(claim.item)

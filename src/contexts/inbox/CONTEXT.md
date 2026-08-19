@@ -146,7 +146,7 @@ Exported from `application/public-api.ts`:
 
 Inbox defines cross-context lookup ports (per ADR-0008):
 
-- **ReviewLookupPort** — fetches review snippet (reviewerName, text, reviewerProfilePhotoUrl) by ID.
+- **ReviewLookupPort** — fetches review snippet (reviewerName, text, translatedText, reviewerProfilePhotoUrl) by ID. `text` is the guest's original words; `translatedText` is the provider's machine translation (Google only, null elsewhere).
 - **FeedbackLookupPort** — fetches feedback snippet (comment, ratingValue) by ID.
 - **PropertyLookupPort** — fetches property name by ID (for denormalization).
 

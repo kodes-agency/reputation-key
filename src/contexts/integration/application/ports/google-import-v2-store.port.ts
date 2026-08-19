@@ -126,6 +126,20 @@ export type GoogleImportV2ExpiredItem = Readonly<{
   retryRevision: number
 }>
 
+/**
+ * An item whose claim lease has elapsed while it is still `processing`: the
+ * worker that held the claim died, blocked, or lost its transaction. Carries
+ * the exact fence so recovery goes through `releaseClaimForRetry`'s CAS
+ * rather than a blind status write.
+ */
+export type GoogleImportV2StaleClaimItem = Readonly<{
+  organizationId: string
+  itemId: string
+  retryRevision: number
+  claimFence: string
+  attemptOrdinal: number
+}>
+
 export type GoogleImportV2PurgeCandidate = Readonly<{
   organizationId: string
   importJobId: string
@@ -270,6 +284,14 @@ export type GoogleImportV2Store = Readonly<{
     now: Date,
     limit: number,
   ): Promise<readonly GoogleImportV2ExpiredItem[]>
+  /**
+   * Items still `processing` past their claim lease, oldest lease first.
+   * Bounded by the same 1..100 sweep limit as the other lifecycle scans.
+   */
+  listStaleClaimItems(
+    now: Date,
+    limit: number,
+  ): Promise<readonly GoogleImportV2StaleClaimItem[]>
   listPurgeCandidates(
     now: Date,
     limit: number,

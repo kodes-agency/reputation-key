@@ -58,6 +58,7 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     reviewerProfilePhotoUrl: null,
     rating: 3,
     text: null,
+    translatedText: null,
     languageCode: null,
     reviewedAt: lastFetchedAt,
     expiresAt: contentExpiresAt,

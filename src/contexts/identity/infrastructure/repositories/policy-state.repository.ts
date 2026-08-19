@@ -192,6 +192,98 @@ export async function removePropertyCapability(
   `)
 }
 
+/**
+ * Grant a property every capability currently allowlisted for its
+ * organization. A freshly created property has an EMPTY property_capability
+ * set, and an empty set denies every non-core capability
+ * (`property_not_allowlisted`) — this is the provisioning step that closes
+ * that gap.
+ *
+ * One statement: the version bump, the INSERT … SELECT and the RETURNING read
+ * commit together, so a granted capability is never visible without its
+ * version bump. Idempotent by the (property_id, capability) primary key —
+ * re-running grants only what is missing and returns exactly what it added.
+ */
+export async function provisionPropertyCapabilitiesFromOrganization(
+  db: Database,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    createdBy?: string
+  }>,
+): Promise<ReadonlyArray<string>> {
+  const rows = await db.execute(sql`
+    WITH ${BUMP_POLICY_VERSION_SQL},
+    ins AS (
+      INSERT INTO property_capability (property_id, capability, created_by)
+      SELECT ${input.propertyId}::uuid, oc.capability, ${input.createdBy ?? null}
+      FROM organization_capability oc
+      WHERE oc.organization_id = ${input.organizationId}
+      ON CONFLICT (property_id, capability) DO NOTHING
+      RETURNING capability
+    )
+    SELECT capability FROM ins ORDER BY capability
+  `)
+  return rows.rows.map((r) => r.capability as string)
+}
+
+// ── Allowlist reads (provisioning drift + operator report) ───────────
+
+export async function listOrganizationCapabilities(
+  db: Database,
+  organizationId: string,
+): Promise<ReadonlyArray<string>> {
+  const rows = await db.execute(sql`
+    SELECT capability FROM organization_capability
+    WHERE organization_id = ${organizationId}
+    ORDER BY capability
+  `)
+  return rows.rows.map((r) => r.capability as string)
+}
+
+export async function listPropertyCapabilities(
+  db: Database,
+  propertyId: string,
+): Promise<ReadonlyArray<string>> {
+  const rows = await db.execute(sql`
+    SELECT capability FROM property_capability
+    WHERE property_id = ${propertyId}::uuid
+    ORDER BY capability
+  `)
+  return rows.rows.map((r) => r.capability as string)
+}
+
+/** The property's organization — null when the property is absent. */
+export async function getPropertyOrganizationId(
+  db: Database,
+  propertyId: string,
+): Promise<string | null> {
+  const rows = await db.execute(sql`
+    SELECT organization_id FROM properties WHERE id = ${propertyId}::uuid LIMIT 1
+  `)
+  const row = rows.rows[0] as { organization_id: string } | undefined
+  return row?.organization_id ?? null
+}
+
+/**
+ * Active, non-deleted properties of an organization — the targets of an
+ * organization-wide capability sync (a purged or lifecycle-parked property is
+ * not provisioned).
+ */
+export async function listProvisionablePropertyIds(
+  db: Database,
+  organizationId: string,
+): Promise<ReadonlyArray<string>> {
+  const rows = await db.execute(sql`
+    SELECT id FROM properties
+    WHERE organization_id = ${organizationId}
+      AND deleted_at IS NULL
+      AND lifecycle_state = 'active'
+    ORDER BY id
+  `)
+  return rows.rows.map((r) => r.id as string)
+}
+
 // ── Snapshot ─────────────────────────────────────────────────────────
 
 /** pg returns timestamptz as Date or string depending on driver path — normalize. */

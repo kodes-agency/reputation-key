@@ -35,4 +35,30 @@ describe('GoalPublicApi', () => {
     })
     expect(event._tag).toBe('goal.completed')
   })
+
+  it('rejects non-numeric target and completion values', () => {
+    const valid = {
+      goalId: goalId('g1'),
+      organizationId: organizationId('o1'),
+      propertyId: propertyId('p1'),
+      portalId: null,
+      portalGroupId: null,
+      goalType: 'one_shot' as const,
+      aggregationFunction: 'sum' as const,
+      metricKey: 'portal.scan' as const,
+      targetValue: 10,
+      completedValue: 10,
+      completedAt: new Date('2026-08-16T12:00:00Z'),
+      parentGoalId: null,
+      createdBy: userId('u1'),
+    }
+    for (const override of [
+      { targetValue: Number.NaN },
+      { completedValue: Number.NaN },
+    ]) {
+      expect(() => goalCompleted({ ...valid, ...override })).toThrow(
+        /must be a valid number/,
+      )
+    }
+  })
 })

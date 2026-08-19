@@ -88,6 +88,26 @@ function claimedItem(
   }
 }
 
+/** The Property receipt a committed create/relink effect leaves behind. */
+function importedReceipt(
+  over: Partial<
+    NonNullable<Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>>
+  > = {},
+): Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>> {
+  return {
+    organizationId: ORG_ID,
+    idempotencyKey: ITEM_ID,
+    destinationPropertyId: PROPERTY_ID,
+    outcome: 'imported',
+    destinationSourceEpoch: 0,
+    destinationProfileVersion: 1,
+    tombstone: false,
+    expiresAt: new Date(NOW.getTime() + 60_000),
+    retentionReleasedAt: null,
+    ...over,
+  } as Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>
+}
+
 function setup(
   over: {
     claim?: Awaited<ReturnType<GoogleImportV2Store['claimItem']>>
@@ -101,6 +121,7 @@ function setup(
     createError?: unknown
     relinkError?: unknown
     enqueueReviewSyncError?: unknown
+    provisionPropertyCapabilitiesError?: unknown
   } = {},
 ) {
   const item = claimedItem()
@@ -187,6 +208,16 @@ function setup(
   const enqueueReviewSync = over.enqueueReviewSyncError
     ? vi.fn().mockRejectedValue(over.enqueueReviewSyncError)
     : vi.fn().mockResolvedValue(undefined)
+  const provisionPropertyCapabilities = over.provisionPropertyCapabilitiesError
+    ? vi.fn().mockRejectedValue(over.provisionPropertyCapabilitiesError)
+    : vi.fn().mockResolvedValue(undefined)
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    child: vi.fn(),
+  }
   const processor = createGoogleImportV2Processor({
     store,
     propertyBindingApi,
@@ -195,6 +226,8 @@ function setup(
     clock: () => NOW,
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
+    provisionPropertyCapabilities,
+    logger,
   })
   return {
     processor,
@@ -212,6 +245,8 @@ function setup(
     authorize,
     resolveActor,
     enqueueReviewSync,
+    provisionPropertyCapabilities,
+    logger,
   }
 }
 
@@ -341,6 +376,71 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.createBoundProperty).not.toHaveBeenCalled()
     expect(harness.completeClaim).not.toHaveBeenCalled()
   })
+
+  // The stalled-recovery bug: returning normally here marked the BullMQ
+  // attempt completed. When the arrival WAS the single permitted stalled
+  // recovery, nothing re-dispatched the item and the row stayed 'processing'
+  // until its effect deadline. Throwing keeps the attempt budget alive so a
+  // later attempt claims the item once the lease has expired.
+  it('throws on an active claim lease so BullMQ retries instead of completing', async () => {
+    const harness = setup({
+      claim: { kind: 'ignored', reason: 'claim_active' },
+    })
+
+    await expect(
+      harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      }),
+    ).rejects.toThrow(/claim lease is still active/)
+
+    // No effect, and above all no terminal write: the other attempt owns it.
+    expect(harness.createBoundProperty).not.toHaveBeenCalled()
+    expect(harness.completeClaim).not.toHaveBeenCalled()
+    expect(harness.terminalizeItem).not.toHaveBeenCalled()
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['pg-pool acquisition timeout', new Error('timeout exceeded when trying to connect')],
+    [
+      'too many connections',
+      Object.assign(new Error('sorry, too many clients already'), { code: '53300' }),
+    ],
+    [
+      'lock_timeout expiry',
+      Object.assign(new Error('canceling statement due to lock timeout'), {
+        code: '55P03',
+      }),
+    ],
+    [
+      'idle-in-transaction termination',
+      Object.assign(new Error('terminating connection due to idle-in-transaction'), {
+        code: '25P03',
+      }),
+    ],
+  ])(
+    'classifies %s as transient rather than internal_error',
+    async (_label, createError) => {
+      const harness = setup({ createError })
+
+      // Transient handling = release the claim and rethrow for a fresh attempt.
+      await expect(
+        harness.processor.process({
+          organizationId: ORG_ID,
+          itemId: ITEM_ID,
+          retryRevision: 0,
+          attemptOrdinal: 1,
+        }),
+      ).rejects.toBe(createError)
+
+      expect(harness.releaseClaimForRetry).toHaveBeenCalledTimes(1)
+      // Never a terminal outcome, and specifically never internal_error.
+      expect(harness.completeClaim).not.toHaveBeenCalled()
+    },
+  )
 
   it('cancels without a Property effect when current authorization changed', async () => {
     const harness = setup({
@@ -515,6 +615,46 @@ describe('GoogleImportV2Processor', () => {
     )
   })
 
+  it('logs the originating error before folding it into a content-free outcome', async () => {
+    const harness = setup({
+      createError: Object.assign(new Error('slug already taken'), {
+        code: 'invalid_slug',
+        name: 'PropertyDomainError',
+      }),
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.completeClaim).toHaveBeenCalledWith(
+      expect.objectContaining({ outcomeCode: 'internal_error' }),
+    )
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      {
+        itemId: ITEM_ID,
+        action: 'create',
+        attemptOrdinal: 1,
+        retryRevision: 0,
+        errorName: 'PropertyDomainError',
+        errorCode: 'invalid_slug',
+        outcome: 'internal_error',
+      },
+      'Google import item effect failed',
+    )
+    // The whole point of the record is diagnosis; it must not smuggle content.
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).not.toContain('slug already taken')
+    expect(logged).not.toContain('Acme Hotel')
+    expect(logged).not.toContain(PROVIDER_LOCATION_ID)
+    // BANNED_LOG_KEYS: the tenant identifier must never reach a log line.
+    expect(logged).not.toContain(ORG_ID)
+    expect(logged).not.toContain('organizationId')
+  })
+
   it('relinks with the expected Property generation snapshot', async () => {
     const item = claimedItem({
       action: 'relink',
@@ -572,5 +712,94 @@ describe('GoogleImportV2Processor', () => {
       }),
     )
     expect(harness.completeClaim).not.toHaveBeenCalled()
+  })
+
+  // A created property starts with an EMPTY property_capability set, and an
+  // empty set denies every non-core capability — the import must provision it.
+  it('grants a created property its organization capability allowlist', async () => {
+    const harness = setup({ receipts: [null, null, importedReceipt()] })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.provisionPropertyCapabilities).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      createdBy: USER_ID,
+    })
+    expect(harness.createBoundProperty.mock.invocationCallOrder[0]).toBeLessThan(
+      harness.provisionPropertyCapabilities.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('does not re-grant capabilities when the item relinks an existing property', async () => {
+    const item = claimedItem({
+      action: 'relink',
+      existingPropertyId: PROPERTY_ID,
+      destinationPropertyId: PROPERTY_ID,
+      expectedSourceEpoch: 7,
+      expectedProfileVersion: 9,
+    })
+    const harness = setup({
+      claim: { kind: 'claimed', item },
+      receipts: [
+        null,
+        null,
+        importedReceipt({ outcome: 'relinked', destinationSourceEpoch: 8 }),
+      ],
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.relink).toHaveBeenCalledOnce()
+    expect(harness.provisionPropertyCapabilities).not.toHaveBeenCalled()
+  })
+
+  // Provisioning is repairable out of band (ops:property-capabilities), so it
+  // never costs the import its committed Property effect.
+  it('imports the property even when capability provisioning fails', async () => {
+    const harness = setup({
+      receipts: [null, null, importedReceipt()],
+      provisionPropertyCapabilitiesError: Object.assign(
+        new Error('policy_version row is locked'),
+        { code: 'lock_timeout', name: 'PolicyStateError' },
+      ),
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcomeCode: 'imported',
+        destinationPropertyId: PROPERTY_ID,
+      }),
+    )
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      {
+        itemId: ITEM_ID,
+        errorName: 'PolicyStateError',
+        errorCode: 'lock_timeout',
+      },
+      'Google import property capability provisioning failed',
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).not.toContain('policy_version row is locked')
+    expect(logged).not.toContain(ORG_ID)
   })
 })

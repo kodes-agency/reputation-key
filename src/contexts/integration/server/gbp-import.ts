@@ -45,6 +45,11 @@ function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
       return 400
     case 'reference_invalid':
       return 410
+    // Terminal provider denials. 409 keeps them off the retryable 503 branch:
+    // the connection state, not the request, has to change first.
+    case 'reauthentication_required':
+    case 'provider_rejected':
+      return 409
     case 'provider_unavailable':
     case 'temporarily_unavailable':
       return 503

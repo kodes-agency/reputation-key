@@ -76,6 +76,7 @@ import {
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
+import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import type { RoutingDecision } from '#/shared/routing/processing-router'
 import { isOwnerToken } from '#/shared/domain/roles'
@@ -410,6 +411,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // Identity owns the grant table; callers supply their authorization
       // transaction so the grant read participates in the same commit check.
       hasActivePropertyGrant,
+      // Property-scoped recipient resolution for other contexts (notification
+      // fan-out). Identity owns the grant table, so the read lives here.
+      propertyAccessHolders: createPropertyGrantHolderLookup(deps.db),
     },
   } as const
 }

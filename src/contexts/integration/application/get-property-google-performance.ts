@@ -29,6 +29,12 @@ export type GooglePerformanceAuthorizationSnapshot = Readonly<{
   approvalBindingId: string
   authorizationVector: Readonly<Record<string, string | number | boolean | null>>
   authorizationVectorSha256: string
+  /**
+   * Lease fence digest: every authorization fact except `credentialGeneration`.
+   * A routine token refresh moves the credential generation only, so binding
+   * the lease to this digest keeps an open report alive across the refresh.
+   */
+  authorizationFenceSha256: string
   principalHmacKeyVersion: string
   principalHmac: string
 }>
@@ -89,35 +95,46 @@ function errorResult(
   return Object.freeze({ status: 'error', errorCode, retryable, retryAfterSeconds })
 }
 
-function mapProviderError(error: unknown): UnavailablePerformanceResult {
+/**
+ * Both provider deadlines on this path come from `AbortSignal.timeout`, which
+ * aborts with a `TimeoutError` DOMException — not `AbortError`. Recognising
+ * only the latter made the dedicated timeout state unreachable and reported
+ * every real timeout as a generic outage.
+ */
+function abortedOrTimedOut(error: unknown): boolean {
   if (
-    (error instanceof Error && error.name === 'AbortError') ||
-    (typeof DOMException !== 'undefined' &&
-      error instanceof DOMException &&
-      error.name === 'AbortError')
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
   ) {
-    return errorResult('provider_timeout', true)
+    return true
   }
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  )
+}
+
+function mapProviderError(error: unknown): UnavailablePerformanceResult {
+  if (abortedOrTimedOut(error)) return errorResult('provider_timeout', true)
   if (error instanceof GooglePerformanceReportError) {
     return errorResult('stale_source', true)
   }
   if (!isGbpApiError(error)) return errorResult('temporarily_unavailable', true)
+  const retryAfterSeconds =
+    error.retryAfterMs === null || error.retryAfterMs <= 0
+      ? null
+      : Math.max(1, Math.ceil(error.retryAfterMs / 1_000))
   switch (error.kind) {
     case 'rate_limited':
-      return errorResult(
-        'rate_limited',
-        true,
-        error.retryAfterMs === null
-          ? null
-          : Math.max(1, Math.ceil(error.retryAfterMs / 1_000)),
-      )
+      return errorResult('rate_limited', true, retryAfterSeconds)
     case 'parse_error':
       return errorResult('malformed_provider_response', false)
     case 'auth_failed':
     case 'permission_denied':
       return errorResult('provider_rejected', false)
     case 'upstream_error':
-      return errorResult('temporarily_unavailable', true)
+      return errorResult('temporarily_unavailable', true, retryAfterSeconds)
   }
 }
 
@@ -152,6 +169,7 @@ function sameSnapshot(
     current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     current.connectionAccessVersion === expected.connectionAccessVersion &&
     current.approvalBindingId === expected.approvalBindingId &&
+    current.authorizationFenceSha256 === expected.authorizationFenceSha256 &&
     sameAuthorizationVectorExceptCredentialGeneration(
       current.authorizationVector,
       expected.authorizationVector,

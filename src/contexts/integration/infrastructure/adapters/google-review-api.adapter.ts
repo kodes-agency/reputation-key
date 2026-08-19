@@ -20,6 +20,7 @@ import {
   parseReviewProviderResource,
   type ReviewProviderResource,
 } from '#/shared/review-provider-subject-contract'
+import { parseGoogleReviewComment } from '#/shared/google-review-comment'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -43,36 +44,39 @@ const STAR_RATING_MAP: Readonly<Record<string, StarRating | undefined>> = {
   FIVE: 5,
 }
 
-const gbpReviewItemSchema = z
-  .object({
-    name: z.string().min(1).max(1_024),
-    starRating: z.string(),
-    comment: z.string().optional(),
-    reviewer: z
-      .object({
-        displayName: z.string().optional(),
-        profilePhotoUrl: z.string().optional(),
-      })
-      .strict()
-      .optional(),
-    reviewReply: z
-      .object({
-        comment: z.string().optional(),
-        updateTime: z.string().optional(),
-      })
-      .strict()
-      .optional(),
-    createTime: z.string().min(1).max(64),
-  })
-  .strict()
+// Provider payloads are not our transport: Google adds response fields without
+// notice, and rejecting an otherwise valid page for carrying one is a sync
+// outage, not a safety property. A real closed-beta page arrived with
+// `reviewId`, `updateTime` and `reviewReplyUrl` per review plus a top-level
+// `averageRating`; `.strict()` turned all of it into `malformed_response` →
+// `malformed_page`, and the property synced zero reviews. Unknown keys are
+// dropped (zod's default strip) so nothing unmodelled reaches the domain, while
+// every field we do read stays fully validated. The sibling Google adapters
+// (gbp-api, google-business-information) already tolerate unknown keys.
+const gbpReviewItemSchema = z.object({
+  name: z.string().min(1).max(1_024),
+  starRating: z.string(),
+  comment: z.string().optional(),
+  reviewer: z
+    .object({
+      displayName: z.string().optional(),
+      profilePhotoUrl: z.string().optional(),
+    })
+    .optional(),
+  reviewReply: z
+    .object({
+      comment: z.string().optional(),
+      updateTime: z.string().optional(),
+    })
+    .optional(),
+  createTime: z.string().min(1).max(64),
+})
 
-const gbpReviewsPageSchema = z
-  .object({
-    reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
-    totalReviewCount: z.number().int().safe().nonnegative(),
-    nextPageToken: z.string().min(1).max(2_048).optional(),
-  })
-  .strict()
+const gbpReviewsPageSchema = z.object({
+  reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
+  totalReviewCount: z.number().int().safe().nonnegative(),
+  nextPageToken: z.string().min(1).max(2_048).optional(),
+})
 
 type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
@@ -168,10 +172,26 @@ function withTimeout(ms: number): Readonly<{
   return { signal: controller.signal, clear: () => clearTimeout(timer) }
 }
 
-async function callCursorStore<T>(call: () => Promise<T>): Promise<T> {
+// Cursor-store rejections are the one failure class that used to leave no
+// trace: every store code is mapped through `cursorFailureCode` here and the
+// sync use case collapses the result again into a single `cursor_failure`. A
+// closed-beta run applied 6 pages / 256 reviews and then died with that code
+// and nothing else on record. Callers therefore report the raw store outcome
+// before the mapped error is thrown.
+type CursorRejectionOperation =
+  | 'redeem'
+  | 'publish_next'
+  | 'discard_run'
+  | 'discard_cursors'
+
+async function callCursorStore<T>(
+  call: () => Promise<T>,
+  onFault: () => void,
+): Promise<T> {
   try {
     return await call()
   } catch {
+    onFault()
     throw reviewApiError('provider_unavailable', true)
   }
 }
@@ -233,6 +253,11 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
   }
   const rating = STAR_RATING_MAP[raw.starRating]
   if (!rating) throw reviewApiError('malformed_response', false)
+  // Google ships the machine translation and the guest's own words glued into
+  // one `comment` field. `text` must be the original: language detection and the
+  // whole AI reply plane read it, and the blob made 8 Bulgarian reviews look
+  // like reliable English.
+  const comment = parseGoogleReviewComment(raw.comment)
   return {
     reviewName: raw.name,
     externalId: resource.reviewId,
@@ -240,7 +265,8 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
     reviewerName: raw.reviewer?.displayName ?? null,
     reviewerProfilePhotoUrl: raw.reviewer?.profilePhotoUrl ?? null,
     rating,
-    text: raw.comment ?? null,
+    text: comment.original,
+    translatedText: comment.translation,
     languageCode: null,
     reviewedAt: parseDate(raw.createTime),
     replyText: raw.reviewReply?.comment ?? null,
@@ -339,6 +365,29 @@ export const createGoogleReviewApiAdapter = (
   deps: GoogleReviewApiAdapterDeps,
 ): GoogleReviewApiPort => {
   const nowMs = deps.nowMs ?? Date.now
+
+  // Stable, bounded, content-free: identifiers and codes only. Never the page
+  // token, never the cursor ref, never review content — a diagnostic that
+  // leaks the opaque-reference indirection is worse than no diagnostic. `code`
+  // is the raw store outcome, not `cursorFailureCode`'s mapping, because
+  // `conflict` and `unavailable` both collapse onto `provider_unavailable`.
+  const logCursorRejection = (
+    entry: Readonly<{
+      operation: CursorRejectionOperation
+      code: string
+      phase: 'main' | 'confirmation' | null
+      pageIndex: number | null
+      runId: string
+      /** Publication only: which `binding_mismatch` branch the store took. */
+      parentCursorRefPresent?: boolean
+      nextPageIndex?: number
+    }>,
+  ): void => {
+    deps.logger.warn(
+      { event: 'reviews_cursor_rejected', ...entry },
+      'Google reviews cursor store rejected the call',
+    )
+  }
 
   const resolveProviderContext = async (
     organizationId: OrganizationId,
@@ -493,17 +542,34 @@ export const createGoogleReviewApiAdapter = (
       phase: input.phase,
       pageIndex: input.pageIndex,
     } as const
+    const cursorDiagnostic = {
+      phase: input.phase,
+      pageIndex: input.pageIndex,
+      runId: input.runId,
+    } as const
     let pageToken: string | undefined
     const cursorRef = input.cursorRef
     if (cursorRef) {
-      const redeemed = await callCursorStore(() =>
-        deps.cursorStore.redeem({
-          cursorRef,
-          scope,
-          authorization: context.cursorAuthorization,
-        }),
+      const redeemed = await callCursorStore(
+        () =>
+          deps.cursorStore.redeem({
+            cursorRef,
+            scope,
+            authorization: context.cursorAuthorization,
+          }),
+        () =>
+          logCursorRejection({
+            operation: 'redeem',
+            code: 'store_threw',
+            ...cursorDiagnostic,
+          }),
       )
       if (!redeemed.ok) {
+        logCursorRejection({
+          operation: 'redeem',
+          code: redeemed.code,
+          ...cursorDiagnostic,
+        })
         throw reviewApiError(
           cursorFailureCode(redeemed.code),
           redeemed.code === 'conflict' || redeemed.code === 'unavailable',
@@ -530,23 +596,63 @@ export const createGoogleReviewApiAdapter = (
       context.cursorAuthorization,
     )
     const parsed = gbpReviewsPageSchema.safeParse(raw)
-    if (!parsed.success) throw reviewApiError('malformed_response', false)
+    if (!parsed.success) {
+      // Shape only — key names and zod issue paths/codes, never values. A page
+      // the provider considers well-formed must never be indistinguishable
+      // from a transport fault in the logs.
+      deps.logger.warn(
+        {
+          event: 'reviews_page_rejected',
+          keys:
+            typeof raw === 'object' && raw !== null
+              ? Object.keys(raw).sort()
+              : typeof raw,
+          issues: parsed.error.issues
+            .slice(0, 12)
+            .map((issue) =>
+              issue.code === 'unrecognized_keys'
+                ? `${issue.path.join('.') || '<root>'}:unrecognized:${issue.keys.join('|')}`
+                : `${issue.path.join('.') || '<root>'}:${issue.code}`,
+            ),
+        },
+        'Google reviews page rejected by schema',
+      )
+      throw reviewApiError('malformed_response', false)
+    }
     const reviews =
       parsed.data.reviews?.map((review) => mapReview(review, input.locationName)) ?? []
     let nextCursorRef: string | null = null
     const nextPageToken = parsed.data.nextPageToken
     if (nextPageToken) {
       if (input.pageIndex === 199) throw reviewApiError('malformed_response', false)
-      const published = await callCursorStore(() =>
-        deps.cursorStore.publishNext({
-          parentCursorRef: input.cursorRef,
-          scope,
-          nextScope: { ...scope, pageIndex: input.pageIndex + 1 },
-          authorization: context.cursorAuthorization,
-          nextPageToken,
-        }),
+      const published = await callCursorStore(
+        () =>
+          deps.cursorStore.publishNext({
+            parentCursorRef: input.cursorRef,
+            scope,
+            nextScope: { ...scope, pageIndex: input.pageIndex + 1 },
+            authorization: context.cursorAuthorization,
+            nextPageToken,
+          }),
+        () =>
+          logCursorRejection({
+            operation: 'publish_next',
+            code: 'store_threw',
+            ...cursorDiagnostic,
+          }),
       )
       if (!published.ok) {
+        logCursorRejection({
+          operation: 'publish_next',
+          code: published.code,
+          // `binding_mismatch` has three distinct causes inside the store: a
+          // scope field diverging, a null parent ref anywhere but page 0, and a
+          // next page index that is not scope + 1. The code alone cannot tell
+          // them apart, so carry the two the adapter controls.
+          parentCursorRefPresent: input.cursorRef !== null,
+          nextPageIndex: input.pageIndex + 1,
+          ...cursorDiagnostic,
+        })
         throw reviewApiError(
           cursorFailureCode(published.code),
           published.code === 'conflict' || published.code === 'unavailable',
@@ -691,15 +797,37 @@ export const createGoogleReviewApiAdapter = (
     ) {
       throw reviewApiError('invalid_request', false)
     }
-    const discarded = await callCursorStore(() =>
-      deps.cursorStore.discardRun({
-        organizationId: String(input.organizationId),
-        propertyId: String(input.propertyId),
-        sourceEpoch: input.sourceEpoch,
-        runId: input.runId,
-      }),
+    // Two distinct rejections live here: the port-level call can fault before
+    // the store ever answers (`discard_cursors`), or the store can answer no
+    // (`discard_run`). `discardRun` returns a bare boolean, so `rejected` is
+    // the only code it can report.
+    const discarded = await callCursorStore(
+      () =>
+        deps.cursorStore.discardRun({
+          organizationId: String(input.organizationId),
+          propertyId: String(input.propertyId),
+          sourceEpoch: input.sourceEpoch,
+          runId: input.runId,
+        }),
+      () =>
+        logCursorRejection({
+          operation: 'discard_cursors',
+          code: 'store_threw',
+          phase: null,
+          pageIndex: null,
+          runId: input.runId,
+        }),
     )
-    if (!discarded) throw reviewApiError('provider_unavailable', true)
+    if (!discarded) {
+      logCursorRejection({
+        operation: 'discard_run',
+        code: 'rejected',
+        phase: null,
+        pageIndex: null,
+        runId: input.runId,
+      })
+      throw reviewApiError('provider_unavailable', true)
+    }
   }
 
   const replyToReview: GoogleReviewApiPort['replyToReview'] = async (

@@ -54,6 +54,7 @@ const approvedReply = {
   rejectedBy: null,
   rejectionReason: null,
   aiGenerated: false,
+  stateRevision: 1,
   submittedAt: NOW,
   approvedAt: NOW,
   publishedAt: null,

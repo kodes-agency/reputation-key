@@ -50,6 +50,7 @@ function snapshot(
       credentialGeneration: 6,
     }),
     authorizationVectorSha256: 'a'.repeat(64),
+    authorizationFenceSha256: 'f'.repeat(64),
     principalHmacKeyVersion: 'v1',
     principalHmac: 'c'.repeat(43),
     ...overrides,
@@ -73,6 +74,7 @@ function setup(
     authorize?: ReturnType<typeof vi.fn<PerformanceDeps['authorize']>>
     fetchReport?: ReturnType<typeof vi.fn<PerformanceDeps['fetchReport']>>
     issueLease?: ReturnType<typeof vi.fn<PerformanceDeps['issueLease']>>
+    monotonicNowMs?: () => number
   }>,
 ) {
   const current = snapshot()
@@ -93,7 +95,7 @@ function setup(
     fetchReport,
     issueLease,
     clock: () => NOW,
-    monotonicNowMs: () => monotonic++,
+    monotonicNowMs: input?.monotonicNowMs ?? (() => monotonic++),
   })
   return { getPerformance, authorize, fetchReport, issueLease, current }
 }
@@ -250,6 +252,7 @@ describe('getPropertyGooglePerformance', () => {
         credentialGeneration: 6,
       }),
       authorizationVectorSha256: 'e'.repeat(64),
+      authorizationFenceSha256: 'd'.repeat(64),
     })
     const authorize = vi
       .fn<PerformanceDeps['authorize']>()
@@ -316,6 +319,17 @@ describe('getPropertyGooglePerformance', () => {
       },
     ],
     [
+      createGbpApiError('fetchPerformanceReport', 'upstream_error', {
+        retryAfterMs: 5_000,
+      }),
+      {
+        status: 'error',
+        errorCode: 'temporarily_unavailable',
+        retryable: true,
+        retryAfterSeconds: 5,
+      },
+    ],
+    [
       new DOMException('timed out', 'AbortError'),
       {
         status: 'error',
@@ -334,6 +348,35 @@ describe('getPropertyGooglePerformance', () => {
       getPerformance({ propertyId: PROPERTY_ID, preset: '7d', actor: ACTOR }),
     ).resolves.toEqual(expected)
     expect(authorize).toHaveBeenCalledTimes(1)
+    expect(issueLease).not.toHaveBeenCalled()
+  })
+
+  it('reports an AbortSignal.timeout deadline as a provider timeout', async () => {
+    // AbortSignal.timeout aborts with a TimeoutError DOMException, not an
+    // AbortError, so the dedicated timeout state used to be unreachable.
+    const fetchReport = vi.fn<PerformanceDeps['fetchReport']>(async (input) => {
+      const signal = input.signal!
+      await new Promise<void>((resolve) =>
+        signal.addEventListener('abort', () => resolve(), { once: true }),
+      )
+      throw signal.reason
+    })
+    // Deadline 15_000; the second reading leaves a 1 ms provider budget.
+    const readings = [0, 14_999]
+    let reading = 0
+    const { getPerformance, issueLease } = setup({
+      fetchReport,
+      monotonicNowMs: () => readings[Math.min(reading++, readings.length - 1)]!,
+    })
+
+    await expect(
+      getPerformance({ propertyId: PROPERTY_ID, preset: '7d', actor: ACTOR }),
+    ).resolves.toEqual({
+      status: 'error',
+      errorCode: 'provider_timeout',
+      retryable: true,
+      retryAfterSeconds: null,
+    })
     expect(issueLease).not.toHaveBeenCalled()
   })
 

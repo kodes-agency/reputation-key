@@ -88,6 +88,7 @@ const AVAILABLE_SNIPPET: ReviewSnippetResult = {
   status: 'available',
   snippet: {
     text: 'Fresh text',
+    translatedText: null,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
     rating: 4,

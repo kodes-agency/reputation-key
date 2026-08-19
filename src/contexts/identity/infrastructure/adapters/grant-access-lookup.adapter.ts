@@ -10,7 +10,10 @@
 import type { Database } from '#/shared/db'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
-import { listActiveGrantsForUser } from '../repositories/property-access-grant.repository'
+import {
+  listActiveGrantUserIdsForProperty,
+  listActiveGrantsForUser,
+} from '../repositories/property-access-grant.repository'
 import { getPolicyVersion } from '../repositories/policy-state.repository'
 import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'
 
@@ -33,4 +36,23 @@ export function createGrantAccessLookup(db: Database): AccessiblePropertyLookupP
     cache.set(key, { ids, ts: Date.now() })
     return ids
   }
+}
+
+/**
+ * Inverse lookup: users holding active access to one property. Identity owns
+ * the grant table, so property-scoped fan-out in other contexts (notification
+ * recipients) consumes this adapter instead of querying grants directly.
+ */
+export type PropertyGrantHolderLookup = (
+  organizationId: string,
+  propertyId: string,
+) => Promise<ReadonlyArray<string>>
+
+export function createPropertyGrantHolderLookup(db: Database): PropertyGrantHolderLookup {
+  return async (organizationId, property) =>
+    listActiveGrantUserIdsForProperty(db, {
+      organizationId,
+      propertyId: property,
+      at: new Date(),
+    })
 }

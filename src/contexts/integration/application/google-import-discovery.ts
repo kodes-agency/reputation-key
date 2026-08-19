@@ -6,6 +6,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { ProviderContentLeaseDto } from '#/shared/domain/provider-content-lease'
+import { isGbpApiError } from '../domain/gbp-api-error'
 import type {
   GbpLocationCandidate,
   GoogleAccountManagementPort,
@@ -74,6 +75,10 @@ export type GoogleImportDiscoveryErrorCode =
   | 'unauthorized'
   | 'invalid_request'
   | 'reference_invalid'
+  /** The stored Google credential no longer authenticates. Reconnect required. */
+  | 'reauthentication_required'
+  /** Google refused the call for this account. Retrying cannot succeed. */
+  | 'provider_rejected'
   | 'provider_unavailable'
   | 'temporarily_unavailable'
 
@@ -89,6 +94,26 @@ export class GoogleImportDiscoveryError extends Error {
 
 function deny(code: GoogleImportDiscoveryErrorCode): never {
   throw new GoogleImportDiscoveryError(code)
+}
+
+/**
+ * Provider failures are classified, never collapsed. The adapter boundary has
+ * already separated a permanent denial from a transient outage, so presenting an
+ * expired credential or a refused account as "temporarily unavailable" would send
+ * the operator into an endless retry loop with no actionable next step.
+ */
+function providerDenialCode(error: unknown): GoogleImportDiscoveryErrorCode {
+  if (!isGbpApiError(error)) return 'provider_unavailable'
+  switch (error.kind) {
+    case 'auth_failed':
+      return 'reauthentication_required'
+    case 'permission_denied':
+      return 'provider_rejected'
+    case 'rate_limited':
+    case 'upstream_error':
+    case 'parse_error':
+      return 'provider_unavailable'
+  }
 }
 
 function sameAuthorization(
@@ -200,9 +225,38 @@ export function createGoogleImportDiscovery(
     accounts: GoogleAccountManagementPort
     locations: GoogleBusinessInformationPort
     nowMs?: () => number
+    /**
+     * Content-free denial logging. Discovery collapses provider, classifier and
+     * reference failures into one client-safe code, so without this the only
+     * signal is "could not load this content" with no diagnosable reason.
+     */
+    logger?: Readonly<{
+      warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
+    }>
   }>,
 ) {
   const nowMs = deps.nowMs ?? Date.now
+
+  /**
+   * One content-free denial path for both provider calls: log the adapter's exact
+   * classification, then surface the matching client code.
+   */
+  const denyProviderFailure = (
+    stage: 'provider_accounts' | 'provider_locations',
+    error: unknown,
+  ): never => {
+    const code = providerDenialCode(error)
+    deps.logger?.warn(
+      {
+        stage,
+        code,
+        reason: error instanceof Error ? error.name : 'unknown',
+        ...(isGbpApiError(error) ? { kind: error.kind } : {}),
+      },
+      'Google import discovery denied',
+    )
+    return deny(code)
+  }
 
   const authorize = async (
     input: Readonly<{
@@ -265,8 +319,8 @@ export function createGoogleImportDiscovery(
         ...(cursor ? { pageToken: cursor.pageToken } : {}),
         signal: input.signal,
       })
-    } catch {
-      return deny('provider_unavailable')
+    } catch (error) {
+      return denyProviderFailure('provider_accounts', error)
     }
     const current = await authorize({
       actor,
@@ -355,8 +409,8 @@ export function createGoogleImportDiscovery(
         ...(account.pageToken ? { pageToken: account.pageToken } : {}),
         signal: input.signal,
       })
-    } catch {
-      return deny('provider_unavailable')
+    } catch (error) {
+      return denyProviderFailure('provider_locations', error)
     }
     let candidates: readonly ImportDiscoveryCandidate[]
     try {
@@ -365,10 +419,26 @@ export function createGoogleImportDiscovery(
         connectionId: input.connectionId,
         candidates: providerPage.items,
       })
-    } catch {
+    } catch (error) {
+      deps.logger?.warn(
+        {
+          stage: 'classify',
+          candidateCount: providerPage.items.length,
+          reason: error instanceof Error ? error.name : 'unknown',
+        },
+        'Google import discovery denied',
+      )
       return deny('temporarily_unavailable')
     }
     if (!classificationsMatch(providerPage.items, candidates)) {
+      deps.logger?.warn(
+        {
+          stage: 'classification_mismatch',
+          candidateCount: providerPage.items.length,
+          classifiedCount: candidates.length,
+        },
+        'Google import discovery denied',
+      )
       return deny('temporarily_unavailable')
     }
     const current = await authorize({

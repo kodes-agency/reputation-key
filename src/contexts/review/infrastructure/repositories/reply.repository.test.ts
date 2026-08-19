@@ -93,6 +93,7 @@ async function seedReview(
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt,
     expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -129,6 +130,7 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: now,
@@ -221,6 +223,19 @@ describe.sequential('replyRepository (integration)', () => {
 
       expect(updated.text).toBe('Updated reply')
       expect(updated.id).toBe(reply.id)
+    })
+
+    it('increments the durable state revision on every internal reply update', async () => {
+      const db = getDb()
+      await seedReview(db)
+      const repo = createReplyRepository(db)
+      const reply = makeReply({ text: 'Original reply', source: 'internal' })
+
+      const created = await repo.upsert(reply)
+      const updated = await repo.upsert({ ...reply, text: 'Updated reply' })
+
+      expect(created.stateRevision).toBe(1)
+      expect(updated.stateRevision).toBe(2)
     })
   })
 

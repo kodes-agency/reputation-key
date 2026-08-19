@@ -1,6 +1,7 @@
 // Review context — reply draft & submit server functions (split from reply.ts)
 
 import { createServerFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
@@ -18,13 +19,20 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+        setResponseHeader('Pragma', 'no-cache')
+        setResponseHeader('Expires', '0')
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
         const { useCases } = getContainer()
         try {
           return await useCases.draftReply(
-            { reviewId: reviewId(data.reviewId), text: data.text },
+            {
+              reviewId: reviewId(data.reviewId),
+              text: data.text,
+              provenanceToken: data.provenanceToken,
+            },
             ctx,
           )
         } catch (e) {

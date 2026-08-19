@@ -164,6 +164,33 @@ const persistPageObservations = async (
   return observations
 }
 
+const finishPhase = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  run: ReviewProviderSnapshotRun,
+  phase: 'main' | 'confirmation',
+): Promise<RunReviewProviderSnapshotResult> => {
+  if (phase === 'main') {
+    const finished = await deps.repository.finishMainScan({ runId: run.id })
+    if (finished.status === 'failed') {
+      return failAndDiscard(deps, input, run.id, finished.code)
+    }
+    return { status: 'checkpointed', runId: run.id, state: 'confirming' }
+  }
+
+  await deps.googleReviewApi.discardReviewCursors({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    sourceEpoch: input.sourceEpoch,
+    runId: run.id,
+  })
+  const finished = await deps.repository.finishConfirmationScan({ runId: run.id })
+  if (finished.status === 'failed') {
+    return { status: 'failed', runId: run.id, code: finished.code }
+  }
+  return { status: 'deleting', runId: run.id, applied: 0 }
+}
+
 const runListPage = async (
   deps: RunReviewProviderSnapshotDeps,
   deriver: ReviewProviderSubjectDeriver,
@@ -176,6 +203,18 @@ const runListPage = async (
   const phase = run.state === 'scanning' ? 'main' : 'confirmation'
   const pageIndex = phase === 'main' ? run.mainPageIndex : run.confirmationPageIndex
   const cursorRef = phase === 'main' ? run.mainCursorRef : run.confirmationCursorRef
+  // A null cursor anywhere but page 0 means the previous page was the final one
+  // and this continuation raced the phase transition. Calling the provider now
+  // would fetch WITHOUT a page token — silently re-reading page 1, adding no
+  // unique observations — and then try to publish a cursor for a page that does
+  // not exist, which the cursor store refuses with `binding_mismatch`. That is
+  // exactly how a completed 6-page / 256-review scan in google-closed-beta
+  // ended as `cursor_failure` with no watermark written. Finish the phase the
+  // final page already reached instead; `finishMainScan` is idempotent and
+  // returns `confirming` when another worker got there first.
+  if (pageIndex > 0 && cursorRef == null) {
+    return finishPhase(deps, input, run, phase)
+  }
   let page
   try {
     page = await deps.googleReviewApi.listReviewsPage({
@@ -241,25 +280,7 @@ const runListPage = async (
     }
   }
 
-  if (phase === 'main') {
-    const finished = await deps.repository.finishMainScan({ runId: run.id })
-    if (finished.status === 'failed') {
-      return failAndDiscard(deps, input, run.id, finished.code)
-    }
-    return { status: 'checkpointed', runId: run.id, state: 'confirming' }
-  }
-
-  await deps.googleReviewApi.discardReviewCursors({
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    sourceEpoch: input.sourceEpoch,
-    runId: run.id,
-  })
-  const finished = await deps.repository.finishConfirmationScan({ runId: run.id })
-  if (finished.status === 'failed') {
-    return { status: 'failed', runId: run.id, code: finished.code }
-  }
-  return { status: 'deleting', runId: run.id, applied: 0 }
+  return finishPhase(deps, input, run, phase)
 }
 
 const confirmTargetedCandidate = async (

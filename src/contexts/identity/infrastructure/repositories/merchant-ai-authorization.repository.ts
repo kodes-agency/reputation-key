@@ -169,7 +169,8 @@ function mapSnapshot(row: SnapshotRow): MerchantAiSnapshot {
     capabilities,
     capabilityRuntimeProfileVersions,
     capabilityEpochs,
-    authorizedSourceEpoch: readInteger(row, 'authorized_source_epoch', 1),
+    // 0-based, unlike the capability epochs and state version below.
+    authorizedSourceEpoch: readInteger(row, 'authorized_source_epoch', 0),
     analysisStartSequence: readSafeBigint(row, 'analysis_start_sequence', 0),
     stateVersion: readInteger(row, 'state_version', 1),
     noticeVersion: readNonEmptyString(row, 'notice_version'),
@@ -385,12 +386,14 @@ export function createMerchantAiAuthorizationStore(
             'Property source is unavailable',
           )
         }
-        const propertySourceEpoch = readInteger(sourceDiscovery, 'source_epoch', 1)
+        // Source epoch is 0-based (drizzle/0060): a property that has never been
+        // edited sits at 0, and enabling AI on it must not read as a corrupt row.
+        const propertySourceEpoch = readInteger(sourceDiscovery, 'source_epoch', 0)
         const discoveredSourceEpoch =
           input.operation === 'revoke' &&
           sourceDiscovery.authorized_source_epoch !== null &&
           sourceDiscovery.authorized_source_epoch !== undefined
-            ? readInteger(sourceDiscovery, 'authorized_source_epoch', 1)
+            ? readInteger(sourceDiscovery, 'authorized_source_epoch', 0)
             : propertySourceEpoch
         const providerSourceScope = createAiAdvisoryScope('provider-source', [
           input.organizationId,
@@ -441,7 +444,7 @@ export function createMerchantAiAuthorizationStore(
               : 'Property and Google source must be active',
           )
         }
-        const lockedPropertySourceEpoch = readInteger(property, 'source_epoch', 1)
+        const lockedPropertySourceEpoch = readInteger(property, 'source_epoch', 0)
         if (
           input.operation !== 'revoke' &&
           lockedPropertySourceEpoch !== discoveredSourceEpoch
@@ -750,7 +753,10 @@ export function createMerchantAiAuthorizationStore(
         if (
           !property ||
           !Number.isSafeInteger(Number(property.source_epoch)) ||
-          Number(property.source_epoch) < 1
+          // 0-based source epoch (drizzle/0060): a never-edited property sits at
+          // 0 and is still live. The liveness signal here is the row existing
+          // with deleted_at IS NULL, not the epoch being non-zero.
+          Number(property.source_epoch) < 0
         ) {
           throw new MerchantAiAuthorizationStoreError(
             'restore_reset_denied',

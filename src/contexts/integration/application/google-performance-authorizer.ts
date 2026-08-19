@@ -6,6 +6,7 @@ import {
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   createProviderAuthorizationPrincipalBinding,
+  providerAuthorizationFenceSha256,
   providerAuthorizationVectorSha256,
 } from '#/shared/provider-ephemeral/authorization-binding'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -303,6 +304,11 @@ export function createGooglePerformanceAuthorizer(
         connectionLifecycleVersion: connection.lifecycleVersion,
         connectionAccessVersion: connection.accessVersion,
         credentialGeneration: connection.credentialGeneration,
+        authorizationVector,
+      }),
+      authorizationFenceSha256: providerAuthorizationFenceSha256({
+        connectionLifecycleVersion: connection.lifecycleVersion,
+        connectionAccessVersion: connection.accessVersion,
         authorizationVector,
       }),
       principalHmacKeyVersion: principal.principalHmacKeyVersion,

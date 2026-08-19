@@ -46,6 +46,7 @@ function makeReview(): Omit<Review, 'createdAt' | 'updatedAt'> {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: NOW,

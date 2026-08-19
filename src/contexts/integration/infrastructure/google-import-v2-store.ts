@@ -26,6 +26,40 @@ import { reduceGoogleImportParent } from '../application/google-import-v2-reduce
 
 const ACTIVE_STATUSES = new Set(['queued', 'processing'])
 
+/**
+ * Progress polling backs off on parent *staleness*, not elapsed total. Every
+ * committed item advance refreshes `updatedAt` and returns the client to the fast
+ * interval, while a parent that stops moving decays to the cap instead of costing
+ * two queries plus an authorization round-trip per retry candidate every second
+ * for as long as the tab stays open.
+ */
+const PROGRESS_POLL_FAST_MS = 1_000
+const PROGRESS_POLL_MEDIUM_MS = 5_000
+/** Cap. No active parent is ever polled less often than this. */
+const PROGRESS_POLL_SLOW_MS = 15_000
+const PROGRESS_POLL_FAST_UNTIL_STALE_MS = 30_000
+const PROGRESS_POLL_MEDIUM_UNTIL_STALE_MS = 120_000
+
+/**
+ * Pure poll-interval hint. `null` means "stop polling": the parent is terminal.
+ * The client honours this value verbatim, so all backoff policy lives here.
+ */
+export function googleImportProgressPollAfterMs(
+  status: string,
+  updatedAtMs: number,
+  nowMs: number,
+): number | null {
+  if (!ACTIVE_STATUSES.has(status)) return null
+  const staleMs = nowMs - updatedAtMs
+  // A future or unusable `updatedAt` must not buy a slower interval than a fresh
+  // one, so anything below the first threshold — including negatives — is fast.
+  if (!Number.isFinite(staleMs) || staleMs < PROGRESS_POLL_FAST_UNTIL_STALE_MS) {
+    return PROGRESS_POLL_FAST_MS
+  }
+  if (staleMs < PROGRESS_POLL_MEDIUM_UNTIL_STALE_MS) return PROGRESS_POLL_MEDIUM_MS
+  return PROGRESS_POLL_SLOW_MS
+}
+
 function pgErrorCode(error: unknown): unknown {
   if (typeof error !== 'object' || error === null) return undefined
   if ('code' in error) return error.code
@@ -268,7 +302,6 @@ async function loadProgress(
       propertyName: row.propertyName,
       action: row.action,
       status: row.status as GbpImportItemStatus,
-      propertyId: null,
       outcomeCode: row.outcomeCode,
       messageKey: `property_import.${row.outcomeCode ?? row.status}`,
       retryable,
@@ -296,7 +329,13 @@ async function loadProgress(
     counts,
     items,
     canRetry: items.some((item) => item.retryable),
-    pollAfterMs: ACTIVE_STATUSES.has(parent.status) ? 1_000 : null,
+    // A polling hint only, never a visibility or retention decision, so the process
+    // clock is sufficient here; skew can at worst cost one extra or one delayed poll.
+    pollAfterMs: googleImportProgressPollAfterMs(
+      parent.status,
+      parent.updatedAt.getTime(),
+      Date.now(),
+    ),
     purgeAt: parent.purgeAt?.toISOString() ?? null,
     updatedAt: parent.updatedAt.toISOString(),
   }
@@ -1312,6 +1351,52 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           asc(gbpImportRequestItems.id),
         )
         .limit(limit)
+    },
+
+    // Claim-lease recovery selection. A row is stale exactly when it is still
+    // 'processing' and its lease instant has passed — equality is expired, the
+    // same boundary claimItem/runClaimedEffect use, so the reaper can never
+    // preempt a lease those paths still consider live. The schema check
+    // guarantees a 'processing' row has a non-null fence and an attempt
+    // ordinal in 1..5, so the projected fence is always present.
+    // Reads through the partial `(effect_deadline_at, id)` index's
+    // pending/processing subset — the active-item working set, not the table.
+    listStaleClaimItems: async (now, limit) => {
+      assertLifecycleSweepLimit(limit)
+      const rows = await db
+        .select({
+          organizationId: gbpImportRequestItems.organizationId,
+          itemId: gbpImportRequestItems.id,
+          retryRevision: gbpImportRequestItems.retryRevision,
+          claimFence: gbpImportRequestItems.claimFence,
+          attemptOrdinal: gbpImportRequestItems.highestAttemptForRevision,
+        })
+        .from(gbpImportRequestItems)
+        .where(
+          and(
+            eq(gbpImportRequestItems.status, 'processing'),
+            isNotNull(gbpImportRequestItems.claimFence),
+            lte(gbpImportRequestItems.claimLeaseExpiresAt, now),
+          ),
+        )
+        .orderBy(
+          asc(gbpImportRequestItems.claimLeaseExpiresAt),
+          asc(gbpImportRequestItems.id),
+        )
+        .limit(limit)
+      return rows.flatMap((row) =>
+        row.claimFence === null
+          ? []
+          : [
+              {
+                organizationId: row.organizationId,
+                itemId: row.itemId,
+                retryRevision: row.retryRevision,
+                claimFence: row.claimFence,
+                attemptOrdinal: row.attemptOrdinal,
+              },
+            ],
+      )
     },
 
     listPurgeCandidates: async (now, limit) => {

@@ -36,12 +36,27 @@ describe('createAiReviewSource', () => {
     }
     const readForAi = vi.fn(async () => available)
     const assertCurrentForAi = vi.fn(async () => ({ status: 'current' as const }))
-    const source = createAiReviewSource({ readForAi, assertCurrentForAi })
+    const readReplyStateRevision = vi.fn(async () => 7)
+    const source = createAiReviewSource({
+      readForAi,
+      assertCurrentForAi,
+      readReplyStateRevision,
+    })
 
     await expect(source.readForAi(REQUEST)).resolves.toEqual(available)
     await expect(source.assertCurrent(REQUEST)).resolves.toEqual({ status: 'current' })
     expect(readForAi).toHaveBeenCalledWith(REQUEST)
     expect(assertCurrentForAi).toHaveBeenCalledWith(REQUEST)
+    await expect(
+      source.readReplyStateRevision({
+        organizationId: REQUEST.organizationId,
+        reviewId: REQUEST.reviewId,
+      }),
+    ).resolves.toBe(7)
+    expect(readReplyStateRevision).toHaveBeenCalledWith(
+      REQUEST.organizationId,
+      REQUEST.reviewId,
+    )
   })
 
   it('uses the shared raw canonicalizer for the persisted source digest and identity-minimized text', () => {

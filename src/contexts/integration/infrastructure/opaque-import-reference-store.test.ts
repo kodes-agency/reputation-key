@@ -59,7 +59,7 @@ function setup(
     revalidate: async (record) => ({
       allowed: true,
       approvalBindingId: record.approvalBindingId,
-      authorizationVectorSha256: record.authorizationVectorSha256,
+      authorizationFenceSha256: record.authorizationFenceSha256,
     }),
   })
   const references = createOpaqueImportReferenceStore({

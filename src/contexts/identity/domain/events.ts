@@ -190,8 +190,8 @@ export const identityMerchantAiChanged = (
     'stateVersion must be a positive safe integer',
   )
   assert(
-    Number.isSafeInteger(args.authorizedSourceEpoch) && args.authorizedSourceEpoch >= 1,
-    'authorizedSourceEpoch must be a positive safe integer',
+    Number.isSafeInteger(args.authorizedSourceEpoch) && args.authorizedSourceEpoch >= 0,
+    'authorizedSourceEpoch must be a nonnegative safe integer',
   )
   assert(
     Number.isSafeInteger(args.analysisStartSequence) && args.analysisStartSequence >= 0,

@@ -20,6 +20,10 @@ export type ReviewRepository = Readonly<{
   assertCurrentForAi(
     input: AiReviewSourceRequest,
   ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>
+  readReplyStateRevision(
+    organizationId: OrganizationId,
+    reviewId: ReviewId,
+  ): Promise<number>
   readAiAnalysisHead(
     input: Readonly<{
       organizationId: OrganizationId

@@ -39,6 +39,13 @@ export type Review = Readonly<{
   reviewerProfilePhotoUrl: string | null
   rating: StarRating
   text: string | null
+  /**
+   * Google's machine translation of `text`, split out of the single
+   * `(Translated by Google) … (Original) …` provider field. `text` always holds
+   * the guest's own words so language detection and the AI reply plane read the
+   * original; this field exists only for display.
+   */
+  translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
   expiresAt: Date
@@ -87,6 +94,8 @@ export type Reply = Readonly<{
   rejectedBy: UserId | null
   rejectionReason: string | null
   aiGenerated: boolean
+  /** Monotonic lifecycle revision used to bind ephemeral AI suggestions. */
+  stateRevision: number
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
@@ -185,6 +194,8 @@ export type GoogleReview = Readonly<{
   reviewerProfilePhotoUrl: string | null
   rating: StarRating
   text: string | null
+  /** Google's machine translation; `text` holds the guest's original words. */
+  translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
   replyText: string | null

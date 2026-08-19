@@ -18,6 +18,8 @@ import { isContentEligibleForRead } from './source-content-lifecycle'
 export type EligibleReviewSnippet = Readonly<{
   reviewerName: string | null
   text: string | null
+  /** Provider machine translation; `text` holds the guest's original words. */
+  translatedText: string | null
   reviewerProfilePhotoUrl: string | null
   rating: number | null
 }>
@@ -70,6 +72,7 @@ export const createEligibleReads = (deps: {
       snippet: {
         reviewerName: r.reviewerName,
         text: r.text,
+        translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
         rating: r.rating,
       },
@@ -86,6 +89,7 @@ export const createEligibleReads = (deps: {
       map.set(r.id as string, {
         reviewerName: r.reviewerName,
         text: r.text,
+        translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
         rating: r.rating,
       })

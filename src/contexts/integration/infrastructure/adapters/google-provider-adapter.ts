@@ -1,6 +1,14 @@
-import { parseGoogleRetryAfterMs } from '#/shared/google-provider-control/provider-call'
+import {
+  googleRetryDelayMs,
+  googleRetryFloorMs,
+  parseGoogleRetryAfterMs,
+} from '#/shared/google-provider-control/provider-call'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
-import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import type {
+  GoogleAuthorizedProviderExecutor,
+  GoogleProviderAdmissionCode,
+  GoogleProviderExecutionResult,
+} from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import { createGbpApiError, type GbpApiErrorKind } from '../../domain/gbp-api-error'
 
@@ -14,17 +22,51 @@ function classifyProviderStatus(status: number): GbpApiErrorKind {
   return 'upstream_error'
 }
 
-function gatewayFailureKind(
-  code: Exclude<
-    Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>,
-    { ok: true }
-  >['code'],
+function admissionFailureKind(
+  admissionCode: GoogleProviderAdmissionCode | undefined,
 ): GbpApiErrorKind {
-  if (code === 'admission_denied') return 'rate_limited'
-  if (code === 'response_too_large' || code === 'malformed_request') {
+  switch (admissionCode) {
+    // Only real provider quota pressure is rate limiting. Permit/policy fences
+    // (elapsed start deadline, coordination outage) all surfaced as "Google is
+    // limiting requests" before this, which pointed operators at provider
+    // quota instead of our own admission path.
+    case 'quota_exhausted':
+    case 'in_flight_exhausted':
+      return 'rate_limited'
+    // The caller's authorization moved while the request was in flight. These
+    // are decisions, not outages: reporting them as retryable "temporarily
+    // unavailable" hid a real permission change behind a useless retry.
+    case 'authorization_changed':
+    case 'approval_binding_changed':
+    case 'authorization_denied':
+      return 'permission_denied'
+    // Everything else — including `policy_refresh_unavailable` — is our own
+    // admission path being momentarily unable to decide.
+    default:
+      return 'upstream_error'
+  }
+}
+
+type GoogleProviderExecutionFailure = Exclude<GoogleProviderExecutionResult, { ok: true }>
+
+function gatewayFailureKind(failure: GoogleProviderExecutionFailure): GbpApiErrorKind {
+  if (failure.code === 'admission_denied') {
+    return admissionFailureKind(failure.admissionCode)
+  }
+  if (failure.code === 'response_too_large' || failure.code === 'malformed_request') {
     return 'parse_error'
   }
   return 'upstream_error'
+}
+
+/** Retryable kinds always carry a real wait; the rest carry the raw hint. */
+function retryableBackoffMs(
+  kind: GbpApiErrorKind,
+  hintMs: number | null,
+): number | undefined {
+  return kind === 'rate_limited' || kind === 'upstream_error'
+    ? googleRetryFloorMs(hintMs)
+    : (hintMs ?? undefined)
 }
 
 function abortReason(signal: AbortSignal): Error {
@@ -34,9 +76,9 @@ function abortReason(signal: AbortSignal): Error {
 }
 
 async function awaitProviderExecution(
-  execution: ReturnType<GoogleAuthorizedProviderExecutor['execute']>,
+  execution: Promise<GoogleProviderExecutionResult>,
   signal?: AbortSignal,
-): Promise<Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>> {
+): Promise<GoogleProviderExecutionResult> {
   if (!signal) return execution
   if (signal.aborted) throw abortReason(signal)
 
@@ -73,7 +115,7 @@ async function awaitProviderExecution(
 }
 
 export type GoogleProviderSuccessfulResponse = Extract<
-  Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>,
+  GoogleProviderExecutionResult,
   { ok: true }
 >
 
@@ -92,7 +134,7 @@ export async function executeGoogleProviderRaw(
   if (!Number.isSafeInteger(startedAtMs)) {
     throw createGbpApiError(input.operation, 'upstream_error')
   }
-  let result: Awaited<ReturnType<GoogleAuthorizedProviderExecutor['execute']>>
+  let result: GoogleProviderExecutionResult
   const requestController = new AbortController()
   const abortFromCaller = () => requestController.abort(abortReason(input.signal!))
   input.signal?.addEventListener('abort', abortFromCaller, { once: true })
@@ -122,18 +164,31 @@ export async function executeGoogleProviderRaw(
   }
 
   if (!result.ok) {
-    throw createGbpApiError(input.operation, gatewayFailureKind(result.code), {
-      retryAfterMs: result.retryAfterMs,
+    const gatewayKind = gatewayFailureKind(result)
+    throw createGbpApiError(input.operation, gatewayKind, {
+      retryAfterMs: retryableBackoffMs(gatewayKind, result.retryAfterMs),
     })
   }
 
   const providerBodyBytes = result.body.byteLength
   try {
     if (result.status !== 200) {
-      throw createGbpApiError(input.operation, classifyProviderStatus(result.status), {
+      const statusKind = classifyProviderStatus(result.status)
+      const observedAtMs = input.nowMs()
+      throw createGbpApiError(input.operation, statusKind, {
         providerBodyBytes,
+        // A 429 with no Retry-After previously produced no wait at all, so the
+        // caller was told to wait while its retry control stayed enabled.
         retryAfterMs:
-          parseGoogleRetryAfterMs(result.headers.retryAfter, input.nowMs()) ?? undefined,
+          statusKind === 'rate_limited' || statusKind === 'upstream_error'
+            ? googleRetryDelayMs({
+                attempt: 1,
+                nowMs: Number.isSafeInteger(observedAtMs) ? observedAtMs : startedAtMs,
+                retryAfter: result.headers.retryAfter,
+                jitter: 1,
+              })
+            : (parseGoogleRetryAfterMs(result.headers.retryAfter, observedAtMs) ??
+              undefined),
       })
     }
     if (

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  correctionIdempotencyKey,
   evaluateGovernedReading,
   validateGoalDefinition,
   type GovernedMetricVersion,
@@ -47,6 +48,42 @@ describe('governed Goal definitions', () => {
         measureKind: 'progress',
         targetValue: 5,
         metric: { ...approvedCounter, employmentDecisionEligible: true },
+        sourcePolicy: 'portal_manager_action',
+      }),
+    ).toEqual({ ok: false, reason: 'metric_not_goal_eligible' })
+  })
+
+  it.each([
+    [
+      'metric_scope_not_allowed',
+      { metric: { ...approvedCounter, allowedScopes: ['property'] } },
+    ],
+    ['source_policy_not_allowed', { sourcePolicy: 'unapproved_source' }],
+    [
+      'measure_kind_mismatch',
+      { measureKind: 'ratio', metric: { ...approvedCounter, valueKind: 'counter' } },
+    ],
+    ['invalid_target', { targetValue: Number.NaN }],
+  ] as const)('rejects %s definitions', (reason, override) => {
+    expect(
+      validateGoalDefinition({
+        scope: { kind: 'portal_group', portalGroupId: 'group-1' },
+        measureKind: 'progress',
+        targetValue: 5,
+        metric: approvedCounter,
+        sourcePolicy: 'portal_manager_action',
+        ...override,
+      }),
+    ).toEqual({ ok: false, reason })
+  })
+
+  it('rejects metrics not permitted for goals independently of employment use', () => {
+    expect(
+      validateGoalDefinition({
+        scope: { kind: 'property' },
+        measureKind: 'progress',
+        targetValue: 5,
+        metric: { ...approvedCounter, permittedConsumers: [] },
         sourcePolicy: 'portal_manager_action',
       }),
     ).toEqual({ ok: false, reason: 'metric_not_goal_eligible' })
@@ -124,5 +161,70 @@ describe('governed Goal evaluation', () => {
       sampleCount: 10,
       achieved: true,
     })
+  })
+
+  it('fails closed on source, component, and exact-value inconsistencies', () => {
+    const baseReading = {
+      dataQuality: 'eligible' as const,
+      exactValue: 5,
+      numerator: 5,
+      denominator: 10,
+      sampleCount: 10,
+      sourcePolicy: 'portal_configuration',
+    }
+    const ratioInput = {
+      measureKind: 'ratio' as const,
+      targetValue: 0.8,
+      minimumSample: 5,
+      sourcePolicy: 'portal_configuration',
+    }
+    expect(
+      evaluateGovernedReading({
+        ...ratioInput,
+        reading: { ...baseReading, dataQuality: 'unavailable' },
+      }),
+    ).toMatchObject({ state: 'unavailable', reason: 'reading_unavailable' })
+    expect(
+      evaluateGovernedReading({
+        ...ratioInput,
+        reading: { ...baseReading, sourcePolicy: 'different' },
+      }),
+    ).toMatchObject({ state: 'quarantined', reason: 'source_policy_mismatch' })
+    for (const reading of [
+      { ...baseReading, numerator: null },
+      { ...baseReading, denominator: null },
+      { ...baseReading, denominator: 0 },
+    ]) {
+      expect(evaluateGovernedReading({ ...ratioInput, reading })).toMatchObject({
+        state: 'quarantined',
+        reason: 'invalid_ratio_components',
+      })
+    }
+    const exactInput = { ...ratioInput, measureKind: 'progress' as const }
+    for (const exactValue of [null, Number.POSITIVE_INFINITY]) {
+      expect(
+        evaluateGovernedReading({
+          ...exactInput,
+          reading: { ...baseReading, exactValue },
+        }),
+      ).toMatchObject({ state: 'quarantined', reason: 'invalid_exact_value' })
+    }
+    expect(
+      evaluateGovernedReading({
+        ...exactInput,
+        targetValue: 10,
+        reading: baseReading,
+      }),
+    ).toMatchObject({ state: 'eligible', value: 5, achieved: false })
+  })
+
+  it('builds a stable correction idempotency key', () => {
+    expect(
+      correctionIdempotencyKey({
+        periodId: 'period-1',
+        sourceEventId: 'event-1',
+        correctedReadingId: 'reading-1',
+      }),
+    ).toBe('goal-correction:period-1:event-1:reading-1')
   })
 })

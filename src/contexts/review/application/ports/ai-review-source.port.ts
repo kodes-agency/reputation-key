@@ -51,6 +51,12 @@ export type AiReviewSourceResult =
 
 export type AiReviewSourcePort = Readonly<{
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readReplyStateRevision(
+    input: Readonly<{
+      organizationId: OrganizationId
+      reviewId: ReviewId
+    }>,
+  ): Promise<number>
   assertCurrent(
     input: AiReviewSourceRequest,
   ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>

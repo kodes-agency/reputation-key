@@ -414,3 +414,234 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     explainPolicyDecision: deps.explainPolicyDecision,
   }
 }
+
+// ── Property capability provisioning (BQC-2.7) ───────────────────────
+//
+// A property's allowlist is INDEPENDENT of its organization's: an org can hold
+// the full beta capability set while one of its properties holds none, and an
+// empty property_capability set denies every non-core capability
+// (`property_not_allowlisted`). Provisioning copies the organization's set
+// onto the property — the Google import path does it for every property it
+// creates, and the operator command repairs drift after the fact.
+//
+// No extra policy_decision_audit row is written here: the operator command
+// runs through the BQC-7.5 harness, which audits the invocation (action
+// 'system:ops', allow WITH the operator reason), and every granted row keeps
+// its own provenance in property_capability.created_by. The import path's
+// provenance is the initiating user id it passes as createdBy.
+//
+// Pure orchestration (boundary rule): the reads, the idempotent grant and the
+// snapshot refresh are all injected.
+
+export type PropertyCapabilityProvisioningDeps = Readonly<{
+  listOrganizationCapabilities: (organizationId: string) => Promise<ReadonlyArray<string>>
+  listPropertyCapabilities: (propertyId: string) => Promise<ReadonlyArray<string>>
+  /** The property's organization — null when the property is absent. */
+  getPropertyOrganizationId: (propertyId: string) => Promise<string | null>
+  /** Active, non-deleted properties of the organization. */
+  listProvisionablePropertyIds: (organizationId: string) => Promise<ReadonlyArray<string>>
+  /**
+   * Idempotent grant of the organization's allowlist onto one property —
+   * returns exactly the capabilities it added (empty when already complete).
+   */
+  provisionPropertyCapabilities: (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      createdBy?: string
+    }>,
+  ) => Promise<ReadonlyArray<string>>
+  /** Strong-read the persisted capability snapshot after a grant. */
+  refreshPolicy: () => Promise<void>
+}>
+
+export type PropertyCapabilityGap = Readonly<{
+  propertyId: string
+  /** Capabilities currently allowlisted for the property. */
+  capabilities: ReadonlyArray<string>
+  /** Organization capabilities the property does NOT hold. */
+  missing: ReadonlyArray<string>
+}>
+
+export type PropertyCapabilityReport = Readonly<{
+  organizationId: string
+  organizationCapabilities: ReadonlyArray<string>
+  properties: ReadonlyArray<PropertyCapabilityGap>
+}>
+
+export type PropertyCapabilitySyncResult = Readonly<{
+  organizationId: string
+  /** One entry per property that actually gained capabilities. */
+  granted: ReadonlyArray<
+    Readonly<{ propertyId: string; capabilities: ReadonlyArray<string> }>
+  >
+}>
+
+export function createPropertyCapabilityProvisioning(
+  deps: PropertyCapabilityProvisioningDeps,
+) {
+  /** The properties an operation targets — tenant-checked for a single id. */
+  async function targets(
+    organizationId: string,
+    propertyId: string | null,
+  ): Promise<ReadonlyArray<string>> {
+    if (propertyId === null) return deps.listProvisionablePropertyIds(organizationId)
+    if ((await deps.getPropertyOrganizationId(propertyId)) !== organizationId) {
+      throw new Error('property not found in organization')
+    }
+    return [propertyId]
+  }
+
+  async function report(
+    input: Readonly<{ organizationId: string; propertyId: string | null }>,
+  ): Promise<PropertyCapabilityReport> {
+    const organizationCapabilities = await deps.listOrganizationCapabilities(
+      input.organizationId,
+    )
+    const propertyIds = await targets(input.organizationId, input.propertyId)
+    // Sequential: an operator report over a whole organization must not open
+    // one pooled connection per property.
+    const properties: PropertyCapabilityGap[] = []
+    for (const id of propertyIds) {
+      const capabilities = await deps.listPropertyCapabilities(id)
+      const held = new Set(capabilities)
+      properties.push({
+        propertyId: id,
+        capabilities,
+        missing: organizationCapabilities.filter((capability) => !held.has(capability)),
+      })
+    }
+    return {
+      organizationId: input.organizationId,
+      organizationCapabilities,
+      properties,
+    }
+  }
+
+  async function sync(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string | null
+      createdBy: string
+    }>,
+  ): Promise<PropertyCapabilitySyncResult> {
+    const propertyIds = await targets(input.organizationId, input.propertyId)
+    const granted: Array<{ propertyId: string; capabilities: ReadonlyArray<string> }> = []
+    for (const id of propertyIds) {
+      const capabilities = await deps.provisionPropertyCapabilities({
+        organizationId: input.organizationId,
+        propertyId: id,
+        createdBy: input.createdBy,
+      })
+      if (capabilities.length > 0) granted.push({ propertyId: id, capabilities })
+    }
+    if (granted.length > 0) await deps.refreshPolicy()
+    return { organizationId: input.organizationId, granted }
+  }
+
+  /**
+   * The import path's provisioning port: grant the organization's allowlist to
+   * a property the import just created. Idempotent — a replayed effect grants
+   * nothing and refreshes nothing.
+   */
+  async function provisionCreatedProperty(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      createdBy: string
+    }>,
+  ): Promise<void> {
+    const granted = await deps.provisionPropertyCapabilities(input)
+    if (granted.length > 0) await deps.refreshPolicy()
+  }
+
+  return { report, sync, provisionCreatedProperty }
+}
+
+export type PropertyCapabilityProvisioning = ReturnType<
+  typeof createPropertyCapabilityProvisioning
+>
+
+// ── ops:property-capabilities command core ───────────────────────────
+//
+// The command's parse + action live here (with their unit tests); scripts/ is
+// outside tsconfig/eslint, so scripts/ops/property-capabilities.ts is wiring
+// only — the same split as the operator-command harness itself.
+
+export type PropertyCapabilityCommand = Readonly<{
+  action: 'list' | 'sync'
+  /** null = every active, non-deleted property in the organization (--all). */
+  propertyId: string | null
+}>
+
+const PROPERTY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Parse the command's own positionals (the harness strips its flags first):
+ * `<list|sync> <propertyId>`, or `<list|sync>` with --all for the whole
+ * organization. Returns null on a malformed invocation — the script prints
+ * its usage and exits 1.
+ */
+export function parsePropertyCapabilityCommand(
+  positionals: ReadonlyArray<string>,
+  all: boolean,
+): PropertyCapabilityCommand | null {
+  const [action, propertyId, ...extra] = positionals
+  if (extra.length > 0) return null
+  if (action !== 'list' && action !== 'sync') return null
+  if (all) return propertyId === undefined ? { action, propertyId: null } : null
+  if (propertyId === undefined || !PROPERTY_ID_RE.test(propertyId)) return null
+  return { action, propertyId }
+}
+
+/** The subset of the harness context/io this action reads (structural). */
+type PropertyCapabilityOperatorContext = Readonly<{
+  operatorId: string
+  organizationId?: string
+  dryRun: boolean
+}>
+type PropertyCapabilityOperatorIO = Readonly<{ out: (line: string) => void }>
+
+/**
+ * The ops:property-capabilities action — structurally compatible with the
+ * harness's OperatorAction. `list` reports the property allowlist against its
+ * organization's; `sync` grants what is missing, and REPORTS WITHOUT WRITING
+ * until --apply (the harness sets ctx.dryRun for a mutation invoked without
+ * it).
+ */
+export function createPropertyCapabilityOperatorAction(
+  ops: PropertyCapabilityProvisioning,
+  command: PropertyCapabilityCommand,
+  commandName: string,
+): (
+  ctx: PropertyCapabilityOperatorContext,
+  args: unknown,
+  io: PropertyCapabilityOperatorIO,
+) => Promise<void> {
+  return async (ctx, _args, io) => {
+    const organizationId = ctx.organizationId as string
+    if (command.action === 'list' || ctx.dryRun) {
+      const report = await ops.report({
+        organizationId,
+        propertyId: command.propertyId,
+      })
+      io.out(
+        JSON.stringify(
+          { action: command.action === 'list' ? 'list' : 'would_sync', ...report },
+          null,
+          2,
+        ),
+      )
+      if (command.action === 'sync') {
+        io.out(`re-run with --reason <text> --apply ${commandName}`)
+      }
+      return
+    }
+    const result = await ops.sync({
+      organizationId,
+      propertyId: command.propertyId,
+      createdBy: ctx.operatorId,
+    })
+    io.out(JSON.stringify({ action: 'sync', ...result }, null, 2))
+  }
+}

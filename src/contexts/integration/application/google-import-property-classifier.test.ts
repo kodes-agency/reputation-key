@@ -156,6 +156,22 @@ describe('Google import Property candidate classifier', () => {
     ).resolves.toMatchObject([{ eligibility: { kind: 'unavailable' } }])
   })
 
+  it('treats an account with no locations as an empty page, not a failure', async () => {
+    // The binding reader rejects an empty id list as an invalid binding, so
+    // classifying an empty provider page used to surface as
+    // "Locations unavailable" for accounts that simply own no locations.
+    const readByLocationIds = vi.fn(async () => [])
+    const classify = createGoogleImportPropertyClassifier({
+      readByLocationIds,
+      isAllowed: vi.fn(async () => true),
+    })
+
+    await expect(
+      classify({ actor, connectionId: selectedConnectionId, candidates: [] }),
+    ).resolves.toEqual([])
+    expect(readByLocationIds).not.toHaveBeenCalled()
+  })
+
   it('fails closed on duplicate or out-of-scope Property reader results', async () => {
     const duplicate = view('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'same')
     const classifyDuplicate = createGoogleImportPropertyClassifier({

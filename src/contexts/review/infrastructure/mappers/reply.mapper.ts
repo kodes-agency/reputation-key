@@ -20,6 +20,7 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   rejectedBy: row.rejectedBy ? userId(row.rejectedBy) : null,
   rejectionReason: row.rejectionReason,
   aiGenerated: row.aiGenerated,
+  stateRevision: row.stateRevision,
   submittedAt: row.submittedAt,
   approvedAt: row.approvedAt,
   publishedAt: row.publishedAt,
@@ -46,6 +47,9 @@ export const replyToRow = (
   rejectedBy: reply.rejectedBy != null ? unbrand(reply.rejectedBy) : null,
   rejectionReason: reply.rejectionReason,
   aiGenerated: reply.aiGenerated,
+  authorship:
+    reply.source === 'google_sync' ? null : reply.aiGenerated ? 'ai_assisted' : 'human',
+  stateRevision: reply.stateRevision,
   submittedAt: reply.submittedAt,
   approvedAt: reply.approvedAt,
   publishedAt: reply.publishedAt,

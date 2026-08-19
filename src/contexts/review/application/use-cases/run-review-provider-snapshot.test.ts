@@ -37,6 +37,7 @@ const review: GoogleReview = {
   reviewerProfilePhotoUrl: null,
   rating: 5,
   text: 'Synthetic review body',
+  translatedText: null,
   languageCode: 'en',
   reviewedAt: new Date('2026-08-16T00:00:00.000Z'),
   replyText: null,
@@ -184,6 +185,27 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.commitPage).toHaveBeenCalledWith(
       expect.objectContaining({ expectedPageIndex: 0, observations: expect.any(Array) }),
     )
+  })
+
+  it('finishes the phase instead of refetching when a continuation lost its cursor', async () => {
+    // A null cursor off page 0 means the previous page was final. Calling the
+    // provider then fetches WITHOUT a page token, silently re-reads page 1, and
+    // ends by publishing a cursor for a page that does not exist — which the
+    // cursor store refuses with `binding_mismatch`. A completed 6-page /
+    // 256-review scan in google-closed-beta died exactly that way and wrote no
+    // watermark.
+    const deps = makeDeps({
+      currentRun: run({ mainPageIndex: 6, mainCursorRef: null, mainUniqueCount: 256 }),
+    })
+
+    await expect(runReviewProviderSnapshot(deps)(request)).resolves.toEqual({
+      status: 'checkpointed',
+      runId,
+      state: 'confirming',
+    })
+    expect(deps.googleReviewApi.listReviewsPage).not.toHaveBeenCalled()
+    expect(deps.repository.commitPage).not.toHaveBeenCalled()
+    expect(deps.repository.finishMainScan).toHaveBeenCalledWith({ runId })
   })
 
   it('fails closed before persistence for a duplicate provider resource', async () => {

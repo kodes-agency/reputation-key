@@ -6,6 +6,8 @@ import {
   type MetricCorrection,
   type MetricReading,
 } from './metric-reading'
+import { createMetricReading, VALID_METRIC_KEYS } from './constructors'
+import { isMetricError, metricError } from './errors'
 import {
   metricReadingId,
   organizationId,
@@ -64,6 +66,50 @@ describe('MetricReading', () => {
       sampleCount: 10,
       sourcePolicy: 'first_party_workflow',
     })
+  })
+
+  it('validates values, timestamps, and the closed metric catalogue', () => {
+    expect(createMetricReading(makeReadingParams()).metricKey).toBe(
+      'portal.content_review.completed',
+    )
+    expect(VALID_METRIC_KEYS.has('portal.content_review.completed')).toBe(true)
+
+    for (const value of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      expect(() => createMetricReading(makeReadingParams({ value }))).toThrow(
+        `Metric value must be finite and >= 0, got ${value}`,
+      )
+    }
+    expect(() =>
+      createMetricReading(
+        Object.assign(makeReadingParams(), { occurredAt: 'not-a-date' }),
+      ),
+    ).toThrow('occurredAt must be a valid Date')
+    expect(() =>
+      createMetricReading(
+        Object.assign(makeReadingParams(), { occurredAt: new Date(Number.NaN) }),
+      ),
+    ).toThrow('occurredAt must be a valid Date')
+    expect(() =>
+      createMetricReading(
+        Object.assign(makeReadingParams(), { metricKey: 'unknown.metric' }),
+      ),
+    ).toThrow('Invalid metricKey: unknown.metric')
+  })
+
+  it('constructs and recognizes closed metric errors', () => {
+    const error = metricError('repo_insert_failed', 'write failed', { retry: false })
+    expect(error).toEqual({
+      _tag: 'MetricError',
+      code: 'repo_insert_failed',
+      message: 'write failed',
+      context: { retry: false },
+    })
+    expect(metricError('invalid_value', 'bad value')).not.toHaveProperty('context')
+    expect(isMetricError(error)).toBe(true)
+    expect(isMetricError(null)).toBe(false)
+    expect(isMetricError('MetricError')).toBe(false)
+    expect(isMetricError({})).toBe(false)
+    expect(isMetricError({ _tag: 'OtherError' })).toBe(false)
   })
 
   it('deduplicates by immutable version and source event across dimensions', () => {

@@ -42,6 +42,24 @@ import type {
 } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
 
+async function assertAiDraftBinding(
+  tx: Tx,
+  reply: Reply,
+): Promise<'current' | 'not_ai' | 'stale'> {
+  if (!reply.aiGenerated) return 'not_ai'
+  const result = await tx.execute(
+    sql`SELECT assert_current_ai_draft_binding_v1(
+      ${reply.organizationId},
+      ${reply.id}
+    ) AS "status"`,
+  )
+  const status = result.rows[0]?.status
+  if (status === 'current' || status === 'not_ai' || status === 'stale') {
+    return status
+  }
+  throw new Error('AI reply binding assertion returned an invalid status')
+}
+
 /**
  * Guarded reply update inside a transaction. Applies only while the row's
  * status is still the one the use case read (`reply.status`) — identical
@@ -122,6 +140,7 @@ export function createAtomicReplyCommandStore(
   ): Promise<Reply | null> => {
     return trace(span, async () => {
       const saved = await db.transaction(async (tx) => {
+        if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
         const row = await guardedReplyUpdate(tx, reply, updates, now)
         if (!row) return null
         if (event) await insertOutboxRow(tx, event)
@@ -180,6 +199,7 @@ export function createAtomicReplyCommandStore(
           rejectedBy: row.rejectedBy,
           rejectionReason: row.rejectionReason,
           aiGenerated: row.aiGenerated,
+          stateRevision: row.stateRevision,
           submittedAt: row.submittedAt,
           approvedAt: row.approvedAt,
           publishedAt: row.publishedAt,
@@ -234,23 +254,26 @@ export function createAtomicReplyCommandStore(
       )
     },
 
-    // BQC-3.8: claim. No fact — the claim is internal bookkeeping. Single
-    // guarded UPDATE (atomic by itself); null on a lost race.
+    // BQC-3.8: claim. No fact — the claim is internal bookkeeping. The
+    // guarded UPDATE shares a transaction with the AI draft binding assertion.
     markPublicationSending: async (reply, now) => {
       return trace('reply.commandStore.markPublicationSending', async () => {
         const target = nextStateOrNull(reply, 'claim')
         if (!target) return null
-        return guardedPublicationUpdate(
-          db,
-          reply,
-          'approved',
-          ['authorized', 'sending'],
-          {
-            publicationState: target,
-            publicationAttempts: sql`${replies.publicationAttempts} + 1`,
-            updatedAt: now ?? new Date(),
-          },
-        )
+        return db.transaction(async (tx) => {
+          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          return guardedPublicationUpdate(
+            tx,
+            reply,
+            'approved',
+            ['authorized', 'sending'],
+            {
+              publicationState: target,
+              publicationAttempts: sql`${replies.publicationAttempts} + 1`,
+              updatedAt: now ?? new Date(),
+            },
+          )
+        })
       })
     },
 

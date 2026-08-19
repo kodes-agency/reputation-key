@@ -49,6 +49,10 @@ export function computeAiReviewSourceProvenance(
 export type AiReviewSourceDependencies = Readonly<{
   readForAi: ReviewRepository['readForAi']
   assertCurrentForAi: ReviewRepository['assertCurrentForAi']
+  readReplyStateRevision(
+    organizationId: Parameters<ReviewRepository['readForAi']>[0]['organizationId'],
+    reviewId: Parameters<ReviewRepository['readForAi']>[0]['reviewId'],
+  ): Promise<number>
 }>
 
 export const createAiReviewSource = (
@@ -56,4 +60,6 @@ export const createAiReviewSource = (
 ): AiReviewSourcePort => ({
   readForAi: (input) => dependencies.readForAi(input),
   assertCurrent: (input) => dependencies.assertCurrentForAi(input),
+  readReplyStateRevision: (input) =>
+    dependencies.readReplyStateRevision(input.organizationId, input.reviewId),
 })

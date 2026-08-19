@@ -116,6 +116,26 @@ export async function listActiveGrantsForUser(
   return rows.rows.map((r) => mapGrant(r as Record<string, unknown>))
 }
 
+/**
+ * Users holding active access to one property — the recipient-resolution read
+ * for property-scoped fan-out (notifications). Identity owns the grant table;
+ * other contexts reach this only through an identity adapter/port.
+ */
+export async function listActiveGrantUserIdsForProperty(
+  db: Database,
+  input: Readonly<{ organizationId: string; propertyId: string; at: Date }>,
+): Promise<ReadonlyArray<string>> {
+  const rows = await db.execute(sql`
+    SELECT DISTINCT user_id FROM property_access_grant
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}
+      AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > ${input.at})
+    ORDER BY user_id
+  `)
+  return rows.rows.map((r) => (r as { user_id: string }).user_id)
+}
+
 export async function hasActiveGrant(
   db: Database,
   input: Readonly<{

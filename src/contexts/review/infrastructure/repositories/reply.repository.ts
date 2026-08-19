@@ -127,6 +127,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
             rejectedBy: row.rejectedBy,
             rejectionReason: row.rejectionReason,
             aiGenerated: row.aiGenerated,
+            stateRevision: row.stateRevision,
             submittedAt: row.submittedAt,
             approvedAt: row.approvedAt,
             publishedAt: row.publishedAt,
@@ -145,21 +146,30 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
   conditionalUpdate: async (id, organizationId, expectedStatuses, updates, now) => {
     return trace('reply.conditionalUpdate', async () => {
       const updatedAt = now ?? new Date()
-
-      const result = await db
-        .update(replies)
-        .set(buildReplySetClause(updates, updatedAt))
-        .where(
-          and(
-            eq(replies.id, id),
-            eq(replies.organizationId, organizationId),
-            inArray(replies.status, [...expectedStatuses]),
-          ),
+      return db.transaction(async (tx) => {
+        const assertion = await tx.execute(
+          sql`SELECT assert_current_ai_draft_binding_v1(
+            ${organizationId},
+            ${id}
+          ) AS "status"`,
         )
-        .returning()
+        if (assertion.rows[0]?.status === 'stale') return null
 
-      // No row matched → status changed concurrently, TOCTOU guard triggered
-      return result[0] ? replyFromRow(result[0]) : null
+        const result = await tx
+          .update(replies)
+          .set(buildReplySetClause(updates, updatedAt))
+          .where(
+            and(
+              eq(replies.id, id),
+              eq(replies.organizationId, organizationId),
+              inArray(replies.status, [...expectedStatuses]),
+            ),
+          )
+          .returning()
+
+        // No row matched → status changed concurrently, TOCTOU guard triggered
+        return result[0] ? replyFromRow(result[0]) : null
+      })
     })
   },
 

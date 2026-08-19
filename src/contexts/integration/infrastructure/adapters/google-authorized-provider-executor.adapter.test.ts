@@ -26,7 +26,7 @@ function setup(admitted = true) {
   const admit = vi.fn(async () =>
     admitted
       ? { ok: true as const, permitId: 'permit-1' }
-      : { ok: false as const, code: 'authorization_denied' },
+      : { ok: false as const, code: 'authorization_denied' as const },
   )
   const gateway = {
     execute: vi.fn(async () => ({
@@ -86,7 +86,43 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
         authorization,
         deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
       }),
-    ).resolves.toEqual({ ok: false, code: 'admission_denied', retryAfterMs: 0 })
+    ).resolves.toEqual({
+      ok: false,
+      code: 'admission_denied',
+      admissionCode: 'authorization_denied',
+      retryAfterMs: 0,
+    })
+    expect(gateway.execute).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'authorization_changed',
+    'approval_binding_changed',
+    'authorization_denied',
+    'policy_refresh_unavailable',
+    'runtime_unavailable',
+  ] as const)('forwards the content-free %s authority denial', async (code) => {
+    // Collapsing these to a bare `admission_denied` made a real authorization
+    // change indistinguishable from a transient upstream outage downstream.
+    const admit = vi.fn(async () => ({ ok: false as const, code }))
+    const gateway = { execute: vi.fn() }
+    const executor = createGoogleAuthorizedProviderExecutor({
+      bindCredential,
+      admit,
+      gateway,
+    })
+
+    await expect(
+      executor.execute(descriptor, {
+        authorization,
+        deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      code: 'admission_denied',
+      admissionCode: code,
+      retryAfterMs: 0,
+    })
     expect(gateway.execute).not.toHaveBeenCalled()
   })
 })

@@ -17,6 +17,10 @@ export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
 export type { InboxError, InboxErrorCode } from '../domain/errors'
 export { isInboxError } from '../domain/errors'
 export type { Cursor } from './ports/inbox.repository'
+export type {
+  InboxReviewAnalysis,
+  ReviewAttention,
+} from './ports/ai-review-insights.port'
 
 // Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type {

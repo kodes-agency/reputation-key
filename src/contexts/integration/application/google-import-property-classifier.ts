@@ -61,6 +61,10 @@ export function createGoogleImportPropertyClassifier(
 ): GoogleImportPropertyClassifier {
   return async (input) => {
     if (input.candidates.length > 100) throw classificationFailure()
+    // An account with no locations is a legitimate empty page. The binding
+    // reader rejects an empty id list as an invalid binding, so classifying it
+    // would surface "Locations unavailable" instead of an empty result.
+    if (input.candidates.length === 0) return []
     const locationIds = input.candidates.map((candidate) => candidate.binding.locationId)
     if (new Set(locationIds).size !== locationIds.length) throw classificationFailure()
 

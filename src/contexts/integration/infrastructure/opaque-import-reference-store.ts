@@ -9,7 +9,7 @@ import type {
 import {
   canonicalProviderAuthorizationVector,
   createProviderAuthorizationPrincipalBinding,
-  providerAuthorizationVectorSha256,
+  providerAuthorizationFenceSha256,
 } from '#/shared/provider-ephemeral/authorization-binding'
 import type {
   GoogleImportReferenceStore,
@@ -376,7 +376,7 @@ export function createOpaqueImportReferenceStore(
       connectionId: authorization.connectionId,
     }),
     approvalBindingId: authorization.approvalBindingId,
-    authorizationVectorSha256: providerAuthorizationVectorSha256(authorization),
+    authorizationFenceSha256: providerAuthorizationFenceSha256(authorization),
   })
 
   const issueLease = (

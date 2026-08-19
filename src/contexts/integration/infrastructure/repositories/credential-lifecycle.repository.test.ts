@@ -64,14 +64,14 @@ async function seedStartedPermit(
       google_project_attestation_sha256, google_oauth_client_id_sha256,
       google_redirect_uri_sha256, provider_origin_profile_sha256,
       runtime_isolation_profile_version, runtime_isolation_profile_sha256,
-      performance_catalog_version, capability_policy_version,
+      performance_catalog_version, route_catalog_version, capability_policy_version,
       execution_policy_version, migration_head, evidence_index, image_digests,
       role_approvals, approved_at, expires_at, status
     ) VALUES (
       $1, 701, 'property.import_gbp_v2', 'local_sandbox', 'sandbox',
       'release', 'manifest', 'index', 'deployment', 'adr',
       '2026-08-05', 'google-oauth-oidc-1', 'project', 'client', 'redirect',
-      'origins', 'google-content-egress-1', 'runtime', '2026-08-05',
+      'origins', 'google-content-egress-1', 'runtime', '2026-08-05', '2026-08-16',
       'beta-local-2', 'beta-local-2', '0030_giant_hellfire_club',
       '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $3, 'approved'
     ) ON CONFLICT (id) DO NOTHING`,

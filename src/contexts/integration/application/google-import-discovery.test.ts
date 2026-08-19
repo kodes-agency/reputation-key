@@ -2,6 +2,7 @@ import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/googl
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
+import { createGbpApiError } from '../domain/gbp-api-error'
 import type {
   GoogleImportReferenceStore,
   ImportDiscoveryAuthorization,
@@ -180,12 +181,14 @@ function setup(
       nextPageToken: 'provider-locations-next',
     })),
   }
+  const logger = { warn: vi.fn() }
   const discovery = createGoogleImportDiscovery({
     authorizeGoogleImportCommand,
     classifyCandidates,
     references,
     accounts,
     locations,
+    logger,
     nowMs: () => Date.parse('2026-08-12T10:00:00.000Z'),
   })
   return {
@@ -195,6 +198,7 @@ function setup(
     references,
     accounts,
     locations,
+    logger,
   }
 }
 
@@ -341,5 +345,61 @@ describe('Google import discovery', () => {
 
     expect(error).toMatchObject({ code: 'reference_invalid' })
     expect(String(error)).not.toContain('provider-account-1')
+  })
+
+  it.each([
+    ['auth_failed', 'reauthentication_required'],
+    ['permission_denied', 'provider_rejected'],
+    ['rate_limited', 'provider_unavailable'],
+    ['upstream_error', 'provider_unavailable'],
+    ['parse_error', 'provider_unavailable'],
+  ] as const)(
+    'surfaces a %s account-page failure as %s rather than one collapsed outage',
+    async (kind, expected) => {
+      const { discovery, accounts, references, logger } = setup()
+      accounts.listAccounts.mockRejectedValueOnce(createGbpApiError('listAccounts', kind))
+
+      await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject(
+        { code: expected },
+      )
+      expect(references.publishAccountPage).not.toHaveBeenCalled()
+      expect(logger.warn).toHaveBeenCalledWith(
+        { stage: 'provider_accounts', code: expected, reason: 'GbpApiError', kind },
+        'Google import discovery denied',
+      )
+    },
+  )
+
+  it.each([
+    ['auth_failed', 'reauthentication_required'],
+    ['permission_denied', 'provider_rejected'],
+    ['upstream_error', 'provider_unavailable'],
+  ] as const)('classifies a %s location-page failure as %s', async (kind, expected) => {
+    const { discovery, locations, classifyCandidates, logger } = setup()
+    locations.listLocations.mockRejectedValueOnce(
+      createGbpApiError('listLocations', kind),
+    )
+
+    await expect(
+      discovery.listCandidates({ connectionId, accountRef: 'v1.account' }, actor),
+    ).rejects.toMatchObject({ code: expected })
+    expect(classifyCandidates).not.toHaveBeenCalled()
+    expect(logger.warn).toHaveBeenCalledWith(
+      { stage: 'provider_locations', code: expected, reason: 'GbpApiError', kind },
+      'Google import discovery denied',
+    )
+  })
+
+  it('falls back to a transient outage for an unclassifiable provider throw', async () => {
+    const { discovery, accounts, logger } = setup()
+    accounts.listAccounts.mockRejectedValueOnce(new TypeError('socket closed'))
+
+    await expect(discovery.listAccounts({ connectionId }, actor)).rejects.toMatchObject({
+      code: 'provider_unavailable',
+    })
+    expect(logger.warn).toHaveBeenCalledWith(
+      { stage: 'provider_accounts', code: 'provider_unavailable', reason: 'TypeError' },
+      'Google import discovery denied',
+    )
   })
 })

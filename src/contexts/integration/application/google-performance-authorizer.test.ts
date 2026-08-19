@@ -202,8 +202,45 @@ describe('createGooglePerformanceAuthorizer', () => {
       propertyTimezoneConfirmed: true,
     })
     expect(result.snapshot.authorizationVectorSha256).toMatch(/^[a-f0-9]{64}$/)
+    expect(result.snapshot.authorizationFenceSha256).toMatch(/^[a-f0-9]{64}$/)
     expect(result.snapshot.principalHmac).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(getAccessToken).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the lease fence stable across a credential-generation refresh', async () => {
+    const refreshedVector = {
+      executionPolicyVersion: 'beta-local-2',
+      googleContentPolicyVersion: 12,
+      emergencyKillVersion: 3,
+      role: 'PropertyManager',
+      permissionDigest: googleAuthorizationPermissionDigest(actor),
+      connectionLifecycleVersion: 4,
+      connectionAccessVersion: 5,
+      credentialGeneration: 7,
+      propertySourceEpoch: 7,
+      propertyProfileVersion: 8,
+      propertyBindingState: 'active',
+      propertyLifecycleState: 'active',
+      propertyProfileSource: 'tenant_confirmed',
+      propertyTimezoneConfirmed: true,
+    }
+    const before = await setup().authorize({
+      actor,
+      propertyId: PROPERTY_ID,
+      phase: 'before_provider',
+    })
+    const after = await setup({
+      connection: connection({ credentialGeneration: 7 }),
+      contentVector: refreshedVector,
+    }).authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' })
+    if (!before.ok || !after.ok) throw new Error('expected authorization')
+
+    expect(after.snapshot.authorizationFenceSha256).toBe(
+      before.snapshot.authorizationFenceSha256,
+    )
+    expect(after.snapshot.authorizationVectorSha256).not.toBe(
+      before.snapshot.authorizationVectorSha256,
+    )
   })
 
   it('revalidates a provider retry without decrypting a credential', async () => {
