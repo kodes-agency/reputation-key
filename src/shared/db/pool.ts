@@ -2,7 +2,7 @@
 // Per Issue 6: Auth and Drizzle each created their own Pool, doubling connections.
 // This module provides a single Pool shared across the application.
 
-import { Pool } from 'pg'
+import { Pool, type ClientBase } from 'pg'
 
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
@@ -115,6 +115,56 @@ async function warmup(pool: Pool): Promise<void> {
   }
 }
 
+/**
+ * Maximum physical connections per process pool. Exported because worker
+ * concurrency is budgeted against it: see the
+ * `concurrency * clients_per_job <= POOL_MAX_CONNECTIONS` invariant in
+ * `#/shared/jobs/worker` (pinned by its unit test). Raising this without
+ * re-checking that budget re-opens the self-starvation failure mode where
+ * every worker slot holds a client while waiting for a nested one.
+ */
+export const POOL_MAX_CONNECTIONS = 10
+
+/**
+ * Role-level statement guards applied to every physical connection.
+ *
+ * `lock_timeout` bounds a row-lock wait. The Google-import claim path holds
+ * `FOR UPDATE` on its item row across a nested effect, so an unbounded wait
+ * would let one blocked attempt pin a pool client indefinitely; 10s is well
+ * above any healthy contention and well below the job execution deadline.
+ *
+ * `idle_in_transaction_session_timeout` is the zombie bound: a transaction
+ * that took `FOR UPDATE` and then stalled (e.g. its nested pool acquisition
+ * hung) is terminated, releasing the row lock. The ordering that matters is
+ *
+ *   nested acquisition wait (connectionTimeoutMillis, 15s)
+ *     < idle-in-transaction bound (30s)
+ *     < Google-import claim lease (GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS, 60s)
+ *
+ * so a legitimate nested wait is never killed, yet a zombie always releases
+ * the item row before its own claim lease expires — otherwise the claim
+ * reaper's CAS release could be blocked by the very transaction it recovers.
+ *
+ * Termination surfaces as SQLSTATE 25P03 / a connection error, which the
+ * import processor classifies as transient (release-and-retry), never as a
+ * tenant-visible `internal_error`.
+ */
+export const SESSION_LOCK_TIMEOUT_MS = 10_000
+export const SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000
+
+/**
+ * pg-pool 3.14's `onConnect` hook is AWAITED before the client is handed to
+ * the checkout caller (and a rejection closes the client instead of leaking
+ * it), so unlike the synchronous `connect` event this cannot race the first
+ * query. Applied per physical connection, not per checkout.
+ */
+async function applySessionGuards(client: ClientBase): Promise<void> {
+  await client.query(
+    `SET lock_timeout = ${SESSION_LOCK_TIMEOUT_MS}; ` +
+      `SET idle_in_transaction_session_timeout = ${SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
+  )
+}
+
 /** Get the shared database connection pool. Creates it on first call. */
 export function getPool(): Pool {
   const store = poolStore()
@@ -122,13 +172,14 @@ export function getPool(): Pool {
     const env = getEnv()
     const pool = new Pool({
       connectionString: env.DATABASE_URL,
-      max: 10,
+      max: POOL_MAX_CONNECTIONS,
       // Neon (serverless Postgres) recycles connections when the compute
       // endpoint suspends. These timeouts keep the pool from hanging on a
       // dead connection and fail fast so the request errors instead of
       // stalling indefinitely.
       connectionTimeoutMillis: 15_000,
       idleTimeoutMillis: 30_000,
+      onConnect: (client) => applySessionGuards(client),
     })
     // CRITICAL for Neon: when the serverless runtime closes an idle client
     // behind our back, the Pool emits 'error'. Without a listener Node treats

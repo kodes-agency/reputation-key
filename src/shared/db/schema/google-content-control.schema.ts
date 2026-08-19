@@ -143,6 +143,14 @@ export const capabilityComplianceApprovals = pgTable(
     performanceCatalogVersion: varchar('performance_catalog_version', {
       length: 32,
     }).notNull(),
+    // Approval-bound provider route catalogue (route URL, wire dailyMetrics set,
+    // dailyRange encoding, page size, response cap). Approval parsing pins it to
+    // the compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION, so a catalogue bump
+    // makes the persisted row unparseable and the capability denies with
+    // approval_unavailable until an operator installs a re-approved bundle.
+    routeCatalogueVersion: varchar('route_catalog_version', {
+      length: 64,
+    }).notNull(),
     capabilityPolicyVersion: varchar('capability_policy_version', {
       length: 32,
     }).notNull(),

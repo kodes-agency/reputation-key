@@ -14,6 +14,19 @@ function migrationTime(tag: string): number {
   if (!entry) throw new Error(`Missing test migration ${tag}`)
   return entry.when
 }
+const PRE_ENUM_CUTOFF_INDEX = journal.entries.findIndex(
+  (entry) => entry.tag === '0033_medical_morg',
+)
+if (PRE_ENUM_CUTOFF_INDEX < 0) throw new Error('Missing test migration 0033_medical_morg')
+const INITIAL_MIGRATION_INDEX = journal.entries.findIndex(
+  (entry) => entry.tag === '0016_region-moves',
+)
+if (INITIAL_MIGRATION_INDEX < 0)
+  throw new Error('Missing test migration 0016_region-moves')
+const PRE_ENUM_MIGRATION_COUNT = PRE_ENUM_CUTOFF_INDEX - INITIAL_MIGRATION_INDEX
+const POST_ENUM_MIGRATION_COUNT = journal.entries.length - (PRE_ENUM_CUTOFF_INDEX + 1)
+const LATEST_MIGRATION_TIME = journal.entries.at(-1)?.when
+if (LATEST_MIGRATION_TIME === undefined) throw new Error('Migration journal is empty')
 
 function createMigrationClient(input: {
   latestMigration: number
@@ -115,7 +128,10 @@ function createMigrationClient(input: {
         reviewBatchRead = true
         return { rows: [...(input.reviews ?? [])] }
       }
-      if (statement.startsWith('UPDATE "reviews" AS review')) {
+      if (
+        statement.startsWith('UPDATE "reviews" AS review') &&
+        statement.includes('"ai_source_byte_length"')
+      ) {
         return { rows: [], rowCount: (parameters?.[0] as readonly unknown[]).length }
       }
       if (statement.startsWith('INSERT INTO "drizzle"."__drizzle_migrations"')) {
@@ -142,8 +158,8 @@ describe('staged Drizzle migrator', () => {
     })
 
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
-      preEnumCommitApplied: 17,
-      postEnumCommitApplied: 16,
+      preEnumCommitApplied: PRE_ENUM_MIGRATION_COUNT,
+      postEnumCommitApplied: POST_ENUM_MIGRATION_COUNT,
       reviewAiSourceBackfilled: 0,
       outcome: {
         typePresent: true,
@@ -174,7 +190,7 @@ describe('staged Drizzle migrator', () => {
 
   it('is a no-op when the complete journal and enum label already exist', async () => {
     const { client, queries } = createMigrationClient({
-      latestMigration: migrationTime('0049_ai-execution-admission'),
+      latestMigration: LATEST_MIGRATION_TIME,
       enumTypePresent: true,
       cleanupRequiredPresent: true,
       railwayTargetPresent: true,

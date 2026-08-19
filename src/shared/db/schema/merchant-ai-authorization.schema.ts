@@ -122,7 +122,7 @@ export const merchantAiConsentEvidence = pgTable(
     ),
     check(
       'merchant_ai_consent_evidence_versions_valid',
-      sql`${t.stateVersion} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.replyDraftingEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1 AND ${t.authorizedSourceEpoch} >= 1 AND ${t.analysisStartSequence} >= 0 AND ${t.routingPolicyVersion} >= 1`,
+      sql`${t.stateVersion} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.replyDraftingEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1 AND ${t.authorizedSourceEpoch} >= 0 AND ${t.analysisStartSequence} >= 0 AND ${t.routingPolicyVersion} >= 1`,
     ),
     check(
       'merchant_ai_consent_evidence_analysis_sequence_safe',
@@ -140,10 +140,18 @@ export const merchantAiConsentEvidence = pgTable(
       'merchant_ai_consent_evidence_notice_digest_valid',
       sql`${t.noticeDigest} ~ '^[0-9a-f]{64}$'`,
     ),
+    // Consent evidence is append-only, so a notice re-version must not
+    // invalidate consent already recorded under the previous notice. Each
+    // known version is pinned to its own digest — a row may never mix a
+    // version with another version's digest (migration 0062).
     check(
       'merchant_ai_consent_evidence_contract_valid',
-      sql`${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
-        AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b'
+      sql`(
+          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
+            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
+            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
+        )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
         AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`,
@@ -231,7 +239,7 @@ export const merchantAiEnablement = pgTable(
     ),
     check(
       'merchant_ai_enablement_versions_valid',
-      sql`${t.stateVersion} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.replyDraftingEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1 AND ${t.authorizedSourceEpoch} >= 1 AND ${t.analysisStartSequence} >= 0 AND ${t.routingPolicyVersion} >= 1`,
+      sql`${t.stateVersion} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.replyDraftingEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1 AND ${t.authorizedSourceEpoch} >= 0 AND ${t.analysisStartSequence} >= 0 AND ${t.routingPolicyVersion} >= 1`,
     ),
     check(
       'merchant_ai_enablement_analysis_sequence_safe',
@@ -246,10 +254,17 @@ export const merchantAiEnablement = pgTable(
       'merchant_ai_enablement_notice_digest_valid',
       sql`${t.noticeDigest} ~ '^[0-9a-f]{64}$'`,
     ),
+    // Same known-version set as the evidence table: the live enablement row was
+    // granted under the 08-15 notice and must stay valid until the owner
+    // re-consents under 08-19 (migration 0062).
     check(
       'merchant_ai_enablement_contract_valid',
-      sql`${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
-        AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b'
+      sql`(
+          (${t.noticeVersion} = 'merchant-ai-notice-2026-08-15.v1'
+            AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
+            AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
+        )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
         AND ${t.redactionProfileFamily} = 'gbp-review-global-v1'`,

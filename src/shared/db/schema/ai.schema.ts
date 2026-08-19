@@ -11,6 +11,7 @@ import {
   pgTable,
   primaryKey,
   timestamp,
+  text,
   uniqueIndex,
   uuid,
   varchar,
@@ -112,7 +113,13 @@ export const aiProviderDeploymentProfiles = pgTable(
       'ai_provider_profiles_model_valid',
       sql`${t.modelSnapshot} = 'gpt-5.4-mini-2026-03-17'`,
     ),
-    check('ai_provider_profiles_reasoning_valid', sql`${t.reasoningEffort} = 'xhigh'`),
+    // Deployment-level effort is delegated to `ai_operation_profiles.reasoning_effort`.
+    // Pinning 'xhigh' here would assert a configuration the TypeScript ladder can no
+    // longer produce, so the database would contradict the code.
+    check(
+      'ai_provider_profiles_reasoning_valid',
+      sql`${t.reasoningEffort} = 'route-profile-effort'`,
+    ),
     check('ai_provider_profiles_tier_valid', sql`${t.serviceTier} = 'default'`),
     check('ai_provider_profiles_store_false', sql`${t.store} = false`),
     check(
@@ -192,6 +199,12 @@ export const aiOperationProfiles = pgTable(
     preparedRequestByteLimit: integer('prepared_request_byte_limit').notNull(),
     responseByteLimit: integer('response_byte_limit').notNull(),
     maxOutputTokens: integer('max_output_tokens').notNull(),
+    // Persisted, not implied: every other per-route request parameter is a column,
+    // and the gateway byte-compares this row against its compiled contract. Holding
+    // the effort only in code would leave `profile_digest` with a preimage that the
+    // database cannot reproduce, so the catalogue would stop being auditable from
+    // the database alone.
+    reasoningEffort: varchar('reasoning_effort', { length: 16 }).notNull(),
     providerDeadlineMs: integer('provider_deadline_ms').notNull(),
     requestDeadlineMs: integer('request_deadline_ms').notNull(),
     executionLeaseMs: integer('execution_lease_ms').notNull(),
@@ -228,6 +241,15 @@ export const aiOperationProfiles = pgTable(
         AND ${t.providerDeadlineMs} IN (60000, 90000)
         AND ${t.requestDeadlineMs} = ${t.providerDeadlineMs} + 10000
         AND ${t.executionLeaseMs} BETWEEN ${t.requestDeadlineMs} AND 300000`,
+    ),
+    check(
+      // The provider rejects `minimal` for the pinned model snapshot, so it is
+      // absent here as well as in the TypeScript ladder: a value the wire refuses
+      // must not be storable. `xhigh` and `max` are excluded outright — measured
+      // against the live deployment they exhaust the output budget on reasoning and
+      // return an empty body on every non-trivial route.
+      'ai_operation_profiles_reasoning_effort_valid',
+      sql`${t.reasoningEffort} IN ('none', 'low', 'medium', 'high')`,
     ),
   ],
 )
@@ -365,7 +387,7 @@ export const aiPropertyProcessingProfiles = pgTable(
     check('ai_property_profiles_region_valid', sql`${t.processingRegion} = 'global'`),
     check(
       'ai_property_profiles_versions_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.profileVersion} >= 1`,
+      sql`${t.sourceEpoch} >= 0 AND ${t.profileVersion} >= 1`,
     ),
     check(
       'ai_property_profiles_lifecycle_valid',
@@ -433,7 +455,7 @@ export const aiReviewEventCursors = pgTable(
     }).onDelete('cascade'),
     check(
       'ai_review_event_cursors_sequences_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.reviewAnalysisEpoch} >= 1
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1
         AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint
         AND ${t.consumedSequence} BETWEEN ${t.analysisStartSequence} AND '9007199254740991'::bigint
         AND ${t.terminalAnalysisSequence} BETWEEN ${t.analysisStartSequence} AND ${t.consumedSequence}
@@ -733,6 +755,15 @@ export const aiOperations = pgTable(
     updatedAt: timestamptz('updated_at').notNull(),
     expiresAt: timestamptz('expires_at').notNull(),
     deliveredAt: timestamptz('delivered_at'),
+    replyAdoptionDisposition: varchar('reply_adoption_disposition', {
+      length: 20,
+    })
+      .notNull()
+      .default('none'),
+    adoptedReplyRevision: bigint('adopted_reply_revision', { mode: 'number' }),
+    adoptedReviewReplyStateRevision: bigint('adopted_review_reply_state_revision', {
+      mode: 'number',
+    }),
   },
   (t) => [
     uniqueIndex('ai_operations_idempotency_unique').on(
@@ -794,15 +825,40 @@ export const aiOperations = pgTable(
         AND COALESCE(${t.analysisSequence}, 0) BETWEEN 0 AND '9007199254740991'::bigint
         AND COALESCE(${t.baseReplyStateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
         AND COALESCE(${t.terminalAnalysisSequence}, 0) BETWEEN 0 AND '9007199254740991'::bigint
-        AND COALESCE(${t.aggregateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint`,
+        AND COALESCE(${t.aggregateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
+        AND COALESCE(${t.adoptedReplyRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint
+        AND COALESCE(${t.adoptedReviewReplyStateRevision}, 0) BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
     check(
       'ai_operations_branch_valid',
       sql`(
-        (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'review_event_consumer' AND ${t.reviewId} IS NOT NULL AND ${t.originEventId} IS NOT NULL AND ${t.subjectHmac} ~ '^[0-9a-f]{64}$' AND ${t.subjectHmacKeyVersion} IS NOT NULL AND ${t.sourceEpoch} >= 1 AND ${t.sourceRevision} >= 1 AND ${t.analysisSequence} >= 1 AND ${t.operationProfileVersion} = 'review-analysis-v1' AND ${t.capabilityRuntimeProfileVersion} = 'review-analysis-runtime-v1')
-        OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NOT NULL AND ${t.systemPrincipal} IS NULL AND ${t.reviewId} IS NOT NULL AND ${t.sourceEpoch} >= 1 AND ${t.sourceRevision} >= 1 AND ${t.tone} IN ('professional', 'friendly', 'casual') AND ${t.baseReplyStateRevision} >= 0 AND ${t.operationProfileVersion} = 'reply-suggestion-v1' AND ${t.capabilityRuntimeProfileVersion} = 'reply-drafting-runtime-v1')
-        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'property_trend_coordinator' AND ${t.sourceEpoch} >= 1 AND ${t.dueLocalDate} IS NOT NULL AND ${t.terminalAnalysisSequence} >= 0 AND ${t.aggregateRevision} >= 0 AND ${t.operationProfileVersion} = 'property-trend-v1' AND ${t.capabilityRuntimeProfileVersion} = 'property-trends-runtime-v1')
+        (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'review_event_consumer' AND ${t.reviewId} IS NOT NULL AND ${t.originEventId} IS NOT NULL AND ${t.subjectHmac} ~ '^[0-9a-f]{64}$' AND ${t.subjectHmacKeyVersion} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.analysisSequence} >= 1 AND ${t.operationProfileVersion} = 'review-analysis-v1' AND ${t.capabilityRuntimeProfileVersion} = 'review-analysis-runtime-v1')
+        OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NOT NULL AND ${t.systemPrincipal} IS NULL AND ${t.reviewId} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.tone} IN ('professional', 'friendly', 'casual') AND ${t.baseReplyStateRevision} >= 0 AND ${t.operationProfileVersion} = 'reply-suggestion-v1' AND ${t.capabilityRuntimeProfileVersion} = 'reply-drafting-runtime-v1')
+        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'property_trend_coordinator' AND ${t.sourceEpoch} >= 0 AND ${t.dueLocalDate} IS NOT NULL AND ${t.terminalAnalysisSequence} >= 0 AND ${t.aggregateRevision} >= 0 AND ${t.operationProfileVersion} = 'property-trend-v1' AND ${t.capabilityRuntimeProfileVersion} = 'property-trends-runtime-v1')
         OR (${t.command} = 'synthetic_canary' AND ${t.capability} IS NULL AND ${t.organizationId} IS NULL AND ${t.propertyId} IS NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'release_canary' AND ${t.releaseSha} ~ '^[0-9a-f]{40}$' AND ${t.canaryAuthorizationId} IS NOT NULL AND ${t.canaryAuthorizationGeneration} BETWEEN 1 AND 3 AND ${t.canaryProfileVersion} IS NOT NULL AND ${t.operationProfileVersion} = 'synthetic-canary-v1' AND ${t.capabilityRuntimeProfileVersion} IS NULL)
+      )`,
+    ),
+    check(
+      'ai_operations_reply_adoption_valid',
+      sql`(
+        (
+          ${t.command} = 'reply'
+          AND ${t.replyAdoptionDisposition} IN ('none', 'adopted', 'invalidated')
+          AND (
+            (${t.replyAdoptionDisposition} = 'none'
+              AND ${t.adoptedReplyRevision} IS NULL
+              AND ${t.adoptedReviewReplyStateRevision} IS NULL)
+            OR (${t.replyAdoptionDisposition} IN ('adopted', 'invalidated')
+              AND ${t.adoptedReplyRevision} >= 1
+              AND ${t.adoptedReviewReplyStateRevision} >= 1)
+          )
+        )
+        OR (
+          ${t.command} <> 'reply'
+          AND ${t.replyAdoptionDisposition} = 'none'
+          AND ${t.adoptedReplyRevision} IS NULL
+          AND ${t.adoptedReviewReplyStateRevision} IS NULL
+        )
       )`,
     ),
     check(
@@ -1382,11 +1438,11 @@ export const aiPropertyCalendarAuthorities = pgTable(
     ),
     check(
       'ai_property_calendar_authorities_digests_valid',
-      sql`${t.epochMillisFunctionDigest} = ${AI_PROPERTY_CALENDAR_PROFILE_V1.epochMillisFunctionDigest} AND ${t.localDateFunctionDigest} = ${AI_PROPERTY_CALENDAR_PROFILE_V1.localDateFunctionDigest} AND ${t.localMidnightFunctionDigest} = ${AI_PROPERTY_CALENDAR_PROFILE_V1.localMidnightFunctionDigest} AND ${t.imageDigest} = ${AI_PROPERTY_CALENDAR_PROFILE_V1.databaseImageDigest} AND ${t.vectorDigest} = ${AI_PROPERTY_CALENDAR_PROFILE_V1.vectorDigest}`,
+      sql`${t.epochMillisFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.epochMillisFunctionDigest}'`)} AND ${t.localDateFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.localDateFunctionDigest}'`)} AND ${t.localMidnightFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.localMidnightFunctionDigest}'`)} AND ${t.imageDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.databaseImageDigest}'`)} AND ${t.vectorDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.vectorDigest}'`)}`,
     ),
     check(
       'ai_property_calendar_authorities_range_valid',
-      sql`${t.vectorCount} = 10 AND ${t.minimumYear} = 1970 AND ${t.maximumYear} = 2100 AND ${t.testedPostgresMajorVersions} = ARRAY[16]::integer[] AND jsonb_typeof(${t.testVectors}) = 'array' AND jsonb_array_length(${t.testVectors}) = ${t.vectorCount}`,
+      sql`${t.vectorCount} = 10 AND ${t.minimumYear} = 1970 AND ${t.maximumYear} = 2100 AND ${t.testedPostgresMajorVersions} = ARRAY[16,17]::integer[] AND jsonb_typeof(${t.testVectors}) = 'array' AND jsonb_array_length(${t.testVectors}) = ${t.vectorCount}`,
     ),
   ],
 )
@@ -1442,7 +1498,7 @@ export const aiReviewAnalyses = pgTable(
     }).onDelete('cascade'),
     check(
       'ai_review_analyses_versions_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1`,
+      sql`${t.sourceEpoch} >= 0 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1`,
     ),
     check(
       'ai_review_analyses_result_valid',
@@ -1524,7 +1580,7 @@ export const aiPropertyAggregateContributions = pgTable(
     }).onDelete('cascade'),
     check(
       'ai_property_aggregate_contributions_values_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.rating} BETWEEN 1 AND 5 AND ${t.appliedAggregateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+      sql`${t.sourceEpoch} >= 0 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.rating} BETWEEN 1 AND 5 AND ${t.appliedAggregateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
     ),
     check(
       'ai_property_aggregate_contributions_result_valid',
@@ -1575,7 +1631,7 @@ export const aiPropertyAggregateHeads = pgTable(
     }).onDelete('cascade'),
     check(
       'ai_property_aggregate_heads_versions_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
     index('ai_property_aggregate_heads_current_idx').on(
       t.organizationId,
@@ -1646,7 +1702,7 @@ export const aiPropertyDailyAggregates = pgTable(
     }).onDelete('cascade'),
     check(
       'ai_property_daily_aggregates_versions_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
     check(
       'ai_property_daily_aggregates_counts_nonnegative',
@@ -1666,9 +1722,33 @@ export const aiPropertyDailyAggregates = pgTable(
   ],
 )
 
-export const aiPropertyTrendReports = pgTable(
-  'ai_property_trend_reports',
+export const aiPropertyTrendSchedulerHeads = pgTable(
+  'ai_property_trend_scheduler_heads',
   {
+    schedulerKey: varchar('scheduler_key', { length: 64 }).primaryKey(),
+    generation: bigint('generation', { mode: 'number' }).notNull(),
+    cursorOrganizationId: varchar('cursor_organization_id', { length: 255 }),
+    cursorPropertyId: uuid('cursor_property_id'),
+    leaseOwner: uuid('lease_owner'),
+    claimedAt: timestamptz('claimed_at'),
+    leaseExpiresAt: timestamptz('lease_expires_at'),
+    updatedAt: timestamptz('updated_at').notNull(),
+  },
+  (t) => [
+    check(
+      'ai_property_trend_scheduler_heads_valid',
+      sql`${t.schedulerKey} = 'property-trend-v1' AND ${t.generation} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ((${t.cursorOrganizationId} IS NULL AND ${t.cursorPropertyId} IS NULL) OR (${t.cursorOrganizationId} IS NOT NULL AND ${t.cursorPropertyId} IS NOT NULL))
+        AND ((${t.leaseOwner} IS NULL AND ${t.claimedAt} IS NULL AND ${t.leaseExpiresAt} IS NULL) OR (${t.leaseOwner} IS NOT NULL AND ${t.claimedAt} IS NOT NULL AND ${t.leaseExpiresAt} > ${t.claimedAt}))`,
+    ),
+  ],
+)
+
+export const aiPropertyTrendSchedules = pgTable(
+  'ai_property_trend_schedules',
+  {
+    id: uuid('id').primaryKey(),
+    outboxEventId: uuid('outbox_event_id').notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
     dueLocalDate: date('due_local_date', { mode: 'string' }).notNull(),
@@ -1680,53 +1760,130 @@ export const aiPropertyTrendReports = pgTable(
       mode: 'number',
     }).notNull(),
     aggregateRevision: bigint('aggregate_revision', { mode: 'number' }).notNull(),
-    operationId: uuid('operation_id')
+    timezone: varchar('timezone', { length: 64 }).notNull(),
+    calendarProfileVersion: varchar('calendar_profile_version', { length: 100 })
       .notNull()
-      .references(() => aiOperations.id, { onDelete: 'restrict' }),
+      .references(() => aiPropertyCalendarAuthorities.profileVersion, {
+        onDelete: 'restrict',
+      }),
     reportProfileVersion: varchar('report_profile_version', { length: 100 })
       .notNull()
       .references(() => aiOperationProfiles.profileVersion, { onDelete: 'restrict' }),
-    signalKey: varchar('signal_key', { length: 64 }).notNull(),
-    direction: varchar('direction', { length: 20 }).notNull(),
-    confidenceBasisPoints: integer('confidence_basis_points').notNull(),
-    supportingReviewCount: integer('supporting_review_count').notNull(),
-    generatedAt: timestamptz('generated_at').notNull(),
-    expiresAt: timestamptz('expires_at').notNull(),
+    schedulerGeneration: bigint('scheduler_generation', { mode: 'number' }).notNull(),
+    scheduledAt: timestamptz('scheduled_at').notNull(),
   },
   (t) => [
-    primaryKey({
-      columns: [
-        t.organizationId,
-        t.propertyId,
-        t.dueLocalDate,
-        t.sourceEpoch,
-        t.reviewAnalysisEpoch,
-        t.propertyTrendsEpoch,
-        t.propertyProfileVersion,
-        t.terminalAnalysisSequence,
-        t.aggregateRevision,
-      ],
-      name: 'ai_property_trend_reports_pk',
-    }),
-    uniqueIndex('ai_property_trend_reports_operation_unique').on(t.operationId),
+    uniqueIndex('ai_property_trend_schedules_outbox_unique').on(t.outboxEventId),
+    uniqueIndex('ai_property_trend_schedules_generation_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.dueLocalDate,
+      t.sourceEpoch,
+      t.reviewAnalysisEpoch,
+      t.propertyTrendsEpoch,
+      t.propertyProfileVersion,
+      t.reportProfileVersion,
+    ),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_trend_reports_tenant_fk',
+      name: 'ai_property_trend_schedules_tenant_fk',
     }).onDelete('cascade'),
     check(
-      'ai_property_trend_reports_versions_valid',
-      sql`${t.sourceEpoch} >= 1 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1 AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+      'ai_property_trend_schedules_versions_valid',
+      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyTrendsEpoch} >= 1
+        AND ${t.propertyProfileVersion} >= 1 AND ${t.terminalAnalysisSequence} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.schedulerGeneration} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.timezone} ~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$'`,
     ),
-    check(
-      'ai_property_trend_reports_output_valid',
-      sql`${t.signalKey} ~ '^[a-z][a-z0-9_]{2,63}$' AND ${t.direction} IN ('improving', 'stable', 'declining') AND ${t.confidenceBasisPoints} BETWEEN 0 AND 10000 AND ${t.supportingReviewCount} >= 0 AND ${t.expiresAt} > ${t.generatedAt}`,
-    ),
-    index('ai_property_trend_reports_current_idx').on(
+    index('ai_property_trend_schedules_property_idx').on(
       t.organizationId,
       t.propertyId,
       t.dueLocalDate.desc(),
     ),
-    index('ai_property_trend_reports_expiry_idx').on(t.expiresAt),
+  ],
+)
+
+export const aiPropertyTrendOutcomes = pgTable(
+  'ai_property_trend_outcomes',
+  {
+    scheduleId: uuid('schedule_id')
+      .primaryKey()
+      .references(() => aiPropertyTrendSchedules.id, { onDelete: 'cascade' }),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    disposition: varchar('disposition', { length: 32 }).notNull(),
+    operationId: uuid('operation_id').references(() => aiOperations.id, {
+      onDelete: 'restrict',
+    }),
+    selectedSignalIds: jsonb('selected_signal_ids').$type<readonly string[]>(),
+    signalKey: varchar('signal_key', { length: 64 }),
+    direction: varchar('direction', { length: 20 }),
+    confidenceBasisPoints: integer('confidence_basis_points'),
+    supportingReviewCount: integer('supporting_review_count'),
+    headline: varchar('headline', { length: 80 }),
+    sentences: jsonb('sentences').$type<readonly string[]>(),
+    summary: text('summary'),
+    renderProfileVersion: varchar('render_profile_version', { length: 100 }),
+    renderProfileDigest: varchar('render_profile_digest', { length: 64 }),
+    providerSelectionRecordedAt: timestamptz('provider_selection_recorded_at'),
+    recordedAt: timestamptz('recorded_at').notNull(),
+    expiresAt: timestamptz('expires_at'),
+  },
+  (t) => [
+    uniqueIndex('ai_property_trend_outcomes_operation_unique')
+      .on(t.operationId)
+      .where(sql`${t.operationId} IS NOT NULL`),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_property_trend_outcomes_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_property_trend_outcomes_valid',
+      sql`(
+        ${t.disposition} = 'ready'
+        AND ${t.operationId} IS NOT NULL
+        AND jsonb_typeof(${t.selectedSignalIds}) = 'array'
+        AND jsonb_array_length(${t.selectedSignalIds}) BETWEEN 1 AND 4
+        AND ${t.signalKey} ~ '^[a-z][a-z0-9_.]{2,63}$'
+        AND ${t.direction} IN ('improving', 'stable', 'declining')
+        AND ${t.confidenceBasisPoints} BETWEEN 0 AND 10000
+        AND ${t.supportingReviewCount} >= 0
+        AND ${t.headline} IN ('Review signals improved', 'Review signals need attention', 'Notable review changes')
+        AND jsonb_typeof(${t.sentences}) = 'array'
+        AND jsonb_array_length(${t.sentences}) BETWEEN 1 AND 4
+        AND length(${t.summary}) BETWEEN 1 AND 1000
+        AND ${t.renderProfileVersion} = 'trend-render-v1'
+        AND ${t.renderProfileDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.providerSelectionRecordedAt} IS NOT NULL
+        AND ${t.recordedAt} = ${t.providerSelectionRecordedAt}
+        AND ${t.expiresAt} > ${t.recordedAt}
+      ) OR (
+        ${t.disposition} IN ('insufficient_data', 'no_material_change')
+        AND ${t.operationId} IS NULL
+        AND ${t.selectedSignalIds} IS NULL
+        AND ${t.signalKey} IS NULL
+        AND ${t.direction} IS NULL
+        AND ${t.confidenceBasisPoints} IS NULL
+        AND ${t.supportingReviewCount} IS NULL
+        AND ${t.headline} IS NULL
+        AND ${t.sentences} IS NULL
+        AND ${t.summary} IS NULL
+        AND ${t.renderProfileVersion} IS NULL
+        AND ${t.renderProfileDigest} IS NULL
+        AND ${t.providerSelectionRecordedAt} IS NULL
+        AND ${t.expiresAt} IS NULL
+      )`,
+    ),
+    index('ai_property_trend_outcomes_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.recordedAt.desc(),
+    ),
+    index('ai_property_trend_outcomes_expiry_idx')
+      .on(t.expiresAt)
+      .where(sql`${t.expiresAt} IS NOT NULL`),
   ],
 )

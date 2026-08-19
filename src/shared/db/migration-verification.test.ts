@@ -54,7 +54,7 @@ const EXPECTED_TABLES = [
   'inbox_user_views',
   'metric_definitions',
   'metric_readings',
-  // Migrations 0046-0048 (AI private-beta control plane and read models)
+  // Migrations 0046-0054 (AI private-beta control plane and read models)
   'review_ai_analysis_heads',
   'ai_governance_policies',
   'ai_runtime_capability_profiles',
@@ -78,7 +78,9 @@ const EXPECTED_TABLES = [
   'ai_review_analyses',
   'ai_property_aggregate_heads',
   'ai_property_daily_aggregates',
-  'ai_property_trend_reports',
+  'ai_property_trend_scheduler_heads',
+  'ai_property_trend_schedules',
+  'ai_property_trend_outcomes',
   'ai_property_aggregate_contributions',
   // Migration 0007 (BQR-1.1)
   'review_sync_state',

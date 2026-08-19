@@ -38,6 +38,7 @@ export const replyStatusEnum = pgEnum('reply_status', [
 ])
 
 export const replySourceEnum = pgEnum('reply_source', ['google_sync', 'internal'])
+export const replyAuthorshipEnum = pgEnum('reply_authorship', ['human', 'ai_assisted'])
 
 export const reviews = pgTable(
   'reviews',
@@ -57,7 +58,13 @@ export const reviews = pgTable(
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
     rating: integer('rating').notNull(),
+    // Google concatenates its machine translation and the guest's original into
+    // one `comment` field: "(Translated by Google) <en>\n\n(Original) <src>".
+    // `text` holds the ORIGINAL — the AI language verifier must detect the
+    // guest's language, not Google's English. The translation is kept for
+    // display (migration 0061).
     text: text('text'),
+    translatedText: text('translated_text'),
     languageCode: varchar('language_code', { length: 10 }),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -76,6 +83,9 @@ export const reviews = pgTable(
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
     aiSourceByteLength: integer('ai_source_byte_length').notNull(),
     aiSourceDigest: varchar('ai_source_digest', { length: 64 }).notNull(),
+    replyStateRevision: bigint('reply_state_revision', { mode: 'number' })
+      .notNull()
+      .default(0),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -128,6 +138,10 @@ export const reviews = pgTable(
       sql`${t.aiSourceByteLength} BETWEEN 1 AND '4294967295'::bigint`,
     ),
     check('reviews_ai_source_digest_valid', sql`${t.aiSourceDigest} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'reviews_reply_state_revision_safe',
+      sql`${t.replyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
   ],
 )
 
@@ -443,6 +457,31 @@ export const replies = pgTable(
     rejectedBy: varchar('rejected_by', { length: 255 }),
     rejectionReason: text('rejection_reason'),
     aiGenerated: boolean('ai_generated').notNull().default(false),
+    authorship: replyAuthorshipEnum('authorship'),
+    stateRevision: bigint('state_revision', { mode: 'number' }).notNull().default(1),
+    originOperationId: uuid('origin_operation_id'),
+    originSourceEpoch: integer('origin_source_epoch'),
+    originSourceRevision: bigint('origin_source_revision', { mode: 'number' }),
+    originBaseReplyStateRevision: bigint('origin_base_reply_state_revision', {
+      mode: 'number',
+    }),
+    originReplyDraftingEpoch: integer('origin_reply_drafting_epoch'),
+    originPropertyProfileVersion: integer('origin_property_profile_version'),
+    originAiProfileVersion: varchar('origin_ai_profile_version', { length: 100 }),
+    originReplyTemplateId: varchar('origin_reply_template_id', { length: 64 }),
+    originReplyTemplateCatalogueVersion: varchar(
+      'origin_reply_template_catalogue_version',
+      { length: 100 },
+    ),
+    originReplyTemplateCatalogueDigest: varchar(
+      'origin_reply_template_catalogue_digest',
+      { length: 64 },
+    ),
+    originConcreteLanguageTag: varchar('origin_concrete_language_tag', {
+      length: 35,
+    }),
+    originTemplateGroup: varchar('origin_template_group', { length: 35 }),
+    aiDraftExpiresAt: timestamp('ai_draft_expires_at', { withTimezone: true }),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     approvedAt: timestamp('approved_at', { withTimezone: true }),
     publishedAt: timestamp('published_at', { withTimezone: true }),
@@ -470,6 +509,77 @@ export const replies = pgTable(
     ),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
+    check(
+      'replies_state_revision_safe',
+      sql`${t.stateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    uniqueIndex('replies_origin_operation_unique')
+      .on(t.originOperationId)
+      .where(sql`origin_operation_id IS NOT NULL`),
+    check(
+      'replies_authorship_valid',
+      sql`(
+        (${t.source} = 'google_sync' AND ${t.authorship} IS NULL AND ${t.aiGenerated} = false)
+        OR (
+          ${t.source} = 'internal'
+          AND ${t.authorship} IS NOT NULL
+          AND (
+            (${t.aiGenerated} = false AND ${t.authorship} = 'human')
+            OR (${t.aiGenerated} = true AND ${t.authorship} = 'ai_assisted')
+          )
+        )
+      )`,
+    ),
+    check(
+      'replies_ai_provenance_valid',
+      sql`(
+        (
+          ${t.authorship} = 'ai_assisted'
+          AND ${t.originOperationId} IS NOT NULL
+          AND ${t.originSourceEpoch} >= 0
+          AND ${t.originSourceRevision} >= 1
+          AND ${t.originBaseReplyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint
+          AND ${t.originReplyDraftingEpoch} >= 1
+          AND ${t.originPropertyProfileVersion} >= 1
+          AND ${t.originAiProfileVersion} = 'reply-suggestion-v1'
+          AND ${t.originReplyTemplateId} IN (
+            'appreciation_positive',
+            'appreciation_neutral',
+            'recovery_service',
+            'acknowledge_concern'
+          )
+          AND ${t.originReplyTemplateCatalogueVersion} = 'gbp-reply-template-catalogue-v1'
+          AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
+          AND ${t.originTemplateGroup} IN (
+            'en-Latn', 'es-Latn', 'fr-Latn', 'de-Latn', 'pt-Latn',
+            'it-Latn', 'nl-Latn', 'pl-Latn', 'tr-Latn', 'uk-Cyrl',
+            'ru-Cyrl', 'ar-Arab', 'he-Hebr', 'hi-Deva', 'bn-Beng',
+            'ta-Taml', 'th-Thai', 'vi-Latn', 'id-Latn', 'zh-Hans',
+            'zh-Hant', 'ja-Jpan', 'ko-Kore', 'bg-Cyrl'
+          )
+          AND (
+            ${t.originConcreteLanguageTag} = ${t.originTemplateGroup}
+            OR ${t.originConcreteLanguageTag} ~~ (${t.originTemplateGroup} || '-%')
+          )
+          AND ${t.aiDraftExpiresAt} IS NOT NULL
+        )
+        OR (
+          ${t.originOperationId} IS NULL
+          AND ${t.originSourceEpoch} IS NULL
+          AND ${t.originSourceRevision} IS NULL
+          AND ${t.originBaseReplyStateRevision} IS NULL
+          AND ${t.originReplyDraftingEpoch} IS NULL
+          AND ${t.originPropertyProfileVersion} IS NULL
+          AND ${t.originAiProfileVersion} IS NULL
+          AND ${t.originReplyTemplateId} IS NULL
+          AND ${t.originReplyTemplateCatalogueVersion} IS NULL
+          AND ${t.originReplyTemplateCatalogueDigest} IS NULL
+          AND ${t.originConcreteLanguageTag} IS NULL
+          AND ${t.originTemplateGroup} IS NULL
+          AND ${t.aiDraftExpiresAt} IS NULL
+        )
+      )`,
+    ),
     // Migration 0015: publication state machine overlays (DO-block guarded).
     check(
       'replies_publication_state_check',
