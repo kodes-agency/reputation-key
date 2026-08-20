@@ -34,8 +34,10 @@ type Props = Readonly<{
   onEditCategory: (catId: string | null) => void
   onEditLink: (linkId: string | null) => void
   onAddLink: (catId: string | null) => void
-  onUpdateCategory: (catId: string, title: string) => void
-  onUpdateLink: (linkId: string, label: string, url: string) => void
+  // Promise-returning: the inline forms attach the .catch that keeps a failed
+  // save from escaping as an unhandledrejection.
+  onUpdateCategory: (catId: string, title: string) => Promise<void> | void
+  onUpdateLink: (linkId: string, label: string, url: string) => Promise<void> | void
   isUpdateCategoryPending: boolean
   isUpdateLinkPending: boolean
   updateCategoryError: unknown

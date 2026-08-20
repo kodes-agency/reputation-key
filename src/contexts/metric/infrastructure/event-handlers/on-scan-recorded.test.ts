@@ -1,4 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+const mockLogger = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}))
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: vi.fn(() => mockLogger),
+}))
+
 import { onScanRecorded } from './on-scan-recorded'
 import type { RecordPortalMetricDeps as OnScanRecordedDeps } from './record-portal-metric'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
@@ -44,6 +56,7 @@ describe('onScanRecorded', () => {
   let deps: ReturnType<typeof createFakeDeps>
 
   beforeEach(() => {
+    vi.clearAllMocks()
     deps = createFakeDeps()
   })
 
@@ -91,7 +104,7 @@ describe('onScanRecorded', () => {
     ])
   })
 
-  it('still records the metric (groupId null) when group resolution throws', async () => {
+  it('records the metric with a null group, still exact, when lookup throws', async () => {
     const groupDeps = createFakeDeps({
       findGroupForPortal: async () => {
         throw new Error('portal group lookup failed')
@@ -102,6 +115,14 @@ describe('onScanRecorded', () => {
 
     expect(groupDeps.readings).toHaveLength(1)
     expect(groupDeps.readings[0]!.portalGroupId).toBeNull()
+    // 'unresolved' would NOT degrade — record-metric.ts quarantines exactly
+    // that value ('unresolved_attribution') before the reading is constructed,
+    // so a transient DB blip silently under-counted analytics. Portal/property
+    // attribution is still exact; only the group enrichment is missing.
+    expect(groupDeps.readings[0]!.attributionQuality).toBe('exact')
+    // …and the lost enrichment is observable to an operator.
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+    expect(mockLogger.error).not.toHaveBeenCalled()
   })
 
   it('does not throw when recordMetric fails', async () => {

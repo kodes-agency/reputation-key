@@ -2,7 +2,11 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
-import { decidePublicExecution } from '#/shared/auth/execution-policy'
+import {
+  decidePublicExecution,
+  type ExecutionDecision,
+} from '#/shared/auth/execution-policy'
+import type { GuestResponseFormAvailability } from '../application/dto/public-portal.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { match } from 'ts-pattern'
@@ -130,6 +134,22 @@ const publicPortalSchema = z.object({
   token: z.string().min(1).max(256),
 })
 
+// Transient deny reasons: the capability may return without any tenant
+// reconfiguration, so the guest gets the retryable copy rather than the flat
+// "not available for this portal". Every other deny is a configuration answer.
+const TRANSIENT_DENY_REASONS: Record<string, true> = {
+  org_suspended: true,
+  property_suspended: true,
+  policy_unavailable: true,
+}
+
+const formAvailability = (decision: ExecutionDecision): GuestResponseFormAvailability =>
+  decision.allowed
+    ? 'available'
+    : TRANSIENT_DENY_REASONS[decision.reason]
+      ? 'unavailable'
+      : 'permission_denied'
+
 export const getPublicPortal = createServerFn({ method: 'GET' })
   .inputValidator(publicPortalSchema)
   .handler(
@@ -143,11 +163,13 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             propertyId: portal.propertyId,
             portalId: portal.portal.id,
           }
+          // One instant for every decision on this read.
+          const now = new Date()
           const decision = await decidePublicExecution({
             action: 'public:portal.read',
             capability: 'portal.public_read',
             ...scope,
-            now: new Date(),
+            now,
           })
           if (!decision.allowed) {
             throwContextError(
@@ -167,11 +189,34 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             scope,
             session.sessionId,
           )
+          // The guest capability decisions the form needs up front. Same action
+          // as the read they serve — the audit row's capability distinguishes
+          // them. Resolved only AFTER the public_read deny above has thrown, so
+          // a denied portal and a missing one remain indistinguishable (both
+          // 404 with the same body); no new non-enumeration surface.
+          const [responseDecision, mediaDecision] = await Promise.all([
+            decidePublicExecution({
+              action: 'public:portal.read',
+              capability: 'portal.guest_response',
+              ...scope,
+              now,
+            }),
+            decidePublicExecution({
+              action: 'public:portal.read',
+              capability: 'portal.guest_media',
+              ...scope,
+              now,
+            }),
+          ])
           setResponseHeader('Referrer-Policy', 'no-referrer')
           return {
             ...portal,
             guestSession: { csrfNonce: session.csrfNonce },
             response,
+            responseForm: {
+              availability: formAvailability(responseDecision),
+              mediaEnabled: mediaDecision.allowed,
+            },
           }
         } catch (e) {
           if (isGuestError(e))

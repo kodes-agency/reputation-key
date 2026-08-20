@@ -3,8 +3,13 @@
 import { describe, it, expect } from 'vitest'
 import { updatePortal } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import {
+  buildTestAuthContext,
+  buildTestPortal,
+  buildTestPortalLink,
+} from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
@@ -18,15 +23,17 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 })
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
+  const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
   const deps = {
     portalRepo,
+    portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
     events,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
-  return { useCase, portalRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, events }
 }
 
 describe('updatePortal', () => {
@@ -166,5 +173,91 @@ describe('updatePortal', () => {
 
     const updated = await useCase({ portalId: portal.id, name: 'New' }, ctx)
     expect(updated.name).toBe('New')
+  })
+
+  it('clears the hero image when heroImageUrl is null', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/hero.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, heroImageUrl: null }, ctx)
+
+    expect(updated.heroImageUrl).toBeNull()
+    expect(portalRepo.all()[0].heroImageUrl).toBeNull()
+  })
+
+  it('replaces the hero image when heroImageUrl is a new url', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, heroImageUrl: 'https://cdn.example.com/new.jpg' },
+      ctx,
+    )
+
+    expect(updated.heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+  })
+
+  it('leaves the hero image untouched when heroImageUrl is absent', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/hero.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, name: 'Renamed' }, ctx)
+
+    expect(updated.heroImageUrl).toBe('https://cdn.example.com/hero.jpg')
+  })
+
+  it('rejects publishing a portal that has no links', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+    )
+    expect(portalRepo.all()[0].publicationState).toBe('draft')
+  })
+
+  it('publishes a portal that has at least one link', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+    portalLinkRepo.seedLinks([
+      buildTestPortalLink({
+        portalId: portal.id,
+        organizationId: portal.organizationId,
+      }),
+    ])
+
+    const updated = await useCase(
+      { portalId: portal.id, publicationState: 'published' },
+      ctx,
+    )
+
+    expect(updated.publicationState).toBe('published')
+  })
+
+  it('does not require links to transition out of published', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'published' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, publicationState: 'disabled' },
+      ctx,
+    )
+
+    expect(updated.publicationState).toBe('disabled')
   })
 })

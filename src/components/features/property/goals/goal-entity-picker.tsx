@@ -8,6 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { EntityScope } from '#/shared/domain/metric-keys'
 import type { PortalOption } from './goal-entity-types'
 
@@ -28,21 +30,35 @@ export function EntityPicker({
   portalGroups: readonly PortalOption[]
   propertyId: string
 }) {
+  // Hooks run unconditionally — the early returns below are all after them.
+  const { can } = usePermissions()
+  const { has } = useCapabilities()
+  // `/portals/new` gates on portal.write and the create server fn asserts
+  // portal.create; offering the link without both routes the user straight to
+  // /unavailable. UI affordance only — both gates stay in place (ADR 0049).
+  const canCreatePortal = can('portal.create') && has('portal.write')
+
   if (entityScope === 'portal') {
     return portals.length === 0 ? (
       <Field>
         <FieldLabel>Portal</FieldLabel>
         <p className="text-sm text-muted-foreground">
-          No portals created yet.{' '}
-          <Link
-            to="/properties/$propertyId/portals/new"
-            params={{ propertyId }}
-            className="inline-flex items-center gap-1 text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
-            <Plus className="size-3" />
-            Create a portal
-          </Link>{' '}
-          to set portal-scoped goals.
+          {canCreatePortal ? (
+            <>
+              No portals created yet.{' '}
+              <Link
+                to="/properties/$propertyId/portals/new"
+                params={{ propertyId }}
+                className="inline-flex items-center gap-1 text-sm font-medium text-link underline-offset-4 hover:underline"
+              >
+                <Plus className="size-3" />
+                Create a portal
+              </Link>{' '}
+              to set portal-scoped goals.
+            </>
+          ) : (
+            'No portals created yet. A portal is required to set portal-scoped goals.'
+          )}
         </p>
       </Field>
     ) : (

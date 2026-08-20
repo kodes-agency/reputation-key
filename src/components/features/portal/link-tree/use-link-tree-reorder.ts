@@ -45,8 +45,10 @@ export function useLinkTreeReorder(
     if (!over || active.id === over.id) return
     const oldIndex = categories.findIndex((c) => c.id === active.id)
     const newIndex = categories.findIndex((c) => c.id === over.id)
-    // Skip if neither active nor over is a category (e.g. link drag)
-    if (oldIndex === -1 && newIndex === -1) return
+    // Skip unless BOTH ends are categories (e.g. link drag). With `&&` a single
+    // -1 slipped through and arrayMove spliced at -1, silently reordering — and
+    // then persisting — the wrong category.
+    if (oldIndex === -1 || newIndex === -1) return
     const reordered = arrayMove([...categories], oldIndex, newIndex)
     setCategories(reordered)
     const updates: { id: string; sortKey: string }[] = []
@@ -57,9 +59,10 @@ export function useLinkTreeReorder(
     try {
       await reorderCategoriesMutation({ data: { portalId, items: updates } })
     } catch {
-      // F119: Rollback optimistic UI update on failure
+      // F119: Rollback optimistic UI update on failure. The rejection is also
+      // surfaced by the FormErrorBanner in LinkTree (via the mutation's .error);
+      // a console-only report left the list snapping back unexplained.
       setCategories(categories)
-      console.error('Failed to reorder categories')
     }
   }
 
@@ -82,9 +85,9 @@ export function useLinkTreeReorder(
         data: { portalId, categoryId, items: updates },
       })
     } catch {
-      // F119: Rollback optimistic UI update on failure
+      // F119: Rollback optimistic UI update on failure. See above — the error is
+      // rendered by LinkTree's FormErrorBanner rather than only logged.
       setLinks(links)
-      console.error('Failed to reorder links')
     }
   }
 

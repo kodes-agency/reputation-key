@@ -5,15 +5,22 @@
 // recomputed — O(changed partitions) instead of O(total rows).
 //
 // Algorithm per rollup:
-//   1. Read watermark (last processed timestamp)
-//   2. Find earliest partition (day/week) in new data
+//   1. Capture the database clock, THEN read the watermark
+//   2. Find earliest partition (day/week) in data newer than the watermark
 //   3. DELETE rollup rows for affected partitions
 //   4. INSERT recomputed aggregations for affected partitions
-//   5. Update watermark to now()
+//   5. Advance the watermark to the instant captured in step 1
 //
-// If no new data exists, steps 2-4 are skipped — the refresh is a no-op.
-// The watermark is always set to now() so the next run picks up any
-// data that arrived during this run.
+// If no new data exists, steps 3-4 are skipped — the refresh is a no-op.
+// The captured instant, NOT a fresh now(), is what the watermark advances to.
+// Advancing to a now() evaluated inside the final UPDATE permanently dropped
+// rows: a reading inserted between the boundary SELECT and that UPDATE is
+// greater than the old watermark and less than the new one, so the next run's
+// `WHERE recorded_at > watermark` never saw it and its day partition was never
+// recomputed. That is the divergence that made live analytics reads disagree
+// permanently with the rollup-backed goals/badges/leaderboards. Capturing
+// first makes such a reading land strictly after the watermark, so the next
+// run recomputes its partition.
 
 import { sql } from 'drizzle-orm'
 import { getLogger } from '#/shared/observability/logger'
@@ -23,10 +30,13 @@ import { trace } from '#/shared/observability/trace'
 const NULL_PORTAL = sql`'00000000-0000-0000-0000-000000000000'`
 
 /**
- * Read the rollup watermark and the earliest partition boundary in data that
- * arrived after it (BQC-5.9 E18). Returns null when no new data exists — the
- * caller then bumps the watermark and no-ops. The watermark/boundary SQL is
- * raw because _rollup_watermarks is a migration-owned ops table outside the
+ * Capture the database clock and read the rollup watermark and the earliest
+ * partition boundary in data that arrived after it (BQC-5.9 E18). Returns a
+ * null boundary when no new data exists — the caller then bumps the watermark
+ * and no-ops. `capturedAt` is read in the SAME statement as the watermark and
+ * therefore strictly BEFORE the boundary SELECT, so nothing written during
+ * this run can be skipped by the next one. The watermark/boundary SQL is raw
+ * because _rollup_watermarks is a migration-owned ops table outside the
  * drizzle schema; identifiers are internal constants interpolated via sql.raw.
  */
 async function readWatermarkBoundary(
@@ -38,12 +48,17 @@ async function readWatermarkBoundary(
     dateColumn: string
     watermarkColumn: string
   }>,
-): Promise<Date | null> {
+): Promise<{ capturedAt: Date; boundary: Date | null }> {
   const watermarkResult = await db.execute(sql`
-    SELECT watermark FROM _rollup_watermarks WHERE name = ${opts.name}
+    SELECT
+      now() AS captured_at,
+      (SELECT watermark FROM _rollup_watermarks WHERE name = ${opts.name}) AS watermark
   `)
-  const watermarkRow = watermarkResult.rows[0] as { watermark: Date } | undefined
-  const watermark = watermarkRow?.watermark ?? new Date(0)
+  const watermarkRow = watermarkResult.rows[0] as
+    | { captured_at: Date; watermark: Date | null }
+    | undefined
+  if (!watermarkRow) throw new Error('rollup: could not read the database clock')
+  const watermark = watermarkRow.watermark ?? new Date(0)
 
   const newBoundary = await db.execute(sql`
     SELECT date_trunc(${sql.raw(`'${opts.partitionUnit}'`)}, ${sql.raw(opts.dateColumn)}) AS min_partition
@@ -54,14 +69,22 @@ async function readWatermarkBoundary(
   `)
   const boundaryRow = newBoundary.rows[0] as { min_partition: Date } | undefined
 
-  return boundaryRow?.min_partition ?? null
+  return {
+    capturedAt: watermarkRow.captured_at,
+    boundary: boundaryRow?.min_partition ?? null,
+  }
 }
 
-/** Advance a rollup watermark to now() after a refresh (or a no-data no-op). */
-async function advanceWatermark(db: Database, name: string): Promise<void> {
+/** Advance a rollup watermark to the instant captured before the boundary read
+ *  (after a refresh, or after a no-data no-op). The captured timestamp
+ *  round-trips through a JS Date, so it can land up to 999µs BEFORE the true
+ *  server instant — an error in the safe direction: the next run may recompute
+ *  a partition twice (the refresh is DELETE+INSERT idempotent) but can never
+ *  skip a row. */
+async function advanceWatermark(db: Database, name: string, to: Date): Promise<void> {
   await db.execute(sql`
     UPDATE _rollup_watermarks
-    SET watermark = now(), updated_at = now()
+    SET watermark = ${to}, updated_at = now()
     WHERE name = ${name}
   `)
 }
@@ -78,7 +101,7 @@ export async function refreshDailyMetricsIncrementally(
   return trace('rollup.dailyMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const affectedDate = await readWatermarkBoundary(db, {
+    const { capturedAt, boundary: affectedDate } = await readWatermarkBoundary(db, {
       name: 'daily_metrics',
       partitionUnit: 'day',
       sourceTable: 'metric_readings',
@@ -88,7 +111,7 @@ export async function refreshDailyMetricsIncrementally(
 
     if (!affectedDate) {
       logger.debug('rollup.dailyMetrics: no new data since watermark')
-      await advanceWatermark(db, 'daily_metrics')
+      await advanceWatermark(db, 'daily_metrics', capturedAt)
       return { partitionsRecomputed: 0 }
     }
 
@@ -113,7 +136,7 @@ export async function refreshDailyMetricsIncrementally(
       GROUP BY organization_id, property_id, COALESCE(portal_id, ${NULL_PORTAL}), metric_key, date_trunc('day', recorded_at)
     `)
 
-    await advanceWatermark(db, 'daily_metrics')
+    await advanceWatermark(db, 'daily_metrics', capturedAt)
 
     logger.info({ affectedDate }, 'Incrementally refreshed rollup_daily_metrics')
     return { partitionsRecomputed: 1 }
@@ -129,7 +152,7 @@ export async function refreshWeeklyMetricsIncrementally(
   return trace('rollup.weeklyMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const affectedWeek = await readWatermarkBoundary(db, {
+    const { capturedAt, boundary: affectedWeek } = await readWatermarkBoundary(db, {
       name: 'weekly_metrics',
       partitionUnit: 'week',
       sourceTable: 'metric_readings',
@@ -139,7 +162,7 @@ export async function refreshWeeklyMetricsIncrementally(
 
     if (!affectedWeek) {
       logger.debug('rollup.weeklyMetrics: no new data since watermark')
-      await advanceWatermark(db, 'weekly_metrics')
+      await advanceWatermark(db, 'weekly_metrics', capturedAt)
       return { partitionsRecomputed: 0 }
     }
 
@@ -164,7 +187,7 @@ export async function refreshWeeklyMetricsIncrementally(
       GROUP BY organization_id, property_id, COALESCE(portal_id, ${NULL_PORTAL}), metric_key, date_trunc('week', recorded_at)
     `)
 
-    await advanceWatermark(db, 'weekly_metrics')
+    await advanceWatermark(db, 'weekly_metrics', capturedAt)
 
     logger.info({ affectedWeek }, 'Incrementally refreshed rollup_weekly_metrics')
     return { partitionsRecomputed: 1 }
@@ -180,7 +203,7 @@ export async function refreshDailyInboxMetricsIncrementally(
   return trace('rollup.dailyInboxMetrics.incremental', async () => {
     const logger = getLogger()
 
-    const affectedDate = await readWatermarkBoundary(db, {
+    const { capturedAt, boundary: affectedDate } = await readWatermarkBoundary(db, {
       name: 'daily_inbox_metrics',
       partitionUnit: 'day',
       sourceTable: 'inbox_items',
@@ -190,7 +213,7 @@ export async function refreshDailyInboxMetricsIncrementally(
 
     if (!affectedDate) {
       logger.debug('rollup.dailyInboxMetrics: no new data since watermark')
-      await advanceWatermark(db, 'daily_inbox_metrics')
+      await advanceWatermark(db, 'daily_inbox_metrics', capturedAt)
       return { partitionsRecomputed: 0 }
     }
 
@@ -214,7 +237,7 @@ export async function refreshDailyInboxMetricsIncrementally(
       GROUP BY organization_id, property_id, date_trunc('day', source_date)
     `)
 
-    await advanceWatermark(db, 'daily_inbox_metrics')
+    await advanceWatermark(db, 'daily_inbox_metrics', capturedAt)
 
     logger.info({ affectedDate }, 'Incrementally refreshed rollup_daily_inbox_metrics')
     return { partitionsRecomputed: 1 }

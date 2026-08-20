@@ -14,8 +14,24 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReplyView } from './reply-lookup.port'
 
-/** Guest-owned feedback/rating reads (satisfied by the guest interaction repo). */
+/**
+ * Guest-owned feedback/rating reads.
+ *
+ * Two storage generations, in precedence order:
+ *  - `findResponseSnippetById` reads the CURRENT `guest_responses` aggregate,
+ *    which holds the rating and the text on one row. This is what the live
+ *    guest form writes, so every new feedback inbox item resolves here.
+ *  - `findFeedbackById` + `findRatingById` read the LEGACY `feedback`/`ratings`
+ *    tables, kept so inbox items created before the aggregate still render.
+ *
+ * The adapter tries the aggregate first and falls back; an id can only exist in
+ * one generation, so there is no ambiguity.
+ */
 export type FeedbackLookupSource = Readonly<{
+  findResponseSnippetById: (
+    id: FeedbackId,
+    orgId: OrganizationId,
+  ) => Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
   findFeedbackById: (
     id: FeedbackId,
     orgId: OrganizationId,

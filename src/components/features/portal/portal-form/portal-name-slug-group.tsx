@@ -4,20 +4,26 @@ import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { ThemeFieldGroup } from './theme-field-group'
+import type { PortalThemeDraft } from '../shared/types'
 import type { FormWithField } from '#/components/forms/form-with-field'
 
 type PortalFormValues = {
   name: string
   slug: string
   description: string
-  primaryColor: string
+  theme: PortalThemeDraft
 }
 
+// `theme` is not rendered through `form.Field`: `FormWithField`'s render prop is
+// typed for string-valued fields, and the theme is an object. The create form
+// owns the draft and hands it down.
 type Props = Readonly<{
   form: FormWithField<PortalFormValues>
+  theme: PortalThemeDraft
+  onThemeChange: (theme: PortalThemeDraft) => void
 }>
 
-export function PortalNameSlugGroup({ form }: Props) {
+export function PortalNameSlugGroup({ form, theme, onThemeChange }: Props) {
   return (
     <FieldGroup>
       <form.Field name="name">
@@ -54,14 +60,7 @@ export function PortalNameSlugGroup({ form }: Props) {
         )}
       </form.Field>
 
-      <form.Field name="primaryColor">
-        {(field: { state: { value: string }; handleChange: (value: string) => void }) => (
-          <ThemeFieldGroup
-            primaryColor={field.state.value}
-            onPrimaryColorChange={(color) => field.handleChange(color)}
-          />
-        )}
-      </form.Field>
+      <ThemeFieldGroup theme={theme} onThemeChange={onThemeChange} />
     </FieldGroup>
   )
 }

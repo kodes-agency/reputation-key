@@ -1242,7 +1242,19 @@ export function createContainer(options?: {
     },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {
-      feedback: guest.internal.repos.guestRepo,
+      // Feedback spans two storage generations: the guest_responses aggregate
+      // that the live guest form writes, and the legacy feedback/ratings pair.
+      // `guest.feedback.submitted` carries the aggregate row id, so the
+      // aggregate read is what makes a new feedback inbox item render at all —
+      // the legacy lookup cannot resolve that id.
+      feedback: {
+        findResponseSnippetById: (id, orgId) =>
+          guest.internal.repos.guestResponseRepo.findSnippetForOrg(orgId, id),
+        findFeedbackById: (id, orgId) =>
+          guest.internal.repos.guestRepo.findFeedbackById(id, orgId),
+        findRatingById: (id, orgId) =>
+          guest.internal.repos.guestRepo.findRatingById(id, orgId),
+      },
       property: property.publicApi,
       reply: review.internal.repos.replyRepo,
       review: review.internal.repos.reviewRepo,

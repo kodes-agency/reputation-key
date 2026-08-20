@@ -96,6 +96,63 @@ type Story = StoryObj<typeof PublicPortalContent>
 
 export const Empty: Story = {}
 
+// The Dark palette has to actually render dark. All three saved colours reach
+// the page, so background, text and accent all change together.
+export const DarkPalette: Story = {
+  args: {
+    portal: {
+      ...portal,
+      theme: {
+        primaryColor: '#a5b4fc',
+        backgroundColor: '#111827',
+        textColor: '#f9fafb',
+      },
+    },
+  },
+}
+
+// The Brand palette — a third genuinely distinct accent, not a copy of Light.
+export const BrandPalette: Story = {
+  args: {
+    portal: {
+      ...portal,
+      theme: {
+        primaryColor: '#b45309',
+        backgroundColor: '#fffbeb',
+        textColor: '#1c1917',
+      },
+    },
+  },
+}
+
+// --portal-primary used to be assigned and never read, so a manager's accent
+// was invisible. Category headings and destination rules consume it now.
+export const AccentIsConsumed: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { name: 'Share your experience' }),
+    ).toHaveAttribute('style', expect.stringContaining('--portal-primary'))
+    await expect(canvas.getByRole('link', { name: 'Google' })).toHaveAttribute(
+      'style',
+      expect.stringContaining('--portal-primary'),
+    )
+  },
+}
+
+// Every category used to render null when it had no links, leaving a published
+// portal with removed destinations as a bare title and nothing else.
+export const NoDestinations: Story = {
+  args: { categories: [], links: [] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/no review destinations yet/i)).toBeVisible()
+    await expect(
+      canvas.queryByRole('navigation', { name: 'Review destinations' }),
+    ).toBeNull()
+  },
+}
+
 export const CorrectionAvailable: Story = {
   args: {
     responseForm: { ...responseForm, initialResponse: submitted },

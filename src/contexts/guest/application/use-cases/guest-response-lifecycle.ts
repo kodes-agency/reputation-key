@@ -18,6 +18,16 @@ import {
   type GuestResponse,
   type ResponseError,
 } from '../../domain/guest-response'
+import { guestFeedbackSubmitted, guestRatingSubmitted } from '../../domain/events'
+import {
+  feedbackId,
+  organizationId,
+  portalId,
+  propertyId,
+  ratingId,
+} from '#/shared/domain/ids'
+import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { EventBus } from '#/shared/events/event-bus'
 
 export type GuestResponseInput = Readonly<{
   rating?: number | null
@@ -50,7 +60,8 @@ export class GuestResponseLifecycleError extends Error {
   }
 }
 
-const correctionWindowMs = 60 * 60 * 1000
+/** Exported for the server boundary, which mirrors a submitted view's shape. */
+export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
 const retentionMs = 90 * 24 * 60 * 60 * 1000
 
 function toView(response: GuestResponse): GuestResponseView {
@@ -66,7 +77,7 @@ function toView(response: GuestResponse): GuestResponseView {
     submittedAt: response.submittedAt?.toISOString() ?? null,
     correctedAt: response.correctedAt?.toISOString() ?? null,
     correctionDeadline: response.submittedAt
-      ? new Date(response.submittedAt.getTime() + correctionWindowMs).toISOString()
+      ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS).toISOString()
       : null,
     deletedAt: response.deletedAt?.toISOString() ?? null,
   }
@@ -83,6 +94,8 @@ export function guestResponseLifecycle(
     storage: StoragePort
     clock: () => Date
     idGen: () => string
+    events: EventBus
+    outboxRepo?: OutboxRepository
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
@@ -101,6 +114,53 @@ export function guestResponseLifecycle(
       } catch {
         // The durable purge_pending row is intentionally retained for retry.
       }
+    }
+  }
+
+  // PB2.4 / ADR 0044: the aggregate submit is the LIVE producer of the guest
+  // rating and feedback facts. The former submit-rating/submit-feedback use
+  // cases emitted them, but no server function ever reached those use cases —
+  // the metric handlers (portal.rating, portal.feedback) had no producer and
+  // both metrics read 0 forever. Those two use cases are gone with this change.
+  //
+  // Gated on the aggregate's resolved consent flags — never on the raw input.
+  // submitResponse() normalizes those booleans and a row may legitimately hold
+  // a rating the guest declined to share; an unconsented fact must not become
+  // a metric reading (ADR 0044 consent scope).
+  //
+  // The aggregate row id is the identity of both facts: one submit yields at
+  // most one rating and one feedback, and inbox keys its item on feedbackId,
+  // so a replayed emission is idempotent rather than duplicated.
+  const emitSubmissionFacts = async (response: GuestResponse) => {
+    const scopeIds = {
+      organizationId: organizationId(response.organizationId),
+      portalId: portalId(response.portalId),
+      propertyId: propertyId(response.propertyId),
+    }
+    const occurredAt = response.submittedAt ?? deps.clock()
+    if (response.rating !== null && response.responseConsent) {
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
+        guestRatingSubmitted({
+          ratingId: ratingId(response.id),
+          ...scopeIds,
+          value: response.rating,
+          occurredAt,
+        }),
+      )
+    }
+    if (response.text !== null && response.textConsent) {
+      await emitAndRecord(
+        deps.events,
+        deps.outboxRepo,
+        guestFeedbackSubmitted({
+          feedbackId: feedbackId(response.id),
+          ...scopeIds,
+          ratingId: response.rating !== null ? ratingId(response.id) : null,
+          occurredAt,
+        }),
+      )
     }
   }
 
@@ -127,12 +187,27 @@ export function guestResponseLifecycle(
           now,
         ),
       )
-      if (await deps.repo.insertSubmitted(submitted)) return toView(submitted)
+      if (await deps.repo.insertSubmitted(submitted)) {
+        // Only the winning insert emits: the `existing`/`raced` paths return an
+        // already-counted response, so a refresh or a lost race adds no facts.
+        await emitSubmissionFacts(submitted)
+        return toView(submitted)
+      }
       const raced = await deps.repo.findForSession(scope, sessionId)
       if (!raced) throw new GuestResponseLifecycleError('response_unavailable')
       return toView(raced)
     },
 
+    // PB2.4: a correction deliberately emits NO fact, so one guest never yields
+    // two readings. Superseding (rather than adding) needs the whole chain
+    // metric-command-store.ts already implements for portal workflow facts:
+    // (1) a `rating_source_event_id` / `feedback_source_event_id` column on
+    // guest_responses, written in the same statement as the submit, so the
+    // correction knows which fact it replaces; (2) a `supersedesSourceEventId`
+    // member on GuestRatingSubmitted / GuestFeedbackSubmitted; and (3) that
+    // field forwarded by makeRecordMetricHandler (metric context) into
+    // RecordMetricInput. Until all three exist the reading keeps the submitted
+    // value — stale, but never double-counted.
     correct: async (
       scope: GuestResponseScope,
       sessionId: string,
@@ -141,7 +216,7 @@ export function guestResponseLifecycle(
       const current = await deps.repo.findForSession(scope, sessionId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       const corrected = unwrap(
-        correctResponse(current, input, deps.clock(), correctionWindowMs),
+        correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),
       )
       if (!(await deps.repo.saveCorrection(corrected))) {
         throw new GuestResponseLifecycleError('already_submitted')

@@ -178,4 +178,81 @@ describe('portal token repository', () => {
         ?.constraint,
     ).toBe('portal_tokens_portal_tenant_fk')
   })
+
+  // C2: the management token-status projection must agree with public token
+  // resolution about what "live" means, state for state.
+  it('summarises the portal token across its lifecycle', async () => {
+    const repo = createPortalTokenRepository(getDb())
+
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toBeNull()
+
+    const current = makeToken()
+    await repo.insert(current)
+    const active = await repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW)
+    expect(active).toEqual({ version: 1, issuedAt: NOW, gracePeriodEnds: null })
+
+    const rotation = rotateToken(
+      current,
+      {
+        id: 'de000000-0000-4000-8000-000000000024',
+        tokenIdentifier: 'lookup-key-three',
+        tokenHash: 'c'.repeat(64),
+        tokenKeyVersion: 1,
+        version: 2,
+      },
+      60_000,
+      NOW,
+    )
+    if (!('oldToken' in rotation)) throw new Error('rotation failed')
+    await repo.saveRotation(rotation)
+
+    // Inside the grace window both tokens resolve; the newest one governs.
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({ version: 2 })
+
+    await repo.revokeForPortal({
+      organizationId: ORG,
+      portalId: PORTAL,
+      revokedBy: 'owner',
+      reason: 'leaked link',
+      at: NOW,
+    })
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toBeNull()
+  })
+
+  it('counts a token inside its grace window and drops it once closed', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    const rotation = rotateToken(
+      makeToken(),
+      {
+        id: 'de000000-0000-4000-8000-000000000025',
+        tokenIdentifier: 'lookup-key-four',
+        tokenHash: 'd'.repeat(64),
+        tokenKeyVersion: 1,
+        version: 2,
+      },
+      60_000,
+      NOW,
+    )
+    if (!('oldToken' in rotation)) throw new Error('rotation failed')
+    // Persist only the outgoing token: an already-printed code still honoured
+    // for the rest of its grace window.
+    await repo.insert(rotation.oldToken)
+
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toEqual({
+      version: 1,
+      issuedAt: NOW,
+      gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
+    })
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, new Date(NOW.getTime() + 60_001)),
+    ).resolves.toBeNull()
+  })
 })

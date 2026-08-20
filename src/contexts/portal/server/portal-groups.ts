@@ -3,7 +3,6 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { match } from 'ts-pattern'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
@@ -13,7 +12,7 @@ import { getContainer } from '#/composition'
 import { createPortalGroupInputSchema } from '../application/dto/create-portal-group.dto'
 import { updatePortalGroupInputSchema } from '../application/dto/update-portal-group.dto'
 import { isPortalError, portalError } from '../domain/errors'
-import type { PortalErrorCode } from '../domain/errors'
+import { portalErrorStatus } from './portals'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   portalGroupId as toPortalGroupId,
@@ -24,36 +23,6 @@ import {
   requirePortalResourceScope,
 } from './property-scope'
 
-// ── Error → HTTP status mapping ───────────────────────────────────
-
-const portalGroupErrorStatus = (code: PortalErrorCode): number =>
-  match(code)
-    .with('forbidden', () => 403)
-    .with(
-      'portal_not_found',
-      'property_not_found',
-      'category_not_found',
-      'link_not_found',
-      'group_not_found',
-      'portal_not_in_group',
-      () => 404,
-    )
-    .with('slug_taken', 'group_name_taken', 'portal_already_grouped', () => 409)
-    .with('upload_failed', 'token_unavailable', () => 422)
-    .with('portal_inactive', () => 410)
-    .with('invalid_publication_transition', () => 409)
-    .with(
-      'invalid_slug',
-      'invalid_name',
-      'invalid_description',
-      'invalid_theme',
-      'invalid_threshold',
-      'invalid_url',
-      'invalid_label',
-      'invalid_title',
-      () => 400,
-    )
-    .exhaustive()
 async function authorizePortalGroupResource(
   ctx: AuthContext,
   rawGroupId: string,
@@ -72,7 +41,7 @@ async function authorizePortalGroupResource(
     })
   } catch (error) {
     if (isPortalError(error))
-      throwContextError('PortalError', error, portalGroupErrorStatus(error.code))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
     throw error
   }
 }
@@ -100,7 +69,7 @@ async function authorizePortalGroupMembership(
     })
   } catch (error) {
     if (isPortalError(error))
-      throwContextError('PortalError', error, portalGroupErrorStatus(error.code))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
     throw error
   }
 }
@@ -127,7 +96,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
           return { group }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -153,7 +122,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
           return { group }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -188,7 +157,7 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
           return { groups }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -218,7 +187,7 @@ export const getPortalGroup = createServerFn({ method: 'GET' })
           return { group }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -244,7 +213,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
           return { deleted: true, portalGroupId: data.portalGroupId }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -275,7 +244,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
           return { added: true }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },
@@ -301,7 +270,7 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
           return { removed: true }
         } catch (e) {
           if (isPortalError(e))
-            throwContextError('PortalError', e, portalGroupErrorStatus(e.code))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },

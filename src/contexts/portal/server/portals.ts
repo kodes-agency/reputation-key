@@ -40,7 +40,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with('portal_inactive', () => 410)
-    .with('invalid_publication_transition', () => 409)
+    .with('invalid_publication_transition', 'portal_has_no_links', () => 409)
     .with(
       'invalid_slug',
       'invalid_name',
@@ -234,8 +234,10 @@ export const getPortal = createServerFn({ method: 'GET' })
 
         try {
           const { useCases } = getContainer()
-          const portal = await useCases.getPortal(data, ctx)
-          return { portal }
+          // C2: `tokenStatus` sibling — existence/metadata only, never the raw
+          // token, so the Share tab can offer rotate/revoke after a reload.
+          const { portal, tokenStatus } = await useCases.getPortal(data, ctx)
+          return { portal, tokenStatus }
         } catch (e) {
           if (isPortalError(e))
             throwContextError('PortalError', e, portalErrorStatus(e.code))
@@ -295,10 +297,13 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        // Both upload steps mutate an EXISTING portal's hero image, so they
+        // authorize like every sibling mutation on an existing portal
+        // (updatePortal / issuePortalToken / completeContentReview).
         await authorizePortalResource(
           ctx,
           data.portalId,
-          'portal.create',
+          'portal.update',
           'portal.upload',
         )
 
@@ -335,7 +340,7 @@ export const finalizeUpload = createServerFn({ method: 'POST' })
         await authorizePortalResource(
           ctx,
           data.portalId,
-          'portal.create',
+          'portal.update',
           'portal.upload',
         )
 

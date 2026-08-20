@@ -17,12 +17,25 @@ const TABS = [
 export function PortalDetailTabs({
   value,
   onValueChange,
+  hiddenTabs,
   children,
 }: Readonly<{
   value: (typeof TABS)[number]['value']
   onValueChange: (value: (typeof TABS)[number]['value']) => void
+  /**
+   * Tabs whose backing capability the caller resolved as absent. They get
+   * neither a trigger nor a panel — the tab used to render the server's raw
+   * policy-denial reason once opened.
+   */
+  hiddenTabs?: ReadonlyArray<(typeof TABS)[number]['value']>
   children?: ReactNode
 }>) {
+  // Annotated: the ternary otherwise yields a union of a tuple and an array,
+  // which TS refuses to call .map on.
+  const tabs: ReadonlyArray<(typeof TABS)[number]> =
+    hiddenTabs === undefined || hiddenTabs.length === 0
+      ? TABS
+      : TABS.filter(({ value: tabValue }) => !hiddenTabs.includes(tabValue))
   return (
     <Tabs
       value={value}
@@ -30,7 +43,7 @@ export function PortalDetailTabs({
     >
       <div className="w-full overflow-x-auto pb-1">
         <TabsList className="min-w-max">
-          {TABS.map(({ value: tabValue, Icon, label }) => (
+          {tabs.map(({ value: tabValue, Icon, label }) => (
             <TabsTrigger
               key={tabValue}
               value={tabValue}
@@ -41,7 +54,7 @@ export function PortalDetailTabs({
           ))}
         </TabsList>
       </div>
-      {TABS.map(({ value: v }) => (
+      {tabs.map(({ value: v }) => (
         <TabsContent key={v} value={v} forceMount hidden={value !== v ? true : undefined}>
           {value === v ? children : null}
         </TabsContent>

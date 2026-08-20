@@ -18,6 +18,12 @@ import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
 import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
+import {
+  EMPTY_CAPABILITY_SET,
+  getCapabilitySet,
+  type CapabilitySet,
+} from '#/shared/auth/capability-set'
+import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { StaffSidebar } from '#/components/layout/staff-sidebar'
@@ -38,6 +44,18 @@ export type AuthRouteContext = Readonly<{
   }
   role: Role
   authz: ClientAuthz
+  /**
+   * Capability posture for the property in scope (ADR 0049). Resolved
+   * property-scoped — not org-scoped — because policy allowlists per property
+   * (`property_not_allowlisted`), so a tenant whose properties differ would get
+   * the wrong answer from an org-only set. `beforeLoad` re-runs on every
+   * navigation, so switching property re-resolves it.
+   *
+   * UI affordance only: it exists so navigation can render an unavailable
+   * feature as disabled instead of routing into `/unavailable`. It is not a
+   * security boundary — every route gate and server function still asserts.
+   */
+  capabilities: CapabilitySet
   activeOrganization: {
     id: string
     name: string
@@ -74,6 +92,20 @@ export const Route = createFileRoute('/_authenticated')({
       billingPostalCode: string | null
       billingCountry: string | null
     } | null = null
+
+    // Resolved in parallel with the organization lookup: it reads the tenant
+    // from the same request headers and does not depend on that result.
+    // Property-scoped when a property is in scope, because policy allowlists
+    // per property. A failure (no active org yet, transient) yields the empty
+    // posture rather than an error — this set is a navigation affordance, and
+    // the route gates remain the boundary.
+    const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
+    const capabilitiesPromise = getCapabilitySet({
+      data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
+    }).catch((e: unknown) => {
+      if (isRedirect(e)) throw e
+      return EMPTY_CAPABILITY_SET
+    })
 
     // Error handling strategy for getActiveOrganization:
     //  1. isRedirect — always forward (e.g., auth middleware redirects).
@@ -130,6 +162,7 @@ export const Route = createFileRoute('/_authenticated')({
       },
       role,
       authz,
+      capabilities: await capabilitiesPromise,
       activeOrganization,
     } satisfies AuthRouteContext
   },

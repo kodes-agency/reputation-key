@@ -5,7 +5,9 @@ import {
   callServerFn,
   callServerFnExpectError,
   callServerFnGet,
+  dbQuery,
 } from '../helpers/fixtures'
+import { settleGuestConsent } from '../helpers/guest-consent'
 
 const seed = requireE2eSeedState()
 const guestMutationServerFile = 'src/contexts/guest/server/public.ts'
@@ -51,6 +53,9 @@ test.describe('Critical: public Portal basics', () => {
     page,
   }) => {
     await page.goto(`/p/${seed.portalToken}`)
+    // Reject, not Accept: this spec's baseline is "no analytics recorded", and
+    // the notice would otherwise overlay the trailing form controls.
+    await settleGuestConsent(page)
     const destination = page.getByRole('link', {
       name: 'Visit example review destination',
     })
@@ -240,6 +245,46 @@ test.describe('Critical: public Portal basics', () => {
     await page.reload()
     await expect(page.getByRole('button', { name: 'Submit response' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Save one correction' })).toHaveCount(0)
+  })
+
+  // The portal.scan metric had NO producer: recordScanFn was exported and
+  // catalogued but never called, so the analytics tab showed Scans 0 on a
+  // portal with real traffic. It is now driven by the analytics-consent
+  // decision, which is also the consent the endpoint requires.
+  test('analytics consent gates the scan metric and one session counts once', async ({
+    page,
+    context,
+  }) => {
+    const countScans = async () =>
+      Number(
+        (
+          await dbQuery<{ n: string }>(
+            `SELECT count(*)::text AS n FROM metric_readings
+             WHERE portal_id = $1 AND metric_key = 'portal.scan'`,
+            [seed.portalId],
+          )
+        )[0]?.n ?? '0',
+      )
+
+    const before = await countScans()
+
+    // Reject records nothing.
+    await page.goto(`/p/${seed.portalToken}`)
+    await settleGuestConsent(page, 'reject')
+    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    expect(await countScans()).toBe(before)
+
+    // Accept records exactly one, and a reload does not add another: the guard
+    // is storage-backed plus a use-case dedupe on the signed session, so it
+    // survives a full document load rather than only a re-render.
+    await context.clearCookies()
+    await page.goto(`/p/${seed.portalToken}`)
+    await settleGuestConsent(page, 'accept')
+    await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 1)
+
+    await page.reload()
+    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    expect(await countScans()).toBe(before + 1)
   })
 
   test('P2 and P3 tokens are externally indistinguishable', async ({ page }) => {

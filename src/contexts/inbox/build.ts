@@ -113,6 +113,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   // Cross-context lookup ports — the inbox build adapts the foreign-owned
   // sources (injected structurally) into its own lookup contracts.
   const feedbackLookup: FeedbackLookupPort = createFeedbackLookupAdapter({
+    findResponseSnippetById: (id, orgId) =>
+      input.sources.feedback.findResponseSnippetById(id, orgId),
     findFeedbackById: (id, orgId) => input.sources.feedback.findFeedbackById(id, orgId),
     findRatingById: (id, orgId) => input.sources.feedback.findRatingById(id, orgId),
   })

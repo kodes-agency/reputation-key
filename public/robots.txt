@@ -1,3 +1,10 @@
 # https://www.robotstxt.org/robotstxt.html
+#
+# `/p/<token>` is guarded solely by an opaque capability token — the click route
+# already sends `Referrer-Policy: no-referrer` to keep it out of third-party logs,
+# so it must not be crawled or indexed either. An empty `Disallow:` value ALLOWS
+# everything, which is why these paths are named explicitly. The portal route also
+# emits `noindex, nofollow` for crawlers that fetch the URL regardless.
 User-agent: *
-Disallow:
+Disallow: /p/
+Disallow: /api/public/

@@ -1,19 +1,28 @@
-// Portal settings — publication, identity, image, and theme.
+// Portal settings — publication, identity, image, theme, and content review.
 // Mutation state is owned by the route and reflected through the query-backed portal prop.
 
 import { EditPortalForm } from '../portal-form/edit-portal-form'
 import { ThemePresetSelector } from './theme-preset-selector'
+import { ContentReviewCard } from './content-review-card'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { Action } from '#/components/hooks/use-action'
-import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
+import type {
+  CompleteReviewResult,
+  CompleteReviewVariables,
+  FormLike,
+  PortalData,
+  PortalThemeDraft,
+  UpdatePortalVariables,
+} from '../shared/types'
 
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
-  primaryColor: string
-  onPrimaryColorChange: (color: string) => void
+  completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
+  theme: PortalThemeDraft
+  onThemeChange: (theme: PortalThemeDraft) => void
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
   }) => Promise<{ uploadUrl: string; key: string }>
@@ -26,8 +35,9 @@ type Props = Readonly<{
 export function PortalSettings({
   portal,
   mutation,
-  primaryColor,
-  onPrimaryColorChange,
+  completeReviewMutation,
+  theme,
+  onThemeChange,
   requestUploadUrl,
   finalizeUpload,
   formRef,
@@ -96,7 +106,7 @@ export function PortalSettings({
         portal={portal}
         mutation={mutation}
         disabled={isArchived}
-        primaryColor={primaryColor}
+        theme={theme}
         formRef={formRef}
         requestUploadUrl={requestUploadUrl}
         finalizeUpload={finalizeUpload}
@@ -105,11 +115,11 @@ export function PortalSettings({
       <div className="space-y-2">
         <h3 className="font-semibold">Theme</h3>
         <p className="text-sm text-muted-foreground">
-          Choose the accent used in the portal preview, then save your changes.
+          Choose the palette used on the public page, then save your changes.
         </p>
         <ThemePresetSelector
-          primaryColor={primaryColor}
-          onPrimaryColorChange={onPrimaryColorChange}
+          theme={theme}
+          onThemeChange={onThemeChange}
           disabled={!can('portal.update') || mutation.isPending || isArchived}
         />
       </div>
@@ -129,6 +139,12 @@ export function PortalSettings({
             ? 'Portal settings saved'
             : ''}
       </p>
+
+      <ContentReviewCard
+        portal={portal}
+        mutation={completeReviewMutation}
+        disabled={!can('portal.update') || isArchived}
+      />
     </section>
   )
 }

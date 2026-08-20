@@ -99,18 +99,39 @@ export const ShowsPortalNames: Story = {
   },
 }
 
-export const ArchiveConfirmation: Story = {
+// The action is a permanent removal from the manager's side, so the trigger and
+// the dialog both say "Delete".
+export const DeleteConfirmation: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
-    const archiveButtons = within(canvasElement).getAllByRole('button', {
-      name: /archive/i,
+    const deleteButtons = within(canvasElement).getAllByRole('button', {
+      name: /delete/i,
     })
-    await userEvent.click(archiveButtons[0])
+    await userEvent.click(deleteButtons[0])
     await expect(
       await within(document.body).findByRole('alertdialog', {
-        name: /archive guest services/i,
+        name: /delete guest services/i,
       }),
     ).toBeInTheDocument()
+  },
+}
+
+export const SearchFiltersRows: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText(/search portals by name/i), 'spa')
+    await expect(canvas.getByRole('link', { name: 'Spa & Wellness' })).toBeInTheDocument()
+    await expect(canvas.queryByRole('link', { name: 'Guest Services' })).toBeNull()
+  },
+}
+
+export const SearchWithNoMatches: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText(/search portals by name/i), 'zzzz')
+    await expect(canvas.getByText(/no portals match/i)).toBeInTheDocument()
   },
 }
 
@@ -120,7 +141,7 @@ export const StaffReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: /add portal/i })).toBeNull()
-    await expect(canvas.queryAllByRole('button', { name: /archive/i })).toHaveLength(0)
+    await expect(canvas.queryAllByRole('button', { name: /delete/i })).toHaveLength(0)
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
   },
 }

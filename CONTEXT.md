@@ -150,11 +150,21 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | `usePermissions()`            | React components (reads role from route context)  | `#/shared/hooks/usePermissions` |
 | `hasRole(role, requiredRole)` | Sidebar visibility, domain rules (hierarchy only) | `#/shared/domain/roles`         |
 
+Capabilities are a separate axis — "is this feature on for this org/property?"
+rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
+
+| API                                   | When                                                     | Import                             |
+| ------------------------------------- | -------------------------------------------------------- | ---------------------------------- |
+| `assertBetaCapability(ctx, cap)`      | Server functions and use cases, before any effect         | `#/shared/auth/beta-capabilities`  |
+| `gateControlledRoute({ data })`       | Route `beforeLoad` — redirects to `/unavailable`          | `#/shared/auth/controlled-route-gate` |
+| `useCapabilities().has(cap)`          | React components — hide/disable dead-end affordances only | `#/shared/hooks/useCapabilities`   |
+
 ### Forbidden patterns
 
 - Never pass `canEdit`/`canCreate`/`canDelete` boolean props — use `usePermissions()` in the component
 - Never use `hasRole()` for permission checks — only for hierarchy
 - Never call `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles
+- Never treat `useCapabilities()` as a boundary — it only prevents dead ends; the route gate and the server assert remain authoritative
 
 ## Client/Server Boundary
 

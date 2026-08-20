@@ -1,17 +1,22 @@
 // Portal context — sortable category with links
 
-import { useSortable } from '@dnd-kit/sortable'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
 import { Plus, GripVertical, Pencil } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { SortableLink } from './sortable-link'
@@ -55,8 +60,12 @@ export function SortableCategory({
     transition,
   }
 
+  // Links must be reorderable by keyboard, exactly like the outer category
+  // context in link-tree-category-list.tsx — a PointerSensor alone left the
+  // focusable drag handle inert on Space/arrow keys (WCAG 2.1.1).
   const linkSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const handleLinkDragEnd = (event: DragEndEvent) => {
@@ -64,6 +73,9 @@ export function SortableCategory({
     if (!over || active.id === over.id) return
     const oldIndex = links.findIndex((l) => l.id === active.id)
     const newIndex = links.findIndex((l) => l.id === over.id)
+    // Both ends must resolve: arrayMove splices at -1 and would reorder — then
+    // persist — the wrong link (same class of bug as use-link-tree-reorder).
+    if (oldIndex === -1 || newIndex === -1) return
     const reordered = arrayMove([...links], oldIndex, newIndex)
     onReorderLinks(category.id, reordered)
   }

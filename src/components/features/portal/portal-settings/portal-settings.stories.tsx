@@ -3,7 +3,13 @@ import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { useRef, type ComponentProps } from 'react'
 import { PortalSettings } from './portal-settings'
 import type { Action } from '#/components/hooks/use-action'
-import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
+import type {
+  CompleteReviewResult,
+  CompleteReviewVariables,
+  FormLike,
+  PortalData,
+  UpdatePortalVariables,
+} from '../shared/types'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
 function PortalSettingsWithRef(
@@ -46,11 +52,17 @@ const idleMutation = Object.assign(
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<UpdatePortalVariables, { success: boolean }>
 
+const idleReviewMutation = Object.assign(
+  async (_input: CompleteReviewVariables) => ({ status: 'recorded' as const }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<CompleteReviewVariables, CompleteReviewResult>
+
 const baseArgs = {
   portal,
   mutation: idleMutation,
-  primaryColor: portal.theme.primaryColor,
-  onPrimaryColorChange: fn(),
+  completeReviewMutation: idleReviewMutation,
+  theme: portal.theme,
+  onThemeChange: fn(),
   requestUploadUrl,
   finalizeUpload,
 }
@@ -143,5 +155,79 @@ export const MutationError: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('alert')).toHaveTextContent(/could not be updated/i)
+  },
+}
+
+// A saved colour that matches no preset must resolve to "Custom", not to a
+// hardcoded "Light" whose button would silently overwrite it on the next click.
+// Selection is exposed through aria-pressed, not colour alone.
+export const CustomThemeResolvesToCustom: Story = {
+  args: { ...baseArgs, theme: { primaryColor: '#0ea5e9' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: /custom/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await expect(canvas.getByRole('button', { name: /^light/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  },
+}
+
+// Selecting Dark transmits the whole palette, not just the primary colour.
+export const DarkPresetSendsFullPalette: Story = {
+  args: { ...baseArgs, onThemeChange: fn() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^dark/i }))
+    await waitFor(() =>
+      expect(args.onThemeChange).toHaveBeenCalledWith({
+        primaryColor: '#a5b4fc',
+        backgroundColor: '#111827',
+        textColor: '#f9fafb',
+      }),
+    )
+  },
+}
+
+// The governed content-review fact needs an explicit attestation, and is sent
+// as revision 1 with a fresh reviewId.
+export const ContentReviewRecorded: Story = {
+  args: {
+    ...baseArgs,
+    completeReviewMutation: Object.assign(
+      fn(async (_input: CompleteReviewVariables) => ({ status: 'recorded' as const })),
+      { isPending: false, error: null as unknown, isSuccess: false, data: null },
+    ) as unknown as Action<CompleteReviewVariables, CompleteReviewResult>,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const record = canvas.getByRole('button', { name: /record content review/i })
+    await expect(record).toBeDisabled()
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: /opened every destination/i }),
+    )
+    await waitFor(() => expect(record).toBeEnabled())
+    await userEvent.click(record)
+    await waitFor(() =>
+      expect(args.completeReviewMutation).toHaveBeenCalledWith({
+        data: { portalId: 'p-1', reviewId: expect.any(String), revision: 1 },
+      }),
+    )
+  },
+}
+
+// The use case rejects review completion for unpublished content, so the UI
+// never offers it.
+export const ContentReviewNeedsPublished: Story = {
+  args: { ...baseArgs, portal: { ...portal, publicationState: 'draft' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.queryByRole('button', { name: /record content review/i }),
+    ).toBeNull()
+    await expect(canvas.getByText(/publish this portal before recording/i)).toBeVisible()
   },
 }

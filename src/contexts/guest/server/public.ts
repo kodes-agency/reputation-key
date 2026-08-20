@@ -18,8 +18,10 @@ import type {
 } from '#/shared/auth/execution-policy'
 import type { GuestResponseScope } from '../application/ports/guest-response.repository'
 import {
+  CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
   type GuestResponseInput,
+  type GuestResponseView,
 } from '../application/use-cases/guest-response-lifecycle'
 import type { PublicPortalData } from '../application/dto/public-portal.dto'
 import { MAX_TEXT_LENGTH } from '../domain/guest-response'
@@ -40,6 +42,10 @@ const responseMutationSchema = baseMutationSchema.extend({
   responseConsent: z.boolean().optional(),
   textConsent: z.boolean().optional(),
   mediaConsent: z.boolean().optional(),
+  // Bot trap: a real guest never fills this (the form renders it off-screen and
+  // aria-hidden), so any value means an automated submit. The rate limiter was
+  // the only bot defence on this path.
+  honeypot: z.string().max(256).optional(),
 })
 
 const issueMediaSchema = baseMutationSchema.extend({
@@ -182,11 +188,38 @@ function assertions(input: GuestResponseInput): PublicConsentAssertions {
   }
 }
 
+/**
+ * Honeypot response: a filled trap field is answered with the view a real
+ * submit would have produced, and nothing is written. Silent by design — a
+ * visible error (or a distinguishable success shape) tells the bot the trap
+ * exists, which is the whole value of the trap.
+ */
+function decoyView(
+  input: Readonly<{ rating?: number | null; text?: string | null }>,
+): GuestResponseView {
+  const now = new Date()
+  return {
+    id: crypto.randomUUID(),
+    status: 'submitted',
+    responseConsent: true,
+    textConsent: true,
+    rating: input.rating ?? null,
+    category: null,
+    text: input.text?.trim() || null,
+    mediaConsent: false,
+    submittedAt: now.toISOString(),
+    correctedAt: null,
+    correctionDeadline: new Date(now.getTime() + CORRECTION_WINDOW_MS).toISOString(),
+    deletedAt: null,
+  }
+}
+
 export const submitGuestResponseFn = createServerFn({ method: 'POST' })
   .inputValidator(responseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
+        if (data.honeypot) return decoyView(data)
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.submit',
@@ -229,6 +262,8 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
+        // Same trap on the correction path — the form posts the field to both.
+        if (data.honeypot) return decoyView(data)
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.correct',
@@ -377,6 +412,10 @@ const moderationSchema = z.object({
   action: z.enum(['quarantine', 'delete']),
 })
 
+// Staff moderation, not guest collection: gating this on portal.guest_response
+// made the two impossible to enable independently — a tenant that stopped
+// collecting guest responses also lost the ability to moderate the ones it had
+// already collected. portal.guest_response stays on the public-facing paths.
 export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
   .inputValidator(moderationSchema)
   .handler(
@@ -387,7 +426,7 @@ export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({
           actor,
           action: 'feedback.respond',
-          capability: 'portal.guest_response',
+          capability: 'portal.write',
           propertyId: data.propertyId,
         })
         const { useCases } = getContainer()

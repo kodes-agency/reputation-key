@@ -430,7 +430,14 @@ async function createMetricHistory(
   scanHistoryDays: number,
 ): Promise<void> {
   for (let d = 0; d < scanHistoryDays; d++) {
-    const recordedAt = new Date(ctx.now.getTime() - d * MS_PER_DAY)
+    const at = new Date(ctx.now.getTime() - d * MS_PER_DAY)
+    // `occurredAt` is the drizzle field for the `recorded_at` INGESTION column;
+    // the dashboard filters and buckets on `eventAt` / `propertyLocalDate`
+    // (see metricPeriodWhere in dashboard/infrastructure/read-facade.ts).
+    // Scenario properties are created with timezone 'UTC' above, so the local
+    // date is the UTC date. Without these the scans are invisible to the
+    // dashboard, exactly as an ungoverned production write would be.
+    const propertyLocalDate = at.toISOString().slice(0, 10)
     try {
       await ctx.db.insert(metricReadings).values({
         id: crypto.randomUUID(),
@@ -439,7 +446,9 @@ async function createMetricHistory(
         portalId: null,
         metricKey: 'portal.scan',
         value: scansPerDay,
-        occurredAt: recordedAt,
+        occurredAt: at,
+        eventAt: at,
+        propertyLocalDate,
       })
       await ctx.db.insert(metricReadings).values({
         id: crypto.randomUUID(),
@@ -448,7 +457,9 @@ async function createMetricHistory(
         portalId: unbrand(pId),
         metricKey: 'portal.scan',
         value: scansPerDay,
-        occurredAt: recordedAt,
+        occurredAt: at,
+        eventAt: at,
+        propertyLocalDate,
       })
     } catch {
       /* skip */

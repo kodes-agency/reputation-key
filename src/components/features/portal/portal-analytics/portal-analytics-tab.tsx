@@ -3,16 +3,20 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import {
+  timeRangePreset,
+  type TimeRangePreset,
+} from '#/contexts/dashboard/application/dto/dashboard.dto'
+import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from './portal-analytics-time-range-picker'
 import { KPICard } from '#/components/features/property/property-dashboard-helpers'
 import { ScanLine, Star, MessageCircle, MousePointerClick, BarChart3 } from 'lucide-react'
 import {
   ChartCard,
-  EngagementFunnelChart,
   PortalRatingDistributionChart,
   RatingTrendChart,
 } from './portal-analytics-charts'
+import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
 
 type Props = Readonly<{
   portalId: string
@@ -20,16 +24,35 @@ type Props = Readonly<{
   getPortalAnalytics: typeof getPortalAnalyticsFn
 }>
 
+// Intentionally global, not per-portal: the selected range is a user-level
+// viewing preference that should follow the reader from portal to portal.
 const TIME_RANGE_KEY = 'portal-analytics-time-range'
 
+/** Stored preset, validated against the schema the server DTO uses. An
+ * unchecked cast let any stale, hand-edited or since-removed value through to
+ * getPortalAnalyticsFn, where it failed the DTO and pinned the tab on its error
+ * branch until the reader happened to click another range. */
+function readStoredTimeRange(): TimeRangePreset {
+  if (typeof window === 'undefined') return 'all'
+  try {
+    const parsed = timeRangePreset.safeParse(localStorage.getItem(TIME_RANGE_KEY))
+    return parsed.success ? parsed.data : 'all'
+  } catch {
+    return 'all'
+  }
+}
+
 export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
-  const [timeRange, setTimeRange] = useState<TimeRangePreset>(() => {
-    if (typeof window === 'undefined') return 'all'
-    return (localStorage.getItem(TIME_RANGE_KEY) as TimeRangePreset) ?? 'all'
-  })
+  const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
 
   useEffect(() => {
-    localStorage.setItem(TIME_RANGE_KEY, timeRange)
+    try {
+      localStorage.setItem(TIME_RANGE_KEY, timeRange)
+    } catch {
+      // Ignore storage errors (Safari private mode, sandboxed iframes): a
+      // preference write must never take down the tab. Matches
+      // portal-preview/use-preview-toggle.ts.
+    }
   }, [timeRange])
 
   const {
@@ -41,10 +64,6 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     queryFn: () => getPortalAnalytics({ data: { propertyId, portalId, timeRange } }),
   })
 
-  const error = queryError
-    ? ((queryError as Error).message ?? 'Failed to load analytics')
-    : null
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -53,10 +72,29 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     )
   }
 
-  if (error) {
+  // getPortalAnalyticsFn authorizes on `dashboard.read`, a different capability
+  // from the `portal.read` that got the reader onto this page — so a deliberate
+  // beta-dark posture surfaces here as a query error (BQC-6.7 / F-PEOPLE).
+  // Degrade those to friendly copy and keep a generic message for real
+  // failures: the raw `.message` was rendering deny reasons like
+  // `org_not_allowlisted` at the reader, in destructive red.
+  if (queryError) {
+    if (isDarkCapabilityDenial(queryError)) {
+      return (
+        <div className="rounded-lg border border-dashed p-12 text-center">
+          <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
+          <h3 className="mt-4 font-semibold">Analytics isn't available yet</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Portal analytics aren't switched on for this property.
+          </p>
+        </div>
+      )
+    }
     return (
       <div className="rounded-lg border border-dashed p-8 text-center">
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-destructive">
+          Couldn't load analytics. Please try again.
+        </p>
       </div>
     )
   }
@@ -93,13 +131,18 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
         timeRange={timeRange}
         onChange={(v) => setTimeRange(v as TimeRangePreset)}
       />
+      {/* KPICard renders a null trend (the 'all' range has no prior window, so
+          there is nothing to compare against) as an em dash via formatTrend —
+          no fabricated 0%, nothing to correct at this call site. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Scans" kpi={data.kpis.scans} icon={ScanLine} />
         <KPICard
           label="Avg Rating"
           kpi={data.kpis.avgRating}
           icon={Star}
-          formatValue={(v: number) => v.toFixed(1)}
+          // The scale belongs on the number: "4.3" alone asks the reader to
+          // guess whether ratings run to 5 or to 10.
+          formatValue={(v: number) => `${v.toFixed(1)} / 5`}
         />
         <KPICard label="Feedback" kpi={data.kpis.feedback} icon={MessageCircle} />
         <KPICard
@@ -110,14 +153,26 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <ChartCard title="Engagement Funnel" className="md:col-span-2">
-          <EngagementFunnelChart funnel={data.engagementFunnel} />
+          {(headingId) => (
+            <EngagementFunnelChart
+              funnel={data.engagementFunnel}
+              labelledBy={headingId}
+            />
+          )}
         </ChartCard>
         <ChartCard title="Rating Distribution">
-          <PortalRatingDistributionChart distribution={data.ratingDistribution} />
+          {(headingId) => (
+            <PortalRatingDistributionChart
+              distribution={data.ratingDistribution}
+              labelledBy={headingId}
+            />
+          )}
         </ChartCard>
         {data.ratingTrend.length > 0 && (
           <ChartCard title="Rating Trend">
-            <RatingTrendChart trend={data.ratingTrend} />
+            {(headingId) => (
+              <RatingTrendChart trend={data.ratingTrend} labelledBy={headingId} />
+            )}
           </ChartCard>
         )}
       </div>

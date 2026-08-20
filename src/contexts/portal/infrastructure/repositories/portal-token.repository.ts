@@ -54,6 +54,16 @@ function tokenToRow(token: PortalToken): typeof portalTokens.$inferInsert {
   }
 }
 
+// PB2.1 / ADR 0044: a token reaches its portal while it is active, or while a
+// rotated token is still inside the grace window that keeps already-printed QR
+// codes working. Both the public token resolution path and the management
+// token-status projection use this one predicate so they cannot drift.
+const resolvableAsOf = (asOf: Date) =>
+  or(
+    eq(portalTokens.status, 'active'),
+    and(eq(portalTokens.status, 'rotating'), gte(portalTokens.gracePeriodEnds, asOf)),
+  )
+
 export const createPortalTokenRepository = (db: Database): PortalTokenRepository => ({
   findLatestForPortal: async (organizationId, portalId) =>
     trace('portalToken.findLatestForPortal', async () => {
@@ -71,6 +81,29 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
       return row ? tokenFromRow(row) : null
     }),
 
+  findResolvableSummaryForPortal: async (organizationId, portalId, asOf) =>
+    trace('portalToken.findResolvableSummaryForPortal', async () => {
+      // Highest version wins: during a rotation grace window the outgoing token
+      // is also resolvable, but the portal's current token is the newer one.
+      const [row] = await db
+        .select({
+          version: portalTokens.version,
+          issuedAt: portalTokens.issuedAt,
+          gracePeriodEnds: portalTokens.gracePeriodEnds,
+        })
+        .from(portalTokens)
+        .where(
+          and(
+            eq(portalTokens.organizationId, unbrand(organizationId)),
+            eq(portalTokens.portalId, unbrand(portalId)),
+            resolvableAsOf(asOf),
+          ),
+        )
+        .orderBy(desc(portalTokens.version))
+        .limit(1)
+      return row ?? null
+    }),
+
   findResolvableByDigest: async (digest, asOf) =>
     trace('portalToken.findResolvableByDigest', async () => {
       const [row] = await db
@@ -81,13 +114,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
             eq(portalTokens.tokenIdentifier, digest.tokenIdentifier),
             eq(portalTokens.tokenHash, digest.tokenHash),
             eq(portalTokens.tokenKeyVersion, digest.tokenKeyVersion),
-            or(
-              eq(portalTokens.status, 'active'),
-              and(
-                eq(portalTokens.status, 'rotating'),
-                gte(portalTokens.gracePeriodEnds, asOf),
-              ),
-            ),
+            resolvableAsOf(asOf),
           ),
         )
         .limit(1)

@@ -120,14 +120,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     updatePortal: updatePortal({
       portalRepo,
+      portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
     }),
-    getPortal: getPortal({ portalRepo, staffPublicApi: deps.staffPublicApi }),
+    getPortal: getPortal({
+      portalRepo,
+      portalTokenRepo,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+    }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     softDeletePortal: softDeletePortal({
       portalRepo,
+      portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,

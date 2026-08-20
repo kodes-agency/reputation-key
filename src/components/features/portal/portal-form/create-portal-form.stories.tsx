@@ -14,6 +14,7 @@ type CreatePortalVariables = {
     slug?: string
     description?: string
     propertyId: string
+    theme?: { primaryColor: string; backgroundColor?: string; textColor?: string }
   }
 }
 
@@ -45,22 +46,49 @@ export const Default: Story = {
   },
 }
 
-// Typing a name auto-generates a slug from the name via the form's
-// name-watching effect (post-commit store write). The auto-gen fires on the
-// first name change only, so we assert the slug field is populated (the
-// wiring works) rather than an exact value.
+// The slug mirrors the name on every keystroke via `normalizeSlug` — the same
+// function the create-portal use case derives with — so the client and the
+// server can never disagree about the derived value.
 export const AutoGeneratesSlug: Story = {
   args: { ...Default.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByLabelText('Name'), 'Guest Portal')
-    // Slug auto-fills from the name (effect → setFieldValue). The auto-gen
-    // fires on the first name change; waitFor covers the async store update so
-    // we assert "the slug field is populated" without depending on an exact
-    // value (the first-change-only gen yields a prefix, not the full name).
     await waitFor(() => {
-      expect(canvas.getByLabelText(/slug/i)).not.toHaveValue('')
+      expect(canvas.getByLabelText(/slug/i)).toHaveValue('guest-portal')
     })
+  },
+}
+
+// A name with no Latin alphanumerics derives an empty slug. That used to reach
+// the server and come back as a raw Zod issue array in the error banner; the
+// slug field now says what to do before any request is made.
+export const UnderivableSlugIsExplained: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Name'), '東京')
+    await userEvent.click(canvas.getByRole('button', { name: /create portal/i }))
+    await expect(
+      await canvas.findByText(/no letters or numbers to build a web address from/i),
+    ).toBeInTheDocument()
+  },
+}
+
+// A hand-typed slug is validated as-is against SLUG_PATTERN, because the use
+// case does not normalize a provided slug either.
+export const InvalidTypedSlugIsRejectedInline: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Name'), 'Spa')
+    const slug = canvas.getByLabelText(/slug/i)
+    await userEvent.clear(slug)
+    await userEvent.type(slug, 'Not A Slug!')
+    await userEvent.click(canvas.getByRole('button', { name: /create portal/i }))
+    await expect(
+      await canvas.findByText(/2–64 lowercase letters, numbers or hyphens/i),
+    ).toBeInTheDocument()
   },
 }
 

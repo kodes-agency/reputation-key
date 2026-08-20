@@ -36,14 +36,19 @@ export function computeTrend(current: number, prior: number): number | null {
 export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
 
 /** Prior period: the same duration immediately before the current period.
- *  'all' has no meaningful prior — returns the current period unchanged so
- *  trend comparisons no-op. Pure function of its inputs (ADR 0017). */
+ *  Returns null for 'all' — an unbounded window has no prior window, and the
+ *  previous behaviour (returning the CURRENT window) made callers compare the
+ *  period against itself: computeTrend(x, x) is 0, not null, because the
+ *  `prior === 0` guard never binds. Every user saw a fabricated 0% on first
+ *  load ('all' is the default preset). Pure function of its inputs (ADR 0017).
+ *  Dated presets keep contiguous, non-overlapping windows against inclusive
+ *  bounds: priorEnd is 1ms before start. */
 export function priorPeriodDates(
   preset: TimeRangePreset,
   startDate: Date,
   endDate: Date,
-): { priorStartDate: Date; priorEndDate: Date } {
-  if (preset === 'all') return { priorStartDate: startDate, priorEndDate: endDate }
+): { priorStartDate: Date; priorEndDate: Date } | null {
+  if (preset === 'all') return null
   return {
     priorStartDate: new Date(
       startDate.getTime() - (endDate.getTime() - startDate.getTime()),

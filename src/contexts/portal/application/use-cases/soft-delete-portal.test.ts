@@ -1,12 +1,13 @@
 // Portal context — soft delete portal use case tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { softDeletePortal } from './soft-delete-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -16,17 +17,22 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   getAssignedPortals: async () => [],
   countAssignmentsByTeam: async () => 0,
 })
-const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+const setup = (
+  accessible: ReadonlyArray<PropertyId> | null = null,
+  revokedCount = 1,
+) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
+  const revokeForPortal = vi.fn(async () => revokedCount)
   const deps = {
     portalRepo,
+    portalTokenRepo: { revokeForPortal } as unknown as PortalTokenRepository,
     staffPublicApi: staffApiMock(accessible),
     events,
     clock: () => FIXED_TIME,
   }
   const useCase = softDeletePortal(deps)
-  return { useCase, portalRepo, events }
+  return { useCase, portalRepo, events, revokeForPortal }
 }
 
 describe('softDeletePortal', () => {
@@ -72,5 +78,37 @@ describe('softDeletePortal', () => {
       (e: unknown) =>
         isPortalError(e) && (e as { code: string }).code === 'portal_not_found',
     )
+  })
+
+  it('revokes the portal tokens with an audit reason', async () => {
+    const { useCase, portalRepo, events, revokeForPortal } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await useCase({ portalId: portal.id }, ctx)
+
+    expect(revokeForPortal).toHaveBeenCalledWith({
+      organizationId: ctx.organizationId,
+      portalId: portal.id,
+      revokedBy: ctx.userId,
+      reason: 'portal deleted',
+      at: FIXED_TIME,
+    })
+    expect(events.capturedByTag('portal.token.revoked')).toHaveLength(1)
+  })
+
+  it('stays quiet when the portal has no live tokens', async () => {
+    // Idempotency: a repeated delete revokes nothing, so no second audit event.
+    const { useCase, portalRepo, events, revokeForPortal } = setup(null, 0)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+
+    await useCase({ portalId: portal.id }, ctx)
+
+    expect(revokeForPortal).toHaveBeenCalledTimes(1)
+    expect(events.capturedByTag('portal.token.revoked')).toHaveLength(0)
+    expect(events.capturedByTag('portal.deleted')).toHaveLength(1)
   })
 })

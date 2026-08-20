@@ -10,7 +10,12 @@ import { PortalDetailPage } from './portal-detail-page'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
-import type { UpdatePortalVariables } from '../shared/types'
+import type {
+  CompleteReviewResult,
+  CompleteReviewVariables,
+  UpdatePortalVariables,
+} from '../shared/types'
+import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
@@ -30,7 +35,7 @@ const portal = {
   slug: 'guest-services',
   description: 'Main guest-facing portal with links and feedback.',
   heroImageUrl: null,
-  theme: { primaryColor: '#6366f1' },
+  theme: { primaryColor: '#6366f1', backgroundColor: '#ffffff', textColor: '#111827' },
   propertyId: 'prop-1',
   organizationId: 'org-1',
   publicationState: 'published' as const,
@@ -86,6 +91,18 @@ const revokeTokenMutation = Object.assign(
   }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string; reason: string } }, { revoked: boolean }>
+const completeReviewMutation = Object.assign(
+  async (_input: CompleteReviewVariables) => ({ status: 'recorded' as const }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<CompleteReviewVariables, CompleteReviewResult>
+
+// No token issued yet — the Share tab offers the issue form (C2).
+const tokenStatus: PortalTokenStatus = {
+  hasActiveToken: false,
+  version: null,
+  issuedAt: null,
+  graceExpiresAt: null,
+}
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
@@ -121,6 +138,8 @@ const baseArgs = {
   categories,
   links,
   updateMutation: idleMutation,
+  completeReviewMutation,
+  tokenStatus,
   issueTokenMutation,
   rotateTokenMutation,
   revokeTokenMutation,

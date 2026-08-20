@@ -10,6 +10,7 @@ import {
   GuestResponseLifecycleError,
   guestResponseLifecycle,
 } from './guest-response-lifecycle'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 
 const scope: GuestResponseScope = {
   organizationId: 'org-1',
@@ -35,6 +36,17 @@ function memoryRepo(): GuestResponseRepository & {
       null,
     findById: async (candidate, responseId) =>
       responses.find((row) => sameScope(candidate, row) && row.id === responseId) ?? null,
+    findSnippetForOrg: async (organizationId, responseId) => {
+      const row = responses.find(
+        (candidate) =>
+          candidate.organizationId === organizationId && candidate.id === responseId,
+      )
+      if (!row) return null
+      return {
+        comment: row.textConsent ? row.text : null,
+        ratingValue: row.responseConsent ? row.rating : null,
+      }
+    },
     insertSubmitted: async (response) => {
       if (
         responses.some(
@@ -187,14 +199,17 @@ function harness() {
     getPublicUrl: (key) => `https://objects.invalid/${key}`,
     putObject: async () => {},
   }
+  const events = createCapturingEventBus()
   const lifecycle = guestResponseLifecycle({
     repo,
     storage,
     clock: () => new Date('2026-08-09T12:00:00Z'),
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
+    events,
   })
   return {
     repo,
+    events,
     lifecycle,
     setConfirm: (value: () => Promise<string>) => (confirm = value),
     setInspect: (
@@ -304,5 +319,88 @@ describe('guest response lifecycle', () => {
       status: 'quarantined',
       publicUrl: null,
     })
+  })
+})
+
+// The submit path is the only producer of the guest rating/feedback facts the
+// metric handlers consume (portal.rating, portal.feedback). These pin the
+// producer: without them both metrics silently read 0 again.
+describe('guest response lifecycle — submitted facts', () => {
+  const sessionId = '00000000-0000-4000-8000-000000000003'
+
+  it('emits a rating fact and a feedback fact for a consented rating plus free text', async () => {
+    const { lifecycle, events } = harness()
+
+    const submitted = await lifecycle.submit(scope, sessionId, {
+      rating: 4,
+      text: 'Great stay, very responsive team.',
+      responseConsent: true,
+      textConsent: true,
+    })
+
+    expect(events.capturedByTag('guest.rating.submitted')).toMatchObject([
+      {
+        ratingId: submitted.id,
+        organizationId: scope.organizationId,
+        portalId: scope.portalId,
+        propertyId: scope.propertyId,
+        value: 4,
+      },
+    ])
+    expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
+      { feedbackId: submitted.id, ratingId: submitted.id },
+    ])
+  })
+
+  it('emits no feedback fact when the guest supplied no free text', async () => {
+    const { lifecycle, events } = harness()
+
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(1)
+    expect(events.capturedByTag('guest.feedback.submitted')).toHaveLength(0)
+  })
+
+  it('emits only a feedback fact when the guest supplied text and no rating', async () => {
+    const { lifecycle, events } = harness()
+
+    await lifecycle.submit(scope, sessionId, {
+      text: 'The lobby coffee is excellent.',
+      textConsent: true,
+    })
+
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(0)
+    expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
+      { ratingId: null },
+    ])
+  })
+
+  it('emits nothing for a repeated submit of the same session', async () => {
+    const { lifecycle, events } = harness()
+    const input = { rating: 3, responseConsent: true }
+
+    await lifecycle.submit(scope, sessionId, input)
+    await lifecycle.submit(scope, sessionId, input)
+
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(1)
+  })
+
+  it('emits nothing for a correction, so one guest never yields two readings', async () => {
+    const { lifecycle, events } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+    await lifecycle.correct(scope, sessionId, { rating: 1 })
+
+    expect(events.capturedEvents).toHaveLength(1)
+    expect(events.capturedByTag('guest.rating.submitted')).toMatchObject([{ value: 3 }])
+  })
+
+  it('emits nothing for a withdrawal', async () => {
+    const { lifecycle, events } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 3, responseConsent: true })
+
+    await lifecycle.withdraw(scope, sessionId)
+
+    expect(events.capturedEvents).toHaveLength(1)
   })
 })

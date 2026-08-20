@@ -93,7 +93,7 @@ function PortalListRoute() {
   const propertyName = property?.name ?? ''
 
   const deleteMutation = useActionMutation(deletePortal, {
-    successMessage: 'Portal archived',
+    successMessage: 'Portal deleted',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const groupInvalidationKeys = [portalKeys.groups(propertyId)]
@@ -118,29 +118,20 @@ function PortalListRoute() {
     invalidateKeys: groupInvalidationKeys,
   })
 
-  const portalGroups = groups.map((item) => {
-    const response = item as unknown as {
-      group?: { id: unknown; name: string }
-      id?: unknown
-      name?: string
-      portalIds?: readonly unknown[]
-    }
-    if (!Array.isArray(response.portalIds)) {
-      throw new Error('Portal group membership data is unavailable.')
-    }
-    return {
-      id: String(response.group?.id ?? response.id),
-      name: response.group?.name ?? response.name ?? 'Portal group',
-      portalIds: response.portalIds.map((portalId) => String(portalId)),
-    }
-  })
+  // `groups` is `PortalGroupWithPortals` (a flat PortalGroup plus `portalIds`),
+  // which already satisfies `PortalGroupView`, so it goes straight to the page.
+  // The previous `item as unknown as {...}` normalization erased that type — the
+  // very drift it claimed to guard against — and its `throw` ran during RENDER,
+  // so one malformed group replaced the whole portals page via `errorComponent`.
+  // `listPortalGroups` always returns `portalIds`; if that ever needs defending,
+  // PortalGroupManagement's scoped `state="error"` + `onRetry` is the seam.
   return (
     <PortalListPage
       portals={portals}
       propertyId={propertyId}
       propertyName={propertyName}
       deleteMutation={deleteMutation}
-      portalGroups={portalGroups}
+      portalGroups={groups}
       createGroupMutation={createGroupMutation}
       updateGroupMutation={updateGroupMutation}
       deleteGroupMutation={deleteGroupMutation}
