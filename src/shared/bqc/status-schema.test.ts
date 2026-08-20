@@ -54,7 +54,6 @@ describe('validateBqcStatusManifest', () => {
       acceptance: {
         evidenceVersion: 'beta-local-1',
         requiredGates: [
-          'quality',
           'security-privacy',
           'local-scale-recovery',
           'source-lifecycle',
@@ -82,7 +81,7 @@ describe('validateBqcStatusManifest', () => {
       ...validManifest(),
       acceptance: {
         evidenceVersion: 'beta-local-1',
-        requiredGates: ['quality', 'release-bundle'],
+        requiredGates: ['security-privacy', 'release-bundle'],
         postBetaGates: ['scale-capacity'],
       },
     })

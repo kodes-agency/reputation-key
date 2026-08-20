@@ -271,19 +271,38 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      # Every image was rebuilt from scratch on every push: no cache-from, no
+      # cache-to, no buildx. buildx with the GitHub Actions cache backend reuses
+      # unchanged layers across runs. Each image gets its OWN cache scope so a
+      # rebuild of one cannot evict the layers of another.
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
       - name: Build web image
-        run: docker build -f Dockerfile -t repkey-web:ci .
+        run: >-
+          docker buildx build -f Dockerfile -t repkey-web:ci --load
+          --cache-from type=gha,scope=web --cache-to type=gha,mode=max,scope=web .
 
       - name: Build worker image
-        run: docker build -f Dockerfile.worker -t repkey-worker:ci .
+        run: >-
+          docker buildx build -f Dockerfile.worker -t repkey-worker:ci --load
+          --cache-from type=gha,scope=worker --cache-to type=gha,mode=max,scope=worker .
 
       - name: Build AI execution admission image
-        run: docker build -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
+        run: >-
+          docker buildx build -f Dockerfile.ai-execution-admission
+          -t repkey-ai-execution-admission:ci --load
+          --cache-from type=gha,scope=admission --cache-to type=gha,mode=max,scope=admission .
       - name: Build AI egress gateway image
-        run: docker build -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
+        run: >-
+          docker buildx build -f Dockerfile.ai-egress-gateway
+          -t repkey-ai-egress-gateway:ci --load
+          --cache-from type=gha,scope=gateway --cache-to type=gha,mode=max,scope=gateway .
 
       - name: Build rollout-only Google import compatibility image
-        run: docker build -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
+        run: >-
+          docker buildx build -f Dockerfile.google-import-compatibility
+          -t repkey-google-import-compatibility:ci --load
+          --cache-from type=gha,scope=google-import --cache-to type=gha,mode=max,scope=google-import .
 
       - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
@@ -475,7 +494,21 @@ jobs:
           node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # Chromium was downloaded from scratch in every job that needs it. Key the
+      # cache on the resolved @playwright/test version so a bump invalidates it.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browser
+        run: >-
+          ${{ steps.pw-cache.outputs.cache-hit == 'true'
+          && 'pnpm exec playwright install-deps chromium'
+          || 'pnpm exec playwright install --with-deps chromium' }}
       - name: Start Storybook
         run: |
           pnpm storybook --ci --quiet &
@@ -513,7 +546,21 @@ jobs:
           node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # Chromium was downloaded from scratch in every job that needs it. Key the
+      # cache on the resolved @playwright/test version so a bump invalidates it.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browser
+        run: >-
+          ${{ steps.pw-cache.outputs.cache-hit == 'true'
+          && 'pnpm exec playwright install-deps chromium'
+          || 'pnpm exec playwright install --with-deps chromium' }}
       - name: Start local Compose application stack
         run: pnpm e2e:stack:up
       - name: Smoke local Compose application stack
@@ -566,17 +613,21 @@ jobs:
   # Final controlled-beta gate. beta:smoke owns the hermetic beta-profile
   # Compose cycles for clean/upgrade/scale/fault/product evidence; the final
   # down step is a defensive cleanup if the orchestrator is interrupted.
+  #
+  # NOT run on every PR commit. It was 86% of this workflow's wall clock
+  # (median 58 min against ~10 min for everything else combined) while gating
+  # nothing — main carries no branch protection. It now runs on every push to
+  # main, so release evidence is unchanged, and on demand for a PR carrying the
+  # `beta-acceptance` label when a change needs the full hermetic run before it
+  # merges.
   beta-acceptance:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
     needs: [check, docker, storybook, storybook-test, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # beta:smoke's quality phase runs the same gate list as `check`, and its
-    # `integration` step needs a database BEFORE any Compose stack exists —
-    # run-quality-gate.ts only calls e2e:stack:up later, for the browser gates.
-    # Without these the integration global setup dies on ECONNREFUSED
-    # localhost:5432 and the whole phase fails having run nothing.
-    # Mirrors the `check` job exactly; the beta Compose stack binds its own
-    # ports and does not collide.
     services:
       postgres:
         # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
@@ -614,7 +665,21 @@ jobs:
           node-version: 22.23.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # Chromium was downloaded from scratch in every job that needs it. Key the
+      # cache on the resolved @playwright/test version so a bump invalidates it.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - name: Install Playwright browser
+        run: >-
+          ${{ steps.pw-cache.outputs.cache-hit == 'true'
+          && 'pnpm exec playwright install-deps chromium'
+          || 'pnpm exec playwright install --with-deps chromium' }}
       - name: Run authoritative local beta smoke
         run: pnpm beta:smoke -- --release-sha=${{ github.sha }}
       - name: Resolve beta manifest digest

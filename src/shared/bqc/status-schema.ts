@@ -27,7 +27,6 @@ const isoDateTimeSchema = z.string().min(1)
 export const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
 
 export const BETA_LOCAL_REQUIRED_GATE_IDS = [
-  'quality',
   'security-privacy',
   'local-scale-recovery',
   'source-lifecycle',

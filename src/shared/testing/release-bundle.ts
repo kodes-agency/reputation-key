@@ -41,7 +41,6 @@ export const REQUIRED_APPROVAL_ROLES = [
 export const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
 
 export const REQUIRED_BETA_LOCAL_GATE_IDS = [
-  'quality',
   'security-privacy',
   'local-scale-recovery',
   'source-lifecycle',

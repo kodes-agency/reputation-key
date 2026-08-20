@@ -241,11 +241,11 @@ describe('createBetaSmokeGatePlan', () => {
       'test-results/beta-smoke-work/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/product-journeys.json',
       'test-results/beta-smoke-work/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/product-journeys.json.report.json',
     ])
-    expect(
-      exactPlan
-        .find((gate) => gate.id === 'quality')
-        ?.evidence.some((path) => path.endsWith('/storybook-browser.json')),
-    ).toBe(true)
+    // The quality phase is gone: it re-ran format/lint/typecheck/unit/
+    // integration/builds/storybook/both e2e projects that beta-acceptance's own
+    // `needs` already prove on the same SHA. Assert it stays gone, so nobody
+    // reintroduces the long pole by accident.
+    expect(exactPlan.map((gate) => gate.id)).not.toContain('quality')
     expect(exactPlan.find((gate) => gate.id === 'migration-upgrade')?.evidence).toEqual([
       'test-results/local-stack/beta/acceptance/clean-smoke.json',
       'test-results/local-stack/beta/acceptance/upgrade.json',
@@ -483,7 +483,7 @@ describe('immutable local evidence files', () => {
           evidenceRoot,
           gateEvidenceRoot,
         }),
-      ).toThrow('missing gate evidence file: test-results/gates/quality.json')
+      ).toThrow('missing gate evidence file: test-results/gates/security-privacy.json')
       for (const gate of manifest.gates) {
         for (const evidence of gate.evidence) {
           const path = join(gateEvidenceRoot, evidence.path)

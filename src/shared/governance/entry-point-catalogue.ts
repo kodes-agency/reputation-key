@@ -98,6 +98,7 @@ export type SystemAction =
   | 'system:metric.record'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
+  | 'system:ai.execution_reap'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
@@ -2480,6 +2481,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'ai-operation-execution-reaper',
+    'src/shared/jobs/ai-operation-execution-reaper.job.ts',
+    'system:ai.execution_reap',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Fences AI operations abandoned in executing past their own expires_at; bounded 100-row scan through the recordFailure CAS, terminal operation_ambiguous (never retried — the provider may already have been charged)',
+    },
+  ),
+  job(
     'permit-start-deadline-sweep',
     'src/shared/jobs/permit-start-deadline-sweep.job.ts',
     'system:permit.start_deadline_fence',
@@ -2807,6 +2819,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'daily, offset 4h (after retention sweep)' },
+  ),
+  schedule(
+    'ai-operation-execution-reaper-recurring',
+    'system:ai.execution_reap',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; reapable condition is the operation expires_at, not this cadence',
+    },
   ),
   schedule(
     'permit-start-deadline-sweep-recurring',
@@ -3505,24 +3527,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'Creates the deterministic beta-local-1 SQL fixture at migration head 0021 with later migrations provably pending',
-    },
-  ),
-  ops(
-    'scripts/beta/run-quality-gate.ts',
-    'scripts/beta/run-quality-gate.ts',
-    'tenant_cross',
-    {
-      notes:
-        'Runs the exact static, unit, integration, build, component, and Compose critical/full browser quality sequence with per-command logs',
-    },
-  ),
-  ops(
-    'scripts/beta/run-storybook-gate.ts',
-    'scripts/beta/run-storybook-gate.ts',
-    'none',
-    {
-      notes:
-        'Starts the beta Storybook server, waits for readiness, runs the blocking browser story suite, and terminates the server',
     },
   ),
   ops(

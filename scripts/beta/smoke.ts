@@ -13,13 +13,11 @@ import {
 import { CAPABILITY_POLICY_VERSION } from '../../src/shared/auth/beta-capabilities'
 import { spawnBetaCommand } from './command-runner'
 import { createPreCutoverDump } from './create-pre-cutover-dump'
-import { QUALITY_STEP_IDS } from './run-quality-gate'
 
 const DEFAULT_OUTPUT_ROOT = 'test-results/beta-smoke'
 const STACK_CONTROLLER = 'scripts/local-stack/stack.ts'
 const GATE_VERIFIER = 'scripts/beta/verify-gate-evidence.ts'
 const PRODUCT_JOURNEY_RUNNER = 'scripts/beta/run-product-journeys.ts'
-const QUALITY_RUNNER = 'scripts/beta/run-quality-gate.ts'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const prefix = `${name}=`
@@ -177,15 +175,15 @@ export async function deriveBetaSmokeIdentity(options: {
 export function createBetaSmokeGatePlan(
   identity: BetaSmokeIdentity,
 ): readonly BetaGatePlan[] {
+  // The quality phase used to re-run the entire gate list here — format, lint,
+  // typecheck, unit, integration, three builds, both storybook gates and BOTH
+  // Playwright projects — on top of a Compose stack of its own. Every one of
+  // those is already proven on this exact SHA by this job's own `needs`
+  // (check, docker, storybook, storybook-test, e2e), so it was ~30 minutes of
+  // re-proving passed work and it made this the long pole of CI at a median of
+  // 58 minutes. What remains below is the work nothing else does: the
+  // beta-profile Compose lifecycles and their evidence.
   const workRoot = join('test-results', 'beta-smoke-work', identity.releaseSha)
-  const qualityRoot = join(workRoot, 'quality')
-  const qualityEvidence = [
-    join(qualityRoot, 'quality.json'),
-    ...QUALITY_STEP_IDS.flatMap((id) => [
-      join(qualityRoot, `${id}.json`),
-      join(qualityRoot, `${id}.log`),
-    ]),
-  ]
   const acceptanceRoot = join('test-results', 'local-stack', 'beta', 'acceptance')
   const securityEvidence = join(workRoot, 'security-privacy.json')
   const sourceEvidence = join(workRoot, 'source-lifecycle.json')
@@ -198,20 +196,6 @@ export function createBetaSmokeGatePlan(
   const acceptanceIndex = join(acceptanceRoot, 'acceptance-index.json')
 
   return [
-    {
-      id: 'quality',
-      command: {
-        executable: 'pnpm',
-        args: [
-          'exec',
-          'tsx',
-          QUALITY_RUNNER,
-          `--output-dir=${qualityRoot}`,
-          `--source-revision=${identity.sourceRevision}`,
-        ],
-      },
-      evidence: qualityEvidence,
-    },
     {
       id: 'security-privacy',
       command: {
