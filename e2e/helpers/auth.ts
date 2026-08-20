@@ -2,9 +2,20 @@
 
 import { expect, type Page } from '@playwright/test'
 import { clickWhenReady, waitForHydration } from './interaction'
+import { readE2eSeedState } from './seed-state'
 
-export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
-export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
+// Credentials come from the state the seed itself wrote, not from env with a
+// hardcoded fallback. `pnpm e2e:stack:up` GENERATES E2E_TEST_PASSWORD into
+// .local-stack/e2e/stack.env and passes it to the seed container; Playwright runs on
+// the host where that variable is unset, so `?? 'password123'` silently disagreed
+// with the hash the seed had written and every sign-in returned 401
+// INVALID_EMAIL_OR_PASSWORD. Reading the seed state removes the second source of
+// truth. Env still wins when set, for a hand-seeded database.
+const seedState = readE2eSeedState()
+export const TEST_EMAIL =
+  process.env.E2E_TEST_EMAIL ?? seedState?.email ?? 'test@example.com'
+export const TEST_PASSWORD =
+  process.env.E2E_TEST_PASSWORD ?? seedState?.password ?? 'password123'
 
 /**
  * Sign in via better-auth HTTP API (Set-Cookie on the browser context), then
