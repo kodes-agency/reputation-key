@@ -164,6 +164,10 @@ function dispositionCode(
       return 'provider_refused'
     case 'output_invalid':
       return 'output_invalid'
+    case 'output_truncated':
+      // Without this arm the `default` below would silently degrade truncation
+      // to `provider_unavailable`, which is both wrong and retryable-looking.
+      return 'output_truncated'
     case 'rate_limited':
       return 'provider_rate_limited'
     case 'transport_ambiguous':

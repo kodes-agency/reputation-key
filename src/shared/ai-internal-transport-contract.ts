@@ -860,6 +860,12 @@ export const AI_PROVIDER_DISPOSITIONS = [
   'no_dispatch',
   'provider_refused',
   'output_invalid',
+  // A truncated answer is a successful, fully-billed provider call that
+  // returned nothing usable. Folding it into `output_invalid` made it
+  // indistinguishable from a malformed answer, and that is what hid a global
+  // reasoning-effort fault: every route spent its whole output budget on
+  // reasoning and returned an empty body, while the operator saw four words.
+  'output_truncated',
   'rate_limited',
   'provider_unavailable',
   'caller_aborted',
@@ -873,6 +879,7 @@ export const AI_GATEWAY_REPORTED_DISPOSITIONS = [
   'no_dispatch',
   'provider_refused',
   'output_invalid',
+  'output_truncated',
   'rate_limited',
   'provider_unavailable',
   'caller_aborted',

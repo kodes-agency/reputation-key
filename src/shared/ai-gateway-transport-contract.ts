@@ -351,6 +351,7 @@ const aiErrorCodeSchema = z.enum([
   'provider_unavailable',
   'provider_refused',
   'output_invalid',
+  'output_truncated',
   'policy_unavailable',
 ])
 
