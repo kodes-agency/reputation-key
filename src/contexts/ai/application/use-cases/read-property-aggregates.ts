@@ -7,6 +7,7 @@ import type {
 } from '../ports/ai-property-aggregate-store.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
 import { addDays } from '../local-date'
+import { resolveAiReadGate } from '../ai-read-gate'
 
 export type AiCategoryCount = Readonly<{
   category: keyof AiPropertyDailyAggregate['categoryCounts']
@@ -66,29 +67,17 @@ export function createReadPropertyAggregates(
   dependencies: ReadPropertyAggregatesDependencies,
 ): (input: ReadPropertyAggregatesInput) => Promise<AiPropertyAggregateWindowRead> {
   return async (input) => {
-    const [authorization, runtime] = await Promise.all([
-      dependencies.authorization.readMerchantAuthorization(input),
-      dependencies.processingProfiles.readForAi(input),
-    ])
     // Category and sentiment are review-analysis derivatives, so this read is
-    // gated on `review_analysis` rather than `property_trends`. Permissions
-    // alone are not enough: a tenant can hold `dashboard.read` while the
-    // merchant authorization is revoked or the capability is killed.
-    if (
-      authorization === null ||
-      authorization.state !== 'enabled' ||
-      !authorization.capabilities.includes('review_analysis') ||
-      runtime.status !== 'available'
-    ) {
-      return { status: 'disabled' }
-    }
+    // gated on `review_analysis` rather than `property_trends`.
+    const gate = await resolveAiReadGate(dependencies, input, 'review_analysis')
+    if (gate.status === 'disabled') return { status: 'disabled' }
 
     // The table is keyed by the property's LOCAL date, so the window has to be
     // resolved through the calendar. Using a UTC day here would silently shift
     // the window by one day for most of the world.
     const endLocalDate = await dependencies.calendar.resolveLocalDate({
       reviewedAtEpochMillis: dependencies.nowEpochMillis(),
-      timezone: runtime.profile.timezone,
+      timezone: gate.profile.timezone,
       calendarProfileVersion: 'property-calendar-v1',
     })
     if (endLocalDate === null) return { status: 'preparing' }
@@ -101,9 +90,9 @@ export function createReadPropertyAggregates(
     const window = await dependencies.aggregates.readWindow({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
-      sourceEpoch: authorization.authorizedSourceEpoch,
-      reviewAnalysisEpoch: authorization.capabilityEpochs.review_analysis.epoch,
-      propertyProfileVersion: runtime.profile.profileVersion,
+      sourceEpoch: gate.authorization.authorizedSourceEpoch,
+      reviewAnalysisEpoch: gate.authorization.capabilityEpochs.review_analysis.epoch,
+      propertyProfileVersion: gate.profile.profileVersion,
       startLocalDate,
       endLocalDate,
     })
