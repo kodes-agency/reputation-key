@@ -41,8 +41,11 @@ if (existsSync(generatedStackEnv)) {
 }
 
 export default defineConfig({
-  // No global setup/teardown and no webServer: host Playwright owns no
+  // No globalSetup/teardown and no webServer: host Playwright owns no
   // application process. The stack controller always tears down containers.
+  // The one precondition the host DOES own — e2e/.seed-state.json — is the
+  // `setup` project below, so it reports as a named test rather than a
+  // load-time throw and applies to single-file invocations too.
   testDir: './e2e',
   timeout: 30_000,
   expect: { timeout: 10_000 },
@@ -63,8 +66,17 @@ export default defineConfig({
   },
   projects: [
     {
+      // The suite's precondition gate (e2e/.seed-state.json). Declared as a
+      // project dependency rather than a globalSetup so a failure is reported
+      // as one named test instead of a load-time throw in every spec, and so
+      // any single-file invocation still runs it.
+      name: 'setup',
+      testMatch: /setup\/.*\.setup\.ts/,
+    },
+    {
       name: 'critical',
       testMatch: /critical\/.*\.spec\.ts/,
+      dependencies: ['setup'],
       // Critical journeys mutate shared policy state and restore it; one worker
       // prevents another browser from observing the bounded kill-switch window.
       workers: 1,
@@ -73,6 +85,7 @@ export default defineConfig({
     {
       name: 'full',
       testMatch: /^(?!.*\/critical\/).*\.spec\.ts$/,
+      dependencies: ['setup'],
     },
   ],
 })

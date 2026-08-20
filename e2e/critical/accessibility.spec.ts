@@ -45,10 +45,15 @@ test.describe('Critical a11y: axe page scans', () => {
 
   test('fleet dashboard (/dashboard, 2 properties) is axe-clean', async ({ page }) => {
     // The fleet view only renders with 2+ properties (1 → deep-dive redirect).
+    // Grant the seeded manager access explicitly: these tests assert on fleet
+    // CONTENT, and property_access_grant is the sole scope source. Without the
+    // grant the row is only visible because the seeded role happens to resolve
+    // organization-wide.
     await seedProperty({
       organizationId: seed.organizationId,
       name: 'A11y Fleet Annex',
       slug: `${PREFIX}fleet-annex-${e2eRunId}`,
+      grantAccessToUserId: seed.managerUserId,
     })
     await signIn(page)
     await page.goto('/dashboard')
@@ -61,6 +66,7 @@ test.describe('Critical a11y: axe page scans', () => {
       organizationId: seed.organizationId,
       name: 'A11y Fleet Annex',
       slug: `${PREFIX}fleet-annex-${e2eRunId}`,
+      grantAccessToUserId: seed.managerUserId,
     })
     // Exercise the real theme-init path: THEME_INIT_SCRIPT reads localStorage
     // 'theme' before first paint.
@@ -486,6 +492,7 @@ test.describe('Critical a11y: zoom reflow', () => {
       organizationId: seed.organizationId,
       name: 'A11y Fleet Annex',
       slug: `${PREFIX}fleet-annex-${e2eRunId}`,
+      grantAccessToUserId: seed.managerUserId,
     })
     // WCAG 1.4.10 reflow is evaluated at 320 CSS px (≡ 400% zoom on a 1280px
     // desktop). We deliberately use viewport reduction here, not

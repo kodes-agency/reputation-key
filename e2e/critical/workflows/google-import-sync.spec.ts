@@ -127,9 +127,37 @@ function assertProviderIdentifiersAbsent(value: unknown): void {
   expect(serialized).not.toContain('loc-b')
 }
 
+// Set only when THIS spec's organization_capability insert actually took
+// effect. 'property.import_gbp_v2' is part of LOCAL_BETA_CAPABILITIES and is
+// normally already granted by the seed, so an unconditional DELETE in cleanup
+// would strip SEEDED state rather than restore it — the insert reports whether
+// it inserted, and cleanup is gated on that.
+let insertedOrgImportCapability = false
+
 test.describe('Critical workflow: Google import + initial sync', () => {
   test.beforeEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
+
+  // Symmetry with google-performance.spec.ts: whatever a spec grants, it
+  // revokes, and every capability mutation is paired with a policy_version
+  // bump. The property_capability row below needs no explicit delete — it
+  // cascades with the prefix-scoped property. Placed in afterEach so a failing
+  // test cannot leak the capability into the next spec.
+  test.afterEach(async () => {
+    if (!insertedOrgImportCapability) return
+    insertedOrgImportCapability = false
+    await dbQuery(
+      `DELETE FROM organization_capability
+       WHERE organization_id = $1 AND capability = 'property.import_gbp_v2'`,
+      [seed.organizationId],
+    )
+    await dbQuery(
+      `UPDATE policy_version
+       SET version = version + 1,
+           updated_at = now()
+       WHERE scope = 'global'`,
+    )
   })
 
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
@@ -156,12 +184,14 @@ test.describe('Critical workflow: Google import + initial sync', () => {
         state: 'disconnected',
       },
     })
-    await dbQuery(
+    const insertedOrgCapability = await dbQuery(
       `INSERT INTO organization_capability (organization_id, capability, created_by)
        VALUES ($1, 'property.import_gbp_v2', $2)
-       ON CONFLICT (organization_id, capability) DO NOTHING`,
+       ON CONFLICT (organization_id, capability) DO NOTHING
+       RETURNING capability`,
       [seed.organizationId, admin!.id],
     )
+    insertedOrgImportCapability = insertedOrgCapability.length > 0
     await dbQuery(
       `INSERT INTO property_capability (property_id, capability, created_by)
        VALUES ($1, 'property.import_gbp_v2', $2)

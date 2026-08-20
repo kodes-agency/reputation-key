@@ -431,11 +431,60 @@ export async function seedGoogleConnection(input: {
 
 // ── Property / review fixtures ────────────────────────────────────────
 
-/** Mirror of scripts/seed-e2e-user.ts's canonical property insert. */
+/**
+ * Mirror of scripts/seed-e2e-user.ts's grantAccess (→ grantPropertyAccess):
+ * idempotent over the ACTIVE grant, and it commits the global policy_version
+ * bump in the SAME statement as the insert, so a snapshot reader can never
+ * observe the grant without its version.
+ */
+async function grantPropertyAccessFixture(input: {
+  organizationId: string
+  propertyId: string
+  userId: string
+}): Promise<void> {
+  const active = await dbQuery(
+    `SELECT 1 FROM property_access_grant
+     WHERE organization_id = $1 AND property_id = $2 AND user_id = $3
+       AND revoked_at IS NULL
+       AND (expires_at IS NULL OR expires_at > now())
+     LIMIT 1`,
+    [input.organizationId, input.propertyId, input.userId],
+  )
+  if (active.length > 0) return
+  await dbQuery(
+    `WITH bump AS (
+       INSERT INTO policy_version (scope, version, updated_at)
+       VALUES ('global', 1, now())
+       ON CONFLICT (scope) DO UPDATE
+         SET version = policy_version.version + 1, updated_at = now()
+       RETURNING version
+     ),
+     ins AS (
+       INSERT INTO property_access_grant
+         (organization_id, property_id, user_id, source, created_by)
+       VALUES ($1, $2, $3, 'operator', $3)
+       RETURNING id
+     )
+     SELECT id FROM ins`,
+    [input.organizationId, input.propertyId, input.userId],
+  )
+}
+
+/**
+ * Mirror of scripts/seed-e2e-user.ts's canonical property insert.
+ *
+ * `grantAccessToUserId` additionally writes the ACTIVE property_access_grant
+ * row that is the SOLE scope source (BQC-2.2). Omit it and behaviour is
+ * unchanged — property only — which is correct for callers that assert through
+ * an organization-wide role. Pass it whenever the spec then asserts on
+ * fleet/property CONTENT, so the assertion does not silently depend on the
+ * seeded role resolving org-wide rather than assigned scope.
+ */
 export async function seedProperty(input: {
   organizationId: string
   name: string
   slug: string
+  grantAccessToUserId?: string
   googleBinding?: Readonly<{
     connectionId: string
     accountId: string
@@ -483,7 +532,15 @@ export async function seedProperty(input: {
       confirmedBy,
     ],
   )
-  return { propertyId: rows[0].id }
+  const propertyId = rows[0].id
+  if (input.grantAccessToUserId) {
+    await grantPropertyAccessFixture({
+      organizationId: input.organizationId,
+      propertyId,
+      userId: input.grantAccessToUserId,
+    })
+  }
+  return { propertyId }
 }
 
 /**
