@@ -58,8 +58,13 @@ export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = [
     // Both halves are required: the bare TypeError would tolerate ANY failed
     // fetch on the page, and the frame pins it to the framework's
     // server-function client rather than to application code.
+    //
+    // Deliberately NOT page-scoped. This was first pinned to /home because that
+    // is where it was first observed, but the cause is a route change cancelling
+    // in-flight server-function loaders, which is route-independent — it
+    // resurfaced verbatim on /inbox. The frame in the pattern is what keeps this
+    // narrow; a page scope only made it brittle without excluding anything.
     pattern: /TypeError: Failed to fetch[\s\S]*createServerFn/,
-    pagePattern: /\/home\?propertyId=/,
     owner:
       'closed-beta AI enablement — docs/operations/closed-beta-import-defects-2026-08-19.md',
     reason:

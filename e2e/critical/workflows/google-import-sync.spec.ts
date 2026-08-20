@@ -290,7 +290,12 @@ test.describe('Critical workflow: Google import + initial sync', () => {
         })
         return current.status === 'completed' ? current : null
       },
-      { timeoutMs: 30_000, description: 'v2 import to reach completed' },
+      // 60s, not 30s: this polls a background worker import to completion on a
+      // runner already hosting nine containers, and it timed out at ~34s in CI
+      // while passing locally. The assertion is eventual completion with the
+      // exact counts below — the deadline only bounds how long the worker may
+      // take, not what must be true when it finishes.
+      { timeoutMs: 60_000, description: 'v2 import to reach completed' },
     )
     expect(progress.counts.imported).toBe(1)
     expect(progress.counts.relinked).toBe(1)
