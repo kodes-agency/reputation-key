@@ -283,9 +283,12 @@ jobs:
           docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-          for governed_entry in index.js canary.js runtime-egress-probe.js; do
+          # The runtime egress probe is a separately deployed bundle with its own
+          # directory and Railway start command, so it is NOT under the gateway dist.
+          for governed_entry in index.js canary.js; do
             docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
           done
+          docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e /app/dist-ai-egress-probe/runtime-egress-probe.js
           test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{json .Config.Cmd}}')" = '["node","dist-ai-egress-gateway/index.js"]'
           for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
             test "$(docker image inspect "$img" --format '{{.Config.User}}')" = "node"

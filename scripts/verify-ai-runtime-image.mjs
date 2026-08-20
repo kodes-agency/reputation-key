@@ -3,10 +3,17 @@ import { join, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const kind = process.argv[2]
+// `directories` is an exact allowlist, not a relaxation: the gateway image ships TWO
+// governed bundles, because the runtime egress probe is a separately deployed
+// artifact (`railway.ai-egress-probe.json` starts it directly) and is attested as
+// its own `bundleDirectory` inside AI_GATEWAY_BUILD_ATTESTATION. Asserting a single
+// root directory here contradicted the Dockerfile and the attestation.
 const expectedByKind = {
   gateway: {
-    directory: '/app/dist-ai-egress-gateway',
-    files: ['canary.js', 'index.js', 'runtime-egress-probe.js'],
+    directories: {
+      '/app/dist-ai-egress-gateway': ['canary.js', 'index.js'],
+      '/app/dist-ai-egress-probe': ['runtime-egress-probe.js'],
+    },
     forbiddenBundleTerms: [
       'node_modules/pg/',
       'node_modules/ioredis/',
@@ -15,8 +22,7 @@ const expectedByKind = {
     ],
   },
   admission: {
-    directory: '/app/dist-ai-execution-admission',
-    files: ['index.js'],
+    directories: { '/app/dist-ai-execution-admission': ['index.js'] },
     forbiddenBundleTerms: [
       'node_modules/openai/',
       'node_modules/undici/',
@@ -33,26 +39,29 @@ if (typeof process.getuid === 'function' && process.getuid() === 0) {
   throw new Error('AI runtime image runs as root')
 }
 
-function filesUnder(root) {
+function filesUnder(root, base) {
   const files = []
   for (const entry of readdirSync(root)) {
     const candidate = join(root, entry)
-    if (statSync(candidate).isDirectory()) files.push(...filesUnder(candidate))
-    else files.push(relative(expected.directory, candidate).replaceAll('\\', '/'))
+    if (statSync(candidate).isDirectory()) files.push(...filesUnder(candidate, base))
+    else files.push(relative(base, candidate).replaceAll('\\', '/'))
   }
   return files
 }
 
+const expectedDirectories = Object.keys(expected.directories).sort()
 const appEntries = readdirSync('/app').sort()
 if (
   JSON.stringify(appEntries) !==
-  JSON.stringify([expected.directory.slice('/app/'.length)])
+  JSON.stringify(expectedDirectories.map((path) => path.slice('/app/'.length)))
 ) {
   throw new Error(`AI runtime root inventory drift: ${appEntries.join(',')}`)
 }
-const actual = filesUnder(expected.directory).sort()
-if (JSON.stringify(actual) !== JSON.stringify(expected.files)) {
-  throw new Error(`AI runtime bundle inventory drift: ${actual.join(',')}`)
+for (const [directory, files] of Object.entries(expected.directories)) {
+  const actual = filesUnder(directory, directory).sort()
+  if (JSON.stringify(actual) !== JSON.stringify([...files].sort())) {
+    throw new Error(`AI runtime bundle inventory drift: ${actual.join(',')}`)
+  }
 }
 for (const forbiddenPath of [
   '/app/node_modules',
@@ -83,15 +92,17 @@ for (const forbiddenName of [
     throw new Error(`AI runtime image inherits forbidden environment ${forbiddenName}`)
   }
 }
-for (const file of expected.files) {
-  const absolute = join(expected.directory, file)
-  const syntax = spawnSync(process.execPath, ['--check', absolute], {
-    encoding: 'utf8',
-    env: { NODE_ENV: 'production', PATH: process.env.PATH ?? '' },
-  })
-  if (syntax.status !== 0) throw new Error(`AI runtime bundle syntax failed: ${file}`)
-  const source = readFileSync(absolute, 'utf8')
-  for (const term of expected.forbiddenBundleTerms) {
-    if (source.includes(term)) throw new Error(`AI runtime bundle contains ${term}`)
+for (const [directory, files] of Object.entries(expected.directories)) {
+  for (const file of files) {
+    const absolute = join(directory, file)
+    const syntax = spawnSync(process.execPath, ['--check', absolute], {
+      encoding: 'utf8',
+      env: { NODE_ENV: 'production', PATH: process.env.PATH ?? '' },
+    })
+    if (syntax.status !== 0) throw new Error(`AI runtime bundle syntax failed: ${file}`)
+    const source = readFileSync(absolute, 'utf8')
+    for (const term of expected.forbiddenBundleTerms) {
+      if (source.includes(term)) throw new Error(`AI runtime bundle contains ${term}`)
+    }
   }
 }
