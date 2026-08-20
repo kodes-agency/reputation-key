@@ -7,6 +7,15 @@ on:
   pull_request:
     branches: [main]
 
+# Without this, every push left the previous run of this workflow burning a
+# runner: three beta-acceptance jobs ran concurrently on superseded commits and
+# starved each other, so the oldest reached its 120-minute timeout without
+# finishing. Superseded PR runs are cancelled; main is never cancelled, because
+# its runs gate the release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 permissions:
   contents: read
   pull-requests: read

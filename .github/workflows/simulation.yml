@@ -11,6 +11,13 @@ on:
       - 'src/shared/testing/**'
       - '.github/workflows/simulation.yml'
 
+# Superseded runs of this workflow are cancelled so they stop competing for
+# runners with the commit that replaced them. main is never cancelled: its runs
+# gate the release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   simulate:
     runs-on: ubuntu-latest
