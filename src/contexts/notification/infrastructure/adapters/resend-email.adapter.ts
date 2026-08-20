@@ -1,50 +1,91 @@
 // Resend adapter for the EmailSenderPort
 // Wraps the Resend SDK in a testable, port-compliant function.
+//
+// Three seams this adapter must honour, all of which it previously did not:
+//
+//  1. RESEND_BASE_URL (env.ts) is the documented operator sandbox seam. Identity
+//     mail already honours it (`shared/auth/emails.ts:28-30`); notification mail
+//     did not, so a sandbox/e2e deployment pointed at a mail stub still shipped
+//     real notification email to real inboxes. Absent → the SDK default, which
+//     is byte-identical to the pre-seam behavior.
+//  2. EMAIL_FROM (env.ts) replaces the hardcoded sender, so a deployment on a
+//     different verified domain does not need a code change.
+//  3. `text` and `headers` reach the provider. `headers` carries the ADR 0046
+//     r.7 List-Unsubscribe pair; dropping it silently would make the guard in
+//     the jobs decorative.
+//
+// The client is injectable so the adapter is unit-testable without network or a
+// live key. Production callers use the zero-arg form.
 import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
-import type { EmailSenderPort } from '../../application/ports/email-sender.port'
+import type {
+  EmailSenderPort,
+  EmailSendRequest,
+} from '../../application/ports/email-sender.port'
 import { classifyProviderRejection } from '../../domain/notification-delivery-policy'
 
-export const createResendEmailAdapter = (): EmailSenderPort => {
-  let resend: Resend | undefined
+/** What this adapter hands Resend — the whole port payload, nothing dropped. */
+export type ResendSendPayload = Readonly<{
+  from: string
+  to: string
+  subject: string
+  html: string
+  text: string
+  headers?: Readonly<Record<string, string>>
+}>
 
-  function getResend(): Resend {
-    if (!resend) {
-      const env = getEnv()
-      resend = new Resend(env.RESEND_API_KEY)
-    }
-    return resend
-  }
+/** Resend's `{ data, error }` answer, narrowed to what classification needs. */
+export type ResendSendResult = Readonly<{
+  data: Readonly<{ id: string }> | null
+  error: Readonly<{ message?: string; name?: string; statusCode?: number }> | null
+}>
+
+/** The single Resend SDK surface this adapter touches. */
+export type ResendEmailClient = Readonly<{
+  emails: Readonly<{
+    send: (
+      payload: ResendSendPayload,
+      options: Readonly<{ idempotencyKey: string }>,
+    ) => Promise<ResendSendResult>
+  }>
+}>
+
+const buildClient = (): ResendEmailClient => {
+  const env = getEnv()
+  // RESEND_BASE_URL absent → SDK default (https://api.resend.com).
+  const client = env.RESEND_BASE_URL
+    ? new Resend(env.RESEND_API_KEY, { baseUrl: env.RESEND_BASE_URL })
+    : new Resend(env.RESEND_API_KEY)
+  return client as unknown as ResendEmailClient
+}
+
+export const createResendEmailAdapter = (
+  clientFactory: () => ResendEmailClient = buildClient,
+): EmailSenderPort => {
+  let client: ResendEmailClient | undefined
+  const getClient = (): ResendEmailClient => (client ??= clientFactory())
 
   return {
-    async send(params: {
-      to: string
-      subject: string
-      html: string
-      idempotencyKey: string
-    }) {
+    async send(params: EmailSendRequest) {
       const logger = getLogger()
-      const client = getResend()
       const acceptedAt = new Date()
-      const { data, error } = await client.emails.send(
+      const { data, error } = await getClient().emails.send(
         {
-          from: 'Reputation Key <info@kodes.agency>',
+          from: getEnv().EMAIL_FROM,
           to: params.to,
           subject: params.subject,
           html: params.html,
+          text: params.text,
+          ...(params.headers ? { headers: params.headers } : {}),
         },
         { idempotencyKey: params.idempotencyKey },
       )
 
       if (error || !data?.id) {
-        const statusCode =
-          error && 'statusCode' in error && typeof error.statusCode === 'number'
-            ? error.statusCode
-            : null
-        const providerCode =
-          error && 'name' in error && typeof error.name === 'string' ? error.name : null
+        const statusCode = typeof error?.statusCode === 'number' ? error.statusCode : null
+        const providerCode = typeof error?.name === 'string' ? error.name : null
         const classification = classifyProviderRejection({
           statusCode,
           providerCode,
@@ -61,11 +102,7 @@ export const createResendEmailAdapter = (): EmailSenderPort => {
         { toPrefix: maskEmail(params.to), providerMessageId: data.id },
         'Email provider accepted message',
       )
-      return {
-        kind: 'accepted' as const,
-        providerMessageId: data.id,
-        acceptedAt,
-      }
+      return { kind: 'accepted' as const, providerMessageId: data.id, acceptedAt }
     },
   }
 }

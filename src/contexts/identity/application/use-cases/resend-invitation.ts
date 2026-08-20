@@ -6,6 +6,7 @@
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
+import { absoluteUrl } from '#/shared/email/urls'
 import { identityError } from '../../domain/errors'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
 export type ResendInvitationInput = AcceptInvitationInput
@@ -63,7 +64,9 @@ export const resendInvitation =
 
     // 4. Send email — re-send the invitation link
     const organizationName = await deps.getOrganizationName(ctx)
-    const inviteLink = `${deps.baseUrl}/accept-invitation?id=${invitation.id}`
+    const inviteLink = absoluteUrl(deps.baseUrl, '/accept-invitation', {
+      id: invitation.id,
+    })
 
     // Look up the current user's name from the org member list.
     // Fallback to a generic label if the member record isn't available.
