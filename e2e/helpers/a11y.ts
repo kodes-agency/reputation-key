@@ -88,9 +88,45 @@ export async function injectAxe(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Settle CSS transitions and animations, then wait a frame.
+ *
+ * axe reads colours from computed styles at the instant it runs. Buttons carry
+ * `transition-all` at 150ms, so a scan that lands mid-transition measures an
+ * intermediate colour that was never a rendered resting state. Measured on the
+ * property deep-dive: releasing a button's colour back to the inherited
+ * `--foreground` produced 11 distinct intermediate values sweeping oklab L
+ * 0.80 -> 0.28, and CI once caught one at 3.47:1 on a control whose settled
+ * contrast is 18:1.
+ *
+ * This suppresses nothing real: every resting state is still measured exactly.
+ * It only stops the scan from grading frames the user never sees.
+ */
+async function settleMotion(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `*, *::before, *::after {
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+    }`,
+  })
+  await page.evaluate(async () => {
+    await Promise.all(
+      document
+        .getAnimations()
+        .map((animation) => animation.finished.catch(() => undefined)),
+    )
+    const { promise, resolve } = Promise.withResolvers<void>()
+    requestAnimationFrame(() => resolve())
+    await promise
+  })
+}
+
 /** Run axe on the full page; returns raw violations (suppressions NOT applied). */
 export async function runAxe(page: Page): Promise<readonly AxeViolation[]> {
   await injectAxe(page)
+  await settleMotion(page)
   return page.evaluate(async (tags) => {
     const axe = (
       window as unknown as {
