@@ -10,7 +10,7 @@ function digest(domain: string, value: unknown): string {
     .digest('hex')
 }
 export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
-  model: 'gpt-5.4-mini-2026-03-17',
+  model: 'gpt-5.6-luna',
   input: Object.freeze([
     Object.freeze({ role: 'developer', content: 'versioned-developer-message' }),
     Object.freeze({
@@ -31,7 +31,7 @@ export const OPENAI_REQUEST_SHAPE_V1 = Object.freeze({
   maxOutputTokens: 'route-profile-integer',
   safetyIdentifier: 'route-closed-rk1-v1',
   promptCacheKey: 'rk:<route>:<promptVersion>:<00..0f>',
-  promptCacheRetention: 'in_memory',
+  promptCacheRetention: '24h',
   serviceTier: 'default',
   store: false,
   stream: false,
@@ -53,7 +53,7 @@ export const OPENAI_REQUEST_SHAPE_V1_DIGEST = digest(
 )
 
 export const OPENAI_PROVIDER_PRIMARY_SOURCES_V1 = Object.freeze({
-  model: 'https://developers.openai.com/api/docs/models/gpt-5.4-mini',
+  model: 'https://developers.openai.com/api/docs/models/gpt-5.6-luna',
   structuredOutputs: 'https://developers.openai.com/api/docs/guides/structured-outputs',
   responses: 'https://developers.openai.com/api/reference/resources/responses',
   apiOverview:
@@ -70,14 +70,14 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 = Object.freeze({
   provider: 'openai',
   api: 'responses-v1',
   endpoint: 'https://api.openai.com/v1/responses',
-  modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+  modelSnapshot: 'gpt-5.6-luna',
   structuredOutputs: 'strict-json-schema',
   // Delegated to the route profile. This sits among literal request parameters
   // (`serviceTier`, `store`), so a fixed value here would be a false claim about
   // what is actually sent now that each route governs its own effort.
   reasoningEffort: 'route-profile-effort',
   serviceTier: 'default',
-  promptCacheRetention: 'in_memory',
+  promptCacheRetention: '24h',
   promptCacheMode: 'automatic_prefix_16_shards',
   store: false,
   trainingPosture: 'api-not-used-for-training-unless-organization-opts-in',
@@ -97,15 +97,15 @@ export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1 = digest(
 )
 
 export const OPENAI_PRICE_CATALOGUE_V1 = Object.freeze({
-  catalogueId: 'openai-gpt-5.4-mini-standard-2026-08-15',
-  modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+  catalogueId: 'openai-gpt-5.6-luna-standard-2026-08-19',
+  modelSnapshot: 'gpt-5.6-luna',
   serviceTier: 'default',
   unitTokens: 1_000_000,
-  uncachedInputMicros: 750_000,
-  cachedInputMicros: 75_000,
-  outputMicros: 4_500_000,
+  uncachedInputMicros: 200_000,
+  cachedInputMicros: 20_000,
+  outputMicros: 1_200_000,
   sourceUrl: OPENAI_PROVIDER_PRIMARY_SOURCES_V1.pricing,
-  retrievalDate: '2026-08-15',
+  retrievalDate: '2026-08-19',
 })
 
 export type AiMaximumCostProfileV1 = Readonly<{
@@ -155,7 +155,7 @@ export const OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 = Object.freeze({
     unicodeVersion: '17.0',
   }),
   endpoint: 'https://api.openai.com/v1/responses',
-  promptCacheRetention: 'in_memory',
+  promptCacheRetention: '24h',
   promptCacheMode: 'automatic_prefix_16_shards',
   promptCacheOptions: 'absent',
   promptCacheBreakpoint: 'absent',
@@ -183,7 +183,7 @@ export const OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 = Object.freeze({
   gatewayRequestTimeoutMillis: 115_000,
   requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
   evidence: Object.freeze({
-    retrievalDate: '2026-08-15',
+    retrievalDate: '2026-08-19',
     primarySources: OPENAI_PROVIDER_PRIMARY_SOURCES_V1,
     normalizedClaimsDigest: OPENAI_NORMALIZED_EVIDENCE_CLAIMS_DIGEST_V1,
   }),
@@ -195,7 +195,7 @@ const AI_PROVIDER_DEPLOYMENT_PROFILE_FIELDS_V1 = Object.freeze({
   profileVersion: 'private-beta-global-v1',
   region: 'global',
   provider: 'openai',
-  modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+  modelSnapshot: 'gpt-5.6-luna',
   reasoningEffort: 'route-profile-effort',
   serviceTier: 'default',
   store: false,

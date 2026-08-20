@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from './ai-internal-transport-contract'
 import {
-  OPENAI_MODEL_SNAPSHOT,
+  OPENAI_KNOWN_MODEL_SNAPSHOTS,
   OPENAI_PROMPT_VERSIONS,
 } from './ai-openai-request-contract'
 
@@ -35,7 +35,9 @@ const payloadSchema = z
     propertyProfileVersion: positive,
     providerDeploymentProfileVersion: safeId,
     operationProfileVersion: z.literal('reply-suggestion-v1'),
-    modelSnapshot: z.literal(OPENAI_MODEL_SNAPSHOT),
+    // Known-version set, not a literal: stored provenance stays verifiable at the
+    // snapshot it was signed under. See OPENAI_KNOWN_MODEL_SNAPSHOTS.
+    modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
     promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
     outputLeakageProfileVersion: safeId,
     outputLeakageProfileDigest: digest,

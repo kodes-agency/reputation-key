@@ -3,7 +3,37 @@ import type { AiAdmissionDescriptorV1 } from './ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import { assertClosedJsonAndFreeze } from './closed-json-contract'
 
-export const OPENAI_MODEL_SNAPSHOT = 'gpt-5.4-mini-2026-03-17' as const
+// `gpt-5.6-luna` has no dated snapshot: the provider publishes only this floating
+// alias (`gpt-5.6-luna-2026-06-23`, `-medium` and `-mini` all 404). Accepted
+// deliberately — see docs/operations/model-switch-5-6-luna-2026-08-19.md. The
+// consequence is that provider-side behaviour can change without any digest in this
+// repo moving, so the release canary is the only detector.
+export const OPENAI_MODEL_SNAPSHOT = 'gpt-5.6-luna' as const
+
+// This model REJECTS `in_memory` with 400 "This model is compatible only with 24h
+// extended prompt caching". It is also a merchant-facing retention claim, mirrored in
+// OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 and the deployment contract.
+//
+// Safe against the cost ceiling: caching requires >=1024 input tokens and every route
+// here sends 162-226, so no cache write can be billed. `maximumCostMicros` therefore
+// needs no cache-write term. Add one if any source byte limit is ever raised.
+export const OPENAI_PROMPT_CACHE_RETENTION = '24h' as const
+
+/**
+ * Every model snapshot whose provenance this deployment can still VERIFY, newest
+ * first. `OPENAI_MODEL_SNAPSHOT` is what new requests are sent with; this set is what
+ * already-persisted reply provenance is parsed against.
+ *
+ * Provenance is append-only evidence: a draft signed under an earlier model stays
+ * valid at the snapshot it was signed under. Pinning `z.literal(OPENAI_MODEL_SNAPSHOT)`
+ * instead would make every stored draft unparseable the moment the model moves — the
+ * same failure the consent notice hit when its CHECK pinned a single version.
+ * Never remove an entry that could still appear in a stored row.
+ */
+export const OPENAI_KNOWN_MODEL_SNAPSHOTS = Object.freeze([
+  'gpt-5.6-luna',
+  'gpt-5.4-mini-2026-03-17',
+] as const)
 export const OPENAI_PROMPT_VERSIONS = Object.freeze({
   'review-analysis': 'review-analysis-prompt-v1',
   'reply-suggestion': 'reply-suggestion-prompt-v1',
@@ -52,7 +82,7 @@ export type ClosedOpenAiRequest = Readonly<{
   max_output_tokens: number
   safety_identifier: `rk1_${string}`
   prompt_cache_key: string
-  prompt_cache_retention: 'in_memory'
+  prompt_cache_retention: typeof OPENAI_PROMPT_CACHE_RETENTION
   service_tier: 'default'
   store: false
   stream: false
@@ -178,7 +208,7 @@ export function buildClosedOpenAiRequest(
     max_output_tokens: input.maxOutputTokens,
     safety_identifier: input.safetyIdentifier,
     prompt_cache_key: promptCacheKey,
-    prompt_cache_retention: 'in_memory',
+    prompt_cache_retention: OPENAI_PROMPT_CACHE_RETENTION,
     service_tier: 'default',
     store: false,
     stream: false,

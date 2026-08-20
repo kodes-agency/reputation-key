@@ -18,6 +18,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 } from '../../ai-openai-provider-profile'
+import { OPENAI_MODEL_SNAPSHOT } from '../../ai-openai-request-contract'
 import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '../../ai-property-calendar-profile'
 import { properties } from './property.schema'
 import { reviews } from './review.schema'
@@ -51,6 +52,8 @@ function stringifyPostgresJsonb(value: unknown): string {
 const openAiDeploymentContractSql = sql.raw(
   `'${stringifyPostgresJsonb(OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1).replaceAll("'", "''")}'::jsonb`,
 )
+
+const openAiModelSnapshotSql = sql.raw(`'${OPENAI_MODEL_SNAPSHOT.replaceAll("'", "''")}'`)
 
 export const aiGovernancePolicies = pgTable(
   'ai_governance_policies',
@@ -109,9 +112,12 @@ export const aiProviderDeploymentProfiles = pgTable(
     ),
     check('ai_provider_profiles_region_valid', sql`${t.region} = 'global'`),
     check('ai_provider_profiles_provider_valid', sql`${t.provider} = 'openai'`),
+    // Derived, not pinned: the literal tracks `OPENAI_MODEL_SNAPSHOT`, the same
+    // constant the request shape is built from, so a model switch cannot leave the
+    // schema asserting a snapshot the code no longer sends.
     check(
       'ai_provider_profiles_model_valid',
-      sql`${t.modelSnapshot} = 'gpt-5.4-mini-2026-03-17'`,
+      sql`${t.modelSnapshot} = ${openAiModelSnapshotSql}`,
     ),
     // Deployment-level effort is delegated to `ai_operation_profiles.reasoning_effort`.
     // Pinning 'xhigh' here would assert a configuration the TypeScript ladder can no

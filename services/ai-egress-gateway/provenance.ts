@@ -2,7 +2,7 @@ import { createHash, sign, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from '../../src/shared/ai-internal-transport-contract'
-import { OPENAI_MODEL_SNAPSHOT, OPENAI_PROMPT_VERSIONS } from './contracts'
+import { OPENAI_KNOWN_MODEL_SNAPSHOTS, OPENAI_PROMPT_VERSIONS } from './contracts'
 
 const DOMAIN = 'repkey-ai-reply-provenance-v1\0'
 const TOKEN_PREFIX = 'rk_ai_reply_v1'
@@ -32,7 +32,8 @@ const payloadSchema = z
     propertyProfileVersion: positive,
     providerDeploymentProfileVersion: safeId,
     operationProfileVersion: z.literal('reply-suggestion-v1'),
-    modelSnapshot: z.literal(OPENAI_MODEL_SNAPSHOT),
+    // Known-version set: see OPENAI_KNOWN_MODEL_SNAPSHOTS. Mirrors src/shared/ai-reply-provenance.ts.
+    modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
     promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
     outputLeakageProfileVersion: safeId,
     outputLeakageProfileDigest: digest,
