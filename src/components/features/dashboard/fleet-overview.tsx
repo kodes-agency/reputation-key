@@ -22,6 +22,7 @@ import type {
   FleetMetricEvidence,
   FleetOverviewData,
 } from '#/contexts/dashboard/application/public-api'
+import { FleetAttentionBreakdown } from './fleet-attention-breakdown'
 
 /** Shared shell + header so every fleet state (loading/error/empty/data) is consistent. */
 function Shell({ children }: Readonly<{ children: ReactNode }>) {
@@ -211,11 +212,10 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
           ) : null}
         </div>
       </div>
-      {entry.totalAttention > 0 ? (
-        <Badge variant="destructive">{entry.totalAttention} needing action</Badge>
-      ) : (
-        <Badge variant="secondary">All clear</Badge>
-      )}
+      <FleetAttentionBreakdown
+        signals={entry.attentionSignals}
+        totalAttention={entry.totalAttention}
+      />
     </Link>
   )
 }
