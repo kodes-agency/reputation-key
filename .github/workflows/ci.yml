@@ -561,6 +561,38 @@ jobs:
     needs: [check, docker, storybook, storybook-test, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    # beta:smoke's quality phase runs the same gate list as `check`, and its
+    # `integration` step needs a database BEFORE any Compose stack exists —
+    # run-quality-gate.ts only calls e2e:stack:up later, for the browser gates.
+    # Without these the integration global setup dies on ECONNREFUSED
+    # localhost:5432 and the whole phase fails having run nothing.
+    # Mirrors the `check` job exactly; the beta Compose stack binds its own
+    # ports and does not collide.
+    services:
+      postgres:
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       CI: '1'
       E2E_BASE_URL: http://127.0.0.1:3000
