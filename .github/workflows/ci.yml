@@ -271,38 +271,29 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Every image was rebuilt from scratch on every push: no cache-from, no
-      # cache-to, no buildx. buildx with the GitHub Actions cache backend reuses
-      # unchanged layers across runs. Each image gets its OWN cache scope so a
-      # rebuild of one cannot evict the layers of another.
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
+      # Plain `docker build`, deliberately. buildx with the GitHub Actions cache
+      # backend was tried here and measured WORSE on two consecutive main runs:
+      # build steps 135-138s -> 207s and, less obviously, the Compose stack step
+      # 148-153s -> 224s. Plain `docker build` populates the local daemon's layer
+      # cache, which `pnpm e2e:stack:up` later reuses inside this same job;
+      # buildx's container driver builds elsewhere, so that free in-job reuse
+      # disappeared while the cache export added its own cost. These images also
+      # COPY changing source early, so cross-run layer reuse was low to begin
+      # with. Total effect +2.7 min per push. Do not reintroduce it without
+      # measuring both the build steps AND the stack step.
       - name: Build web image
-        run: >-
-          docker buildx build -f Dockerfile -t repkey-web:ci --load
-          --cache-from type=gha,scope=web --cache-to type=gha,mode=max,scope=web .
+        run: docker build -f Dockerfile -t repkey-web:ci .
 
       - name: Build worker image
-        run: >-
-          docker buildx build -f Dockerfile.worker -t repkey-worker:ci --load
-          --cache-from type=gha,scope=worker --cache-to type=gha,mode=max,scope=worker .
+        run: docker build -f Dockerfile.worker -t repkey-worker:ci .
 
       - name: Build AI execution admission image
-        run: >-
-          docker buildx build -f Dockerfile.ai-execution-admission
-          -t repkey-ai-execution-admission:ci --load
-          --cache-from type=gha,scope=admission --cache-to type=gha,mode=max,scope=admission .
+        run: docker build -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
       - name: Build AI egress gateway image
-        run: >-
-          docker buildx build -f Dockerfile.ai-egress-gateway
-          -t repkey-ai-egress-gateway:ci --load
-          --cache-from type=gha,scope=gateway --cache-to type=gha,mode=max,scope=gateway .
+        run: docker build -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
 
       - name: Build rollout-only Google import compatibility image
-        run: >-
-          docker buildx build -f Dockerfile.google-import-compatibility
-          -t repkey-google-import-compatibility:ci --load
-          --cache-from type=gha,scope=google-import --cache-to type=gha,mode=max,scope=google-import .
+        run: docker build -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
 
       - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
