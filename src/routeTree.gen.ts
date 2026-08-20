@@ -50,7 +50,6 @@ import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/goo
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
-import { Route as AuthenticatedPropertiesPropertyIdMetricsRouteImport } from './routes/_authenticated/properties/$propertyId/metrics'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
@@ -286,12 +285,6 @@ const AuthenticatedPropertiesPropertyIdPeopleRoute =
     path: '/people',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const AuthenticatedPropertiesPropertyIdMetricsRoute =
-  AuthenticatedPropertiesPropertyIdMetricsRouteImport.update({
-    id: '/metrics',
-    path: '/metrics',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
 const AuthenticatedPropertiesPropertyIdGoalsRoute =
   AuthenticatedPropertiesPropertyIdGoalsRouteImport.update({
     id: '/goals',
@@ -400,7 +393,6 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
-  '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -452,7 +444,6 @@ export interface FileRoutesByTo {
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
-  '/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -508,7 +499,6 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
   '/_authenticated/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
-  '/_authenticated/properties/$propertyId/metrics': typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
@@ -565,7 +555,6 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/api/health/'
     | '/properties/$propertyId/goals'
-    | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/properties/import-google/$importId'
@@ -617,7 +606,6 @@ export interface FileRouteTypes {
     | '/properties'
     | '/settings'
     | '/api/health'
-    | '/properties/$propertyId/metrics'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
     | '/properties/import-google/$importId'
@@ -672,7 +660,6 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/api/health/'
     | '/_authenticated/properties/$propertyId/goals'
-    | '/_authenticated/properties/$propertyId/metrics'
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
     | '/_authenticated/properties/import-google/$importId'
@@ -1003,13 +990,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
-    '/_authenticated/properties/$propertyId/metrics': {
-      id: '/_authenticated/properties/$propertyId/metrics'
-      path: '/metrics'
-      fullPath: '/properties/$propertyId/metrics'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
     '/_authenticated/properties/$propertyId/goals': {
       id: '/_authenticated/properties/$propertyId/goals'
       path: '/goals'
@@ -1172,7 +1152,6 @@ const AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren =
 
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
-  AuthenticatedPropertiesPropertyIdMetricsRoute: typeof AuthenticatedPropertiesPropertyIdMetricsRoute
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
@@ -1187,8 +1166,6 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
   {
     AuthenticatedPropertiesPropertyIdGoalsRoute:
       AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren,
-    AuthenticatedPropertiesPropertyIdMetricsRoute:
-      AuthenticatedPropertiesPropertyIdMetricsRoute,
     AuthenticatedPropertiesPropertyIdPeopleRoute:
       AuthenticatedPropertiesPropertyIdPeopleRoute,
     AuthenticatedPropertiesPropertyIdReviewsRoute:

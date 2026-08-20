@@ -2089,14 +2089,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'property deep-dive dashboard; loader via dashboard fns' },
     ),
     ui(
-      '/properties/$propertyId/metrics',
-      `${AUTHED}/properties/$propertyId/metrics.tsx`,
-      'dashboard.read',
-      'dashboard.use',
-      'property',
-      { notes: 'placeholder "coming soon"' },
-    ),
-    ui(
       '/properties/$propertyId/people',
       `${AUTHED}/properties/$propertyId/people.tsx`,
       'staff.read',
