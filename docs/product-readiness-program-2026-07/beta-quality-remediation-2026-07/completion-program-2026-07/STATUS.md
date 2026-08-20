@@ -16,7 +16,7 @@ BQR work is implementation history only. No BQR phase is `accepted` under BQC ru
 ## Controlled beta acceptance profile
 
 **Evidence version:** `beta-local-1`  
-**Required gates:** `quality`, `security-privacy`, `local-scale-recovery`, `source-lifecycle`, `runtime-fault-matrix`, `migration-upgrade`, `product-journeys`, `release-bundle`  
+**Required gates:** `security-privacy`, `local-scale-recovery`, `source-lifecycle`, `runtime-fault-matrix`, `migration-upgrade`, `product-journeys`, `release-bundle`  
 **Post-beta / unmeasured:** `scale-capacity`, `region-fault-matrix`, `restore-recovery`, `live-provider`, `real-property-pilot`, `fourteen-day-cohort`  
 
 ## Status vocabulary

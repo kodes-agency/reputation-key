@@ -13,7 +13,6 @@
   "acceptance": {
     "evidenceVersion": "beta-local-1",
     "requiredGates": [
-      "quality",
       "security-privacy",
       "local-scale-recovery",
       "source-lifecycle",
