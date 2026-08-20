@@ -14,7 +14,9 @@ import { propertyId } from '#/shared/domain/ids'
 const FIXED_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = () => {
+const setup = (
+  extra: Partial<Parameters<typeof createProperty>[0]> = {},
+) => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
   const deps = {
@@ -22,6 +24,7 @@ const setup = () => {
     commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
+    ...extra,
   }
   const useCase = createProperty(deps)
   return { useCase, propertyRepo, events }
@@ -171,5 +174,68 @@ describe('createProperty', () => {
       (e: unknown) =>
         isPropertyError(e) && (e as { code: string }).code === 'invalid_name',
     )
+  })
+
+  // BQC-2.7 parity: a freshly created property has an EMPTY property_capability
+  // set, and an empty set denies every non-core capability
+  // (`property_not_allowlisted`). The Google import provisions the properties
+  // it creates; the manual path must do the same or a new property is dark for
+  // Portals, Teams, Goals and Recognition with no in-product remedy.
+  it('provisions the new property from its organization allowlist', async () => {
+    const calls: Array<{
+      organizationId: string
+      propertyId: string
+      createdBy: string
+    }> = []
+    const { useCase } = setup({
+      provisionCapabilities: async (input) => {
+        calls.push(input)
+      },
+    })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const property = await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+
+    expect(calls).toEqual([
+      {
+        organizationId: property.organizationId,
+        propertyId: property.id,
+        createdBy: ctx.userId,
+      },
+    ])
+  })
+
+  // The property exists and is usable; provisioning is idempotent and
+  // repairable out of band (`pnpm ops:property-capabilities sync`). Failing the
+  // creation would be a worse outcome than a dark new property.
+  it('still returns the property when provisioning fails, and warns', async () => {
+    const warnings: Array<{ obj: object; msg: string }> = []
+    const { useCase, propertyRepo } = setup({
+      provisionCapabilities: async () => {
+        throw Object.assign(new Error('policy_version row is locked'), {
+          code: 'lock_timeout',
+        })
+      },
+      logger: { warn: (obj, msg) => warnings.push({ obj, msg }) },
+    })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const property = await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+
+    expect(property.slug).toBe('grand-hotel')
+    expect(propertyRepo.all()).toHaveLength(1)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.msg).toBe('property capability provisioning failed')
+    // Content-free: codes and names only, never a tenant identifier.
+    expect(warnings[0]?.obj).toEqual({ errorName: 'Error', errorCode: 'lock_timeout' })
+  })
+
+  it('creates the property when no provisioning port is wired', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+
+    expect(propertyRepo.all()).toHaveLength(1)
   })
 })
