@@ -132,9 +132,9 @@ describe('notification delivery policy', () => {
     // ever return an empty list.
     expect(GOVERNING_NOTIFICATION_CATEGORIES).not.toContain('mandatory')
     expect(NOTIFICATION_CATEGORIES).toContain('mandatory')
-    expect(GOVERNING_NOTIFICATION_CATEGORIES.every((c) =>
-      NOTIFICATION_CATEGORIES.includes(c),
-    )).toBe(true)
+    expect(
+      GOVERNING_NOTIFICATION_CATEGORIES.every((c) => NOTIFICATION_CATEGORIES.includes(c)),
+    ).toBe(true)
   })
 
   it('leaves every notification type in-app-enabled by default', () => {

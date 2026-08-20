@@ -76,10 +76,7 @@ export type { NotificationEmailRepositoryPort } from './ports/notification-email
 export type { NotificationPreferenceRepositoryPort } from './ports/notification-preference-repository.port'
 export type { UserLookupPort } from './ports/user-lookup.port'
 export type { EmailSenderPort } from './ports/email-sender.port'
-export type {
-  InboxItemFacts,
-  InboxItemLookupPort,
-} from './ports/inbox-item-lookup.port'
+export type { InboxItemFacts, InboxItemLookupPort } from './ports/inbox-item-lookup.port'
 export type {
   BadgeFacts,
   GoalFacts,

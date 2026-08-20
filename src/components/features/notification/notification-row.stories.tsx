@@ -153,7 +153,9 @@ export const OverflowMenu: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     // Radix portals the menu outside the story canvas.
     const menu = within(document.body)
-    expect(await menu.findByRole('menuitem', { name: 'Mark as read' })).toBeInTheDocument()
+    expect(
+      await menu.findByRole('menuitem', { name: 'Mark as read' }),
+    ).toBeInTheDocument()
     expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toBeInTheDocument()
     expect(menu.getByRole('menuitem', { name: /^Mute/ })).toBeInTheDocument()
     expect(menu.queryByRole('menuitem', { name: /approve|publish/i })).toBeNull()

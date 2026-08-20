@@ -110,7 +110,12 @@ export function verifySvixSignature(
  * local signing stub behind RESEND_BASE_URL — not used in request handling.
  */
 export function signSvixPayload(
-  input: Readonly<{ id: string; timestamp: string; rawBody: string; signingSecret: string }>,
+  input: Readonly<{
+    id: string
+    timestamp: string
+    rawBody: string
+    signingSecret: string
+  }>,
 ): string {
   const key = secretKey(input.signingSecret)
   if (!key) throw new Error('Malformed Svix signing secret')

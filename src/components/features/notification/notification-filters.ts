@@ -77,7 +77,8 @@ export function groupByReadState(
   const read = notifications.filter((n) => n.status !== 'unread')
   const groups: NotificationGroup[] = []
   if (unread.length > 0) groups.push({ key: 'new', label: 'New', notifications: unread })
-  if (read.length > 0) groups.push({ key: 'earlier', label: 'Earlier', notifications: read })
+  if (read.length > 0)
+    groups.push({ key: 'earlier', label: 'Earlier', notifications: read })
   return groups
 }
 
@@ -108,8 +109,7 @@ export function groupByProperty(
     const rows = buckets.get(key) ?? []
     return {
       key,
-      label:
-        propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property',
+      label: propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property',
       notifications: rows,
     }
   })

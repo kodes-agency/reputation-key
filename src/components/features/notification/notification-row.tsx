@@ -84,7 +84,9 @@ export function NotificationRow({
             <p
               className={cn(
                 'min-w-0 flex-1 text-sm leading-snug',
-                isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground',
+                isUnread
+                  ? 'font-semibold text-foreground'
+                  : 'font-medium text-foreground',
               )}
             >
               {rendered.title}

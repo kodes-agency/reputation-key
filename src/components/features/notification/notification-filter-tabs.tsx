@@ -40,7 +40,11 @@ export function NotificationFilterTabs({
         className={cn('h-auto w-full flex-wrap justify-start gap-x-1', listClassName)}
       >
         {NOTIFICATION_FILTERS.map((option) => (
-          <TabsTrigger key={option.value} value={option.value} className="flex-none text-xs">
+          <TabsTrigger
+            key={option.value}
+            value={option.value}
+            className="flex-none text-xs"
+          >
             {option.label}
           </TabsTrigger>
         ))}

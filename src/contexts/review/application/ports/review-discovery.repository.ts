@@ -36,11 +36,7 @@ export type ReviewDiscoveryRepository = Readonly<{
    * A sync job was enqueued for this property: clear the error state and
    * push the next poll to `nextDueAt`.
    */
-  markDiscoveryScheduled(
-    propertyId: string,
-    now: Date,
-    nextDueAt: Date,
-  ): Promise<void>
+  markDiscoveryScheduled(propertyId: string, now: Date, nextDueAt: Date): Promise<void>
 
   /**
    * The enqueue failed for this property: record the error class and defer

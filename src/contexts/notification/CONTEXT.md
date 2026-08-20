@@ -78,9 +78,9 @@ infrastructure/
 
 ## Use cases
 
-| Name                 | Input                                                                  | Output                 | Permission                |
-| -------------------- | ---------------------------------------------------------------------- | ---------------------- | ------------------------- |
-| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, `payload`)   | `Notification \| null` | Internal (event handlers) |
+| Name                 | Input                                                                | Output                 | Permission                |
+| -------------------- | -------------------------------------------------------------------- | ---------------------- | ------------------------- |
+| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, `payload`) | `Notification \| null` | Internal (event handlers) |
 
 `insertNotification` is invoked by the insert-notification BullMQ worker, not directly by server functions. Returns `null` when the user has disabled both channels (still persists if email-only) — see Q19.
 
@@ -98,17 +98,17 @@ The build function (`build.ts`) also exposes `publicApi` query/mutation helpers 
 
 ## Server functions
 
-| Name                             | Method | Permission            | Route                        |
-| -------------------------------- | ------ | --------------------- | ---------------------------- |
-| `getUnreadNotificationCountFn`   | GET    | `notification.read`   | RPC                          |
-| `getNotificationsFn`             | GET    | `notification.read`   | RPC                          |
-| `markNotificationReadFn`         | POST   | `notification.update` | RPC                          |
-| `markNotificationUnreadFn`       | POST   | `notification.update` | RPC                          |
-| `markAllNotificationsReadFn`     | POST   | `notification.update` | RPC                          |
-| `dismissNotificationFn`          | POST   | `notification.update` | RPC                          |
-| `dismissAllNotificationsFn`      | POST   | `notification.update` | RPC                          |
-| `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC                          |
-| `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC                          |
+| Name                             | Method | Permission            | Route |
+| -------------------------------- | ------ | --------------------- | ----- |
+| `getUnreadNotificationCountFn`   | GET    | `notification.read`   | RPC   |
+| `getNotificationsFn`             | GET    | `notification.read`   | RPC   |
+| `markNotificationReadFn`         | POST   | `notification.update` | RPC   |
+| `markNotificationUnreadFn`       | POST   | `notification.update` | RPC   |
+| `markAllNotificationsReadFn`     | POST   | `notification.update` | RPC   |
+| `dismissNotificationFn`          | POST   | `notification.update` | RPC   |
+| `dismissAllNotificationsFn`      | POST   | `notification.update` | RPC   |
+| `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC   |
+| `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC   |
 
 Server functions resolve tenant context from the authenticated session (never client payload) and verify notification ownership before mutating.
 

@@ -50,7 +50,10 @@ describe('organization scope resolver', () => {
 
     await createNotificationOrganizationScopeResolver(pool)('org-9')
 
-    const [sql, params] = vi.mocked(pool.query).mock.calls[0] as unknown as [string, string[]]
+    const [sql, params] = vi.mocked(pool.query).mock.calls[0] as unknown as [
+      string,
+      string[],
+    ]
     expect(sql).toContain('deleted_at IS NULL')
     expect(sql).toContain("lifecycle_state = 'active'")
     expect(params).toEqual(['org-9'])

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyCoalescence,
-  getDefaultEnabled,
-  isDisableable,
-} from './notification-policy'
+import { applyCoalescence, getDefaultEnabled, isDisableable } from './notification-policy'
 import { createNotification } from './constructors'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification } from './types'

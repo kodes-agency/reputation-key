@@ -15,10 +15,7 @@ import {
   useUnreadNotificationCount,
 } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
-import {
-  NotificationAnnouncer,
-  useNotificationAnnouncer,
-} from './notification-announcer'
+import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import {
   groupByReadState,
   matchesNotificationFilter,
@@ -56,12 +53,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     organizationId,
   )
   // Polls only while open: the list used to go stale beside a live badge.
-  const list = useNotifications(
-    notificationFns.getList,
-    organizationId,
-    PAGE_SIZE,
-    open,
-  )
+  const list = useNotifications(notificationFns.getList, organizationId, PAGE_SIZE, open)
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,

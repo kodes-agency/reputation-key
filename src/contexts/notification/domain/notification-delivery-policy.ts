@@ -1,8 +1,4 @@
-import type {
-  DeliveryErrorClass,
-  NotificationCategory,
-  NotificationType,
-} from './types'
+import type { DeliveryErrorClass, NotificationCategory, NotificationType } from './types'
 
 export type NotificationDeliveryOutcome =
   | Readonly<{ kind: 'accepted'; providerMessageId: string; acceptedAt: Date }>

@@ -56,7 +56,11 @@ const dateFormatter = (locale: string, timeZone: string): Intl.DateTimeFormat =>
   const key = `${locale}|${timeZone}`
   const cached = dateCache.get(key)
   if (cached) return cached
-  const created = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone })
+  const created = new Intl.DateTimeFormat(locale, {
+    month: 'short',
+    day: 'numeric',
+    timeZone,
+  })
   dateCache.set(key, created)
   return created
 }
@@ -76,7 +80,10 @@ export function formatRelativeTime(
 
   if (seconds < MINUTE) return relativeFormatter(format.locale).format(0, 'second')
   if (seconds < HOUR) {
-    return relativeFormatter(format.locale).format(-Math.floor(seconds / MINUTE), 'minute')
+    return relativeFormatter(format.locale).format(
+      -Math.floor(seconds / MINUTE),
+      'minute',
+    )
   }
   if (seconds < DAY) {
     return relativeFormatter(format.locale).format(-Math.floor(seconds / HOUR), 'hour')

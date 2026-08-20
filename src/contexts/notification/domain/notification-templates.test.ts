@@ -126,8 +126,14 @@ describe('renderNotification — the copy that was broken', () => {
   })
 
   it('review.created escalates its own guidance for a low rating', () => {
-    const bad = renderNotification('review.created', { propertyName: 'Riverside', rating: 1 })
-    const good = renderNotification('review.created', { propertyName: 'Riverside', rating: 5 })
+    const bad = renderNotification('review.created', {
+      propertyName: 'Riverside',
+      rating: 1,
+    })
+    const good = renderNotification('review.created', {
+      propertyName: 'Riverside',
+      rating: 5,
+    })
 
     expect(bad.title).toBe('New 1-star review at Riverside')
     expect(bad.body).toContain('low rating')

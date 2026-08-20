@@ -98,15 +98,19 @@ describe('parseNotificationPayload', () => {
 
   describe('text', () => {
     it('trims and drops whitespace-only values', () => {
-      expect(parseNotificationPayload({ propertyName: '  Riverside  ' }).propertyName).toBe(
-        'Riverside',
-      )
-      expect(parseNotificationPayload({ propertyName: '   ' }).propertyName).toBeUndefined()
+      expect(
+        parseNotificationPayload({ propertyName: '  Riverside  ' }).propertyName,
+      ).toBe('Riverside')
+      expect(
+        parseNotificationPayload({ propertyName: '   ' }).propertyName,
+      ).toBeUndefined()
     })
 
     it('truncates a name past the 120-char cap', () => {
       const name = 'a'.repeat(200)
-      expect(parseNotificationPayload({ propertyName: name }).propertyName).toHaveLength(120)
+      expect(parseNotificationPayload({ propertyName: name }).propertyName).toHaveLength(
+        120,
+      )
     })
 
     it('truncates a moderation reason past the 500-char cap', () => {

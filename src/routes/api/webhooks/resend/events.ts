@@ -18,10 +18,7 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 import { z, ZodError } from 'zod'
-import {
-  svixHeaders,
-  verifySvixSignature,
-} from '#/shared/auth/svix-signature.verifier'
+import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -57,8 +54,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
       return Response.json(
         {
           error: 'Service Unavailable',
-          message:
-            'Resend webhook is disabled: RESEND_WEBHOOK_SECRET is not configured',
+          message: 'Resend webhook is disabled: RESEND_WEBHOOK_SECRET is not configured',
           code: 'webhook_disabled',
         },
         { status: 503 },
@@ -92,8 +88,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         providerMessageId: event.data.email_id,
         // A provider timestamp we cannot parse is worse than our own receipt
         // time: it would write an invalid date into the delivery record.
-        occurredAt:
-          parsedAt && !Number.isNaN(parsedAt.getTime()) ? parsedAt : new Date(),
+        occurredAt: parsedAt && !Number.isNaN(parsedAt.getTime()) ? parsedAt : new Date(),
         eventId: verification.id,
       })
 

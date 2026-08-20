@@ -46,11 +46,7 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   // Fenced like every other enum column: migration 0070 retired the
   // `digest_summary` category, and a bare cast would have let a stale row walk
   // an impossible value into the domain instead of failing loudly.
-  category: assertLiteral(
-    row.category,
-    NOTIFICATION_CATEGORIES,
-    'notification.category',
-  ),
+  category: assertLiteral(row.category, NOTIFICATION_CATEGORIES, 'notification.category'),
   type: assertLiteral(row.type, VALID_TYPES, 'notification.type'),
   priority: assertLiteral(row.priority, VALID_PRIORITIES, 'notification.priority'),
   status: assertLiteral(row.status, VALID_STATUSES, 'notification.status'),

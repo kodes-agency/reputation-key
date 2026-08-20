@@ -73,11 +73,7 @@ export function groupItemsByProperty(
       byProperty.set(key, [])
       order.push(key)
     }
-    const link = notificationLink(
-      notification.resourceType,
-      notification.resourceId,
-      key,
-    )
+    const link = notificationLink(notification.resourceType, notification.resourceId, key)
     byProperty.get(key)!.push({
       rendered: renderNotification(notification.type, notification.payload),
       actionUrl: buildActionUrl(link.path, link.search),

@@ -29,7 +29,8 @@ const loadedFns = makeNotificationFns({
   getUnreadCount: (async () => ({
     count: unreadCount,
   })) as unknown as NotificationServerFns['getUnreadCount'],
-  getList: (async () => notificationFixtures) as unknown as NotificationServerFns['getList'],
+  getList: (async () =>
+    notificationFixtures) as unknown as NotificationServerFns['getList'],
 })
 
 const meta: Meta<typeof NotificationPanel> = {
@@ -59,7 +60,9 @@ export const OpensOnClick: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     // Radix portals the popover outside the story canvas.
     const portal = within(document.body)
-    expect(await portal.findByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
+    expect(
+      await portal.findByRole('heading', { name: 'Notifications' }),
+    ).toBeInTheDocument()
     expect(await portal.findByRole('heading', { name: 'New' })).toBeInTheDocument()
     expect(
       portal.getByRole('link', { name: 'View all notifications' }),

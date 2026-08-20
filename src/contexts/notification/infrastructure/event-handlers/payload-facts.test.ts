@@ -167,10 +167,7 @@ describe('buildInboxItemPayload', () => {
   })
 })
 
-const recognitionDeps = (
-  goal: unknown,
-  badge: unknown,
-): RecognitionPayloadDeps =>
+const recognitionDeps = (goal: unknown, badge: unknown): RecognitionPayloadDeps =>
   ({
     recognitionLookup: {
       findGoalFacts: vi.fn(async () => goal),
@@ -182,7 +179,10 @@ const recognitionDeps = (
 describe('buildGoalPayload', () => {
   it('carries the goal and property names', async () => {
     const payload = await buildGoalPayload(
-      recognitionDeps({ goalName: 'Weekend response time', propertyName: 'Riverside' }, null),
+      recognitionDeps(
+        { goalName: 'Weekend response time', propertyName: 'Riverside' },
+        null,
+      ),
       { goalId: goalId('goal-1'), orgId: ORG },
     )
 

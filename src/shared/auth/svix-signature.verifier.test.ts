@@ -12,7 +12,9 @@ const TIMESTAMP = String(Math.floor(NOW.getTime() / 1000))
 const ID = 'msg_2abc'
 const BODY = '{"type":"email.delivered","data":{"email_id":"prov-1"}}'
 
-const signed = (overrides: Partial<{ rawBody: string; id: string; timestamp: string }> = {}) => {
+const signed = (
+  overrides: Partial<{ rawBody: string; id: string; timestamp: string }> = {},
+) => {
   const rawBody = overrides.rawBody ?? BODY
   const id = overrides.id ?? ID
   const timestamp = overrides.timestamp ?? TIMESTAMP
@@ -93,7 +95,10 @@ describe('svix signature verification', () => {
     const rotated = `v1,${Buffer.from('previous-secret-digest').toString('base64')} ${input.headers.signature}`
 
     expect(
-      verifySvixSignature({ ...input, headers: { ...input.headers, signature: rotated } }),
+      verifySvixSignature({
+        ...input,
+        headers: { ...input.headers, signature: rotated },
+      }),
     ).toEqual({ ok: true, id: ID })
   })
 

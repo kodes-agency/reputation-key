@@ -2,10 +2,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
-import {
-  NotificationAnnouncer,
-  useNotificationAnnouncer,
-} from './notification-announcer'
+import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 
 const meta: Meta<typeof NotificationAnnouncer> = {
   title: 'Notification/NotificationAnnouncer',

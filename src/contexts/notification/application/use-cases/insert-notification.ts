@@ -191,11 +191,7 @@ export const insertNotification =
         input.resourceId,
       )
       if (existing) {
-        const coalesced = applyCoalescence(
-          existing,
-          result.value.payload,
-          deps.clock(),
-        )
+        const coalesced = applyCoalescence(existing, result.value.payload, deps.clock())
         await deps.notificationRepo.refreshUnread(coalesced)
         return coalesced
       }

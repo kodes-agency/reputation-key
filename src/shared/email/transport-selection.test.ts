@@ -30,7 +30,10 @@ describe('email transport selection', () => {
   it('captures for the .env.example placeholder instead of failing inside a job', () => {
     // This is the exact string a developer gets from `cp .env.example .env`.
     expect(
-      decideEmailTransport({ NODE_ENV: 'development', RESEND_API_KEY: 're_xxxxxxxxxxxx' }),
+      decideEmailTransport({
+        NODE_ENV: 'development',
+        RESEND_API_KEY: 're_xxxxxxxxxxxx',
+      }),
     ).toEqual({ mode: 'capture', reason: 'placeholder_key' })
   })
 

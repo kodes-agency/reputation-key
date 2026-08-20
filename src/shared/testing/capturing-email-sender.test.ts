@@ -13,7 +13,9 @@ const request = (overrides: Partial<EmailSendRequest> = {}): EmailSendRequest =>
 
 describe('capturing email sender', () => {
   it('captures the full send request including the plain-text twin and headers', async () => {
-    const sender = createCapturingEmailSender({ clock: () => new Date('2026-08-21T09:00:00Z') })
+    const sender = createCapturingEmailSender({
+      clock: () => new Date('2026-08-21T09:00:00Z'),
+    })
 
     await sender.send(
       request({

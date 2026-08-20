@@ -74,7 +74,14 @@ export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
-    expect(tabs).toEqual(['All', 'Unread', 'Urgent', 'Operations', 'Workflow', 'Recognition'])
+    expect(tabs).toEqual([
+      'All',
+      'Unread',
+      'Urgent',
+      'Operations',
+      'Workflow',
+      'Recognition',
+    ])
     expect(tabs).not.toContain('Account')
     onFilterChange.mockClear()
     await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))

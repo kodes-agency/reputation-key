@@ -6,7 +6,10 @@
 // incomplete object to `Notification` and omitted all four.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, within } from 'storybook/test'
-import { notificationFixtures, notificationPropertyFixtures } from './notification-fixtures'
+import {
+  notificationFixtures,
+  notificationPropertyFixtures,
+} from './notification-fixtures'
 import { groupByProperty, groupByReadState } from './notification-filters'
 import { NotificationListBody } from './notification-list-body'
 import type { NotificationRowActions } from './types'

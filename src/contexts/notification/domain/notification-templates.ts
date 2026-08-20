@@ -53,7 +53,8 @@ const ROLE_LABELS: Record<NotificationActorRole, string> = {
   staff: 'a team member',
 }
 
-const capitalise = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1)
+const capitalise = (value: string): string =>
+  value.charAt(0).toUpperCase() + value.slice(1)
 
 /** "2-star" / "" when the rating is absent. */
 const stars = (payload: NotificationPayload): string =>
@@ -129,7 +130,9 @@ const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotificatio
   summary: facts(
     p.propertyName ?? '',
     reviewNoun(p),
-    formatWaitingAge(p.waitingHours) === '' ? '' : `waiting ${formatWaitingAge(p.waitingHours)}`,
+    formatWaitingAge(p.waitingHours) === ''
+      ? ''
+      : `waiting ${formatWaitingAge(p.waitingHours)}`,
   ),
 })
 
@@ -215,7 +218,8 @@ const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
 
 const renderBadgeAwarded = (p: NotificationPayload): RenderedNotification => {
   const badge = p.badgeName ?? 'a badge'
-  const target = p.recipientName ?? (p.targetKind === 'portal_group' ? 'A team' : 'A portal')
+  const target =
+    p.recipientName ?? (p.targetKind === 'portal_group' ? 'A team' : 'A portal')
   return {
     title: `${target} earned ${badge}`,
     body: sentence(

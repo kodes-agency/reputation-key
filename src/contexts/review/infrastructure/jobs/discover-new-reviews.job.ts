@@ -122,7 +122,14 @@ async function processDiscoveryBatch(
   state.batches++
   state.seen += batch.length
 
-  await enqueueCandidates(deps, batch, state, options.now, options.nextDueAt, options.logger)
+  await enqueueCandidates(
+    deps,
+    batch,
+    state,
+    options.now,
+    options.nextDueAt,
+    options.logger,
+  )
   if (state.enqueueFailedPropertyId !== null) return { kind: 'enqueue_failed' }
 
   const last = batch[batch.length - 1]

@@ -45,9 +45,7 @@ const request = {
   },
 }
 
-function fakeClient(
-  answer: ResendSendResult = { data: { id: 'prov-1' }, error: null },
-) {
+function fakeClient(answer: ResendSendResult = { data: { id: 'prov-1' }, error: null }) {
   const send = vi.fn(
     async (
       _payload: ResendSendPayload,

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import {
-  emailCorrelationId,
-  providerEventCorrelationId,
-} from './delivery-correlation'
+import { emailCorrelationId, providerEventCorrelationId } from './delivery-correlation'
 
 describe('delivery correlation ids', () => {
   it('builds the queue row log identity', () => {

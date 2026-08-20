@@ -45,9 +45,7 @@ export type NotificationFixtureOverrides = Readonly<{
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 
-export function makeNotification(
-  overrides: NotificationFixtureOverrides,
-): Notification {
+export function makeNotification(overrides: NotificationFixtureOverrides): Notification {
   const type = overrides.type ?? 'review.created'
   const status = overrides.status ?? 'unread'
   const createdAt = overrides.createdAt ?? new Date(Date.now() - 5 * MINUTE)
@@ -56,7 +54,9 @@ export function makeNotification(
     id: notificationId(overrides.id),
     userId: userId('11111111-1111-4111-8111-111111111111'),
     organizationId: organizationId('22222222-2222-4222-8222-222222222222'),
-    propertyId: propertyId(overrides.propertyId ?? '33333333-3333-4333-8333-333333333333'),
+    propertyId: propertyId(
+      overrides.propertyId ?? '33333333-3333-4333-8333-333333333333',
+    ),
     type,
     category: classifyNotification(type),
     priority: overrides.priority ?? 'normal',
@@ -182,7 +182,10 @@ export function makeNotificationFns(
 ): NotificationServerFns {
   // `unknown` in, branded fn out: each server fn carries its own opaque brand,
   // so a plain async double needs the two-step cast. It happens once, here.
-  const stub = (value: unknown): unknown => async () => value
+  const stub =
+    (value: unknown): unknown =>
+    async () =>
+      value
 
   const base: NotificationServerFns = {
     getUnreadCount: stub({ count: 0 }) as NotificationServerFns['getUnreadCount'],
