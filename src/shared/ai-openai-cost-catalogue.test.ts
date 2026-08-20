@@ -15,11 +15,15 @@ describe('OpenAI maximum cost catalogue', () => {
   it('uses the pinned uncached-input and output rates with integer ceiling division', () => {
     expect(OPENAI_PRICE_CATALOGUE_V1).toMatchObject({
       unitTokens: 1_000_000,
-      uncachedInputMicros: 750_000,
-      cachedInputMicros: 75_000,
-      outputMicros: 4_500_000,
+      uncachedInputMicros: 200_000,
+      cachedInputMicros: 20_000,
+      outputMicros: 1_200_000,
     })
-    expect(maximumCostMicros(routeProfile, 16_384)).toBe(31_470)
+    // Deliberately a literal, not derived from the catalogue: this pins the ceiling
+    // division itself, and deriving it would make the assertion tautological.
+    // floor(((1_000 + 16_384) * 200_000 + 4_096 * 1_200_000 + 999_999) / 1_000_000)
+    //   = floor(8_392_999_999 / 1_000_000) = 8_392
+    expect(maximumCostMicros(routeProfile, 16_384)).toBe(8_392)
     expect(maximumCostMicros({ staticTokenBearingBytes: 0, maxOutputTokens: 0 }, 1)).toBe(
       1,
     )

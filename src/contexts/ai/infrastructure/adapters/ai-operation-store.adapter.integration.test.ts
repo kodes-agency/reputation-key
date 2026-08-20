@@ -34,6 +34,7 @@ import {
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { properties } from '#/shared/db/schema/property.schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -72,13 +73,13 @@ if (!REVIEW_OPERATION_PROFILE) {
   throw new Error('review-analysis-v1 operation profile is missing')
 }
 const REVIEW_PROVIDER_PAYLOAD_BYTE_COUNT = 256
-const REVIEW_RESERVED_COST_MICROS = Math.floor(
-  ((REVIEW_OPERATION_PROFILE.staticTokenBearingBytes +
-    REVIEW_PROVIDER_PAYLOAD_BYTE_COUNT) *
-    750_000 +
-    REVIEW_OPERATION_PROFILE.maxOutputTokens * 4_500_000 +
-    999_999) /
-    1_000_000,
+// Derived from the compiled catalogue, never a duplicated formula: the database
+// recomputes this from ai_operation_profiles and denies source_mismatch on any
+// disagreement, so a hardcoded rate here turns a price change into an opaque
+// admission failure.
+const REVIEW_RESERVED_COST_MICROS = maximumCostMicros(
+  REVIEW_OPERATION_PROFILE,
+  REVIEW_PROVIDER_PAYLOAD_BYTE_COUNT,
 )
 const REVIEW_ADMISSION_LIMITS = Object.freeze({
   sourceBytes: REVIEW_OPERATION_PROFILE.sourceByteLimit,
@@ -107,11 +108,13 @@ const replyAdmissionLimits = (staticTokenBearingBytes: number) =>
     preparedRequestBytes: REPLY_OPERATION_PROFILE.preparedRequestByteLimit,
     responseBytes: REPLY_OPERATION_PROFILE.responseByteLimit,
     outputTokens: REPLY_OPERATION_PROFILE.maxOutputTokens,
-    costMicros: Math.floor(
-      ((staticTokenBearingBytes + REPLY_PROVIDER_PAYLOAD_BYTE_COUNT) * 750_000 +
-        REPLY_OPERATION_PROFILE.maxOutputTokens * 4_500_000 +
-        999_999) /
-        1_000_000,
+    // Derived, never a duplicated formula — see REVIEW_RESERVED_COST_MICROS.
+    costMicros: maximumCostMicros(
+      {
+        staticTokenBearingBytes,
+        maxOutputTokens: REPLY_OPERATION_PROFILE.maxOutputTokens,
+      },
+      REPLY_PROVIDER_PAYLOAD_BYTE_COUNT,
     ),
   })
 
@@ -947,7 +950,10 @@ describe('AI operation store (real PostgreSQL)', () => {
       disposition: 'success',
       inputTokens: 100,
       outputTokens: 10,
-      costMicros: 107,
+      // 80 uncached * 200_000 + 20 cached * 20_000 + 10 output * 1_200_000
+      // = 29_400_000 -> ceil to micros = 29. Cached input is priced separately,
+      // which is why this is not (100 * uncached rate).
+      costMicros: 29,
       settlementState: 'settled',
     })
     await expect(authority.settle(settlement, 'grant-v1')).resolves.toEqual(settled)

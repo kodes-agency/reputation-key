@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
 import { describe, expect, it, vi } from 'vitest'
 import { createVersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 import type { VersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
@@ -342,7 +343,9 @@ describe('prepared AI invocation', () => {
         ...args: unknown[]
       ) => {
         const result = Reflect.apply(realFrom, Buffer, [value, ...args]) as Buffer
-        if (typeof value === 'string' && value.includes('"gpt-5.4-mini-2026-03-17"')) {
+        // Derived, not pinned: a hardcoded model id silently stops matching on a model
+        // switch and the assertion below then passes vacuously on an empty capture.
+        if (typeof value === 'string' && value.includes(`"${OPENAI_MODEL_SNAPSHOT}"`)) {
           captured.push(result)
         }
         return result
