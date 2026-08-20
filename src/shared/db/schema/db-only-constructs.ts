@@ -370,7 +370,7 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'assert_ai_runtime_catalogue_ready_v1',
     kind: 'function',
     owner: 'ai',
-    source: 'drizzle/0066_ai-reasoning-effort-per-route.sql',
+    source: 'drizzle/0067_ai-model-luna-switch.sql',
     reason: `${NO_TRIGGER_DSL}; verifies the complete immutable runtime catalogue at readiness. Introduced in 0046; re-emitted whenever the catalogue projection it byte-compares moves, most recently in 0066 for the per-route reasoning effort.`,
   },
   {
@@ -545,7 +545,7 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'issue_ai_canary_authorization_v1',
     kind: 'function',
     owner: 'ai',
-    source: 'drizzle/0066_ai-reasoning-effort-per-route.sql',
+    source: 'drizzle/0067_ai-model-luna-switch.sql',
     reason: `${NO_TRIGGER_DSL}; atomically issues the exact canary operation, attempt, permit, and unsigned claim. Introduced in 0048; re-emitted whenever a digest it pins moves, most recently in 0066 for the provider and synthetic-canary profile digests.`,
   },
   {
@@ -713,7 +713,7 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'admit_ai_property_v1',
     kind: 'function',
     owner: 'ai',
-    source: 'drizzle/0064_ai-reply-grant-expiry-order.sql',
+    source: 'drizzle/0067_ai-model-luna-switch.sql',
     reason: `${NO_TRIGGER_DSL}; performs the serialized property admission transaction. Introduced in 0049; 0063 repaired two guards that denied every property (organization_capability is keyed by purpose, and property_policy rows exist only where a suspension was recorded); 0064 swapped the reply token/draft expiries so token <= draft holds as both the gateway and the signed grant contract require.`,
   },
   {
@@ -727,7 +727,7 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'settle_ai_execution_v1',
     kind: 'function',
     owner: 'ai',
-    source: 'drizzle/0049_ai-execution-admission.sql',
+    source: 'drizzle/0067_ai-model-luna-switch.sql',
     reason: `${NO_TRIGGER_DSL}; atomically settles permits, usage, cost, and canary state.`,
   },
   {

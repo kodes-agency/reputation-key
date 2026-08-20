@@ -25,7 +25,7 @@ describe('OpenAI private-beta provider profile', () => {
         unicodeVersion: '17.0',
       },
       endpoint: 'https://api.openai.com/v1/responses',
-      promptCacheRetention: 'in_memory',
+      promptCacheRetention: '24h',
       promptCacheMode: 'automatic_prefix_16_shards',
       promptCacheOptions: 'absent',
       promptCacheBreakpoint: 'absent',
@@ -53,7 +53,7 @@ describe('OpenAI private-beta provider profile', () => {
       gatewayRequestTimeoutMillis: 115_000,
       requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
       evidence: {
-        retrievalDate: '2026-08-15',
+        retrievalDate: '2026-08-19',
         primarySources: OPENAI_PROVIDER_PRIMARY_SOURCES_V1,
         normalizedClaimsDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
       },
@@ -61,16 +61,16 @@ describe('OpenAI private-beta provider profile', () => {
       keyInventory: AI_GATEWAY_KEY_INVENTORY_V1,
     })
     expect(OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1).toMatchObject({
-      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+      modelSnapshot: 'gpt-5.6-luna',
       reasoningEffort: 'route-profile-effort',
       providerIdempotencyMode: 'none',
       abuseMonitoringRetention: 'generally-up-to-30-days-with-legal-safety-exceptions',
     })
     expect(OPENAI_REQUEST_SHAPE_V1).toMatchObject({
-      model: 'gpt-5.4-mini-2026-03-17',
+      model: 'gpt-5.6-luna',
       reasoning: { effort: 'route-profile-effort' },
       serviceTier: 'default',
-      promptCacheRetention: 'in_memory',
+      promptCacheRetention: '24h',
       store: false,
       tools: [],
       truncation: 'disabled',
