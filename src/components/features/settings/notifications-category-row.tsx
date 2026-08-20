@@ -41,8 +41,14 @@ export function NotificationsCategoryRow({
 }>) {
   const mandatory = category === 'mandatory'
   const emailDisabled = mandatory || !emailAllowed
+  // The title track carries an explicit floor and the controls row spans the
+  // whole grid. With `1fr auto auto` and the controls row spanning only columns
+  // 2-3, that 670px row sized both `auto` tracks to the full width of the
+  // fieldset and left `1fr` at ZERO — measured — so the title and description
+  // wrapped one character per line. `min-w-0` on the text made it worse by
+  // removing the min-content floor that had been hiding the squeeze.
   return (
-    <fieldset className="grid min-w-0 gap-4 py-5 md:grid-cols-[1fr_auto_auto]">
+    <fieldset className="grid min-w-0 gap-4 py-5 md:grid-cols-[minmax(12rem,1fr)_auto_auto]">
       {/*
         Not a <legend>: a legend is not a grid item, so the explicit
         col-start/row-start placements below computed against a grid it never
@@ -76,7 +82,7 @@ export function NotificationsCategoryRow({
         />
         Email
       </Label>
-      <div className="flex min-w-0 flex-wrap items-center gap-4 md:col-span-2 md:col-start-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-4 md:col-span-3 md:col-start-1">
         <Field className="w-auto">
           <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
           <Select
