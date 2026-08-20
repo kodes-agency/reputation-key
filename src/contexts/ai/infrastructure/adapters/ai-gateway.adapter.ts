@@ -179,12 +179,14 @@ export function createAiGatewayAdapter(
         }) as AiGatewayRouteResponseV1
       }
       try {
-        if (
-          rawResponse.status !== 200 ||
-          rawResponse.headers.has('content-encoding') ||
-          !isApplicationJsonUtf8(rawResponse.headers.get('content-type'))
-        ) {
-          throw new TypeError('AI gateway response is invalid')
+        if (rawResponse.status !== 200) {
+          throw new TypeError(`AI gateway response status ${rawResponse.status}`)
+        }
+        if (rawResponse.headers.has('content-encoding')) {
+          throw new TypeError('AI gateway response is encoded')
+        }
+        if (!isApplicationJsonUtf8(rawResponse.headers.get('content-type'))) {
+          throw new TypeError('AI gateway response media type is invalid')
         }
         const response = parseAiInternalJsonBytes(
           rawResponse.body,
@@ -193,7 +195,23 @@ export function createAiGatewayAdapter(
         )
         verifyResponseBinding(request, response, input.admissionSettlementPublicKeys)
         return response
-      } catch {
+      } catch (error) {
+        // One bare catch used to fold five independent causes — non-200, an
+        // encoded body, a wrong media type, a schema rejection and a failed
+        // response-binding check — into the same four words on screen. The
+        // reason is content-free: a stage name and an error class, never a body,
+        // a token or provider bytes.
+        process.stderr.write(
+          `${JSON.stringify({
+            event: 'ai_gateway_response_rejected',
+            route: request.route,
+            status: rawResponse.status,
+            contentType: rawResponse.headers.get('content-type') ?? null,
+            bodyBytes: rawResponse.body.byteLength,
+            reason: error instanceof Error ? error.name : 'unknown',
+            message: error instanceof Error ? error.message.slice(0, 160) : '',
+          })}\n`,
+        )
         return Object.freeze({
           route: request.route,
           status: 'error',
