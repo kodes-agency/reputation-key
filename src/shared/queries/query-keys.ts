@@ -58,7 +58,10 @@ export const propertyKeys = {
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  fleet: () => [...dashboardKeys.all, 'fleet'] as const,
+  // Takes the range so an infinite cache entry exists per range. Existing
+  // `invalidateQueries({ queryKey: dashboardKeys.fleet() })` calls still match
+  // as a prefix.
+  fleet: (timeRange = '30d') => [...dashboardKeys.all, 'fleet', timeRange] as const,
   staff: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'staff', args] as const,
   property: (args: Readonly<Record<string, unknown>>) =>
