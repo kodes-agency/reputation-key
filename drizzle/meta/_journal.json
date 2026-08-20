@@ -470,6 +470,13 @@
       "when": 1787166059207,
       "tag": "0066_ai-reasoning-effort-per-route",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1787203843486,
+      "tag": "0067_ai-model-luna-switch",
+      "breakpoints": true
     }
   ]
 }

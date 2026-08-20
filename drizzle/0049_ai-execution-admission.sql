@@ -1603,6 +1603,7 @@ DECLARE
   uncached_input_price_micros bigint;
   cached_input_price_micros bigint;
   output_price_micros bigint;
+  model_snapshot_value text;
   state_value text;
   expected_cost bigint;
   now_value timestamp with time zone := clock_timestamp();
@@ -1643,12 +1644,14 @@ BEGIN
       (profile.deployment_contract #>> '{pricing,unitTokens}')::bigint,
       (profile.deployment_contract #>> '{pricing,uncachedInputMicros}')::bigint,
       (profile.deployment_contract #>> '{pricing,cachedInputMicros}')::bigint,
-      (profile.deployment_contract #>> '{pricing,outputMicros}')::bigint
+      (profile.deployment_contract #>> '{pricing,outputMicros}')::bigint,
+      profile.model_snapshot::text
     INTO STRICT
       price_unit_tokens,
       uncached_input_price_micros,
       cached_input_price_micros,
-      output_price_micros
+      output_price_micros,
+      model_snapshot_value
     FROM ai_operations AS operation
     JOIN ai_provider_deployment_profiles AS profile
       ON profile.profile_version =
@@ -1883,7 +1886,7 @@ BEGIN
     UPDATE ai_operation_attempts
     SET state = CASE WHEN disposition_value = 'success' THEN 'completed' ELSE 'failed' END,
       model_snapshot = CASE
-        WHEN disposition_value = 'success' THEN 'gpt-5.4-mini-2026-03-17'
+        WHEN disposition_value = 'success' THEN model_snapshot_value
         ELSE NULL
       END,
       input_tokens = CASE WHEN disposition_value = 'success' THEN input_value ELSE NULL END,
