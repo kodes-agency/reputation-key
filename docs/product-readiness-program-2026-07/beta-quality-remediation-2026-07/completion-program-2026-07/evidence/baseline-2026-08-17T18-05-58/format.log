@@ -1,0 +1,15 @@
+$ pnpm format:check
+started: 2026-08-17T18:05:58.490Z  durationMs: 15920  exit: 1
+
+
+> reputation-key@ format:check /Users/bozhidardenev/kodes/projects/rep-key
+> prettier --check .
+
+Checking formatting...
+ ELIFECYCLE  Command failed with exit code 1.
+
+[warn] docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-17T17-48-03/baseline.json
+[warn] docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-17T17-48-57/baseline.json
+[warn] docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-17T17-59-59/baseline.json
+[warn] src/contexts/ai/domain/catalogues/operation-profiles-migration.test.ts
+[warn] Code style issues found in 4 files. Run Prettier with --write to fix.

@@ -1,0 +1,373 @@
+$ pnpm test:e2e --project=full
+started: 2026-08-17T18:03:58.241Z  durationMs: 16530  exit: 1
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=full
+
+
+Running 23 tests using 1 worker
+
+  ✘   1 [full] › e2e/auth.spec.ts:25:3 › Authentication › register a new account and sign in (12ms)
+  ✘   2 [full] › e2e/auth.spec.ts:53:3 › Authentication › sign in with existing credentials (12ms)
+  ✓   3 [full] › e2e/error-detection.spec.ts:38:3 › error detection — collector injection proof › captures pageerror from an uncaught exception (148ms)
+  ✓   4 [full] › e2e/error-detection.spec.ts:56:3 › error detection — collector injection proof › captures pageerror from an unhandled promise rejection (115ms)
+  ✓   5 [full] › e2e/error-detection.spec.ts:70:3 › error detection — collector injection proof › captures unexpected console.error output (111ms)
+  ✓   6 [full] › e2e/error-detection.spec.ts:80:3 › error detection — collector injection proof › captures a non-2xx critical mutation (POST /_server) (3.1s)
+  ✓   7 [full] › e2e/error-detection.spec.ts:100:3 › error detection — collector injection proof › captures a net-level failure on a critical mutation path (2.4s)
+  ✓   8 [full] › e2e/error-detection.spec.ts:114:3 › error detection — collector injection proof › a live allowlist entry suppresses its console.error match (360ms)
+  ✓   9 [full] › e2e/error-detection.spec.ts:127:3 › error detection — collector injection proof › React "Failed to fetch" route-match echo is gated WITHOUT a GET abort (146ms)
+  ✓  10 [full] › e2e/error-detection.spec.ts:142:3 › error detection — collector injection proof › React "Failed to fetch" echo after a GET abort is navigation noise (3.2s)
+  ✓  11 [full] › e2e/error-detection.spec.ts:170:3 › error detection — collector injection proof › an expired allowlist entry does NOT suppress — detection fails (127ms)
+  ✓  12 [full] › e2e/error-detection.spec.ts:187:3 › error detection — collector injection proof › a page-scoped pageerror entry suppresses only on its page (373ms)
+  ✓  13 [full] › e2e/error-detection.spec.ts:205:3 › error detection — collector injection proof › an UNSCOPED pageerror entry never matches (fail-closed) (123ms)
+  ✓  14 [full] › e2e/error-detection.spec.ts:219:3 › error detection — collector injection proof › shipped allowlist entries are owned, reasoned, and unexpired (0ms)
+  ✘  15 [full] › e2e/error-detection.spec.ts:244:3 › error detection — end-to-end gate proof (injection) › harness fails a test whose page emits an unexpected console.error (210ms)
+  ✘  16 [full] › e2e/member-invitation.spec.ts:18:3 › Member Invitation › invite a new member and cancel invitation (134ms)
+  ✘  17 [full] › e2e/navigation.spec.ts:15:3 › Navigation › navigate properties, inbox, and members settings (158ms)
+  ✘  18 [full] › e2e/navigation.spec.ts:26:3 › Navigation › property detail tabs navigate correctly (170ms)
+  ✘  19 [full] › e2e/property-crud.spec.ts:13:3 › Property list and detail › list shows seeded property and opens detail (168ms)
+  ✘  20 [full] › e2e/property-detail.spec.ts:13:3 › Property Detail › view seeded property details (173ms)
+  ✘  21 [full] › e2e/reset-password.spec.ts:24:3 › Password Reset › resets the password through the emailed link (16ms)
+  ✘  22 [full] › e2e/staff-assignment.spec.ts:15:3 › Staff Assignment › P1 staff tab renders the seeded participation and Portal responsibility (177ms)
+  ✘  23 [full] › e2e/team-management.spec.ts:15:3 › Team Management › create and archive a team within a property (173ms)
+
+
+  1) [full] › e2e/auth.spec.ts:25:3 › Authentication › register a new account and sign in ──────────
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    Error Context: test-results/playwright/auth-Authentication-register-a-new-account-and-sign-in-full/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/auth-Authentication-register-a-new-account-and-sign-in-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/auth-Authentication-register-a-new-account-and-sign-in-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [full] › e2e/auth.spec.ts:53:3 › Authentication › sign in with existing credentials ───────────
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    Error Context: test-results/playwright/auth-Authentication-sign-in-with-existing-credentials-full/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/auth-Authentication-sign-in-with-existing-credentials-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/auth-Authentication-sign-in-with-existing-credentials-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [full] › e2e/member-invitation.spec.ts:18:3 › Member Invitation › invite a new member and cancel invitation 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/member-invitation-Member-I-e3011-ember-and-cancel-invitation-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [full] › e2e/navigation.spec.ts:15:3 › Navigation › navigate properties, inbox, and members settings 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/navigation.spec.ts:12:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-navi-3f1a7--inbox-and-members-settings-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-navi-3f1a7--inbox-and-members-settings-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/navigation-Navigation-navi-3f1a7--inbox-and-members-settings-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-navi-3f1a7--inbox-and-members-settings-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/navigation-Navigation-navi-3f1a7--inbox-and-members-settings-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [full] › e2e/navigation.spec.ts:26:3 › Navigation › property detail tabs navigate correctly ───
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/navigation.spec.ts:12:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/navigation-Navigation-prop-0878a-ail-tabs-navigate-correctly-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [full] › e2e/property-crud.spec.ts:13:3 › Property list and detail › list shows seeded property and opens detail 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/property-crud.spec.ts:10:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/property-crud-Property-lis-19ba8-d-property-and-opens-detail-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/property-crud-Property-lis-19ba8-d-property-and-opens-detail-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/property-crud-Property-lis-19ba8-d-property-and-opens-detail-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/property-crud-Property-lis-19ba8-d-property-and-opens-detail-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/property-crud-Property-lis-19ba8-d-property-and-opens-detail-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [full] › e2e/property-detail.spec.ts:13:3 › Property Detail › view seeded property details ────
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/property-detail.spec.ts:10:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/property-detail-Property-Detail-view-seeded-property-details-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/property-detail-Property-Detail-view-seeded-property-details-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/property-detail-Property-Detail-view-seeded-property-details-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/property-detail-Property-Detail-view-seeded-property-details-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/property-detail-Property-Detail-view-seeded-property-details-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [full] › e2e/reset-password.spec.ts:24:3 › Password Reset › resets the password through the emailed link 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    Error Context: test-results/playwright/reset-password-Password-Re-45bf8-rd-through-the-emailed-link-full/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/reset-password-Password-Re-45bf8-rd-through-the-emailed-link-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/reset-password-Password-Re-45bf8-rd-through-the-emailed-link-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [full] › e2e/staff-assignment.spec.ts:15:3 › Staff Assignment › P1 staff tab renders the seeded participation and Portal responsibility 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/staff-assignment.spec.ts:12:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/staff-assignment-Staff-Ass-5c037-n-and-Portal-responsibility-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/staff-assignment-Staff-Ass-5c037-n-and-Portal-responsibility-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/staff-assignment-Staff-Ass-5c037-n-and-Portal-responsibility-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/staff-assignment-Staff-Ass-5c037-n-and-Portal-responsibility-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/staff-assignment-Staff-Ass-5c037-n-and-Portal-responsibility-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [full] › e2e/team-management.spec.ts:15:3 › Team Management › create and archive a team within a property 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/team-management.spec.ts:12:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/team-management-Team-Manag-5aa0c-ve-a-team-within-a-property-full/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/team-management-Team-Manag-5aa0c-ve-a-team-within-a-property-full/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/team-management-Team-Manag-5aa0c-ve-a-team-within-a-property-full/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/team-management-Team-Manag-5aa0c-ve-a-team-within-a-property-full/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/team-management-Team-Manag-5aa0c-ve-a-team-within-a-property-full/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10 failed
+    [full] › e2e/auth.spec.ts:25:3 › Authentication › register a new account and sign in ───────────
+    [full] › e2e/auth.spec.ts:53:3 › Authentication › sign in with existing credentials ────────────
+    [full] › e2e/member-invitation.spec.ts:18:3 › Member Invitation › invite a new member and cancel invitation 
+    [full] › e2e/navigation.spec.ts:15:3 › Navigation › navigate properties, inbox, and members settings 
+    [full] › e2e/navigation.spec.ts:26:3 › Navigation › property detail tabs navigate correctly ────
+    [full] › e2e/property-crud.spec.ts:13:3 › Property list and detail › list shows seeded property and opens detail 
+    [full] › e2e/property-detail.spec.ts:13:3 › Property Detail › view seeded property details ─────
+    [full] › e2e/reset-password.spec.ts:24:3 › Password Reset › resets the password through the emailed link 
+    [full] › e2e/staff-assignment.spec.ts:15:3 › Staff Assignment › P1 staff tab renders the seeded participation and Portal responsibility 
+    [full] › e2e/team-management.spec.ts:15:3 › Team Management › create and archive a team within a property 
+  13 passed (15.9s)
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:15909) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:15925) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15925) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15925) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15929) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15929) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15929) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16036) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16036) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16036) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16215) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16215) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16215) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16223) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16223) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16223) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16231) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16238) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16238) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16245) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16245) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16245) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16247) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16247) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16247) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16255) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16255) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:16255) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

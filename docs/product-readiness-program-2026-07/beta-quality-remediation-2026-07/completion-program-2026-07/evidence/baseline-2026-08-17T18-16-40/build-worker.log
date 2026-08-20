@@ -1,0 +1,26 @@
+$ pnpm build:worker
+started: 2026-08-17T18:19:26.972Z  durationMs: 936  exit: 0
+
+
+> reputation-key@ build:worker /Users/bozhidardenev/kodes/projects/rep-key
+> tsup
+
+CLI Building entry: {"index":"src/worker/index.ts","migrate-deploy":"scripts/migrate-deploy.ts","seed-e2e-user":"scripts/seed-e2e-user.ts","provision-ai-admission-role":"scripts/local-stack/provision-ai-admission-role.ts","google-import-final-schema-probe":"scripts/google-import-final-schema-probe.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /Users/bozhidardenev/kodes/projects/rep-key/tsup.config.ts
+CLI Target: node22
+CLI Cleaning output folder
+ESM Build start
+ESM dist-worker/provision-ai-admission-role.js          2.71 KB
+ESM dist-worker/google-import-final-schema-probe.js     2.64 KB
+ESM dist-worker/migrate-deploy.js                       96.41 KB
+ESM dist-worker/seed-e2e-user.js                        483.50 KB
+ESM dist-worker/provision-ai-admission-role.js.map      3.98 KB
+ESM dist-worker/google-import-final-schema-probe.js.map 3.83 KB
+ESM dist-worker/migrate-deploy.js.map                   230.49 KB
+ESM dist-worker/seed-e2e-user.js.map                    927.97 KB
+ESM dist-worker/index.js                                3.11 MB
+ESM dist-worker/index.js.map                            6.45 MB
+ESM ⚡️ Build success in 245ms
+

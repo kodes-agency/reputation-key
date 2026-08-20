@@ -1,0 +1,45 @@
+$ echo "y" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema
+started: 2026-08-17T17:48:03.469Z  durationMs: 6781  exit: 1
+
+
+> reputation-key@ auth:migrate /Users/bozhidardenev/kodes/projects/rep-key
+> npx -y dotenv-cli -- npx -y @better-auth/cli migrate --config src/shared/auth/auth-cli.ts
+
+🚀 No migrations needed.
+
+> reputation-key@ db:migrate /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/migrate-drizzle.ts
+
+◇ injected env (0) from .env.local,.env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+ ELIFECYCLE  Command failed with exit code 1.
+
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+⠋ preparing migration...
+[db:migrate] FAILED error: property-calendar-v1 authority mismatch
+    at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg@8.21.0/node_modules/pg/lib/client.js:646:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async applyMigrationBatch (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/db/staged-drizzle-migrator.ts:242:9)
+    at async runStagedDrizzleMigrations (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/db/staged-drizzle-migrator.ts:333:26)
+    at async main (/Users/bozhidardenev/kodes/projects/rep-key/scripts/migrate-drizzle.ts:18:20)
+    at async <anonymous> (/Users/bozhidardenev/kodes/projects/rep-key/scripts/migrate-drizzle.ts:25:1) {
+  length: 154,
+  severity: 'ERROR',
+  code: '22023',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'PL/pgSQL function inline_code_block line 4 at RAISE',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'pl_exec.c',
+  line: '3925',
+  routine: 'exec_stmt_raise'
+}

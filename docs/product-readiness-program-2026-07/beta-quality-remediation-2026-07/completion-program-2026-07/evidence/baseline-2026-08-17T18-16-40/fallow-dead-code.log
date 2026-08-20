@@ -1,0 +1,11 @@
+$ node_modules/.bin/fallow dead-code --changed-since HEAD --fail-on-issues
+started: 2026-08-17T18:20:16.740Z  durationMs: 530  exit: 0
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+   0.202232875s  WARN invalid entry pattern '["node","dist-ai-egress-gateway/index.js"]': error parsing glob '["node","dist-ai-egress-gateway/index.js"]': invalid range; 't' > 'a'
+   0.202261750s  WARN invalid entry pattern '["node","dist-google-import-compatibility/google-import-lifecycle.js"]': error parsing glob '["node","dist-google-import-compatibility/google-import-lifecycle.js"]': invalid range; 't' > 'g'
+   0.375461375s  WARN boundary zone 'shared-testing' matched 0 reachable files, check your directory structure, pattern, or whether these files are all currently unreachable
+  906 entry points detected (832 plugin, 59 package.json, 8 config, 7 manual entry)
+
+✓ No issues found (0.43s)
