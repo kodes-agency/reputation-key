@@ -1,126 +1,159 @@
-// Notification panel — single row component extracted for line-count compliance.
+// A single notification row.
+//
+// Copy is NEVER authored here. `renderNotification(type, payload)` is the one
+// renderer for every channel, so this file only decides layout. The stored
+// `title`/`body` snapshot is deliberately not read: rows written before the
+// template layer existed said things like "Inbox item 61ed98fc-… has been
+// escalated", and rendering from `type` + `payload` fixes those retroactively.
+//
+// Structure: the row is a heading + metadata + SIBLING controls. Nothing
+// interactive is nested inside another interactive element, which is what the
+// old single-<button>-wraps-everything row did.
 
 import { X } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Badge } from '#/components/ui/badge'
+import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
-import { getNotificationIcon, formatRelativeTime, truncate } from './notification-utils'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import {
+  notificationLink,
+  renderNotification,
+  type Notification,
+} from '#/contexts/notification/application/public-api'
+import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
+import {
+  DEFAULT_NOTIFICATION_FORMAT,
+  formatAbsoluteTime,
+  formatRelativeTime,
+  getNotificationIcon,
+  type NotificationFormat,
+} from './notification-utils'
+import { NotificationRowMeta } from './notification-row-meta'
+import { NotificationRowMenu } from './notification-row-menu'
+import type { NotificationRowActions } from './types'
 
-// Left-accent + background reflect urgency and read state.
-const rowClassName = (isUrgent: boolean, isUnread: boolean): string => {
-  if (isUrgent && isUnread) return 'border-l-destructive bg-destructive/5'
-  if (isUnread) return 'border-l-transparent bg-accent/20'
-  return 'border-l-transparent'
-}
-
-// Urgent flag + unread dot, rendered inline with the title.
-function NotificationRowBadges({
-  isUrgent,
-  isUnread,
-}: Readonly<{ isUrgent: boolean; isUnread: boolean }>) {
-  return (
-    <>
-      {isUrgent && (
-        <span className="inline-flex shrink-0 items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
-          Urgent
-        </span>
-      )}
-      {isUnread && (
-        <span className="flex shrink-0 items-center gap-1">
-          <span className="size-2 rounded-full bg-primary" />
-          <span className="sr-only">Unread</span>
-        </span>
-      )}
-    </>
-  )
-}
-
-// Clickable body: icon, title + badges, body, timestamp. Opens + marks read.
-function NotificationRowContent({
-  notification,
-  isUnread,
-  onRead,
-  onClick,
-}: Readonly<{
+type Props = Readonly<{
   notification: Notification
-  isUnread: boolean
-  onRead: (id: string) => void
-  onClick: (n: Notification) => void
-}>) {
-  const Icon = getNotificationIcon(notification.type)
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onClick(notification)
-        if (isUnread) onRead(notification.id)
-      }}
-      className="flex min-w-0 flex-1 items-start gap-3 text-left"
-    >
-      <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-        <Icon className="size-4 text-muted-foreground" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p
-            className={cn(
-              'truncate text-sm leading-tight',
-              isUnread ? 'font-semibold' : 'font-normal text-muted-foreground',
-            )}
-          >
-            {notification.title}
-          </p>
-          <NotificationRowBadges
-            isUrgent={notification.priority === 'urgent'}
-            isUnread={isUnread}
-          />
-        </div>
-        {notification.body && (
-          <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-            {truncate(notification.body)}
-          </p>
-        )}
-        <p className="mt-1 text-[11px] text-muted-foreground/70">
-          {formatRelativeTime(notification.createdAt)}
-        </p>
-      </div>
-    </button>
-  )
-}
+  actions: NotificationRowActions
+  /** Persisted locale + IANA timezone. Defaults until user settings resolve. */
+  format?: NotificationFormat
+}>
 
 export function NotificationRow({
   notification,
-  onRead,
-  onDismiss,
-  onClick,
-}: Readonly<{
-  notification: Notification
-  onRead: (id: string) => void
-  onDismiss: (id: string) => void
-  onClick: (n: Notification) => void
-}>) {
+  actions,
+  format = DEFAULT_NOTIFICATION_FORMAT,
+}: Props) {
+  const rendered = renderNotification(notification.type, notification.payload)
+  const link = notificationLink(
+    notification.resourceType,
+    notification.resourceId,
+    notification.propertyId,
+  )
   const isUnread = notification.status === 'unread'
+  const isUrgent = notification.priority === 'urgent'
+  const Icon = getNotificationIcon(notification.type)
+  const stamp = notification.coalescedLatestAt ?? notification.createdAt
 
   return (
-    <div
-      className={`group relative flex items-start rounded-md border-l-2 px-3 py-2.5 transition-colors hover:bg-accent/50 ${rowClassName(
-        notification.priority === 'urgent',
-        isUnread,
-      )}`}
+    <li
+      className={cn(
+        // Elevation by lightness, never by shadow (DESIGN.md, Tonal Stack).
+        'rounded-xl px-3 py-3 transition-colors',
+        isUnread ? 'bg-surface-elevated' : 'bg-transparent',
+      )}
     >
-      <NotificationRowContent
-        notification={notification}
-        isUnread={isUnread}
-        onRead={onRead}
-        onClick={onClick}
-      />
-      <button
-        type="button"
-        onClick={() => onDismiss(notification.id)}
-        aria-label="Dismiss notification"
-        className="absolute right-1 top-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground/0 transition-colors hover:bg-accent hover:text-muted-foreground group-hover:text-muted-foreground/70"
-      >
-        <X className="size-3" />
-      </button>
-    </div>
+      <div className="flex min-w-0 gap-3">
+        <span
+          aria-hidden="true"
+          className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
+        >
+          <Icon className="size-4 text-muted-foreground" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            {isUnread && (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+                />
+                <span className="sr-only">Unread.</span>
+              </>
+            )}
+            <p
+              className={cn(
+                'min-w-0 flex-1 text-sm leading-snug',
+                isUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground',
+              )}
+            >
+              {rendered.title}
+            </p>
+            {isUrgent && <Badge variant="destructive">Urgent</Badge>}
+            <time
+              dateTime={stamp.toISOString()}
+              title={formatAbsoluteTime(stamp, format)}
+              className="shrink-0 pt-0.5 text-xs text-muted-foreground"
+            >
+              {formatRelativeTime(stamp, format)}
+            </time>
+          </div>
+
+          {rendered.body !== '' && (
+            <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
+              {rendered.body}
+            </p>
+          )}
+
+          <NotificationRowMeta
+            payload={notification.payload}
+            coalescedCount={notification.coalescedCount}
+          />
+
+          <div className="mt-2 flex items-center gap-1">
+            <Button asChild size="xs" variant={isUnread ? 'default' : 'outline'}>
+              {/*
+                `notificationLink` returns the typed `{ path, search }` pair —
+                never `'/inbox?itemId=x'` as `to`, which TanStack Router
+                silently drops. The router's literal-route types cannot see a
+                runtime-computed path, so the `as never` escape hatch is used
+                the same way page-header.tsx does for breadcrumbs.
+              */}
+              <Link
+                to={link.path as never}
+                search={link.search as never}
+                aria-label={`${rendered.actionLabel}: ${rendered.summary}`}
+                onClick={() => actions.onActivate(notification)}
+              >
+                {rendered.actionLabel}
+              </Link>
+            </Button>
+            <div className="ml-auto flex items-center gap-0.5">
+              <NotificationRowMenu
+                notification={notification}
+                categoryLabel={CATEGORY_COPY[notification.category].label}
+                title={rendered.title}
+                actions={actions}
+              />
+              {/*
+                Permanently visible at reduced opacity. It used to be
+                `text-muted-foreground/0` revealed only by `group-hover:`, with
+                no `focus-visible:` rule, so keyboard users tabbed onto an
+                invisible control.
+              */}
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:opacity-100"
+                aria-label={`Dismiss: ${rendered.title}`}
+                onClick={() => actions.onDismiss(notification.id)}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </li>
   )
 }

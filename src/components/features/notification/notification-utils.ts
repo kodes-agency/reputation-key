@@ -1,5 +1,10 @@
-// Notification UI utilities — route resolver, relative time, icon mapping.
-import { assertNever } from '#/shared/domain/assert'
+// Notification UI utilities — PRESENTATIONAL ONLY.
+//
+// Copy and deep links are NOT here. `renderNotification` / `notificationLink`
+// in the notification domain are the single renderer for every channel
+// (in-app row, email, digest), so a sentence fixed there is fixed everywhere.
+// This module holds the two things that are genuinely view concerns: which
+// icon a type gets, and how a timestamp reads in the user's own locale.
 
 import {
   Award,
@@ -14,57 +19,90 @@ import {
   Send,
   type LucideIcon,
 } from 'lucide-react'
-import type {
-  NotificationType,
-  NotificationResourceType,
-} from '#/contexts/notification/application/public-api'
+import type { NotificationType } from '#/contexts/notification/application/public-api'
 
-// ── Route resolver ──────────────────────────────────────────────────
+// ── Locale-aware timestamps ─────────────────────────────────────────
+//
+// The user's `locale` and `timezone` are persisted on NotificationUserSettings
+// and the settings page advertises them as "used for notification formatting",
+// so they are used here rather than a hardcoded 'en-US'. Until the settings
+// query resolves we format with DEFAULT_FORMAT — a fixed value, not the
+// browser's, so the server and the first client render agree.
 
-export function getNotificationUrl(
-  resourceType: NotificationResourceType,
-  resourceId: string,
-): string {
-  switch (resourceType) {
-    case 'inbox_item':
-      return `/inbox?itemId=${resourceId}`
-    case 'reply':
-      // Legacy reply notifications carry a stale replyId that won't match an
-      // inbox item; fall back to the inbox list rather than a broken deep link.
-      return '/inbox'
-    case 'goal':
-      // Goal resourceId is the property the goal belongs to.
-      return `/properties/${resourceId}`
-    case 'badge':
-      return `/settings/recognition`
-    default:
-      return assertNever('notification routing', resourceType)
-  }
+export type NotificationFormat = Readonly<{ locale: string; timeZone: string }>
+
+export const DEFAULT_NOTIFICATION_FORMAT: NotificationFormat = {
+  locale: 'en-US',
+  timeZone: 'UTC',
 }
 
-// ── Relative time ───────────────────────────────────────────────────
+const MINUTE = 60
+const HOUR = MINUTE * 60
+const DAY = HOUR * 24
 
-export function formatRelativeTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  const now = Date.now()
-  const diffMs = Math.max(0, now - d.getTime())
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHr = Math.floor(diffMin / 60)
-  const diffDay = Math.floor(diffHr / 24)
+/** Intl instances are expensive to build; one per (locale, timeZone) is plenty. */
+const relativeCache = new Map<string, Intl.RelativeTimeFormat>()
+const dateCache = new Map<string, Intl.DateTimeFormat>()
 
-  if (diffSec < 60) return 'just now'
-  if (diffMin < 60) return `${diffMin}m ago`
-  if (diffHr < 24) return `${diffHr}h ago`
-  if (diffDay === 1) return 'Yesterday'
-  if (diffDay < 7) return `${diffDay}d ago`
+const relativeFormatter = (locale: string): Intl.RelativeTimeFormat => {
+  const cached = relativeCache.get(locale)
+  if (cached) return cached
+  const created = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  relativeCache.set(locale, created)
+  return created
+}
 
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+const dateFormatter = (locale: string, timeZone: string): Intl.DateTimeFormat => {
+  const key = `${locale}|${timeZone}`
+  const cached = dateCache.get(key)
+  if (cached) return cached
+  const created = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone })
+  dateCache.set(key, created)
+  return created
+}
+
+/**
+ * "just now" / "3 hours ago" / "yesterday" / "Mar 4". Anything older than a
+ * week becomes an absolute date in the user's timezone, because "23d ago" is
+ * not information anyone acts on.
+ */
+export function formatRelativeTime(
+  date: Date | string,
+  format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
+  now: Date = new Date(),
+): string {
+  const then = typeof date === 'string' ? new Date(date) : date
+  const seconds = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000))
+
+  if (seconds < MINUTE) return relativeFormatter(format.locale).format(0, 'second')
+  if (seconds < HOUR) {
+    return relativeFormatter(format.locale).format(-Math.floor(seconds / MINUTE), 'minute')
+  }
+  if (seconds < DAY) {
+    return relativeFormatter(format.locale).format(-Math.floor(seconds / HOUR), 'hour')
+  }
+  if (seconds < DAY * 7) {
+    return relativeFormatter(format.locale).format(-Math.floor(seconds / DAY), 'day')
+  }
+  return dateFormatter(format.locale, format.timeZone).format(then)
+}
+
+/** Absolute timestamp for the row's `title`/`dateTime` affordances. */
+export function formatAbsoluteTime(
+  date: Date | string,
+  format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
+): string {
+  const then = typeof date === 'string' ? new Date(date) : date
+  return new Intl.DateTimeFormat(format.locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: format.timeZone,
+  }).format(then)
 }
 
 // ── Icon by notification type ───────────────────────────────────────
 
-const typeIconMap: Record<string, LucideIcon> = {
+const typeIconMap: Record<NotificationType, LucideIcon> = {
   'review.created': MessageSquare,
   'feedback.created': MessageSquare,
   'reply.pending_approval': AlertTriangle,
@@ -81,11 +119,4 @@ const typeIconMap: Record<string, LucideIcon> = {
 
 export function getNotificationIcon(type: NotificationType): LucideIcon {
   return typeIconMap[type] ?? Bell
-}
-
-// ── Truncate body text ──────────────────────────────────────────────
-
-export function truncate(text: string, maxLen = 80): string {
-  if (text.length <= maxLen) return text
-  return text.slice(0, maxLen).trimEnd() + '…'
 }

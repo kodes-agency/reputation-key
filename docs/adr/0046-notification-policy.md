@@ -43,6 +43,55 @@ Notifications have explicit **category × channel × property** preferences with
 - Application-level idempotency key prevents duplicate delivery after provider dedupe expiry.
 - Recognition email requires explicit user opt-in.
 
+## Implementation notes (2026-08-21)
+
+Recorded when the policy was actually built out. Both items are deliberate
+deviations from the text above; the intent of every rule is preserved.
+
+### `digest_summary` is retired as a category
+
+The Decision lists five categories including `digest_summary`. The
+implementation has four: `mandatory`, `urgent_operational`,
+`workflow_collaboration`, `recognition`. A daily digest is expressed **only** as
+`cadence = 'daily'`, which is the axis the digest worker already dispatched on.
+
+Why: `digest_summary` duplicated the cadence axis, and the duplication was
+load-bearing in the wrong direction. Its default policy was
+`{in_app: false, email: false}` and `goal.completed` was its only member, so in
+any tenant without an explicit preference row the goal-completed notification
+was dropped at insert and never persisted at all — the category silently
+deleted its own contents. `goal.completed` is now `recognition`, which is what
+it always was.
+
+`mandatory` is retained even though no type maps to it yet (rule 1 reserves it
+for account/security/legal mail). It stays visible and disabled on the settings
+page, which is honest: it tells the user the class exists and cannot be muted.
+Filters render from `GOVERNING_NOTIFICATION_CATEGORIES`, derived from the
+type→category map, so a category that governs nothing can never appear as a
+filter that returns nothing.
+
+### Rule 7 keys on mail class, not on category
+
+The unsubscribe guard decides "may this recipient unsubscribe from this
+message". That is a property of the message, not of a notification taxonomy. It
+therefore takes an explicit `MailClass = 'mandatory' | 'optional'`.
+
+Keying it on `NotificationCategory` forced the aggregate digest — which batches
+notifications of several categories into one email — to invent a category for
+its own envelope, which is what `digest_summary` was doing in
+`digest-assembly.ts`. With `MailClass`, a digest passes `'optional'` because an
+aggregate digest is never legally-required mail, and nothing has to be derived.
+
+### Rule 8 is enforced by a parser, not by convention
+
+Copy is rendered at read time from `type` + a `payload` column
+(`domain/notification-templates.ts`), rather than frozen into a string at
+enqueue time. `parseNotificationPayload` is the only way a payload enters the
+domain and it drops every key outside the allowlist, so rule 8 is mechanical
+rather than a reviewer's responsibility. Consequences: fixing a sentence fixes
+every channel and every historical row at once, and `notifications.payload` is
+registered in the protected-field registry.
+
 ## Rejected Alternatives
 
 - **Default-on email for all categories** — sends recognition/workflow email without deliberate policy.

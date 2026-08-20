@@ -16,18 +16,26 @@ import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
 // an empty array so the panel (mounted on open) renders its empty state
-// gracefully; the mutation fns are inert.
+// gracefully; the mutation fns are inert. Preferences/user-settings are only
+// pulled on demand (mute, timestamp formatting), so they return the shapes
+// those paths expect rather than throwing.
 function makeNotificationFns(count: number): NotificationServerFns {
+  const inert = <K extends keyof NotificationServerFns>(
+    result: unknown,
+  ): NotificationServerFns[K] =>
+    (async () => result) as unknown as NotificationServerFns[K]
+
   return {
-    getUnreadCount: (async () => ({
-      count,
-    })) as unknown as NotificationServerFns['getUnreadCount'],
-    getList: (async () => []) as unknown as NotificationServerFns['getList'],
-    markRead: (async () => undefined) as unknown as NotificationServerFns['markRead'],
-    markAllRead: (async () =>
-      undefined) as unknown as NotificationServerFns['markAllRead'],
-    dismiss: (async () => undefined) as unknown as NotificationServerFns['dismiss'],
-    dismissAll: (async () => undefined) as unknown as NotificationServerFns['dismissAll'],
+    getUnreadCount: inert<'getUnreadCount'>({ count }),
+    getList: inert<'getList'>([]),
+    markRead: inert<'markRead'>(undefined),
+    markUnread: inert<'markUnread'>(undefined),
+    markAllRead: inert<'markAllRead'>(undefined),
+    dismiss: inert<'dismiss'>(undefined),
+    dismissAll: inert<'dismissAll'>(undefined),
+    getPreferences: inert<'getPreferences'>([]),
+    updatePreference: inert<'updatePreference'>(undefined),
+    getUserSettings: inert<'getUserSettings'>(null),
   }
 }
 
