@@ -209,9 +209,15 @@ async function createReviews(
       contentExpiresAt: null,
       contentHash: null,
       sourceSeenGeneration: null,
+      // `sourceEpoch` is 0-based (0060 relaxed the AI-plane CHECK to >= 0), but
+      // `sourceRevision` and `analysisSequence` are 1-based: `reviewCreated`
+      // asserts both are POSITIVE, and review-command-store takes the sequence
+      // from a DB sequence it asserts > 0 before attaching it. Seeding zeroes
+      // persisted the review and then threw on the announcement, which is what
+      // produced 126 reviews with no inbox item and a five-minute red gate.
       sourceEpoch: 0,
-      sourceRevision: 0,
-      analysisSequence: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       aiSourceByteLength: 1,
       aiSourceDigest: '0'.repeat(64),
     }
@@ -231,8 +237,18 @@ async function createReviews(
       )
       created++
       events++
-    } catch {
-      /* idempotent */
+    } catch (err) {
+      // Was a bare `catch { /* idempotent */ }`. The upsert COMMITS before the
+      // emit, so anything thrown by the projection left a persisted review with
+      // no inbox item and no diagnostic -- which is exactly the shape the
+      // review-inbox-consistency invariant reports, five minutes later, with no
+      // cause attached. Mirrors the reply path below -- and logs the message
+      // only: `reviewId` is a banned log key under BQC-7.3, and the assertion
+      // text is what names the defect anyway.
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim review create/emit failed',
+      )
     }
 
     if (spec.reply) {
