@@ -36,17 +36,6 @@ export const notificationKeys = {
     [...notificationKeys.forOrganization(organizationId), 'preferences'] as const,
   userSettings: (organizationId: string) =>
     [...notificationKeys.forOrganization(organizationId), 'user-settings'] as const,
-  /**
-   * Per-property `notification.send_email` decision. Property-scoped because
-   * the capability is allowlisted per property, so the answer changes with the
-   * settings property selector.
-   */
-  emailCapability: (organizationId: string, propertyId: string) =>
-    [
-      ...notificationKeys.forOrganization(organizationId),
-      'email-capability',
-      propertyId,
-    ] as const,
 }
 
 // ── Identity / organization context ────────────────────────────────────
