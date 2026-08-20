@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { localStackPlaywrightEnv } from './src/shared/testing/local-stack-playwright-env'
 
 // CI previously used retries: 2. With a missing seed user every test timed out
 // at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e.
@@ -21,6 +24,21 @@ import { defineConfig, devices } from '@playwright/test'
 // E2E_LOCKED_BASE_URL from an already-smoked stack.
 
 const isCi = !!process.env.CI
+
+// `pnpm e2e:stack:up` GENERATES per-run credentials and host ports into
+// .local-stack/e2e/stack.env and passes them to the containers. A host Playwright
+// process that does not read that file falls back to defaults, which is why every
+// sign-in returned 401 (wrong password) and every fixture helper failed to connect
+// (no TEST_DATABASE_URL). `pnpm test:e2e:local` routes through the runner that
+// applies it; a bare `pnpm test:e2e` did not. Applied here so both entry points
+// behave the same. Values already present in the environment always win, so an
+// explicit override still works against a hand-seeded database.
+const generatedStackEnv = resolve(process.cwd(), '.local-stack/e2e/stack.env')
+if (existsSync(generatedStackEnv)) {
+  for (const [key, value] of Object.entries(localStackPlaywrightEnv(generatedStackEnv))) {
+    process.env[key] ??= value
+  }
+}
 
 export default defineConfig({
   // No global setup/teardown and no webServer: host Playwright owns no
