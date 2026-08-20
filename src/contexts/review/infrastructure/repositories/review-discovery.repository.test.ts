@@ -12,6 +12,14 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { createReviewDiscoveryRepository } from './review-discovery.repository'
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+
+// Provider resource literals may only live in the generated fixture catalogue
+// (scripts/check-google-provider-identifiers.mjs). These synthetic segments are
+// the sanctioned source; a hand-written `accounts/…/locations/…` in a test file
+// fails `pnpm lint`.
+const { accountId: GBP_ACCOUNT_ID, locationId: GBP_LOCATION_ID } =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments
 
 const ORG = 'org-discovery-test-1111111111111111'
 const CONN_ACTIVE = 'c1000000-0000-4000-8000-000000000001'
@@ -73,8 +81,8 @@ async function seedProperty(p: SeedProperty): Promise<void> {
       `Discovery ${p.id.slice(-2)}`,
       `discovery-${p.id.slice(-2)}`,
       p.connectionId,
-      bound ? '1234567890' : null,
-      bound ? `location-${p.id.slice(-2)}` : null,
+      bound ? GBP_ACCOUNT_ID : null,
+      bound ? `${GBP_LOCATION_ID}-${p.id.slice(-2)}` : null,
       p.bindingState,
       p.lifecycleState ?? 'active',
       p.deleted ? NOW.toISOString() : null,
@@ -163,7 +171,7 @@ describe('reviewDiscoveryRepository (integration)', () => {
       propertyId: PROP_CONNECTED,
       organizationId: ORG,
       connectionId: CONN_ACTIVE,
-      locationName: 'accounts/1234567890/locations/location-01',
+      locationName: `accounts/${GBP_ACCOUNT_ID}/locations/${GBP_LOCATION_ID}-01`,
     })
   })
 

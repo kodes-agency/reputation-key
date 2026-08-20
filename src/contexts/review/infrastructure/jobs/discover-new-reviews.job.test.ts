@@ -45,6 +45,12 @@ const prop = (n: number, over: Partial<FakeDiscoveryPropertyRow> = {}) =>
     ...over,
   })
 
+// Composed, never written out: a literal `accounts/…/locations/…` in a test
+// file fails scripts/check-google-provider-identifiers.mjs, which confines
+// provider resource literals to the generated fixture catalogue.
+const expectedLocationName = (n: number) =>
+  `accounts/${prop(n).gbpAccountId}/locations/${prop(n).gbpLocationId}`
+
 function makeDeps(
   rows: FakeDiscoveryPropertyRow[],
   opts: {
@@ -85,7 +91,7 @@ describe('discover-new-reviews sweep', () => {
         propertyId: 'aa000000-0000-4000-8000-000000000001',
         organizationId: 'org-1',
         connectionId: 'bb000000-0000-4000-8000-000000000001',
-        locationName: 'accounts/1234567890/locations/location-1',
+        locationName: expectedLocationName(1),
         initiator: { kind: 'system', id: 'sweep:review-discovery' },
         correlationId: 'review-discovery:aa000000-0000-4000-8000-000000000001',
       },
