@@ -8,6 +8,7 @@ import {
   renewPropertyGooglePerformanceLease,
 } from '#/contexts/integration/server/google-performance'
 import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
+import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
@@ -79,6 +80,7 @@ function PropertyDashboardRoute() {
         renewLease: renewPropertyGooglePerformanceLease,
       }}
       getAiTrend={getPropertyAiTrendFn}
+      getAiAggregates={getPropertyAiAggregatesFn}
     />
   )
 }

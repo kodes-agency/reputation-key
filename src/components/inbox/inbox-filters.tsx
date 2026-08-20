@@ -11,7 +11,11 @@ import {
 import { Input } from '#/components/ui/input'
 import { Filter } from 'lucide-react'
 import { PropertyFilterSelect } from './property-filter-select'
-import type { InboxStatus, SourceType } from '#/contexts/inbox/application/public-api'
+import type {
+  InboxStatus,
+  ReviewCategory,
+  SourceType,
+} from '#/contexts/inbox/application/public-api'
 import { useCallback } from 'react'
 
 export type InboxFilterValues = Readonly<{
@@ -22,6 +26,7 @@ export type InboxFilterValues = Readonly<{
   ratingMin: number | undefined
   ratingMax: number | undefined
   attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
+  category: ReviewCategory | undefined
   q: string | undefined
 }>
 

@@ -4,6 +4,7 @@
 // via resolveTenantContext(headers), never from client input.
 
 import { z } from 'zod/v4'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
 
 // GET inbox items — query params
 export const getInboxItemsDto = z.object({
@@ -21,6 +22,9 @@ export const getInboxItemsDto = z.object({
       z.enum(['urgent', 'high', 'medium', 'low']),
       z.array(z.enum(['urgent', 'high', 'medium', 'low'])),
     ])
+    .optional(),
+  category: z
+    .union([z.enum(AI_PRIMARY_CATEGORIES), z.array(z.enum(AI_PRIMARY_CATEGORIES))])
     .optional(),
   sourceDateFrom: z.coerce.date().optional(),
   sourceDateTo: z.coerce.date().optional(),

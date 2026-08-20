@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import type { ReviewCategory } from '#/contexts/inbox/application/public-api'
+import { AI_CATEGORY_OPTIONS } from '#/shared/ai-category-labels'
 
 type Props = Readonly<{
   folderLabel: string
@@ -19,6 +21,8 @@ type Props = Readonly<{
   searchQ: string | undefined
   attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
   onAttentionChange: (attention: 'urgent' | 'high' | 'medium' | 'low' | undefined) => void
+  category: ReviewCategory | undefined
+  onCategoryChange: (category: ReviewCategory | undefined) => void
   onSearchChange: (q: string | undefined) => void
   /** Opens the folder sidebar drawer (mobile only). */
   onOpenSidebar?: () => void
@@ -30,6 +34,8 @@ export function InboxListHeader({
   searchQ,
   attention,
   onAttentionChange,
+  category,
+  onCategoryChange,
   onSearchChange,
   onOpenSidebar,
 }: Props) {
@@ -89,6 +95,28 @@ export function InboxListHeader({
             <SelectItem value="high">High</SelectItem>
             <SelectItem value="medium">Medium</SelectItem>
             <SelectItem value="low">Low</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={category ?? 'all'}
+          onValueChange={(value) =>
+            onCategoryChange(value === 'all' ? undefined : (value as ReviewCategory))
+          }
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label="Filter by AI category"
+            className="w-[132px] shrink-0"
+          >
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {AI_CATEGORY_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

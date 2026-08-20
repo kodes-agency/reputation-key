@@ -13,6 +13,7 @@ import {
   type ClosedTrendSignalId,
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
+import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
@@ -58,54 +59,6 @@ export type GeneratePropertyTrendDependencies = Readonly<{
   processingProfiles: PropertyProcessingProfilePort
   nowEpochMillis: () => number
 }>
-
-function isLeapYear(year: number): boolean {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-}
-
-function daysInMonth(year: number, month: number): number {
-  if (month === 2) return isLeapYear(year) ? 29 : 28
-  return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31
-}
-
-function addDays(localDate: string, delta: number): string {
-  const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(localDate)
-  if (match === null || !Number.isSafeInteger(delta)) {
-    throw new TypeError('invalid property-local date arithmetic input')
-  }
-  let year = Number(match[1])
-  let month = Number(match[2])
-  let day = Number(match[3])
-  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
-    throw new TypeError('invalid property-local date')
-  }
-  let remaining = delta
-  while (remaining < 0) {
-    if (day > 1) day -= 1
-    else {
-      month -= 1
-      if (month === 0) {
-        year -= 1
-        month = 12
-      }
-      day = daysInMonth(year, month)
-    }
-    remaining += 1
-  }
-  while (remaining > 0) {
-    if (day < daysInMonth(year, month)) day += 1
-    else {
-      day = 1
-      month += 1
-      if (month === 13) {
-        year += 1
-        month = 1
-      }
-    }
-    remaining -= 1
-  }
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
 
 function addCounts<T extends Readonly<Record<string, number>>>(
   target: Record<string, number>,

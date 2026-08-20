@@ -23,7 +23,13 @@ import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type {
+  InboxItemId,
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  UserId,
+} from '#/shared/domain/ids'
 import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
@@ -175,21 +181,40 @@ export const createInboxRepository = (
           return { items: [], nextCursor: null } as PaginatedResult
         conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
       }
-      if (filters.attention && filters.attention.length > 0) {
+      // AI-derived narrowing (attention / category): each active filter resolves
+      // to the review ids whose *current* analysis matches, via the AI context's
+      // gated projection. Both may be active — the sets intersect, since each
+      // contributes its own IN predicate. An absent AI port or an empty id set
+      // means "no review matches", never "no filter".
+      if (filters.attention?.length || filters.category?.length) {
         const propertyIds =
           filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
-        const reviewIds = await ports.aiInsights?.findCurrentReviewIdsByAttention({
-          organizationId: orgId,
-          propertyIds,
-          attention: filters.attention,
-        })
-        if (reviewIds === undefined || reviewIds.length === 0) {
-          return { items: [], nextCursor: null }
+        const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
+        if (filters.attention?.length)
+          lookups.push(
+            ports.aiInsights?.findCurrentReviewIdsByAttention({
+              organizationId: orgId,
+              propertyIds,
+              attention: filters.attention,
+            }),
+          )
+        if (filters.category?.length)
+          lookups.push(
+            ports.aiInsights?.findCurrentReviewIdsByCategory({
+              organizationId: orgId,
+              propertyIds,
+              categories: filters.category,
+            }),
+          )
+        const matched: string[][] = []
+        for (const reviewIds of await Promise.all(lookups)) {
+          if (reviewIds === undefined || reviewIds.length === 0) {
+            return { items: [], nextCursor: null }
+          }
+          matched.push([...reviewIds])
         }
-        conditions.push(
-          eq(inboxItems.sourceType, 'review'),
-          inArray(inboxItems.sourceId, [...reviewIds]),
-        )
+        conditions.push(eq(inboxItems.sourceType, 'review'))
+        for (const ids of matched) conditions.push(inArray(inboxItems.sourceId, ids))
       }
 
       // Cursor-based pagination: sourceDate DESC, id DESC

@@ -150,6 +150,14 @@ export type AiOutputStorePort = Readonly<{
       nowEpochMillis: number
     }>,
   ): Promise<readonly ReviewId[]>
+  findCurrentReviewIdsByCategory(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyIds?: readonly PropertyId[]
+      categories: readonly AiAnalysisDerivative['primaryCategory'][]
+      nowEpochMillis: number
+    }>,
+  ): Promise<readonly ReviewId[]>
 
   storeTrendReport(
     input: Readonly<{
