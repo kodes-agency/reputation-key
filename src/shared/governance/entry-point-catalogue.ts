@@ -3113,7 +3113,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     {
       notes:
-        'deterministically generates the immutable AI governance policy catalogue and evidence artifacts',
+        'validates the AI governance policy JSON and deterministically generates its SQL seed, documentation and evidence index; the typed TypeScript projection was removed as it had no importers',
     },
   ),
   ops(
