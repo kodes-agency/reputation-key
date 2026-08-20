@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "scenario": "dashboardMix",
+  "startedAt": "2026-08-08T14:51:27.854Z",
+  "durationMs": 15647.649,
+  "passed": true,
+  "metrics": {
+    "reads": 17544,
+    "readErrors": 0,
+    "readP50": 3.33,
+    "readP95": 4.81,
+    "readP99": 5.79,
+    "readRatePerSec": 1121.19,
+    "concurrency": 4,
+    "executedDurationS": 15.648
+  },
+  "assertions": [
+    {
+      "check": "required_samples",
+      "passed": true,
+      "detail": "17544 samples collected"
+    },
+    {
+      "check": "probe_error_free",
+      "passed": true,
+      "detail": "0 read failures"
+    },
+    {
+      "check": "warm_p95_within_budget",
+      "passed": true,
+      "detail": "p95 4.8ms vs budget 500ms"
+    },
+    {
+      "check": "monitoring_captured",
+      "passed": true,
+      "detail": "14 points, 0 read errors"
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "warmP95": 500,
+    "coldP95": 2000,
+    "noLeakage": true
+  },
+  "samples": {
+    "count": 17544,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 14,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

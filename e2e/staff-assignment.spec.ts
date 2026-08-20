@@ -1,11 +1,6 @@
-// E2E: Staff assignment on property People surface (BQR-5.2, hardened BQC-6.7).
-// Uses seeded property. Assigning requires at least one other org member —
-// with only the seed admin present, assert the Staff tab chrome loads.
-//
-// Posture note: portal.read is dark in the beta posture, so the F-PEOPLE
-// degradation is the honest expectation here — the Staff/Teams/Directory
-// surface renders, and the Assign Staff dialog explains that portal-bound
-// assignment is unavailable (assignments require a portal row).
+// E2E: Staff participation and Portal responsibility on the promoted P1 People surface.
+// The beta-local seed includes a durable Staff participation and primary Portal
+// responsibility so the browser can prove the real management read model.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
@@ -17,24 +12,26 @@ test.describe('Staff Assignment', () => {
     await signIn(page)
   })
 
-  test('property people staff tab loads with the dark-portals degradation', async ({
+  test('P1 staff tab renders the seeded participation and Portal responsibility', async ({
     page,
   }) => {
     const seed = requireE2eSeedState()
-    await page.goto(`/properties/${seed.propertyId}/people`)
+    await page.goto(`/properties/${seed.p1PropertyId}/people`)
     await waitForHydration(page)
 
-    // The enabled surface renders all three tabs (F-PEOPLE fix — the dark
-    // portals query no longer sinks the loader).
     const staffTab = page.getByRole('tab', { name: /staff/i })
     await expect(staffTab).toBeVisible()
     await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
     await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
-    await staffTab.click()
+    await clickWhenReady(staffTab)
 
-    // Staff chrome loads: the assign action exists; the list shows either
-    // assignments or the empty state.
-    await clickWhenReady(page.getByRole('button', { name: /assign staff/i }))
-    await expect(page.getByText(/portals are not available in the beta/i)).toBeVisible()
+    await expect(page.getByText(seed.staffName, { exact: true })).toBeVisible()
+    await clickWhenReady(
+      page.getByRole('button', {
+        name: `Edit portal responsibilities for ${seed.staffName}`,
+      }),
+    )
+    await expect(page.getByText('E2E Guest Portal P1', { exact: true })).toBeVisible()
+    await expect(page.getByText(/portals are not available in the beta/i)).toHaveCount(0)
   })
 })

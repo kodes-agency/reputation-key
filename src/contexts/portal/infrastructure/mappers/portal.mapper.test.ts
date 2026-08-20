@@ -19,9 +19,7 @@ const sampleRow: PortalRow = {
   description: 'A test portal',
   heroImageUrl: null,
   theme: { primaryColor: '#6366F1' },
-  smartRoutingEnabled: false,
-  smartRoutingThreshold: 4,
-  isActive: true,
+  publicationState: 'published',
   createdAt: now,
   updatedAt: now,
   deletedAt: null,
@@ -40,7 +38,7 @@ describe('portalFromRow', () => {
     expect(portal.name).toBe('Test Portal')
     expect(portal.slug).toBe('test-portal')
     expect(portal.entityType).toBe('property')
-    expect(portal.isActive).toBe(true)
+    expect(portal.publicationState).toBe('published')
   })
 
   it('defaults theme when null', () => {
@@ -64,9 +62,7 @@ describe('portalToRow', () => {
     expect(row.slug).toBe(sampleRow.slug)
     expect(row.description).toBe(sampleRow.description)
     expect(row.heroImageUrl).toBe(sampleRow.heroImageUrl)
-    expect(row.smartRoutingEnabled).toBe(sampleRow.smartRoutingEnabled)
-    expect(row.smartRoutingThreshold).toBe(sampleRow.smartRoutingThreshold)
-    expect(row.isActive).toBe(sampleRow.isActive)
+    expect(row.publicationState).toBe(sampleRow.publicationState)
     expect(row.createdAt).toBe(sampleRow.createdAt)
     expect(row.updatedAt).toBe(sampleRow.updatedAt)
     expect(row.deletedAt).toBe(sampleRow.deletedAt)

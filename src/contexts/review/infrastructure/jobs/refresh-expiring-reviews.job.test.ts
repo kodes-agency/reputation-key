@@ -3,6 +3,7 @@
 // semantics (never acknowledged as success), run-state persistence,
 // oldest-due alerting.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import type { Review } from '../../domain/types'
 import type { ReviewRepository } from '../../application/ports/review.repository'
@@ -21,14 +22,18 @@ import {
 } from '#/shared/domain/ids'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews.job'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
+  return {
+    ...actual,
+    getLogger: vi.fn(() => ({
+      warn: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    })),
+  }
+})
 
 const ORG_ID = organizationId('org-1')
 const PROP_A = propertyId('prop-a')
@@ -47,12 +52,13 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'ext-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_ID,
     reviewerName: null,
     reviewerProfilePhotoUrl: null,
     rating: 3,
     text: null,
+    translatedText: null,
     languageCode: null,
     reviewedAt: lastFetchedAt,
     expiresAt: contentExpiresAt,
@@ -65,6 +71,11 @@ function makeRefreshDueReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt,
     contentHash: 'abc',
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: lastFetchedAt,
     updatedAt: lastFetchedAt,
     ...overrides,

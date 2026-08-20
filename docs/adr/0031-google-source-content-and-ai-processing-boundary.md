@@ -28,6 +28,27 @@ This decision supersedes ADR 0003's use of `reviewedAt + 30 days` as the review-
 
 The implementation contract and evidence gates live in the [AI and Google Source Governance package](../product-readiness-program-2026-07/ai-governance/README.md). The evidentiary basis is the [Google support response and disposition](../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md).
 
+The initial external-AI candidate is the exact, currently unapproved
+[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
+deployment with redaction profile
+[`gbp-review-en-v1`](../product-readiness-program-2026-07/ai-governance/pii-redaction-specification.md).
+The [AI release-evidence index](../product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md)
+is authoritative for promotion. Neither candidate is accepted by this proposed
+ADR; missing or expired evidence keeps all AI capabilities dark.
+
+### Canonical synthetic provider fixture
+
+Provider-resource examples are generated from the closed Google fixture
+catalogue. They are synthetic parser/test inputs only and are never valid
+production identifiers.
+
+<!-- google-provider-identifiers-v1:start -->
+
+> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87`). Do not edit this block.
+> Canonical synthetic review resource: `accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001`.
+
+<!-- google-provider-identifiers-v1:end -->
+
 ## Considered options
 
 - **Treat the support response as documentation only.** Rejected because scattered booleans, routes, and worker conventions are bypassable and cannot prove what happened under a particular policy version.

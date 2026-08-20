@@ -11,6 +11,13 @@ on:
       - 'src/shared/testing/**'
       - '.github/workflows/simulation.yml'
 
+# Superseded runs of this workflow are cancelled so they stop competing for
+# runners with the commit that replaced them. main is never cancelled: its runs
+# gate the release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   simulate:
     runs-on: ubuntu-latest
@@ -39,7 +46,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.23.2
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -57,11 +64,12 @@ jobs:
         # Ephemeral simulation DB: auth track FIRST (FKs reference the
         # auth-owned organization/user tables), then the journaled migration
         # track — NOT db:push, which cannot emit the 0014 composite FK
-        # (index-then-FK ordering) — then the registered idempotent sidecar.
-        # Identical sequence to ci.yml check/e2e and deploy (BQC-5.4).
+        # (index-then-FK ordering) — then the concurrent-index and registered
+        # SQL sidecars. Identical sequence to ci.yml and deploy (BQC-5.4).
         run: |
           echo "y" | pnpm auth:migrate
           pnpm db:migrate
+          pnpm db:google-property-binding-index
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
       - name: Run simulation with invariant checks

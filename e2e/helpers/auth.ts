@@ -2,9 +2,20 @@
 
 import { expect, type Page } from '@playwright/test'
 import { clickWhenReady, waitForHydration } from './interaction'
+import { readE2eSeedState } from './seed-state'
 
-export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
-export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'password123'
+// Credentials come from the state the seed itself wrote, not from env with a
+// hardcoded fallback. `pnpm e2e:stack:up` GENERATES E2E_TEST_PASSWORD into
+// .local-stack/e2e/stack.env and passes it to the seed container; Playwright runs on
+// the host where that variable is unset, so `?? 'password123'` silently disagreed
+// with the hash the seed had written and every sign-in returned 401
+// INVALID_EMAIL_OR_PASSWORD. Reading the seed state removes the second source of
+// truth. Env still wins when set, for a hand-seeded database.
+const seedState = readE2eSeedState()
+export const TEST_EMAIL =
+  process.env.E2E_TEST_EMAIL ?? seedState?.email ?? 'test@example.com'
+export const TEST_PASSWORD =
+  process.env.E2E_TEST_PASSWORD ?? seedState?.password ?? 'password123'
 
 /**
  * Sign in via better-auth HTTP API (Set-Cookie on the browser context), then
@@ -49,22 +60,27 @@ export async function signIn(
   const orgsRes = await page.request.get('/api/auth/organization/list', {
     headers: apiHeaders({}, origin),
   })
-  if (orgsRes.ok()) {
-    const orgs = (await orgsRes.json()) as unknown
-    const list = Array.isArray(orgs) ? orgs : []
-    const first = list[0] as { id?: string } | undefined
-    if (first?.id) {
-      const active = await page.request.post('/api/auth/organization/set-active', {
-        data: { organizationId: first.id },
-        headers: apiHeaders({}, origin),
-      })
-      if (!active.ok()) {
-        const body = await active.text()
-        throw new Error(
-          `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
-        )
-      }
-    }
+  if (!orgsRes.ok()) {
+    const body = await orgsRes.text()
+    throw new Error(
+      `E2E organization list failed (${orgsRes.status()}): ${body.slice(0, 300)}`,
+    )
+  }
+  const orgs = (await orgsRes.json()) as unknown
+  const list = Array.isArray(orgs) ? orgs : []
+  const first = list[0] as { id?: string } | undefined
+  if (!first?.id) {
+    throw new Error('E2E seeded user has no organization membership')
+  }
+  const active = await page.request.post('/api/auth/organization/set-active', {
+    data: { organizationId: first.id },
+    headers: apiHeaders({}, origin),
+  })
+  if (!active.ok()) {
+    const body = await active.text()
+    throw new Error(
+      `E2E set-active org failed (${active.status()}): ${body.slice(0, 300)}`,
+    )
   }
 
   // BQC-6.5: staff land on a clean authenticated surface — every
@@ -75,6 +91,10 @@ export async function signIn(
   await page.waitForURL(/\/(dashboard|properties|home|inbox|settings)/, {
     timeout: 20_000,
   })
+  // Route redirects can resolve before their server-function loaders finish.
+  // Returning earlier makes the caller's next navigation abort those requests
+  // and surfaces a real browser `Failed to fetch` console error.
+  await page.waitForLoadState('networkidle')
 }
 
 /** Register a new account with a unique email. Returns the email used. */

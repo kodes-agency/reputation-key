@@ -42,6 +42,7 @@ describe('onInboxItemAssigned (notification)', () => {
       data: {
         userId: ASSIGNED_TO,
         organizationId: ORG_ID,
+        propertyId: PROP_ID,
         type: 'inbox.assigned',
         resourceType: 'inbox_item',
         resourceId: INBOX_ITEM_ID,

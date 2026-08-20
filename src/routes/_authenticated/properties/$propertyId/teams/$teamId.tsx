@@ -1,4 +1,3 @@
-// Team detail layout — loads shared data, renders tabs, delegates content to child routes
 import {
   createFileRoute,
   getRouteApi,
@@ -9,19 +8,17 @@ import {
   useNavigate,
 } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { Settings, Users } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listTeams } from '#/contexts/team/server/teams'
-import { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
-import { listMembers } from '#/contexts/identity/server/organizations'
-import { toMemberOptions } from '#/lib/lookups'
-import { teamKeys, identityKeys, staffKeys } from '#/shared/queries/query-keys'
+import { listTeams, listTeamMemberships } from '#/contexts/team/server/teams'
+import { teamKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { Settings, Users } from 'lucide-react'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { gateDarkRoute } from '#/shared/auth/dark-route-gate'
+import { ErrorState, LoadingState } from '#/components/layout/page-states'
+import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
 const teamRouteApi = getRouteApi('/_authenticated/properties/$propertyId/teams/$teamId')
 
@@ -32,35 +29,27 @@ const teamsQuery = (propertyId: string) =>
     staleTime: 30_000,
   })
 
-const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
+export const teamMembershipsQueryKey = (teamId: string) =>
+  ['team-memberships', teamId] as const
 
-const assignmentsQuery = (propertyId: string) =>
+const membershipsQuery = (teamId: string) =>
   queryOptions({
-    queryKey: staffKeys.assignments(propertyId),
-    queryFn: () => listStaffAssignments({ data: { propertyId } }),
+    queryKey: teamMembershipsQueryKey(teamId),
+    queryFn: () => listTeamMemberships({ data: { teamId } }),
     staleTime: 30_000,
   })
 
 export function useTeamLayout() {
   const { propertyId, teamId } = teamRouteApi.useParams()
   const { data: teamsData } = useSuspenseQuery(teamsQuery(propertyId))
-  const { data: membersData } = useSuspenseQuery(membersQuery)
-  const { data: assignmentsData } = useSuspenseQuery(assignmentsQuery(propertyId))
-  const { teams } = teamsData
-  const { members } = membersData
-  const { assignments: allAssignments } = assignmentsData
-  const team = teams.find((t) => t.id === teamId)
+  const { data: membershipsData } = useSuspenseQuery(membershipsQuery(teamId))
+  const team = teamsData.teams.find((candidate) => candidate.id === teamId)
   if (!team) throw notFound()
-  const teamAssignments = allAssignments.filter((a) => a.teamId === teamId)
-  const memberOptions = toMemberOptions(members)
+
   return {
     team,
-    memberOptions,
-    assignments: teamAssignments,
+    memberships: membershipsData.memberships,
+    availableParticipations: membershipsData.availableParticipations,
     propertyId,
     teamId,
   }
@@ -69,32 +58,54 @@ export function useTeamLayout() {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/teams/$teamId',
 )({
-  beforeLoad: async ({ context }) => {
-    await gateDarkRoute({ data: { capability: 'team.use', featureLabel: 'Teams' } })
+  beforeLoad: async ({ context, params }) => {
+    await gateControlledRoute({
+      data: {
+        capability: 'team.use',
+        featureLabel: 'Teams',
+        propertyId: params.propertyId,
+      },
+    })
     const { role } = context as AuthRouteContext
     if (!can(role, 'team.read')) throw redirect({ to: '/properties' })
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
-    const [{ teams }, { members }, { assignments }] = await Promise.all([
+    const [{ teams }, { memberships, availableParticipations }] = await Promise.all([
       context.queryClient.ensureQueryData(teamsQuery(params.propertyId)),
-      context.queryClient.ensureQueryData(membersQuery),
-      context.queryClient.ensureQueryData(assignmentsQuery(params.propertyId)),
+      context.queryClient.ensureQueryData(membershipsQuery(params.teamId)),
     ])
-    const team = teams.find((t) => t.id === params.teamId)
+    const team = teams.find((candidate) => candidate.id === params.teamId)
     if (!team) throw notFound()
-    const teamAssignments = assignments.filter((a) => a.teamId === params.teamId)
-    const memberOptions = toMemberOptions(members)
     return {
       team,
-      memberOptions,
-      assignments: teamAssignments,
+      memberships,
+      availableParticipations,
       propertyId: params.propertyId,
       teamId: params.teamId,
     }
   },
+  pendingComponent: TeamDetailLoading,
+  errorComponent: TeamDetailError,
   component: TeamLayout,
 })
+
+function TeamDetailLoading() {
+  return (
+    <PageShell>
+      <LoadingState label="Loading team details" />
+    </PageShell>
+  )
+}
+
+function TeamDetailError({ error }: { error: Error }) {
+  return (
+    <PageShell>
+      <PageHeader title="Team" description="Manage team details and membership." />
+      <ErrorState message={error.message || 'This team could not be loaded.'} />
+    </PageShell>
+  )
+}
 
 function TeamLayout() {
   const { team, propertyId, teamId } = useTeamLayout()
@@ -107,6 +118,7 @@ function TeamLayout() {
     <PageShell>
       <PageHeader
         title={team.name}
+        description={team.description ?? 'Manage this team and its effective membership.'}
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
           { label: propData.property.name, to: `/properties/${propertyId}` },
@@ -126,19 +138,16 @@ function TeamLayout() {
             settings: '/properties/$propertyId/teams/$teamId',
             members: '/properties/$propertyId/teams/$teamId/members',
           }
-          navigate({
-            to: routes[tab],
-            params: { propertyId, teamId },
-          })
+          navigate({ to: routes[tab], params: { propertyId, teamId } })
         }}
       >
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto">
           <TabsTrigger value="settings">
-            <Settings className="size-3.5" />
+            <Settings className="size-3.5" aria-hidden="true" />
             Settings
           </TabsTrigger>
           <TabsTrigger value="members">
-            <Users className="size-3.5" />
+            <Users className="size-3.5" aria-hidden="true" />
             Members
           </TabsTrigger>
         </TabsList>

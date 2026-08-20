@@ -34,6 +34,7 @@ export const onInboxItemEscalated =
         deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, {
           userId,
           organizationId: event.organizationId,
+          propertyId: event.propertyId,
           type: 'inbox.escalated' as const,
           resourceType: 'inbox_item' as const,
           resourceId: event.inboxItemId,

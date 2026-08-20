@@ -1,0 +1,59 @@
+{
+  "version": "ai-review-language-catalogue-v1",
+  "unicodeVersion": "17.0.0",
+  "icuVersion": "78.2",
+  "groups": [
+    "und",
+    "en-Latn",
+    "es-Latn",
+    "fr-Latn",
+    "de-Latn",
+    "pt-Latn",
+    "it-Latn",
+    "nl-Latn",
+    "pl-Latn",
+    "tr-Latn",
+    "uk-Cyrl",
+    "ru-Cyrl",
+    "ar-Arab",
+    "he-Hebr",
+    "hi-Deva",
+    "bn-Beng",
+    "ta-Taml",
+    "th-Thai",
+    "vi-Latn",
+    "id-Latn",
+    "zh-Hans",
+    "zh-Hant",
+    "ja-Jpan",
+    "ko-Kore",
+    "bg-Cyrl"
+  ],
+  "wrapper": {
+    "path": "src/shared/ai-review-language-catalogue.ts",
+    "sha256": "e82018df628b4a0058fb905e8cb89b272f308e1951b72b31c3c03d744e707c04"
+  },
+  "vectors": {
+    "path": "src/shared/ai-review-language-v1.vectors.json",
+    "sha256": "148889171870eafaf913211e68165cf5ffe38997429d7dbb8454090ed8c9f54c"
+  },
+  "tagVectors": {
+    "path": "src/shared/ai-review-language-tag-v1.vectors.json",
+    "sha256": "907dac9e8e578a51135f4d6fa5042aab20d89206982d0d8dacc1962e2e55f245"
+  },
+  "canonicalRegions": {
+    "digest": "a0ee776f63981ff76b8ef7f24522341ad007a2c854b11836af4b5a2bf8eb89fa",
+    "nodeVersion": "22.23.2",
+    "icuVersion": "78.2",
+    "unicodeVersion": "17.0",
+    "generator": {
+      "path": "scripts/generate-ai-review-language-regions.ts",
+      "sha256": "ac6d40c4a0a904c8d6df9d9314d2cb1d87e6fc8a10469a30fd719dd8c4fe73b5"
+    },
+    "table": {
+      "path": "src/shared/generated/ai-review-language-canonical-regions-v1.ts",
+      "sha256": "5dfcf15ae19579ec5b07a2db15bd7b0765cea01c37152871891f93e321ccad77"
+    }
+  },
+  "attestationDigest": "2229287cf869db0a5dbf64efc4f823e5a0f23f6da34a24b581585b06462bf1a5"
+}

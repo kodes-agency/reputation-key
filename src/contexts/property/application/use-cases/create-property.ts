@@ -46,7 +46,6 @@ export const createProperty =
       name: input.name,
       providedSlug: input.slug,
       timezone: input.timezone,
-      gbpPlaceId: input.gbpPlaceId,
       countryCode: input.countryCode ?? null,
       countrySource: input.countryCode ? 'manual' : undefined,
       now: deps.clock(),
@@ -67,8 +66,6 @@ export const createProperty =
         organizationId: property.organizationId,
         name: property.name,
         slug: property.slug,
-        gbpPlaceId: property.gbpPlaceId ?? undefined,
-        googleConnectionId: property.googleConnectionId ?? undefined,
         // BQC-4.1: content-free routing fact travels with the creation fact.
         processingRegion: property.processingRegion ?? undefined,
         occurredAt: property.createdAt,

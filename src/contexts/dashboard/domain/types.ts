@@ -149,6 +149,20 @@ export type AttentionSignals = Readonly<{
 }>
 
 // ─── Fleet Overview ───
+export type FleetMetricFreshness = 'fresh' | 'stale' | 'insufficient_data'
+
+/** Provenance exposed with every governed fleet KPI. */
+export type FleetMetricEvidence = Readonly<{
+  definitionVersionId: string
+  periodStart: Date
+  periodEnd: Date
+  sourcePolicies: readonly string[]
+  watermark: Date | null
+  freshness: FleetMetricFreshness
+  /** Eligible exact readings divided by all governed readings for the period. */
+  completeness: number
+  correctionCount: number
+}>
 
 /** One property row in the cross-property fleet overview (2+ properties). */
 export type FleetEntry = Readonly<{
@@ -162,6 +176,10 @@ export type FleetEntry = Readonly<{
   reviewCount: number
   feedbackCount: number
   scanCount: number
+  reviewEvidence: FleetMetricEvidence
+  /** Null means Portal policy excluded the optional overlay for this property. */
+  scanEvidence: FleetMetricEvidence | null
+  feedbackEvidence: FleetMetricEvidence | null
   attentionSignals: AttentionSignals
   /** Sum of all attention signals (ratingDrop counts as 1 when true). */
   totalAttention: number
@@ -178,4 +196,5 @@ export type FleetTotals = Readonly<{
 export type FleetOverviewData = Readonly<{
   entries: readonly FleetEntry[]
   totals: FleetTotals
+  nextCursor: string | null
 }>

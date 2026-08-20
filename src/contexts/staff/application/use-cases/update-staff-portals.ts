@@ -143,10 +143,7 @@ export const updateStaffPortals =
     ctx: AuthContext,
   ): Promise<{ added: number; removed: number }> => {
     // 1. Authorize — update is create + delete combined
-    if (
-      !canForContext(ctx, 'staff_assignment.create') ||
-      !canForContext(ctx, 'staff_assignment.delete')
-    ) {
+    if (!canForContext(ctx, 'staff.manage') || !canForContext(ctx, 'staff.manage')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
@@ -156,7 +153,7 @@ export const updateStaffPortals =
       (orgId, userId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
       ctx,
-      'staff_assignment.create',
+      'staff.manage',
       input.propertyId,
     )
     if (!accessible) {

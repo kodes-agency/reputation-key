@@ -10,7 +10,12 @@ import {
   buildTestPortal,
   buildTestPortalLink,
 } from '#/shared/testing/fixtures'
-import { propertyId, portalLinkId, type PropertyId } from '#/shared/domain/ids'
+import {
+  portalLinkCategoryId,
+  propertyId,
+  portalLinkId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
@@ -62,6 +67,43 @@ describe('reorderLinks', () => {
     const updated = portalLinkRepo.allLinks()
     expect(updated.find((l) => l.id === link2.id)?.sortKey).toBe('a0')
     expect(updated.find((l) => l.id === link1.id)?.sortKey).toBe('a1')
+  })
+
+  it('rejects mixed-category or mixed-portal items atomically', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({})
+    portalRepo.seed([portal])
+    const local = buildTestPortalLink({
+      id: portalLinkId('link-local'),
+      portalId: portal.id,
+      categoryId: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
+      sortKey: 'a0',
+    })
+    const foreign = buildTestPortalLink({
+      id: portalLinkId('link-foreign'),
+      portalId: portal.id,
+      categoryId: portalLinkCategoryId('c0000000-0000-0000-0000-000000000099'),
+      sortKey: 'a1',
+    })
+    portalLinkRepo.seedLinks([local, foreign])
+
+    await expect(
+      useCase(
+        {
+          categoryId: local.categoryId,
+          portalId: portal.id,
+          items: [
+            { id: local.id, sortKey: 'z0' },
+            { id: foreign.id, sortKey: 'z1' },
+          ],
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
+    expect(portalLinkRepo.allLinks().find((item) => item.id === local.id)?.sortKey).toBe(
+      'a0',
+    )
   })
 
   it('rejects users who cannot update', async () => {

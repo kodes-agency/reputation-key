@@ -13,6 +13,7 @@ describe('GuestSession', () => {
 
   const baseParams = {
     sessionId: 'sess-1',
+    csrfNonce: 'csrf-1',
     portalId: 'portal-1',
     organizationId: 'org-1',
     propertyId: 'prop-1',
@@ -73,7 +74,7 @@ describe('GuestSession', () => {
       expect(header).toContain('HttpOnly')
       expect(header).toContain('Secure')
       expect(header).toContain('SameSite=lax')
-      expect(header).toContain(`Path=/`)
+      expect(header).toContain('Path=/p/')
     })
 
     it('uses the correct cookie name', () => {

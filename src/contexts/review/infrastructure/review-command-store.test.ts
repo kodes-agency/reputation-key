@@ -46,6 +46,7 @@ function makeReview(): Omit<Review, 'createdAt' | 'updatedAt'> {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: NOW,
@@ -58,6 +59,11 @@ function makeReview(): Omit<Review, 'createdAt' | 'updatedAt'> {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 1,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
   }
 }
 
@@ -69,7 +75,9 @@ function makeEvent(): DomainEvent {
     propertyId: propertyId('prop-1'),
     reviewId: reviewId('rev-1'),
     platform: 'google',
-    externalId: 'ext-1',
+    sourceEpoch: 2,
+    sourceRevision: 3,
+    analysisSequence: 4,
     occurredAt: NOW,
     correlationId: null,
   } as DomainEvent
@@ -136,6 +144,11 @@ describe('createAtomicReviewCommandStore', () => {
       contentExpiresAt: null,
       contentHash: null,
       sourceSeenGeneration: null,
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
+      aiSourceByteLength: 1,
+      aiSourceDigest: '0'.repeat(64),
       createdAt: NOW,
       updatedAt: NOW,
     }
@@ -161,10 +174,19 @@ describe('createAtomicReviewCommandStore', () => {
       }
     })
 
+    const execute = vi.fn().mockResolvedValue({
+      rows: [{ analysis_sequence: '1' }],
+    })
+
     const transaction = vi.fn(
-      async (fn: (tx: { insert: typeof txInsert }) => Promise<unknown>) => {
+      async (
+        fn: (tx: {
+          insert: typeof txInsert
+          execute: typeof execute
+        }) => Promise<unknown>,
+      ) => {
         order.push('tx.start')
-        const result = await fn({ insert: txInsert })
+        const result = await fn({ insert: txInsert, execute })
         order.push('tx.commit')
         return result
       },
@@ -181,10 +203,21 @@ describe('createAtomicReviewCommandStore', () => {
     const db = { transaction, insert } as unknown as Database
     const store = createAtomicReviewCommandStore(db, events)
 
-    await store.upsertAndRecord(makeReview(), makeEvent(), NOW)
+    const eventFactory = vi.fn(
+      (persisted: Review) =>
+        ({
+          ...makeEvent(),
+          sourceRevision: persisted.sourceRevision,
+          analysisSequence: persisted.analysisSequence,
+        }) as DomainEvent,
+    )
+    await store.upsertAndRecord(makeReview(), eventFactory, NOW)
 
     expect(transaction).toHaveBeenCalledTimes(1)
     expect(order).toEqual(['tx.start', 'tx.review', 'tx.outbox', 'tx.commit', 'emit'])
     expect(events.emit).toHaveBeenCalledTimes(1)
+    expect(eventFactory).toHaveBeenCalledWith(
+      expect.objectContaining({ analysisSequence: 1, sourceRevision: 1 }),
+    )
   })
 })

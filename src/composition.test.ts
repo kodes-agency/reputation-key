@@ -18,10 +18,13 @@ describe('providerConfigFor (BQC-4.3)', () => {
   it("maps the beta cell's 'gbp-default' ref to the current global GBP endpoints", () => {
     expect(providerConfigFor('gbp-default')).toEqual({
       gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
+      gbpAccountManagementBaseUrl:
+        'https://mybusinessaccountmanagement.googleapis.com/v1',
+      gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
       reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
       notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
       oauthTokenUrl: 'https://oauth2.googleapis.com/token',
-      oauthUserInfoUrl: 'https://www.googleapis.com/oauth2/v2/userinfo',
+      oauthJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
       oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
     })
   })
@@ -50,19 +53,23 @@ describe('applyProviderEndpointOverrides (BQC-6.5 operator sandbox seam)', () =>
       approved,
       envWith({
         GBP_API_BASE_URL: `${sandbox}/gbp`,
+        GBP_ACCOUNT_MANAGEMENT_BASE_URL: `${sandbox}/account-management`,
+        GBP_PERFORMANCE_BASE_URL: `${sandbox}/performance`,
         GBP_REVIEWS_API_BASE_URL: `${sandbox}/reviews`,
         GBP_NOTIFICATIONS_API_BASE_URL: `${sandbox}/notifications`,
         GOOGLE_OAUTH_TOKEN_URL: `${sandbox}/oauth/token`,
-        GOOGLE_OAUTH_USERINFO_URL: `${sandbox}/oauth/userinfo`,
+        GOOGLE_OAUTH_JWKS_URL: `${sandbox}/oauth/jwks`,
         GOOGLE_OAUTH_REVOKE_URL: `${sandbox}/oauth/revoke`,
       }),
     )
     expect(overridden).toEqual({
       gbpApiBaseUrl: `${sandbox}/gbp`,
+      gbpAccountManagementBaseUrl: `${sandbox}/account-management`,
+      gbpPerformanceBaseUrl: `${sandbox}/performance`,
       reviewsApiBaseUrl: `${sandbox}/reviews`,
       notificationsApiBaseUrl: `${sandbox}/notifications`,
       oauthTokenUrl: `${sandbox}/oauth/token`,
-      oauthUserInfoUrl: `${sandbox}/oauth/userinfo`,
+      oauthJwksUrl: `${sandbox}/oauth/jwks`,
       oauthRevokeUrl: `${sandbox}/oauth/revoke`,
     })
   })
@@ -75,6 +82,19 @@ describe('applyProviderEndpointOverrides (BQC-6.5 operator sandbox seam)', () =>
     expect(overridden.reviewsApiBaseUrl).toBe('http://localhost:4100')
     expect(overridden.gbpApiBaseUrl).toBe(approved.gbpApiBaseUrl)
     expect(overridden.oauthTokenUrl).toBe(approved.oauthTokenUrl)
+  })
+
+  it('rejects arbitrary endpoint overrides in the production-fixed profile', () => {
+    expect(() =>
+      applyProviderEndpointOverrides(
+        approved,
+        envWith({
+          NODE_ENV: 'production',
+          GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'production-fixed',
+          GBP_API_BASE_URL: 'https://example.test',
+        }),
+      ),
+    ).toThrow(/local-sandbox profile/)
   })
 })
 

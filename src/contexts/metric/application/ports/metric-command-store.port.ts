@@ -7,8 +7,9 @@
 // in-process bus after commit (expand-phase dual path until the durable
 // switch).
 
-import type { MetricReading } from '../../domain/types'
+import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { MetricRecorded } from '../../domain/events'
+import type { SourcePolicyClass } from '../../domain/metric-registry'
 
 /**
  * Reading insert + metric.recorded fact in one transaction. The reading id
@@ -17,9 +18,22 @@ import type { MetricRecorded } from '../../domain/events'
  */
 export type RecordMetricCommand = Readonly<{
   reading: MetricReading
+  supersedesSourceEventId?: string | null
   event: MetricRecorded
 }>
 
+export type QuarantineMetricCommand = Readonly<{
+  sourceEventId: string
+  organizationId: string
+  propertyId: string
+  definitionVersionId: string | null
+  sourcePolicy: SourcePolicyClass
+  reason: string
+  payloadHash: string
+  eventAt: Date
+}>
+
 export type MetricCommandStore = Readonly<{
-  recordMetric(command: RecordMetricCommand): Promise<MetricReading>
+  recordMetric(command: RecordMetricCommand): Promise<ReadingResult>
+  quarantine(command: QuarantineMetricCommand): Promise<void>
 }>

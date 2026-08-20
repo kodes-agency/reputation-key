@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "kind": "bqc-baseline",
+  "environment": {
+    "sha": "7d47b1fe31fad04eb2b1ac1ccf2008b0ea26f85f",
+    "branch": "feat/bqc-8-3-lifecycle-at-scale",
+    "lockfileSha256": "33c121b7189465408d7fc86b6fd508bf281b6f217b159b0acf32f35bb4e9baa0",
+    "migrationVersion": "0054_rare_hercules",
+    "node": "v26.4.0",
+    "pnpm": "10.6.5",
+    "platform": "darwin/arm64",
+    "nodeEnv": "development",
+    "database": "repkey_bqc_baseline",
+    "redisConfigured": true,
+    "capturedAt": "2026-08-17T17:48:57.245Z"
+  },
+  "gates": [
+    {
+      "id": "migrations",
+      "command": "echo \"y\" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema",
+      "skipped": false,
+      "startedAt": "2026-08-17T17:48:57.245Z",
+      "durationMs": 5857,
+      "exitCode": 1,
+      "result": "fail",
+      "logPath": "/Users/bozhidardenev/kodes/projects/rep-key/docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/evidence/baseline-2026-08-17T17-48-57/migrations.log"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "skipped": 0,
+    "failedGates": ["migrations"]
+  }
+}

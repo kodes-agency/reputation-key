@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { getInboxItemDetail } from './get-inbox-item-detail'
 import {
   inboxItemId,
@@ -16,6 +16,7 @@ import type {
 } from '../../domain/types'
 import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
 import type { InboxRepository } from '../ports/inbox.repository'
+import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -73,6 +74,7 @@ function makeDetail(item: InboxItem): InboxItemDetail {
   return {
     item: { ...item, reviewerName: 'Test Reviewer' },
     reviewText: 'Test review',
+    reviewTranslatedText: null,
     reviewerProfilePhotoUrl: null,
     reviewContentStatus: 'available',
     feedbackComment: null,
@@ -93,6 +95,7 @@ function makeReply(): ReplyView {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
@@ -177,6 +180,43 @@ describe('getInboxItemDetail', () => {
     // AccountAdmin holds reply.manage → reply is attached for review items.
     expect(result.reply).toEqual(reply)
     expect(replyCalls).toHaveLength(1)
+  })
+
+  it('attaches only the current property-scoped review analysis', async () => {
+    const { repo, staffApi, replyLookup, setDetail } = setup()
+    setDetail(makeDetail(makeItem()))
+    const readCurrentReviewAnalysis = vi.fn(async () => ({
+      status: 'ready' as const,
+      sentiment: 'positive' as const,
+      primaryCategory: 'service' as const,
+      attention: 'low' as const,
+      generatedAtEpochMillis: FIXED_TIME.getTime(),
+    }))
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis,
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+    }
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      aiInsights,
+    })({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
+
+    expect(readCurrentReviewAnalysis).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      reviewId: reviewId('rev-1'),
+      actorUserId: USER_ID,
+    })
+    expect(result.analysis).toEqual({
+      status: 'ready',
+      sentiment: 'positive',
+      primaryCategory: 'service',
+      attention: 'low',
+      generatedAtEpochMillis: FIXED_TIME.getTime(),
+    })
   })
 
   it('attaches a google_sync mirror reply with its source intact (mirror fallback)', async () => {

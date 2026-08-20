@@ -1,59 +1,163 @@
 import { useState } from 'react'
+import { Copy, Link2, QrCode, ShieldX } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { Copy, QrCode } from 'lucide-react'
-import { QRCodeModal } from './qr-code-modal'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { copyToClipboard } from '#/lib/clipboard'
+import { PortalLinkActions } from './portal-link-actions'
+import { PortalLinkIssueForm } from './portal-link-issue-form'
+import { QRCodeModal } from './qr-code-modal'
+import type { PortalShareProps } from './portal-share-types'
 
-type Props = Readonly<{
-  portalSlug: string
-  propertySlug: string
-}>
+export type { IssuedPortalLink } from './portal-share-types'
 
-export function PortalShare({ portalSlug, propertySlug }: Props) {
+export function PortalShare({
+  portalId,
+  portalName,
+  issuedLink,
+  revoked,
+  onLinkIssued,
+  onLinksRevoked,
+  issueMutation,
+  rotateMutation,
+  revokeMutation,
+}: PortalShareProps) {
+  const { can } = usePermissions()
   const [copied, setCopied] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  const publicUrl = issuedLink?.publicUrl ?? null
+  const mutationError =
+    issueMutation.error ?? rotateMutation.error ?? revokeMutation.error
+  const isPending =
+    issueMutation.isPending || rotateMutation.isPending || revokeMutation.isPending
+  const canManage = can('portal.update')
 
-  const guestUrl = `/p/${propertySlug}/${portalSlug}`
-
-  const getFullUrl = () =>
-    typeof window !== 'undefined' ? `${window.location.origin}${guestUrl}` : ''
-
-  const handleCopy = async () => {
-    if (await copyToClipboard(getFullUrl())) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+  const copyLink = async () => {
+    if (!publicUrl || !(await copyToClipboard(publicUrl))) return
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2000)
   }
 
   return (
-    <>
-      <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="font-semibold">Share</h3>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-md truncate">
-            {guestUrl}
-          </code>
-          <Button variant="outline" size="sm" onClick={handleCopy}>
-            <Copy className="size-3.5" />
-            {copied ? 'Copied!' : 'Copy'}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Show QR code"
-            onClick={() => setQrOpen(true)}
-          >
-            <QrCode className="size-3.5" />
-          </Button>
-        </div>
+    <section
+      className="flex flex-col gap-5 rounded-lg border p-4 sm:p-6"
+      aria-labelledby="share-heading"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 id="share-heading" className="text-lg font-semibold">
+          Share portal
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Public links are opaque and shown only when generated or rotated. Copy or
+          download the QR code before leaving this page.
+        </p>
       </div>
 
-      <QRCodeModal
-        open={qrOpen}
-        onOpenChange={setQrOpen}
-        portalSlug={portalSlug}
-        propertySlug={propertySlug}
-      />
-    </>
+      {!canManage && (
+        <Alert>
+          <ShieldX />
+          <AlertTitle>View-only access</AlertTitle>
+          <AlertDescription>
+            You do not have permission to generate, rotate, or revoke public links.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <FormErrorBanner error={mutationError} />
+
+      {revoked && !publicUrl && (
+        <Alert aria-live="polite">
+          <ShieldX />
+          <AlertTitle>Public links revoked</AlertTitle>
+          <AlertDescription>
+            Previously issued links no longer provide access. Generate a new link when you
+            are ready to share this portal again.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {canManage && !publicUrl && (
+        <PortalLinkIssueForm
+          portalId={portalId}
+          isPending={isPending}
+          issueMutation={issueMutation}
+          onLinkIssued={onLinkIssued}
+        />
+      )}
+
+      {publicUrl && (
+        <div className="flex flex-col gap-4">
+          <Alert>
+            <Link2 />
+            <AlertTitle>Save this link now</AlertTitle>
+            <AlertDescription>
+              For security, the full link will not be shown again after this page is
+              reloaded. Losing it requires rotation.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Public link</span>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <code className="min-w-0 flex-1 break-all rounded-md bg-muted px-3 py-2 text-sm">
+                {publicUrl}
+              </code>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 flex-1 sm:min-h-9"
+                  onClick={() => void copyLink()}
+                >
+                  <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy link'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-11 sm:size-9"
+                  aria-label="Show QR code"
+                  onClick={() => setQrOpen(true)}
+                >
+                  <QrCode />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canManage && publicUrl && !revoked && (
+        <PortalLinkActions
+          portalId={portalId}
+          isPending={isPending}
+          rotateMutation={rotateMutation}
+          revokeMutation={revokeMutation}
+          onLinkIssued={onLinkIssued}
+          onLinksRevoked={() => {
+            setQrOpen(false)
+            onLinksRevoked()
+          }}
+        />
+      )}
+
+      <p className="sr-only" role="status" aria-live="polite">
+        {isPending
+          ? 'Updating the portal public link'
+          : copied
+            ? 'Portal link copied'
+            : ''}
+      </p>
+
+      {publicUrl && (
+        <QRCodeModal
+          open={qrOpen}
+          onOpenChange={setQrOpen}
+          publicUrl={publicUrl}
+          portalName={portalName}
+        />
+      )}
+    </section>
   )
 }

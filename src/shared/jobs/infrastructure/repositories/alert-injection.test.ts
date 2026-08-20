@@ -83,6 +83,7 @@ function realEvaluationHarness() {
     clock: () => new Date(),
     versions: {
       capabilityPolicy: 'bqc74-test',
+      executionPolicy: 'bqc74-test',
       policyStore: () => null,
       routingPolicy: 1,
       sourceContentPolicy: 1,

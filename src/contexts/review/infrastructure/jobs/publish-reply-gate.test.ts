@@ -51,10 +51,9 @@ const PUBLISH_ENVELOPE = {
   replyId: 'reply-1',
   organizationId: 'org-fixture',
   propertyId: PROP,
-  policy: {
-    initiator: { kind: 'user', id: 'user-9' },
-    policyVersionAtEnqueue: 'bqc-0.3',
-  },
+  capability: 'property.publish_reply',
+  initiator: { kind: 'user', id: 'user-9' },
+  policyVersionAtEnqueue: 'bqc-0.3',
 }
 
 describe('publish-reply through the delayed execution gate (§6: revocation/suspension between enqueue and send)', () => {

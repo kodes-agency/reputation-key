@@ -15,6 +15,8 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from '#/shared/domain/metric-keys'
+import type { SourcePolicyClass } from '../../domain/metric-registry'
+import type { AttributionQuality } from '../../domain/attribution-quality'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -24,6 +26,8 @@ export type PortalMetricEvent = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
+  eventId: string
+  occurredAt: Date
 }>
 
 export type RecordPortalMetricDeps = Readonly<{
@@ -31,11 +35,14 @@ export type RecordPortalMetricDeps = Readonly<{
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
+    asOf: Date,
   ) => Promise<{ portalGroupId: PortalGroupId } | null>
 }>
 
 export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
   metricKey: MetricKey
+  definitionVersionId: string
+  sourcePolicy: SourcePolicyClass
   span: string
   value?: (event: E) => number
 }) {
@@ -43,26 +50,35 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
     async (event: E): Promise<void> => {
       return trace(opts.span, async () => {
         try {
-          let groupId: PortalGroupId | null = null
+          let portalGroupId: PortalGroupId | null = null
+          let attributionQuality: AttributionQuality = 'exact'
           if (event.portalId) {
-            // Group resolution failure must not block metric recording —
-            // degrade to groupId: null so the reading still lands for
-            // portal-scoped (non-group) badges/leaderboards.
             try {
-              groupId =
-                (await deps.findGroupForPortal(event.organizationId, event.portalId))
-                  ?.portalGroupId ?? null
+              portalGroupId =
+                (
+                  await deps.findGroupForPortal(
+                    event.organizationId,
+                    event.portalId,
+                    event.occurredAt,
+                  )
+                )?.portalGroupId ?? null
             } catch {
-              // swallowed — groupId stays null
+              attributionQuality = 'unresolved'
             }
           }
           await deps.recordMetric({
             organizationId: event.organizationId,
             propertyId: event.propertyId,
             portalId: event.portalId,
-            metricKey: opts.metricKey,
+            portalGroupId,
+            definitionVersionId: opts.definitionVersionId,
+            sourceEventId: event.eventId,
+            sourcePolicy: opts.sourcePolicy,
+            scope: 'portal',
             value: opts.value ? opts.value(event) : 1,
-            groupId,
+            sampleCount: 1,
+            occurredAt: event.occurredAt,
+            attributionQuality,
           })
         } catch (err) {
           getLogger().error(

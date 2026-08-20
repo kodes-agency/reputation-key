@@ -1,0 +1,51 @@
+[
+  {
+    "id": "decisive-3",
+    "script": "Hans",
+    "simplified": 3,
+    "traditional": 0,
+    "status": "insufficient_evidence"
+  },
+  {
+    "id": "decisive-4",
+    "script": "Hans",
+    "simplified": 4,
+    "traditional": 0,
+    "status": "accepted"
+  },
+  {
+    "id": "hans-79",
+    "script": "Hans",
+    "simplified": 79,
+    "traditional": 21,
+    "status": "rejected"
+  },
+  {
+    "id": "hans-80",
+    "script": "Hans",
+    "simplified": 80,
+    "traditional": 20,
+    "status": "accepted"
+  },
+  {
+    "id": "hans-100",
+    "script": "Hans",
+    "simplified": 100,
+    "traditional": 0,
+    "status": "accepted"
+  },
+  {
+    "id": "hant-80",
+    "script": "Hant",
+    "simplified": 20,
+    "traditional": 80,
+    "status": "accepted"
+  },
+  {
+    "id": "shared-only",
+    "script": "Hans",
+    "simplified": 0,
+    "traditional": 0,
+    "status": "insufficient_evidence"
+  }
+]

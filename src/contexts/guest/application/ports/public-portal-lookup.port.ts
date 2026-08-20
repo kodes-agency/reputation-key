@@ -1,8 +1,5 @@
-import type { PublicPortalLoaderData } from '../dto/public-portal.dto'
+import type { PublicPortalData } from '../dto/public-portal.dto'
 
 export type PublicPortalLookup = Readonly<{
-  findBySlug: (
-    propertySlug: string,
-    portalSlug: string,
-  ) => Promise<PublicPortalLoaderData | null>
+  findByToken: (rawToken: string) => Promise<PublicPortalData | null>
 }>

@@ -9,6 +9,7 @@
 
 export interface GuestSession {
   readonly sessionId: string
+  readonly csrfNonce: string
   readonly portalId: string
   readonly organizationId: string
   readonly propertyId: string
@@ -29,10 +30,11 @@ export interface SessionCookieAttributes {
 }
 
 export const SESSION_COOKIE_NAME = 'rk_guest_session'
-const DEFAULT_SESSION_DURATION_MS = 60 * 60 * 1000 // 1 hour
+const DEFAULT_SESSION_DURATION_MS = 24 * 60 * 60 * 1000
 
 export function createSession(params: {
   sessionId: string
+  csrfNonce: string
   portalId: string
   organizationId: string
   propertyId: string
@@ -44,6 +46,7 @@ export function createSession(params: {
   const now = params.now
   const duration = params.durationMs ?? DEFAULT_SESSION_DURATION_MS
   return {
+    csrfNonce: params.csrfNonce,
     sessionId: params.sessionId,
     portalId: params.portalId,
     organizationId: params.organizationId,
@@ -74,7 +77,7 @@ export function buildCookieAttributes(
     httpOnly: true,
     secure: isHttps,
     sameSite: 'lax',
-    path: '/',
+    path: '/p/',
     maxAge: Math.floor((session.expiresAt.getTime() - session.issuedAt.getTime()) / 1000),
   }
 }
@@ -100,12 +103,12 @@ export function buildSetCookieHeader(attrs: SessionCookieAttributes): string {
 export function buildClearCookieHeader(isHttps: boolean): string {
   const parts = [
     `${SESSION_COOKIE_NAME}=`,
-    'Path=/',
+    'Path=/p/',
     'Max-Age=0',
     'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
     'SameSite=lax',
+    'HttpOnly',
   ]
-  parts.push('HttpOnly')
   if (isHttps) parts.push('Secure')
   return parts.join('; ')
 }

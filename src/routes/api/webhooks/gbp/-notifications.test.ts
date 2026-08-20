@@ -4,9 +4,16 @@
 // (ctx-integration MAJOR #7 / cc-errors §12) flagged the collapsed 500 + the
 // missing route-level coverage; this test pins the per-branch behavior.
 
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { JOSEError } from 'jose/errors'
 import { handleGbpWebhookPost } from './notifications'
+const LOCATION_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments.locationId
 
 // Hoisted mocks so vi.mock factories (which run before imports) can reference them.
 const mocks = vi.hoisted(() => ({
@@ -51,8 +58,8 @@ const mkRequest = (body: unknown, auth: string | null = 'Bearer valid-token'): R
   })
 
 const VALID_PAYLOAD = {
-  locationName: 'accounts/1/locations/loc-1',
-  reviewName: 'accounts/1/locations/loc-1/reviews/rev-1',
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
 }
 
 const validBody = { message: { data: encodePayload(VALID_PAYLOAD), messageId: 'm-1' } }
@@ -116,8 +123,8 @@ describe('POST /api/webhooks/gbp/notifications', () => {
       'https://test.example/webhooks/gbp',
     )
     expect(mocks.handleGbpNotification).toHaveBeenCalledWith({
-      locationId: 'loc-1',
-      locationName: 'accounts/1/locations/loc-1',
+      locationId: LOCATION_ID,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
       messageId: 'm-1',
     })
   })

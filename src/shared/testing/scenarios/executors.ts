@@ -36,6 +36,30 @@ import {
   type ScenarioRunRecord,
 } from './catalogue'
 
+export type RetentionRunSummary = Readonly<{
+  expiredBefore: number
+  purged: number
+  expiredAfter: number
+  batches: number
+  canariesChecked: number
+  canariesRemaining: number
+  bounded: boolean
+}>
+
+export type FaultAssertion = Readonly<{
+  check: string
+  passed: boolean
+  detail?: string
+}>
+
+export type FaultRunSummary = Readonly<{
+  fault: FaultName
+  injected: boolean
+  recovered: boolean
+  assertions: readonly FaultAssertion[]
+  metrics: Readonly<Record<string, number | string>>
+}>
+
 /** Everything an executor needs from its environment. */
 export type ScenarioRunEnv = Readonly<{
   /** Enqueue one job through the producer seam. Throws on transport failure. */
@@ -84,6 +108,22 @@ export type ScenarioRunEnv = Readonly<{
     ) => Promise<ReadonlyMap<string, string>>
     /** Remove exactly the synthetic probe state (replies/reviews/connection). */
     cleanup: () => Promise<void>
+  }>
+  /**
+   * BQC-8.3: one real lifecycle sweep over the seeded target dataset.
+   * The CLI wires this to the production purge job and content-copy probes;
+   * absent means retention evidence is invalid rather than simulated.
+   */
+  lifecycle?: Readonly<{
+    runRetention: () => Promise<RetentionRunSummary>
+  }>
+  /**
+   * BQC-8.4/8.5 controlled fault surface. The controller performs the real
+   * process/network/provider action and returns content-free observations;
+   * without it the executor produces a failing, non-evidence record.
+   */
+  faults?: Readonly<{
+    execute: (fault: FaultName) => Promise<FaultRunSummary>
   }>
   /**
    * BQC-8.2: optional platform-side collector (redis-cli INFO). Ticked with
@@ -769,7 +809,8 @@ async function runReconnect(
     const outageEnd = env.now() + outageS * 1000
     while (env.now() < outageEnd) {
       await capture.tick()
-      await env.sleep(Math.min(pollIntervalMs, outageEnd - env.now()))
+      const wait = Math.min(pollIntervalMs, outageEnd - env.now())
+      if (wait > 0) await env.sleep(wait)
     }
     marker()
 
@@ -1265,6 +1306,215 @@ async function runReplyBurst(
   }
 }
 
+// ── BQC-8.3: source lifecycle at scale ───────────────────────────────
+
+async function runRetention(
+  env: ScenarioRunEnv,
+  _options: ScenarioRunOptions,
+): Promise<ScenarioRunOutcome> {
+  const startedAt = env.clock().toISOString()
+  const startedMs = env.now()
+  const capture = startCapture(env, 1_000)
+  await capture.tick()
+
+  if (!env.lifecycle) {
+    const series = await capture.stop()
+    const assertions: Assertion[] = [
+      {
+        check: 'lifecycle harness configured',
+        passed: false,
+        detail: 'retention executor requires the production lifecycle seam',
+      },
+    ]
+    return {
+      record: buildRecord(
+        env,
+        'retention',
+        startedAt,
+        env.now() - startedMs,
+        {},
+        assertions,
+        { ...SCENARIOS.retention.slo },
+        { count: 0, errors: 1 },
+        { points: series.points.length, readErrors: series.readErrors.length },
+      ),
+      raw: { samples: [], monitoring: series },
+    }
+  }
+
+  let result: RetentionRunSummary | undefined
+  let runError: string | undefined
+  const sampleStartedAt = env.clock().toISOString()
+  const sampleStartedMs = env.now()
+  try {
+    result = await env.lifecycle.runRetention()
+  } catch (error) {
+    runError = error instanceof Error ? error.message : String(error)
+  }
+  const samples: PerfSample[] = [
+    {
+      name: 'retention',
+      startedAt: sampleStartedAt,
+      durationMs: env.now() - sampleStartedMs,
+      ok: result != null,
+    },
+  ]
+  await capture.tick()
+  const series = await capture.stop()
+
+  const assertions: Assertion[] =
+    result == null
+      ? [
+          {
+            check: 'lifecycle sweep completed',
+            passed: false,
+            detail: runError ?? 'retention seam returned no result',
+          },
+        ]
+      : [
+          {
+            check: 'all expired content removed',
+            passed: result.expiredAfter === 0,
+            detail: `${result.expiredAfter} expired rows remain`,
+          },
+          {
+            check: 'purge accounted for every expired row',
+            passed: result.purged === result.expiredBefore,
+            detail: `purged ${result.purged} of ${result.expiredBefore}`,
+          },
+          {
+            check: 'registered-copy canaries disappeared',
+            passed: result.canariesChecked > 0 && result.canariesRemaining === 0,
+            detail: `${result.canariesRemaining}/${result.canariesChecked} canaries remain`,
+          },
+          {
+            check: 'lifecycle sweep remained keyset bounded',
+            passed: result.bounded,
+          },
+        ]
+
+  return {
+    record: buildRecord(
+      env,
+      'retention',
+      startedAt,
+      env.now() - startedMs,
+      result == null
+        ? {}
+        : {
+            expiredBefore: result.expiredBefore,
+            purged: result.purged,
+            expiredAfter: result.expiredAfter,
+            batches: result.batches,
+            canariesChecked: result.canariesChecked,
+            canariesRemaining: result.canariesRemaining,
+          },
+      assertions,
+      { ...SCENARIOS.retention.slo },
+      { count: samples.length, errors: samples.filter((sample) => !sample.ok).length },
+      { points: series.points.length, readErrors: series.readErrors.length },
+    ),
+    raw: { samples, monitoring: series },
+  }
+}
+
+// ── BQC-8.4/8.5: runtime and regional fault matrix ──────────────────
+
+async function runFault(
+  fault: FaultName,
+  env: ScenarioRunEnv,
+  _options: ScenarioRunOptions,
+): Promise<ScenarioRunOutcome> {
+  const startedAt = env.clock().toISOString()
+  const startedMs = env.now()
+  const capture = startCapture(env, 1_000)
+  await capture.tick()
+
+  if (!env.faults) {
+    const series = await capture.stop()
+    const assertions: Assertion[] = [
+      {
+        check: 'fault controller configured',
+        passed: false,
+        detail: `${fault} requires a production fault controller`,
+      },
+    ]
+    return {
+      record: buildRecord(
+        env,
+        fault,
+        startedAt,
+        env.now() - startedMs,
+        {},
+        assertions,
+        { fault },
+        { count: 0, errors: 1 },
+        { points: series.points.length, readErrors: series.readErrors.length },
+      ),
+      raw: { samples: [], monitoring: series },
+    }
+  }
+
+  let result: FaultRunSummary | undefined
+  let runError: string | undefined
+  const sampleStartedAt = env.clock().toISOString()
+  const sampleStartedMs = env.now()
+  try {
+    result = await env.faults.execute(fault)
+  } catch (error) {
+    runError = error instanceof Error ? error.message : String(error)
+  }
+  const samples: PerfSample[] = [
+    {
+      name: fault,
+      startedAt: sampleStartedAt,
+      durationMs: env.now() - sampleStartedMs,
+      ok: result != null,
+    },
+  ]
+  await capture.tick()
+  const series = await capture.stop()
+
+  const assertions: Assertion[] =
+    result == null
+      ? [
+          {
+            check: 'fault execution completed',
+            passed: false,
+            detail: runError ?? 'fault controller returned no result',
+          },
+        ]
+      : [
+          {
+            check: 'fault identity matches requested matrix row',
+            passed: result.fault === fault,
+            detail: `controller reported ${result.fault}`,
+          },
+          { check: 'fault injection confirmed', passed: result.injected },
+          { check: 'fault recovery confirmed', passed: result.recovered },
+          ...result.assertions,
+        ]
+
+  return {
+    record: buildRecord(
+      env,
+      fault,
+      startedAt,
+      env.now() - startedMs,
+      result?.metrics ?? {},
+      assertions,
+      { fault },
+      { count: samples.length, errors: samples.filter((sample) => !sample.ok).length },
+      { points: series.points.length, readErrors: series.readErrors.length },
+    ),
+    raw: { samples, monitoring: series },
+  }
+}
+
+function faultExecutor(fault: FaultName): ScenarioExecutor {
+  return (env, options) => runFault(fault, env, options)
+}
+
 // ── Registries ──────────────────────────────────────────────────────
 
 /**
@@ -1283,14 +1533,28 @@ export const SCENARIO_EXECUTORS: Partial<Record<ScenarioName, ScenarioExecutor>>
   fleetDispatch: runFleetDispatch,
   dashboardCold: runDashboardCold,
   replyBurst: runReplyBurst,
+  retention: runRetention,
 }
 
 /**
- * Fault-executor registry — EMPTY in this slice. BQC-8.4 (runtime fault
- * matrix) and BQC-8.5 (region fault matrix) register real fault executors
- * here; the CLI dispatches by catalogue name and fails closed until then.
+ * Every catalogue fault has an executor. A controller is still mandatory at
+ * run time, which is the fail-closed boundary between a testable harness and
+ * an actual staging fault injection.
  */
-export const FAULT_EXECUTORS: Partial<Record<FaultName, ScenarioExecutor>> = {}
+export const FAULT_EXECUTORS: Record<FaultName, ScenarioExecutor> = {
+  dbFailurePreCommit: faultExecutor('dbFailurePreCommit'),
+  dbFailurePostCommit: faultExecutor('dbFailurePostCommit'),
+  relayCrashAfterClaim: faultExecutor('relayCrashAfterClaim'),
+  relayCrashAfterRedis: faultExecutor('relayCrashAfterRedis'),
+  redisUnavailable: faultExecutor('redisUnavailable'),
+  workerSigterm: faultExecutor('workerSigterm'),
+  workerForceKill: faultExecutor('workerForceKill'),
+  duplicateEvents: faultExecutor('duplicateEvents'),
+  poisonPayload: faultExecutor('poisonPayload'),
+  gbpRateLimit: faultExecutor('gbpRateLimit'),
+  cacheOutage: faultExecutor('cacheOutage'),
+  lifecyclePurgeRace: faultExecutor('lifecyclePurgeRace'),
+}
 
 export function getScenarioExecutor(name: string): ScenarioExecutor | undefined {
   return SCENARIO_EXECUTORS[name as ScenarioName]

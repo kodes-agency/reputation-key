@@ -2,6 +2,7 @@
 // Disconnect/property/org purges remove source content + replies in bounded,
 // evidenced steps — and nothing else.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -18,11 +19,11 @@ const NOW = new Date('2026-07-17T12:00:00Z')
 async function seedConnection(id: string, accountSuffix: string): Promise<void> {
   await db.execute(sql`
     INSERT INTO google_connections (
-      id, organization_id, google_account_id, google_email,
+      id, organization_id, google_subject,
       encrypted_access_token, encrypted_refresh_token, token_expires_at,
       scopes, connected_by, status
     ) VALUES (
-      ${id}, ${ORG}, ${'acc-' + accountSuffix}, ${'e@' + accountSuffix},
+      ${id}, ${ORG}, ${'subject-' + accountSuffix},
       'tok', 'rtok', now(), ARRAY['x'], 'user-1', 'active'
     )
     ON CONFLICT (id) DO NOTHING
@@ -38,10 +39,13 @@ async function seedReview(
   await db.execute(sql`
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
-      external_location_id, google_connection_id, rating, reviewed_at, expires_at
+      external_location_id, google_connection_id, rating, reviewed_at, expires_at,
+      source_epoch, source_revision, analysis_sequence,
+      ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${propertyId}, 'google', ${'ext-' + id},
-      'accounts/1/locations/2', ${connectionId}, 5, now(), now()
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connectionId}, 5, now(), now(),
+      0, 0, 0, 1, ${'0'.repeat(64)}
     )
     ON CONFLICT (id) DO NOTHING
   `)
@@ -63,6 +67,7 @@ async function count(table: string, where: string): Promise<number> {
 
 describe('source content purge (BQC-1.7, integration)', () => {
   beforeAll(async () => {
+    await db.execute(sql`DELETE FROM retention_runs WHERE subject LIKE 'reviews.purge.%'`)
     await db.execute(
       sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Purge Org', 'purge-org', NOW()) ON CONFLICT (id) DO NOTHING`,
     )

@@ -1,11 +1,11 @@
 # Beta Readiness Program — Master Plan
 
-**Status:** Proposed; ready to sequence after the current inbox/goal redesign is isolated in reviewed commits  
-**Date:** 2026-07-14  
-**Target:** Internal-team beta with real properties  
-**Capacity target:** 5,000 properties and 500,000 new reviews/month  
-**Regional decision:** Property-region routing; no silent cross-region fallback  
-**AI decision:** Google's submitted per-property architecture is conditionally permitted; Phase 17/18 planning awaits product instruction, and release remains blocked by PRE17, ADR 0031, and phase-specific evidence
+**Status:** Accepted controlled-beta boundary; implementation tracked by ADR 0049 and `beta-local-1` evidence
+**Date:** 2026-08-08
+**Target:** Internal controlled beta for an explicitly allowlisted organization/property cohort
+**Capacity target:** Local synthetic proof at 5,000 properties and 500,000 reviews; hosted capacity remains post-beta
+**Regional decision:** Property-region routing; no silent cross-region fallback
+**AI decision:** Google auto-publish, cross-property AI summary, and review-solicitation gamification remain permanently blocked; other AI remains separately off by policy
 
 ## 1. Outcome
 
@@ -13,23 +13,25 @@ Move Reputation Key from a broad development build to a deliberately controlled 
 
 This program is broader than Phase PRE17. PRE17 remains the authoritative plan for durable events, Google review lifecycle, property-region routing, scale, and observability. The beta program absorbs that work and adds product scope control, security, identity, public-edge safety, lifecycle across every context, accessibility, operational readiness, legal/privacy preparation, and staged real-property onboarding.
 
-The first beta is not “all implemented features turned on.” It is this evidence-backed path:
+The first controlled beta is not “all implemented features turned on.” It is a persisted organization/property cohort with explicit capability policy, ordinary role/grant authorization, consent/purpose checks, suspension, audit, restore isolation, and emergency kill switches. The local acceptance profile is defined by [ADR 0049](../adr/0049-beta-local-acceptance.md).
 
-```mermaid
-flowchart LR
-  I["Invite-only verified user"] --> P["Allowed property"]
-  P --> G["Verified Google connection"]
-  G --> R["Durable bounded review sync"]
-  R --> X["Inbox projection"]
-  X --> D["Human draft and approval"]
-  D --> U["Idempotent Google publish"]
-  R --> H["Limited property health/dashboard"]
-  X --> N["In-app notification"]
-```
+The promoted surfaces are:
 
-Goals, badges, leaderboards, custom roles, public guest writes, portal uploads, and external notification email remain server-disabled until their independent gates pass. Disabling UI navigation is insufficient: routes, mutations, events, schedules, and workers must also honor the capability.
+- core Inbox, Dashboard, common Settings, identity, organization/member basics, integrations, and in-app notifications;
+- Team and team-lead administration;
+- authenticated Portal management and public Portal read/redirect;
+- optional guest response, text, contact, media, moderation, retention, and deletion, each independently kill-switchable;
+- property/portal-group Goals;
+- property-local group recognition and bounded leaderboard views;
+- cohort-controlled outbound email.
 
-The deferred product contexts are completed after beta through the [Post-Beta Product Completion Program](post-beta-product-completion-master-plan.md). The beta plan deliberately does not treat those contexts as implementation-complete.
+The following remain first-deny regardless of cohort policy:
+
+- authentication, authorization, tenant/property isolation, and `property_access_grant`;
+- organization/property suspension, global kill switches, purpose/consent, audit, and delayed-path reauthorization;
+- Google auto-publish, cross-property AI summaries, and review-solicitation gamification.
+
+Beta acceptance uses the reproducible local Docker application stack and `beta-local-1` evidence. BQC-8 retains the deterministic 100-organization/5,000-property/500,000-review catalogue plus a separate one-organization authorized 5,000-property fleet fixture. BQC-9 is the local product smoke matrix. Railway capacity/PITR, live Google publication, real-property observation, and the 14-day cohort are explicitly post-beta operations and remain unmeasured until run.
 
 ## 2. Source material
 
@@ -51,27 +53,30 @@ Official-doc-backed requirements and their links live in the two research files 
 
 - Internal team members only at first.
 - Organizations and properties are allowlisted by an operator; public registration and self-service organization creation are disabled.
-- Start with one US property, then three to five US properties. Admit European properties only after the Europe data/processing cell and privacy review pass their gate.
-- A named internal property owner and engineering owner exist for every connected property.
-- Reply publication is human initiated/approved. No auto-reply, AI analysis, or historical AI backfill.
-- External email is off except explicitly allowlisted identity emails until delivery safety is proven.
+- Capability enablement is persisted per organization and target property. Organization allowlisting alone never widens an unallowlisted property.
+- A named product/property owner and engineering owner exist for every promoted cohort.
+- Reply publication remains human initiated/approved. No auto-reply, cross-property AI summary, or review-solicitation gamification.
+- Auth invitation/reset mail keeps its separate path; product notification email is property-scoped and cohort controlled.
 
 ### 3.2 Feature posture
 
-| Capability                           | Initial state                                     | Owner gate                                                                                                |
-| ------------------------------------ | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Identity, sessions, built-in roles   | On                                                | BETA-0 security/identity                                                                                  |
-| Custom/dynamic roles                 | Off                                               | Complete repository-wide `AuthorizationPolicy` migration and custom-role E2E                              |
-| Property and staff direct assignment | On                                                | BETA-1 core data integrity                                                                                |
-| Teams                                | Off unless beta workflow proves necessary         | Team assignment/deletion gate                                                                             |
-| Google OAuth/import/sync/status      | On for allowlisted properties                     | BETA-1 external workflow gate                                                                             |
-| Reviews, inbox, manual replies       | On                                                | PRE17A/B + BETA-1                                                                                         |
-| Dashboard                            | Limited property-local, policy-permitted sections | PRE17C query/policy gate                                                                                  |
-| In-app notifications                 | On                                                | Durable delivery gate                                                                                     |
-| Notification email                   | Off except allowlisted auth mail                  | BETA-2 email gate                                                                                         |
-| Portal/guest/QR/NFC                  | Off by default                                    | BETA-2 public-edge/upload/accessibility gate                                                              |
-| Goals, badges, leaderboards          | Off                                               | Independent correctness, authorization, jobs, and product gates                                           |
-| AI 17/18                             | Off                                               | External permission received; PRE17 + ADR 0031 + merchant/provider/privacy controls + phase-specific plan |
+| Capability                                                      | Controlled-beta state        | Owner gate                                                          |
+| --------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------- |
+| Identity, sessions, built-in roles                              | Core                         | Security/identity                                                   |
+| Custom/dynamic roles                                            | Off                          | Repository-wide authorization migration and E2E                     |
+| Property access and staff participation                         | Core, grant scoped           | People/access integrity                                             |
+| Team and lead administration                                    | P1 allowlist                 | Effective-dated membership, lead, and tenant-isolation smoke        |
+| Google OAuth/import/sync/status                                 | Existing property policy     | Existing Google workflow gate                                       |
+| Reviews, Inbox, manual replies                                  | Core                         | Existing durable review/Inbox gate                                  |
+| Dashboard                                                       | Core base; P1 overlays only  | Governed metric registry and bounded fleet query                    |
+| In-app notifications                                            | Core                         | Durable delivery gate                                               |
+| Product notification email                                      | P1 allowlist                 | Property preference, provider sandbox, queue, and kill-switch smoke |
+| Portal management/public read                                   | P1 allowlist                 | Publication/token/tenancy/public-edge gate                          |
+| Guest response/text/contact/media                               | Separate P1 allowlists       | Consent, abuse, privacy, upload, withdrawal, and deletion gates     |
+| Property/portal-group Goals                                     | P1 allowlist                 | Governed metric and recurrence gate                                 |
+| Group recognition/leaderboard                                   | P1 allowlist plus activation | Eligibility, consultation/notice, bounded audience, correction gate |
+| AI 17/18                                                        | Off                          | ADR 0031 plus phase-specific provider/privacy evidence              |
+| Auto-publish/cross-property AI/review solicitation gamification | Permanently blocked          | Not allowlistable                                                   |
 
 ### 3.3 Initial internal service objectives
 
@@ -219,8 +224,10 @@ At each stage, rollback means disable new work through capabilities, stop schedu
 | Privacy/policy     | Current data map, retention/deletion schedule, notices/agreements, subprocessors, request procedure, and Google capability disposition are approved by accountable owners.                  |
 | UX                 | Critical paths pass keyboard, screen-reader smoke, 200%/400% zoom, mobile/tablet/desktop, light/dark, reduced motion, long text, loading/empty/error/permission states.                     |
 | Performance        | Target dataset and burst/backlog tests meet documented budgets; root/property selectors and queries are bounded; no unused fleet-wide jobs remain.                                          |
-| Operations         | Versioned deploy, separate roles, readiness/liveness, heartbeats, dashboards/alerts, backups/PITR restore, rollback, incident/support runbooks, and ownership are exercised.                |
-| Pilot              | Named property owner signs off; at least 14 stable observed days at small cohort; every exception has owner, expiry, mitigation, and approved go/no-go disposition.                         |
+| Operations         | Production-profile local images, migrations, readiness, worker heartbeat, dependency-fault recovery, restart/drain, diagnostics, and scoped teardown are exercised.                         |
+| Product journeys   | P1 positive and P2/P3 negative journeys cover Inbox, Dashboard, Portal/Guest, Goals, Leadership, Settings, delayed work, and kill switches on clean and upgraded data.                      |
+
+Hosted Railway capacity/PITR, live-provider execution, real-property observation, and the 14-day cohort are post-beta operations. They remain `unmeasured`; local evidence must not mark them passed.
 
 ## 9. Estimate
 
@@ -245,9 +252,9 @@ The defaults let BETA-0 start without another interview.
 | Beta signup           | Invite-only; operator creates/allows organizations                                                                                                            | BETA-0                    |
 | Roles                 | Built-in owner/admin/member only; custom roles off                                                                                                            | BETA-0                    |
 | Strong auth           | Verified email required; require MFA/passkey for owners once supported/tested                                                                                 | Before controlled publish |
-| Public portal/guest   | Dark in initial beta                                                                                                                                          | BETA-2 planning           |
-| Teams                 | Dark unless direct assignments cannot cover pilot                                                                                                             | BETA-1 workflow review    |
-| Notification email    | Auth mail to allowlist only; digests/urgent mail dark                                                                                                         | BETA-0/BETA-2             |
+| Public portal/guest   | P1 property allowlist; public read, response, text, contact, and media independently controlled                                                               | Before product journeys   |
+| Teams                 | P1 property allowlist with effective membership/lead scope                                                                                                    | Before product journeys   |
+| Notification email    | Auth mail separate; product email P1/property scoped                                                                                                          | Before product journeys   |
 | Property deletion     | Archive immediately; purge after explicit operator-confirmed grace workflow                                                                                   | ADR 0034                  |
 | US pilot region       | US property cell; global control metadata only if documented/approved                                                                                         | Before Stage 2            |
 | European pilot        | No EU real property until EU processing/data flow, DPA/privacy, backup/log/support access are verified                                                        | Before any EU property    |
@@ -258,4 +265,4 @@ The defaults let BETA-0 start without another interview.
 
 ## 11. Definition of done
 
-Beta readiness is complete when the acceptance matrix is evidenced, one real US property has completed the shadow and controlled-publish stages, the small cohort has operated for at least 14 stable observed days, and the internal go/no-go group records approval. A green unit suite alone, a successful demo, or a quiet error log is not sufficient.
+Beta readiness is complete when `pnpm beta:smoke` creates a non-overwritable `beta-local-1` manifest for both scale fixtures, clean and upgraded production images, and the complete product journey matrix; no P0/P1 remains; and all five digest-bound approvals are recorded. Hosted/pilot checks remain post-beta and unmeasured rather than reinterpreted as local success.

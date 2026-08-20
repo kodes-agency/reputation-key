@@ -108,7 +108,7 @@ export type EventFamilyRow = Readonly<{
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9'
+  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PR3'
   notes?: string
 }>
 
@@ -267,12 +267,20 @@ const NOTIFICATION_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/index.ts'
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
+const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
+const METRIC_CORRECTION_OUTBOX =
+  'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
 const GOAL_HANDLERS = 'src/contexts/goal/infrastructure/event-handlers/index.ts'
 const BADGE_HANDLERS = 'src/contexts/badge/infrastructure/event-handlers/index.ts'
 const LEADERBOARD_HANDLERS =
   'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
+const PROPERTY_RETENTION_OUTBOX =
+  'src/contexts/property/infrastructure/outbox-consumers.ts'
+const INTEGRATION_IMPORT_OUTBOX =
+  'src/contexts/integration/infrastructure/outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -303,6 +311,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-review-created', INBOX_OUTBOX),
+        durable('ai.analyze-review-event', AI_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -322,7 +331,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.sync',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [durable('inbox.on-review-updated', INBOX_OUTBOX)],
+      consumers: [
+        durable('inbox.on-review-updated', INBOX_OUTBOX),
+        durable('ai.analyze-review-event', AI_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -330,6 +342,41 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       repairCommand: 'reconcileReplyPublication',
       notes:
         'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; durable dispatch disabled (BQR-0 containment)',
+    },
+  ),
+  ev(
+    'review.source_transitioned',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.connect_gbp',
+      action: 'system:review.sync',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('ai.analyze-review-event', AI_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only source_expired/provider_deleted transition consumed by the ordered AI review-analysis cursor',
+    },
+  ),
+  ev(
+    'ai.property_trend.generation_requested',
+    'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
+    {
+      stateOwner: 'ai',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('ai.generate-property-trend', AI_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'ai',
+      notes:
+        'identifier-only schedule request emitted atomically with a fenced property trend schedule',
     },
   ),
   ev(
@@ -745,6 +792,24 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
         'atomic command-store outbox write (BQC-3.5); schema gained memberUserId in place at v1 (target id was silently stripped; never recorded — zero historical rows)',
     },
   ),
+  ev(
+    'identity.merchant_ai.changed',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'ai.analyze',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      ownerSlice: 'PR3',
+      notes:
+        'identifier-only Merchant AI authorization lineage/epoch transition; PR3 consumes it into the AI control plane',
+    },
+  ),
 ]
 
 const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -757,12 +822,12 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('review.event-handlers', REVIEW_HANDLERS)],
+      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
       disposition: 'enabled',
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); all producers (create-property, GBP import via propertyApi.importProperty, and the integration import job through the same api) route through the store — the plain-bus integration property-event adapter was removed; consumer enqueues initial GBP sync',
+        'atomic command-store outbox write (BQC-3.5); activity records the creation fact while v2 import effects enqueue initial review sync only after receipt-backed Property reconciliation',
     },
   ),
   ev(
@@ -797,6 +862,24 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
+    },
+  ),
+  ev(
+    'property.google_binding.changed',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      ownerSlice: 'F7',
+      notes:
+        'identifier-only Property binding lifecycle fact; authorization consumers are added before protected import dispatch is enabled',
     },
   ),
 ]
@@ -892,6 +975,42 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     consumers: [],
     disposition: 'denied_dark',
   }),
+  ev('portal.content_review.completed', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.configuration_completeness.recorded', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.approved_destination_ratio.recorded', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'system:metric.record',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [
+      bus('metric.event-handlers', METRIC_HANDLERS),
+      durable('metric.portal-workflow', METRIC_OUTBOX),
+    ],
+    disposition: 'denied_dark',
+  }),
   ev(
     'portal.deleted',
     PORTAL_EVENTS,
@@ -905,6 +1024,51 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     { notes: 'goal cleanup consumer is itself dark' },
+  ),
+  ev(
+    'portal.token.issued',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    { notes: 'identifier-only public-token lifecycle fact' },
+  ),
+  ev(
+    'portal.token.rotated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    { notes: 'identifier-only public-token lifecycle fact with bounded grace period' },
+  ),
+  ev(
+    'portal.token.revoked',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only lifecycle fact; operator-entered reason remains in Portal storage',
+    },
   ),
   ev('portal_link_category.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
@@ -1086,7 +1250,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist (no googleEmail) — was unregistered/bus-only',
+        'atomic command-store outbox write (BQC-3.5); identifier-only schema excludes provider contact data',
     },
   ),
   ev(
@@ -1110,20 +1274,42 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
-    'integration.property_import.completed',
+    'integration.property_import.requested',
     INTEGRATION_EVENTS,
     {
       stateOwner: 'integration',
-      capability: 'integration.use',
-      action: 'system:property.import',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        durable('integration.property-import-dispatch', INTEGRATION_IMPORT_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
       notes:
-        'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer (content-free counts)',
+        'identifier-only transactional intent; durable consumer add-bulks deterministic revision-scoped item jobs',
+    },
+  ),
+  ev(
+    'integration.property_import.retention_released',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('property.import-retention-release', PROPERTY_RETENTION_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'property',
+      notes:
+        'bounded import-parent purge release; Property atomically marks matching operation receipts releasable and records the event consumer receipt',
     },
   ),
   ev(
@@ -1166,6 +1352,20 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
       notes:
         "records via the atomic metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); consumers belong to the dark goal/badge/leaderboard contexts; the family itself is enabled",
     },
+  ),
+  ev(
+    'metric.corrected',
+    METRIC_EVENTS,
+    {
+      stateOwner: 'metric',
+      capability: 'metric.internal',
+      action: 'system:metric.record',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX)],
+      disposition: 'enabled',
+    },
+    { notes: 'append-only correction lineage advances the reconciliation watermark' },
   ),
 ]
 
@@ -1232,27 +1432,28 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'portal.upload',
       action: 'system:image.process',
       schedule: 'none',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'R2/S3 fetch+upload (sharp resize); registration-gated no-op while portal.upload is blocked',
+        'R2/S3 fetch+upload; always registered and capability-scoped at dispatch/execution',
     },
   ),
   job(
-    'import-property',
-    'src/contexts/integration/infrastructure/jobs/import-property.job.ts',
+    'import-gbp-property-item-v2',
+    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
     {
       queue: 'default',
-      capability: 'property.connect_gbp',
-      action: 'system:property.import',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_v2',
       schedule: 'none',
       registration: 'enabled',
     },
     {
-      timeoutMs: 600_000,
+      retryAttempts: 5,
+      retryBackoff: 'exponential:30000',
       notes:
-        'GBP property import; in-handler capability gate; bulk fetch+upsert warrants 10m',
+        'GBP import v2 per-item work; deterministic item/retry/fence job id, tenant-keyed routing, and fenced Property effects',
     },
   ),
   job(
@@ -1269,6 +1470,71 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'GBP review sync; in-handler gate; enqueued manual/cron/webhook/sweep; paged GBP fetch warrants 5m',
+    },
+  ),
+  job(
+    'generate-property-ai-trend',
+    'src/contexts/ai/infrastructure/jobs/generate-property-trend.job.ts',
+    {
+      queue: 'default',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'exponential:30000',
+      notes:
+        'content-free coalesced property trend generation after durable review analysis',
+    },
+  ),
+  job(
+    'schedule-property-ai-trends',
+    'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
+    {
+      queue: 'background',
+      capability: 'ai.detect_trends',
+      action: 'system:ai.trend_schedule',
+      schedule: 'every:60000',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'fixed:5000',
+      timeoutMs: 30_000,
+      notes:
+        'DB-fenced property-local calendar scheduler; scans at most 100 due properties per firing',
+    },
+  ),
+  job(
+    'expire-review-provider-source',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.purge',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row raw-source expiry continuation; initial activation is owned by the later lifecycle release automation',
+    },
+  ),
+  job(
+    'sweep-review-provider-tombstones',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.purge',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row provider-correlation tombstone continuation; initial activation is owned by the later lifecycle release automation',
     },
   ),
   job(
@@ -1319,11 +1585,11 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'notification.send_email',
       action: 'system:notification.email_urgent',
       schedule: 'none',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'Resend send; registration-gated no-op while notification.send_email is blocked',
+        'Resend-compatible send; capability-gated at execution and routed to the local mail stub in acceptance',
     },
   ),
 ]
@@ -1463,30 +1729,36 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
-    'reconcile-goal-progress',
-    'src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts',
+    'permit-start-deadline-sweep',
+    'src/shared/jobs/permit-start-deadline-sweep.job.ts',
     {
       queue: 'background',
-      capability: 'goal.use',
-      action: 'system:goal.reconcile',
-      schedule: 'cron:10 * * * *',
-      registration: 'denied_dark',
+      capability: 'none',
+      action: 'system:permit.start_deadline_fence',
+      schedule: 'every:300000',
+      registration: 'enabled',
     },
-    { notes: 'registration-gated no-op; NOT scheduled while goal.use is dark' },
+    {
+      timeoutMs: 60_000,
+      notes:
+        'ADR 0050 execution-permit lifecycle: CASes admitted -> fenced past start_deadline_at via the domain helper fenceElapsedStartDeadlinePermit (never a raw UPDATE); bounded 200-row oldest-first batch per run; unblocks ON DELETE RESTRICT approval rotation and deflates the active-permit index',
+    },
   ),
   job(
-    'spawn-recurring-instances',
-    'src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts',
+    'google-import-claim-reaper',
+    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
     {
       queue: 'background',
-      capability: 'goal.use',
-      action: 'system:goal.spawn',
-      schedule: 'every:86400000',
-      registration: 'denied_dark',
+      capability: 'property.import_gbp_v2',
+      action: 'system:property.import_claim_reap',
+      schedule: 'every:60000',
+      registration: 'enabled',
     },
     {
+      retryBackoff: 'fixed:5000',
+      timeoutMs: 60_000,
       notes:
-        'registration-gated no-op; spawns goal instances ±1 day window; NOT scheduled while goal.use is dark',
+        'claim-lease recovery: items still processing past claim_lease_expires_at are released via releaseClaimForRetry, or terminalized temporarily_unavailable once the attempt budget is spent — always through the store CAS helpers, never a raw UPDATE; bounded 100-row oldest-lease-first batch, so recovery is bounded by the 60s lease instead of the effect deadline',
     },
   ),
   job(
@@ -1497,26 +1769,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'notification.send_email',
       action: 'system:notification.email_digest',
       schedule: 'cron:0 * * * *',
-      registration: 'blocked_capability',
+      registration: 'enabled',
     },
     {
       notes:
-        'hourly tick → sends at org 8am local (ADR 0011); registration-gated no-op while notification.send_email is blocked',
-    },
-  ),
-  job(
-    'badge.reconcile',
-    'src/bootstrap.ts',
-    {
-      queue: 'background',
-      capability: 'badge.use',
-      action: 'system:badge.reconcile',
-      schedule: 'cron:20 * * * *',
-      registration: 'denied_dark',
-    },
-    {
-      notes:
-        'inline literal (no *.job.ts); registration-gated no-op while badge.use is dark',
+        'Hourly tick sends at org 8am local (ADR 0011); every delivery rechecks notification.send_email',
     },
   ),
   job(
@@ -1527,11 +1784,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'leaderboard.use',
       action: 'system:leaderboard.reconcile',
       schedule: 'cron:30 * * * *',
-      registration: 'denied_dark',
+      registration: 'enabled',
     },
     {
       notes:
-        'inline literal (no *.job.ts); registration-gated no-op while leaderboard.use is dark',
+        'inline literal (no *.job.ts); every discovered property is capability-scoped',
     },
   ),
 ]

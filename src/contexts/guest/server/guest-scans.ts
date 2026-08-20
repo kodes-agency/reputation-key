@@ -1,7 +1,8 @@
 // Guest context — scan & public portal read server functions (split from public.ts)
 
 import { createServerFn } from '@tanstack/react-start'
-import { assertGlobalCapability } from '#/shared/auth/beta-capabilities'
+import { setResponseHeader } from '@tanstack/react-start/server'
+import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { match } from 'ts-pattern'
@@ -11,10 +12,10 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
-import { portalId, portalLinkId } from '#/shared/domain/ids'
+import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { hashIp } from './hash-ip.server'
-import { resolveGuestSession, guestRateLimitKey } from './guest-session'
+import { guestRateLimitKey } from './guest-session'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -41,8 +42,10 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
 // ── recordScan ────────────────────────────────────────────────────
 
 const recordScanSchema = z.object({
-  portalId: z.string().min(1),
+  token: z.string().min(1).max(256),
+  csrfNonce: z.string().uuid(),
   source: z.enum(['qr', 'nfc', 'direct']),
+  analyticsConsent: z.literal(true),
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
@@ -50,22 +53,49 @@ export const recordScanFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        assertGlobalCapability('portal.read')
         const { useCases, rateLimiter } = getContainer()
         const headers = await headersFromContext()
+        const portal = await useCases.getPublicPortal({ token: data.token })
+        const scope = {
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.portal.id,
+        }
+        const session = useCases.guestSessions.verify(headers?.get('cookie') ?? '', scope)
+        if (!session || !useCases.guestSessions.verifyCsrf(session, data.csrfNonce)) {
+          throwContextError(
+            'GuestError',
+            { code: 'portal_not_found', message: 'Portal not found' },
+            404,
+          )
+        }
+        const decision = await decidePublicExecution({
+          action: 'public:portal.analytics.record',
+          capability: 'portal.public_read',
+          ...scope,
+          consentAssertions: {
+            analytics: true,
+            response: false,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredPublicConsents: ['analytics'],
+          now: new Date(),
+        })
+        if (!decision.allowed) return { success: false }
 
-        const cookieHeader = headers?.get('cookie') ?? ''
-        const ip = clientIpFromHeaders(headers)
-        const ipHash = hashIp(ip)
-        // recordScan is a public unauthenticated write (fires on every portal
-        // page mount), so it gets the same throttling + session-cookie
-        // treatment as rating/feedback to prevent flooding and session minting.
-        const session = resolveGuestSession(cookieHeader)
-
+        const ipHash = hashIp(clientIpFromHeaders(headers))
         const rateResult = await rateLimiter.check(
-          guestRateLimitKey('scan', session, ipHash),
+          guestRateLimitKey('scan', session.sessionId, ipHash),
         )
         if (!rateResult.allowed) {
+          setResponseHeader(
+            'Retry-After',
+            String(
+              Math.max(1, Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
+            ),
+          )
           throwContextError(
             'GuestError',
             { code: 'rate_limit_exceeded', message: 'Too many requests' },
@@ -73,15 +103,11 @@ export const recordScanFn = createServerFn({ method: 'POST' })
           )
         }
 
-        const ctx = await useCases.resolvePortalContext({
-          portalId: portalId(data.portalId),
-        })
-
         try {
           await useCases.recordScan({
-            organizationId: ctx.organizationId,
-            portalId: portalId(data.portalId),
-            propertyId: ctx.propertyId,
+            organizationId: organizationId(portal.organizationId),
+            portalId: portalId(portal.portal.id),
+            propertyId: propertyId(portal.propertyId),
             source: data.source,
             sessionId: session.sessionId,
             ipHash,
@@ -101,8 +127,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
 // ── getPublicPortal ────────────────────────────────────────────────
 
 const publicPortalSchema = z.object({
-  propertySlug: z.string().min(1),
-  portalSlug: z.string().min(1),
+  token: z.string().min(1).max(256),
 })
 
 export const getPublicPortal = createServerFn({ method: 'GET' })
@@ -110,13 +135,44 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        assertGlobalCapability('portal.read')
         const { useCases } = getContainer()
         try {
-          return await useCases.getPublicPortal({
-            propertySlug: data.propertySlug,
-            portalSlug: data.portalSlug,
+          const portal = await useCases.getPublicPortal({ token: data.token })
+          const scope = {
+            organizationId: portal.organizationId,
+            propertyId: portal.propertyId,
+            portalId: portal.portal.id,
+          }
+          const decision = await decidePublicExecution({
+            action: 'public:portal.read',
+            capability: 'portal.public_read',
+            ...scope,
+            now: new Date(),
           })
+          if (!decision.allowed) {
+            throwContextError(
+              'GuestError',
+              { code: 'portal_not_found', message: 'Portal not found' },
+              404,
+            )
+          }
+          const headers = await headersFromContext()
+          let session = useCases.guestSessions.verify(headers?.get('cookie') ?? '', scope)
+          if (!session) {
+            const issued = useCases.guestSessions.issue(scope)
+            session = issued.session
+            setResponseHeader('Set-Cookie', [...issued.cookies])
+          }
+          const response = await useCases.responseLifecycle.getState(
+            scope,
+            session.sessionId,
+          )
+          setResponseHeader('Referrer-Policy', 'no-referrer')
+          return {
+            ...portal,
+            guestSession: { csrfNonce: session.csrfNonce },
+            response,
+          }
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
@@ -133,6 +189,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
 // Used by the public click-tracking API route.
 
 const resolveLinkSchema = z.object({
+  token: z.string().min(1).max(256),
   linkId: z.string().min(1),
 })
 
@@ -141,10 +198,12 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        assertGlobalCapability('portal.read')
         const { useCases } = getContainer()
         try {
-          return await useCases.resolveLinkAndTrack({ linkId: portalLinkId(data.linkId) })
+          return await useCases.resolveLinkAndTrack({
+            token: data.token,
+            linkId: portalLinkId(data.linkId),
+          })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))

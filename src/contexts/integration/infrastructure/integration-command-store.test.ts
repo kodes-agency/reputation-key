@@ -1,8 +1,7 @@
 // BQC-3.5 — atomic integration command store contract tests.
 //
-// Every command must commit its google_connections / gbp_import_jobs
-// mutation and its outbox_events row in ONE transaction, then emit on the
-// in-process bus AFTER commit:
+// Every command must commit its google_connections mutation and its
+// outbox_events row in ONE transaction, then emit on the in-process bus.
 //   ['tx.start', 'tx.state'+, 'tx.outbox', 'tx.commit', 'emit']
 // A missing connection rolls back — no fact, no emit. A post-commit bus
 // failure must not propagate (durable row already retained).
@@ -16,18 +15,12 @@ import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
-import {
-  gbpImportJobId,
-  googleConnectionId,
-  organizationId,
-  userId,
-} from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '../domain/types'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleConnectionVisibilityChanged,
-  integrationPropertyImportCompleted,
 } from '../domain/events'
 import { isIntegrationError } from '../domain/errors'
 import { isUniqueViolationError } from '../application/ports/google-connection.repository'
@@ -54,14 +47,12 @@ vi.mock('#/shared/observability/trace', () => ({
 const NOW = new Date('2026-06-01T12:00:00.000Z')
 const ORG_ID = organizationId('org-integration-cmd-00000000001')
 const CONN_ID = googleConnectionId('6d000000-0000-0000-0000-000000000001')
-const JOB_ID = gbpImportJobId('6e000000-0000-0000-0000-000000000001')
 
 function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnection {
   return {
     id: CONN_ID,
     organizationId: ORG_ID,
-    googleAccountId: 'ga-123',
-    googleEmail: 'conn@test.com',
+    googleSubject: 'subject-123',
     encryptedAccessToken: 'enc-a',
     encryptedRefreshToken: 'enc-r',
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
@@ -69,6 +60,11 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     connectedBy: userId('user-connector-000000000000001'),
     visibility: 'private',
     status: 'active',
+    credentialUseState: 'active',
+    cleanupMaterialDeadlineAt: null,
+    lifecycleVersion: 1,
+    accessVersion: 1,
+    credentialGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -83,8 +79,7 @@ function makeConnectionRow(overrides: Record<string, unknown> = {}) {
   return {
     id: CONN_ID as string,
     organizationId: ORG_ID as string,
-    googleAccountId: 'ga-123',
-    googleEmail: 'conn@test.com',
+    googleSubject: 'subject-123',
     encryptedAccessToken: 'enc-a',
     encryptedRefreshToken: 'enc-r',
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
@@ -92,6 +87,11 @@ function makeConnectionRow(overrides: Record<string, unknown> = {}) {
     connectedBy: 'user-connector-000000000000001',
     visibility: 'private',
     status: 'active',
+    credentialUseState: 'active',
+    cleanupMaterialDeadlineAt: null,
+    lifecycleVersion: 1,
+    accessVersion: 1,
+    credentialGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -184,7 +184,7 @@ const connectedEvent = () =>
   integrationGoogleAccountConnected({
     connectionId: CONN_ID,
     organizationId: ORG_ID,
-    googleEmail: 'conn@test.com',
+    connectedBy: userId('user-connector-000000000000001'),
     occurredAt: NOW,
   })
 
@@ -211,8 +211,12 @@ describe('createAtomicIntegrationCommandStore', () => {
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('integration.google_account.connected')
       expect(outboxRows[0]!.id).toBe(event.eventId)
-      // Identifier-only: the provider email never enters the durable payload
-      expect(outboxRows[0]!.payload).not.toHaveProperty('googleEmail')
+      expect(Object.keys(outboxRows[0]!.payload as object).sort()).toEqual([
+        'connectedBy',
+        'connectionId',
+        'correlationId',
+        'organizationId',
+      ])
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
     })
 
@@ -256,6 +260,8 @@ describe('createAtomicIntegrationCommandStore', () => {
       const result = await store.reconnectGoogleAccount({
         organizationId: ORG_ID,
         connectionId: CONN_ID,
+        googleSubject: 'google-subject-2',
+        scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
         encryptedAccessToken: 'enc-a2',
         encryptedRefreshToken: 'enc-r2',
         tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
@@ -267,6 +273,8 @@ describe('createAtomicIntegrationCommandStore', () => {
       expect(updateSets[0]).toMatchObject({
         status: 'active',
         visibility: 'organization',
+        googleSubject: 'google-subject-2',
+        scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       })
       expect(outboxRows).toHaveLength(1)
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
@@ -283,6 +291,8 @@ describe('createAtomicIntegrationCommandStore', () => {
         store.reconnectGoogleAccount({
           organizationId: ORG_ID,
           connectionId: CONN_ID,
+          googleSubject: 'google-subject-2',
+          scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
           encryptedAccessToken: 'enc-a2',
           encryptedRefreshToken: 'enc-r2',
           tokenExpiresAt: NOW,
@@ -310,7 +320,7 @@ describe('createAtomicIntegrationCommandStore', () => {
             makeConnectionRow({
               status: 'disconnected',
               encryptedAccessToken: 'redacted',
-              googleEmail: 'redacted',
+              googleSubject: null,
             }),
           ],
         ],
@@ -335,8 +345,7 @@ describe('createAtomicIntegrationCommandStore', () => {
       expect(updateSets[1]).toMatchObject({
         encryptedAccessToken: 'redacted',
         encryptedRefreshToken: 'redacted',
-        googleEmail: 'redacted',
-        googleAccountId: `redacted:${CONN_ID as string}`,
+        googleSubject: null,
         scopes: [],
       })
       expect(result.status).toBe('disconnected')
@@ -410,39 +419,6 @@ describe('createAtomicIntegrationCommandStore', () => {
     })
   })
 
-  describe('recordImportCompleted', () => {
-    it('commits terminal status + import.completed fact in one tx before emit', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const updateSets: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, updateReturning: [], outboxRows, updateSets })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
-      const event = integrationPropertyImportCompleted({
-        importJobId: JOB_ID,
-        organizationId: ORG_ID,
-        totalCount: 3,
-        importedCount: 2,
-        skippedCount: 1,
-        failedCount: 0,
-        occurredAt: NOW,
-      })
-
-      await store.recordImportCompleted({
-        organizationId: ORG_ID,
-        importJobId: JOB_ID,
-        finalStatus: 'completed_with_skips',
-        now: NOW,
-        event,
-      })
-
-      expect(updateSets[0]).toEqual({ status: 'completed_with_skips', updatedAt: NOW })
-      expect(outboxRows).toHaveLength(1)
-      expect(outboxRows[0]!.eventType).toBe('integration.property_import.completed')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
-    })
-  })
-
   describe('emit failure isolation', () => {
     it('a post-commit bus failure does not propagate (durable row retained)', async () => {
       const order: string[] = []
@@ -484,32 +460,24 @@ describe('createAtomicIntegrationCommandStore', () => {
               occurredAt: NOW,
             }),
         },
-        {
-          tag: 'integration.property_import.completed',
-          make: () =>
-            integrationPropertyImportCompleted({
-              importJobId: JOB_ID,
-              organizationId: ORG_ID,
-              totalCount: 3,
-              importedCount: 2,
-              skippedCount: 1,
-              failedCount: 0,
-              occurredAt: NOW,
-            }),
-        },
       ]
 
       for (const { tag, make } of cases) {
         const row = toOutboxEvent(make())
         expect(row.eventType, tag).toBe(tag)
-        expect(() => validateEventPayload(tag, 1, row.payload), tag).not.toThrow()
+        expect(
+          () => validateEventPayload(tag, row.eventVersion ?? 1, row.payload),
+          tag,
+        ).not.toThrow()
       }
     })
 
-    it('the connected payload is identifier-only (googleEmail stripped)', () => {
+    it('the connected payload is identifier-only', () => {
       const row = toOutboxEvent(connectedEvent())
+      expect(row.eventVersion).toBe(2)
       const payload = row.payload as Record<string, unknown>
       expect(Object.keys(payload).sort()).toEqual([
+        'connectedBy',
         'connectionId',
         'correlationId',
         'organizationId',

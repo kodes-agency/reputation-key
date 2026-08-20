@@ -94,8 +94,8 @@ async function seedOrgAndProperty(p: Pool) {
   )
   await p.query(
     `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, created_at, updated_at)
-     VALUES ($1, $2, $3, 'property', $3, $4, $5, NOW(), NOW()),
-            ($6, $2, $3, 'property', $3, $7, $8, NOW(), NOW())
+     VALUES ($1, $2, $3::uuid, 'property', $3::uuid::text, $4, $5, NOW(), NOW()),
+            ($6, $2, $3::uuid, 'property', $3::uuid::text, $7, $8, NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
     [
       PORTAL_A,

@@ -44,7 +44,7 @@ function makeEntry(
   return {
     definition: {
       id: 'def-1',
-      key: 'test_metric',
+      key: 'portal.content_review.completed',
       name: 'Test Metric',
       description: 'A test metric',
       valueKind: 'counter',
@@ -132,11 +132,14 @@ describe('MetricRegistry', () => {
       expect(result.result).toBeNull()
     })
 
-    it('returns zero when behavior is zero', () => {
-      const v = makeVersion({ minimumSample: 5, insufficientDataBehavior: 'zero' })
+    it('never substitutes zero when insufficient data must be quarantined', () => {
+      const v = makeVersion({ minimumSample: 5, insufficientDataBehavior: 'quarantine' })
       const result = evaluateInsufficientData(v, 3)
-      expect(result.insufficient).toBe(true)
-      expect(result.result).toBe(0)
+      expect(result).toEqual({
+        insufficient: true,
+        behavior: 'quarantine',
+        result: null,
+      })
     })
   })
 

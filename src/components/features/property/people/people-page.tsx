@@ -1,77 +1,112 @@
-// People page component — staff, teams, and directory management
 import { useState } from 'react'
+import { LockKeyhole } from 'lucide-react'
 import { z } from 'zod'
-import type { listStaffAssignments } from '#/contexts/staff/server/staff-assignments'
-import type { listTeams } from '#/contexts/team/server/teams'
-import type { listMembers } from '#/contexts/identity/server/organizations'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
-import { toMemberOptions, toTeamOptions } from '#/lib/lookups'
+import type { Action } from '#/components/hooks/use-action'
+import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { TeamsTab } from '#/components/features/property/people/teams-tab'
-import { DirectoryTab } from '#/components/features/property/people/directory-tab'
-import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import type { listPortals } from '#/contexts/portal/server/portals'
-import type { Action } from '#/components/hooks/use-action'
-import type { CreateStaffAssignmentInput } from '#/contexts/staff/application/dto/staff-assignment.dto'
-import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
+import { ErrorState, LoadingState } from '#/components/layout/page-states'
+import { PageShell } from '#/components/layout/page-shell'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import type { PortalOption } from '#/components/features/staff/portal-selector'
+import type {
+  ArchiveStaffParticipationMutationInput,
+  CreateStaffParticipationMutationInput,
+  CreateTeamMutationInput,
+  MemberOption,
+  PortalResponsibilitySelection,
+  StaffParticipationView,
+  TeamMembershipView,
+  TeamSummary,
+  UpdatePortalResponsibilitiesMutationInput,
+} from '#/components/features/team/shared/types'
 
 export const peopleSearchSchema = z.object({
-  tab: z.string().optional(),
+  tab: z.enum(['staff', 'teams', 'directory']).optional(),
 })
+
+type DirectoryMember = Readonly<{
+  userId: string
+  name: string
+  email: string
+  role: string | null
+}>
 
 interface PeoplePageProps {
   propertyId: string
   propertyName: string
-  assignments: Awaited<ReturnType<typeof listStaffAssignments>>['assignments']
-  members: Awaited<ReturnType<typeof listMembers>>['members']
-  teams: Awaited<ReturnType<typeof listTeams>>['teams']
-  portals: Awaited<ReturnType<typeof listPortals>>['portals']
-  /** F-PEOPLE: true when the portals query denied with a dark-capability
-   * posture (portal.read off). Portal-dependent affordances (portal selector
-   * in Assign Staff, per-row portal Edit) hide; everything else works. */
+  participations: ReadonlyArray<StaffParticipationView>
+  responsibilities: ReadonlyArray<PortalResponsibilitySelection>
+  memberships: ReadonlyArray<TeamMembershipView>
+  members: ReadonlyArray<DirectoryMember>
+  teams: ReadonlyArray<TeamSummary>
+  portals: ReadonlyArray<PortalOption>
   portalsDenied: boolean
+  canManageStaff?: boolean
+  state?: 'ready' | 'loading' | 'error' | 'forbidden'
+  errorMessage?: string
+  onRetry?: () => void
   tab: string | undefined
   onTabChange: (tab: string) => void
-  assignMutation: Action<{ data: CreateStaffAssignmentInput }>
-  removeMutation: Action<{ data: { assignmentId: string } }>
-  createTeamMutation: Action<{ data: CreateTeamInput }>
-  deleteTeamMutation: Action<{ data: { teamId: string } }>
-  updatePortalsMutation: Action<{
-    data: { userId: string; propertyId: string; portalIds: string[] }
+  createParticipationMutation: Action<{
+    data: CreateStaffParticipationMutationInput
+  }>
+  archiveParticipationMutation: Action<{
+    data: ArchiveStaffParticipationMutationInput
+  }>
+  createTeamMutation: Action<{ data: CreateTeamMutationInput }>
+  archiveTeamMutation: Action<{ data: { teamId: string } }>
+  updateResponsibilitiesMutation: Action<{
+    data: UpdatePortalResponsibilitiesMutationInput
   }>
 }
 
 export function PeoplePage({
   propertyId,
   propertyName,
-  assignments,
+  participations,
+  responsibilities,
+  memberships,
   members,
   teams,
   portals,
   portalsDenied,
+  canManageStaff = true,
+  state = 'ready',
+  errorMessage,
+  onRetry,
   tab,
   onTabChange,
-  assignMutation,
-  removeMutation,
+  createParticipationMutation,
+  archiveParticipationMutation,
   createTeamMutation,
-  deleteTeamMutation,
-  updatePortalsMutation,
+  archiveTeamMutation,
+  updateResponsibilitiesMutation,
 }: PeoplePageProps) {
-  const defaultTab = tab ?? 'staff'
-  const [assignOpen, setAssignOpen] = useState(false)
+  const activeTab = tab ?? 'staff'
+  const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   const [createTeamOpen, setCreateTeamOpen] = useState(false)
-
-  const memberOptions = toMemberOptions(members)
-  const teamOptions = toTeamOptions(teams)
-  const portalOptions = portals.map((p) => ({ id: String(p.id), name: p.name }))
-  const assignedUserIds = new Set(assignments.map((a) => a.userId))
+  const memberOptions: MemberOption[] = members.map((member) => ({
+    userId: member.userId,
+    name: member.name,
+    email: member.email,
+  }))
+  const activeUserIds = new Set(
+    participations
+      .filter(
+        (participation) =>
+          participation.status === 'active' && participation.endedAt == null,
+      )
+      .map((participation) => participation.userId),
+  )
 
   return (
     <PageShell>
       <PageHeader
         title="People"
-        description="Manage staff assignments, team members, and organization directory."
+        description="Manage property participation, team membership, and portal responsibility."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
           { label: propertyName, to: `/properties/${propertyId}` },
@@ -79,39 +114,56 @@ export function PeoplePage({
         ]}
       />
 
-      <Tabs value={defaultTab} onValueChange={(t) => onTabChange(t)}>
-        <TabsList>
-          <TabsTrigger value="staff">Staff</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-          <TabsTrigger value="directory">Directory</TabsTrigger>
-        </TabsList>
+      {state === 'loading' ? (
+        <LoadingState label="Loading people and teams" />
+      ) : state === 'error' ? (
+        <ErrorState
+          message={errorMessage ?? 'People and teams could not be loaded.'}
+          onRetry={onRetry}
+        />
+      ) : state === 'forbidden' ? (
+        <Alert>
+          <LockKeyhole aria-hidden="true" />
+          <AlertTitle>People management is unavailable</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view people at this property.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Tabs value={activeTab} onValueChange={onTabChange}>
+          <TabsList className="max-w-full overflow-x-auto">
+            <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="teams">Teams</TabsTrigger>
+            <TabsTrigger value="directory">Directory</TabsTrigger>
+          </TabsList>
 
-        <StaffTab
-          propertyId={propertyId}
-          assignments={assignments}
-          memberOptions={memberOptions}
-          teamOptions={teamOptions}
-          portalOptions={portalOptions}
-          portalsDenied={portalsDenied}
-          assignedUserIds={assignedUserIds}
-          assignMutation={assignMutation}
-          removeMutation={removeMutation}
-          assignOpen={assignOpen}
-          onAssignOpenChange={setAssignOpen}
-          updatePortalsMutation={updatePortalsMutation}
-        />
-        <TeamsTab
-          propertyId={propertyId}
-          teams={teams}
-          assignments={assignments}
-          memberOptions={memberOptions}
-          createTeamMutation={createTeamMutation}
-          deleteTeamMutation={deleteTeamMutation}
-          createTeamOpen={createTeamOpen}
-          onCreateTeamOpenChange={setCreateTeamOpen}
-        />
-        <DirectoryTab members={members} />
-      </Tabs>
+          <StaffTab
+            propertyId={propertyId}
+            participations={participations}
+            responsibilities={responsibilities}
+            memberOptions={memberOptions}
+            portalOptions={portals}
+            portalsDenied={portalsDenied}
+            canManageStaff={canManageStaff}
+            activeUserIds={activeUserIds}
+            createMutation={createParticipationMutation}
+            archiveMutation={archiveParticipationMutation}
+            createOpen={createParticipationOpen}
+            onCreateOpenChange={setCreateParticipationOpen}
+            updateResponsibilitiesMutation={updateResponsibilitiesMutation}
+          />
+          <TeamsTab
+            propertyId={propertyId}
+            teams={teams}
+            memberships={memberships}
+            createTeamMutation={createTeamMutation}
+            archiveTeamMutation={archiveTeamMutation}
+            createTeamOpen={createTeamOpen}
+            onCreateTeamOpenChange={setCreateTeamOpen}
+          />
+          <DirectoryTab members={members} />
+        </Tabs>
+      )}
     </PageShell>
   )
 }

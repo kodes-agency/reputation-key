@@ -11,7 +11,16 @@ import { createTeam } from './application/use-cases/create-team'
 import { updateTeam } from './application/use-cases/update-team'
 import { listTeams } from './application/use-cases/list-teams'
 import { softDeleteTeam } from './application/use-cases/soft-delete-team'
-import type { AssignmentCheckPort } from './application/ports/assignment-check.port'
+import { createTeamMembershipRepository } from './infrastructure/repositories/team-membership.repository'
+import { createTeamScopeRepository } from './infrastructure/repositories/team-scope.repository'
+import {
+  addTeamMember,
+  clearTeamLead,
+  listMyTeam,
+  listTeamMemberships,
+  removeTeamMember,
+  setTeamLead,
+} from './application/use-cases/team-memberships'
 import { teamId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
@@ -26,14 +35,14 @@ type TeamContextDeps = Readonly<{
 
 export const buildTeamContext = (deps: TeamContextDeps) => {
   const teamRepo = createTeamRepository(deps.db, deps.clock)
+  const membershipRepo = createTeamMembershipRepository(deps.db)
+  const scopeRepo = createTeamScopeRepository(deps.db)
   const idGen = () => teamId(randomUUID())
 
-  // Anti-corruption: delegate assignment counting to staff context via public API
-  const assignmentCheck: AssignmentCheckPort = {
-    countByTeam: (orgId, teamId) => deps.staffApi.countAssignmentsByTeam(orgId, teamId),
-  }
-
   const useCases = {
+    resolveTeamContext: scopeRepo.resolveTeam,
+    resolveStaffParticipationContext: scopeRepo.resolveParticipation,
+    listActiveTeamScopesByUser: scopeRepo.listActiveForUser,
     createTeam: createTeam({
       teamRepo,
       propertyApi: deps.propertyApi,
@@ -55,11 +64,50 @@ export const buildTeamContext = (deps: TeamContextDeps) => {
     softDeleteTeam: softDeleteTeam({
       teamRepo,
       staffApi: deps.staffApi,
-      assignmentCheck,
+      membershipRepo,
       events: deps.events,
+      clock: deps.clock,
+    }),
+    listTeamMemberships: listTeamMemberships({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
+      clock: deps.clock,
+    }),
+    addTeamMember: addTeamMember({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
+      clock: deps.clock,
+    }),
+    removeTeamMember: removeTeamMember({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
+      clock: deps.clock,
+    }),
+    setTeamLead: setTeamLead({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
+      clock: deps.clock,
+    }),
+    clearTeamLead: clearTeamLead({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
+      clock: deps.clock,
+    }),
+    listMyTeam: listMyTeam({
+      teamRepo,
+      membershipRepo,
+      staffApi: deps.staffApi,
       clock: deps.clock,
     }),
   } as const
 
-  return { publicApi: {} as const, internal: { repos: {} as const, useCases } } as const
+  return {
+    publicApi: {} as const,
+    internal: { repos: { teamRepo, membershipRepo } as const, useCases },
+  } as const
 }

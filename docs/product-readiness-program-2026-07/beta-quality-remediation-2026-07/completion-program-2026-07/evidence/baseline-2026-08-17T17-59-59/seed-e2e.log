@@ -1,0 +1,80 @@
+$ pnpm seed:e2e-user
+started: 2026-08-17T18:02:41.001Z  durationMs: 4651  exit: 0
+
+
+> reputation-key@ seed:e2e-user /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/seed-e2e-user.ts
+
+{"level":50,"time":1786989762765,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"te***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989763277,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"st***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989763636,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"ca***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989764004,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"ca***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989764519,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"ma***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989764860,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"ma***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+{"level":50,"time":1786989765371,"pid":14439,"hostname":"Bozhidars-MacBook-Air.local","error":{"statusCode":422,"name":"validation_error","message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information."},"toPrefix":"lo***@example.com","subject":"Verify your email — Reputation Key","msg":"Failed to send email: Verify your email — Reputation Key"}
+E2E seed state written: /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json
+E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews
+
+2026-08-17T18:02:42.765Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'test@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:43.277Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'staff@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:43.637Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'candidate-a@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:44.004Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'candidate-b@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:44.519Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'manager-one@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:44.860Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'manager-zero@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}
+2026-08-17T18:02:45.372Z ERROR [Better Auth]: Failed to run background task: {
+  _tag: 'EmailError',
+  code: 'send_failed',
+  message: 'Failed to send email: Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.',
+  context: {
+    to: 'locked-manager@example.com',
+    subject: 'Verify your email — Reputation Key'
+  }
+}

@@ -6,6 +6,7 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
 import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../../domain/types'
@@ -42,6 +43,8 @@ export type ReplyDeps = Readonly<{
    * emit). All fact-emitting reply transitions route through this store.
    */
   commandStore: ReplyCommandStore
+  /** Atomic verification and persistence seam for browser-held AI suggestions. */
+  aiSuggestedDraftStore?: AiSuggestedDraftStore
   /**
    * BQC-3.8: provider READ path for retryPublish's reconcile-before-retry
    * (an ambiguous publication is reconciled against Google before any new
@@ -105,6 +108,26 @@ async function requireAccessibleReply(
   const review = await requireAccessibleReview(deps, ctx, reviewId)
   return { reply, review }
 }
+async function assertCurrentAiDraftBinding(
+  deps: ReplyDeps,
+  ctx: AuthContext,
+  reply: Reply,
+): Promise<void> {
+  if (!reply.aiGenerated) return
+  if (!deps.aiSuggestedDraftStore) {
+    throw reviewError(
+      'ai_suggestion_unavailable',
+      'AI-assisted draft validation is unavailable',
+    )
+  }
+  const status = await deps.aiSuggestedDraftStore.assertCurrentBinding({
+    organizationId: ctx.organizationId,
+    replyId: reply.id,
+  })
+  if (status === 'stale') {
+    throw reviewError('ai_suggestion_stale', 'The AI-assisted draft is no longer current')
+  }
+}
 
 export type DraftReply = ReturnType<typeof draftReply>
 export type SubmitReply = ReturnType<typeof submitReply>
@@ -117,6 +140,7 @@ export type RetryPublish = ReturnType<typeof retryPublish>
 export type DraftReplyInput = Readonly<{
   reviewId: ReviewId
   text: string
+  provenanceToken?: string
 }>
 
 export const draftReply =
@@ -135,14 +159,40 @@ export const draftReply =
     }
 
     // D6-001: scope reply mutations to the caller's assigned properties.
-    await requireAccessibleReview(deps, ctx, input.reviewId)
+    const review = await requireAccessibleReview(deps, ctx, input.reviewId)
+    const now = deps.clock()
+
+    if (input.provenanceToken !== undefined) {
+      if (!deps.aiSuggestedDraftStore) {
+        throw reviewError(
+          'ai_suggestion_unavailable',
+          'AI suggestion acceptance is unavailable',
+        )
+      }
+      const accepted = await deps.aiSuggestedDraftStore.accept({
+        organizationId: ctx.organizationId,
+        propertyId: review.propertyId,
+        reviewId: input.reviewId,
+        actorUserId: ctx.userId,
+        text: input.text,
+        provenanceToken: input.provenanceToken,
+        now,
+      })
+      if (accepted.status === 'accepted') return accepted.reply
+      const code =
+        accepted.reason === 'invalid'
+          ? 'ai_suggestion_invalid'
+          : accepted.reason === 'expired'
+            ? 'ai_suggestion_expired'
+            : 'ai_suggestion_stale'
+      throw reviewError(code, 'AI suggestion can no longer be accepted')
+    }
 
     const existing = await deps.replyRepo.findInternalByReviewId(
       input.reviewId,
       ctx.organizationId,
     )
-
-    const now = deps.clock()
+    if (existing) await assertCurrentAiDraftBinding(deps, ctx, existing)
 
     if (existing) {
       // Validate the (re-)draft transition through the single authority.
@@ -158,6 +208,7 @@ export const draftReply =
           text: input.text,
           rejectedBy: null,
           rejectionReason: null,
+          aiGenerated: false,
         },
         now,
       )
@@ -180,6 +231,7 @@ export const draftReply =
         rejectedBy: null,
         rejectionReason: null,
         aiGenerated: false,
+        stateRevision: 1,
         submittedAt: null,
         approvedAt: null,
         publishedAt: null,
@@ -209,6 +261,7 @@ export const submitReply =
       input.reviewId,
       'No draft reply found for this review',
     )
+    await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     const now = deps.clock()
     // BQC-3.3: guarded status update + submitted fact commit in one tx;
@@ -244,6 +297,7 @@ export const approveReply =
   async (input: ApproveReplyInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     const now = deps.clock()
     // BQC-3.3: guarded status update + approved fact commit in one tx. The
@@ -279,8 +333,8 @@ export const approveReply =
       {
         replyId: approved.id,
         organizationId: approved.organizationId,
-        // BQC-3.2: named initiator for operator/user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        // Named attribution for operator/user-triggered delayed work.
+        initiator: { kind: 'user', id: ctx.userId },
       },
       { idempotencyKey: buildIdempotencyKey(approved.id, approved.updatedAt.getTime()) },
     )
@@ -369,7 +423,7 @@ export const editPublishedReply =
       {
         replyId: updated.id,
         organizationId: updated.organizationId,
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        initiator: { kind: 'user', id: ctx.userId },
       },
       { idempotencyKey: buildIdempotencyKey(updated.id, updated.updatedAt.getTime()) },
     )
@@ -554,8 +608,8 @@ export const retryPublish =
       {
         replyId: backToApproved.id,
         organizationId: backToApproved.organizationId,
-        // BQC-3.2: named initiator for operator/user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: ctx.userId } },
+        // Named attribution for operator/user-triggered delayed work.
+        initiator: { kind: 'user', id: ctx.userId },
       },
       {
         idempotencyKey: buildIdempotencyKey(

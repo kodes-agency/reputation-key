@@ -13,6 +13,25 @@ export function buildReplySetClause(
   const setClause: Record<string, unknown> = { updatedAt }
   if (updates.status !== undefined) setClause.status = updates.status
   if (updates.text !== undefined) setClause.text = updates.text
+  if (updates.aiGenerated !== undefined) {
+    setClause.aiGenerated = updates.aiGenerated
+    if (!updates.aiGenerated) {
+      setClause.authorship = 'human'
+      setClause.originOperationId = null
+      setClause.originSourceEpoch = null
+      setClause.originSourceRevision = null
+      setClause.originBaseReplyStateRevision = null
+      setClause.originReplyDraftingEpoch = null
+      setClause.originPropertyProfileVersion = null
+      setClause.originAiProfileVersion = null
+      setClause.originReplyTemplateId = null
+      setClause.originReplyTemplateCatalogueVersion = null
+      setClause.originReplyTemplateCatalogueDigest = null
+      setClause.originConcreteLanguageTag = null
+      setClause.originTemplateGroup = null
+      setClause.aiDraftExpiresAt = null
+    }
+  }
   if (updates.submittedAt !== undefined) setClause.submittedAt = updates.submittedAt
   if (updates.approvedBy !== undefined) setClause.approvedBy = updates.approvedBy
   if (updates.approvedAt !== undefined) setClause.approvedAt = updates.approvedAt

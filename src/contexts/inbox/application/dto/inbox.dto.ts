@@ -16,6 +16,12 @@ export const getInboxItemsDto = z.object({
   platform: z.string().optional(),
   ratingMin: z.number().int().min(1).max(5).optional(),
   ratingMax: z.number().int().min(1).max(5).optional(),
+  attention: z
+    .union([
+      z.enum(['urgent', 'high', 'medium', 'low']),
+      z.array(z.enum(['urgent', 'high', 'medium', 'low'])),
+    ])
+    .optional(),
   sourceDateFrom: z.coerce.date().optional(),
   sourceDateTo: z.coerce.date().optional(),
   cursor: z.string().optional(), // base64-encoded cursor JSON

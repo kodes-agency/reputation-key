@@ -9,6 +9,7 @@ export {
   identityInvitationCanceled,
   identityMemberRemoved,
   identityMemberRoleChanged,
+  identityMerchantAiChanged,
 } from '../domain/events'
 export type {
   IdentityOrganizationCreated,
@@ -17,8 +18,17 @@ export type {
   IdentityInvitationCanceled,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
+  IdentityMerchantAiChanged,
   IdentityEvent,
 } from '../domain/events'
+
+export {
+  CURRENT_MERCHANT_AI_CAPABILITIES,
+  type CurrentMerchantAiCapability,
+  type MerchantAiCapability,
+  type MerchantAiSnapshot,
+  type MerchantAiState,
+} from '../domain/merchant-ai-authorization'
 
 export type {
   IdentityPort,

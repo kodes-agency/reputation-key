@@ -1,0 +1,1101 @@
+$ pnpm test:integration
+started: 2026-08-17T18:07:06.527Z  durationMs: 44473  exit: 0
+
+
+> reputation-key@ test:integration /Users/bozhidardenev/kodes/projects/rep-key
+> vitest run --project=integration
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+[integration-global-setup] postgresql:***@127.0.0.1:5432/repkey_bqc_local_baseline_pg17test created=false migrated=false tables=149 journal=55
+{"level":30,"time":1786990030932,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":20,"time":1786990030978,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990030983,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":22,"msg":"✓ health.check 22ms"}
+{"level":20,"time":1786990031988,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990031994,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":9,"msg":"✓ health.check 9ms"}
+{"level":20,"time":1786990032989,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990032992,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":6,"msg":"✓ health.check 6ms"}
+{"level":20,"time":1786990033987,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990033989,"pid":19901,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":5,"msg":"✓ health.check 5ms"}
+{"level":30,"time":1786990039440,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","msg":"Inbox consumers registered with outbox dispatcher (4 consumers)"}
+{"level":20,"time":1786990039463,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":11,"msg":"✓ review.commandStore.upsertAndRecord 11ms"}
+{"level":20,"time":1786990039466,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":2,"msg":"✓ inbox.findBySource 2ms"}
+{"level":20,"time":1786990039468,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.createItem","duration":2,"msg":"✓ inbox.commandStore.createItem 2ms"}
+{"level":20,"time":1786990039468,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReviewCreated","duration":4,"msg":"✓ event.onReviewCreated 4ms"}
+{"level":20,"time":1786990039471,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":2,"msg":"✓ outbox.claimUnpublished 2ms"}
+{"level":30,"time":1786990039471,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":30,"time":1786990039473,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039473,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039474,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039474,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":6,"msg":"✓ outbox.relay.poll 6ms"}
+{"level":20,"time":1786990039474,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039475,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039475,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039476,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039479,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039479,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039479,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":6,"msg":"✓ outbox.dispatch 6ms"}
+{"level":20,"time":1786990039533,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":4,"msg":"✓ review.commandStore.upsertAndRecord 4ms"}
+{"level":20,"time":1786990039535,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":30,"time":1786990039535,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786990039536,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039536,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039536,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":30,"time":1786990039536,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.updated","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039537,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039537,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":3,"msg":"✓ outbox.relay.poll 3ms"}
+{"level":20,"time":1786990039537,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039538,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990039538,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":0,"msg":"✓ review.findById 0ms"}
+{"level":20,"time":1786990039539,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewUpdatedOnce","duration":1,"msg":"✓ inbox.commandStore.applyReviewUpdatedOnce 1ms"}
+{"level":20,"time":1786990039539,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-updated","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039539,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990039592,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":2,"msg":"✓ review.upsert 2ms"}
+{"level":20,"time":1786990039593,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.createItem","duration":1,"msg":"✓ inbox.commandStore.createItem 1ms"}
+{"level":20,"time":1786990039597,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.purgeExpiredReview","duration":4,"msg":"✓ reply.commandStore.purgeExpiredReview 4ms"}
+{"level":20,"time":1786990039598,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990039599,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"msg":"✓ inbox.updateStatus 1ms"}
+{"level":20,"time":1786990039599,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReviewExpired","duration":2,"msg":"✓ event.onReviewExpired 2ms"}
+{"level":20,"time":1786990039602,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":30,"time":1786990039602,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":1,"msg":"Relay claimed outbox events"}
+{"level":30,"time":1786990039603,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.expired","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039603,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039603,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":2,"msg":"✓ outbox.relay.poll 2ms"}
+{"level":20,"time":1786990039603,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039604,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990039607,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewExpiredOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewExpiredOnce 2ms"}
+{"level":20,"time":1786990039607,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-expired","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039607,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":4,"msg":"✓ outbox.dispatch 4ms"}
+{"level":20,"time":1786990039659,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":2,"msg":"✓ review.upsert 2ms"}
+{"level":20,"time":1786990039660,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.createItem","duration":1,"msg":"✓ inbox.commandStore.createItem 1ms"}
+{"level":20,"time":1786990039665,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":4,"msg":"✓ reply.upsert 4ms"}
+{"level":20,"time":1786990039669,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublished","duration":4,"msg":"✓ reply.commandStore.markPublished 4ms"}
+{"level":20,"time":1786990039671,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990039672,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"msg":"✓ inbox.updateStatus 1ms"}
+{"level":20,"time":1786990039672,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":2,"msg":"✓ event.onReplyPublished 2ms"}
+{"level":20,"time":1786990039674,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":30,"time":1786990039674,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786990039676,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.status_changed","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039676,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039676,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":30,"time":1786990039677,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.reply.published","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039677,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039677,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":4,"msg":"✓ outbox.relay.poll 4ms"}
+{"level":20,"time":1786990039677,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039678,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":0,"msg":"✓ inbox.findBySource 0ms"}
+{"level":20,"time":1786990039679,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReplyPublishedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReplyPublishedOnce 2ms"}
+{"level":20,"time":1786990039679,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-reply-published","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039679,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990039735,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990039735,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReviewCreated","duration":1,"msg":"✓ event.onReviewCreated 1ms"}
+{"level":30,"time":1786990039735,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039736,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039736,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","msg":"Consumer already has receipt — skipping"}
+{"level":20,"time":1786990039736,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":1,"msg":"✓ outbox.dispatch 1ms"}
+{"level":20,"time":1786990039743,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":4,"msg":"✓ review.commandStore.upsertAndRecord 4ms"}
+{"level":20,"time":1786990039748,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":4,"msg":"✓ review.commandStore.upsertAndRecord 4ms"}
+{"level":20,"time":1786990039751,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":3,"msg":"✓ review.commandStore.upsertAndRecord 3ms"}
+{"level":20,"time":1786990039754,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":3,"msg":"✓ review.commandStore.upsertAndRecord 3ms"}
+{"level":20,"time":1786990039757,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039759,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":3,"msg":"✓ review.commandStore.upsertAndRecord 3ms"}
+{"level":20,"time":1786990039762,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039764,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039767,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039769,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039772,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":2,"msg":"✓ review.commandStore.upsertAndRecord 2ms"}
+{"level":20,"time":1786990039774,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":3,"msg":"✓ review.commandStore.upsertAndRecord 3ms"}
+{"level":20,"time":1786990039779,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":30,"time":1786990039779,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":13,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786990039780,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.status_changed","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039780,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039780,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":30,"time":1786990039781,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039781,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039781,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":30,"time":1786990039782,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039782,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039783,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039784,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":2,"msg":"✓ outbox.markPublished 2ms"}
+{"level":20,"time":1786990039785,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039785,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039785,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":4,"msg":"✓ outbox.dispatch 4ms"}
+{"level":30,"time":1786990039785,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039786,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039786,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":30,"time":1786990039787,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039787,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":4,"msg":"✓ review.findById 4ms"}
+{"level":20,"time":1786990039787,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039788,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039788,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":2,"msg":"✓ review.findById 2ms"}
+{"level":30,"time":1786990039788,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039788,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039789,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039789,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039789,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039790,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039790,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039790,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039790,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":8,"msg":"✓ outbox.dispatch 8ms"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":4,"msg":"✓ outbox.dispatch 4ms"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":2,"msg":"✓ review.findById 2ms"}
+{"level":30,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":30,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":6,"msg":"✓ outbox.dispatch 6ms"}
+{"level":20,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":30,"time":1786990039791,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039792,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039792,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039793,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039793,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039794,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039795,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":3,"msg":"✓ review.findById 3ms"}
+{"level":20,"time":1786990039795,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":5,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 5ms"}
+{"level":20,"time":1786990039795,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039795,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":7,"msg":"✓ outbox.dispatch 7ms"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":4,"msg":"✓ outbox.dispatch 4ms"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":5,"msg":"✓ outbox.dispatch 5ms"}
+{"level":30,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039796,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039797,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":7,"msg":"✓ outbox.dispatch 7ms"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039798,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990039799,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":7,"msg":"✓ outbox.markPublished 7ms"}
+{"level":20,"time":1786990039800,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":1,"msg":"✓ outbox.renewLease 1ms"}
+{"level":30,"time":1786990039800,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039800,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039800,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":30,"time":1786990039801,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039801,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039801,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":30,"time":1786990039802,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039802,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039802,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039802,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":25,"msg":"✓ outbox.relay.poll 25ms"}
+{"level":20,"time":1786990039802,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039803,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":2,"msg":"✓ review.findById 2ms"}
+{"level":20,"time":1786990039803,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":1,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 1ms"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039804,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990039806,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 3ms"}
+{"level":20,"time":1786990039806,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039806,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":5,"msg":"✓ outbox.dispatch 5ms"}
+{"level":30,"time":1786990039861,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039862,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":1,"msg":"✓ outbox.hasReceipt 1ms"}
+{"level":20,"time":1786990039862,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","msg":"Consumer already has receipt — skipping"}
+{"level":20,"time":1786990039862,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":1,"msg":"✓ outbox.dispatch 1ms"}
+{"level":20,"time":1786990039866,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":1,"msg":"✓ review.findByOrganizationId 1ms"}
+{"level":20,"time":1786990039868,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.scanReviewItems","duration":2,"msg":"✓ inbox.scanReviewItems 2ms"}
+{"level":20,"time":1786990039871,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":2,"msg":"✓ reply.findByReviewId 2ms"}
+{"level":20,"time":1786990039871,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039872,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039872,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039873,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039874,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039874,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039875,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039875,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039876,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039876,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039877,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039877,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039879,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":1,"msg":"✓ review.findByOrganizationId 1ms"}
+{"level":20,"time":1786990039880,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.scanReviewItems","duration":1,"msg":"✓ inbox.scanReviewItems 1ms"}
+{"level":20,"time":1786990039881,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039882,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039882,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990039883,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039884,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039884,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990039885,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039885,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039886,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039886,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039887,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990039887,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990039888,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990039890,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.updateStatus","duration":2,"msg":"✓ inbox.commandStore.updateStatus 2ms"}
+{"level":20,"time":1786990039891,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.updateStatus","duration":1,"msg":"✓ inbox.commandStore.updateStatus 1ms"}
+{"level":20,"time":1786990039892,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.createItem","duration":1,"msg":"✓ inbox.commandStore.createItem 1ms"}
+{"level":20,"time":1786990039903,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.commandStore.upsertAndRecord","duration":10,"msg":"✓ review.commandStore.upsertAndRecord 10ms"}
+{"level":20,"time":1786990039905,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":2,"msg":"✓ outbox.claimUnpublished 2ms"}
+{"level":30,"time":1786990039905,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","count":15,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786990039905,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039905,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039906,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039906,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039906,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039906,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039907,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039907,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039907,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039908,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039908,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039908,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039909,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039909,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039909,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990039910,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039910,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039910,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039910,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039910,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039911,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039911,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039911,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039911,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039912,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039913,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":0,"msg":"✓ outbox.renewLease 0ms"}
+{"level":20,"time":1786990039913,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039913,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039913,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039914,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.created","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039914,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039914,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.status_changed","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"inbox.inbox_item.status_changed","msg":"No durable consumers for event type (bus-only family) — completing"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":0,"msg":"✓ outbox.dispatch 0ms"}
+{"level":20,"time":1786990039915,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":30,"time":1786990039916,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","eventType":"review.created","consumers":1,"msg":"Dispatching event to consumers"}
+{"level":20,"time":1786990039916,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990039916,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":13,"msg":"✓ outbox.relay.poll 13ms"}
+{"level":20,"time":1786990039916,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.hasReceipt","duration":0,"msg":"✓ outbox.hasReceipt 0ms"}
+{"level":20,"time":1786990039917,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990039919,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990039919,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","consumerName":"inbox.on-review-created","status":"applied","msg":"Consumer completed"}
+{"level":20,"time":1786990039919,"pid":20083,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.dispatch","duration":3,"msg":"✓ outbox.dispatch 3ms"}
+{"level":20,"time":1786990040533,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":3,"msg":"✓ outbox.claimUnpublished 3ms"}
+{"level":30,"time":1786990040533,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","count":1,"msg":"Relay claimed outbox events"}
+{"level":50,"time":1786990040533,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"eventType":"test.bqc46.fault","msg":"Failed to publish outbox event to BullMQ"}
+{"level":20,"time":1786990040533,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":4,"msg":"✓ outbox.relay.poll 4ms"}
+{"level":20,"time":1786990040536,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":30,"time":1786990040536,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","count":1,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786990040538,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":1,"msg":"✓ outbox.markPublished 1ms"}
+{"level":20,"time":1786990040538,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":4,"msg":"✓ outbox.relay.poll 4ms"}
+{"level":50,"time":1786990040548,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-b-default","jobName":"sync-property-reviews","attemptsMade":1,"err":{"type":"Object","message":"connect ECONNREFUSED 127.0.0.1:5432 — database unreachable","stack":"Error: connect ECONNREFUSED 127.0.0.1:5432 — database unreachable\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts:377:20\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"msg":"job failed"}
+{"level":50,"time":1786990040649,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-b-default","jobName":"sync-property-reviews","attemptsMade":2,"err":{"type":"Object","message":"connect ECONNREFUSED 127.0.0.1:5432 — database unreachable","stack":"Error: connect ECONNREFUSED 127.0.0.1:5432 — database unreachable\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts:377:20\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64"},"msg":"job failed"}
+{"level":50,"time":1786990040649,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-b-default","jobName":"sync-property-reviews","msg":"job exhausted attempts — moved to quarantine"}
+{"level":20,"time":1786990040721,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":5,"msg":"✓ review.upsert 5ms"}
+{"level":20,"time":1786990040729,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":8,"msg":"✓ reply.upsert 8ms"}
+{"level":30,"time":1786990040730,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","msg":"Publishing reply to Google"}
+{"level":20,"time":1786990040731,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":2,"msg":"✓ reply.findById 2ms"}
+{"level":20,"time":1786990040735,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationSending","duration":4,"msg":"✓ reply.commandStore.markPublicationSending 4ms"}
+{"level":20,"time":1786990040736,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":50,"time":1786990040737,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Object","message":"GBP responded 503","stack":"","_tag":"IntegrationError","code":"gbp_api_error","context":{"status":503}},"attempt":1,"msg":"Reply publish failed (retryable)"}
+{"level":20,"time":1786990040738,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationRetryQueued","duration":2,"msg":"✓ reply.commandStore.markPublicationRetryQueued 2ms"}
+{"level":50,"time":1786990040738,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"job.publishReply","duration":9,"error":{"_tag":"IntegrationError","code":"gbp_api_error","message":"GBP responded 503","context":{"status":503}},"msg":"Span job.publishReply failed after 9ms"}
+{"level":20,"time":1786990040739,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":30,"time":1786990040739,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","msg":"Publishing reply to Google"}
+{"level":20,"time":1786990040740,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":20,"time":1786990040742,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationSending","duration":2,"msg":"✓ reply.commandStore.markPublicationSending 2ms"}
+{"level":20,"time":1786990040743,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":50,"time":1786990040743,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","err":{"type":"Object","message":"GBP responded 503","stack":"","_tag":"IntegrationError","code":"gbp_api_error","context":{"status":503}},"attempt":2,"msg":"Reply publish failed (retryable)"}
+{"level":20,"time":1786990040744,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationRetryQueued","duration":1,"msg":"✓ reply.commandStore.markPublicationRetryQueued 1ms"}
+{"level":50,"time":1786990040744,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"job.publishReply","duration":5,"error":{"_tag":"IntegrationError","code":"gbp_api_error","message":"GBP responded 503","context":{"status":503}},"msg":"Span job.publishReply failed after 5ms"}
+{"level":20,"time":1786990040745,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":30,"time":1786990040745,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","msg":"Publishing reply to Google"}
+{"level":20,"time":1786990040746,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":20,"time":1786990040747,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationSending","duration":1,"msg":"✓ reply.commandStore.markPublicationSending 1ms"}
+{"level":20,"time":1786990040748,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":50,"time":1786990040748,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"AbortError"},"attempt":3,"reconcile":"reconcileReplyPublication","msg":"Ambiguous publish outcome on final attempt — marked publish_failed; reconcile before retrying"}
+{"level":20,"time":1786990040751,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationAmbiguous","duration":3,"msg":"✓ reply.commandStore.markPublicationAmbiguous 3ms"}
+{"level":50,"time":1786990040751,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"job.publishReply","duration":6,"error":{"name":"AbortError"},"msg":"Span job.publishReply failed after 6ms"}
+{"level":20,"time":1786990040752,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":20,"time":1786990040789,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":0,"msg":"✓ outbox.findExpiredLeases 0ms"}
+{"level":20,"time":1786990040792,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":4,"msg":"✓ health.check 4ms"}
+{"level":50,"time":1786990040800,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-e-default","jobName":"sync-property-reviews","attemptsMade":1,"err":{"type":"Object","message":"connect ECONNREFUSED 127.0.0.1:5432 — database unreachable","stack":"Error: connect ECONNREFUSED 127.0.0.1:5432 — database unreachable\n    at Object.loadPropertyRouting (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts:746:17)\n    at Object.resolve (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/routing/processing-router.ts:223:20)\n    at enforceJobRouting (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/jobs/delayed-execution-gate.ts:480:41)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at Worker.processFn (/Users/bozhidardenev/kodes/projects/rep-key/src/shared/jobs/delayed-execution-gate.ts:603:24)\n    at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/bullmq@5.77.6/node_modules/bullmq/dist/cjs/classes/worker.js:589:32"},"msg":"job failed"}
+{"level":50,"time":1786990040800,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-e-default","jobName":"sync-property-reviews","msg":"job exhausted attempts — moved to quarantine"}
+{"level":30,"time":1786990040849,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","queue":"bqc46-it-e-default","jobName":"sync-property-reviews","msg":"job completed"}
+{"level":40,"time":1786990040857,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","jobName":"sync-property-reviews","reason":"region_denied","region":"europe","msg":"job routing blocked — quarantining (fail closed)"}
+{"level":40,"time":1786990040861,"pid":20094,"hostname":"Bozhidars-MacBook-Air.local","jobName":"sync-property-reviews","reason":"region_denied","region":"europe","msg":"job routing blocked — quarantining (fail closed)"}
+{"level":20,"time":1786990041807,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":13,"msg":"✓ review.upsert 13ms"}
+{"level":20,"time":1786990041810,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":2,"msg":"✓ review.findByExternalId 2ms"}
+{"level":20,"time":1786990041814,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":1,"msg":"✓ review.findByExternalId 1ms"}
+{"level":20,"time":1786990041818,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":2,"msg":"✓ review.upsert 2ms"}
+{"level":20,"time":1786990041822,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":4,"msg":"✓ review.upsert 4ms"}
+{"level":20,"time":1786990041826,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041829,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":3,"msg":"✓ review.upsert 3ms"}
+{"level":20,"time":1786990041829,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":1,"msg":"✓ review.findByExternalId 1ms"}
+{"level":20,"time":1786990041833,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041834,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041835,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":0,"msg":"✓ review.findByExternalId 0ms"}
+{"level":20,"time":1786990041838,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041838,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041839,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041840,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findRecentEligibleByPropertyId","duration":1,"msg":"✓ review.findRecentEligibleByPropertyId 1ms"}
+{"level":20,"time":1786990041843,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041843,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findRecentEligibleByPropertyId","duration":0,"msg":"✓ review.findRecentEligibleByPropertyId 0ms"}
+{"level":20,"time":1786990041846,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041847,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041848,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041849,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041849,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041850,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":1,"msg":"✓ review.findExpiringBatchAcrossTenants 1ms"}
+{"level":20,"time":1786990041851,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":1,"msg":"✓ review.findExpiringBatchAcrossTenants 1ms"}
+{"level":20,"time":1786990041851,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":0,"msg":"✓ review.findExpiringBatchAcrossTenants 0ms"}
+{"level":20,"time":1786990041852,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":0,"msg":"✓ review.findExpiringBatchAcrossTenants 0ms"}
+{"level":20,"time":1786990041854,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041855,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041855,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":0,"msg":"✓ review.findExpiringBatchAcrossTenants 0ms"}
+{"level":20,"time":1786990041856,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041857,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":0,"msg":"✓ review.findExpiringBatchAcrossTenants 0ms"}
+{"level":20,"time":1786990041857,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiringBatchAcrossTenants","duration":0,"msg":"✓ review.findExpiringBatchAcrossTenants 0ms"}
+{"level":20,"time":1786990041860,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041861,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041861,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":0,"msg":"✓ review.findByExternalId 0ms"}
+{"level":20,"time":1786990041862,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":0,"msg":"✓ review.findByExternalId 0ms"}
+{"level":20,"time":1786990041866,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041866,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":0,"msg":"✓ review.findByExternalId 0ms"}
+{"level":20,"time":1786990041870,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041871,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041871,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByPropertyId","duration":1,"msg":"✓ review.findByPropertyId 1ms"}
+{"level":20,"time":1786990041875,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByPropertyId","duration":1,"msg":"✓ review.findByPropertyId 1ms"}
+{"level":20,"time":1786990041878,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041879,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041880,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":1,"msg":"✓ review.findByOrganizationId 1ms"}
+{"level":20,"time":1786990041884,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041885,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041886,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041887,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041888,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041889,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041890,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041891,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041892,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041893,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041895,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041896,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041897,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041898,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041899,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041900,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041900,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041901,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041905,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041906,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041906,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041907,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041910,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041911,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041912,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041912,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":0,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 0ms"}
+{"level":20,"time":1786990041913,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041914,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041916,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041917,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041917,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":0,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 0ms"}
+{"level":20,"time":1786990041918,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041919,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":1,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041919,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":0,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 0ms"}
+{"level":20,"time":1786990041923,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041924,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041925,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041925,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.countExpiredBeforeAcrossTenants","duration":1,"msg":"✓ review.countExpiredBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990041926,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.countExpiredBeforeAcrossTenants","duration":0,"msg":"✓ review.countExpiredBeforeAcrossTenants 0ms"}
+{"level":20,"time":1786990041929,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041931,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.deleteById","duration":2,"msg":"✓ review.deleteById 2ms"}
+{"level":20,"time":1786990041931,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":1,"msg":"✓ review.findByExternalId 1ms"}
+{"level":20,"time":1786990041935,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041936,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041937,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.deleteByPropertyId","duration":1,"msg":"✓ review.deleteByPropertyId 1ms"}
+{"level":20,"time":1786990041937,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByPropertyId","duration":1,"msg":"✓ review.findByPropertyId 1ms"}
+{"level":20,"time":1786990041941,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041941,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.deleteById","duration":0,"msg":"✓ review.deleteById 0ms"}
+{"level":20,"time":1786990041941,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByExternalId","duration":1,"msg":"✓ review.findByExternalId 1ms"}
+{"level":20,"time":1786990041945,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041946,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990041946,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.deleteByPropertyId","duration":0,"msg":"✓ review.deleteByPropertyId 0ms"}
+{"level":20,"time":1786990041947,"pid":20103,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByPropertyId","duration":0,"msg":"✓ review.findByPropertyId 0ms"}
+{"level":20,"time":1786990042752,"pid":20111,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":3,"msg":"✓ review.upsert 3ms"}
+{"level":20,"time":1786990043185,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":10,"msg":"✓ property.googleBinding.create 10ms"}
+{"level":20,"time":1786990043220,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":2,"msg":"✓ property.googleBinding.create 2ms"}
+{"level":20,"time":1786990043227,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":2,"msg":"✓ property.googleBinding.create 2ms"}
+{"level":50,"time":1786990043232,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":2,"error":{"name":"Error"},"msg":"Span property.googleBinding.create failed after 2ms"}
+{"level":20,"time":1786990043244,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.relink","duration":7,"msg":"✓ property.googleBinding.relink 7ms"}
+{"level":50,"time":1786990043246,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.relink","duration":1,"error":{"name":"PropertyGoogleBindingError","code":"stale_binding"},"msg":"Span property.googleBinding.relink failed after 1ms"}
+{"level":50,"time":1786990043246,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.relink","duration":1,"error":{"name":"PropertyGoogleBindingError","code":"active_binding_conflict"},"msg":"Span property.googleBinding.relink failed after 1ms"}
+{"level":20,"time":1786990043251,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.disconnect","duration":1,"msg":"✓ property.googleBinding.disconnect 1ms"}
+{"level":20,"time":1786990043252,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.disconnect","duration":1,"msg":"✓ property.googleBinding.disconnect 1ms"}
+{"level":20,"time":1786990043253,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.scrub","duration":2,"msg":"✓ property.googleBinding.scrub 2ms"}
+{"level":20,"time":1786990043258,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":2,"msg":"✓ property.googleBinding.create 2ms"}
+{"level":20,"time":1786990043260,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.googleBinding.create","duration":1,"msg":"✓ property.googleBinding.create 1ms"}
+{"level":20,"time":1786990043276,"pid":20223,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.deleteProperty","duration":16,"msg":"✓ property.commandStore.deleteProperty 16ms"}
+{"level":20,"time":1786990044253,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.insert","duration":3,"msg":"✓ outbox.insert 3ms"}
+{"level":20,"time":1786990044258,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":5,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 5ms"}
+{"level":20,"time":1786990044265,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.insert","duration":1,"msg":"✓ outbox.insert 1ms"}
+{"level":50,"time":1786990044266,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":1,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span inbox.commandStore.applyReviewCreatedOnce failed after 1ms"}
+{"level":50,"time":1786990044272,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"error":{"name":"Error"},"msg":"Span inbox.commandStore.applyReviewCreatedOnce failed after 2ms"}
+{"level":20,"time":1786990044275,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.insert","duration":1,"msg":"✓ outbox.insert 1ms"}
+{"level":20,"time":1786990044277,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":2,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 2ms"}
+{"level":20,"time":1786990044281,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewCreatedOnce","duration":4,"msg":"✓ inbox.commandStore.applyReviewCreatedOnce 4ms"}
+{"level":20,"time":1786990044285,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990044285,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.insert","duration":0,"msg":"✓ outbox.insert 0ms"}
+{"level":20,"time":1786990044288,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.applyReviewExpiredOnce","duration":3,"msg":"✓ inbox.commandStore.applyReviewExpiredOnce 3ms"}
+{"level":20,"time":1786990044288,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044289,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":1,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044289,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":1,"msg":"✓ inbox.findById 1ms"}
+{"level":20,"time":1786990044295,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":4,"msg":"✓ review.upsert 4ms"}
+{"level":20,"time":1786990044304,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":8,"msg":"✓ reply.upsert 8ms"}
+{"level":20,"time":1786990044305,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990044306,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044307,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044308,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990044309,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990044310,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044311,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990044312,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":1,"msg":"✓ review.findByOrganizationId 1ms"}
+{"level":20,"time":1786990044313,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.scanReviewItems","duration":1,"msg":"✓ inbox.scanReviewItems 1ms"}
+{"level":20,"time":1786990044314,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990044315,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044315,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044316,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.updateStatus","duration":1,"msg":"✓ inbox.commandStore.updateStatus 1ms"}
+{"level":20,"time":1786990044318,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.updateStatus","duration":1,"msg":"✓ inbox.commandStore.updateStatus 1ms"}
+{"level":20,"time":1786990044319,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.updateStatus","duration":1,"msg":"✓ inbox.commandStore.updateStatus 1ms"}
+{"level":20,"time":1786990044320,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.commandStore.createItem","duration":1,"msg":"✓ inbox.commandStore.createItem 1ms"}
+{"level":20,"time":1786990044320,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044320,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":0,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044320,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":0,"msg":"✓ inbox.findById 0ms"}
+{"level":20,"time":1786990044321,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":0,"msg":"✓ inbox.findBySource 0ms"}
+{"level":20,"time":1786990044321,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044321,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":0,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044321,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":0,"msg":"✓ inbox.findById 0ms"}
+{"level":20,"time":1786990044321,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044322,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":1,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044322,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":0,"msg":"✓ inbox.findById 0ms"}
+{"level":20,"time":1786990044322,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044322,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":0,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044322,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":0,"msg":"✓ inbox.findById 0ms"}
+{"level":20,"time":1786990044323,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":0,"msg":"✓ review.findByOrganizationId 0ms"}
+{"level":20,"time":1786990044324,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.scanReviewItems","duration":1,"msg":"✓ inbox.scanReviewItems 1ms"}
+{"level":20,"time":1786990044324,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990044324,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044325,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044325,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044337,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044338,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990044338,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990044339,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044340,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044340,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990044341,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990044342,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990044342,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990044342,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findByOrganizationId","duration":0,"msg":"✓ review.findByOrganizationId 0ms"}
+{"level":20,"time":1786990044343,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.scanReviewItems","duration":0,"msg":"✓ inbox.scanReviewItems 0ms"}
+{"level":20,"time":1786990044343,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044344,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044344,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990044344,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990044345,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":1,"msg":"inbox findById complete"}
+{"level":20,"time":1786990044345,"pid":20236,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":0,"msg":"✓ inbox.findById 0ms"}
+{"level":20,"time":1786990044756,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":14,"msg":"✓ review.servingStats.getRecentReviews 14ms"}
+{"level":20,"time":1786990044756,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRecentReviews","duration":15,"msg":"✓ dashboard.getRecentReviews 15ms"}
+{"level":20,"time":1786990044763,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":1,"msg":"✓ review.servingStats.getRecentReviews 1ms"}
+{"level":20,"time":1786990044763,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRecentReviews","duration":1,"msg":"✓ dashboard.getRecentReviews 1ms"}
+{"level":20,"time":1786990044770,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":1,"msg":"✓ review.servingStats.getRecentReviews 1ms"}
+{"level":20,"time":1786990044771,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRecentReviews","duration":1,"msg":"✓ dashboard.getRecentReviews 1ms"}
+{"level":20,"time":1786990044775,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":1,"msg":"✓ review.servingStats.getRecentReviews 1ms"}
+{"level":20,"time":1786990044775,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRecentReviews","duration":1,"msg":"✓ dashboard.getRecentReviews 1ms"}
+{"level":20,"time":1786990044780,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRatingDistribution","duration":1,"msg":"✓ review.servingStats.getRatingDistribution 1ms"}
+{"level":20,"time":1786990044780,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRatingDistribution","duration":1,"msg":"✓ dashboard.getRatingDistribution 1ms"}
+{"level":20,"time":1786990044784,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRatingDistribution","duration":0,"msg":"✓ review.servingStats.getRatingDistribution 0ms"}
+{"level":20,"time":1786990044784,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRatingDistribution","duration":0,"msg":"✓ dashboard.getRatingDistribution 0ms"}
+{"level":20,"time":1786990044792,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":1,"msg":"✓ review.servingStats.getPeriodStats 1ms"}
+{"level":20,"time":1786990044795,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":4,"msg":"✓ review.servingStats.getPeriodStats 4ms"}
+{"level":20,"time":1786990044798,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":3,"msg":"✓ dashboard.metricStats.getSumsByPeriod 3ms"}
+{"level":20,"time":1786990044798,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":3,"msg":"✓ dashboard.metricStats.getSumsByPeriod 3ms"}
+{"level":20,"time":1786990044798,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getKPIs","duration":7,"msg":"✓ dashboard.getKPIs 7ms"}
+{"level":20,"time":1786990044802,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":1,"msg":"✓ review.servingStats.getPeriodStats 1ms"}
+{"level":20,"time":1786990044802,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":1,"msg":"✓ review.servingStats.getPeriodStats 1ms"}
+{"level":20,"time":1786990044804,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":1,"msg":"✓ dashboard.metricStats.getSumsByPeriod 1ms"}
+{"level":20,"time":1786990044804,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":1,"msg":"✓ dashboard.metricStats.getSumsByPeriod 1ms"}
+{"level":20,"time":1786990044804,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getKPIs","duration":2,"msg":"✓ dashboard.getKPIs 2ms"}
+{"level":20,"time":1786990044810,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getReplyPerformance","duration":2,"msg":"✓ review.servingStats.getReplyPerformance 2ms"}
+{"level":20,"time":1786990044811,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getReplyPerformance","duration":2,"msg":"✓ dashboard.getReplyPerformance 2ms"}
+{"level":20,"time":1786990044816,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getReplyPerformance","duration":3,"msg":"✓ review.servingStats.getReplyPerformance 3ms"}
+{"level":20,"time":1786990044816,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getReplyPerformance","duration":3,"msg":"✓ dashboard.getReplyPerformance 3ms"}
+{"level":20,"time":1786990044828,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRatingTrend","duration":9,"msg":"✓ review.servingStats.getRatingTrend 9ms"}
+{"level":20,"time":1786990044828,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRatingTrend","duration":9,"msg":"✓ dashboard.getRatingTrend 9ms"}
+{"level":20,"time":1786990044833,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getReviewVolume","duration":1,"msg":"✓ review.servingStats.getReviewVolume 1ms"}
+{"level":20,"time":1786990044833,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getReviewVolume","duration":1,"msg":"✓ dashboard.getReviewVolume 1ms"}
+{"level":20,"time":1786990044839,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getCountsByPortal","duration":1,"msg":"✓ dashboard.metricStats.getCountsByPortal 1ms"}
+{"level":20,"time":1786990044839,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getEngagementFunnel","duration":1,"msg":"✓ dashboard.getEngagementFunnel 1ms"}
+{"level":20,"time":1786990044843,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":1,"msg":"✓ review.servingStats.getRecentReviews 1ms"}
+{"level":20,"time":1786990044843,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getRecentReviews","duration":1,"msg":"✓ dashboard.getRecentReviews 1ms"}
+{"level":20,"time":1786990044846,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":0,"msg":"✓ review.servingStats.getPeriodStats 0ms"}
+{"level":20,"time":1786990044846,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":1,"msg":"✓ review.servingStats.getPeriodStats 1ms"}
+{"level":20,"time":1786990044847,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":1,"msg":"✓ dashboard.metricStats.getSumsByPeriod 1ms"}
+{"level":20,"time":1786990044847,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.metricStats.getSumsByPeriod","duration":1,"msg":"✓ dashboard.metricStats.getSumsByPeriod 1ms"}
+{"level":20,"time":1786990044847,"pid":20239,"hostname":"Bozhidars-MacBook-Air.local","span":"dashboard.getKPIs","duration":1,"msg":"✓ dashboard.getKPIs 1ms"}
+{"level":20,"time":1786990045232,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":13,"msg":"✓ review.upsert 13ms"}
+{"level":20,"time":1786990045238,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":6,"msg":"✓ reply.upsert 6ms"}
+{"level":20,"time":1786990045240,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":2,"msg":"✓ reply.findByReviewId 2ms"}
+{"level":20,"time":1786990045245,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":2,"msg":"✓ review.upsert 2ms"}
+{"level":20,"time":1786990045245,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990045249,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045250,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045253,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":3,"msg":"✓ reply.upsert 3ms"}
+{"level":20,"time":1786990045253,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findGoogleSyncByReviewId","duration":0,"msg":"✓ reply.findGoogleSyncByReviewId 0ms"}
+{"level":20,"time":1786990045258,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045259,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":2,"msg":"✓ reply.upsert 2ms"}
+{"level":20,"time":1786990045260,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findGoogleSyncByReviewId","duration":0,"msg":"✓ reply.findGoogleSyncByReviewId 0ms"}
+{"level":20,"time":1786990045263,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045264,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045266,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":2,"msg":"✓ reply.upsert 2ms"}
+{"level":20,"time":1786990045270,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045271,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045272,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":2,"msg":"✓ reply.upsert 2ms"}
+{"level":20,"time":1786990045276,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045277,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045277,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045278,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990045278,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990045281,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045282,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045284,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045284,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.deleteByReviewIdAndSource","duration":1,"msg":"✓ reply.deleteByReviewIdAndSource 1ms"}
+{"level":20,"time":1786990045285,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990045288,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045290,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045290,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.deleteById","duration":0,"msg":"✓ reply.deleteById 0ms"}
+{"level":20,"time":1786990045291,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":0,"msg":"✓ reply.findByReviewId 0ms"}
+{"level":20,"time":1786990045294,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045295,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045295,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.deleteById","duration":0,"msg":"✓ reply.deleteById 0ms"}
+{"level":20,"time":1786990045296,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990045299,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045301,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045301,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.deleteByReviewIdAndSource","duration":0,"msg":"✓ reply.deleteByReviewIdAndSource 0ms"}
+{"level":20,"time":1786990045302,"pid":20244,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findByReviewId","duration":1,"msg":"✓ reply.findByReviewId 1ms"}
+{"level":20,"time":1786990045700,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":12,"msg":"✓ review.upsert 12ms"}
+{"level":20,"time":1786990045707,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":7,"msg":"✓ reply.upsert 7ms"}
+{"level":20,"time":1786990045730,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045731,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045732,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045733,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045734,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045735,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045739,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.cancelPublications","duration":4,"msg":"✓ reply.commandStore.cancelPublications 4ms"}
+{"level":20,"time":1786990045743,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045744,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045745,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045746,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":50,"time":1786990045748,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.cancelPublications","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span reply.commandStore.cancelPublications failed after 2ms"}
+{"level":20,"time":1786990045751,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045752,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045753,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationSending","duration":1,"msg":"✓ reply.commandStore.markPublicationSending 1ms"}
+{"level":20,"time":1786990045755,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationAmbiguous","duration":1,"msg":"✓ reply.commandStore.markPublicationAmbiguous 1ms"}
+{"level":20,"time":1786990045756,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findAmbiguousPublicationBatch","duration":1,"msg":"✓ reply.findAmbiguousPublicationBatch 1ms"}
+{"level":20,"time":1786990045757,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findAmbiguousPublicationBatch","duration":0,"msg":"✓ reply.findAmbiguousPublicationBatch 0ms"}
+{"level":20,"time":1786990045759,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.cancelPublications","duration":1,"msg":"✓ reply.commandStore.cancelPublications 1ms"}
+{"level":20,"time":1786990045761,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990045761,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990045762,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.cancelPublications","duration":1,"msg":"✓ reply.commandStore.cancelPublications 1ms"}
+{"level":20,"time":1786990045763,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.markPublicationSending","duration":1,"msg":"✓ reply.commandStore.markPublicationSending 1ms"}
+{"level":20,"time":1786990045764,"pid":20249,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":0,"msg":"✓ reply.findById 0ms"}
+{"level":20,"time":1786990046203,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":3,"msg":"✓ property.findById 3ms"}
+{"level":30,"time":1786990046207,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786990046208,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"background","msg":"region move: queue paused"}
+{"level":20,"time":1786990046221,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":30,"time":1786990046222,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786990046223,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"background","msg":"region move: queue paused"}
+{"level":20,"time":1786990046225,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":30,"time":1786990046226,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786990046227,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"background","msg":"region move: queue paused"}
+{"level":20,"time":1786990046232,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":30,"time":1786990046234,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786990046234,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"background","msg":"region move: queue paused"}
+{"level":30,"time":1786990046238,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue resumed"}
+{"level":30,"time":1786990046238,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","queue":"background","msg":"region move: queue resumed"}
+{"level":20,"time":1786990046243,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":2,"msg":"✓ property.findById 2ms"}
+{"level":20,"time":1786990046245,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990046247,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990046249,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990046251,"pid":20255,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990047085,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":7,"msg":"✓ property.insert 7ms"}
+{"level":20,"time":1786990047089,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":3,"msg":"✓ property.findById 3ms"}
+{"level":20,"time":1786990047094,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":1,"msg":"✓ property.insert 1ms"}
+{"level":20,"time":1786990047094,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047095,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990047096,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":0,"msg":"✓ property.findById 0ms"}
+{"level":20,"time":1786990047100,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047100,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.slugExists","duration":0,"msg":"✓ property.slugExists 0ms"}
+{"level":20,"time":1786990047101,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.slugExists","duration":0,"msg":"✓ property.slugExists 0ms"}
+{"level":20,"time":1786990047104,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047104,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047105,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.list","duration":0,"msg":"✓ property.list 0ms"}
+{"level":20,"time":1786990047105,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.list","duration":0,"msg":"✓ property.list 0ms"}
+{"level":20,"time":1786990047109,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":1,"msg":"✓ property.insert 1ms"}
+{"level":20,"time":1786990047126,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.hardDelete","duration":17,"msg":"✓ property.hardDelete 17ms"}
+{"level":20,"time":1786990047127,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":1,"msg":"✓ property.findById 1ms"}
+{"level":20,"time":1786990047127,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.list","duration":0,"msg":"✓ property.list 0ms"}
+{"level":20,"time":1786990047129,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047131,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.hardDelete","duration":1,"msg":"✓ property.hardDelete 1ms"}
+{"level":20,"time":1786990047131,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047131,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":0,"msg":"✓ property.findById 0ms"}
+{"level":20,"time":1786990047133,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.insert","duration":0,"msg":"✓ property.insert 0ms"}
+{"level":20,"time":1786990047135,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.update","duration":2,"msg":"✓ property.update 2ms"}
+{"level":20,"time":1786990047135,"pid":20263,"hostname":"Bozhidars-MacBook-Air.local","span":"property.findById","duration":0,"msg":"✓ property.findById 0ms"}
+{"level":20,"time":1786990048565,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":10,"msg":"✓ staff.commandStore.assignStaff 10ms"}
+{"level":50,"time":1786990048573,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span staff.commandStore.assignStaff failed after 2ms"}
+{"level":20,"time":1786990048576,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":1,"msg":"✓ staff.commandStore.assignStaff 1ms"}
+{"level":50,"time":1786990048577,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":1,"error":{"_tag":"StaffError","code":"already_assigned","message":"this user is already assigned to this property/team/portal"},"msg":"Span staff.commandStore.assignStaff failed after 1ms"}
+{"level":20,"time":1786990048580,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":2,"msg":"✓ staff.commandStore.assignStaff 2ms"}
+{"level":20,"time":1786990048585,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.unassignStaff","duration":4,"msg":"✓ staff.commandStore.unassignStaff 4ms"}
+{"level":50,"time":1786990048588,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.unassignStaff","duration":1,"error":{"_tag":"StaffError","code":"assignment_not_found","message":"assignment not found"},"msg":"Span staff.commandStore.unassignStaff failed after 1ms"}
+{"level":20,"time":1786990048593,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":3,"msg":"✓ staff.commandStore.assignStaff 3ms"}
+{"level":20,"time":1786990048594,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.updatePortals","duration":2,"msg":"✓ staff.commandStore.updatePortals 2ms"}
+{"level":20,"time":1786990048598,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.assignStaff","duration":1,"msg":"✓ staff.commandStore.assignStaff 1ms"}
+{"level":50,"time":1786990048600,"pid":20289,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.commandStore.updatePortals","duration":1,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span staff.commandStore.updatePortals failed after 1ms"}
+{"level":20,"time":1786990049005,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":9,"msg":"✓ portal.insert 9ms"}
+{"level":20,"time":1786990049007,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":1,"msg":"✓ portalLink.insertCategory 1ms"}
+{"level":20,"time":1786990049009,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listCategories","duration":2,"msg":"✓ portalLink.listCategories 2ms"}
+{"level":20,"time":1786990049013,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":1,"msg":"✓ portal.insert 1ms"}
+{"level":20,"time":1786990049014,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049014,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049015,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049015,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listCategories","duration":0,"msg":"✓ portalLink.listCategories 0ms"}
+{"level":20,"time":1786990049015,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listCategories","duration":0,"msg":"✓ portalLink.listCategories 0ms"}
+{"level":20,"time":1786990049020,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049020,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049021,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.updateCategory","duration":1,"msg":"✓ portalLink.updateCategory 1ms"}
+{"level":20,"time":1786990049021,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.findCategoryById","duration":0,"msg":"✓ portalLink.findCategoryById 0ms"}
+{"level":20,"time":1786990049024,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049025,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049026,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.deleteCategory","duration":1,"msg":"✓ portalLink.deleteCategory 1ms"}
+{"level":20,"time":1786990049026,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.findCategoryById","duration":0,"msg":"✓ portalLink.findCategoryById 0ms"}
+{"level":20,"time":1786990049029,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049030,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049030,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049031,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.reorderCategories","duration":1,"msg":"✓ portalLink.reorderCategories 1ms"}
+{"level":20,"time":1786990049031,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listCategories","duration":0,"msg":"✓ portalLink.listCategories 0ms"}
+{"level":20,"time":1786990049035,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":1,"msg":"✓ portal.insert 1ms"}
+{"level":20,"time":1786990049036,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049036,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":1,"msg":"✓ portalLink.insertLink 1ms"}
+{"level":20,"time":1786990049037,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listLinks","duration":0,"msg":"✓ portalLink.listLinks 0ms"}
+{"level":20,"time":1786990049039,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049039,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049040,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049040,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049040,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049041,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049041,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listLinks","duration":0,"msg":"✓ portalLink.listLinks 0ms"}
+{"level":20,"time":1786990049044,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049044,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049045,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049045,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.updateLink","duration":0,"msg":"✓ portalLink.updateLink 0ms"}
+{"level":20,"time":1786990049045,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.findLinkById","duration":0,"msg":"✓ portalLink.findLinkById 0ms"}
+{"level":20,"time":1786990049048,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049048,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049048,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049049,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.deleteLink","duration":0,"msg":"✓ portalLink.deleteLink 0ms"}
+{"level":20,"time":1786990049049,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.findLinkById","duration":0,"msg":"✓ portalLink.findLinkById 0ms"}
+{"level":20,"time":1786990049051,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049051,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049052,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049052,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049053,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.reorderLinks","duration":1,"msg":"✓ portalLink.reorderLinks 1ms"}
+{"level":20,"time":1786990049054,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listLinks","duration":0,"msg":"✓ portalLink.listLinks 0ms"}
+{"level":20,"time":1786990049056,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990049056,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertCategory","duration":0,"msg":"✓ portalLink.insertCategory 0ms"}
+{"level":20,"time":1786990049056,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.insertLink","duration":0,"msg":"✓ portalLink.insertLink 0ms"}
+{"level":20,"time":1786990049057,"pid":20300,"hostname":"Bozhidars-MacBook-Air.local","span":"portalLink.listAllLinks","duration":0,"msg":"✓ portalLink.listAllLinks 0ms"}
+{"level":20,"time":1786990050594,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.addPortal","duration":20,"msg":"✓ portalGroup.addPortal 20ms"}
+{"level":20,"time":1786990050596,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.removePortal","duration":2,"msg":"✓ portalGroup.removePortal 2ms"}
+{"level":20,"time":1786990050598,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.addPortal","duration":2,"msg":"✓ portalGroup.addPortal 2ms"}
+{"level":20,"time":1786990050600,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findGroupForPortal","duration":2,"msg":"✓ portalGroup.findGroupForPortal 2ms"}
+{"level":20,"time":1786990050601,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findGroupForPortal","duration":1,"msg":"✓ portalGroup.findGroupForPortal 1ms"}
+{"level":20,"time":1786990050602,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findPortalMembership","duration":1,"msg":"✓ portalGroup.findPortalMembership 1ms"}
+{"level":50,"time":1786990050623,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.addPortal","duration":1,"error":{"_tag":"PortalError","code":"forbidden","message":"portal group membership requires an active same-property parent chain"},"msg":"Span portalGroup.addPortal failed after 1ms"}
+{"level":20,"time":1786990050624,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findPortalMembership","duration":0,"msg":"✓ portalGroup.findPortalMembership 0ms"}
+{"level":20,"time":1786990050629,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.addPortal","duration":2,"msg":"✓ portalGroup.addPortal 2ms"}
+{"level":20,"time":1786990050630,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.softDelete","duration":1,"msg":"✓ portalGroup.softDelete 1ms"}
+{"level":20,"time":1786990050630,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findPortalMembership","duration":0,"msg":"✓ portalGroup.findPortalMembership 0ms"}
+{"level":20,"time":1786990050631,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.findGroupForPortal","duration":0,"msg":"✓ portalGroup.findGroupForPortal 0ms"}
+{"level":20,"time":1786990050631,"pid":20324,"hostname":"Bozhidars-MacBook-Air.local","span":"portalGroup.getGroupPortalIds","duration":0,"msg":"✓ portalGroup.getGroupPortalIds 0ms"}
+{"level":20,"time":1786990051031,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.inviteMember","duration":11,"msg":"✓ identity.commandStore.inviteMember 11ms"}
+{"level":50,"time":1786990051039,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.inviteMember","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span identity.commandStore.inviteMember failed after 2ms"}
+{"level":50,"time":1786990051048,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.inviteMember","duration":1,"error":{"_tag":"IdentityError","code":"already_exists","message":"User is already a member of this organization"},"msg":"Span identity.commandStore.inviteMember failed after 1ms"}
+{"level":20,"time":1786990051060,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.acceptInvitation","duration":7,"msg":"✓ identity.commandStore.acceptInvitation 7ms"}
+{"level":20,"time":1786990051065,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.cancelInvitation","duration":1,"msg":"✓ identity.commandStore.cancelInvitation 1ms"}
+{"level":50,"time":1786990051066,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.cancelInvitation","duration":1,"error":{"_tag":"IdentityError","code":"invitation_not_found","message":"Invitation not found"},"msg":"Span identity.commandStore.cancelInvitation failed after 1ms"}
+{"level":20,"time":1786990051073,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.removeMember","duration":3,"msg":"✓ identity.commandStore.removeMember 3ms"}
+{"level":50,"time":1786990051075,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.removeMember","duration":1,"error":{"_tag":"IdentityError","code":"last_owner","message":"Cannot remove the last owner of the organization"},"msg":"Span identity.commandStore.removeMember failed after 1ms"}
+{"level":20,"time":1786990051080,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.changeMemberRole","duration":2,"msg":"✓ identity.commandStore.changeMemberRole 2ms"}
+{"level":20,"time":1786990051085,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.registerOrganization","duration":2,"msg":"✓ identity.commandStore.registerOrganization 2ms"}
+{"level":50,"time":1786990051087,"pid":20329,"hostname":"Bozhidars-MacBook-Air.local","span":"identity.commandStore.registerOrganization","duration":1,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span identity.commandStore.registerOrganization failed after 1ms"}
+{"level":20,"time":1786990051897,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.createProperty","duration":9,"msg":"✓ property.commandStore.createProperty 9ms"}
+{"level":50,"time":1786990051929,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.createProperty","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span property.commandStore.createProperty failed after 2ms"}
+{"level":50,"time":1786990051931,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.createProperty","duration":0,"error":{"_tag":"PropertyError","code":"forbidden","message":"Tenant mismatch on property insert"},"msg":"Span property.commandStore.createProperty failed after 0ms"}
+{"level":20,"time":1786990051933,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.createProperty","duration":1,"msg":"✓ property.commandStore.createProperty 1ms"}
+{"level":20,"time":1786990051937,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.updateProperty","duration":4,"msg":"✓ property.commandStore.updateProperty 4ms"}
+{"level":20,"time":1786990051942,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.createProperty","duration":1,"msg":"✓ property.commandStore.createProperty 1ms"}
+{"level":20,"time":1786990051962,"pid":20336,"hostname":"Bozhidars-MacBook-Air.local","span":"property.commandStore.deleteProperty","duration":20,"msg":"✓ property.commandStore.deleteProperty 20ms"}
+{"level":20,"time":1786990053843,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":11,"msg":"✓ portal.insert 11ms"}
+{"level":20,"time":1786990053846,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findById","duration":2,"msg":"✓ portal.findById 2ms"}
+{"level":20,"time":1786990053851,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":1,"msg":"✓ portal.insert 1ms"}
+{"level":20,"time":1786990053852,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findBySlug","duration":0,"msg":"✓ portal.findBySlug 0ms"}
+{"level":20,"time":1786990053856,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":1,"msg":"✓ portal.insert 1ms"}
+{"level":20,"time":1786990053856,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findById","duration":0,"msg":"✓ portal.findById 0ms"}
+{"level":20,"time":1786990053857,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findById","duration":0,"msg":"✓ portal.findById 0ms"}
+{"level":20,"time":1786990053861,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":1,"msg":"✓ portal.insert 1ms"}
+{"level":20,"time":1786990053862,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.slugExists","duration":0,"msg":"✓ portal.slugExists 0ms"}
+{"level":20,"time":1786990053862,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.slugExists","duration":0,"msg":"✓ portal.slugExists 0ms"}
+{"level":20,"time":1786990053866,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053866,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053867,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.list","duration":0,"msg":"✓ portal.list 0ms"}
+{"level":20,"time":1786990053867,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.list","duration":0,"msg":"✓ portal.list 0ms"}
+{"level":20,"time":1786990053871,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053872,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.listByProperty","duration":0,"msg":"✓ portal.listByProperty 0ms"}
+{"level":20,"time":1786990053874,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053876,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.softDelete","duration":1,"msg":"✓ portal.softDelete 1ms"}
+{"level":20,"time":1786990053876,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findById","duration":0,"msg":"✓ portal.findById 0ms"}
+{"level":20,"time":1786990053876,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.list","duration":0,"msg":"✓ portal.list 0ms"}
+{"level":20,"time":1786990053880,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053880,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.softDelete","duration":0,"msg":"✓ portal.softDelete 0ms"}
+{"level":20,"time":1786990053881,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053881,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findBySlug","duration":0,"msg":"✓ portal.findBySlug 0ms"}
+{"level":20,"time":1786990053884,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.insert","duration":0,"msg":"✓ portal.insert 0ms"}
+{"level":20,"time":1786990053885,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.update","duration":0,"msg":"✓ portal.update 0ms"}
+{"level":20,"time":1786990053885,"pid":20476,"hostname":"Bozhidars-MacBook-Air.local","span":"portal.findById","duration":0,"msg":"✓ portal.findById 0ms"}
+{"level":20,"time":1786990054290,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":14,"msg":"✓ review.upsert 14ms"}
+{"level":20,"time":1786990054297,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":7,"msg":"✓ reply.upsert 7ms"}
+{"level":50,"time":1786990054301,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.submitReply","duration":4,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span reply.commandStore.submitReply failed after 4ms"}
+{"level":20,"time":1786990054302,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":20,"time":1786990054311,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":50,"time":1786990054312,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.mirrorSyncedReply","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span reply.commandStore.mirrorSyncedReply failed after 2ms"}
+{"level":20,"time":1786990054315,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990054316,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.upsert","duration":1,"msg":"✓ reply.upsert 1ms"}
+{"level":20,"time":1786990054319,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.submitReply","duration":3,"msg":"✓ reply.commandStore.submitReply 3ms"}
+{"level":20,"time":1786990054320,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.findById","duration":1,"msg":"✓ reply.findById 1ms"}
+{"level":20,"time":1786990054324,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"review.upsert","duration":1,"msg":"✓ review.upsert 1ms"}
+{"level":20,"time":1786990054326,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.purgeExpiredReview","duration":2,"msg":"✓ reply.commandStore.purgeExpiredReview 2ms"}
+{"level":20,"time":1786990054326,"pid":20481,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findById","duration":1,"msg":"✓ review.findById 1ms"}
+{"level":20,"time":1786990054698,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":5,"msg":"✓ inbox.create 5ms"}
+{"level":20,"time":1786990054698,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990054700,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":2,"msg":"inbox findById complete"}
+{"level":20,"time":1786990054700,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":2,"msg":"✓ inbox.findById 2ms"}
+{"level":20,"time":1786990054701,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990054702,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":1,"msg":"inbox findById complete"}
+{"level":20,"time":1786990054702,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":1,"msg":"✓ inbox.findById 1ms"}
+{"level":20,"time":1786990054703,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054704,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054705,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findByIds","duration":1,"msg":"✓ inbox.findByIds 1ms"}
+{"level":20,"time":1786990054707,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054708,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990054708,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054709,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":1,"msg":"✓ inbox.findBySource 1ms"}
+{"level":20,"time":1786990054710,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054712,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"msg":"✓ inbox.updateStatus 1ms"}
+{"level":20,"time":1786990054713,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054714,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"msg":"✓ inbox.updateStatus 1ms"}
+{"level":20,"time":1786990054715,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990054715,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":0,"msg":"✓ inbox.updateStatus 0ms"}
+{"level":20,"time":1786990054716,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054717,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054719,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.bulkUpdateStatus","duration":1,"msg":"✓ inbox.bulkUpdateStatus 1ms"}
+{"level":20,"time":1786990054719,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990054719,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":0,"msg":"inbox findById complete"}
+{"level":20,"time":1786990054719,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":1,"msg":"✓ inbox.findById 1ms"}
+{"level":20,"time":1786990054721,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054721,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateAssignment","duration":1,"msg":"✓ inbox.updateAssignment 1ms"}
+{"level":20,"time":1786990054723,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054723,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateAssignment","duration":1,"msg":"✓ inbox.updateAssignment 1ms"}
+{"level":20,"time":1786990054724,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054725,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054726,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054727,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.countByStatus","duration":1,"msg":"✓ inbox.countByStatus 1ms"}
+{"level":20,"time":1786990054727,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.countByStatus","duration":0,"msg":"✓ inbox.countByStatus 0ms"}
+{"level":20,"time":1786990054728,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054729,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054729,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990054730,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990054730,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990054731,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":3,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054732,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":3,"hasNext":true,"duration":1,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054732,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054732,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":3,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054733,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":2,"hasNext":false,"duration":1,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054733,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054734,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054735,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"msg":"✓ inbox.create 0ms"}
+{"level":20,"time":1786990054735,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054735,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":0,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054735,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":0,"msg":"✓ inbox.findFilteredPaginated 0ms"}
+{"level":20,"time":1786990054737,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054737,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054737,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054738,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":1,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054738,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054739,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054739,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findDetailById"}
+{"level":20,"time":1786990054740,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","contentStatus":"not_found","duration":1,"msg":"inbox findDetailById review enrichment"}
+{"level":20,"time":1786990054740,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findDetailById","duration":1,"msg":"✓ inbox.findDetailById 1ms"}
+{"level":20,"time":1786990054740,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findDetailById"}
+{"level":20,"time":1786990054741,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findDetailById","duration":0,"msg":"✓ inbox.findDetailById 0ms"}
+{"level":20,"time":1786990054742,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054742,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054742,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":0,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054742,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054743,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054743,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054744,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":1,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054744,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054745,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054746,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054746,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054746,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":0,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054746,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054747,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054748,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054748,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054749,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":1,"hasNext":false,"duration":1,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054749,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054750,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054750,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054750,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":0,"msg":"✓ inbox.findFilteredPaginated 0ms"}
+{"level":20,"time":1786990054751,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054751,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","msg":"querying inbox findById"}
+{"level":20,"time":1786990054752,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","duration":1,"msg":"inbox findById complete"}
+{"level":20,"time":1786990054752,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findById","duration":1,"msg":"✓ inbox.findById 1ms"}
+{"level":20,"time":1786990054753,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054753,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findBySource","duration":0,"msg":"✓ inbox.findBySource 0ms"}
+{"level":20,"time":1786990054755,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054755,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","limit":50,"msg":"querying inbox findFilteredPaginated"}
+{"level":20,"time":1786990054755,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","component":"inbox-repo","itemCount":0,"hasNext":false,"duration":0,"msg":"inbox findFilteredPaginated complete"}
+{"level":20,"time":1786990054755,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.findFilteredPaginated","duration":1,"msg":"✓ inbox.findFilteredPaginated 1ms"}
+{"level":20,"time":1786990054756,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":50,"time":1786990054757,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.updateStatus","duration":1,"error":{"_tag":"InboxError","code":"not_found","message":"Inbox item status update failed — no row returned"},"msg":"Span inbox.updateStatus failed after 1ms"}
+{"level":20,"time":1786990054759,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":1,"msg":"✓ inbox.create 1ms"}
+{"level":20,"time":1786990054759,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.countByStatus","duration":0,"msg":"✓ inbox.countByStatus 0ms"}
+{"level":50,"time":1786990054759,"pid":20485,"hostname":"Bozhidars-MacBook-Air.local","span":"inbox.create","duration":0,"error":{"_tag":"InboxError","code":"forbidden","message":"InboxItem.create: tenant mismatch"},"msg":"Span inbox.create failed after 0ms"}
+{"level":20,"time":1786990055364,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":9,"msg":"✓ team.insert 9ms"}
+{"level":20,"time":1786990055367,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":2,"msg":"✓ team.findById 2ms"}
+{"level":20,"time":1786990055370,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":1,"msg":"✓ team.insert 1ms"}
+{"level":20,"time":1786990055371,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055371,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":0,"msg":"✓ team.findById 0ms"}
+{"level":20,"time":1786990055371,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":0,"msg":"✓ team.findById 0ms"}
+{"level":20,"time":1786990055373,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055374,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.nameExistsInProperty","duration":0,"msg":"✓ team.nameExistsInProperty 0ms"}
+{"level":20,"time":1786990055374,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.nameExistsInProperty","duration":0,"msg":"✓ team.nameExistsInProperty 0ms"}
+{"level":20,"time":1786990055376,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055377,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.listByProperty","duration":0,"msg":"✓ team.listByProperty 0ms"}
+{"level":20,"time":1786990055377,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.listByProperty","duration":0,"msg":"✓ team.listByProperty 0ms"}
+{"level":20,"time":1786990055380,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055381,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.softDelete","duration":1,"msg":"✓ team.softDelete 1ms"}
+{"level":20,"time":1786990055381,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":0,"msg":"✓ team.findById 0ms"}
+{"level":20,"time":1786990055381,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.listByProperty","duration":0,"msg":"✓ team.listByProperty 0ms"}
+{"level":20,"time":1786990055383,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055384,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.softDelete","duration":0,"msg":"✓ team.softDelete 0ms"}
+{"level":20,"time":1786990055384,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":0,"msg":"✓ team.insert 0ms"}
+{"level":20,"time":1786990055384,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":0,"msg":"✓ team.findById 0ms"}
+{"level":20,"time":1786990055387,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.insert","duration":1,"msg":"✓ team.insert 1ms"}
+{"level":20,"time":1786990055387,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.update","duration":0,"msg":"✓ team.update 0ms"}
+{"level":20,"time":1786990055387,"pid":20492,"hostname":"Bozhidars-MacBook-Air.local","span":"team.findById","duration":0,"msg":"✓ team.findById 0ms"}
+{"level":20,"time":1786990055768,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.insert","duration":12,"msg":"✓ portalToken.insert 12ms"}
+{"level":20,"time":1786990055770,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":3,"msg":"✓ portalToken.findResolvableByDigest 3ms"}
+{"level":20,"time":1786990055771,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":1,"msg":"✓ portalToken.findResolvableByDigest 1ms"}
+{"level":20,"time":1786990055773,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.insert","duration":1,"msg":"✓ portalToken.insert 1ms"}
+{"level":20,"time":1786990055775,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.saveRotation","duration":2,"msg":"✓ portalToken.saveRotation 2ms"}
+{"level":20,"time":1786990055775,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":1,"msg":"✓ portalToken.findResolvableByDigest 1ms"}
+{"level":20,"time":1786990055776,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":1,"msg":"✓ portalToken.findResolvableByDigest 1ms"}
+{"level":20,"time":1786990055776,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":0,"msg":"✓ portalToken.findResolvableByDigest 0ms"}
+{"level":20,"time":1786990055777,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.insert","duration":1,"msg":"✓ portalToken.insert 1ms"}
+{"level":20,"time":1786990055778,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.revokeForPortal","duration":1,"msg":"✓ portalToken.revokeForPortal 1ms"}
+{"level":20,"time":1786990055778,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.findResolvableByDigest","duration":0,"msg":"✓ portalToken.findResolvableByDigest 0ms"}
+{"level":50,"time":1786990055779,"pid":20496,"hostname":"Bozhidars-MacBook-Air.local","span":"portalToken.insert","duration":1,"error":{"name":"Error"},"msg":"Span portalToken.insert failed after 1ms"}
+{"level":20,"time":1786990056183,"pid":20501,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.queryAggregate","duration":14,"msg":"✓ metric.queryAggregate 14ms"}
+{"level":20,"time":1786990056185,"pid":20501,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.queryAggregate","duration":2,"msg":"✓ metric.queryAggregate 2ms"}
+{"level":20,"time":1786990056190,"pid":20501,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.queryAggregate","duration":1,"msg":"✓ metric.queryAggregate 1ms"}
+{"level":20,"time":1786990056194,"pid":20501,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.queryAggregate","duration":1,"msg":"✓ metric.queryAggregate 1ms"}
+{"level":20,"time":1786990056198,"pid":20501,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.queryAggregate","duration":1,"msg":"✓ metric.queryAggregate 1ms"}
+{"level":20,"time":1786990056597,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":10,"msg":"✓ googleConnection.insert 10ms"}
+{"level":20,"time":1786990056601,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":3,"msg":"✓ googleConnection.findById 3ms"}
+{"level":20,"time":1786990056609,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":1,"msg":"✓ googleConnection.findById 1ms"}
+{"level":20,"time":1786990056611,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":1,"msg":"✓ googleConnection.insert 1ms"}
+{"level":20,"time":1786990056611,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findByGoogleIdentity","duration":1,"msg":"✓ googleConnection.findByGoogleIdentity 1ms"}
+{"level":20,"time":1786990056613,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056614,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findByGoogleIdentityGlobal","duration":1,"msg":"✓ googleConnection.findByGoogleIdentityGlobal 1ms"}
+{"level":20,"time":1786990056615,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056616,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056617,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.listByOrganization","duration":1,"msg":"✓ googleConnection.listByOrganization 1ms"}
+{"level":20,"time":1786990056619,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":1,"msg":"✓ googleConnection.insert 1ms"}
+{"level":20,"time":1786990056619,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056620,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.listByOrganization","duration":1,"msg":"✓ googleConnection.listByOrganization 1ms"}
+{"level":20,"time":1786990056622,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056622,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":0,"msg":"✓ googleConnection.findById 0ms"}
+{"level":20,"time":1786990056623,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":1,"msg":"✓ googleConnection.insert 1ms"}
+{"level":20,"time":1786990056625,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.updateStatus","duration":1,"msg":"✓ googleConnection.updateStatus 1ms"}
+{"level":20,"time":1786990056625,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":1,"msg":"✓ googleConnection.findById 1ms"}
+{"level":20,"time":1786990056627,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056627,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.updateVisibility","duration":0,"msg":"✓ googleConnection.updateVisibility 0ms"}
+{"level":20,"time":1786990056628,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":0,"msg":"✓ googleConnection.findById 0ms"}
+{"level":20,"time":1786990056629,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.insert","duration":0,"msg":"✓ googleConnection.insert 0ms"}
+{"level":20,"time":1786990056634,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.delete","duration":4,"msg":"✓ googleConnection.delete 4ms"}
+{"level":20,"time":1786990056634,"pid":20506,"hostname":"Bozhidars-MacBook-Air.local","span":"googleConnection.findById","duration":1,"msg":"✓ googleConnection.findById 1ms"}
+{"level":20,"time":1786990058014,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"review.countExpiredBeforeAcrossTenants","duration":3,"msg":"✓ review.countExpiredBeforeAcrossTenants 3ms"}
+{"level":20,"time":1786990058017,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":2,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 2ms"}
+{"level":20,"time":1786990058022,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.purgeExpiredReview","duration":5,"msg":"✓ reply.commandStore.purgeExpiredReview 5ms"}
+{"level":20,"time":1786990058023,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"reply.commandStore.purgeExpiredReview","duration":1,"msg":"✓ reply.commandStore.purgeExpiredReview 1ms"}
+{"level":20,"time":1786990058023,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findExpiredBatchBeforeAcrossTenants","duration":0,"msg":"✓ review.findExpiredBatchBeforeAcrossTenants 0ms"}
+{"level":30,"time":1786990058024,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","purged":2,"failed":0,"batches":1,"status":"completed","msg":"Purge expired reviews completed"}
+{"level":20,"time":1786990058024,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"job.purgeExpiredReviews","duration":9,"msg":"✓ job.purgeExpiredReviews 9ms"}
+{"level":20,"time":1786990058024,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"review.countExpiredBeforeAcrossTenants","duration":0,"msg":"✓ review.countExpiredBeforeAcrossTenants 0ms"}
+{"level":20,"time":1786990058032,"pid":20535,"hostname":"Bozhidars-MacBook-Air.local","span":"review.countExpiredBeforeAcrossTenants","duration":1,"msg":"✓ review.countExpiredBeforeAcrossTenants 1ms"}
+{"level":20,"time":1786990059291,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":13,"msg":"✓ staffAssignment.insert 13ms"}
+{"level":20,"time":1786990059293,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.findById","duration":2,"msg":"✓ staffAssignment.findById 2ms"}
+{"level":20,"time":1786990059296,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":1,"msg":"✓ staffAssignment.insert 1ms"}
+{"level":20,"time":1786990059297,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":1,"msg":"✓ staffAssignment.insert 1ms"}
+{"level":20,"time":1786990059297,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.findById","duration":0,"msg":"✓ staffAssignment.findById 0ms"}
+{"level":20,"time":1786990059298,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.findById","duration":0,"msg":"✓ staffAssignment.findById 0ms"}
+{"level":20,"time":1786990059299,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059300,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059300,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.listByUser","duration":0,"msg":"✓ staffAssignment.listByUser 0ms"}
+{"level":20,"time":1786990059301,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.listByUser","duration":0,"msg":"✓ staffAssignment.listByUser 0ms"}
+{"level":20,"time":1786990059303,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":1,"msg":"✓ staffAssignment.insert 1ms"}
+{"level":20,"time":1786990059303,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.listByProperty","duration":0,"msg":"✓ staffAssignment.listByProperty 0ms"}
+{"level":20,"time":1786990059304,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.listByProperty","duration":0,"msg":"✓ staffAssignment.listByProperty 0ms"}
+{"level":20,"time":1786990059306,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059306,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.assignmentExists","duration":0,"msg":"✓ staffAssignment.assignmentExists 0ms"}
+{"level":20,"time":1786990059306,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.assignmentExists","duration":0,"msg":"✓ staffAssignment.assignmentExists 0ms"}
+{"level":20,"time":1786990059308,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059309,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.assignmentExists","duration":0,"msg":"✓ staffAssignment.assignmentExists 0ms"}
+{"level":20,"time":1786990059309,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.assignmentExists","duration":0,"msg":"✓ staffAssignment.assignmentExists 0ms"}
+{"level":20,"time":1786990059310,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059311,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.softDelete","duration":1,"msg":"✓ staffAssignment.softDelete 1ms"}
+{"level":20,"time":1786990059312,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.findById","duration":0,"msg":"✓ staffAssignment.findById 0ms"}
+{"level":20,"time":1786990059312,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.listByProperty","duration":0,"msg":"✓ staffAssignment.listByProperty 0ms"}
+{"level":20,"time":1786990059314,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059314,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059315,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.getAccessiblePropertyIds","duration":1,"msg":"✓ staffAssignment.getAccessiblePropertyIds 1ms"}
+{"level":20,"time":1786990059316,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059316,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.insert","duration":0,"msg":"✓ staffAssignment.insert 0ms"}
+{"level":20,"time":1786990059317,"pid":20555,"hostname":"Bozhidars-MacBook-Air.local","span":"staffAssignment.getAccessiblePropertyIds","duration":0,"msg":"✓ staffAssignment.getAccessiblePropertyIds 0ms"}
+{"level":20,"time":1786990060229,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","msg":"guest recordScan start"}
+{"level":20,"time":1786990060239,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","duration":10,"msg":"guest recordScan complete"}
+{"level":20,"time":1786990060239,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.recordScan","duration":10,"msg":"✓ guestInteraction.recordScan 10ms"}
+{"level":20,"time":1786990060242,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":1,"msg":"✓ guestInteraction.insertRating 1ms"}
+{"level":20,"time":1786990060244,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertFeedback","duration":1,"msg":"✓ guestInteraction.insertFeedback 1ms"}
+{"level":20,"time":1786990060246,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":1,"msg":"✓ guestInteraction.insertRating 1ms"}
+{"level":20,"time":1786990060248,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRated","duration":2,"msg":"✓ guestInteraction.hasRated 2ms"}
+{"level":20,"time":1786990060250,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRated","duration":0,"msg":"✓ guestInteraction.hasRated 0ms"}
+{"level":20,"time":1786990060251,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":0,"msg":"✓ guestInteraction.insertRating 0ms"}
+{"level":20,"time":1786990060251,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRated","duration":0,"msg":"✓ guestInteraction.hasRated 0ms"}
+{"level":20,"time":1786990060253,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":1,"msg":"✓ guestInteraction.insertRating 1ms"}
+{"level":20,"time":1786990060254,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.findRatingById","duration":1,"msg":"✓ guestInteraction.findRatingById 1ms"}
+{"level":20,"time":1786990060255,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.findRatingById","duration":0,"msg":"✓ guestInteraction.findRatingById 0ms"}
+{"level":20,"time":1786990060256,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertFeedback","duration":1,"msg":"✓ guestInteraction.insertFeedback 1ms"}
+{"level":20,"time":1786990060257,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.findFeedbackById","duration":1,"msg":"✓ guestInteraction.findFeedbackById 1ms"}
+{"level":20,"time":1786990060257,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.findFeedbackById","duration":0,"msg":"✓ guestInteraction.findFeedbackById 0ms"}
+{"level":20,"time":1786990060259,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","msg":"guest recordScan start"}
+{"level":20,"time":1786990060259,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","duration":0,"msg":"guest recordScan complete"}
+{"level":20,"time":1786990060259,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.recordScan","duration":0,"msg":"✓ guestInteraction.recordScan 0ms"}
+{"level":20,"time":1786990060259,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","msg":"guest getLatestScanBySession start"}
+{"level":20,"time":1786990060260,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","found":true,"duration":1,"msg":"guest getLatestScanBySession complete"}
+{"level":20,"time":1786990060260,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.getLatestScanBySession","duration":1,"msg":"✓ guestInteraction.getLatestScanBySession 1ms"}
+{"level":20,"time":1786990060261,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","msg":"guest getLatestScanBySession start"}
+{"level":20,"time":1786990060261,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","component":"guest-interaction-repo","found":false,"duration":0,"msg":"guest getLatestScanBySession complete"}
+{"level":20,"time":1786990060261,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.getLatestScanBySession","duration":0,"msg":"✓ guestInteraction.getLatestScanBySession 0ms"}
+{"level":20,"time":1786990060263,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":0,"msg":"✓ guestInteraction.insertRating 0ms"}
+{"level":20,"time":1786990060263,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRatedByIpWithin","duration":0,"msg":"✓ guestInteraction.hasRatedByIpWithin 0ms"}
+{"level":20,"time":1786990060265,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":1,"msg":"✓ guestInteraction.insertRating 1ms"}
+{"level":20,"time":1786990060265,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRatedByIpWithin","duration":0,"msg":"✓ guestInteraction.hasRatedByIpWithin 0ms"}
+{"level":20,"time":1786990060267,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.insertRating","duration":1,"msg":"✓ guestInteraction.insertRating 1ms"}
+{"level":20,"time":1786990060267,"pid":20563,"hostname":"Bozhidars-MacBook-Air.local","span":"guestInteraction.hasRatedByIpWithin","duration":0,"msg":"✓ guestInteraction.hasRatedByIpWithin 0ms"}
+{"level":20,"time":1786990060677,"pid":20569,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRecentReviews","duration":7,"msg":"✓ review.servingStats.getRecentReviews 7ms"}
+{"level":20,"time":1786990060684,"pid":20569,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getPeriodStats","duration":1,"msg":"✓ review.servingStats.getPeriodStats 1ms"}
+{"level":20,"time":1786990060689,"pid":20569,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getRatingDistribution","duration":1,"msg":"✓ review.servingStats.getRatingDistribution 1ms"}
+{"level":20,"time":1786990060709,"pid":20569,"hostname":"Bozhidars-MacBook-Air.local","span":"review.servingStats.getReplyPerformance","duration":12,"msg":"✓ review.servingStats.getReplyPerformance 12ms"}
+{"level":20,"time":1786990062337,"pid":20587,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.commandStore.recordMetric","duration":9,"msg":"✓ metric.commandStore.recordMetric 9ms"}
+{"level":50,"time":1786990062344,"pid":20587,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.commandStore.recordMetric","duration":2,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span metric.commandStore.recordMetric failed after 2ms"}
+{"level":50,"time":1786990062872,"pid":20590,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"scope_denied","status":403,"message":"Authorization denied: scope_denied","msg":"← THROW AuthError(scope_denied) → 403"}
+{"level":20,"time":1786990063692,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":8,"msg":"✓ integration.commandStore.connectGoogleAccount 8ms"}
+{"level":50,"time":1786990063704,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span integration.commandStore.connectGoogleAccount failed after 1ms"}
+{"level":20,"time":1786990063706,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"msg":"✓ integration.commandStore.connectGoogleAccount 1ms"}
+{"level":50,"time":1786990063708,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"error":{"_tag":"UniqueViolationError","code":"unique_violation","message":"Duplicate Google connection identity"},"msg":"Span integration.commandStore.connectGoogleAccount failed after 1ms"}
+{"level":20,"time":1786990063711,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"msg":"✓ integration.commandStore.connectGoogleAccount 1ms"}
+{"level":20,"time":1786990063715,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.reconnectGoogleAccount","duration":5,"msg":"✓ integration.commandStore.reconnectGoogleAccount 5ms"}
+{"level":20,"time":1786990063719,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"msg":"✓ integration.commandStore.connectGoogleAccount 1ms"}
+{"level":20,"time":1786990063721,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.disconnectGoogleAccount","duration":2,"msg":"✓ integration.commandStore.disconnectGoogleAccount 2ms"}
+{"level":20,"time":1786990063724,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"msg":"✓ integration.commandStore.connectGoogleAccount 1ms"}
+{"level":50,"time":1786990063725,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.disconnectGoogleAccount","duration":1,"error":{"name":"OutboxPayloadError","code":"unregistered"},"msg":"Span integration.commandStore.disconnectGoogleAccount failed after 1ms"}
+{"level":50,"time":1786990063727,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.disconnectGoogleAccount","duration":1,"error":{"name":"IntegrationError","code":"connection_not_found"},"msg":"Span integration.commandStore.disconnectGoogleAccount failed after 1ms"}
+{"level":20,"time":1786990063729,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.connectGoogleAccount","duration":1,"msg":"✓ integration.commandStore.connectGoogleAccount 1ms"}
+{"level":20,"time":1786990063730,"pid":20709,"hostname":"Bozhidars-MacBook-Air.local","span":"integration.commandStore.updateConnectionVisibility","duration":1,"msg":"✓ integration.commandStore.updateConnectionVisibility 1ms"}
+{"level":20,"time":1786990064716,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":2,"msg":"✓ outbox.findExpiredLeases 2ms"}
+{"level":20,"time":1786990064722,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":17,"msg":"✓ health.check 17ms"}
+{"level":20,"time":1786990064725,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990064728,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":6,"msg":"✓ health.check 6ms"}
+{"level":20,"time":1786990064732,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":0,"msg":"✓ outbox.findExpiredLeases 0ms"}
+{"level":20,"time":1786990064735,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":5,"msg":"✓ health.check 5ms"}
+{"level":20,"time":1786990064739,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":0,"msg":"✓ outbox.findExpiredLeases 0ms"}
+{"level":20,"time":1786990064741,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":2,"msg":"✓ health.check 2ms"}
+{"level":20,"time":1786990064745,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":0,"msg":"✓ outbox.findExpiredLeases 0ms"}
+{"level":20,"time":1786990064746,"pid":20718,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":2,"msg":"✓ health.check 2ms"}
+{"level":20,"time":1786990065118,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":4,"msg":"✓ outbox.claimUnpublished 4ms"}
+{"level":20,"time":1786990065120,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":20,"time":1786990065129,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":20,"time":1786990065133,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":5,"msg":"✓ outbox.claimUnpublished 5ms"}
+{"level":20,"time":1786990065136,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":1,"msg":"✓ outbox.claimUnpublished 1ms"}
+{"level":20,"time":1786990065136,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065138,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":1,"msg":"✓ outbox.renewLease 1ms"}
+{"level":20,"time":1786990065139,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990065140,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":0,"msg":"✓ outbox.renewLease 0ms"}
+{"level":20,"time":1786990065141,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065142,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065142,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":0,"msg":"✓ outbox.renewLease 0ms"}
+{"level":20,"time":1786990065142,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065144,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065144,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990065144,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065146,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.claimUnpublished","duration":0,"msg":"✓ outbox.claimUnpublished 0ms"}
+{"level":20,"time":1786990065146,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.renewLease","duration":0,"msg":"✓ outbox.renewLease 0ms"}
+{"level":20,"time":1786990065147,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":1,"msg":"✓ outbox.findExpiredLeases 1ms"}
+{"level":20,"time":1786990065147,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.markPublished","duration":0,"msg":"✓ outbox.markPublished 0ms"}
+{"level":20,"time":1786990065148,"pid":20723,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.findExpiredLeases","duration":0,"msg":"✓ outbox.findExpiredLeases 0ms"}
+{"level":30,"time":1786990066344,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","affectedDate":"2026-06-01 00:00:00+00","msg":"Incrementally refreshed rollup_daily_metrics"}
+{"level":20,"time":1786990066344,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","span":"rollup.dailyMetrics.incremental","duration":7,"msg":"✓ rollup.dailyMetrics.incremental 7ms"}
+{"level":30,"time":1786990066347,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","affectedDate":"2026-06-01 00:00:00+00","msg":"Incrementally refreshed rollup_daily_metrics"}
+{"level":20,"time":1786990066347,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","span":"rollup.dailyMetrics.incremental","duration":2,"msg":"✓ rollup.dailyMetrics.incremental 2ms"}
+{"level":20,"time":1786990066348,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","msg":"rollup.dailyMetrics: no new data since watermark"}
+{"level":20,"time":1786990066348,"pid":20735,"hostname":"Bozhidars-MacBook-Air.local","span":"rollup.dailyMetrics.incremental","duration":0,"msg":"✓ rollup.dailyMetrics.incremental 0ms"}
+{"level":20,"time":1786990067482,"pid":20766,"hostname":"Bozhidars-MacBook-Air.local","span":"review.findIdsByContentFilter","duration":4,"msg":"✓ review.findIdsByContentFilter 4ms"}
+{"level":30,"time":1786990067952,"pid":20770,"hostname":"Bozhidars-MacBook-Air.local","jobName":"sync-property-reviews","queue":"quarantine","ageMs":3456000004,"msg":"quarantine TTL expired — entry removed"}
+{"level":20,"time":1786990067954,"pid":20770,"hostname":"Bozhidars-MacBook-Air.local","span":"job.quarantineTtlSweep","duration":5,"msg":"✓ job.quarantineTtlSweep 5ms"}
+{"level":20,"time":1786990068863,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.create","duration":4,"msg":"✓ review.refreshRun.create 4ms"}
+{"level":20,"time":1786990068865,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.update","duration":1,"msg":"✓ review.refreshRun.update 1ms"}
+{"level":20,"time":1786990068866,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.update","duration":0,"msg":"✓ review.refreshRun.update 0ms"}
+{"level":20,"time":1786990068867,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.findLatest","duration":2,"msg":"✓ review.refreshRun.findLatest 2ms"}
+{"level":20,"time":1786990068869,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.create","duration":1,"msg":"✓ review.refreshRun.create 1ms"}
+{"level":20,"time":1786990068869,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.update","duration":1,"msg":"✓ review.refreshRun.update 1ms"}
+{"level":20,"time":1786990068870,"pid":20784,"hostname":"Bozhidars-MacBook-Air.local","span":"review.refreshRun.findLatest","duration":0,"msg":"✓ review.refreshRun.findLatest 0ms"}
+
+ Test Files  77 passed (77)
+      Tests  409 passed (409)
+   Start at  21:07:07
+   Duration  43.54s (transform 2.00s, setup 2.18s, import 21.58s, tests 13.68s, environment 4ms)
+
+

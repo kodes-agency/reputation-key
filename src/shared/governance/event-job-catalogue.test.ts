@@ -549,13 +549,9 @@ describe('BQC-3.1 event/job family catalogue', () => {
     expect(bad, `consumer-ref dark-posture drift:\n  ${bad.join('\n  ')}`).toEqual([])
   })
 
-  it('derives job registration posture from the authoritative capability sets', () => {
+  it('keeps promotable jobs registered and blocks only permanent prohibitions', () => {
     const bad = JOB_FAMILY_ROWS.filter((r) => {
-      const expected = BLOCKED_CAPS.has(r.capability)
-        ? 'blocked_capability'
-        : DARK_CAPS.has(r.capability)
-          ? 'denied_dark'
-          : 'enabled'
+      const expected = BLOCKED_CAPS.has(r.capability) ? 'blocked_capability' : 'enabled'
       return r.registration !== expected
     })
     expect(

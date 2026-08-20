@@ -3,6 +3,11 @@ node_modules
 dist
 dist-ssr
 dist-worker
+dist-google-execution-admission
+dist-google-egress-gateway
+dist-google-import-compatibility
+dist-ai-*
+dist-provider-services
 storybook-static
 /test-results/
 /playwright-report/
@@ -33,6 +38,7 @@ coverage/
 .a5c/
 CLAUDE.md
 .pi/reviews/
+.pi/
 package-lock.json
 .beads/
 .dolt-data/
@@ -69,5 +75,9 @@ drizzle.bak/
 
 # Playwright E2E seed state (written by scripts/seed-e2e-user.ts)
 e2e/.seed-state.json
-# Playwright E2E worker/stub orchestration state (written by e2e/global-setup.ts)
-e2e/.orchestration-state.json
+
+# Generated Docker Compose stack environments (mode 0600; removed on teardown)
+/.local-stack/
+
+# Operator-held approval role keystore and generated approval bundles
+.secrets/

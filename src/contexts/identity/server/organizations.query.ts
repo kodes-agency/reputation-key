@@ -25,10 +25,16 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
         const org = await identityPort.getActiveOrg(headers)
 
         if (!org) {
-          return { organization: null, role: ctx.role, authz: serializeClientAuthz(ctx) }
+          return {
+            availability: 'available' as const,
+            organization: null,
+            role: ctx.role,
+            authz: serializeClientAuthz(ctx),
+          }
         }
 
         return {
+          availability: 'available' as const,
           organization: {
             id: org.id,
             name: org.name,
@@ -47,6 +53,21 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           authz: serializeClientAuthz(ctx),
         }
       } catch (e) {
+        // Server-function RPC serialization drops Error.code. Encode expected,
+        // safe-to-show availability denials as data so route guards can redirect
+        // without accidentally treating a disabled workspace as a server fault.
+        if (
+          e instanceof Error &&
+          'code' in e &&
+          (e as { code?: unknown }).code === 'capability_disabled'
+        ) {
+          return {
+            availability: 'disabled' as const,
+            organization: null,
+            role: 'Staff' as const,
+            authz: EMPTY_CLIENT_AUTHZ,
+          }
+        }
         // No active organization is a valid state (new user, or org not yet
         // selected). Return a default instead of throwing — a thrown error
         // loses its `.code` across the server-function RPC boundary, so the
@@ -56,7 +77,12 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           'code' in e &&
           (e as { code: string }).code === 'no_active_org'
         ) {
-          return { organization: null, role: 'Staff' as const, authz: EMPTY_CLIENT_AUTHZ }
+          return {
+            availability: 'available' as const,
+            organization: null,
+            role: 'Staff' as const,
+            authz: EMPTY_CLIENT_AUTHZ,
+          }
         }
         throw catchUntagged(e)
       }

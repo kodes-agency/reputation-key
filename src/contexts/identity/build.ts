@@ -45,15 +45,27 @@ import {
   isCoreCapability,
   isBlockedCapability,
   listAllCapabilities,
+  checkScopedCapability,
   type Capability,
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
+import { createMerchantAiAuthorization } from './application/use-cases/merchant-ai-authorization'
+import { createMerchantAiAuthorizationStore } from './infrastructure/repositories/merchant-ai-authorization.repository'
+import {
+  MERCHANT_AI_NOTICE_DIGEST,
+  MERCHANT_AI_NOTICE_VERSION,
+  MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
+  MERCHANT_AI_REDACTION_PROFILE_FAMILY,
+  MERCHANT_AI_SOURCE_POLICY_ID,
+} from './application/dto/merchant-ai-notice.dto'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
   setOrganizationPolicy,
   setPropertyPolicy,
   addOrganizationCapability,
   removeOrganizationCapability,
+  addPropertyCapability,
+  removePropertyCapability,
   isOrgMember,
   getMemberRole,
   loadOrgPolicyState,
@@ -64,8 +76,10 @@ import {
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
+import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import type { RoutingDecision } from '#/shared/routing/processing-router'
+import { isOwnerToken } from '#/shared/domain/roles'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -74,6 +88,7 @@ export type OnMemberJoined = (ctx: {
   userId: string
   organizationId: string
   propertyIds: ReadonlyArray<string>
+  displayName?: string
 }) => Promise<void>
 
 type IdentityContextDeps = Readonly<{
@@ -118,6 +133,11 @@ type IdentityContextDeps = Readonly<{
       organizationId: string,
       propertyId: string,
     ) => Promise<PropertyRegionRecord | null>
+    /** Suspension recovery bypasses the suspended property gate, then proves tenancy here. */
+    propertyBelongsToOrganization: (
+      organizationId: string,
+      propertyId: string,
+    ) => Promise<boolean>
     /** The ProcessingRouter's fresh routing decision for a property. */
     resolveRouting: (propertyId: string) => Promise<RoutingDecision>
     /** The deployment's processing cell (PROCESSING_CELL). */
@@ -125,6 +145,11 @@ type IdentityContextDeps = Readonly<{
     /** The cell's logical provider reference (CELL_TARGETS) — never a URL. */
     providerRef: string | null
   }>
+  cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
+  verifyMerchantAiStepUp?: (input: {
+    headers: Headers
+    password: string
+  }) => Promise<boolean>
 }>
 
 /**
@@ -155,6 +180,52 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     db: deps.db,
     env: deps.policy.env,
   })
+  const merchantAiAuthorization = createMerchantAiAuthorization({
+    store: createMerchantAiAuthorizationStore(deps.db, deps.events),
+    authorizeManagement: async (input) => {
+      const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
+      if (!role) return false
+      if (isOwnerToken(role)) return true
+      if (
+        !role
+          .split(',')
+          .map((token) => token.trim().toLowerCase())
+          .includes('admin')
+      ) {
+        return false
+      }
+      return hasActiveGrant(deps.db, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.actorUserId,
+        at: input.now,
+      })
+    },
+    authorize: async (input) => {
+      await policyStore.refreshRequired()
+      return checkScopedCapability(
+        {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+        },
+        input.capability,
+      ).allowed
+    },
+    verifyStepUp: async (input) =>
+      input.requestHeaders !== undefined &&
+      deps.verifyMerchantAiStepUp !== undefined &&
+      deps.verifyMerchantAiStepUp({
+        headers: input.requestHeaders,
+        password: input.proof,
+      }),
+    clock: deps.clock,
+    noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+    noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
+    sourcePolicyId: MERCHANT_AI_SOURCE_POLICY_ID,
+    routingPolicyVersion: 1,
+    providerDeploymentProfileVersion: MERCHANT_AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION,
+    redactionProfileFamily: MERCHANT_AI_REDACTION_PROFILE_FAMILY,
+  })
 
   // BQC-2.7: policy administration operations (least-privilege, audited).
   // Identity-owned persistence bound here — application layer stays
@@ -179,12 +250,18 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       cell: deps.policy.cell,
       providerRef: deps.policy.providerRef,
     }),
+    refreshPolicy: () => policyStore.refresh(),
     setOrganizationPolicy: (input) => setOrganizationPolicy(deps.db, input),
     setPropertyPolicy: (input) => setPropertyPolicy(deps.db, input),
+    propertyBelongsToOrganization: deps.policy.propertyBelongsToOrganization,
     addOrganizationCapability: (orgId, cap, by) =>
       addOrganizationCapability(deps.db, orgId, cap, by),
     removeOrganizationCapability: (orgId, cap) =>
       removeOrganizationCapability(deps.db, orgId, cap),
+    addPropertyCapability: (propertyId, cap, by) =>
+      addPropertyCapability(deps.db, propertyId, cap, by),
+    removePropertyCapability: (propertyId, cap) =>
+      removePropertyCapability(deps.db, propertyId, cap),
     isOrgMember: (orgId, uid) => isOrgMember(deps.db, orgId, uid),
     loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
     grantPropertyAccess: (input) => grantPropertyAccess(deps.db, input),
@@ -211,6 +288,47 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       correlationId: null,
     })
 
+  const grantInvitationPropertyAccess = async (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+    }>,
+  ): Promise<void> => {
+    const at = deps.clock()
+    if (
+      await hasActiveGrant(deps.db, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.userId,
+        at,
+      })
+    ) {
+      return
+    }
+    try {
+      await grantPropertyAccess(deps.db, {
+        ...input,
+        source: 'invitation',
+        createdBy: `invitation:${input.userId}`,
+      })
+    } catch (error) {
+      // Concurrent/retried invitation acceptance converges on the same active
+      // grant; only suppress the unique race after proving the row exists.
+      const active = await hasActiveGrant(deps.db, { ...input, at: deps.clock() })
+      if (!active) throw error
+    }
+  }
+  const hasActivePropertyGrant = (
+    tx: Database,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      at: Date
+    }>,
+  ) => hasActiveGrant(tx, input)
+
   const useCases = {
     inviteMember: inviteMember({
       identity: deps.identityPort,
@@ -231,6 +349,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
+      cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
     }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
     resendInvitation: resendInvitation({
@@ -268,6 +387,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     createCustomRole: createCustomRole({ identity: deps.identityPort }),
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
     deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
+    merchantAiAuthorization,
   } as const
 
   return {
@@ -280,12 +400,20 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // BQC-2.2: version-gated strong read of persisted policy state
       // (readiness contribution — the worker awaits it before starting).
       refreshPolicyStore: policyStore.refresh,
+      refreshPolicyStoreRequired: policyStore.refreshRequired,
       // BQC-7.3 (versions.policy_store): cheap in-memory read of the current
       // persisted policy_version for the OperationsSnapshot (null when only
       // the env seed is present — no DB round-trip).
       policyStoreVersion: policyStore.currentVersion,
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
+      grantInvitationPropertyAccess,
+      // Identity owns the grant table; callers supply their authorization
+      // transaction so the grant read participates in the same commit check.
+      hasActivePropertyGrant,
+      // Property-scoped recipient resolution for other contexts (notification
+      // fan-out). Identity owns the grant table, so the read lives here.
+      propertyAccessHolders: createPropertyGrantHolderLookup(deps.db),
     },
   } as const
 }

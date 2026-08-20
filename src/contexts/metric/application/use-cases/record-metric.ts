@@ -1,73 +1,189 @@
-// Metric context — record-metric use case
-// Validates metric key against known definitions, inserts a raw reading.
-// Per architecture: "Dependencies are passed as function arguments."
-// BQC-3.5: the reading + metric.recorded fact commit atomically via the
-// metric command store (one transaction, post-commit bus emit).
-
-import type { MetricKey, MetricReading } from '../../domain/types'
-import type { MetricCommandStore } from '../ports/metric-command-store.port'
+import { createHash } from 'node:crypto'
 import type {
-  OrganizationId,
-  PropertyId,
-  PortalId,
-  PortalGroupId,
   MetricReadingId,
+  OrganizationId,
+  PortalGroupId,
+  PortalId,
+  PropertyId,
 } from '#/shared/domain/ids'
-import { metricError } from '../../domain/errors'
+import type { AttributionQuality } from '../../domain/attribution-quality'
 import { metricRecorded } from '../../domain/events'
-import { createMetricReading } from '../../domain/constructors'
-
-// F073: Use the shared METRIC_KEYS constant instead of duplicating values.
-// If a new MetricKey is added to the union, it is automatically valid here.
-import { METRIC_KEYS } from '#/shared/domain/metric-keys'
-const BUILT_IN_METRIC_KEYS: Set<MetricKey> = new Set(METRIC_KEYS)
+import {
+  createReading,
+  type ReadingDataQuality,
+  type ReadingResult,
+} from '../../domain/metric-reading'
+import type { MetricScope, SourcePolicyClass } from '../../domain/metric-registry'
+import type { MetricCommandStore } from '../ports/metric-command-store.port'
+import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 
 export type RecordMetricInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId | null
-  metricKey: MetricKey
+  portalGroupId: PortalGroupId | null
+  definitionVersionId: string
+  sourceEventId: string
+  /** Append-only source correction. The command store retracts this prior fact. */
+  supersedesSourceEventId?: string | null
+  sourcePolicy: SourcePolicyClass
+  scope: MetricScope
   value: number
-  groupId: PortalGroupId | null
+  numerator?: number | null
+  denominator?: number | null
+  duration?: number | null
+  sampleCount: number
+  occurredAt: Date
+  attributionQuality: AttributionQuality
+  dataQuality?: ReadingDataQuality
 }>
 
 export type RecordMetricDeps = Readonly<{
   commandStore: MetricCommandStore
+  registry: MetricRegistryRepository
   clock: () => Date
   idGen: () => MetricReadingId
+  resolvePropertyLocalDate: (propertyId: PropertyId, at: Date) => Promise<string>
 }>
-export type RecordMetric = ReturnType<typeof recordMetric>
 
+export type RecordMetric = (input: RecordMetricInput) => Promise<ReadingResult>
+
+const payloadHash = (input: RecordMetricInput): string =>
+  createHash('sha256')
+    .update(
+      JSON.stringify({
+        definitionVersionId: input.definitionVersionId,
+        sourceEventId: input.sourceEventId,
+        supersedesSourceEventId: input.supersedesSourceEventId ?? null,
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        portalId: input.portalId,
+        portalGroupId: input.portalGroupId,
+        scope: input.scope,
+        value: input.value,
+        numerator: input.numerator ?? null,
+        denominator: input.denominator ?? null,
+        sampleCount: input.sampleCount,
+        occurredAt: input.occurredAt.toISOString(),
+      }),
+    )
+    .digest('hex')
 export const recordMetric =
-  (deps: RecordMetricDeps) =>
-  async (input: RecordMetricInput): Promise<MetricReading> => {
-    if (!BUILT_IN_METRIC_KEYS.has(input.metricKey)) {
-      throw metricError('unknown_metric_key', `Unknown metric key: ${input.metricKey}`)
+  (deps: RecordMetricDeps): RecordMetric =>
+  async (input) => {
+    const governed = await deps.registry.findVersionById(input.definitionVersionId)
+
+    const quarantine = async (reason: string): Promise<ReadingResult> => {
+      await deps.commandStore.quarantine({
+        sourceEventId: input.sourceEventId,
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        definitionVersionId: governed?.version.id ?? null,
+        sourcePolicy: input.sourcePolicy,
+        reason,
+        payloadHash: payloadHash(input),
+        eventAt: input.occurredAt,
+      })
+      return { status: 'quarantined', reason, sourceEventId: input.sourceEventId }
     }
 
-    const reading = createMetricReading({
+    if (!governed) return quarantine('unknown_definition_version')
+
+    const { definition, version } = governed
+    if (definition.lifecycleStatus !== 'approved') {
+      return quarantine('definition_not_approved')
+    }
+    if (
+      input.occurredAt < version.effectiveFrom ||
+      (version.effectiveTo !== null && input.occurredAt >= version.effectiveTo)
+    ) {
+      return quarantine('definition_version_not_effective')
+    }
+    if (!version.sourcePolicyAllowlist.includes(input.sourcePolicy)) {
+      return quarantine('source_policy_not_allowed')
+    }
+    if (!version.allowedScopes.includes(input.scope)) {
+      return quarantine('scope_not_allowed')
+    }
+    if (input.attributionQuality === 'unresolved') {
+      return quarantine('unresolved_attribution')
+    }
+    if (
+      input.sourceEventId.trim().length === 0 ||
+      !Number.isFinite(input.value) ||
+      input.value < 0 ||
+      !Number.isInteger(input.sampleCount) ||
+      input.sampleCount < 0
+    ) {
+      return quarantine('invalid_reading')
+    }
+
+    const numerator = input.numerator ?? null
+    const denominator = input.denominator ?? null
+    if (definition.valueKind === 'ratio' && input.sampleCount < version.minimumSample) {
+      if (version.insufficientDataBehavior === 'quarantine') {
+        return quarantine('insufficient_data')
+      }
+      return {
+        status: 'insufficient_data',
+        definitionVersionId: version.id,
+        minimumSample: version.minimumSample,
+        actualSample: input.sampleCount,
+      }
+    }
+
+    if (
+      definition.valueKind === 'ratio' &&
+      (numerator === null || denominator === null || denominator <= 0)
+    ) {
+      return quarantine('invalid_ratio')
+    }
+
+    const reading = createReading({
       id: deps.idGen(),
+      definitionVersionId: version.id,
+      metricKey: definition.key,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       portalId: input.portalId,
-      metricKey: input.metricKey,
+      portalGroupId: input.portalGroupId,
       value: input.value,
-      groupId: input.groupId,
-      occurredAt: deps.clock(),
+      numerator,
+      denominator,
+      duration: input.duration,
+      sampleCount: input.sampleCount,
+      sourceEventId: input.sourceEventId,
+      sourcePolicy: input.sourcePolicy,
+      occurredAt: input.occurredAt,
+      propertyLocalDate: await deps.resolvePropertyLocalDate(
+        input.propertyId,
+        input.occurredAt,
+      ),
+      attributionQuality: input.attributionQuality,
+      dataQuality: input.dataQuality,
+      retentionClass: definition.retentionClass,
+      now: deps.clock(),
     })
 
-    // Persist + fact — atomic via the command store (BQC-3.5). The reading id
-    // is assigned here so the fact's readingId matches the committed row.
     return deps.commandStore.recordMetric({
       reading,
+      supersedesSourceEventId: input.supersedesSourceEventId ?? null,
       event: metricRecorded({
         readingId: reading.id,
         organizationId: reading.organizationId,
         propertyId: reading.propertyId,
         portalId: reading.portalId,
-        groupId: reading.groupId,
+        portalGroupId: reading.portalGroupId,
+        definitionVersionId: reading.definitionVersionId,
+        sourceEventId: reading.sourceEventId,
+        sourcePolicy: reading.sourcePolicy,
         metricKey: reading.metricKey,
         value: reading.value,
+        numerator: reading.numerator,
+        denominator: reading.denominator,
+        sampleCount: reading.sampleCount,
+        attributionQuality: reading.attributionQuality,
+        permittedConsumers: version.permittedConsumers,
         occurredAt: reading.occurredAt,
       }),
     })

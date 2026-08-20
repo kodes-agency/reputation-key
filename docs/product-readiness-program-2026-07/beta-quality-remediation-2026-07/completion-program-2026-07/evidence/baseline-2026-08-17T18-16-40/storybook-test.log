@@ -1,0 +1,36 @@
+$ pnpm test:storybook
+started: 2026-08-17T18:19:39.920Z  durationMs: 31652  exit: 0
+
+
+> reputation-key@ test:storybook /Users/bozhidardenev/kodes/projects/rep-key
+> VITEST_STORYBOOK=true vitest run --project='storybook:**'
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+Port 63315 is in use, trying another one...
+
+ Test Files  82 passed (82)
+      Tests  441 passed (441)
+   Start at  21:19:41
+   Duration  29.75s (transform 0ms, setup 37.23s, import 32.82s, tests 147.28s, environment 0ms)
+
+
+(node:36490) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+9:19:55 PM [vite] (client) [console.error] Error: Failed to load staff home data.
+    at http://localhost:63316/Users/bozhidardenev/kodes/projects/rep-key/src/components/features/staff/staff-home.stories.tsx?import&browserv=1786990793553:530:15
+    at Object.getStaffDashboardData (http://localhost:63316/.storybook/mocks/mock-action.ts:10:26)
+    at queryFn (http://localhost:63316/src/components/features/staff/use-staff-home-data.ts:39:23)
+    at Object.fetchFn [as fn] (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:981:11)
+    at run (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:640:46)
+    at Object.start (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:676:20)
+    at Query.fetch (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:1031:37)
+    at QueryObserver.fetchOptimistic (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:1276:16)
+    at fetchOptimistic (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:2625:84)
+    at useBaseQuery (http://localhost:63316/node_modules/.cache/storybook/10.4.6/80e9daa7f489e9adea0b7c8081fbbb358e9dc6f89011dbc8243fffd82cae3815/sb-vitest/deps/@tanstack_react-query.js?v=cf540047:2707:53)
+
+The above error occurred in the <StaffHomeHarness> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, HomeErrorBoundary.
+

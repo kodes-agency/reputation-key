@@ -6,6 +6,26 @@ import type {
 // Seed data for fleet-overview.stories.tsx — extracted for line-count compliance.
 // Attention signals sum into totalAttention (ratingDrop counts as 1):
 //   unanswered + newFeedback + goalsBehindPace + escalated + (ratingDrop ? 1 : 0)
+const reviewEvidence = {
+  definitionVersionId: '10000000-0000-4000-8000-000000000004',
+  periodStart: new Date('2026-07-01T00:00:00Z'),
+  periodEnd: new Date('2026-08-01T00:00:00Z'),
+  sourcePolicies: ['google_property_derivative'],
+  watermark: new Date('2026-07-31T18:00:00Z'),
+  freshness: 'fresh' as const,
+  completeness: 1,
+  correctionCount: 0,
+}
+const scanEvidence = {
+  ...reviewEvidence,
+  definitionVersionId: '10000000-0000-4000-8000-000000000001',
+  sourcePolicies: ['portal_first_party_v1'],
+}
+const feedbackEvidence = {
+  ...reviewEvidence,
+  definitionVersionId: '10000000-0000-4000-8000-000000000002',
+  sourcePolicies: ['portal_first_party_v1'],
+}
 export const entries: readonly FleetEntry[] = [
   {
     propertyId: 'prop-0001',
@@ -17,6 +37,9 @@ export const entries: readonly FleetEntry[] = [
     reviewCount: 312,
     feedbackCount: 48,
     scanCount: 6,
+    reviewEvidence,
+    scanEvidence,
+    feedbackEvidence,
     attentionSignals: {
       unanswered: 5,
       newFeedback: 2,
@@ -36,6 +59,9 @@ export const entries: readonly FleetEntry[] = [
     reviewCount: 189,
     feedbackCount: 31,
     scanCount: 4,
+    reviewEvidence,
+    scanEvidence,
+    feedbackEvidence,
     attentionSignals: {
       unanswered: 9,
       newFeedback: 4,
@@ -55,6 +81,9 @@ export const entries: readonly FleetEntry[] = [
     reviewCount: 521,
     feedbackCount: 22,
     scanCount: 3,
+    reviewEvidence,
+    scanEvidence,
+    feedbackEvidence,
     attentionSignals: {
       unanswered: 0,
       newFeedback: 0,
@@ -74,6 +103,14 @@ export const entries: readonly FleetEntry[] = [
     reviewCount: 0,
     feedbackCount: 3,
     scanCount: 1,
+    reviewEvidence: {
+      ...reviewEvidence,
+      watermark: null,
+      freshness: 'insufficient_data',
+      completeness: 0,
+    },
+    scanEvidence,
+    feedbackEvidence,
     attentionSignals: {
       unanswered: 0,
       newFeedback: 3,
@@ -93,4 +130,5 @@ export const populatedData: FleetOverviewData = {
     totalAttention: entries.reduce((sum, e) => sum + e.totalAttention, 0),
     overallAvgRating: 4.1,
   },
+  nextCursor: null,
 }

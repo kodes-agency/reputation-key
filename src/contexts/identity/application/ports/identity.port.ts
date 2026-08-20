@@ -79,13 +79,10 @@ export type IdentityPort = Readonly<{
   /** Set the active organization for the current session. */
   setActiveOrganization: (headers: Headers, organizationId: string) => Promise<void>
 
-  /**
-   * Resolve the session user (id + email) for invitation acceptance.
-   * Returns null when there is no active session.
-   */
+  /** Resolve the session user for invitation acceptance. */
   getSessionUser: (
     headers: Headers,
-  ) => Promise<Readonly<{ id: string; email: string }> | null>
+  ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
 
   /**
    * Post-acceptance hook — auto-create staff assignments for the invited
@@ -96,6 +93,7 @@ export type IdentityPort = Readonly<{
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
+    displayName?: string
   }) => Promise<void>
 
   /**

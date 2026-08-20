@@ -1,0 +1,62 @@
+[
+  {
+    "vectorId": "safe-latin",
+    "text": "Thank you for sharing your experience. We appreciate your thoughtful feedback.",
+    "expected": "safe"
+  },
+  {
+    "vectorId": "safe-japanese",
+    "text": "ご感想をお寄せいただき、ありがとうございます。今後ともよろしくお願いいたします。",
+    "expected": "safe"
+  },
+  {
+    "vectorId": "placeholder-case-fold",
+    "text": "Thank you [contact] for your feedback.",
+    "expected": "placeholder"
+  },
+  {
+    "vectorId": "placeholder-nfkc",
+    "text": "Thank you ［ＣＯＮＴＡＣＴ］ for your feedback.",
+    "expected": "placeholder"
+  },
+  {
+    "vectorId": "email",
+    "text": "Please email owner@example.com for help.",
+    "expected": "structured_candidate"
+  },
+  {
+    "vectorId": "reconstructed-email",
+    "text": "Please email owner @ example . com for help.",
+    "expected": "structured_candidate"
+  },
+  {
+    "vectorId": "reconstructed-url",
+    "text": "Please visit https : / / example . com for help.",
+    "expected": "structured_candidate"
+  },
+  {
+    "vectorId": "valid-phone",
+    "text": "Please call +1 415 555 2671 for help.",
+    "expected": "structured_candidate"
+  },
+  {
+    "vectorId": "number-forbidden",
+    "text": "We will reply in 2 days.",
+    "expected": "forbidden_scalar"
+  },
+  {
+    "vectorId": "symbol-forbidden",
+    "text": "Thank you ★ for visiting.",
+    "expected": "forbidden_scalar"
+  },
+  {
+    "vectorId": "bidi-format-forbidden",
+    "text": "Thank you\u202efor visiting.",
+    "expected": "forbidden_scalar"
+  },
+  {
+    "vectorId": "non-nfkc-forbidden",
+    "text": "We value your ﬁne feedback.",
+    "expected": "forbidden_scalar"
+  }
+]

@@ -26,7 +26,8 @@
 // fails the gate — remove it in the same change that fixed the advisory.
 // There is no continue-on-error anywhere: a red gate blocks the PR.
 
-import { readFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -44,9 +45,22 @@ const RUNS = [
 ]
 
 function runAudit(args) {
-  // pnpm audit exits 1 when any advisory fires — the JSON report is on
-  // stdout either way, so a non-zero status is not a script error.
-  const res = spawnSync('pnpm', args, { cwd: ROOT, encoding: 'utf8', shell: false })
+  // pnpm prefers the installed virtual lockfile when node_modules exists.
+  // Run from an isolated manifest directory so local agent/tooling packages
+  // cannot contaminate the committed dependency graph that CI evaluates.
+  const auditRoot = mkdtempSync(join(tmpdir(), 'repkey-dependency-audit-'))
+  let res
+  try {
+    copyFileSync(join(ROOT, 'package.json'), join(auditRoot, 'package.json'))
+    copyFileSync(join(ROOT, 'pnpm-lock.yaml'), join(auditRoot, 'pnpm-lock.yaml'))
+    res = spawnSync('pnpm', args, {
+      cwd: auditRoot,
+      encoding: 'utf8',
+      shell: false,
+    })
+  } finally {
+    rmSync(auditRoot, { recursive: true, force: true })
+  }
   if (res.error) {
     console.error(`[dependency-audit] failed to spawn pnpm: ${res.error.message}`)
     process.exit(2)

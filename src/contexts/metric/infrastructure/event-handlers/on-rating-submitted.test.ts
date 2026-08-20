@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { onRatingSubmitted } from './on-rating-submitted'
 import type { RecordPortalMetricDeps as OnRatingSubmittedDeps } from './record-portal-metric'
-import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import {
   organizationId,
   portalId,
   propertyId,
   ratingId,
-  metricReadingId,
   portalGroupId,
 } from '#/shared/domain/ids'
 
@@ -24,11 +22,7 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return {
-        id: metricReadingId('metric-1'),
-        ...input,
-        occurredAt: FIXED_TIME,
-      } as MetricReading
+      return input
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
   }
@@ -53,7 +47,7 @@ describe('onRatingSubmitted', () => {
     deps = createFakeDeps()
   })
 
-  it('records a portal.rating reading with null groupId when the portal has no group', async () => {
+  it('records a governed portal.rating reading with unresolved portal-group attribution', async () => {
     const handler = onRatingSubmitted(deps)
     await handler(ratingEvent())
 
@@ -62,13 +56,19 @@ describe('onRatingSubmitted', () => {
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: portalId('portal-1'),
-      metricKey: 'portal.rating',
+      portalGroupId: null,
+      definitionVersionId: '11111111-1111-4111-8111-111111111202',
+      sourceEventId: 'test-event-id',
+      sourcePolicy: 'first_party_guest_private',
+      scope: 'portal',
       value: 4,
-      groupId: null,
+      sampleCount: 1,
+      attributionQuality: 'exact',
+      occurredAt: FIXED_TIME,
     })
   })
 
-  it('resolves groupId from portal group membership so portal_group badges/leaderboards receive data', async () => {
+  it('resolves portalGroupId from membership for downstream attribution', async () => {
     const groupId = portalGroupId('group-42')
     const calls: Array<{ orgId: unknown; portalId: unknown }> = []
     const groupDeps = createFakeDeps({
@@ -81,7 +81,7 @@ describe('onRatingSubmitted', () => {
     await handler(ratingEvent())
 
     expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.groupId).toEqual(groupId)
+    expect(groupDeps.readings[0]!.portalGroupId).toEqual(groupId)
     expect(calls).toEqual([
       { orgId: organizationId('org-1'), portalId: portalId('portal-1') },
     ])
@@ -97,7 +97,7 @@ describe('onRatingSubmitted', () => {
     await handler(ratingEvent())
 
     expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.groupId).toBeNull()
+    expect(groupDeps.readings[0]!.portalGroupId).toBeNull()
   })
 
   it('does not throw when recordMetric fails', async () => {

@@ -11,7 +11,7 @@ scale in staging.
 | Measurement library | `src/shared/testing/perf.ts`                 | Percentiles (linear interpolation between closest ranks), summaries, bounded-concurrency probe runner, raw sample store              |
 | Monitoring capture  | `src/shared/testing/ops-snapshot-capture.ts` | Time series of the BQC-7.3 OperationsSnapshot — `viaContainer` (in-process) or `viaHttp` (`GET /api/health/metrics` + `x-ops-token`) |
 | Catalogue           | `src/shared/testing/scenarios/catalogue.ts`  | SLOs, §9.2 scenarios, §9.3 faults, result contracts — the single source of truth                                                     |
-| Executors           | `src/shared/testing/scenarios/executors.ts`  | Runnable `steady` / `burst` / `dashboardMix` / `drain`; empty fault registry for 8.4/8.5                                             |
+| Executors           | `src/shared/testing/scenarios/executors.ts`  | Runnable capacity + lifecycle scenarios and the full fault registry; fault execution requires the controlled production runner       |
 | Dataset             | `src/shared/testing/scale-dataset.ts`        | Deterministic plan (seed → ids/distributions), manifest hash, load/verify/clean                                                      |
 | Evidence            | `src/shared/testing/scale-evidence.ts`       | Ingests measured results → reviewed markdown; fails closed                                                                           |
 | Staging cell        | `src/shared/testing/staging-cell.ts`         | BQC-8.2: local production-shaped cell (DB, Redis db 9, stubs, prod web+worker, readiness, teardown)                                  |
@@ -51,10 +51,10 @@ What a run does:
   samples + monitoring series, ADR 0030) and exits 0 only when every
   assertion passed.
 
-Fail-closed: unknown scenario/fault, catalogue entry without an executor
-(faults until 8.4/8.5), missing/invalid env, missing REDIS_URL (or
-OPS_METRICS_TOKEN with `--base-url`), unseeded DB for `dashboardMix` — all
-exit non-zero with a clear message. `drain` without a worker honestly FAILS
+Fail-closed: unknown scenario/fault, a missing lifecycle seam, an unavailable
+fault controller, missing/invalid env, missing REDIS_URL (or OPS_METRICS_TOKEN
+with `--base-url`), unseeded DB for `dashboardMix` — all exit non-zero with a
+clear message. `drain` without a worker honestly FAILS
 (`drained_within_timeout`) rather than fabricating a drain time.
 
 ## The deterministic dataset
@@ -128,15 +128,13 @@ pnpm perf:cell -- down --drop                               # stop; drop the cel
 - **Readiness**: web `GET /api/health/started` 200; worker log line
   `BullMQ worker started on default queue` (bounded). Teardown:
   SIGTERM → 5s grace → SIGKILL, worker first, stubs last.
-- **Worker schedules**: the recurring hourly/daily sweeps run (production
-  shape). They are inert against the seeded dataset by construction:
-  `refresh-expiring-reviews` enqueues nothing (seeded reviews carry no
-  `google_connection_id` — the sweep skips them), and `purge-expired-reviews`
-  selects only rows with a non-null `content_expires_at` (the fetch-based
-  clock, ADR 0031) — seeded reviews have it NULL, so they are never
-  purge-selected. The same NULL means seeded content is outside the
-  serving-eligibility window; dashboard probes still exercise the governed
-  rollup read path (that is the SLO surface).
+- **Worker schedules**: the capacity profile (the default) deliberately leaves
+  `last_fetched_at` / `content_expires_at` NULL, so routine BQC-8.2 execution
+  cannot erase its own 500,000-row fixture. The separate
+  `--source-lifecycle` profile populates deterministic fetch clocks and content
+  hashes. Its `retention` run explicitly drives the actual
+  `purge-expired-reviews` queue handler, one bounded job at a time, then
+  requires zero expired rows and zero remaining canaries.
 
 Typical execution session:
 
@@ -241,11 +239,23 @@ pnpm `--` separator before subcommand parsing.
 Teardown: all four pids SIGTERM'd, zero leftovers, database kept
 (`perf:cell -- down --drop` to remove).
 
-## For 8.3+ (staging executions)
+## BQC-8.3+ staging executions
 
-- Register fault executors in `FAULT_EXECUTORS` (executors.ts) — the CLI
-  dispatch + fail-closed path already exists (8.4/8.5).
-- Lifecycle (refresh/expiry/retention) belongs to 8.3: it needs the cell to
-  cross schedule boundaries on purpose (see the 02:00 UTC purge note above).
-- `--base-url` mode polls a booted environment's metrics endpoint; container
-  mode covers DB/queue-only assertions.
+Lifecycle proof uses a separately identified dataset profile:
+
+```bash
+pnpm perf:seed-scale -- --source-lifecycle --orgs=100 --properties=5000 --reviews=500000 \
+  --manifest=docs/release-evidence/beta/<release-id>/scale-dataset.json
+pnpm perf:run -- --scenario=retention --out=docs/release-evidence/beta/<release-id>/raw
+```
+
+`retention` fails unless the production purge path clears every expired
+fetch-clock row, accounts for every original expired row, proves the canary
+set disappeared, and keeps each sweep within its configured keyset bound.
+
+Every BQC-8.4/8.5 fault has an executor. A staging operator supplies
+`BQC8_FAULT_RUNNER=/absolute/path/to/controller`; the controller receives the
+fault id as argv[1] and must emit one content-free JSON `FaultRunSummary`.
+Missing, malformed, mismatched, or non-recovered controller output fails the
+row and cannot become evidence. Use `pnpm perf:run -- --fault=<catalogue-id>`
+to write the matching measured result and raw monitoring series.

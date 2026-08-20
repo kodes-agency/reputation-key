@@ -2,11 +2,16 @@
 // performance, engagement funnel and recent reviews. Pure data-display surface:
 // all data arrives via props (DashboardData + AttentionSignals), no server/RPC.
 // Charts are CSS bars (property-dashboard-helpers), not recharts, so no sizing hacks.
-import type { Meta, StoryObj } from '@storybook/react'
+import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type {
+  getPropertyGooglePerformance,
+  renewPropertyGooglePerformanceLease,
+} from '#/contexts/integration/server/google-performance'
+import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import {
   activeSignals,
   calmSignals,
@@ -14,6 +19,37 @@ import {
   populatedDashboard,
   property,
 } from './property-dashboard-stories-data'
+
+const performanceFns = {
+  getPerformance: (async () => ({
+    status: 'unavailable',
+    reason: 'integration_unavailable',
+    action: null,
+  })) as unknown as typeof getPropertyGooglePerformance,
+  renewLease: (async () => ({
+    ok: false,
+  })) as unknown as typeof renewPropertyGooglePerformanceLease,
+}
+const getAiTrend = (async () => ({
+  status: 'ready',
+  sourceEpoch: 1,
+  reviewAnalysisEpoch: 1,
+  propertyTrendsEpoch: 1,
+  propertyProfileVersion: 1,
+  dueLocalDate: '2026-08-15',
+  terminalAnalysisSequence: 24,
+  aggregateRevision: 24,
+  reportProfileVersion: 'property-trend-v1',
+  report: {
+    signalKey: 'sentiment',
+    direction: 'improving',
+    confidenceBasisPoints: 8600,
+    supportingReviewCount: 24,
+    headline: 'Review signals improved',
+    sentences: ['Positive service mentions increased in the current period.'],
+  },
+  generatedAtEpochMillis: Date.UTC(2026, 7, 15, 12),
+})) as unknown as typeof getPropertyAiTrendFn
 
 const meta: Meta<typeof PropertyDashboard> = {
   title: 'Property/PropertyDashboard',
@@ -39,6 +75,10 @@ export const Default: Story = {
     propertyId: property.id,
     timeRange: '30d',
     onTimeRangeChange: (_value: TimeRangePreset) => {},
+    performanceRange: '30d',
+    onPerformanceRangeChange: () => {},
+    performanceFns,
+    getAiTrend,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -57,6 +97,10 @@ export const Default: Story = {
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
     expect(canvas.getByText('5★')).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
+    expect(await canvas.findByText('Review signals improved')).toBeVisible()
+    // The basis-point field is a change magnitude, never a confidence score.
+    expect(await canvas.findByText(/largest change 86 pts/i)).toBeVisible()
+    expect(canvas.queryByText(/confidence/i)).toBeNull()
   },
 }
 

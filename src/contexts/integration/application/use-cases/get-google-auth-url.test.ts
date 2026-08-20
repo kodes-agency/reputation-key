@@ -1,36 +1,49 @@
-// Integration context — get Google auth URL use case tests (BQC-7.6).
-//
-// Pins the hardened authorization URL contract: user-bound HMAC state and
-// PKCE S256 (verifier stored server-side under the state nonce, only the
-// challenge leaves the process).
+// Integration context — opaque Google authorization URL contract.
 
-import { describe, it, expect } from 'vitest'
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
+import { describe, expect, it } from 'vitest'
 import { getGoogleAuthUrl } from './get-google-auth-url'
-import { verifyOAuthState, OAUTH_STATE_TTL_SECONDS } from '../oauth-state'
-import { createInMemoryPkceVerifierStore } from '#/shared/testing/in-memory-pkce-verifier-store'
+import { createOAuthStateHandleService } from '../oauth-state-handle'
+import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
+import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
-const STATE_SECRET = 'ab'.repeat(32)
+const HANDLE_KEYS = `v1:${'11'.repeat(32)}`
+const SESSION_KEYS = `v1:${'22'.repeat(32)}`
+
+const createStateHandles = () =>
+  createOAuthStateHandleService({
+    store: createInMemoryProviderEphemeralStore(),
+    handleKeys: createVersionedHmacKeyring(HANDLE_KEYS),
+    sessionKeys: createVersionedHmacKeyring(SESSION_KEYS),
+    random: () => Buffer.alloc(32, 5),
+  })
 
 const setup = () => {
-  const pkceStore = createInMemoryPkceVerifierStore()
-  const deps = {
+  const stateHandles = createStateHandles()
+  const useCase = getGoogleAuthUrl({
     clientId: 'test-client-id',
     callbackUrl: 'http://localhost:3000/api/auth/google/callback',
-    stateSecret: STATE_SECRET,
     clock: () => FIXED_TIME,
-    idGen: () => 'test-nonce',
-    pkceStore,
-  }
-  return { useCase: getGoogleAuthUrl(deps), pkceStore }
+    stateHandles,
+  })
+  return { useCase, stateHandles }
 }
 
-describe('getGoogleAuthUrl (BQC-7.6)', () => {
-  it('builds an authorization URL with the fixed redirect and scopes', async () => {
+const request = {
+  visibility: 'organization' as const,
+  userId: 'user-1',
+  organizationId: 'org-1',
+  sessionId: 'session-1',
+  purpose: 'import_gbp_v2' as const,
+  connectionMode: 'new' as const,
+  targetConnectionId: null,
+}
+
+describe('getGoogleAuthUrl', () => {
+  it('builds the exact Google OIDC and GBP authorization request', async () => {
     const { useCase } = setup()
-    const { url } = await useCase({ visibility: 'private', userId: 'user-1' })
-    const parsed = new URL(url)
+    const parsed = new URL((await useCase(request)).url)
 
     expect(parsed.origin + parsed.pathname).toBe(
       'https://accounts.google.com/o/oauth2/v2/auth',
@@ -42,73 +55,73 @@ describe('getGoogleAuthUrl (BQC-7.6)', () => {
     expect(parsed.searchParams.get('response_type')).toBe('code')
     expect(parsed.searchParams.get('access_type')).toBe('offline')
     expect(parsed.searchParams.get('prompt')).toBe('consent')
-  })
-
-  it('binds the signed state to the initiating user', async () => {
-    const { useCase } = setup()
-    const { url } = await useCase({ visibility: 'organization', userId: 'user-1' })
-    const state = new URL(url).searchParams.get('state')!
-
-    // Verifies for the initiating user…
-    const own = verifyOAuthState(state, {
-      secret: STATE_SECRET,
-      expectedUserId: 'user-1',
-      nowMs: FIXED_TIME.getTime(),
-    })
-    expect(own.isOk()).toBe(true)
-    if (own.isOk()) {
-      expect(own.value.visibility).toBe('organization')
-      expect(own.value.nonce).toBe('test-nonce')
-      expect(own.value.sub).toBe('user-1')
-    }
-
-    // …and is rejected for anyone else.
-    const other = verifyOAuthState(state, {
-      secret: STATE_SECRET,
-      expectedUserId: 'user-2',
-      nowMs: FIXED_TIME.getTime(),
-    })
-    expect(other.isErr() && other.error).toBe('user_mismatch')
-  })
-
-  it('sends the S256 challenge and stores the verifier under the state nonce', async () => {
-    const { useCase, pkceStore } = setup()
-    const { url } = await useCase({ visibility: 'private', userId: 'user-1' })
-    const parsed = new URL(url)
-
+    expect(parsed.searchParams.get('scope')).toBe(
+      'openid https://www.googleapis.com/auth/business.manage',
+    )
     expect(parsed.searchParams.get('code_challenge_method')).toBe('S256')
-    const challenge = parsed.searchParams.get('code_challenge')
-    expect(challenge).toBeTruthy()
-
-    // The verifier was stored under the state nonce with the state TTL…
-    const saves = pkceStore.saves()
-    expect(saves).toHaveLength(1)
-    expect(saves[0].nonce).toBe('test-nonce')
-    expect(saves[0].ttlSeconds).toBe(OAUTH_STATE_TTL_SECONDS)
-
-    // …and the URL carries exactly the challenge of the stored verifier.
-    const expected = createHash('sha256').update(saves[0].verifier).digest('base64url')
-    expect(challenge).toBe(expected)
-    // The verifier itself never appears in the URL.
-    expect(url).not.toContain(saves[0].verifier)
+    expect(parsed.searchParams.get('nonce')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(parsed.searchParams.get('state')).toMatch(
+      /^v2\.v1\.[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/,
+    )
   })
 
-  it('fails closed when the verifier store is unavailable (no URL issued)', async () => {
-    const failing = getGoogleAuthUrl({
+  it('keeps tenant, user, session, PKCE verifier, and OIDC nonce behind the handle', async () => {
+    const { useCase, stateHandles } = setup()
+    const { url } = await useCase(request)
+    const parsed = new URL(url)
+    const state = parsed.searchParams.get('state')!
+
+    expect(state).not.toContain(request.organizationId)
+    expect(state).not.toContain(request.userId)
+    const redeemed = await stateHandles.redeem({
+      handle: state,
+      organizationId: request.organizationId,
+      userId: request.userId,
+      sessionId: request.sessionId,
+      nowMs: FIXED_TIME.getTime(),
+    })
+    expect(redeemed).toMatchObject({
+      ok: true,
+      visibility: 'organization',
+      purpose: 'import_gbp_v2',
+      connectionMode: 'new',
+      targetConnectionId: null,
+      verifierMaterial: { contractVersion: 'v2' },
+    })
+    if (!redeemed.ok) throw new Error('expected opaque OAuth state redemption')
+    const expectedChallenge = createHash('sha256')
+      .update(redeemed.verifierMaterial.codeVerifier)
+      .digest('base64url')
+    expect(parsed.searchParams.get('code_challenge')).toBe(expectedChallenge)
+    expect(parsed.searchParams.get('nonce')).toBe(redeemed.verifierMaterial.oidcNonce)
+    expect(url).not.toContain(redeemed.verifierMaterial.codeVerifier)
+  })
+
+  it('fails before issuing a URL when required tenant or session binding is absent', async () => {
+    const { useCase } = setup()
+    await expect(useCase({ visibility: 'private', userId: 'user-1' })).rejects.toThrow(
+      'Opaque OAuth state dependencies are unavailable',
+    )
+  })
+
+  it('fails closed when the provider-ephemeral store is unavailable', async () => {
+    const stateHandles = createOAuthStateHandleService({
+      store: {
+        ...createInMemoryProviderEphemeralStore(),
+        putIfAbsent: async () => {
+          throw new Error('provider store unavailable')
+        },
+      },
+      handleKeys: createVersionedHmacKeyring(HANDLE_KEYS),
+      sessionKeys: createVersionedHmacKeyring(SESSION_KEYS),
+    })
+    const useCase = getGoogleAuthUrl({
       clientId: 'test-client-id',
       callbackUrl: 'http://localhost:3000/api/auth/google/callback',
-      stateSecret: STATE_SECRET,
       clock: () => FIXED_TIME,
-      idGen: () => 'test-nonce',
-      pkceStore: {
-        save: async () => {
-          throw new Error('redis down')
-        },
-        redeem: async () => undefined,
-      },
+      stateHandles,
     })
-    await expect(failing({ visibility: 'private', userId: 'user-1' })).rejects.toThrow(
-      'redis down',
-    )
+
+    await expect(useCase(request)).rejects.toThrow('provider store unavailable')
   })
 })

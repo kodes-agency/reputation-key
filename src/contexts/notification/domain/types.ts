@@ -7,6 +7,7 @@ import type {
   NotificationPreferenceId,
   UserId,
   OrganizationId,
+  PropertyId,
 } from '#/shared/domain/ids'
 
 // ── Notification types (single source of truth) ───────────────────
@@ -39,17 +40,29 @@ export const NOTIFICATION_TYPES = [
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
-// ── Priority ────────────────────────────────────────────────────────
-// Urgent = immediate email. Normal = digest only.
+// ── Delivery policy ────────────────────────────────────────────────
 
 export type NotificationPriority = 'urgent' | 'normal'
-
-// ── Status ──────────────────────────────────────────────────────────
-
+export type NotificationCategory =
+  | 'mandatory'
+  | 'urgent_operational'
+  | 'workflow_collaboration'
+  | 'digest_summary'
+  | 'recognition'
+export type NotificationChannel = 'in_app' | 'email'
+export type NotificationCadence = 'immediate' | 'daily'
 export type NotificationStatus = 'unread' | 'read' | 'dismissed'
-
-export type EmailQueueStatus = 'pending' | 'sent' | 'failed' | 'skipped'
-
+export type EmailQueueStatus =
+  | 'pending'
+  | 'accepted'
+  | 'delivered'
+  | 'delayed'
+  | 'bounced'
+  | 'complained'
+  | 'failed'
+  | 'suppressed'
+  | 'cancelled'
+export type DeliveryErrorClass = 'transient' | 'permanent' | 'suppressed'
 export type NotificationResourceType = 'inbox_item' | 'reply' | 'goal' | 'badge'
 
 // ── In-app notification ─────────────────────────────────────────────
@@ -58,7 +71,9 @@ export type Notification = Readonly<{
   id: NotificationId
   userId: UserId
   organizationId: OrganizationId
+  propertyId: PropertyId
   type: NotificationType
+  category: NotificationCategory
   priority: NotificationPriority
   status: NotificationStatus
   resourceType: NotificationResourceType
@@ -78,8 +93,22 @@ export type NotificationEmail = Readonly<{
   notificationId: NotificationId
   userId: UserId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  category: NotificationCategory
+  cadence: NotificationCadence
   status: EmailQueueStatus
   priority: NotificationPriority
+  idempotencyKey: string
+  providerMessageId: string | null
+  providerState: string | null
+  lastErrorClass: DeliveryErrorClass | null
+  suppressionReason: string | null
+  notBefore: Date | null
+  nextAttemptAt: Date | null
+  attemptedAt: Date | null
+  acceptedAt: Date | null
+  deliveredAt: Date | null
+  bouncedAt: Date | null
   sentAt: Date | null
   failedAt: Date | null
   retryCount: number
@@ -93,9 +122,23 @@ export type NotificationPreference = Readonly<{
   id: NotificationPreferenceId
   userId: UserId
   organizationId: OrganizationId
-  type: NotificationType
-  emailEnabled: boolean
-  inAppEnabled: boolean
+  propertyId: PropertyId
+  category: NotificationCategory
+  channel: NotificationChannel
+  enabled: boolean
+  cadence: NotificationCadence
+  urgentBypassEnabled: boolean
+  quietHoursStart: string | null
+  quietHoursEnd: string | null
+  createdAt: Date
+  updatedAt: Date
+}>
+
+export type NotificationUserSettings = Readonly<{
+  userId: UserId
+  organizationId: OrganizationId
+  locale: string
+  timezone: string
   createdAt: Date
   updatedAt: Date
 }>

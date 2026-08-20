@@ -3,6 +3,124 @@ import pino from 'pino'
 import { getEnv } from '#/shared/config/env'
 import { getSpanAttrs } from '#/shared/observability/request-context'
 
+const REDACTED = '[Redacted]'
+const SENSITIVE_FIELD = new Set([
+  'accesstoken',
+  'authorization',
+  'body',
+  'authorizationcode',
+  'codeverifier',
+  'cookie',
+  'encryptedaccesstoken',
+  'encryptedrefreshtoken',
+  'handle',
+  'idtoken',
+  'oauthstate',
+  'oauthstatehandle',
+  'opaquehandle',
+  'pagetoken',
+  'providerbody',
+  'providerresource',
+  'query',
+  'referrer',
+  'referer',
+  'refreshtoken',
+  'requestbody',
+  'responsebody',
+  'revoketoken',
+  'sessioncookie',
+  'sessionid',
+  'setcookie',
+  'state',
+  'token',
+  'url',
+  'uri',
+  'verifier',
+])
+const SENSITIVE_SUFFIX = [
+  'accesstoken',
+  'authorization',
+  'codeverifier',
+  'idtoken',
+  'handledigest',
+  'pagetoken',
+  'refreshtoken',
+  'providerurl',
+  'sessioncookie',
+  'sessionid',
+  'statehandle',
+  'tokendigest',
+] as const
+
+function normalizedField(key: string): string {
+  return key.toLowerCase().replaceAll(/[^a-z0-9]/g, '')
+}
+
+function isSensitiveField(key: string): boolean {
+  const normalized = normalizedField(key)
+  return (
+    SENSITIVE_FIELD.has(normalized) ||
+    SENSITIVE_SUFFIX.some((suffix) => normalized.endsWith(suffix))
+  )
+}
+
+function safeError(error: Error): Readonly<Record<string, unknown>> {
+  const code =
+    'code' in error && (typeof error.code === 'string' || typeof error.code === 'number')
+      ? error.code
+      : undefined
+  return {
+    name: error.name,
+    ...(code === undefined ? {} : { code }),
+  }
+}
+
+/**
+ * Copies telemetry data while removing credential, OAuth, provider-resource,
+ * request-body, URL/query, referrer, and session material at any nesting
+ * depth. It intentionally matches field names rather than value substrings so
+ * harmless code-only fields remain observable.
+ */
+export function sanitizeTelemetryValue(
+  value: unknown,
+  seen = new WeakMap<object, unknown>(),
+): unknown {
+  if (value instanceof Error) return safeError(value)
+  if (Array.isArray(value)) {
+    const existing = seen.get(value)
+    if (existing) return existing
+    const copy: unknown[] = []
+    seen.set(value, copy)
+    for (const item of value) copy.push(sanitizeTelemetryValue(item, seen))
+    return copy
+  }
+  if (value && typeof value === 'object') {
+    const existing = seen.get(value)
+    if (existing) return existing
+    const copy: Record<string, unknown> = {}
+    seen.set(value, copy)
+    for (const [key, entry] of Object.entries(value)) {
+      copy[key] = isSensitiveField(key) ? REDACTED : sanitizeTelemetryValue(entry, seen)
+    }
+    return copy
+  }
+  return value
+}
+
+export function normalizeTelemetryPath(value: string): string {
+  try {
+    return new URL(value, 'https://telemetry.invalid').pathname
+  } catch {
+    return value.split(/[?#]/u, 1)[0] || '/'
+  }
+}
+
+function sanitizeLogArgs(args: unknown[]): unknown[] {
+  return args.map((arg) =>
+    arg && typeof arg === 'object' ? sanitizeTelemetryValue(arg) : arg,
+  )
+}
+
 let _logger: pino.Logger | undefined
 
 /** Check if pino-pretty is resolvable without throwing. */
@@ -21,8 +139,12 @@ export function getLogger(): pino.Logger {
     const usePretty = env.NODE_ENV === 'development' && isPrettyTransportAvailable()
     _logger = pino({
       level: env.LOG_LEVEL,
+      hooks: {
+        logMethod(args, method) {
+          method.apply(this, sanitizeLogArgs(args) as Parameters<typeof method>)
+        },
+      },
       // Mixin merges request-scoped span attrs (role/useCase — content-free,
-      // low-cardinality per BQC-7.3) into every log line — including child
       // loggers. Read dynamically from ALS at log-call time, so attrs
       // enriched after logger creation (e.g. after resolveTenantContext)
       // still appear.

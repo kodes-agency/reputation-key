@@ -7,7 +7,7 @@
 // handlers are one-liners over this factory.
 
 import type { Queue } from 'bullmq'
-import type { OrganizationId, ReviewId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
@@ -17,6 +17,7 @@ export type ReplyNotificationEvent = Readonly<{
   eventId: string
   reviewId: ReviewId
   organizationId: OrganizationId
+  propertyId: PropertyId
   authorId: UserId | null
 }>
 
@@ -45,6 +46,7 @@ export function makeReplyNotificationHandler<E extends ReplyNotificationEvent>(o
       const data: InsertNotificationJobData = {
         userId: event.authorId,
         organizationId: event.organizationId,
+        propertyId: event.propertyId,
         type: opts.type,
         resourceType: 'inbox_item' as const,
         resourceId: inboxItemId,

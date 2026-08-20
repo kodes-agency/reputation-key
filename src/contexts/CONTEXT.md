@@ -4,21 +4,22 @@
 
 ## Bounded contexts
 
-| Context     | Description                                                   | Key Entities                           | Layer                    |
-| ----------- | ------------------------------------------------------------- | -------------------------------------- | ------------------------ |
-| Identity    | Users, organizations, members, invitations                    | User, Organization, Member, Invitation | Thin (wraps better-auth) |
-| Property    | Properties (hotels/restaurants) + GBP location import         | Property                               | Thick                    |
-| Portal      | Guest-facing portal pages with links, per property            | Portal, Link, LinkCategory             | Thick                    |
-| Guest       | Public portal rendering, rating collection, feedback          | Rating, Feedback                       | Thick                    |
-| Team        | Staff teams and shift management                              | Team                                   | Thick                    |
-| Staff       | Staff assignments to properties                               | StaffAssignment                        | Standard                 |
-| Integration | Google connections, OAuth, tokens, GBP API adapter            | GoogleConnection                       | Standard                 |
-| Review      | External platform reviews (Google), sync, replies             | Review                                 | Thick                    |
-| Inbox       | Unified triage surface for reviews + feedback                 | InboxItem, InboxNote                   | Thick                    |
-| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews) | MetricReading                          | Standard                 |
-| Goal        | Property-scoped goals with progress tracking                  | Goal, GoalInstance                     | Thick                    |
-| Dashboard   | Read-only aggregation of metrics, reviews, replies            | —                                      | Thin (read model)        |
-| Activity    | Immutable audit log, event-driven writes, query-driven reads  | ActivityLog                            | Thin (subscriber)        |
+| Context     | Description                                                          | Key Entities                           | Layer                    |
+| ----------- | -------------------------------------------------------------------- | -------------------------------------- | ------------------------ |
+| Identity    | Users, organizations, members, invitations                           | User, Organization, Member, Invitation | Thin (wraps better-auth) |
+| Property    | Properties (hotels/restaurants) + GBP location import                | Property                               | Thick                    |
+| Portal      | Guest-facing portal pages with links, per property                   | Portal, Link, LinkCategory             | Thick                    |
+| Guest       | Public portal rendering, rating collection, feedback                 | Rating, Feedback                       | Thick                    |
+| Team        | Staff teams and shift management                                     | Team                                   | Thick                    |
+| Staff       | Staff assignments to properties                                      | StaffAssignment                        | Standard                 |
+| Integration | Google connections, OAuth, tokens, GBP API adapter                   | GoogleConnection                       | Standard                 |
+| Review      | External platform reviews (Google), sync, replies                    | Review                                 | Thick                    |
+| AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis          | Standard                 |
+| Inbox       | Unified triage surface for reviews + feedback                        | InboxItem, InboxNote                   | Thick                    |
+| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)        | MetricReading                          | Standard                 |
+| Goal        | Property-scoped goals with progress tracking                         | Goal, GoalInstance                     | Thick                    |
+| Dashboard   | Read-only aggregation of metrics, reviews, replies                   | —                                      | Thin (read model)        |
+| Activity    | Immutable audit log, event-driven writes, query-driven reads         | ActivityLog                            | Thin (subscriber)        |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 
@@ -252,6 +253,6 @@ Required: 100% domain coverage. Every use case tested for happy + error paths. E
 
 ## Context acceptance matrix (BQC-5.10)
 
-`src/shared/architecture/context-acceptance-matrix.test.ts` is the executable acceptance checklist for the 17 bounded-context rows (phase doc §5.10). Each row names its verdict (enabled/limited or dark), its criterion, and the pin that carries the full proof. Rows already covered by an owning suite (provider-target-selection, atomic-review-outbox, inbox applyOnce, dark-context-matrix, dark-consumer-gating, …) reference those suites instead of duplicating them; the matrix adds new pins only where no suite held the row (Identity grant sole-access scan, Staff no-authZ participation scan, Metric rollup idempotency, AI absence, Activity/audit sole-writer scans, the properties-table WATCH register).
+`src/shared/architecture/context-acceptance-matrix.test.ts` is the executable acceptance checklist for the 17 bounded-context rows (phase doc §5.10). Each row names its verdict (enabled/limited, private beta, or dark), its criterion, and the pin that carries the full proof. Rows already covered by an owning suite (provider-target-selection, atomic-review-outbox, inbox applyOnce, dark-context-matrix, dark-consumer-gating, …) reference those suites instead of duplicating them; the matrix adds new pins only where no suite held the row (Identity grant sole-access scan, Staff no-authZ participation scan, Metric rollup idempotency, AI private-beta contract closure, Activity/audit sole-writer scans, the properties-table WATCH register).
 
 Rerun rule: the matrix does not implement missing product behavior. A failing row returns to its owner; after the owner fix lands, the matrix is updated and rerun. Registered gaps (F1–F3, the properties-table WATCH, the `isGamificationViolation` call-site gap, and the two documented ambient-clock exceptions) are listed in the matrix header.

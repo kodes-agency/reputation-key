@@ -123,13 +123,13 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
   const workers = new Map<QueueClass, Worker>()
 
   // Shared dispatch handler — looks up the handler by job name
-  const dispatch = async (job: Job) => {
+  const dispatch = async (job: Job): Promise<unknown> => {
     const handler = handlers.get(job.name)
     if (!handler) {
       logger.warn({ jobName: job.name }, 'no handler registered for job')
       return
     }
-    await handler(job)
+    return handler(job)
   }
 
   return {

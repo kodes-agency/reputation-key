@@ -10,8 +10,8 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod'
-import { NOTIFICATION_TYPES } from '../domain/types'
 import { isNotificationError } from '../application/public-api'
+import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
 // Resolve tenant context, tolerating "no active org" (a new user with no
@@ -215,13 +215,25 @@ export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).ha
 
 // ── updateNotificationPreferenceFn ────────────────────────────────
 
-// Notification type literals come from the single source of truth
-// in domain/types.ts (NOTIFICATION_TYPES).
-
+const quietTime = z
+  .string()
+  .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+  .nullable()
 const updateNotificationPreferenceDto = z.object({
-  type: z.enum(NOTIFICATION_TYPES),
-  emailEnabled: z.boolean(),
-  inAppEnabled: z.boolean(),
+  propertyId: z.string().uuid(),
+  category: z.enum([
+    'mandatory',
+    'urgent_operational',
+    'workflow_collaboration',
+    'digest_summary',
+    'recognition',
+  ]),
+  channel: z.enum(['in_app', 'email']),
+  enabled: z.boolean(),
+  cadence: z.enum(['immediate', 'daily']),
+  urgentBypassEnabled: z.boolean(),
+  quietHoursStart: quietTime,
+  quietHoursEnd: quietTime,
 })
 
 /** @public Staged RPC entry point — consumed by the preferences settings UI (not yet wired). */
@@ -232,21 +244,102 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
+        const capability = requiredCapabilityForPreferenceChannel(data.channel)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          propertyId: data.propertyId,
+          ...(capability ? { capability } : {}),
+        })
         try {
           const { notificationPublicApi } = getContainer()
           return notificationPublicApi.updatePreference(
             ctx.userId,
             ctx.organizationId,
-            data.type,
-            data.emailEnabled,
-            data.inAppEnabled,
+            data.propertyId,
+            data.category,
+            data.channel,
+            data.enabled,
+            data.cadence,
+            data.urgentBypassEnabled,
+            data.quietHoursStart,
+            data.quietHoursEnd,
           )
-        } catch (e) {
-          throw catchUntagged(e)
+        } catch (error) {
+          throw catchUntagged(error)
         }
       },
       'POST',
       'notification.updatePreference',
+    ),
+  )
+
+const localeLanguagePattern = /^[A-Za-z]{2,3}$/
+const localeSubtagPattern = /^[A-Za-z0-9]{2,8}$/
+
+function isSupportedLocaleSyntax(locale: string): boolean {
+  const [language, ...subtags] = locale.split('-')
+  return (
+    localeLanguagePattern.test(language ?? '') &&
+    subtags.every((subtag) => localeSubtagPattern.test(subtag))
+  )
+}
+
+const notificationUserSettingsDto = z.object({
+  locale: z.string().max(35).refine(isSupportedLocaleSyntax, 'Invalid locale'),
+  timezone: z
+    .string()
+    .min(1)
+    .max(64)
+    .refine((timezone) => {
+      try {
+        new Intl.DateTimeFormat('en', { timeZone: timezone }).format()
+        return true
+      } catch {
+        return false
+      }
+    }, 'Invalid IANA timezone'),
+})
+
+export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).handler(
+  tracedHandler(
+    async () => {
+      const ctx = await resolveOptionalTenantContext()
+      if (!ctx) return null
+      await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
+      try {
+        return getContainer().notificationPublicApi.getUserSettings(
+          ctx.userId,
+          ctx.organizationId,
+        )
+      } catch (error) {
+        throw catchUntagged(error)
+      }
+    },
+    'GET',
+    'notification.getUserSettings',
+  ),
+)
+
+export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' })
+  .inputValidator(notificationUserSettingsDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
+        try {
+          return getContainer().notificationPublicApi.updateUserSettings(
+            ctx.userId,
+            ctx.organizationId,
+            data.locale,
+            data.timezone,
+          )
+        } catch (error) {
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.updateUserSettings',
     ),
   )

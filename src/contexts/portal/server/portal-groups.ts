@@ -12,8 +12,17 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalGroupInputSchema } from '../application/dto/create-portal-group.dto'
 import { updatePortalGroupInputSchema } from '../application/dto/update-portal-group.dto'
-import { isPortalError } from '../domain/errors'
+import { isPortalError, portalError } from '../domain/errors'
 import type { PortalErrorCode } from '../domain/errors'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  portalGroupId as toPortalGroupId,
+  portalId as toPortalId,
+} from '#/shared/domain/ids'
+import {
+  requireMatchingPortalResourceScopes,
+  requirePortalResourceScope,
+} from './property-scope'
 
 // ── Error → HTTP status mapping ───────────────────────────────────
 
@@ -30,8 +39,9 @@ const portalGroupErrorStatus = (code: PortalErrorCode): number =>
       () => 404,
     )
     .with('slug_taken', 'group_name_taken', 'portal_already_grouped', () => 409)
-    .with('upload_failed', () => 422)
+    .with('upload_failed', 'token_unavailable', () => 422)
     .with('portal_inactive', () => 410)
+    .with('invalid_publication_transition', () => 409)
     .with(
       'invalid_slug',
       'invalid_name',
@@ -44,6 +54,56 @@ const portalGroupErrorStatus = (code: PortalErrorCode): number =>
       () => 400,
     )
     .exhaustive()
+async function authorizePortalGroupResource(
+  ctx: AuthContext,
+  rawGroupId: string,
+  action: 'portal.read' | 'portal.update' | 'portal.delete',
+): Promise<void> {
+  try {
+    await requirePortalResourceScope({
+      actor: ctx,
+      action,
+      capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
+      notFound: portalError('group_not_found', 'portal group not found'),
+      lookup: () =>
+        getContainer().useCases.resolvePortalGroupManagementScope(
+          toPortalGroupId(rawGroupId),
+        ),
+    })
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalGroupErrorStatus(error.code))
+    throw error
+  }
+}
+
+async function authorizePortalGroupMembership(
+  ctx: AuthContext,
+  input: Readonly<{ portalGroupId: string; portalId: string }>,
+): Promise<void> {
+  try {
+    await requireMatchingPortalResourceScopes({
+      actor: ctx,
+      action: 'portal.update',
+      capability: 'portal.write',
+      notFound: portalError('portal_not_in_group', 'portal and group do not match'),
+      lookups: [
+        () =>
+          getContainer().useCases.resolvePortalGroupManagementScope(
+            toPortalGroupId(input.portalGroupId),
+          ),
+        () =>
+          getContainer().useCases.resolvePortalManagementScope(
+            toPortalId(input.portalId),
+          ),
+      ],
+    })
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalGroupErrorStatus(error.code))
+    throw error
+  }
+}
 
 // ── createPortalGroup ─────────────────────────────────────────────
 
@@ -58,6 +118,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
           actor: ctx,
           action: 'portal.create',
           capability: 'portal.write',
+          propertyId: data.propertyId,
         })
 
         try {
@@ -84,11 +145,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.update')
 
         try {
           const { useCases } = getContainer()
@@ -122,6 +179,7 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
           actor: ctx,
           action: 'portal.read',
           capability: 'portal.read',
+          propertyId: data.propertyId,
         })
 
         try {
@@ -152,11 +210,7 @@ export const getPortalGroup = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-        })
+        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
 
         try {
           const { useCases } = getContainer()
@@ -182,11 +236,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.delete',
-          capability: 'portal.write',
-        })
+        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.delete')
 
         try {
           const { useCases } = getContainer()
@@ -217,11 +267,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalGroupMembership(ctx, data)
 
         try {
           const { useCases } = getContainer()
@@ -247,11 +293,7 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalGroupMembership(ctx, data)
 
         try {
           const { useCases } = getContainer()

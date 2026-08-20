@@ -1,102 +1,63 @@
-// Guest context — guest session cookie helper tests
-// Verifies the cookie parse/build, the server-set-on-first-contact behavior,
-// and the IP-hash rate-limit fallback key used by the public write server fns.
+import { describe, expect, it } from 'vitest'
+import { createGuestSessionManager, guestRateLimitKey } from './guest-session'
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+const scope = {
+  organizationId: 'org-1',
+  propertyId: '00000000-0000-4000-8000-000000000001',
+  portalId: '00000000-0000-4000-8000-000000000002',
+}
 
-const setResponseHeader = vi.fn()
+function manager(now = new Date('2026-08-09T12:00:00Z')) {
+  let sequence = 1
+  return createGuestSessionManager({
+    secret: '0123456789abcdef0123456789abcdef',
+    secureCookies: true,
+    clock: () => now,
+    randomId: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
+  })
+}
 
-vi.mock('@tanstack/react-start/server', () => ({
-  setResponseHeader: (...args: unknown[]) => setResponseHeader(...args),
-}))
-
-import {
-  parseGuestSessionId,
-  buildGuestSessionCookie,
-  resolveGuestSession,
-  guestRateLimitKey,
-  GUEST_SESSION_COOKIE,
-  GUEST_SESSION_MAX_AGE,
-} from './guest-session'
-
-describe('parseGuestSessionId', () => {
-  it('extracts the guest_session value', () => {
-    expect(parseGuestSessionId('guest_session=abc-123; other=1')).toBe('abc-123')
+describe('signed guest session', () => {
+  it('issues a signed HttpOnly cookie and returns only the CSRF nonce to UI', () => {
+    const issued = manager().issue(scope)
+    expect(issued.cookies).toHaveLength(2)
+    expect(issued.cookies[0]).toContain('rk_guest_session=')
+    expect(issued.cookies[0]).toContain('HttpOnly')
+    expect(issued.cookies[0]).toContain('Secure')
+    expect(issued.cookies[0]).toContain('SameSite=lax')
+    expect(issued.cookies[0]).toContain('Path=/p/')
+    expect(issued.cookies[1]).toContain('Path=/_serverFn/')
+    expect(issued.session.csrfNonce).not.toBe(issued.session.sessionId)
   })
 
-  it('returns null when the cookie is absent', () => {
-    expect(parseGuestSessionId('other=1')).toBeNull()
-    expect(parseGuestSessionId('')).toBeNull()
+  it('verifies scope and rejects tampering without enumeration', () => {
+    const codec = manager()
+    const issued = codec.issue(scope)
+    const cookieHeader = issued.cookies[0].split(';')[0]
+    expect(codec.verify(cookieHeader, scope)?.sessionId).toBe(issued.session.sessionId)
+    expect(codec.verify(cookieHeader, { ...scope, organizationId: 'org-2' })).toBeNull()
+    expect(codec.verify(`${cookieHeader}x`, scope)).toBeNull()
   })
 
-  it('returns null for an empty guest_session value', () => {
-    expect(parseGuestSessionId('guest_session=;')).toBeNull()
-  })
-})
-
-describe('buildGuestSessionCookie', () => {
-  const cookie = buildGuestSessionCookie('abc-123')
-
-  it('carries the cookie name and value', () => {
-    expect(cookie.startsWith(`${GUEST_SESSION_COOKIE}=abc-123;`)).toBe(true)
-  })
-
-  it('is HttpOnly, SameSite=Lax, scoped to /p/, with the 24h max-age', () => {
-    expect(cookie).toContain('HttpOnly')
-    expect(cookie).toContain('SameSite=Lax')
-    expect(cookie).toContain(`Max-Age=${GUEST_SESSION_MAX_AGE}`)
-    expect(cookie).toContain('Path=/p/')
-  })
-})
-
-describe('resolveGuestSession', () => {
-  beforeEach(() => setResponseHeader.mockClear())
-
-  it('reuses the cookie session id and does not Set-Cookie when present', () => {
-    const session = resolveGuestSession('guest_session=existing-id')
-
-    expect(session).toEqual({ sessionId: 'existing-id', fromCookie: true })
-    expect(setResponseHeader).not.toHaveBeenCalled()
-  })
-
-  it('mints a fresh id and sets an HttpOnly cookie when the cookie is absent', () => {
-    const session = resolveGuestSession('')
-
-    expect(session.fromCookie).toBe(false)
-    expect(session.sessionId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    )
-    expect(setResponseHeader).toHaveBeenCalledTimes(1)
-    const [name, value] = setResponseHeader.mock.calls[0]
-    expect(name).toBe('Set-Cookie')
-    expect(value).toBe(buildGuestSessionCookie(session.sessionId))
-    // The minted id must be stable — reusing it later sets the same cookie value.
-    expect(value).toContain(`guest_session=${session.sessionId}`)
+  it('does not authenticate an expired cookie', () => {
+    let now = new Date('2026-08-09T12:00:00Z')
+    const codec = createGuestSessionManager({
+      secret: '0123456789abcdef0123456789abcdef',
+      secureCookies: false,
+      clock: () => now,
+      randomId: () => crypto.randomUUID(),
+    })
+    const issued = codec.issue(scope)
+    now = new Date('2026-08-10T12:00:01Z')
+    expect(codec.verify(issued.cookies[0].split(';')[0], scope)).toBeNull()
   })
 })
 
 describe('guestRateLimitKey', () => {
-  it('keys on the session id when the cookie is present', () => {
-    const key = guestRateLimitKey(
-      'rating',
-      { sessionId: 'sess-1', fromCookie: true },
-      'ip-hash',
+  it('uses the verified session and otherwise the network hash', () => {
+    expect(guestRateLimitKey('response', 'session-1', 'ip-hash')).toBe(
+      'response:session-1',
     )
-    expect(key).toBe('rating:sess-1')
-  })
-
-  it('falls back to the ipHash when the request is cookieless', () => {
-    const key = guestRateLimitKey(
-      'feedback',
-      { sessionId: 'ignored', fromCookie: false },
-      'ip-hash-9',
-    )
-    expect(key).toBe('feedback:ip:ip-hash-9')
-  })
-
-  it('uses the requested kind prefix', () => {
-    expect(guestRateLimitKey('scan', { sessionId: 's', fromCookie: true }, 'h')).toBe(
-      'scan:s',
-    )
+    expect(guestRateLimitKey('response', null, 'ip-hash')).toBe('response:ip:ip-hash')
   })
 })

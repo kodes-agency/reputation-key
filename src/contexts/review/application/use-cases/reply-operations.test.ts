@@ -1,5 +1,10 @@
 // Review context — reply lifecycle use case tests
 
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import {
   draftReply,
@@ -58,6 +63,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: NOW,
@@ -70,6 +76,11 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -89,6 +100,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
@@ -236,10 +248,16 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
       addPublishJob: vi.fn(async () => {}),
     } as unknown as ReplyQueuePort,
     googleReviewApi: {
-      fetchReviews: vi.fn(async () => []),
+      getReview: vi.fn(async () => ({ status: 'not_found' as const })),
       replyToReview: vi.fn(async () => {}),
     } as unknown as GoogleReviewApiPort,
     commandStore: undefined as unknown as ReplyCommandStore,
+    aiSuggestedDraftStore: {
+      accept: vi.fn(async () => {
+        throw new Error('accept is not configured for this test')
+      }),
+      assertCurrentBinding: vi.fn(async () => 'current' as const),
+    },
     clock: () => NOW,
     idGen: () => REPLY_ID,
     staffPublicApi: makeStaffApi(null),
@@ -291,6 +309,96 @@ describe('draftReply', () => {
     )
     expect(result.text).toBe('Updated reply')
     expect(result.status).toBe('draft')
+  })
+
+  it('clears AI attribution when the manager edits without provenance', async () => {
+    const existing = makeReply({ status: 'draft', aiGenerated: true })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => existing),
+      } as unknown as ReplyRepository,
+    })
+
+    const result = await draftReply(deps)(
+      { reviewId: REVIEW_ID, text: 'Manager-edited reply' },
+      MANAGER_CTX,
+    )
+
+    expect(result.aiGenerated).toBe(false)
+    expect(deps.replyRepo.conditionalUpdate).toHaveBeenCalledWith(
+      REPLY_ID,
+      ORG_ID,
+      ['draft'],
+      expect.objectContaining({ aiGenerated: false }),
+      NOW,
+    )
+  })
+
+  it('accepts an AI suggestion only through the atomic provenance store', async () => {
+    const acceptedReply = makeReply({
+      text: 'Suggested reply',
+      aiGenerated: true,
+      stateRevision: 2,
+    })
+    const accept = vi.fn(async () => ({
+      status: 'accepted' as const,
+      reply: acceptedReply,
+    }))
+    const deps = makeDeps({
+      aiSuggestedDraftStore: {
+        accept,
+        assertCurrentBinding: vi.fn(async () => 'current' as const),
+      },
+    })
+
+    const result = await draftReply(deps)(
+      {
+        reviewId: REVIEW_ID,
+        text: 'Suggested reply',
+        provenanceToken: 'signed-token',
+      },
+      MANAGER_CTX,
+    )
+
+    expect(result).toBe(acceptedReply)
+    expect(accept).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      reviewId: REVIEW_ID,
+      actorUserId: USER_ID,
+      text: 'Suggested reply',
+      provenanceToken: 'signed-token',
+      now: NOW,
+    })
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['invalid', 'ai_suggestion_invalid'],
+    ['expired', 'ai_suggestion_expired'],
+    ['stale', 'ai_suggestion_stale'],
+  ] as const)('rejects %s AI provenance without persisting', async (reason, code) => {
+    const deps = makeDeps({
+      aiSuggestedDraftStore: {
+        accept: vi.fn(async () => ({ status: 'rejected' as const, reason })),
+        assertCurrentBinding: vi.fn(async () => 'current' as const),
+      },
+    })
+
+    await expect(
+      draftReply(deps)(
+        {
+          reviewId: REVIEW_ID,
+          text: 'Suggested reply',
+          provenanceToken: 'signed-token',
+        },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ReviewError', code })
+    expect(deps.replyRepo.upsert).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
   })
 
   it('allows re-drafting a rejected reply', async () => {
@@ -572,8 +680,8 @@ describe('approveReply', () => {
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
-        // BQC-3.2: named initiator for user-triggered delayed work.
-        policy: { initiator: { kind: 'user', id: USER_ID } },
+        // Named attribution for user-triggered delayed work.
+        initiator: { kind: 'user', id: USER_ID },
       },
       {
         // BQC-3.3: saga idempotency key dedupes enqueue for the same approval
@@ -682,7 +790,7 @@ describe('editPublishedReply', () => {
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
-        policy: { initiator: { kind: 'user', id: USER_ID } },
+        initiator: { kind: 'user', id: USER_ID },
       },
       { idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()) },
     )
@@ -1004,7 +1112,7 @@ describe('retryPublish', () => {
     expect(result.publicationState).toBe('authorized')
     expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
     // Non-ambiguous rows behave exactly as today — no provider re-read.
-    expect(deps.googleReviewApi.fetchReviews).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 
   it('rejects retry for non-failed reply', async () => {
@@ -1037,8 +1145,8 @@ describe('retryPublish', () => {
     }
     const reviewWithConnection = makeReview({
       googleConnectionId: 'conn-1' as never,
-      externalLocationId: 'accounts/111/locations/222',
-      externalId: 'ext-1',
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
     })
     const deps = makeDeps({
       replyRepo: {
@@ -1051,18 +1159,26 @@ describe('retryPublish', () => {
         findById: vi.fn(async () => reviewWithConnection),
       } as unknown as ReviewRepository,
     })
-    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
-      { externalId: 'ext-1', replyText: 'Thank you!' } as never,
-    ])
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: 'Thank you!',
+      } as never,
+    })
 
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
 
     expect(result.status).toBe('published')
-    expect(deps.googleReviewApi.fetchReviews).toHaveBeenCalledWith(
-      ORG_ID,
-      'conn-1',
-      'accounts/111/locations/222',
-    )
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      connectionId: 'conn-1',
+      sourceEpoch: 0,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     // The heal commits the published fact (once — no duplicate send).
     expect(deps.events.emit).toHaveBeenCalledTimes(1)
@@ -1080,8 +1196,8 @@ describe('retryPublish', () => {
     })
     const reviewWithConnection = makeReview({
       googleConnectionId: 'conn-1' as never,
-      externalLocationId: 'accounts/111/locations/222',
-      externalId: 'ext-1',
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
     })
     const deps = makeDeps({
       replyRepo: {
@@ -1093,9 +1209,14 @@ describe('retryPublish', () => {
         findById: vi.fn(async () => reviewWithConnection),
       } as unknown as ReviewRepository,
     })
-    vi.mocked(deps.googleReviewApi.fetchReviews).mockResolvedValue([
-      { externalId: 'ext-1', replyText: null } as never,
-    ])
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: null,
+      } as never,
+    })
 
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
 

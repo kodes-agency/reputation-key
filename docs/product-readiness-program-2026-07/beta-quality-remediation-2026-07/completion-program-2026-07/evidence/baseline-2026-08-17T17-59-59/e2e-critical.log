@@ -1,0 +1,2237 @@
+$ pnpm test:e2e --project=critical
+started: 2026-08-17T18:02:45.653Z  durationMs: 72587  exit: 1
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=critical
+
+
+Running 71 tests using 1 worker
+
+  ✘   1 [critical] › e2e/critical/accessibility.spec.ts:46:3 › Critical a11y: axe page scans › fleet dashboard (/dashboard, 2 properties) is axe-clean (207ms)
+  ✘   2 [critical] › e2e/critical/accessibility.spec.ts:59:3 › Critical a11y: axe page scans › fleet dashboard in LIGHT theme is axe-clean (199ms)
+  ✘   3 [critical] › e2e/critical/accessibility.spec.ts:82:3 › Critical a11y: axe page scans › property deep-dive (/properties/$id) is axe-clean (186ms)
+  ✘   4 [critical] › e2e/critical/accessibility.spec.ts:91:3 › Critical a11y: axe page scans › inbox list (/inbox) is axe-clean (166ms)
+  ✘   5 [critical] › e2e/critical/accessibility.spec.ts:111:3 › Critical a11y: axe page scans › inbox with item detail open (/inbox?itemId=) is axe-clean (173ms)
+  ✘   6 [critical] › e2e/critical/accessibility.spec.ts:137:3 › Critical a11y: axe page scans › property people page (/properties/$id/people) is axe-clean (163ms)
+  ✘   7 [critical] › e2e/critical/accessibility.spec.ts:149:3 › Critical a11y: axe page scans › settings members (/settings/members) is axe-clean (167ms)
+  ✘   8 [critical] › e2e/critical/accessibility.spec.ts:158:3 › Critical a11y: axe page scans › promoted P1 home (/home?propertyId=) is axe-clean (173ms)
+  ✘   9 [critical] › e2e/critical/accessibility.spec.ts:175:3 › Critical a11y: keyboard › inbox list: j/k moves selection, Enter opens, Escape closes (188ms)
+  ✘  10 [critical] › e2e/critical/accessibility.spec.ts:240:3 › Critical a11y: keyboard › tab order reaches primary actions with a visible focus indicator (181ms)
+  ✘  11 [critical] › e2e/critical/accessibility.spec.ts:305:3 › Critical a11y: keyboard › invite-member dialog traps focus, Escape closes, focus returns to trigger (194ms)
+  ✘  12 [critical] › e2e/critical/accessibility.spec.ts:356:3 › Critical a11y: reduced motion › prefers-reduced-motion zeroes computed transition/animation durations (166ms)
+  ✘  13 [critical] › e2e/critical/accessibility.spec.ts:440:3 › Critical a11y: zoom reflow › inbox at 200%/400% zoom: no horizontal scrollbar, list stays visible (200ms)
+  ✘  14 [critical] › e2e/critical/accessibility.spec.ts:482:3 › Critical a11y: zoom reflow › fleet dashboard reflows at the 400%-zoom-equivalent 320px viewport (195ms)
+  ✘  15 [critical] › e2e/critical/accessibility.spec.ts:535:3 › Critical a11y: mobile viewport (390×844) › inbox on mobile: rows full-width, no horizontal overflow (209ms)
+  ✘  16 [critical] › e2e/critical/accessibility.spec.ts:568:3 › Critical a11y: mobile viewport (390×844) › app nav on mobile: collapses to the trigger + drawer pattern (194ms)
+  ✘  17 [critical] › e2e/critical/auth-and-shell.spec.ts:30:3 › Critical: authentication › sign in with seeded credentials reaches authenticated area (158ms)
+  ✘  18 [critical] › e2e/critical/auth-and-shell.spec.ts:35:3 › Critical: authentication › registration form is reachable when e2e capabilities are on (10.9s)
+  ✘  19 [critical] › e2e/critical/auth-and-shell.spec.ts:55:3 › Critical: properties shell › properties list shows seeded property (132ms)
+  ✘  20 [critical] › e2e/critical/auth-and-shell.spec.ts:61:3 › Critical: properties shell › open seeded property detail (145ms)
+  ✘  21 [critical] › e2e/critical/auth-and-shell.spec.ts:67:3 › Critical: properties shell › property reviews route loads inbox chrome (133ms)
+  ✘  22 [critical] › e2e/critical/auth-and-shell.spec.ts:81:3 › Critical: inbox and members shell › inbox triage surface loads for manager (145ms)
+  ✘  23 [critical] › e2e/critical/auth-and-shell.spec.ts:87:3 › Critical: inbox and members shell › settings members page loads (133ms)
+  ✘  24 [critical] › e2e/critical/beta-product-journeys.spec.ts:38:3 › Critical: beta-local-1 product journeys › P1 Portal management and opaque public URL survive reload (146ms)
+  -  25 [critical] › e2e/critical/beta-product-journeys.spec.ts:88:3 › Critical: beta-local-1 product journeys › Portal create, group, publish, and token rotation are durable
+  -  26 [critical] › e2e/critical/beta-product-journeys.spec.ts:159:3 › Critical: beta-local-1 product journeys › P2 and cross-tenant P3 deny promoted routes and public tokens
+  -  27 [critical] › e2e/critical/beta-product-journeys.spec.ts:190:3 › Critical: beta-local-1 product journeys › locked Org B manager cannot activate promoted P3 entry paths
+  -  28 [critical] › e2e/critical/beta-product-journeys.spec.ts:227:3 › Critical: beta-local-1 product journeys › property suspension and organization capability kill switches stop P1 immediately
+  -  29 [critical] › e2e/critical/beta-product-journeys.spec.ts:288:3 › Critical: beta-local-1 product journeys › cross-property Portal, Team, and email resources fail closed
+  -  30 [critical] › e2e/critical/beta-product-journeys.spec.ts:351:3 › Critical: beta-local-1 product journeys › manager creates a team, adds members, and durably replaces its lead
+  -  31 [critical] › e2e/critical/beta-product-journeys.spec.ts:420:3 › Critical: beta-local-1 product journeys › manager replaces the P1 team lead, reloads durable state, and restores it
+  -  32 [critical] › e2e/critical/beta-product-journeys.spec.ts:447:3 › Critical: beta-local-1 product journeys › manager creates an active governed P1 goal while P2 direct navigation is denied
+  -  33 [critical] › e2e/critical/beta-product-journeys.spec.ts:483:3 › Critical: beta-local-1 product journeys › manager creates, revises, pauses, resumes, and cancels a governed P1 group Goal
+  -  34 [critical] › e2e/critical/beta-product-journeys.spec.ts:595:3 › Critical: beta-local-1 product journeys › Staff has read-only P1 progress and cannot open manager mutation routes
+  -  35 [critical] › e2e/critical/beta-product-journeys.spec.ts:654:3 › Critical: beta-local-1 product journeys › recognition activation settings and governed P1 group board persist; P2 is denied
+  -  36 [critical] › e2e/critical/beta-product-journeys.spec.ts:749:3 › Critical: beta-local-1 product journeys › Staff reads its P1 group board but cannot open manager settings
+  -  37 [critical] › e2e/critical/beta-product-journeys.spec.ts:777:3 › Critical: beta-local-1 product journeys › profile and notification settings persist through reload and restore baseline
+  -  38 [critical] › e2e/critical/beta-product-journeys.spec.ts:804:3 › Critical: beta-local-1 product journeys › security and organization mutations persist and restore their baselines
+  -  39 [critical] › e2e/critical/beta-product-journeys.spec.ts:851:3 › Critical: beta-local-1 product journeys › member invitation sends once, persists, and can be cancelled
+  -  40 [critical] › e2e/critical/beta-product-journeys.spec.ts:876:3 › Critical: beta-local-1 product journeys › device theme preference and integration lifecycle survive reload
+  -  41 [critical] › e2e/critical/beta-product-journeys.spec.ts:907:3 › Critical: beta-local-1 product journeys › Dashboard proves many, one, and zero-property states with tenant-safe values
+  ✘  42 [critical] › e2e/critical/guest-portal.spec.ts:19:3 › Critical: public Portal basics › published P1 token renders content and destinations without requiring a response (10.5s)
+  ✘  43 [critical] › e2e/critical/guest-portal.spec.ts:50:3 › Critical: public Portal basics › guest response, media, one correction, and withdrawal survive reload (10.5s)
+  ✘  44 [critical] › e2e/critical/guest-portal.spec.ts:109:3 › Critical: public Portal basics › guest replay is idempotent and queued media cannot survive withdrawal (283ms)
+  ✘  45 [critical] › e2e/critical/guest-portal.spec.ts:211:3 › Critical: public Portal basics › oversize and cross-property guest mutations are inert (320ms)
+  ✘  46 [critical] › e2e/critical/guest-portal.spec.ts:245:3 › Critical: public Portal basics › P2 and P3 tokens are externally indistinguishable (10.5s)
+  ✘  47 [critical] › e2e/critical/health-semantics.spec.ts:26:3 › Critical: health semantics (BQC-7.2) › liveness is 200 and fast (no dependency checks) (27ms)
+  ✘  48 [critical] › e2e/critical/health-semantics.spec.ts:40:3 › Critical: health semantics (BQC-7.2) › readiness is 200 with all four probes true in the healthy rig (21ms)
+  ✘  49 [critical] › e2e/critical/health-semantics.spec.ts:55:3 › Critical: health semantics (BQC-7.2) › combined legacy endpoint carries the same upgraded semantics (23ms)
+  ✘  50 [critical] › e2e/critical/health-semantics.spec.ts:70:3 › Critical: health semantics (BQC-7.2) › startup is 200 once booted (container + migrations + policy) (22ms)
+  ✘  51 [critical] › e2e/critical/health-semantics.spec.ts:84:3 › Critical: health semantics (BQC-7.2) › metrics 404s without/with a wrong token and serves the operator token (33ms)
+  ✘  52 [critical] › e2e/critical/health-semantics.spec.ts:115:3 › Critical: health semantics (BQC-7.2) › metrics payload is identifier-only (no content, no PII) (22ms)
+  ✘  53 [critical] › e2e/critical/workflows/activity-notification-facts.spec.ts:45:3 › Critical workflow: content-safe notification + activity facts › facts render without source content at rest and in the UI (168ms)
+  ✘  54 [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:21:3 › Critical workflow: invite-only auth (locked posture) › unauthenticated deep-link redirects to /login (142ms)
+  ✘  55 [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:26:3 › Critical workflow: invite-only auth (locked posture) › /register redirects to /login and the register server fn denies (141ms)
+  ✘  56 [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:51:3 › Critical workflow: invite-only auth (locked posture) › seeded admin signs in (invite-only accounts authenticate) (444ms)
+  ✘  57 [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:91:3 › Critical workflow: dashboard governance (staff vs admin) › staff dashboard is governed, scoped, expiry-clean, and reply-redacted (165ms)
+  ✘  58 [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:146:3 › Critical workflow: dashboard governance (staff vs admin) › admin control sees the reply data the staff surface redacts (186ms)
+  ✘  59 [critical] › e2e/critical/workflows/disconnect-stops-work.spec.ts:50:3 › Critical workflow: disconnect stops queued protected work › queued publish dies at the claim guard after disconnect (178ms)
+  ✘  60 [critical] › e2e/critical/workflows/google-import-sync.spec.ts:135:3 › Critical workflow: Google import + initial sync › pages discovery, imports create + relink, replays exactly, and syncs reviews (178ms)
+  ✘  61 [critical] › e2e/critical/workflows/google-performance.spec.ts:187:3 › Critical workflow: live Google Performance › renders a live report and retains it when a manual refresh fails (192ms)
+  ✘  62 [critical] › e2e/critical/workflows/google-performance.spec.ts:255:3 › Critical workflow: live Google Performance › fails provider faults closed, preserves zero/partial semantics, and rechecks revocation (180ms)
+  ✘  63 [critical] › e2e/critical/workflows/inbox-triage.spec.ts:33:3 › Critical workflow: inbox triage persists › status, assignment, note, escalation/resolve all persist (176ms)
+  ✘  64 [critical] › e2e/critical/workflows/property-access.spec.ts:47:3 › Critical workflow: property access (operator allowlist) › staff is scoped to the granted property; wrong property denies without leaking (209ms)
+  ✘  65 [critical] › e2e/critical/workflows/property-access.spec.ts:111:3 › Critical workflow: property access (operator allowlist) › admin control sees every org property (198ms)
+  ✘  66 [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:128:3 › Critical workflow: reply lifecycle › (a) draft → edit → submit → approve → published (UI-driven) (195ms)
+  -  67 [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:199:3 › Critical workflow: reply lifecycle › (b) transient 500 heals through the retryQueued path (failure recovery)
+  -  68 [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:256:3 › Critical workflow: reply lifecycle › (c) terminal 403 → publish_failed; retry does NOT heal
+  -  69 [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:335:3 › Critical workflow: reply lifecycle › (d) ambiguous + provider shows the reply → reconcile heals without resend
+  ✘  70 [critical] › e2e/critical/workflows/review-expiry.spec.ts:39:3 › Critical workflow: review expiry + purge › expired content is unavailable everywhere, then the purge removes copies (185ms)
+  ✘  71 [critical] › e2e/critical/workflows/review-inbox-slo.spec.ts:46:3 › Critical workflow: review arrival → inbox projection SLO › new review projects to the inbox within the defined SLO (197ms)
+
+
+  1) [critical] › e2e/critical/accessibility.spec.ts:46:3 › Critical a11y: axe page scans › fleet dashboard (/dashboard, 2 properties) is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:53:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-6daeb-d-2-properties-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-6daeb-d-2-properties-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-6daeb-d-2-properties-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-6daeb-d-2-properties-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-6daeb-d-2-properties-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [critical] › e2e/critical/accessibility.spec.ts:59:3 › Critical a11y: axe page scans › fleet dashboard in LIGHT theme is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:70:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-17dd0-in-LIGHT-theme-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-17dd0-in-LIGHT-theme-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-17dd0-in-LIGHT-theme-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-17dd0-in-LIGHT-theme-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-17dd0-in-LIGHT-theme-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [critical] › e2e/critical/accessibility.spec.ts:82:3 › Critical a11y: axe page scans › property deep-dive (/properties/$id) is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:83:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-21baa--properties-id-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-21baa--properties-id-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-21baa--properties-id-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-21baa--properties-id-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-21baa--properties-id-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [critical] › e2e/critical/accessibility.spec.ts:91:3 › Critical a11y: axe page scans › inbox list (/inbox) is axe-clean 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:92:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-474b6-box-list-inbox-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-474b6-box-list-inbox-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-474b6-box-list-inbox-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-474b6-box-list-inbox-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-474b6-box-list-inbox-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [critical] › e2e/critical/accessibility.spec.ts:111:3 › Critical a11y: axe page scans › inbox with item detail open (/inbox?itemId=) is axe-clean 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:112:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-93525-n-inbox-itemId-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-93525-n-inbox-itemId-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-93525-n-inbox-itemId-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-93525-n-inbox-itemId-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-93525-n-inbox-itemId-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [critical] › e2e/critical/accessibility.spec.ts:137:3 › Critical a11y: axe page scans › property people page (/properties/$id/people) is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:138:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-0d199-ties-id-people-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-0d199-ties-id-people-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-0d199-ties-id-people-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-0d199-ties-id-people-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-0d199-ties-id-people-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [critical] › e2e/critical/accessibility.spec.ts:149:3 › Critical a11y: axe page scans › settings members (/settings/members) is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:150:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-53394-ttings-members-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-53394-ttings-members-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-53394-ttings-members-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-53394-ttings-members-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-53394-ttings-members-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [critical] › e2e/critical/accessibility.spec.ts:158:3 › Critical a11y: axe page scans › promoted P1 home (/home?propertyId=) is axe-clean 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:159:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-3e0ce-ome-propertyId-is-axe-clean-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-3e0ce-ome-propertyId-is-axe-clean-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-3e0ce-ome-propertyId-is-axe-clean-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-3e0ce-ome-propertyId-is-axe-clean-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-3e0ce-ome-propertyId-is-axe-clean-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [critical] › e2e/critical/accessibility.spec.ts:175:3 › Critical a11y: keyboard › inbox list: j/k moves selection, Enter opens, Escape closes 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:178:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e14ce-n-Enter-opens-Escape-closes-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e14ce-n-Enter-opens-Escape-closes-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-e14ce-n-Enter-opens-Escape-closes-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e14ce-n-Enter-opens-Escape-closes-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-e14ce-n-Enter-opens-Escape-closes-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [critical] › e2e/critical/accessibility.spec.ts:240:3 › Critical a11y: keyboard › tab order reaches primary actions with a visible focus indicator 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:243:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-31756-h-a-visible-focus-indicator-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-31756-h-a-visible-focus-indicator-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-31756-h-a-visible-focus-indicator-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-31756-h-a-visible-focus-indicator-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-31756-h-a-visible-focus-indicator-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [critical] › e2e/critical/accessibility.spec.ts:305:3 › Critical a11y: keyboard › invite-member dialog traps focus, Escape closes, focus returns to trigger 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:308:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e75e9-es-focus-returns-to-trigger-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e75e9-es-focus-returns-to-trigger-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-e75e9-es-focus-returns-to-trigger-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e75e9-es-focus-returns-to-trigger-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-e75e9-es-focus-returns-to-trigger-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [critical] › e2e/critical/accessibility.spec.ts:356:3 › Critical a11y: reduced motion › prefers-reduced-motion zeroes computed transition/animation durations 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:359:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e9da2-nsition-animation-durations-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e9da2-nsition-animation-durations-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-e9da2-nsition-animation-durations-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e9da2-nsition-animation-durations-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-e9da2-nsition-animation-durations-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [critical] › e2e/critical/accessibility.spec.ts:440:3 › Critical a11y: zoom reflow › inbox at 200%/400% zoom: no horizontal scrollbar, list stays visible 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:443:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-08d04-crollbar-list-stays-visible-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-08d04-crollbar-list-stays-visible-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-08d04-crollbar-list-stays-visible-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-08d04-crollbar-list-stays-visible-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-08d04-crollbar-list-stays-visible-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [critical] › e2e/critical/accessibility.spec.ts:482:3 › Critical a11y: zoom reflow › fleet dashboard reflows at the 400%-zoom-equivalent 320px viewport 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:499:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-c6323-m-equivalent-320px-viewport-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-c6323-m-equivalent-320px-viewport-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-c6323-m-equivalent-320px-viewport-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-c6323-m-equivalent-320px-viewport-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-c6323-m-equivalent-320px-viewport-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [critical] › e2e/critical/accessibility.spec.ts:535:3 › Critical a11y: mobile viewport (390×844) › inbox on mobile: rows full-width, no horizontal overflow 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:537:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-74c53-idth-no-horizontal-overflow-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-74c53-idth-no-horizontal-overflow-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-74c53-idth-no-horizontal-overflow-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-74c53-idth-no-horizontal-overflow-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-74c53-idth-no-horizontal-overflow-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [critical] › e2e/critical/accessibility.spec.ts:568:3 › Critical a11y: mobile viewport (390×844) › app nav on mobile: collapses to the trigger + drawer pattern 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:572:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e7b84--the-trigger-drawer-pattern-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e7b84--the-trigger-drawer-pattern-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-accessibility-Cri-e7b84--the-trigger-drawer-pattern-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-accessibility-Cri-e7b84--the-trigger-drawer-pattern-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-accessibility-Cri-e7b84--the-trigger-drawer-pattern-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [critical] › e2e/critical/auth-and-shell.spec.ts:30:3 › Critical: authentication › sign in with seeded credentials reaches authenticated area 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:31:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-e366f--reaches-authenticated-area-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-e366f--reaches-authenticated-area-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-e366f--reaches-authenticated-area-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-e366f--reaches-authenticated-area-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-e366f--reaches-authenticated-area-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [critical] › e2e/critical/auth-and-shell.spec.ts:35:3 › Critical: authentication › registration form is reachable when e2e capabilities are on 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText(/create your account/i)
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByText(/create your account/i)[22m
+
+
+      41 |     // AuthCard titles are divs (not heading roles).
+      42 |     await expect(page).not.toHaveURL(/\/login/)
+    > 43 |     await expect(page.getByText(/create your account/i)).toBeVisible()
+         |                                                          ^
+      44 |     await expect(page.getByLabel('Email')).toBeVisible()
+      45 |     await expect(page.getByLabel('Organization name')).toBeVisible()
+      46 |     await expect(page.getByRole('button', { name: /create account/i })).toBeVisible()
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:43:58
+
+    Error: E2E error gate — 1 runtime error(s) in "registration form is reachable when e2e capabilities are on":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/register
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/register:0:0; page: http://localhost:3000/register)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-dca39-hen-e2e-capabilities-are-on-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 1 runtime error(s) in "registration form is reachable when e2e capabilities are on":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/register
+    
+    Known-benign signals belong in e2e/helpers/error-allowlis...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-dca39-hen-e2e-capabilities-are-on-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-dca39-hen-e2e-capabilities-are-on-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-dca39-hen-e2e-capabilities-are-on-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-dca39-hen-e2e-capabilities-are-on-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [critical] › e2e/critical/auth-and-shell.spec.ts:55:3 › Critical: properties shell › properties list shows seeded property 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:52:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b5ec4--list-shows-seeded-property-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b5ec4--list-shows-seeded-property-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-b5ec4--list-shows-seeded-property-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b5ec4--list-shows-seeded-property-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-b5ec4--list-shows-seeded-property-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  20) [critical] › e2e/critical/auth-and-shell.spec.ts:61:3 › Critical: properties shell › open seeded property detail 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:52:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a3a61-open-seeded-property-detail-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a3a61-open-seeded-property-detail-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-a3a61-open-seeded-property-detail-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a3a61-open-seeded-property-detail-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-a3a61-open-seeded-property-detail-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  21) [critical] › e2e/critical/auth-and-shell.spec.ts:67:3 › Critical: properties shell › property reviews route loads inbox chrome 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:52:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-375d9-ws-route-loads-inbox-chrome-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-375d9-ws-route-loads-inbox-chrome-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-375d9-ws-route-loads-inbox-chrome-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-375d9-ws-route-loads-inbox-chrome-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-375d9-ws-route-loads-inbox-chrome-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  22) [critical] › e2e/critical/auth-and-shell.spec.ts:81:3 › Critical: inbox and members shell › inbox triage surface loads for manager 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:78:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a1624-e-surface-loads-for-manager-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a1624-e-surface-loads-for-manager-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-a1624-e-surface-loads-for-manager-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-a1624-e-surface-loads-for-manager-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-a1624-e-surface-loads-for-manager-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  23) [critical] › e2e/critical/auth-and-shell.spec.ts:87:3 › Critical: inbox and members shell › settings members page loads 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/auth-and-shell.spec.ts:78:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b9479-settings-members-page-loads-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b9479-settings-members-page-loads-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-auth-and-shell-Cr-b9479-settings-members-page-loads-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-auth-and-shell-Cr-b9479-settings-members-page-loads-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-auth-and-shell-Cr-b9479-settings-members-page-loads-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  24) [critical] › e2e/critical/beta-product-journeys.spec.ts:38:3 › Critical: beta-local-1 product journeys › P1 Portal management and opaque public URL survive reload 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/beta-product-journeys.spec.ts:40:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-beta-product-jour-2459f-e-public-URL-survive-reload-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-beta-product-jour-2459f-e-public-URL-survive-reload-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-beta-product-jour-2459f-e-public-URL-survive-reload-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-beta-product-jour-2459f-e-public-URL-survive-reload-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-beta-product-jour-2459f-e-public-URL-survive-reload-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  25) [critical] › e2e/critical/guest-portal.spec.ts:19:3 › Critical: public Portal basics › published P1 token renders content and destinations without requiring a response 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'E2E Guest Portal P1' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'E2E Guest Portal P1' })[22m
+
+
+      24 |     await page.goto(`/p/${seed.portalToken}`)
+      25 |
+    > 26 |     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
+         |                                                                              ^
+      27 |     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+      28 |     const sessionCookies = (await context.cookies()).filter(
+      29 |       (cookie) => cookie.name === 'rk_guest_session',
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:26:78
+
+    Error: E2E error gate — 1 runtime error(s) in "published P1 token renders content and destinations without requiring a response":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-ecb54-ithout-requiring-a-response-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 1 runtime error(s) in "published P1 token renders content and destinations without requiring a response":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERER...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-ecb54-ithout-requiring-a-response-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-guest-portal-Crit-ecb54-ithout-requiring-a-response-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-ecb54-ithout-requiring-a-response-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-guest-portal-Crit-ecb54-ithout-requiring-a-response-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  26) [critical] › e2e/critical/guest-portal.spec.ts:50:3 › Critical: public Portal basics › guest response, media, one correction, and withdrawal survive reload 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveAttribute[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator: getByRole('link', { name: 'Visit example review destination' })
+    Expected: [32m"/api/public/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE/click/11111111-1111-4111-8111-111111111119"[39m
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toHaveAttribute" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('link', { name: 'Visit example review destination' })[22m
+
+
+      56 |     })
+      57 |     const expectedDestination = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
+    > 58 |     await expect(destination).toHaveAttribute('href', expectedDestination)
+         |                               ^
+      59 |
+      60 |     await page.getByRole('radio', { name: '2 stars' }).check()
+      61 |     await page.getByLabel('Share this rating with the property team.').check()
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:58:31
+
+    Error: E2E error gate — 1 runtime error(s) in "guest response, media, one correction, and withdrawal survive reload":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-4b510-d-withdrawal-survive-reload-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 1 runtime error(s) in "guest response, media, one correction, and withdrawal survive reload":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERER...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-4b510-d-withdrawal-survive-reload-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-guest-portal-Crit-4b510-d-withdrawal-survive-reload-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-4b510-d-withdrawal-survive-reload-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-guest-portal-Crit-4b510-d-withdrawal-survive-reload-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  27) [critical] › e2e/critical/guest-portal.spec.ts:109:3 › Critical: public Portal basics › guest replay is idempotent and queued media cannot survive withdrawal 
+
+    Error: Server fn getPublicPortal failed: undefined — <!DOCTYPE html><html><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="preload" as="script" fetchPriority="low" href="/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_216p51r._.js"/><script src="/_next/static/chunks/
+
+       at helpers/fixtures.ts:327
+
+      325 |   const parsed = await parseServerFnResponse(res)
+      326 |   if (parsed.error) {
+    > 327 |     throw new Error(
+          |           ^
+      328 |       `Server fn ${fn.exportName} failed: ${parsed.error.code ?? parsed.error.name} — ${parsed.error.message}`,
+      329 |     )
+      330 |   }
+        at callServerFnGet (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:327:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:113:20
+
+    Error: E2E error gate — 2 runtime error(s) in "guest replay is idempotent and queued media cannot survive withdrawal":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    [2] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/_serverFn/eyJmaWxlIjoiL3NyYy9jb250ZXh0cy9ndWVzdC9zZXJ2ZXIvZ3Vlc3Qtc2NhbnMudHM_dHNzLXNlcnZlcmZuLXNwbGl0IiwiZXhwb3J0IjoiZ2V0UHVibGljUG9ydGFsX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22token%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A63%2C%22m%22%3A%5B%5D%7D:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-8d811-a-cannot-survive-withdrawal-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 2 runtime error(s) in "guest replay is idempotent and queued media cannot survive withdrawal":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERE...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-8d811-a-cannot-survive-withdrawal-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-guest-portal-Crit-8d811-a-cannot-survive-withdrawal-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-8d811-a-cannot-survive-withdrawal-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-guest-portal-Crit-8d811-a-cannot-survive-withdrawal-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  28) [critical] › e2e/critical/guest-portal.spec.ts:211:3 › Critical: public Portal basics › oversize and cross-property guest mutations are inert 
+
+    Error: Server fn getPublicPortal failed: undefined — <!DOCTYPE html><html><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="preload" as="script" fetchPriority="low" href="/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_216p51r._.js"/><script src="/_next/static/chunks/
+
+       at helpers/fixtures.ts:327
+
+      325 |   const parsed = await parseServerFnResponse(res)
+      326 |   if (parsed.error) {
+    > 327 |     throw new Error(
+          |           ^
+      328 |       `Server fn ${fn.exportName} failed: ${parsed.error.code ?? parsed.error.name} — ${parsed.error.message}`,
+      329 |     )
+      330 |   }
+        at callServerFnGet (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:327:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:213:20
+
+    Error: E2E error gate — 2 runtime error(s) in "oversize and cross-property guest mutations are inert":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    [2] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/_serverFn/eyJmaWxlIjoiL3NyYy9jb250ZXh0cy9ndWVzdC9zZXJ2ZXIvZ3Vlc3Qtc2NhbnMudHM_dHNzLXNlcnZlcmZuLXNwbGl0IiwiZXhwb3J0IjoiZ2V0UHVibGljUG9ydGFsX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ?payload=%7B%22t%22%3A%7B%22t%22%3A10%2C%22i%22%3A0%2C%22p%22%3A%7B%22k%22%3A%5B%22data%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A10%2C%22i%22%3A1%2C%22p%22%3A%7B%22k%22%3A%5B%22token%22%5D%2C%22v%22%3A%5B%7B%22t%22%3A1%2C%22s%22%3A%22pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE%22%7D%5D%7D%2C%22o%22%3A0%7D%5D%7D%2C%22o%22%3A0%7D%2C%22f%22%3A63%2C%22m%22%3A%5B%5D%7D:0:0; page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-fecac-y-guest-mutations-are-inert-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 2 runtime error(s) in "oversize and cross-property guest mutations are inert":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_ERERERERERERERER_ERERERERERERERERERERERERERERERERERERERERERE
+    
+    [2] co...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-fecac-y-guest-mutations-are-inert-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-guest-portal-Crit-fecac-y-guest-mutations-are-inert-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-fecac-y-guest-mutations-are-inert-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-guest-portal-Crit-fecac-y-guest-mutations-are-inert-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  29) [critical] › e2e/critical/guest-portal.spec.ts:245:3 › Critical: public Portal basics › P2 and P3 tokens are externally indistinguishable 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Portal Unavailable' })
+    Expected: visible
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 10000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Portal Unavailable' })[22m
+
+
+      248 |       await expect(
+      249 |         page.getByRole('heading', { name: 'Portal Unavailable' }),
+    > 250 |       ).toBeVisible()
+          |         ^
+      251 |       await expect(page.getByText('Please try again later.')).toBeVisible()
+      252 |       await expect(page.getByText(/E2E Guest Portal P[23]/)).toHaveCount(0)
+      253 |     }
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:250:9
+
+    Error: E2E error gate — 1 runtime error(s) in "P2 and P3 tokens are externally indistinguishable":
+
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_IiIiIiIiIiIiIiIi_IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI
+
+    Known-benign signals belong in e2e/helpers/error-allowlist.ts (narrow, owned, expiring) — everything else is a real failure.
+
+    ── transcript (detections + console warning/error) ──
+    [console.error] Failed to load resource: the server responded with a status of 404 (Not Found) (http://localhost:3000/p/pt_IiIiIiIiIiIiIiIi_IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI:0:0; page: http://localhost:3000/p/pt_IiIiIiIiIiIiIiIi_IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI)
+
+
+       at helpers/error-detection.ts:318
+
+      316 |         })
+      317 |       }
+    > 318 |       throw new Error(body)
+          |             ^
+      319 |     },
+      320 |     detach() {
+      321 |       page.off('pageerror', onPageError)
+        at Object.assertEmpty (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:318:13)
+        at Object.page (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/error-detection.ts:349:5)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-eca3e-xternally-indistinguishable-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: e2e-error-transcript (text/plain) ───────────────────────────────────────────────
+    E2E error gate — 1 runtime error(s) in "P2 and P3 tokens are externally indistinguishable":
+    
+    [1] console-error: Failed to load resource: the server responded with a status of 404 (Not Found)
+        page: http://localhost:3000/p/pt_IiIiIiIiIiIiIiIi_IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI
+    
+    Known-beni...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-eca3e-xternally-indistinguishable-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-guest-portal-Crit-eca3e-xternally-indistinguishable-critical/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-guest-portal-Crit-eca3e-xternally-indistinguishable-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-guest-portal-Crit-eca3e-xternally-indistinguishable-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  30) [critical] › e2e/critical/health-semantics.spec.ts:26:3 › Critical: health semantics (BQC-7.2) › liveness is 200 and fast (no dependency checks) 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      31 |     const start = Date.now()
+      32 |     const res = await request.get('/api/health/live')
+    > 33 |     expect(res.status()).toBe(200)
+         |                          ^
+      34 |     expect(Date.now() - start).toBeLessThan(1500)
+      35 |     const body = await res.json()
+      36 |     expect(body.status).toBe('ok')
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:33:26
+
+    Error Context: test-results/playwright/critical-health-semantics--a2d3b--fast-no-dependency-checks--critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--a2d3b--fast-no-dependency-checks--critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--a2d3b--fast-no-dependency-checks--critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  31) [critical] › e2e/critical/health-semantics.spec.ts:40:3 › Critical: health semantics (BQC-7.2) › readiness is 200 with all four probes true in the healthy rig 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      42 |   }) => {
+      43 |     const res = await request.get('/api/health/ready')
+    > 44 |     expect(res.status()).toBe(200)
+         |                          ^
+      45 |     const body = await res.json()
+      46 |     expect(body).toMatchObject({
+      47 |       status: 'ok',
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:44:26
+
+    Error Context: test-results/playwright/critical-health-semantics--3b5a9-bes-true-in-the-healthy-rig-critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--3b5a9-bes-true-in-the-healthy-rig-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--3b5a9-bes-true-in-the-healthy-rig-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  32) [critical] › e2e/critical/health-semantics.spec.ts:55:3 › Critical: health semantics (BQC-7.2) › combined legacy endpoint carries the same upgraded semantics 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      57 |   }) => {
+      58 |     const res = await request.get('/api/health')
+    > 59 |     expect(res.status()).toBe(200)
+         |                          ^
+      60 |     const body = await res.json()
+      61 |     expect(body).toMatchObject({
+      62 |       status: 'ok',
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:59:26
+
+    Error Context: test-results/playwright/critical-health-semantics--be3c0-the-same-upgraded-semantics-critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--be3c0-the-same-upgraded-semantics-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--be3c0-the-same-upgraded-semantics-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  33) [critical] › e2e/critical/health-semantics.spec.ts:70:3 › Critical: health semantics (BQC-7.2) › startup is 200 once booted (container + migrations + policy) 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      72 |   }) => {
+      73 |     const res = await request.get('/api/health/started')
+    > 74 |     expect(res.status()).toBe(200)
+         |                          ^
+      75 |     const body = await res.json()
+      76 |     expect(body).toMatchObject({
+      77 |       status: 'ok',
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:74:26
+
+    Error Context: test-results/playwright/critical-health-semantics--7e7c1-ontainer-migrations-policy--critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--7e7c1-ontainer-migrations-policy--critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--7e7c1-ontainer-migrations-policy--critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  34) [critical] › e2e/critical/health-semantics.spec.ts:84:3 › Critical: health semantics (BQC-7.2) › metrics 404s without/with a wrong token and serves the operator token 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      108 |     ]) {
+      109 |       const res = await request.get('/api/health/metrics', { headers })
+    > 110 |       expect(res.status()).toBe(200)
+          |                            ^
+      111 |       expect(res.headers()['cache-control']).toContain('no-store')
+      112 |     }
+      113 |   })
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:110:28
+
+    Error Context: test-results/playwright/critical-health-semantics--87e34-d-serves-the-operator-token-critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--87e34-d-serves-the-operator-token-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--87e34-d-serves-the-operator-token-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  35) [critical] › e2e/critical/health-semantics.spec.ts:115:3 › Critical: health semantics (BQC-7.2) › metrics payload is identifier-only (no content, no PII) 
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m200[39m
+    Received: [31m404[39m
+
+      117 |       headers: { 'x-ops-token': OPS_TOKEN },
+      118 |     })
+    > 119 |     expect(res.status()).toBe(200)
+          |                          ^
+      120 |     const text = await res.text()
+      121 |
+      122 |     // OperationsSnapshot shape (5.5): queues + worker heartbeat + degraded list.
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/health-semantics.spec.ts:119:26
+
+    Error Context: test-results/playwright/critical-health-semantics--f6cff-ier-only-no-content-no-PII--critical/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-health-semantics--f6cff-ier-only-no-content-no-PII--critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-health-semantics--f6cff-ier-only-no-content-no-PII--critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  36) [critical] › e2e/critical/workflows/activity-notification-facts.spec.ts:45:3 › Critical workflow: content-safe notification + activity facts › facts render without source content at rest and in the UI 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-activit-2e251-ntent-at-rest-and-in-the-UI-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-activit-2e251-ntent-at-rest-and-in-the-UI-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-activit-2e251-ntent-at-rest-and-in-the-UI-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-activit-2e251-ntent-at-rest-and-in-the-UI-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-activit-2e251-ntent-at-rest-and-in-the-UI-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  37) [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:21:3 › Critical workflow: invite-only auth (locked posture) › unauthenticated deep-link redirects to /login 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3001/inbox
+    Call log:
+    [2m  - navigating to "http://localhost:3001/inbox", waiting until "load"[22m
+
+
+      20 | test.describe('Critical workflow: invite-only auth (locked posture)', () => {
+      21 |   test('unauthenticated deep-link redirects to /login', async ({ page }) => {
+    > 22 |     await page.goto('/inbox')
+         |                ^
+      23 |     await expect(page).toHaveURL(/\/login/)
+      24 |   })
+      25 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/auth-invite-only.spec.ts:22:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-81a08-eep-link-redirects-to-login-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-81a08-eep-link-redirects-to-login-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-auth-in-81a08-eep-link-redirects-to-login-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-81a08-eep-link-redirects-to-login-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-auth-in-81a08-eep-link-redirects-to-login-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  38) [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:26:3 › Critical workflow: invite-only auth (locked posture) › /register redirects to /login and the register server fn denies 
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3001/register
+    Call log:
+    [2m  - navigating to "http://localhost:3001/register", waiting until "load"[22m
+
+
+      27 |     page,
+      28 |   }) => {
+    > 29 |     await page.goto('/register')
+         |                ^
+      30 |     await expect(page).toHaveURL(/\/login/)
+      31 |
+      32 |     // Defense in depth: even a direct RPC against the registration server fn
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/auth-invite-only.spec.ts:29:16
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-01fb2-e-register-server-fn-denies-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-01fb2-e-register-server-fn-denies-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-auth-in-01fb2-e-register-server-fn-denies-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-01fb2-e-register-server-fn-denies-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-auth-in-01fb2-e-register-server-fn-denies-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  39) [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:51:3 › Critical workflow: invite-only auth (locked posture) › seeded admin signs in (invite-only accounts authenticate) 
+
+    Error: apiRequestContext.post: connect ECONNREFUSED ::1:3001
+    Call log:
+    [2m  - → POST http://localhost:3001/api/auth/sign-in/email[22m
+    [2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.96 Safari/537.36[22m
+    [2m    - accept: */*[22m
+    [2m    - accept-encoding: gzip,deflate,br[22m
+    [2m    - content-type: application/json[22m
+    [2m    - origin: http://localhost:3001[22m
+    [2m    - referer: http://localhost:3001/[22m
+    [2m    - content-length: 75[22m
+
+        at apiRequestContext.post: connect ECONNREFUSED ::1:3001
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:37:39)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/auth-invite-only.spec.ts:52:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-47088-only-accounts-authenticate--critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-47088-only-accounts-authenticate--critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-auth-in-47088-only-accounts-authenticate--critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-auth-in-47088-only-accounts-authenticate--critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-auth-in-47088-only-accounts-authenticate--critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  40) [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:91:3 › Critical workflow: dashboard governance (staff vs admin) › staff dashboard is governed, scoped, expiry-clean, and reply-redacted 
+
+    error: column "source_epoch" of relation "reviews" does not exist
+
+       at helpers/fixtures.ts:52
+
+      50 |   params: readonly unknown[] = [],
+      51 | ): Promise<T[]> {
+    > 52 |   const result = await pool().query(text, params as unknown[])
+         |                  ^
+      53 |   return result.rows as T[]
+      54 | }
+      55 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45:11
+        at dbQuery (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:52:18)
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:534:16)
+        at seedLandscape (/Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/dashboard-governance.spec.ts:53:36)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/dashboard-governance.spec.ts:94:54
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-16c96-ry-clean-and-reply-redacted-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-16c96-ry-clean-and-reply-redacted-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-dashboa-16c96-ry-clean-and-reply-redacted-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-16c96-ry-clean-and-reply-redacted-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-dashboa-16c96-ry-clean-and-reply-redacted-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  41) [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:146:3 › Critical workflow: dashboard governance (staff vs admin) › admin control sees the reply data the staff surface redacts 
+
+    error: column "source_epoch" of relation "reviews" does not exist
+
+       at helpers/fixtures.ts:52
+
+      50 |   params: readonly unknown[] = [],
+      51 | ): Promise<T[]> {
+    > 52 |   const result = await pool().query(text, params as unknown[])
+         |                  ^
+      53 |   return result.rows as T[]
+      54 | }
+      55 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45:11
+        at dbQuery (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:52:18)
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:534:16)
+        at seedLandscape (/Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/dashboard-governance.spec.ts:53:36)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/dashboard-governance.spec.ts:149:39
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-ee959-a-the-staff-surface-redacts-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-ee959-a-the-staff-surface-redacts-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-dashboa-ee959-a-the-staff-surface-redacts-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-dashboa-ee959-a-the-staff-surface-redacts-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-dashboa-ee959-a-the-staff-surface-redacts-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  42) [critical] › e2e/critical/workflows/disconnect-stops-work.spec.ts:50:3 › Critical workflow: disconnect stops queued protected work › queued publish dies at the claim guard after disconnect 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-disconn-411e3-laim-guard-after-disconnect-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-disconn-411e3-laim-guard-after-disconnect-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-disconn-411e3-laim-guard-after-disconnect-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-disconn-411e3-laim-guard-after-disconnect-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-disconn-411e3-laim-guard-after-disconnect-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  43) [critical] › e2e/critical/workflows/google-import-sync.spec.ts:135:3 › Critical workflow: Google import + initial sync › pages discovery, imports create + relink, replays exactly, and syncs reviews 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--26f60-s-exactly-and-syncs-reviews-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--26f60-s-exactly-and-syncs-reviews-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-google--26f60-s-exactly-and-syncs-reviews-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--26f60-s-exactly-and-syncs-reviews-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-google--26f60-s-exactly-and-syncs-reviews-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  44) [critical] › e2e/critical/workflows/google-performance.spec.ts:187:3 › Critical workflow: live Google Performance › renders a live report and retains it when a manual refresh fails 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--f11bd-when-a-manual-refresh-fails-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--f11bd-when-a-manual-refresh-fails-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-google--f11bd-when-a-manual-refresh-fails-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--f11bd-when-a-manual-refresh-fails-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-google--f11bd-when-a-manual-refresh-fails-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  45) [critical] › e2e/critical/workflows/google-performance.spec.ts:255:3 › Critical workflow: live Google Performance › fails provider faults closed, preserves zero/partial semantics, and rechecks revocation 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--a9928-ics-and-rechecks-revocation-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--a9928-ics-and-rechecks-revocation-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-google--a9928-ics-and-rechecks-revocation-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-google--a9928-ics-and-rechecks-revocation-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-google--a9928-ics-and-rechecks-revocation-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  46) [critical] › e2e/critical/workflows/inbox-triage.spec.ts:33:3 › Critical workflow: inbox triage persists › status, assignment, note, escalation/resolve all persist 
+
+    Error: E2E review property is unavailable
+
+       at helpers/fixtures.ts:532
+
+      530 |   )[0]
+      531 |   if (!property) {
+    > 532 |     throw new Error('E2E review property is unavailable')
+          |           ^
+      533 |   }
+      534 |   const rows = await dbQuery<{ id: string }>(
+      535 |     `INSERT INTO reviews
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:532:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/inbox-triage.spec.ts:34:26
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-inbox-t-caba2-alation-resolve-all-persist-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-inbox-t-caba2-alation-resolve-all-persist-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-inbox-t-caba2-alation-resolve-all-persist-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-inbox-t-caba2-alation-resolve-all-persist-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-inbox-t-caba2-alation-resolve-all-persist-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  47) [critical] › e2e/critical/workflows/property-access.spec.ts:47:3 › Critical workflow: property access (operator allowlist) › staff is scoped to the granted property; wrong property denies without leaking 
+
+    error: insert or update on table "member" violates foreign key constraint "member_organizationId_fkey"
+
+       at helpers/fixtures.ts:52
+
+      50 |   params: readonly unknown[] = [],
+      51 | ): Promise<T[]> {
+    > 52 |   const result = await pool().query(text, params as unknown[])
+         |                  ^
+      53 |   return result.rows as T[]
+      54 | }
+      55 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45:11
+        at dbQuery (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:52:18)
+        at seedStaffUserWithGrant (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:390:3)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/property-access.spec.ts:55:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-233cf-erty-denies-without-leaking-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-233cf-erty-denies-without-leaking-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-propert-233cf-erty-denies-without-leaking-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-233cf-erty-denies-without-leaking-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-propert-233cf-erty-denies-without-leaking-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  48) [critical] › e2e/critical/workflows/property-access.spec.ts:111:3 › Critical workflow: property access (operator allowlist) › admin control sees every org property 
+
+    Error: E2E sign-in API failed (404): {"message":"Route not found \"/api/auth/sign-in/email\""}. Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.
+
+       at helpers/auth.ts:43
+
+      41 |   if (!response.ok()) {
+      42 |     const body = await response.text()
+    > 43 |     throw new Error(
+         |           ^
+      44 |       `E2E sign-in API failed (${response.status()}): ${body.slice(0, 300)}. ` +
+      45 |         `Ensure scripts/seed-e2e-user.ts ran and credentials match E2E_TEST_*.`,
+      46 |     )
+        at signIn (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/auth.ts:43:11)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/property-access.spec.ts:117:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-3484a-rol-sees-every-org-property-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-3484a-rol-sees-every-org-property-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-propert-3484a-rol-sees-every-org-property-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-propert-3484a-rol-sees-every-org-property-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-propert-3484a-rol-sees-every-org-property-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  49) [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:128:3 › Critical workflow: reply lifecycle › (a) draft → edit → submit → approve → published (UI-driven) 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-reply-l-7b660-rove-→-published-UI-driven--critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-reply-l-7b660-rove-→-published-UI-driven--critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-reply-l-7b660-rove-→-published-UI-driven--critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-reply-l-7b660-rove-→-published-UI-driven--critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-reply-l-7b660-rove-→-published-UI-driven--critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  50) [critical] › e2e/critical/workflows/review-expiry.spec.ts:39:3 › Critical workflow: review expiry + purge › expired content is unavailable everywhere, then the purge removes copies 
+
+    error: column "source_epoch" of relation "reviews" does not exist
+
+       at helpers/fixtures.ts:52
+
+      50 |   params: readonly unknown[] = [],
+      51 | ): Promise<T[]> {
+    > 52 |   const result = await pool().query(text, params as unknown[])
+         |                  ^
+      53 |   return result.rows as T[]
+      54 | }
+      55 |
+        at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45:11
+        at dbQuery (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:52:18)
+        at seedReview (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/fixtures.ts:534:16)
+        at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/review-expiry.spec.ts:48:35
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--696cc-en-the-purge-removes-copies-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--696cc-en-the-purge-removes-copies-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-review--696cc-en-the-purge-removes-copies-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--696cc-en-the-purge-removes-copies-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-review--696cc-en-the-purge-removes-copies-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  51) [critical] › e2e/critical/workflows/review-inbox-slo.spec.ts:46:3 › Critical workflow: review arrival → inbox projection SLO › new review projects to the inbox within the defined SLO 
+
+    TypeError: fetch failed
+    [cause]: AggregateError: 
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--431b4-nbox-within-the-defined-SLO-critical/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--431b4-nbox-within-the-defined-SLO-critical/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/playwright/critical-workflows-review--431b4-nbox-within-the-defined-SLO-critical/error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/playwright/critical-workflows-review--431b4-nbox-within-the-defined-SLO-critical/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/playwright/critical-workflows-review--431b4-nbox-within-the-defined-SLO-critical/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  51 failed
+    [critical] › e2e/critical/accessibility.spec.ts:46:3 › Critical a11y: axe page scans › fleet dashboard (/dashboard, 2 properties) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:59:3 › Critical a11y: axe page scans › fleet dashboard in LIGHT theme is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:82:3 › Critical a11y: axe page scans › property deep-dive (/properties/$id) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:91:3 › Critical a11y: axe page scans › inbox list (/inbox) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:111:3 › Critical a11y: axe page scans › inbox with item detail open (/inbox?itemId=) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:137:3 › Critical a11y: axe page scans › property people page (/properties/$id/people) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:149:3 › Critical a11y: axe page scans › settings members (/settings/members) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:158:3 › Critical a11y: axe page scans › promoted P1 home (/home?propertyId=) is axe-clean 
+    [critical] › e2e/critical/accessibility.spec.ts:175:3 › Critical a11y: keyboard › inbox list: j/k moves selection, Enter opens, Escape closes 
+    [critical] › e2e/critical/accessibility.spec.ts:240:3 › Critical a11y: keyboard › tab order reaches primary actions with a visible focus indicator 
+    [critical] › e2e/critical/accessibility.spec.ts:305:3 › Critical a11y: keyboard › invite-member dialog traps focus, Escape closes, focus returns to trigger 
+    [critical] › e2e/critical/accessibility.spec.ts:356:3 › Critical a11y: reduced motion › prefers-reduced-motion zeroes computed transition/animation durations 
+    [critical] › e2e/critical/accessibility.spec.ts:440:3 › Critical a11y: zoom reflow › inbox at 200%/400% zoom: no horizontal scrollbar, list stays visible 
+    [critical] › e2e/critical/accessibility.spec.ts:482:3 › Critical a11y: zoom reflow › fleet dashboard reflows at the 400%-zoom-equivalent 320px viewport 
+    [critical] › e2e/critical/accessibility.spec.ts:535:3 › Critical a11y: mobile viewport (390×844) › inbox on mobile: rows full-width, no horizontal overflow 
+    [critical] › e2e/critical/accessibility.spec.ts:568:3 › Critical a11y: mobile viewport (390×844) › app nav on mobile: collapses to the trigger + drawer pattern 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:30:3 › Critical: authentication › sign in with seeded credentials reaches authenticated area 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:35:3 › Critical: authentication › registration form is reachable when e2e capabilities are on 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:55:3 › Critical: properties shell › properties list shows seeded property 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:61:3 › Critical: properties shell › open seeded property detail 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:67:3 › Critical: properties shell › property reviews route loads inbox chrome 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:81:3 › Critical: inbox and members shell › inbox triage surface loads for manager 
+    [critical] › e2e/critical/auth-and-shell.spec.ts:87:3 › Critical: inbox and members shell › settings members page loads 
+    [critical] › e2e/critical/beta-product-journeys.spec.ts:38:3 › Critical: beta-local-1 product journeys › P1 Portal management and opaque public URL survive reload 
+    [critical] › e2e/critical/guest-portal.spec.ts:19:3 › Critical: public Portal basics › published P1 token renders content and destinations without requiring a response 
+    [critical] › e2e/critical/guest-portal.spec.ts:50:3 › Critical: public Portal basics › guest response, media, one correction, and withdrawal survive reload 
+    [critical] › e2e/critical/guest-portal.spec.ts:109:3 › Critical: public Portal basics › guest replay is idempotent and queued media cannot survive withdrawal 
+    [critical] › e2e/critical/guest-portal.spec.ts:211:3 › Critical: public Portal basics › oversize and cross-property guest mutations are inert 
+    [critical] › e2e/critical/guest-portal.spec.ts:245:3 › Critical: public Portal basics › P2 and P3 tokens are externally indistinguishable 
+    [critical] › e2e/critical/health-semantics.spec.ts:26:3 › Critical: health semantics (BQC-7.2) › liveness is 200 and fast (no dependency checks) 
+    [critical] › e2e/critical/health-semantics.spec.ts:40:3 › Critical: health semantics (BQC-7.2) › readiness is 200 with all four probes true in the healthy rig 
+    [critical] › e2e/critical/health-semantics.spec.ts:55:3 › Critical: health semantics (BQC-7.2) › combined legacy endpoint carries the same upgraded semantics 
+    [critical] › e2e/critical/health-semantics.spec.ts:70:3 › Critical: health semantics (BQC-7.2) › startup is 200 once booted (container + migrations + policy) 
+    [critical] › e2e/critical/health-semantics.spec.ts:84:3 › Critical: health semantics (BQC-7.2) › metrics 404s without/with a wrong token and serves the operator token 
+    [critical] › e2e/critical/health-semantics.spec.ts:115:3 › Critical: health semantics (BQC-7.2) › metrics payload is identifier-only (no content, no PII) 
+    [critical] › e2e/critical/workflows/activity-notification-facts.spec.ts:45:3 › Critical workflow: content-safe notification + activity facts › facts render without source content at rest and in the UI 
+    [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:21:3 › Critical workflow: invite-only auth (locked posture) › unauthenticated deep-link redirects to /login 
+    [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:26:3 › Critical workflow: invite-only auth (locked posture) › /register redirects to /login and the register server fn denies 
+    [critical] › e2e/critical/workflows/auth-invite-only.spec.ts:51:3 › Critical workflow: invite-only auth (locked posture) › seeded admin signs in (invite-only accounts authenticate) 
+    [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:91:3 › Critical workflow: dashboard governance (staff vs admin) › staff dashboard is governed, scoped, expiry-clean, and reply-redacted 
+    [critical] › e2e/critical/workflows/dashboard-governance.spec.ts:146:3 › Critical workflow: dashboard governance (staff vs admin) › admin control sees the reply data the staff surface redacts 
+    [critical] › e2e/critical/workflows/disconnect-stops-work.spec.ts:50:3 › Critical workflow: disconnect stops queued protected work › queued publish dies at the claim guard after disconnect 
+    [critical] › e2e/critical/workflows/google-import-sync.spec.ts:135:3 › Critical workflow: Google import + initial sync › pages discovery, imports create + relink, replays exactly, and syncs reviews 
+    [critical] › e2e/critical/workflows/google-performance.spec.ts:187:3 › Critical workflow: live Google Performance › renders a live report and retains it when a manual refresh fails 
+    [critical] › e2e/critical/workflows/google-performance.spec.ts:255:3 › Critical workflow: live Google Performance › fails provider faults closed, preserves zero/partial semantics, and rechecks revocation 
+    [critical] › e2e/critical/workflows/inbox-triage.spec.ts:33:3 › Critical workflow: inbox triage persists › status, assignment, note, escalation/resolve all persist 
+    [critical] › e2e/critical/workflows/property-access.spec.ts:47:3 › Critical workflow: property access (operator allowlist) › staff is scoped to the granted property; wrong property denies without leaking 
+    [critical] › e2e/critical/workflows/property-access.spec.ts:111:3 › Critical workflow: property access (operator allowlist) › admin control sees every org property 
+    [critical] › e2e/critical/workflows/reply-lifecycle.spec.ts:128:3 › Critical workflow: reply lifecycle › (a) draft → edit → submit → approve → published (UI-driven) 
+    [critical] › e2e/critical/workflows/review-expiry.spec.ts:39:3 › Critical workflow: review expiry + purge › expired content is unavailable everywhere, then the purge removes copies 
+    [critical] › e2e/critical/workflows/review-inbox-slo.spec.ts:46:3 › Critical workflow: review arrival → inbox projection SLO › new review projects to the inbox within the defined SLO 
+  20 did not run
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:14508) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:14514) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14514) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14514) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14523) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14523) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14523) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14531) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14531) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14531) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14540) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14540) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14540) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14669) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14669) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14669) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14678) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14678) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14678) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14689) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14703) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14703) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14703) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14712) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14712) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14712) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14721) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14721) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14721) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14729) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14729) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14729) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14737) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14745) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14745) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14745) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14766) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14766) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14766) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14775) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14783) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14792) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14798) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14798) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:14798) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15091) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15091) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15091) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15099) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15106) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15114) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15114) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15114) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15120) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15120) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15120) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15128) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15136) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15136) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15136) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15276) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15276) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15423) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15423) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15430) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15430) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15430) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15450) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15450) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15450) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15589) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15589) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15589) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15591) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15591) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15591) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15592) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15592) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15592) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15594) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15594) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15594) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15595) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15595) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15595) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15598) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15598) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15599) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15599) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15607) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15607) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15607) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15631) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15744) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15744) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15744) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15751) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15751) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15751) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15759) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15759) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15767) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15767) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15767) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15776) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15783) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15783) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15791) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15791) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15791) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15802) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15802) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15810) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15810) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15810) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15831) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15831) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15831) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15839) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15839) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15839) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15848) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15848) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15848) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15855) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15855) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:15855) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)

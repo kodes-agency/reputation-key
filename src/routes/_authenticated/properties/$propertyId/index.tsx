@@ -3,13 +3,20 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { getDashboardDataFn } from '#/contexts/dashboard/server/dashboard'
 import { getAttentionSignalsFn } from '#/contexts/dashboard/server/attention-signals'
+import {
+  getPropertyGooglePerformance,
+  renewPropertyGooglePerformanceLease,
+} from '#/contexts/integration/server/google-performance'
+import { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 
-const timeRangeSearch = z.object({
+const propertyDashboardSearch = z.object({
   timeRange: z.enum(['7d', '30d', '60d', '90d', 'all']).default('all'),
+  performanceRange: z.enum(['7d', '30d', '90d', '180d']).catch('30d').default('30d'),
 })
 
 const dashboardQuery = (propertyId: string, timeRange: TimeRangePreset) =>
@@ -27,7 +34,7 @@ const signalsQuery = (propertyId: string, timeRange: TimeRangePreset) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/')({
-  validateSearch: timeRangeSearch,
+  validateSearch: propertyDashboardSearch,
   staleTime: 60_000,
   loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
   loader: async ({ params: { propertyId }, deps: { timeRange }, context }) => {
@@ -44,13 +51,17 @@ function PropertyDashboardRoute() {
   const { propertyId } = Route.useParams()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const property = propData.property
-  const { timeRange } = Route.useSearch()
+  const { timeRange, performanceRange } = Route.useSearch()
   const { data: dashboard } = useSuspenseQuery(dashboardQuery(propertyId, timeRange))
   const { data: signals } = useSuspenseQuery(signalsQuery(propertyId, timeRange))
   const navigate = Route.useNavigate()
 
   const onTimeRangeChange = (value: TimeRangePreset) => {
-    navigate({ search: { timeRange: value } })
+    navigate({ search: (previous) => ({ ...previous, timeRange: value }) })
+  }
+
+  const onPerformanceRangeChange = (value: PropertyPerformancePreset) => {
+    navigate({ search: (previous) => ({ ...previous, performanceRange: value }) })
   }
 
   return (
@@ -61,6 +72,13 @@ function PropertyDashboardRoute() {
       propertyId={propertyId}
       timeRange={timeRange}
       onTimeRangeChange={onTimeRangeChange}
+      performanceRange={performanceRange}
+      onPerformanceRangeChange={onPerformanceRangeChange}
+      performanceFns={{
+        getPerformance: getPropertyGooglePerformance,
+        renewLease: renewPropertyGooglePerformanceLease,
+      }}
+      getAiTrend={getPropertyAiTrendFn}
     />
   )
 }

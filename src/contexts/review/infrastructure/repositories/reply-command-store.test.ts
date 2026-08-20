@@ -7,6 +7,7 @@
 //   3. purgeExpiredReview removes the review and records review.expired
 //      atomically.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
@@ -72,12 +73,13 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'ext-reply-cmd-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -90,6 +92,11 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -109,6 +116,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,

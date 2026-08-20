@@ -8,6 +8,7 @@ import type {
   SourceType,
 } from '../../domain/types'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { ReviewAttention } from './ai-review-insights.port'
 
 export type Cursor = Readonly<{
   sourceDate: Date
@@ -25,6 +26,7 @@ export type InboxFilters = Readonly<{
   ratingMax?: number
   sourceDateFrom?: Date
   sourceDateTo?: Date
+  attention?: ReadonlyArray<ReviewAttention>
   q?: string
 }>
 

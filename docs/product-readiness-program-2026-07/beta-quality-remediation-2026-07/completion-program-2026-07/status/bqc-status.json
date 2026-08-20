@@ -1,14 +1,35 @@
 {
   "schemaVersion": 1,
   "program": "BQC",
-  "updatedAt": "2026-08-01T09:36:52Z",
+  "updatedAt": "2026-08-09T08:00:33Z",
   "baseline": {
     "validationReport": "docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md",
     "validationBaselineSha": "29b021875c145a7f8827f0ee70fc20935fc5dc79",
-    "workingTreeSha": "927614bce728f8c42d922720f149b6ea1b046354",
-    "lockfileSha256": "948a751d725fd8668b4ef734a28eea10392fd89890608f453998786a2b197287",
-    "migrationVersion": "0011_people-access-and-attribution",
+    "workingTreeSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+    "lockfileSha256": "a2f56f007aab4695835b8292bf417cc30d461815d3ac4d29f4330b9dafb3be36",
+    "migrationVersion": "0028_recognition-beta-seeds",
     "notes": "BQR work is implementation history only. No BQR phase is `accepted` under BQC rules. Open findings remain from the 2026-07-16 validation report until closed by BQC evidence."
+  },
+  "acceptance": {
+    "evidenceVersion": "beta-local-1",
+    "requiredGates": [
+      "quality",
+      "security-privacy",
+      "local-scale-recovery",
+      "source-lifecycle",
+      "runtime-fault-matrix",
+      "migration-upgrade",
+      "product-journeys",
+      "release-bundle"
+    ],
+    "postBetaGates": [
+      "scale-capacity",
+      "region-fault-matrix",
+      "restore-recovery",
+      "live-provider",
+      "real-property-pilot",
+      "fourteen-day-cohort"
+    ]
   },
   "entries": [
     {
@@ -206,7 +227,7 @@
       "requiredEvidenceIds": ["baseline-manifest"],
       "openFindings": [],
       "exceptions": [],
-      "notes": "Baseline pinned at 927614bce (migration 0011, lockfile 948a751d) via scripts/bqc/run-baseline.ts — 13/17 gates pass, results verbatim in evidence/baseline-2026-07-17T08-33-43/. Failures recorded with ownership, not excused: dependency-audit 5 known vulns (BQC-7), fallow dead-code/health baseline state (BQC-5), e2e-full 6 local registration-path failures root-caused to node:crypto client leak = STD-P2-01 (BQC-5/BQC-6; CI green on same SHA, timing dimension to isolate). Reproducible via pnpm bqc:run-baseline. Pending independent review for accepted."
+      "notes": "Latest local static baseline pinned at f46d2cd690 (migration 0016, lockfile a2f56f00) via scripts/bqc/run-baseline.ts — 11/12 selected static gates pass in evidence/baseline-2026-08-08T15-13-11/. The `fallow-health` diagnostic exits non-zero with 106 inherited findings above its configured threshold; it remains a BQC-5 triage item, not an excused pass. Database and E2E validation require unavailable isolated-environment credentials and were not selected for that static baseline. Pending target-environment execution and independent review for acceptance."
     },
     {
       "id": "BQC-1",
@@ -355,17 +376,17 @@
       "id": "BQC-2.6",
       "kind": "slice",
       "parentId": "BQC-2",
-      "title": "Dark-context policy and interactive containment",
-      "state": "implementation_complete",
+      "title": "Scoped controlled-feature policy and interactive containment",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [
-        "dark-context-matrix",
-        "dark-route-gates",
-        "requireauthorized-path-removal"
+        "controlled-feature-capability-matrix",
+        "scoped-route-policy",
+        "scoped-delayed-policy"
       ],
       "openFindings": [],
       "exceptions": [],
-      "notes": "All 40 dark server fns (portal 24, team 4, goal 6, leaderboard 2, badge 4) migrated from assertBetaCapability/requireAuthorized to requireExecutionAllowed — dark denial now flows through the ExecutionPolicy (capability-first: blocked/non-core deny before permission). Route-level containment: gateDarkRoute on 9 route files (team, leaderboard, progress, recognition, goals layout, teams layout, portals ×3) redirects to a new intentional /unavailable experience (never a partially live shell); routeTree regenerated; catalogue row added. Negative matrix (8 dark caps × 4 layers: policy deny with stable reasons, route redirect, guest/global gate, delayed-contract deny for dark job actions + AI) — policy/server/command negative tests, no positive E2E opened by overrides (phase §2.6). Contract fixtures now 11 incl. goal/badge reconcile dark-denial. Superseded path REMOVED: authorization-policy.ts (requireAuthorized/authorize/checkAuthorization) + its tests deleted after zero production callers remained; permission→capability map lives in capability-for-permission.ts; BQC-0.2 taxonomy proof re-seamed through the ExecutionPolicy (stronger); 2.4 shadow record kept with recorded old decisions; ADR 0033 addendum records the supersession; boundary + dark-enforcement + ADR-presence architecture tests updated. Not claimed: delayed-runtime dark denial (BQC-3), direct-navigation/browser evidence (BQC-6), ungated in-process dark consumers (badge/goal/leaderboard handlers on metric.recorded — BQC-3 owns runtime denial), per-org allowlisted route promotion (2.7); slice not accepted — pending independent review."
+      "notes": "ADR 0049 preserves the established ExecutionPolicy migration and negative containment but supersedes permanent dark-only semantics. Work now adds property-aware route preloaders, public scoped decisions, promotable job envelopes, and P1 positive/P2 negative policy evidence while retaining suspension, grants, audit, restore isolation, and permanent Google prohibitions."
     },
     {
       "id": "BQC-2.5",
@@ -904,13 +925,13 @@
       "id": "BQC-6.6",
       "kind": "slice",
       "parentId": "BQC-6",
-      "title": "Dark-context browser promotion",
-      "state": "implementation_complete",
+      "title": "Controlled-feature browser promotion",
+      "state": "implementation_in_progress",
       "owner": "engineering",
       "requiredEvidenceIds": [],
       "openFindings": [],
       "exceptions": [],
-      "notes": "Browser/direct-navigation coverage for every dark surface, PROMOTING the lower-level matrices (cited, not recreated: dark-context-matrix, dark-capability-enforcement, portal-capability-taxonomy, dark-consumer-gating, context-acceptance-matrix, no-auto-publish). (1) Locked posture (:3001, zero capabilities): /leaderboard, /team, /progress, /properties/$pid/teams/$tid, /portals, /portals/$id, /goals(+new), /settings/recognition all land on /unavailable?feature=<label> (intentional UX, no error component) via direct nav AND sidebar clicks (sidebars render dark links unconditionally — the gate is the backstop). (2) portal.write/upload proven BLOCKED in BOTH postures: /portals/new redirects before the form mounts even with the permissive override set. (3) Guest public portal deny now renders the intentional PortalUnavailable UX — the slice's one behavior fix: errorComponent on /p/$propertySlug/$portalSlug maps ALL loader errors to it (byte-level proof that BetaCapabilityError is deliberately masked to an indistinguishable 'Internal server error' by catchUntagged — error-shape matching would be fiction; on a public QR surface 'any failure → unavailable UX' is also the better product behavior; real error stays logged server-side). Registered follow-up: the SSR document still answers 500 on the deny path (route-level status semantics; two narrow page-scoped allowlist entries cover the dev-only SSR-status echo + React boundary notice until then, owner+expiry). (4) Absence proofs via a new request-log helper: ZERO browser-initiated mutations and ZERO non-app-origin requests on every dark path (font CDNs are the only default-allowed static hosts, documented). (5) Outbound email: notification Email switches are preference-writes only (no send/test control exists; worker-job gating cited). (6) Auto-publish: manual actions only in the reply UI (absence scan). (7) AI: no affordance anywhere in the shell; zero external AI calls. Determinism: full critical 33/33 ×2 consecutive (plus spec-only runs), retries:0. Registered findings (NOT fixed): F-PEOPLE /properties/$pid/people has no dark gate — listTeams (team.use) shares one loader Promise.all with the ENABLED staff-assignment tab and 403s the whole page in locked posture [Inbox/Team]; F-HOME staff /home breaks identically via listStaffGoals + getStaffVisibleBadges in one loader [Staff/Goal/Badge]. Gates: critical e2e 33/33, unit 386f/4274t, integration 52f/315t, typecheck, lint, format:check, fallow v3.5.0 — all green. NOT claimed: accepted — needs independent review."
+      "notes": "ADR 0049 supersedes permanent dark-route acceptance. Existing locked-posture direct-navigation coverage remains the negative baseline. This slice now owns positive P1 and negative P2/P3 browser journeys for Team, Portal/Guest, Goals, Leadership/recognition, Settings email, and optional Dashboard overlays, including reload durability, kill switches, tenant/property scope, intentional states, and blocking accessibility evidence."
     },
     {
       "id": "BQC-6.5",
@@ -1082,13 +1103,25 @@
     {
       "id": "BQC-8",
       "kind": "phase",
-      "title": "Scale, recovery, and release evidence",
-      "state": "implementation_in_progress",
+      "title": "Local scale, recovery, and release evidence",
+      "state": "evidence_pending",
       "owner": "engineering",
-      "requiredEvidenceIds": [],
-      "openFindings": ["SPEC-P1-04", "SPEC-P2-02"],
+      "requiredEvidenceIds": [
+        "beta-local-1-manifest",
+        "quality",
+        "security-privacy",
+        "local-scale-recovery",
+        "source-lifecycle",
+        "runtime-fault-matrix",
+        "migration-upgrade",
+        "product-journeys",
+        "release-bundle"
+      ],
+      "evidenceEnvironment": "local production-profile Docker",
+      "releaseIdentity": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c/6ae52200cfcecac772493e1a3af419b1d2a4140225536aa2d1b33ac263b0953f",
+      "openFindings": [],
       "exceptions": [],
-      "notes": "8.1 implementation_complete: executable harnesses — measurement lib + monitoring capture + steady/burst/dashboardMix/drain executors (BQC-3 producer contract, run-scoped cleanup, fail-closed assertions), deterministic scale dataset (seed/shape/hash, verify + exact clean), fail-closed evidence ingestion (no unexecuted row labeled evidence; release-identity bound). Fault + remaining scenario executors deferred to 8.2–8.5 (registry + fail-closed dispatch ready).  8.2 implementation_complete: capacity matrix executed against the local production-shaped cell (perf:cell harness + 5 new executors) — all 9 scenarios PASS with measured numbers (steady 20.0/s, burst 6000 unique, tenant-fairness bounded, reconnect 220s, fleet 45210/s + labeled projection, dashboard warm 3.4ms/cold 4.7ms, reply publish p95 4833ms, drain 94.8s scale-down/up). Pack bqc8-local-candidate with NOTES.md fidelity contract (dispatch-path measured; provider-ingest fidelity = staging gap, recorded not hidden). Slices 8.3–8.8 not started. NOT accepted — acceptance is the user's independent review."
+      "notes": "beta:smoke passed all eight beta-local-1 gates on 2026-08-09. Immutable evidence: test-results/beta-smoke/f46d2cd690899eace479e6ec9e08d5bbb3fece4c/6ae52200cfcecac772493e1a3af419b1d2a4140225536aa2d1b33ac263b0953f/manifest.json. Clean and upgrade heads are 0028_recognition-beta-seeds. Hosted capacity/PITR, regional infrastructure fault, live-provider, and pilot checks remain unmeasured post-beta work. Acceptance is pending five independent, post-evidence approvals."
     },
     {
       "id": "BQC-8.2",
@@ -1101,6 +1134,78 @@
       "openFindings": [],
       "exceptions": [],
       "notes": "RE_EXECUTES the capacity matrix against a LOCAL production-shaped cell — the first measured pack with real numbers (acceptance-level staging execution remains the owner's environment scheduling). (1) CELL HARNESS (src/shared/testing/staging-cell.ts + pnpm perf:cell): dedicated repkey_bqc8_* database only (prefix guard + shared denylist), migration trio to deploy state, isolated Redis logical db 9, GBP/mail sandbox stubs as processes, production web+worker builds (NODE_ENV=production, deterministic non-placeholder sha256 secrets — passes the 7.6 boot guard), hermetic boot (dotenv neutralized), readiness gates, PID state file, idempotent up, cleanup-on-failure, SIGTERM→SIGKILL teardown (worker first). 32 unit tests + the live boot as the integration smoke. (2) EXECUTORS: singlePropertyBurst (100/s hot + 20/s background; fairness via bounded queue depth), reconnect (outage window → catch-up drain vs SLO), fleetDispatch (dispatch rate + LABELED projection, never measured-window), dashboardCold (in-process container reset — required making registerAllEventSchemas idempotent, registry probe, duplicate-guard intact), replyBurst (real publication path: run-scoped connection + GBP stub, publish→terminal p95 vs ADR 0038 10s; fails closed without the seam). Collector seam: redis-cli INFO when present; DB CPU/locks stated not-collected in every record (platform surface). (3) EXECUTIONS (cell, dataset 100 orgs/5000 properties/500000 reviews seed perf-scale-v1 hash 5501350a, verify 7/7): steady 300s @20/s achieved 20.0/s PASS; burst 6000 unique/6000 PASS; singlePropertyBurst max waiting 6946 vs 10k PASS; reconnect catch-up drain 220s vs 600s PASS; fleetDispatch 45210/s dispatch, PROJECTION labeled PASS; dashboardMix p95 3.4ms vs 500ms PASS; dashboardCold p95 4.7ms vs 2000ms PASS; replyBurst 25/25 terminal, publish→terminal p95 4833ms vs 10000ms PASS; drain scale-down/up variant (worker stopped, backlog 500, restarted mid-run) 94.8s vs 600s PASS. Pack docs/release-evidence/beta/bqc8-local-candidate/ (9 executed PASS rows; retention/reconciliation + 12 faults honestly not-executed) + NOTES.md fidelity contract: synthetic orgs have no provider connections — arrival jobs fail fast at connection lookup and exercise the dispatch/retry path (measured), NOT provider ingest (registered gap for the staging acceptance run; dashboard + reply paths are full-fidelity). Harness fixes proven by the run: registerAllEventSchemas idempotent; reply-seam text[]/uuid[] binds via Postgres array literals (sql templates expand JS arrays to records); perf:cell pnpm `--` separator handling. Machine: no instability during the 500k runs. Teardown clean (0 leftover processes, DB kept). Local gates: unit 423f/4687t, integration 59f/338t, lint/typecheck/format clean, coverage floors held, fallow exit 0."
+    },
+    {
+      "id": "BQC-8.8",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Immutable release bundle",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The release-bundle validator requires non-template artifacts, a single release/config/policy identity, the deterministic target-scale dataset, completed required gates, accepted P0/P1 findings, named approvals after final evidence, and accessible referenced files. It rejects pending, failed, and mixed-identity evidence; final bundle population and review remain pending."
+    },
+    {
+      "id": "BQC-8.7",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Security and privacy release gates",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The release-bundle contract binds security/privacy evidence to the candidate identity and rejects absent, pending, or mismatched policy artifacts. Scans and protected-canary checks against the final target artifact remain pending."
+    },
+    {
+      "id": "BQC-8.6",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Backup, restore, rollback, and forward recovery",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The isolated restore preflight and verification commands refuse live/shared targets, record retention evidence, and prove expired source content is purged before restored traffic can serve. Target-environment PITR, rollback, forward-recovery, and RPO/RTO measurements remain pending."
+    },
+    {
+      "id": "BQC-8.5",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Region fault matrix",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "Every catalogued region fault is registered through the fail-closed external fault-controller contract; the scenario runner rejects missing, malformed, or mismatched controller summaries. Target-cell no-fallback, tampered-job, and denied-region execution remain pending."
+    },
+    {
+      "id": "BQC-8.4",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Durable runtime fault matrix",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "All 12 catalogued runtime faults have executable dispatch through `BQC8_FAULT_RUNNER`; the CLI validates the controller response and the runner records a failing result when the controller is absent or invalid. Controlled target-environment crash, duplicate, poison, outage, and redrive execution remains pending."
+    },
+    {
+      "id": "BQC-8.3",
+      "kind": "slice",
+      "parentId": "BQC-8",
+      "title": "Source lifecycle at scale",
+      "state": "implementation_complete",
+      "owner": "engineering",
+      "requiredEvidenceIds": [],
+      "openFindings": [],
+      "exceptions": [],
+      "notes": "The retention scenario drives the production lifecycle seam and records expiry counts, bounded purge, canary disappearance, and retention bounds. The GBP stub supports validated per-account/per-location fetch-failure scripting and rejects malformed commands without changing scope state. Target-scale lifecycle, throttle, and retention execution remains pending."
     },
     {
       "id": "BQC-8.1",
@@ -1117,14 +1222,19 @@
     {
       "id": "BQC-9",
       "kind": "phase",
-      "title": "Controlled pilot and AI-readiness handoff",
-      "state": "blocked",
+      "title": "Local product acceptance and operations handoff",
+      "state": "evidence_pending",
       "owner": "product",
-      "requiredEvidenceIds": [],
+      "requiredEvidenceIds": [
+        "beta-local-1-manifest",
+        "product-journeys",
+        "beta-local-1-approvals"
+      ],
+      "evidenceEnvironment": "local production-profile Docker",
+      "releaseIdentity": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c/6ae52200cfcecac772493e1a3af419b1d2a4140225536aa2d1b33ac263b0953f",
       "openFindings": [],
       "exceptions": [],
-      "blockedDependency": "BQC-0 through BQC-8 accepted + human pilot authorization",
-      "nextReviewDate": "2026-09-01"
+      "notes": "All 18 promoted browser product journeys passed for the final beta-local-1 candidate, including P1 success, P2/P3 and cross-property denial, durable Portal/Team/Goal/Recognition/Settings workflows, and bounded Dashboard states. The candidate remains evidence_pending until engineering/runtime, product/property, security/privacy, Google-project/integration-sandbox, and operations/on-call approvals bind the manifest digest."
     }
   ]
 }

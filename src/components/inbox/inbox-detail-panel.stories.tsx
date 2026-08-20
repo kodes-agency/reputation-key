@@ -101,11 +101,13 @@ export const Populated: Story = {
       detail: {
         item,
         reviewText: 'Great location and very clean rooms.',
+        reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: 'available',
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,
+        analysis: null,
       },
       notes: [],
     }),

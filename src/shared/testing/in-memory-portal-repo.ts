@@ -64,14 +64,8 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
       store.set(id, { ...existing, deletedAt: new Date(), updatedAt: new Date() })
     },
 
-    getPortalQrInfo: async (orgId, id) => {
-      const portal = store.get(id)
-      if (!portal || !isAccessible(orgId, portal)) return null
-      return { slug: portal.slug, propertySlug: 'test-property' }
-    },
-
     resolvePortalContext: async (_portalIdParam) => null,
-    findPublicPortalBySlug: async (_propertySlug, _portalSlug) => null,
+    findPublicPortalById: async (_orgId, _portalId) => null,
     findGroupIdsByPortalIds: async (_orgId, _portalIds) => [],
 
     // ── Test-only helpers ───────────────────────────────────────────

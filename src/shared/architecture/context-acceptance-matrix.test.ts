@@ -160,8 +160,8 @@ const REUSED_PINS: Readonly<Record<string, string>> = {
  * (stale entries fail too — the rerun rule).
  */
 export const PROPERTY_TABLE_WATCH_REGISTER: Readonly<Record<string, string>> = {
-  'src/contexts/portal/infrastructure/repositories/portal.repository.ts':
-    'WATCH (owner Property): dark-context direct properties-table read bypassing property public-api',
+  'src/contexts/team/infrastructure/repositories/reconcile-people-team.repository.ts':
+    'WATCH (owner Property): bounded people/team migration reconciliation reads property ownership directly',
   'src/contexts/badge/infrastructure/repositories/badge.repository.ts':
     'WATCH (owner Property): dark-context direct properties-table read bypassing property public-api',
   'src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts':
@@ -326,22 +326,22 @@ describe('row 10 — Staff (enabled/limited): participation interface carries no
   })
 })
 
-describe('row 11 — Team (dark): no enabled-context coupling; no active jobs/events', () => {
-  it('team.use remains a declared dark capability', () => {
+describe('row 11 — Team (controlled beta): scoped authorization and persisted cohort policy', () => {
+  it('team.use remains a declared controlled-beta capability', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(`'team.use'`)
   })
 })
 
-describe('row 12 — Portal (dark): independent read/write/upload policy; public edge denied', () => {
-  it('portal.read/write/upload remain declared dark capabilities', () => {
+describe('row 12 — Portal (controlled beta): independent scoped edge capabilities', () => {
+  it('Portal edge capabilities remain declared', () => {
     const caps = strippedSource('src/shared/auth/beta-capabilities.ts')
     for (const cap of ['portal.read', 'portal.write', 'portal.upload']) {
-      expect(caps, `missing dark capability '${cap}'`).toContain(`'${cap}'`)
+      expect(caps, `missing Portal capability '${cap}'`).toContain(`'${cap}'`)
     }
   })
 })
 
-describe('row 13 — Guest (dark): no Portal error dependency; denied while portal.read is dark', () => {
+describe('row 13 — Guest (controlled beta): no Portal error dependency', () => {
   it('guest production sources reference no Portal error surface', () => {
     const offenders = offendersMatching(
       /\bPortalError\b|\bisPortalError\b/,
@@ -353,25 +353,28 @@ describe('row 13 — Guest (dark): no Portal error dependency; denied while port
   })
 })
 
-describe('row 14 — Goal (dark): split build; injected clock; no active schedules/events', () => {
-  // Documented exception: goal.repository.ts:98 default clock (see header).
-  it('goal.use remains a declared dark capability and the worker gates its schedules', () => {
+describe('row 14 — Goal (controlled beta): governed jobs stay registered and gated', () => {
+  it('goal.use remains declared and gates the governed Goal job family', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(`'goal.use'`)
-    expect(strippedSource('src/worker/index.ts')).toContain(`capability: 'goal.use'`)
+    expect(strippedSource('src/shared/governance/event-job-catalogue.ts')).toContain(
+      `capability: 'goal.use'`,
+    )
   })
 })
 
-describe('row 15 — Badge (dark): deterministic evaluation; no active awards/workers/events', () => {
-  it('badge.use remains a declared dark capability and the worker gates its schedules', () => {
+describe('row 15 — Badge (controlled beta): governed evaluation and gated jobs', () => {
+  it('badge.use remains declared and gates the governed Badge job family', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(
       `'badge.use'`,
     )
-    expect(strippedSource('src/worker/index.ts')).toContain(`capability: 'badge.use'`)
+    expect(strippedSource('src/shared/governance/event-job-catalogue.ts')).toContain(
+      `capability: 'badge.use'`,
+    )
   })
 })
 
-describe('row 16 — Leaderboard (dark): no active recompute/read/export; interface isolated', () => {
-  it('leaderboard.use remains a declared dark capability and the worker gates its schedules', () => {
+describe('row 16 — Leaderboard (controlled beta): bounded recompute and gated reads', () => {
+  it('leaderboard.use remains declared and gates its recurring reconciliation', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(
       `'leaderboard.use'`,
     )
@@ -381,28 +384,46 @@ describe('row 16 — Leaderboard (dark): no active recompute/read/export; interf
   })
 })
 
-describe('row 17 — AI (dark): no implementation; only approved governance interfaces', () => {
-  it('src/contexts/ai does not exist', () => {
-    expect(existsSync(join(ROOT, 'src', 'contexts', 'ai'))).toBe(false)
+describe('row 17 — AI (private-beta foundation): closed policy and durable operation seams', () => {
+  it('owns a pure closed policy and strict runtime binding parser', () => {
+    const rules = strippedSource('src/contexts/ai/domain/rules.ts')
+    expect(rules).toContain('parseAiPrivateBetaPolicy')
+    expect(rules).toContain('parseAiExecutionBinding')
+    expect(rules).toContain('parseAiCanaryExecutionBinding')
   })
 
-  it('package.json carries no AI provider SDK dependency', () => {
+  it('pins the provider SDK to the separately isolated AI gateway slice', () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')) as {
       dependencies?: Record<string, string>
       devDependencies?: Record<string, string>
     }
-    const AI_SDK =
-      /openai|anthropic|langchain|@google-ai|@aws-sdk\/client-bedrock|cohere|mistral/i
-    const offenders = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(
-      (d) => AI_SDK.test(d),
-    )
+    expect(pkg.dependencies?.openai).toBe('7.4.0')
+    const OTHER_AI_SDK =
+      /anthropic|langchain|@google-ai|@aws-sdk\/client-bedrock|cohere|mistral/i
+    const unexpectedDependencies = Object.keys({
+      ...pkg.dependencies,
+      ...pkg.devDependencies,
+    }).filter((dependency) => OTHER_AI_SDK.test(dependency))
+    expect(unexpectedDependencies).toEqual([])
+
+    const productionSources = [
+      ...walkSource(join(ROOT, 'src')),
+      ...walkSource(join(ROOT, 'services')),
+    ]
+    const openAiImport =
+      /(?:from|import\()\s*['"]openai(?:\/[^'"]*)?['"]|require\(['"]openai/u
+    const wrongOwners = productionSources
+      .filter((file) => openAiImport.test(stripComments(readFileSync(file, 'utf-8'))))
+      .map(rel)
+      .filter((file) => !file.startsWith('services/ai-egress-gateway/'))
     expect(
-      offenders,
-      'AI provider SDKs must not land while AI is dark:\n' + offenders,
+      wrongOwners,
+      'openai@7.4.0 imports belong exclusively to services/ai-egress-gateway:\n' +
+        wrongOwners.join('\n'),
     ).toEqual([])
   })
 
-  it('the approved governance surface stays declared (ai.* capabilities exist, dark)', () => {
+  it('retains the approved governance capability surface', () => {
     const caps = strippedSource('src/shared/auth/beta-capabilities.ts')
     for (const cap of ['ai.analyze', 'ai.generate_reply', 'ai.detect_trends']) {
       expect(caps, `missing governance capability '${cap}'`).toContain(`'${cap}'`)

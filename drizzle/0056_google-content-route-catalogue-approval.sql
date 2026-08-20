@@ -1,0 +1,22 @@
+-- Bind GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION to the compliance approval.
+--
+-- The route catalogue fixes the Performance route URL, the wire dailyMetrics
+-- set, the dailyRange encoding, page size and the response cap. Before this
+-- column it was only compared for cross-service consistency, so live permits
+-- under the SAME approved bindings already carried '2026-08-05' and
+-- '2026-08-16' — proving the catalogue moved without re-approval.
+--
+-- Existing rows are backfilled with a sentinel that can never equal a real
+-- catalogue version, so every pre-existing approval FAILS CLOSED: approval
+-- parsing pins this column to the compiled constant, the row no longer
+-- resolves, and the capability denies `approval_unavailable` until an operator
+-- installs a re-approved bundle via `pnpm ops:google-content-approval`. This is
+-- deliberate: silently backfilling the current version would retroactively
+-- approve the exact drift this column exists to stop.
+-- `capability_compliance_approvals` is append-only (an UPDATE trigger raises
+-- 'capability compliance approvals are append-only'), so the backfill is a
+-- column DEFAULT rather than an UPDATE: adding a column with a default is a
+-- catalogue/rewrite operation and never fires the row trigger. The default is
+-- then dropped so future inserts must state the version explicitly.
+ALTER TABLE "capability_compliance_approvals" ADD COLUMN "route_catalog_version" varchar(64) NOT NULL DEFAULT 'unapproved-pre-0056';--> statement-breakpoint
+ALTER TABLE "capability_compliance_approvals" ALTER COLUMN "route_catalog_version" DROP DEFAULT;

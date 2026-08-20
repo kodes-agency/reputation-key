@@ -103,6 +103,19 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
     expect(token).toBe('refreshed-access-token')
   })
 
+  it('forces one provider refresh after a 401 even when the stored access token is fresh', async () => {
+    const { provider, conn, refreshCalls } = setup()
+
+    const token = await provider.forceRefreshAccessToken(
+      ORG_ID,
+      conn.id as string,
+      conn.credentialGeneration,
+    )
+
+    expect(refreshCalls()).toEqual([{ orgId: ORG_ID, connectionId: conn.id }])
+    expect(token).toBe('refreshed-access-token')
+  })
+
   it('rejects when the connection does not exist', async () => {
     const { provider } = setup()
 
@@ -123,4 +136,17 @@ describe('ActiveConnectionTokenProvider.getAccessToken', () => {
         (e as { code: string }).code === 'connection_disconnected',
     )
   })
+
+  it.each(['cleanup_only', 'none'] as const)(
+    'never decrypts or refreshes credentials in %s use state',
+    async (credentialUseState) => {
+      const { provider, conn, refreshCalls } = setup({ credentialUseState })
+
+      await expect(provider.getAccessToken(ORG_ID, conn.id as string)).rejects.toSatisfy(
+        (error: unknown) =>
+          isIntegrationError(error) && error.code === 'connection_disconnected',
+      )
+      expect(refreshCalls()).toHaveLength(0)
+    },
+  )
 })

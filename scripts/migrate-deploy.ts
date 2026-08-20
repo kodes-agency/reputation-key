@@ -7,11 +7,15 @@
 //   1. Better Auth track — getMigrations() from better-auth (the same code
 //      `pnpm auth:migrate` wraps; the CLI only adds an interactive prompt).
 //      Idempotent: creates only missing tables/columns.
-//   2. Drizzle journal track — drizzle-orm's node-postgres migrator over
-//      drizzle/ (the same engine `pnpm db:migrate` / drizzle-kit wraps; same
-//      journal format, same drizzle.__drizzle_migrations bookkeeping).
-//      Idempotent: applied journal entries are skipped.
-//   3. Registered deploy sidecar — scripts/migrations/
+//   2. Staged Drizzle journal track — apply through immutable migration 0033,
+//      commit, autocommit cleanup_required, then apply 0034 onward. PostgreSQL
+//      forbids using a new enum label in the transaction that added it.
+//      `pnpm db:migrate` uses the same staged runner and journal bookkeeping.
+//      Idempotent: applied journal entries and the enum label are skipped.
+//   3. Google Property binding unique-index sidecar — duplicate-audited,
+//      advisory-locked CREATE UNIQUE INDEX CONCURRENTLY outside Drizzle's
+//      transactions.
+//   4. Registered deploy SQL sidecar — scripts/migrations/
 //      2026-07-06-permission-version-triggers.sql (idempotent by design;
 //      plain SQL, no psql meta-commands, applied in-process via pg — the
 //      same mechanism as src/shared/testing/test-db-setup.ts).
@@ -48,7 +52,9 @@ import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { migrate } from 'drizzle-orm/node-postgres/migrator'
+import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
+import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migrator'
+import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -126,13 +132,28 @@ async function main(): Promise<void> {
       await authMigrations.runMigrations()
       log('auth track applied')
 
-      // 2. Drizzle journal track
-      await migrate(drizzle(client), { migrationsFolder: MIGRATIONS_FOLDER })
-      log('drizzle track applied')
+      // 2. Apply through 0033, commit the enum prerequisite, then apply the
+      // remaining Drizzle journal entries.
+      const stagedMigration = await runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)
+      log('staged drizzle track applied', stagedMigration)
 
-      // 3. Registered deploy sidecar
+      // 3. Autocommit-only Google Property binding index gate
+      const googlePropertyBindingIndex = await buildGooglePropertyBindingIndex(client)
+      log('google property binding index', googlePropertyBindingIndex)
+      if (!googlePropertyBindingIndex.ok) {
+        throw new Error(
+          `Google Property binding index denied: ${googlePropertyBindingIndex.code}`,
+        )
+      }
+
+      // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
+      await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
+        db: drizzle(client),
+        env: process.env,
+      })
+      log('review provider subject key inventory initialized')
 
       // Verify the deploy migration state (self-maintaining expectations —
       // the journal file on disk is the reference, not a hardcoded count).
@@ -143,22 +164,30 @@ async function main(): Promise<void> {
           (SELECT EXISTS (SELECT 1 FROM information_schema.tables
             WHERE table_schema = 'public' AND table_name = 'user')) AS has_auth,
           (SELECT EXISTS (SELECT 1 FROM pg_proc
-            WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar
+            WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar,
+          (SELECT count(*) = 1
+            FROM review_provider_subject_hmac_key_versions
+            WHERE state = 'active') AS has_provider_subject_key
       `)
       const journal = await readJournalState(client)
       const row = state.rows[0] as {
         table_count: number
         has_auth: boolean
         has_sidecar: boolean
+        has_provider_subject_key: boolean
       }
       const complete =
-        row.has_auth && row.has_sidecar && journal.applied === expectedJournalCount()
+        row.has_auth &&
+        row.has_sidecar &&
+        row.has_provider_subject_key &&
+        journal.applied === expectedJournalCount()
       log('migration state', {
         tableCount: row.table_count,
         journalApplied: journal.applied,
         journalExpected: expectedJournalCount(),
         hasAuthTables: row.has_auth,
         hasSidecar: row.has_sidecar,
+        hasProviderSubjectKey: row.has_provider_subject_key,
       })
       if (!complete) {
         throw new Error(

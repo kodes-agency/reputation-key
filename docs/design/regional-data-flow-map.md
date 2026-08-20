@@ -26,7 +26,7 @@ Beta has ONE approved processing cell (`us`). "Cell DB" below is the single prod
 | d1  | Object storage            | Portal upload images (`process-image`)                                                  | S3-compatible bucket (single cell)                                       | **Content (dark)**                          | `portal.upload` / `portal.write` are BLOCKED capabilities (ADR 0032) — the capability gate denies writes; documented as denied, not merely unused                                                                    |
 | e1  | Structured logs / traces  | pino log lines, trace spans                                                             | Process stdout / trace exporter                                          | **Content-free**                            | Sanitization points: quarantine `failedReason` cap; `google-review-api` logs status + `bodyBytes` only (never upstream body); fixed client-facing error messages (cc-errors §13); protected-field registry           |
 | e2  | Backups                   | DB snapshots                                                                            | Inherited from the cell DB (cell-local for beta)                         | **Content (cell-local)**                    | Inherits the cell DB boundary; purge-ledger/erasure behavior for restores is an ADR 0031 follow-up (PRE17), not beta scope                                                                                           |
-| e3  | AI calls                  | None                                                                                    | —                                                                        | **Dark**                                    | No AI provider code paths active; `ai.*` capabilities non-core/blocked (ADR 0032); Phase 17 requires ADR 0031 controls first                                                                                         |
+| e3  | AI calls                  | None                                                                                    | —                                                                        | **Dark**                                    | No AI provider code path is active or approved. The only candidate is `openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`; all hard gates remain unproved and the release index denies every AI stage.              |
 | e4  | Provider endpoints        | Google/GBP API base URLs used by adapters                                               | Composition root only                                                    | Configuration                               | `providerConfigFor(ref)` mapping in `composition.ts`; `ProcessingTarget.provider` logical ref (`gbp-default`); adapters receive base URLs via construction config — architecture test proves URLs exist nowhere else |
 
 ## Activity log verdict (b5) — honest state
@@ -56,6 +56,34 @@ The architecture guard allows exactly two `googleapis.com` references outside th
 
 1. **OAuth scope identifiers** (`https://www.googleapis.com/auth/…`) in `get-google-auth-url.ts` — permission-grant names sent to the consent screen, not API endpoints.
 2. **JWKS URI** (`https://www.googleapis.com/oauth2/v3/certs`) in `src/shared/auth/pubsub-jwt.verifier.ts` — INBOUND Pub/Sub webhook signature verification. The shared zone cannot import the composition root (zone boundary), so it cannot take the mapping; it verifies Google-signed pushes, it never executes provider calls.
+
+## Planned AI path — denied until staged approval
+
+The following is a target contract, not a current flow:
+
+```text
+Review-owned atomic source read
+  -> local structured-identity stripping + gbp-review-en-v1 redaction
+  -> AI egress gateway (US cell, content-bearing, ephemeral)
+  -> AI execution admission (content-free permit only)
+  -> us.api.openai.com/v1/responses (exact approved US ZDR project)
+  -> strict normalized DTO
+  -> AI derivative store (US cell, no raw/reversible content)
+```
+
+The web and worker may reach only the future gateway over the AI mTLS trust
+domain. The gateway alone may reach the fixed OpenAI host and content-free
+admission service; it must have no DB, Redis, Google, generic URL, or fallback
+route. Admission may read only least-privilege AI control state and
+content-free quota/circuit data and must have no provider route. Jobs, events,
+Redis, telemetry, quarantine, and evidence remain content-free.
+
+This path cannot support a residency claim until the exact provider
+project/ZDR configuration, support/subprocessor/metadata/backup/failover
+locations, contract/transfer basis, and target network controls are proved and
+approved. See the
+[exact provider assessment](../product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
+and [AI release-evidence index](../product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md).
 
 ## Evidence
 

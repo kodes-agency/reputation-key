@@ -20,6 +20,7 @@ import type { ReviewSourceLookupPort } from './application/ports/review-source-l
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
+import type { AiReviewInsightsPort } from './application/ports/ai-review-insights.port'
 import type {
   FeedbackLookupSource,
   PropertyLookupSource,
@@ -60,6 +61,7 @@ export type InboxContextBuildInput = Readonly<{
   /** BQC-1.4: review.publicApi IS the governed read interface — it satisfies
    * the inbox ReviewLookupPort directly (single rule, one owner). */
   reviewLookup: ReviewLookupPort
+  aiInsights?: AiReviewInsightsPort
   /**
    * BQC-5.2: foreign-owned read pieces the inbox build adapts into its lookup
    * ports (guest feedback/rating reads, property names, review reply/metadata
@@ -135,6 +137,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     reviewLookup: input.reviewLookup,
     feedbackLookup,
     propertyLookup,
+    aiInsights: input.aiInsights,
   })
   const inboxNoteRepo = createInboxNoteRepository(input.db)
   const inboxViewRepo = createInboxViewRepository(input.db)
@@ -152,6 +155,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     reviewSourceLookup,
     replyLookup,
     staffPublicApi: input.staffPublicApi,
+    aiInsights: input.aiInsights,
     logger: input.logger,
     clock: input.clock,
   })

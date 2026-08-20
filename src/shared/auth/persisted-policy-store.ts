@@ -40,6 +40,10 @@ export type PropertyCapabilityRecord = Readonly<{
 export type PolicySnapshot = Readonly<{
   /** Global policy_version at load time. -1 marks an env seed (always stale). */
   version: number
+  /** Monotonic version of persisted emergency-kill mutations. */
+  emergencyKillVersion: number
+  /** Persisted capability kills; these beat every tenant allowlist. */
+  killedCapabilities: ReadonlyArray<string>
   orgPolicies: ReadonlyArray<OrgPolicyRecord>
   orgCapabilities: ReadonlyArray<OrgCapabilityRecord>
   propertyPolicies: ReadonlyArray<PropertyPolicyRecord>
@@ -51,7 +55,14 @@ export type PolicySnapshot = Readonly<{
 }>
 
 export type PolicySnapshotLoader = () => Promise<PolicySnapshot>
-export type PolicyVersionLoader = () => Promise<number>
+export type PolicyControlVersion = Readonly<{
+  version: number
+  emergencyKillVersion: number
+}>
+export type PolicyControlVersionLoader = () => Promise<PolicyControlVersion>
+export type RequiredPolicyRefreshResult =
+  | PolicyControlVersion
+  | Readonly<{ unavailable: true }>
 
 // ── Env seed (bootstrap parity for the web process) ──────────────────
 
@@ -68,6 +79,8 @@ export function snapshotFromEnv(env: CapabilityPolicyEnv): PolicySnapshot {
       .filter(Boolean)
   return {
     version: -1,
+    emergencyKillVersion: 0,
+    killedCapabilities: [],
     orgPolicies: split(env.BETA_SUSPENDED_ORGS).map((organizationId) => ({
       organizationId,
       cohort: 'beta',
@@ -86,7 +99,7 @@ export function snapshotFromEnv(env: CapabilityPolicyEnv): PolicySnapshot {
 
 export type PersistedPolicyStoreDeps = Readonly<{
   loadSnapshot: PolicySnapshotLoader
-  loadVersion: PolicyVersionLoader
+  loadControlVersion: PolicyControlVersionLoader
   /** Env seed (snapshotFromEnv) — bootstrap parity + permanent union. */
   initialSnapshot?: PolicySnapshot
   onRefreshError?: (err: unknown) => void
@@ -94,11 +107,14 @@ export type PersistedPolicyStoreDeps = Readonly<{
 
 export type PersistedPolicyStore = CapabilityPolicyStore &
   Readonly<{
-    /** Version-gated reload. Never throws — keeps the previous snapshot. */
+    /** Version-gated best-effort reload for passive reads and polling. */
     refresh(): Promise<void>
+    /** Mandatory provider/effect refresh. Failure is explicit and never authorizes from cache. */
+    refreshRequired(): Promise<RequiredPolicyRefreshResult>
     /** Loaded DB version; null when nothing (not even a seed) is present. */
     currentVersion(): number | null
-    /** Poll loadVersion every intervalMs; returns a stop function. */
+    currentEmergencyKillVersion(): number | null
+    /** Poll control generations every intervalMs; returns a stop function. */
     startPolling(intervalMs: number): () => void
   }>
 
@@ -116,12 +132,36 @@ export function createPersistedPolicyStore(
   const seedSuspendedProperties = new Set(
     (seed?.propertyPolicies ?? []).filter((p) => p.suspendedAt).map((p) => p.propertyId),
   )
+  const refreshAuthoritative = async (): Promise<RequiredPolicyRefreshResult> => {
+    try {
+      const control = await deps.loadControlVersion()
+      if (
+        !current ||
+        control.version !== current.version ||
+        control.emergencyKillVersion !== current.emergencyKillVersion
+      ) {
+        const next = await deps.loadSnapshot()
+        if (
+          next.version !== control.version ||
+          next.emergencyKillVersion !== control.emergencyKillVersion
+        ) {
+          throw new Error('policy snapshot generation mismatch')
+        }
+        current = next
+      }
+      return control
+    } catch (err) {
+      deps.onRefreshError?.(err)
+      return { unavailable: true }
+    }
+  }
 
   const store: PersistedPolicyStore = {
     // Never installed unwrapped in production — the composite supplies global
     // posture from env. Denying here keeps accidental standalone use loud
     // (fail-closed) rather than a silent kill-switch bypass.
     isCapabilityGloballyEnabled: () => false,
+    isCapabilityKilled: (cap) => current?.killedCapabilities.includes(cap) ?? false,
 
     isOrgAllowlisted: (orgId, cap) => {
       // Core capabilities don't need allowlisting (env-store parity);
@@ -165,16 +205,15 @@ export function createPersistedPolicyStore(
     },
 
     async refresh() {
-      try {
-        const version = await deps.loadVersion()
-        if (current && version === current.version) return
-        current = await deps.loadSnapshot()
-      } catch (err) {
-        deps.onRefreshError?.(err)
-      }
+      await refreshAuthoritative()
+    },
+
+    async refreshRequired() {
+      return refreshAuthoritative()
     },
 
     currentVersion: () => current?.version ?? null,
+    currentEmergencyKillVersion: () => current?.emergencyKillVersion ?? null,
 
     startPolling(intervalMs) {
       const timer = setInterval(() => void store.refresh(), intervalMs)
@@ -200,6 +239,9 @@ export function createCompositePolicyStore(deps: {
   return {
     isCapabilityGloballyEnabled: (cap) =>
       deps.globalStore.isCapabilityGloballyEnabled(cap),
+    isCapabilityKilled: (cap) =>
+      (deps.globalStore.isCapabilityKilled?.(cap) ?? false) ||
+      (deps.tenantStore.isCapabilityKilled?.(cap) ?? false),
     isOrgAllowlisted: (orgId, cap) => deps.tenantStore.isOrgAllowlisted(orgId, cap),
     isPropertyAllowlisted: (propertyId, cap) =>
       deps.tenantStore.isPropertyAllowlisted(propertyId, cap),

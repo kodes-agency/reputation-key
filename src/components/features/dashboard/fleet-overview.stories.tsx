@@ -52,6 +52,10 @@ export const Default: Story = {
     expect(canvas.getByText('Harborline Suites')).toBeVisible()
     expect(canvas.getByText('All clear')).toBeVisible()
     expect(canvas.getByText('17 needing action')).toBeVisible()
+    expect(canvas.getByText('6 scans')).toBeVisible()
+    expect(canvas.getByText('48 responses')).toBeVisible()
+    expect(canvas.getAllByText('Reviews fresh')).toHaveLength(3)
+    expect(canvas.getByText('Reviews insufficient data')).toBeVisible()
   },
 }
 
@@ -65,6 +69,7 @@ export const MinimumFleet: Story = {
         totalAttention: 8 + 17,
         overallAvgRating: (4.2 + 3.4) / 2,
       },
+      nextCursor: null,
     },
   },
 }
@@ -75,6 +80,7 @@ export const AllClear: Story = {
     data: {
       entries: [entries[2]],
       totals: { propertyCount: 1, totalAttention: 0, overallAvgRating: 4.7 },
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -101,6 +107,7 @@ export const LongPropertyName: Story = {
         },
       ],
       totals: { propertyCount: 1, totalAttention: 8, overallAvgRating: 4.2 },
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -110,13 +117,13 @@ export const LongPropertyName: Story = {
   },
 }
 
-// Empty state — org has no properties yet (CTA: Create Property).
+// Empty state — org has no properties yet (CTA: Import property).
 export const Empty: Story = {
   render: () => <FleetOverviewEmpty />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { name: /no properties yet/i })).toBeVisible()
-    expect(canvas.getByRole('link', { name: /create property/i })).toBeVisible()
+    expect(canvas.getByRole('link', { name: /import property/i })).toBeVisible()
   },
 }
 

@@ -11,12 +11,19 @@ import {
   buildTestPortalLinkCategory,
   buildTestPortalLink,
 } from '#/shared/testing/fixtures'
-import { organizationId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalLinkCategoryId,
+  portalLinkId,
+  propertyId,
+} from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 
 const ORG_A = organizationId('org-cccccccccccc')
 const ORG_B = organizationId('org-dddddddddddd')
+const PROPERTY_A = propertyId('ca000000-0000-4000-8000-000000000001')
+const PROPERTY_B = propertyId('cb000000-0000-4000-8000-000000000001')
 
 let pool: Pool
 
@@ -47,6 +54,20 @@ async function seedOrg(pool: Pool, ids: string[]) {
   }
 }
 
+async function seedProperties(pool: Pool) {
+  for (const [id, orgId, slug] of [
+    [PROPERTY_A, ORG_A, 'portal-link-a'],
+    [PROPERTY_B, ORG_B, 'portal-link-b'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO properties (id, organization_id, name, slug, timezone)
+       VALUES ($1, $2, $3, $3, 'UTC')
+       ON CONFLICT (id) DO UPDATE SET organization_id = EXCLUDED.organization_id`,
+      [id, orgId, slug],
+    )
+  }
+}
+
 beforeAll(async () => {
   const env = getEnv()
   pool = new Pool({ connectionString: env.DATABASE_URL, max: 5 })
@@ -61,6 +82,7 @@ afterAll(async () => {
 beforeEach(async () => {
   await truncateAll(pool)
   await seedOrg(pool, [ORG_A, ORG_B])
+  await seedProperties(pool)
 })
 
 describe('portalLinkRepository (integration)', () => {
@@ -69,6 +91,7 @@ describe('portalLinkRepository (integration)', () => {
     const portal = buildTestPortal({
       id: crypto.randomUUID(),
       organizationId: orgId,
+      propertyId: orgId === ORG_A ? PROPERTY_A : PROPERTY_B,
       slug,
       ...overrides,
     })
@@ -141,7 +164,7 @@ describe('portalLinkRepository (integration)', () => {
         sortKey: 'a0',
       })
       await repo.insertCategory(ORG_A, cat)
-      await repo.updateCategory(ORG_A, cat.id, { title: 'New Title' })
+      await repo.updateCategory(ORG_A, portal.id, cat.id, { title: 'New Title' })
 
       const found = await repo.findCategoryById(ORG_A, cat.id)
       expect(found?.title).toBe('New Title')
@@ -160,7 +183,7 @@ describe('portalLinkRepository (integration)', () => {
         sortKey: 'a0',
       })
       await repo.insertCategory(ORG_A, cat)
-      await repo.deleteCategory(ORG_A, cat.id)
+      await repo.deleteCategory(ORG_A, portal.id, cat.id)
 
       const found = await repo.findCategoryById(ORG_A, cat.id)
       expect(found).toBeNull()
@@ -188,7 +211,7 @@ describe('portalLinkRepository (integration)', () => {
       await repo.insertCategory(ORG_A, cat1)
       await repo.insertCategory(ORG_A, cat2)
 
-      await repo.reorderCategories(ORG_A, [
+      await repo.reorderCategories(ORG_A, portal.id, [
         { id: cat1.id, sortKey: 'b0' },
         { id: cat2.id, sortKey: 'a0' },
       ])
@@ -234,7 +257,7 @@ describe('portalLinkRepository (integration)', () => {
       })
       await repo.insertLink(ORG_A, link)
 
-      const links = await repo.listLinks(ORG_A, cat.id)
+      const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links).toHaveLength(1)
       expect(links[0].label).toBe('Booking')
     })
@@ -266,7 +289,7 @@ describe('portalLinkRepository (integration)', () => {
       await repo.insertLink(ORG_A, linkA)
       await repo.insertLink(ORG_B, linkB)
 
-      const orgALinks = await repo.listLinks(ORG_A, catA.id)
+      const orgALinks = await repo.listLinks(ORG_A, portalA.id, catA.id)
       expect(orgALinks).toHaveLength(1)
       expect(orgALinks[0].label).toBe('Link A')
     })
@@ -287,7 +310,7 @@ describe('portalLinkRepository (integration)', () => {
         sortKey: 'a0',
       })
       await repo.insertLink(ORG_A, link)
-      await repo.updateLink(ORG_A, link.id, {
+      await repo.updateLink(ORG_A, portal.id, link.id, {
         label: 'New Label',
         url: 'https://new.example.com',
       })
@@ -312,7 +335,7 @@ describe('portalLinkRepository (integration)', () => {
         sortKey: 'a0',
       })
       await repo.insertLink(ORG_A, link)
-      await repo.deleteLink(ORG_A, link.id)
+      await repo.deleteLink(ORG_A, portal.id, link.id)
 
       const found = await repo.findLinkById(ORG_A, link.id)
       expect(found).toBeNull()
@@ -343,12 +366,12 @@ describe('portalLinkRepository (integration)', () => {
       await repo.insertLink(ORG_A, link1)
       await repo.insertLink(ORG_A, link2)
 
-      await repo.reorderLinks(ORG_A, [
+      await repo.reorderLinks(ORG_A, portal.id, cat.id, [
         { id: link1.id, sortKey: 'b0' },
         { id: link2.id, sortKey: 'a0' },
       ])
 
-      const links = await repo.listLinks(ORG_A, cat.id)
+      const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links[0].sortKey).toBe('a0')
       expect(links[1].sortKey).toBe('b0')
     })

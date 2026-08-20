@@ -1,8 +1,11 @@
 // Tests for security headers (B0.7).
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { getSecurityHeaders, applySecurityHeaders } from './security-headers'
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 describe('getSecurityHeaders', () => {
   it('returns restrictive CSP', () => {
     const headers = getSecurityHeaders({ isProduction: false })
@@ -11,6 +14,47 @@ describe('getSecurityHeaders', () => {
     expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).toContain("base-uri 'self'")
     expect(csp).toContain("form-action 'self'")
+  })
+
+  it('authorizes a per-response script nonce and the declared font origins', () => {
+    const csp = getSecurityHeaders({
+      isProduction: false,
+      cspNonce: 'bqc-csp-nonce',
+    })['Content-Security-Policy']
+
+    expect(csp).toContain("script-src 'self' 'nonce-bqc-csp-nonce'")
+    expect(csp).toContain(
+      "style-src 'self' 'unsafe-inline' https://api.fontshare.com https://fonts.googleapis.com",
+    )
+    expect(csp).toContain(
+      "font-src 'self' https://cdn.fontshare.com https://fonts.gstatic.com",
+    )
+  })
+
+  it('allows only the configured browser-upload origin for connections', () => {
+    vi.stubEnv('S3_PRESIGN_ENDPOINT', 'http://127.0.0.1:4900/storage/path')
+    const csp = getSecurityHeaders({ isProduction: false })['Content-Security-Policy']
+
+    expect(csp).toContain("connect-src 'self' http://127.0.0.1:4900")
+    expect(csp).not.toContain('/storage/path')
+  })
+
+  it('rejects a configured upload source that could alter CSP syntax', () => {
+    expect(() =>
+      getSecurityHeaders({
+        isProduction: false,
+        connectSources: ["https://storage.example.com'; connect-src *"],
+      }),
+    ).toThrow('CSP connect source')
+  })
+
+  it('rejects a nonce that could alter the CSP syntax', () => {
+    expect(() =>
+      getSecurityHeaders({
+        isProduction: false,
+        cspNonce: "valid' ; script-src *",
+      }),
+    ).toThrow('CSP nonce')
   })
 
   it('includes HSTS only in production', () => {

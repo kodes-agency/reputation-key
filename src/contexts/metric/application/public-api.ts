@@ -6,6 +6,7 @@ import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
 } from './ports/metric.repository'
+import type { GovernedMetricVersion } from '../domain/metric-registry'
 
 export type { MetricReadingsQuery, MetricReadingsAggregate }
 
@@ -15,6 +16,8 @@ export type { MetricReadingsQuery, MetricReadingsAggregate }
  */
 // ── Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type { MetricRecorded, MetricEvent } from '../domain/events'
+export { METRIC_VERSION_IDS } from '../domain/metric-registry'
+export type { GovernedMetricVersion } from '../domain/metric-registry'
 
 export type MetricPublicApi = Readonly<{
   /**
@@ -22,4 +25,8 @@ export type MetricPublicApi = Readonly<{
    * Used by Goal context for progress reconciliation.
    */
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
+  /** Resolve one immutable, approved version for a governed Goal definition. */
+  getApprovedGoalVersion?: (
+    definitionVersionId: string,
+  ) => Promise<GovernedMetricVersion | null>
 }>

@@ -32,20 +32,22 @@ export const isUniqueViolationError = (e: unknown): e is UniqueViolationError =>
 export type ConnectionVisibilityFilter = Readonly<
   { showAll: true } | { showAll: false; userId: UserId }
 >
+export type GoogleConnectionIdentityLookup = Readonly<{
+  googleSubject: string
+}>
 
 export type GoogleConnectionRepository = Readonly<{
   findById: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
   ) => Promise<GoogleConnection | null>
-  findByGoogleAccountId: (
+  findByGoogleIdentity: (
     orgId: OrganizationId,
-    googleAccountId: string,
+    identity: GoogleConnectionIdentityLookup,
   ) => Promise<GoogleConnection | null>
-  // Global lookup (cross-tenant) — used to enforce the one-account-one-org
-  // invariant on connect. Deliberately NOT org-scoped.
-  findByGoogleAccountIdGlobal: (
-    googleAccountId: string,
+  // Global lookup enforces the one-provider-identity/one-org invariant.
+  findByGoogleIdentityGlobal: (
+    identity: GoogleConnectionIdentityLookup,
   ) => Promise<GoogleConnection | null>
   listByOrganization: (
     orgId: OrganizationId,
@@ -58,9 +60,8 @@ export type GoogleConnectionRepository = Readonly<{
     status: GoogleConnectionStatus,
   ) => Promise<void>
   /**
-   * BQC-1.7: remove provider identifiers and secret material on disconnect.
-   * The connection row stays as a content-free audit fact (id, org, status,
-   * timestamps); tokens/email/account id/scopes are replaced with 'redacted'.
+   * Remove provider identifiers and secret material on disconnect. The row
+   * remains as a content-free lifecycle fact.
    */
   redactForDisconnect: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
   updateVisibility: (
@@ -71,10 +72,14 @@ export type GoogleConnectionRepository = Readonly<{
   updateTokens: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
+    expected: Readonly<{
+      lifecycleVersion: number
+      credentialGeneration: number
+    }>,
     encryptedAccessToken: string,
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
-  ) => Promise<void>
+  ) => Promise<boolean>
   updateTokensAndStatus: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
@@ -86,10 +91,12 @@ export type GoogleConnectionRepository = Readonly<{
   updateReconnection: (
     orgId: OrganizationId,
     id: GoogleConnectionId,
+    googleSubject: string,
     encryptedAccessToken: string,
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
     visibility: GoogleConnectionVisibility,
+    scopes: ReadonlyArray<string>,
   ) => Promise<void>
   delete: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
 }>

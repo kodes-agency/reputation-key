@@ -48,6 +48,51 @@ describe('validateBqcStatusManifest', () => {
       expect(result.errors.some((e) => e.includes('schemaVersion'))).toBe(true)
     }
   })
+  it('accepts the exact beta-local-1 gate profile', () => {
+    const result = validateBqcStatusManifest({
+      ...validManifest(),
+      acceptance: {
+        evidenceVersion: 'beta-local-1',
+        requiredGates: [
+          'quality',
+          'security-privacy',
+          'local-scale-recovery',
+          'source-lifecycle',
+          'runtime-fault-matrix',
+          'migration-upgrade',
+          'product-journeys',
+          'release-bundle',
+        ],
+        postBetaGates: [
+          'scale-capacity',
+          'region-fault-matrix',
+          'restore-recovery',
+          'live-provider',
+          'real-property-pilot',
+          'fourteen-day-cohort',
+        ],
+      },
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects a beta-local-1 profile that omits or reclassifies a gate', () => {
+    const result = validateBqcStatusManifest({
+      ...validManifest(),
+      acceptance: {
+        evidenceVersion: 'beta-local-1',
+        requiredGates: ['quality', 'release-bundle'],
+        postBetaGates: ['scale-capacity'],
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.some((error) => error.includes('requiredGates'))).toBe(true)
+      expect(result.errors.some((error) => error.includes('postBetaGates'))).toBe(true)
+    }
+  })
 
   it('rejects duplicate entry ids', () => {
     const base = validManifest()

@@ -1,5 +1,14 @@
-import { TabsContent } from '#/components/ui/tabs'
-import { Button } from '#/components/ui/button'
+import { Link } from '@tanstack/react-router'
+import { Archive, LockKeyhole, Plus, Users } from 'lucide-react'
+import type { Action } from '#/components/hooks/use-action'
+import { CreateTeamForm } from '#/components/features/team'
+import type {
+  CreateTeamMutationInput,
+  TeamMembershipView,
+  TeamSummary,
+} from '#/components/features/team/shared/types'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,6 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
+import { Button } from '#/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -19,21 +29,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { Plus, Trash2, Users } from 'lucide-react'
-import { CreateTeamForm } from '#/components/features/team'
 import { EmptyState } from '#/components/ui/empty-state'
-import type { Action } from '#/components/hooks/use-action'
-import type { MemberLike } from '#/lib/lookups'
-import type { CreateTeamInput } from '#/contexts/team/application/dto/create-team.dto'
-import { usePermissions } from '#/shared/hooks/usePermissions'
+import { TabsContent } from '#/components/ui/tabs'
 
 interface TeamsTabProps {
   propertyId: string
-  teams: ReadonlyArray<{ id: string; name: string }>
-  assignments: ReadonlyArray<{ id: string; userId: string; teamId: string | null }>
-  memberOptions: MemberLike[]
-  createTeamMutation: Action<{ data: CreateTeamInput }>
-  deleteTeamMutation: Action<{ data: { teamId: string } }>
+  teams: ReadonlyArray<TeamSummary>
+  memberships: ReadonlyArray<TeamMembershipView>
+  createTeamMutation: Action<{ data: CreateTeamMutationInput }>
+  archiveTeamMutation: Action<{ data: { teamId: string } }>
   createTeamOpen: boolean
   onCreateTeamOpenChange: (open: boolean) => void
 }
@@ -41,14 +45,27 @@ interface TeamsTabProps {
 export function TeamsTab({
   propertyId,
   teams,
-  assignments,
-  memberOptions,
+  memberships,
   createTeamMutation,
-  deleteTeamMutation,
+  archiveTeamMutation,
   createTeamOpen,
   onCreateTeamOpenChange,
 }: TeamsTabProps) {
   const { can } = usePermissions()
+
+  if (!can('team.read')) {
+    return (
+      <TabsContent value="teams" className="mt-4">
+        <Alert>
+          <LockKeyhole aria-hidden="true" />
+          <AlertTitle>Team management is unavailable</AlertTitle>
+          <AlertDescription>
+            You do not have permission to view teams at this property.
+          </AlertDescription>
+        </Alert>
+      </TabsContent>
+    )
+  }
 
   return (
     <TabsContent value="teams" className="mt-4 space-y-4">
@@ -57,80 +74,97 @@ export function TeamsTab({
           <Dialog open={createTeamOpen} onOpenChange={onCreateTeamOpenChange}>
             <DialogTrigger asChild>
               <Button>
-                <Plus />
-                Create Team
+                <Plus aria-hidden="true" />
+                Create team
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create a new team</DialogTitle>
                 <DialogDescription>
-                  Group staff members into teams for this property.
+                  Create the team first, then add active staff and appoint its lead.
                 </DialogDescription>
               </DialogHeader>
               <CreateTeamForm
                 propertyId={propertyId}
                 mutation={createTeamMutation}
-                members={memberOptions}
                 onSuccess={() => onCreateTeamOpenChange(false)}
               />
             </DialogContent>
           </Dialog>
         )}
       </div>
+
       {teams.length === 0 ? (
-        <EmptyState icon={Users} title="No teams yet">
-          <p className="text-sm text-muted-foreground">
-            Create a team to group staff members.
+        <EmptyState icon={Users} title="No teams at this property">
+          <p className="max-w-md text-sm text-muted-foreground">
+            {can('team.create')
+              ? 'Create a team, then add active staff and appoint a lead.'
+              : 'A property manager can create the first team.'}
           </p>
         </EmptyState>
       ) : (
-        <div className="flex flex-col gap-2">
-          {teams.map((team) => (
-            <div
-              key={team.id}
-              className="flex items-center justify-between rounded-lg border p-4"
-            >
-              <div>
-                <p className="font-semibold">{team.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {assignments.filter((a) => a.teamId === team.id).length} members
-                </p>
-              </div>
-              {can('team.delete') && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete team ${team.name}`}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete {team.name}?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove the team. You can recreate it later.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteTeamMutation({ data: { teamId: team.id } })}
-                        disabled={deleteTeamMutation.isPending}
-                        className="bg-destructive text-white hover:bg-destructive/90"
+        <div className="divide-y rounded-lg border">
+          {teams.map((team) => {
+            const memberCount = memberships.filter(
+              (membership) =>
+                membership.teamId === team.id && membership.effectiveTo == null,
+            ).length
+            return (
+              <div
+                key={team.id}
+                className="flex flex-wrap items-center justify-between gap-3 p-4"
+              >
+                <div className="min-w-0">
+                  <Link
+                    to="/properties/$propertyId/teams/$teamId"
+                    params={{ propertyId, teamId: team.id }}
+                    className="font-semibold text-link underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {team.name}
+                  </Link>
+                  <p className="text-sm text-muted-foreground">
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  </p>
+                </div>
+                {can('team.delete') && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Archive team ${team.name}`}
+                        className="text-muted-foreground hover:text-destructive"
                       >
-                        {deleteTeamMutation.isPending ? 'Deleting…' : 'Delete team'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
-          ))}
+                        <Archive aria-hidden="true" />
+                        <span className="hidden sm:inline">Archive</span>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Archive {team.name}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          The team will no longer accept membership changes. Its effective
+                          membership history remains available.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() =>
+                            archiveTeamMutation({ data: { teamId: team.id } })
+                          }
+                          disabled={archiveTeamMutation.isPending}
+                        >
+                          {archiveTeamMutation.isPending ? 'Archiving…' : 'Archive team'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </TabsContent>

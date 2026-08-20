@@ -1,19 +1,26 @@
+import { Users } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 
 type Props = Readonly<{
+  canManage: boolean
   hasAvailable: boolean
   onAdd: () => void
 }>
 
-export function TeamEmptyState({ hasAvailable, onAdd }: Props) {
+export function TeamEmptyState({ canManage, hasAvailable, onAdd }: Props) {
   return (
-    <div className="rounded-lg border py-8 text-center">
-      <p className="text-sm text-muted-foreground">No members in this team yet.</p>
-      {hasAvailable && (
-        <Button variant="link" size="sm" onClick={onAdd}>
+    <EmptyState icon={Users} title="This team has no active members">
+      <p className="max-w-sm text-sm text-muted-foreground">
+        {canManage
+          ? 'Add active staff to start building this team.'
+          : 'A manager can add active staff to this team.'}
+      </p>
+      {canManage && hasAvailable && (
+        <Button variant="outline" size="sm" onClick={onAdd}>
           Add first members
         </Button>
       )}
-    </div>
+    </EmptyState>
   )
 }

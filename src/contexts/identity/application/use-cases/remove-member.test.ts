@@ -4,7 +4,7 @@
 // command-store fake. Members are seeded in BOTH surfaces: the identity port
 // backs the read-side UX guards, the command store backs the atomic write.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { removeMember } from './remove-member'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
@@ -111,6 +111,56 @@ describe('removeMember', () => {
     // Fix #1: the event must carry the removed user's id (targetMember.userId),
     // NOT the better-auth member-row id (memberId === 'member-1').
     expect(emitted[0].userId).toBe(userId('user-target'))
+  })
+
+  it('fences the removed user import scope before deleting membership', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      cancelGoogleImportsForUser,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: STAFF_MEMBER.id }, ctx)
+
+    expect(cancelGoogleImportsForUser).toHaveBeenCalledWith(
+      ctx.organizationId,
+      STAFF_MEMBER.userId,
+    )
+    expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+  })
+
+  it('preserves membership when import fencing fails', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      cancelGoogleImportsForUser: async () => {
+        throw new Error('import lifecycle unavailable')
+      },
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(useCase({ memberId: STAFF_MEMBER.id }, ctx)).rejects.toThrow(
+      'import lifecycle unavailable',
+    )
+
+    expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
+    expect(events.capturedByTag('identity.member.removed')).toEqual([])
   })
 
   it('forbids removing the last AccountAdmin of the organization', async () => {

@@ -272,20 +272,24 @@ describe('filterGoalsForPortalGroupView', () => {
 // ── 6. getMetricKeysForScope ───────────────────────────────────────────
 
 describe('getMetricKeysForScope', () => {
-  it('returns goal-eligible keys for property scope', () => {
-    const keys = getMetricKeysForScope('property')
-    expect(keys).toEqual(['property.review'])
+  it('returns beta-safe keys for property scope', () => {
+    expect(getMetricKeysForScope('property')).toEqual([
+      'portal.content_review.completed',
+      'portal.configuration_completeness',
+      'portal.approved_destination_ratio',
+    ])
   })
 
-  it('returns portal keys for portal_group scope', () => {
-    const keys = getMetricKeysForScope('portal_group')
-    expect(keys).not.toContain('property.review')
-    expect(keys).toContain('portal.scan')
+  it('returns the same beta-safe keys for portal_group scope', () => {
+    expect(getMetricKeysForScope('portal_group')).toEqual([
+      'portal.content_review.completed',
+      'portal.configuration_completeness',
+      'portal.approved_destination_ratio',
+    ])
   })
 
-  it('returns portal keys for portal scope', () => {
-    const keys = getMetricKeysForScope('portal')
-    expect(keys.length).toBe(2)
+  it('excludes individual portal goals', () => {
+    expect(getMetricKeysForScope('portal')).toEqual([])
   })
 })
 

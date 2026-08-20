@@ -17,6 +17,7 @@ export const registerBadgeEventHandlers = (deps: RegisterBadgeHandlersDeps): voi
   deps.eventBus.on(
     'metric.recorded',
     async (event) => {
+      if (!event.permittedConsumers.includes('badge')) return
       const tasks: Promise<unknown>[] = []
 
       if (event.portalId) {
@@ -30,13 +31,13 @@ export const registerBadgeEventHandlers = (deps: RegisterBadgeHandlersDeps): voi
         )
       }
 
-      if (event.groupId) {
+      if (event.portalGroupId) {
         tasks.push(
           deps.evaluateBadgeForTarget({
             organizationId: event.organizationId,
             propertyId: event.propertyId,
             targetType: 'portal_group',
-            targetId: event.groupId,
+            targetId: event.portalGroupId,
           }),
         )
       }

@@ -9,16 +9,16 @@ import {
 } from '#/components/ui/dialog'
 import { UserPlus } from 'lucide-react'
 import { AddMembersDialogContent } from './add-members-dialog-content'
-import type { MemberLike } from '#/lib/lookups'
+type ParticipationOption = Readonly<{ id: string; displayName: string }>
 
 type AddDialogProps = Readonly<{
   isOpen: boolean
-  available: ReadonlyArray<MemberLike>
+  available: ReadonlyArray<ParticipationOption>
   selectedIds: Set<string>
   error: unknown
   isAdding: boolean
   onOpenChange: (open: boolean) => void
-  onToggleMember: (userId: string) => void
+  onToggleMember: (staffParticipationId: string) => void
   onToggleAll: () => void
   onAdd: () => void
 }>
@@ -31,25 +31,23 @@ type Props = Readonly<{
 
 export function TeamHeader({ memberCount, availableCount, addDialog }: Props) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h2 className="text-sm font-medium">
-          {memberCount} {memberCount === 1 ? 'member' : 'members'}
-        </h2>
-      </div>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="team-members-heading" className="text-sm font-medium">
+        {memberCount} {memberCount === 1 ? 'member' : 'members'}
+      </h2>
       {availableCount > 0 && (
         <Dialog open={addDialog.isOpen} onOpenChange={addDialog.onOpenChange}>
           <DialogTrigger asChild>
             <Button size="sm" variant="outline">
               <UserPlus />
-              Add Members
+              Add members
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add team members</DialogTitle>
               <DialogDescription>
-                Select people from your organization to add to this team.
+                Select active staff at this property to add to the team.
               </DialogDescription>
             </DialogHeader>
             <AddMembersDialogContent

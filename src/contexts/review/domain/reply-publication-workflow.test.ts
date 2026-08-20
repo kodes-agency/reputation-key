@@ -242,6 +242,36 @@ describe('reply-publication-workflow (B1.10)', () => {
       expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
 
+    it.each(['auth_failed', 'permission_denied'])(
+      'gateway GbpApiError %s → terminal_rejection',
+      (kind) => {
+        const err = Object.assign(new Error(`GBP reply failed (${kind})`), {
+          _tag: 'GbpApiError',
+          kind,
+        })
+        expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+      },
+    )
+
+    it.each(['rate_limited', 'upstream_error'])(
+      'gateway GbpApiError %s → retryable',
+      (kind) => {
+        const err = Object.assign(new Error(`GBP reply failed (${kind})`), {
+          _tag: 'GbpApiError',
+          kind,
+        })
+        expect(classifyPublicationFailure(err)).toBe('retryable')
+      },
+    )
+
+    it('gateway GbpApiError parse_error → ambiguous', () => {
+      const err = Object.assign(new Error('GBP reply response could not be parsed'), {
+        _tag: 'GbpApiError',
+        kind: 'parse_error',
+      })
+      expect(classifyPublicationFailure(err)).toBe('ambiguous')
+    })
+
     it('token_refresh_failed → retryable (pre-request, transient)', () => {
       const err = Object.assign(new Error('token refresh failed'), {
         _tag: 'IntegrationError',

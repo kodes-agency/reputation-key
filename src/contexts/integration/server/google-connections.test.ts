@@ -107,44 +107,48 @@ describe('getAuthUrlInputSchema', () => {
 
 // ── connectGoogle input validation ────────────────────────────────
 
+const validConnectInput = () => ({
+  code: 'auth-code-123',
+  purpose: 'reviews' as const,
+  connectionMode: 'new' as const,
+  targetConnectionId: null,
+  verifierMaterial: {
+    contractVersion: 'v2' as const,
+    codeVerifier: 'v'.repeat(43),
+    oidcNonce: 'n'.repeat(43),
+  },
+})
+
 describe('connectGoogleInputSchema', () => {
   it('accepts valid input with code and visibility', () => {
     const result = connectGoogleInputSchema.safeParse({
-      code: 'auth-code-123',
+      ...validConnectInput(),
       visibility: 'organization',
-      stateNonce: 'state-nonce-1',
     })
     expect(result.success).toBe(true)
   })
 
-  it('accepts input with code only (visibility defaults to private)', () => {
-    const result = connectGoogleInputSchema.safeParse({
-      code: 'auth-code-123',
-      stateNonce: 'state-nonce-1',
-    })
+  it('defaults visibility to private', () => {
+    const result = connectGoogleInputSchema.safeParse(validConnectInput())
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.visibility).toBe('private')
     }
   })
 
-  it('rejects a missing state nonce (BQC-7.6: PKCE redeem key is mandatory)', () => {
-    const result = connectGoogleInputSchema.safeParse({
-      code: 'auth-code-123',
-      visibility: 'private',
-    })
-    expect(result.success).toBe(false)
+  it('rejects missing verifier material', () => {
+    const { verifierMaterial: _, ...input } = validConnectInput()
+    expect(connectGoogleInputSchema.safeParse(input).success).toBe(false)
   })
 
   it('rejects missing code', () => {
-    const result = connectGoogleInputSchema.safeParse({
-      visibility: 'private',
-    })
-    expect(result.success).toBe(false)
+    const { code: _, ...input } = validConnectInput()
+    expect(connectGoogleInputSchema.safeParse(input).success).toBe(false)
   })
 
   it('rejects empty code', () => {
     const result = connectGoogleInputSchema.safeParse({
+      ...validConnectInput(),
       code: '',
     })
     expect(result.success).toBe(false)
@@ -152,7 +156,7 @@ describe('connectGoogleInputSchema', () => {
 
   it('rejects invalid visibility value', () => {
     const result = connectGoogleInputSchema.safeParse({
-      code: 'auth-code-123',
+      ...validConnectInput(),
       visibility: 'public',
     })
     expect(result.success).toBe(false)

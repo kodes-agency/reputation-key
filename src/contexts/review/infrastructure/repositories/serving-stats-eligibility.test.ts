@@ -7,6 +7,7 @@
 // .test.ts (getRecentReviews case) and extended to the aggregate reads that
 // previously read review content without the eligibility predicate.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
@@ -42,11 +43,13 @@ async function insertReview(
     INSERT INTO reviews (
       id, organization_id, property_id, platform, external_id,
       external_location_id, reviewer_name, rating, text, reviewed_at,
-      expires_at, content_expires_at, first_fetched_at, last_fetched_at
+      expires_at, content_expires_at, first_fetched_at, last_fetched_at,
+      source_epoch, source_revision, analysis_sequence,
+      ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${PROP}, 'google', ${'ext-' + id.slice(-2)},
-      'accounts/1/locations/2', 'Jane', ${rating}, 'Great stay', now(),
-      now(), ${contentExpiresAt}, now(), now()
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 'Jane', ${rating}, 'Great stay', now(),
+      now(), ${contentExpiresAt}, now(), now(), 0, 0, 0, 1, ${'0'.repeat(64)}
     )
   `)
 }

@@ -107,6 +107,7 @@ function healthySnapshot(): MutableSnapshot {
     release: { sha: 'abc1234' },
     versions: {
       capabilityPolicy: 'test',
+      executionPolicy: 'test-exec',
       policyStore: 1,
       routingPolicy: 1,
       sourceContentPolicy: 1,

@@ -1,0 +1,38 @@
+[
+  { "id": "absent", "input": null, "status": "supported", "tag": "und", "group": "und" },
+  { "id": "empty", "input": "  ", "status": "supported", "tag": "und", "group": "und" },
+  { "id": "und", "input": "und", "status": "supported", "tag": "und", "group": "und" },
+  { "id": "zxx", "input": "zxx", "status": "supported", "tag": "und", "group": "und" },
+  {
+    "id": "regional",
+    "input": "es-MX",
+    "status": "supported",
+    "tag": "es-Latn-MX",
+    "group": "es-Latn"
+  },
+  {
+    "id": "variant-extension",
+    "input": "de-DE-1996-u-co-phonebk-x-private",
+    "status": "supported",
+    "tag": "de-Latn-DE",
+    "group": "de-Latn"
+  },
+  {
+    "id": "malformed",
+    "input": "not_a_tag",
+    "status": "language_not_supported",
+    "reason": "malformed_metadata"
+  },
+  {
+    "id": "private-only",
+    "input": "x-private",
+    "status": "language_not_supported",
+    "reason": "malformed_metadata"
+  },
+  {
+    "id": "unsupported",
+    "input": "sw-Latn",
+    "status": "language_not_supported",
+    "reason": "unsupported_group"
+  }
+]

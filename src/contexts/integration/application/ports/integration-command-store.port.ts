@@ -2,15 +2,12 @@
 // record (BQC-3.5).
 //
 // Callers must not know Drizzle transaction types or outbox tables.
-// The production implementation commits the google_connections /
-// gbp_import_jobs state write and the outbox_events fact in ONE PostgreSQL
-// transaction, then emits on the in-process bus after commit (expand-phase
-// dual path until the durable switch).
+// The production implementation commits the google_connections state write
+// and the outbox_events fact in ONE PostgreSQL transaction, then emits on the
+// in-process bus after commit.
 
 import type { OrganizationId } from '#/shared/domain/ids'
 import type {
-  GbpImportJobId,
-  GbpImportJobStatus,
   GoogleConnection,
   GoogleConnectionId,
   GoogleConnectionVisibility,
@@ -19,12 +16,11 @@ import type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
   IntegrationGoogleConnectionVisibilityChanged,
-  IntegrationPropertyImportCompleted,
 } from '../../domain/events'
 
 /**
  * New connection insert + google_account.connected fact in one transaction.
- * The global googleAccountId unique index backstops the one-account-one-org
+ * The global Google-subject unique index backstops the one-account-one-org
  * invariant; a violation surfaces as UniqueViolationError (the use case's
  * raced-connect fallback contract) and records NO fact.
  */
@@ -42,6 +38,8 @@ export type ReconnectGoogleAccountCommand = Readonly<{
   organizationId: OrganizationId
   connectionId: GoogleConnectionId
   encryptedAccessToken: string
+  googleSubject: string
+  scopes: ReadonlyArray<string>
   encryptedRefreshToken: string
   tokenExpiresAt: Date
   visibility: GoogleConnectionVisibility
@@ -50,9 +48,7 @@ export type ReconnectGoogleAccountCommand = Readonly<{
 
 /**
  * Disconnect: status→disconnected + identifier/secret redaction +
- * google_account.disconnected fact in one transaction. The gbp_cache purge
- * and the source-content retention purge stay OUTSIDE (cross-system cleanup;
- * the durable disconnected fact + redaction are the recovery record).
+ * google_account.disconnected fact in one transaction.
  * Throws `connection_not_found` when the row vanished — records NO fact.
  */
 export type DisconnectGoogleAccountCommand = Readonly<{
@@ -73,19 +69,6 @@ export type UpdateConnectionVisibilityCommand = Readonly<{
   event: IntegrationGoogleConnectionVisibilityChanged
 }>
 
-/**
- * Import-job terminal status + property_import.completed fact in one
- * transaction (the pre-BQC-3.5 use case updated the status and then
- * best-effort bus-emitted the fact — never recorded).
- */
-export type RecordImportCompletedCommand = Readonly<{
-  organizationId: OrganizationId
-  importJobId: GbpImportJobId
-  finalStatus: GbpImportJobStatus
-  now: Date
-  event: IntegrationPropertyImportCompleted
-}>
-
 export type IntegrationCommandStore = Readonly<{
   connectGoogleAccount(command: ConnectGoogleAccountCommand): Promise<void>
   reconnectGoogleAccount(
@@ -97,5 +80,4 @@ export type IntegrationCommandStore = Readonly<{
   updateConnectionVisibility(
     command: UpdateConnectionVisibilityCommand,
   ): Promise<GoogleConnection>
-  recordImportCompleted(command: RecordImportCompletedCommand): Promise<void>
 }>

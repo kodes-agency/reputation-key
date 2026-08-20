@@ -1,79 +1,46 @@
-// Metric context — Drizzle metric repository implementation
-// Per architecture: factory function returning Readonly<{ method }>.
-// Raw metric readings are insert-only (no updates, no deletes).
-
-import { eq, and, sql, gte, lte } from 'drizzle-orm'
+import { and, eq, gte, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { metricReadings } from '#/shared/db/schema/metric.schema'
-import type { MetricRepository } from '../../application/ports/metric.repository'
-import type { MetricKey } from '../../domain/types'
 import {
-  metricReadingId,
-  organizationId as orgIdCtor,
-  propertyId as propIdCtor,
-  portalId as portalIdCtor,
-  portalGroupId as groupIdCtor,
-  unbrand,
-} from '#/shared/domain/ids'
-import { createMetricReading, VALID_METRIC_KEYS } from '../../domain/constructors'
-import { metricError } from '../../domain/errors'
+  metricCorrections,
+  metricDefinitionVersions,
+  metricReadings,
+} from '#/shared/db/schema/metric.schema'
+import type { MetricRepository } from '../../application/ports/metric.repository'
+import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-
-export function readingFromRow(row: typeof metricReadings.$inferSelect) {
-  if (!VALID_METRIC_KEYS.has(row.metricKey as MetricKey)) {
-    throw metricError(
-      'unknown_metric_key',
-      `Invalid metric_key in DB row: ${row.metricKey}`,
-    )
-  }
-  return createMetricReading({
-    id: metricReadingId(row.id),
-    organizationId: orgIdCtor(row.organizationId),
-    propertyId: propIdCtor(row.propertyId),
-    portalId: row.portalId ? portalIdCtor(row.portalId) : null,
-    metricKey: row.metricKey as MetricKey,
-    value: row.value,
-    groupId: row.groupId ? groupIdCtor(row.groupId) : null,
-    occurredAt: row.occurredAt,
-  })
-}
 
 export const createMetricRepository = (
   db: Database,
   clock: () => Date,
 ): MetricRepository => ({
-  insertReading: async (reading) => {
-    return trace('metric.insertReading', async () => {
-      const result = await db
-        .insert(metricReadings)
-        .values({
-          organizationId: unbrand(reading.organizationId),
-          propertyId: unbrand(reading.propertyId),
-          portalId: reading.portalId ? unbrand(reading.portalId) : null,
-          metricKey: reading.metricKey,
-          value: reading.value,
-          groupId: reading.groupId ? unbrand(reading.groupId) : null,
-          occurredAt: reading.occurredAt,
+  queryAggregate: async (query) =>
+    trace('metric.queryAggregate', async () => {
+      const correctionTips = db
+        .select({
+          readingId: metricCorrections.readingId,
+          kind: metricCorrections.kind,
+          exactDelta: metricCorrections.exactDelta,
+          replacementValue: metricCorrections.replacementValue,
         })
-        .returning()
-
-      if (!result.length) {
-        throw metricError(
-          'repo_insert_failed',
-          'Metric reading insert failed — no row returned',
+        .from(metricCorrections)
+        .where(
+          sql`NOT EXISTS (
+          SELECT 1
+          FROM metric_corrections AS successor
+          WHERE successor.supersedes_correction_id = ${metricCorrections.id}
+        )`,
         )
-      }
+        .as('metric_correction_tips')
 
-      return readingFromRow(result[0])
-    })
-  },
-
-  queryAggregate: async (query) => {
-    return trace('metric.queryAggregate', async () => {
       const conditions = [
         eq(metricReadings.organizationId, unbrand(query.organizationId)),
         eq(metricReadings.propertyId, unbrand(query.propertyId)),
         eq(metricReadings.metricKey, query.metricKey),
+        isNotNull(metricReadings.definitionVersionId),
+        isNotNull(metricReadings.exactValue),
+        sql`${metricDefinitionVersions.permittedConsumers} @> ${JSON.stringify([
+          query.consumer,
+        ])}::jsonb`,
       ]
 
       if (query.portalId) {
@@ -83,35 +50,61 @@ export const createMetricRepository = (
         conditions.push(eq(metricReadings.groupId, unbrand(query.groupId)))
       }
       if (query.periodStart) {
-        conditions.push(gte(metricReadings.occurredAt, query.periodStart))
+        conditions.push(gte(metricReadings.eventAt, query.periodStart))
       }
       if (query.periodEnd) {
-        conditions.push(lte(metricReadings.occurredAt, query.periodEnd))
+        conditions.push(lte(metricReadings.eventAt, query.periodEnd))
       }
-      // F118: rollingWindowDays overrides periodEnd — compute rolling start
-      // from the injected Clock (NOT DB NOW()) so seeded/simulated scenarios
-      // produce time-stable results (ADR 0017 / ADR 0019).
       if (query.rollingWindowDays) {
-        const windowStart = new Date(
-          clock().getTime() - query.rollingWindowDays * 24 * 60 * 60 * 1000,
+        conditions.push(
+          gte(
+            metricReadings.eventAt,
+            new Date(clock().getTime() - query.rollingWindowDays * 86_400_000),
+          ),
         )
-        conditions.push(gte(metricReadings.occurredAt, windowStart))
       }
 
-      const row = await db
+      const effectiveValue = sql<number>`CASE
+        WHEN ${correctionTips.kind} = 'retract' THEN NULL
+        WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
+        WHEN ${correctionTips.kind} = 'adjust' THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
+        ELSE ${metricReadings.exactValue}
+      END`
+      const effectiveSampleCount = sql<number>`CASE
+        WHEN ${correctionTips.kind} = 'retract' THEN 0
+        ELSE ${metricReadings.sampleCount}
+      END`
+
+      const rows = await db
         .select({
-          sum: sql<number>`COALESCE(SUM(${metricReadings.value}), 0)`,
-          count: sql<number>`CAST(COUNT(*) AS INTEGER)`,
-          max: sql<number>`COALESCE(MAX(${metricReadings.value}), 0)`,
+          sum: sql<number>`COALESCE(SUM(${effectiveValue}), 0)`,
+          count: sql<number>`CAST(COUNT(${effectiveValue}) AS INTEGER)`,
+          max: sql<number>`COALESCE(MAX(${effectiveValue}), 0)`,
+          sampleCount: sql<number>`COALESCE(SUM(${effectiveSampleCount}), 0)`,
+          minimumSample: sql<number>`COALESCE(MAX(${metricDefinitionVersions.minimumSample}), 1)`,
         })
         .from(metricReadings)
+        .innerJoin(
+          metricDefinitionVersions,
+          eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
+        )
+        .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
         .where(and(...conditions))
 
+      const sum = Number(rows[0]?.sum ?? 0)
+      const count = Number(rows[0]?.count ?? 0)
+      const max = Number(rows[0]?.max ?? 0)
+      const sampleCount = Number(rows[0]?.sampleCount ?? 0)
+      const minimumSample = Number(rows[0]?.minimumSample ?? 1)
+      const available = sampleCount >= minimumSample
+
       return {
-        sum: Number(row[0]?.sum ?? 0),
-        count: Number(row[0]?.count ?? 0),
-        max: Number(row[0]?.max ?? 0),
+        sum: available ? sum : 0,
+        count: available ? count : 0,
+        max: available ? max : 0,
+        available,
+        sampleCount,
+        minimumSample,
       }
-    })
-  },
+    }),
 })

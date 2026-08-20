@@ -11,7 +11,7 @@ import type { UpdateTeamInput } from '../dto/update-team.dto'
 export type { UpdateTeamInput } from '../dto/update-team.dto'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { teamId as toTeamId, userId as toUserId } from '#/shared/domain/ids'
+import { teamId as toTeamId } from '#/shared/domain/ids'
 import { validateTeamName } from '../../domain/rules'
 import { teamError } from '../../domain/errors'
 import { teamUpdated } from '../../domain/events'
@@ -80,17 +80,12 @@ export const updateTeam =
     // Resolve final field values (fall through to existing when not provided)
     const updatedDescription =
       input.description !== undefined ? input.description : existing.description
-    const updatedTeamLeadId =
-      input.teamLeadId !== undefined && input.teamLeadId !== null
-        ? toUserId(input.teamLeadId)
-        : existing.teamLeadId
 
     const now = deps.clock()
     const updated: Team = {
       ...existing,
       name: newName,
       description: updatedDescription,
-      teamLeadId: updatedTeamLeadId,
       updatedAt: now,
     }
 
@@ -98,7 +93,6 @@ export const updateTeam =
     await deps.teamRepo.update(ctx.organizationId, tid, {
       name: updated.name,
       description: updated.description,
-      teamLeadId: updated.teamLeadId,
       updatedAt: now,
     })
 

@@ -97,8 +97,8 @@ describe('listStaffGoals — permission gate', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 
-  it('Staff can create goals (read + create access)', () => {
-    expect(can('Staff', 'goal.create')).toBe(true)
+  it('keeps Staff goal access read-only', () => {
+    expect(can('Staff', 'goal.create')).toBe(false)
   })
 
   it('Staff cannot update goals (boundary)', () => {

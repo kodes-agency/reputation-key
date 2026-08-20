@@ -127,9 +127,10 @@ describe('validatePropertyName', () => {
 // ── validateTimezone ───────────────────────────────────────────────
 
 describe('validateTimezone', () => {
-  it('accepts valid IANA timezones', () => {
+  it('accepts runtime-supported IANA timezones and UTC', () => {
     expect(validateTimezone('America/New_York').isOk()).toBe(true)
     expect(validateTimezone('Europe/London').isOk()).toBe(true)
+    expect(validateTimezone('Europe/Sofia').isOk()).toBe(true)
     expect(validateTimezone('Asia/Tokyo').isOk()).toBe(true)
     expect(validateTimezone('UTC').isOk()).toBe(true)
   })

@@ -23,11 +23,14 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
       'invalid_reply',
       'invalid_rating',
       'invalid_transition',
+      'ai_suggestion_invalid',
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .with('unauthorized', 'forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('review_not_found', 'reply_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with('reply_already_exists', () => HTTP_STATUS.CONFLICT)
+    .with('ai_suggestion_expired', 'ai_suggestion_stale', () => HTTP_STATUS.CONFLICT)
+    .with('ai_suggestion_unavailable', () => 503)
     .with(
       'property_not_found',
       'connection_not_found',
@@ -48,6 +51,7 @@ export const reviewIdDto = z.object({ reviewId: z.string().uuid() })
 export const draftReplyDto = z.object({
   reviewId: z.string().uuid(),
   text: z.string().min(1).max(MAX_REPLY_LENGTH),
+  provenanceToken: z.string().min(1).max(16_384).optional(),
 })
 
 export const rejectReplyDto = z.object({

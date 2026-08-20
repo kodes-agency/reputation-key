@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react'
 import { ReplyEditorInner } from './reply-form'
 import type { ReplyData } from './reply-form'
+import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export type ReplyEditorProps = Readonly<{
   reviewId: string
@@ -13,6 +14,7 @@ export type ReplyEditorProps = Readonly<{
   loading: boolean
   /** Propagates reply mutations up so the owner can sync its cache. */
   onReplyChanged?: (reply: ReplyData | null) => void
+  generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
 export function ReplyEditor({
@@ -20,6 +22,7 @@ export function ReplyEditor({
   initialReply,
   loading,
   onReplyChanged,
+  generateReplySuggestion,
 }: ReplyEditorProps) {
   const [reply, setReply] = useState<ReplyData | null>(initialReply)
   const handleChange = useCallback(
@@ -35,6 +38,7 @@ export function ReplyEditor({
       reply={reply}
       loading={loading}
       onReplyChanged={handleChange}
+      generateReplySuggestion={generateReplySuggestion}
     />
   )
 }

@@ -98,7 +98,10 @@ const FN_RE =
   /export const (\w+) = createServerFn\(\{\s*method:\s*'(GET|POST)'\s*,?\s*\}\)/g
 const REQUIRE_AUTHZ_RE = /(?:requireAuthorized|requireExecutionAllowed)\(\s*\{([^}]*)\}/g
 const ACTION_RE = /action:\s*'([^']+)'/
+const SCOPED_AUTHZ_RE = /authorize[A-Za-z]+\(\s*[\s\S]{0,200}?'([^']+)'/g
 const CAPABILITY_ARG_RE = /capability:\s*'([^']+)'/
+const SCOPED_CAPABILITY_RE =
+  /authorize[A-Za-z]+\([\s\S]{0,250}?,\s*'((?:team|goal|badge|leaderboard)\.use|portal\.(?:read|write|upload|public_read|guest_response|guest_text|guest_contact|guest_media))'\s*,?\s*\)/g
 const ASSERT_CTX_CAP_RE = /assertBetaCapability\(\s*[^,]+,\s*'([^']+)'/g
 const ASSERT_GLOBAL_CAP_RE = /assertGlobalCapability\(\s*'([^']+)'\s*\)/g
 
@@ -109,16 +112,20 @@ function discoverServerFunctions(): ReadonlyArray<DiscoveredFn> {
     const matches = [...content.matchAll(FN_RE)]
     matches.forEach((m, i) => {
       const slice = content.slice(m.index, matches[i + 1]?.index ?? content.length)
-      const actions = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
+      const directActions = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
         .map((r) => ACTION_RE.exec(r[1])?.[1])
         .filter((a): a is string => Boolean(a))
+      const scopedActions = [...slice.matchAll(SCOPED_AUTHZ_RE)].map((r) => r[1])
+      const actions = [...new Set([...directActions, ...scopedActions])]
       const explicitCaps = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
         .map((r) => CAPABILITY_ARG_RE.exec(r[1])?.[1])
         .filter((a): a is string => Boolean(a))
+      const scopedCaps = [...slice.matchAll(SCOPED_CAPABILITY_RE)].map((r) => r[1])
       const caps = [
         ...[...slice.matchAll(ASSERT_CTX_CAP_RE)].map((r) => r[1]),
         ...[...slice.matchAll(ASSERT_GLOBAL_CAP_RE)].map((r) => r[1]),
         ...explicitCaps,
+        ...scopedCaps,
       ]
       out.push({ name: m[1], file: rel(abs), method: m[2], actions, caps })
     })
@@ -617,6 +624,11 @@ describe('BQC-2.1 entry-point catalogue', () => {
   it('confines the public surface to the declared capabilities', () => {
     const PUBLIC_SURFACE: ReadonlyArray<Capability | 'none'> = [
       'portal.read',
+      'portal.public_read',
+      'portal.guest_response',
+      'portal.guest_text',
+      'portal.guest_contact',
+      'portal.guest_media',
       'identity.register',
       'organization.create',
       'none',

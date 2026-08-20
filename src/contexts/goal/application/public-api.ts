@@ -24,6 +24,12 @@ export type { GoalRepository, GoalListFilter } from './ports/goal.repository'
 
 // ── Use-case types ────────────────────────────────────────────────────
 export type { GoalWithProgress } from './use-cases/list-goals'
+export type {
+  GovernedGoalDefinition,
+  GovernedGoalVersion,
+  GovernedGoalPeriod,
+  GovernedGoalEvaluation,
+} from './ports/governed-goal.repository'
 
 // ── Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type { GoalCompleted, GoalEvent } from '../domain/events'

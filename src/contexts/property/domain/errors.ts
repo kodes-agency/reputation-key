@@ -15,6 +15,7 @@ export type PropertyErrorCode =
   | 'invalid_transition'
   | 'property_not_active'
   | 'region_move_conflict'
+  | 'stale_property'
 
 export type PropertyError = Readonly<{
   _tag: 'PropertyError'

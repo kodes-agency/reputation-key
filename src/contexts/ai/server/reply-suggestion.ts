@@ -1,0 +1,68 @@
+import { createServerFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
+import { z } from 'zod/v4'
+import { getContainer } from '#/composition'
+import { headersFromContext } from '#/shared/auth/headers'
+import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
+import { reviewId } from '#/shared/domain/ids'
+import { tracedHandler } from '#/shared/observability/traced-server-fn'
+
+function disableAiContentCaching(): void {
+  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+  setResponseHeader('Pragma', 'no-cache')
+  setResponseHeader('Expires', '0')
+}
+
+const generateReplySuggestionDto = z.object({
+  reviewId: z.uuid(),
+  tone: z.enum(['professional', 'friendly', 'casual']),
+  idempotencyKey: z.uuid(),
+})
+
+export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
+  .inputValidator(generateReplySuggestionDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const container = getContainer()
+        try {
+          disableAiContentCaching()
+          const id = reviewId(data.reviewId)
+          const review = await container.reviewRepo.findById(id, ctx.organizationId)
+          if (!review) {
+            throwContextError(
+              'AiError',
+              { code: 'not_found', message: 'Review not found' },
+              404,
+            )
+          }
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'ai.reply.generate',
+            propertyId: review.propertyId,
+          })
+          const baseReplyStateRevision =
+            await container.reviewRepo.readReplyStateRevision(ctx.organizationId, id)
+          return await container.useCases.generateReplySuggestion({
+            organizationId: ctx.organizationId,
+            propertyId: review.propertyId,
+            reviewId: id,
+            actorUserId: ctx.userId,
+            tone: data.tone,
+            idempotencyKey: data.idempotencyKey,
+            expectedSourceEpoch: review.sourceEpoch,
+            expectedSourceRevision: review.sourceRevision,
+            expectedBaseReplyStateRevision: baseReplyStateRevision,
+          })
+        } catch (error) {
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'ai.generateReplySuggestion',
+    ),
+  )

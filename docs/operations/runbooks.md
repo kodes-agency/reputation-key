@@ -41,6 +41,53 @@ The commands:
 - `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
 - `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. §8
 - `ops:restore-verify` — restore-drill purge-before-serving proof (requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process, asserts zero expired rows, prints retention_runs evidence); destructive, typed confirmation. §8
+- `ops:google-import-lifecycle inspect` — read the bounded global expiry/release backlog.
+- `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` — identifier-only tenant request inspection.
+- `ops:google-import-lifecycle cancel-request <importJobId> --org <id>` — dry-run by default; `--apply --reason <text> --yes ops:google-import-lifecycle` fences, receipt-reconciles, terminalizes, and scrubs one request.
+- Google import compatibility mutations (`switch-connected-events`,
+  `switch-oauth-state`, `mark-v1-events-drained`, `quiesce-legacy`,
+  `drain-legacy-queues`, `close-legacy`, `archive-legacy`) run only from the
+  rollout-only `Dockerfile.google-import-compatibility` image. Production web
+  and worker images contain no compatibility entry point.
+
+### Google import artifact cutover and rollback
+
+CI builds three independently content-addressed images: final web, final
+worker, and rollout-only Google import compatibility. Before expand rollout,
+push all three and record the exact `repo@sha256:...` values from the
+`Google import image digests` CI summary in the change record. Tags and local
+image IDs are not rollback identities.
+
+The compatibility image is a non-serving, non-root operator binary. Run it as
+an authenticated one-shot job by exact digest; its only entry point is
+`google-import-lifecycle.js`. Never attach a route/domain, worker replica, or
+autoscaling policy to it. Final images are labelled
+`com.repkey.google-import-contract=final`; the compatibility image is labelled
+`com.repkey.google-import-contract=compatibility` and
+`com.repkey.rollout-scope=google-import-only`.
+
+Rollback is permitted only before the contract migration removes old
+columns/tables. Stop the rollout, retain the expanded schema, and redeploy the
+recorded compatibility digest; never rebuild the tag or reverse DDL. After the
+contract migration, compatibility rollback is forbidden: fix forward, because
+the removed persistence contract cannot be reconstructed safely. The CI
+artifact gate (`pnpm check:google-import-artifacts`) proves final bundles omit
+legacy Google identity/state/job/schema adapters while the compatibility
+bundle retains the frozen rollout surface.
+
+### Canonical synthetic Google resource
+
+Incident notes, logs, evidence, and provider-support records must never paste a
+Google account, location, or review resource. The generated value below is the
+only repository documentation example; it is unmistakably synthetic and must
+never be sent to Google.
+
+<!-- google-provider-identifiers-v1:start -->
+
+> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87`). Do not edit this block.
+> Canonical synthetic review resource: `accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001`.
+
+<!-- google-provider-identifiers-v1:end -->
 
 Registered gaps (owned elsewhere, do NOT improvise in an incident): metric-rollup
 watermark reset (metric owner — use `ops:refresh metrics-*` for a bounded re-run),
@@ -257,10 +304,10 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Operator needs to suspend, disconnect, archive, or purge a property.
 **Impact:** Varies — P2 for archive, P1 for disconnect, P0 for purge (irreversible).
-**Diagnostics:** Check property `lifecycle_state`. Check for active sync jobs, pending publications, inbox items.
-**Containment:** Suspend → `ops:suspend-property --org <id> --property <id> --reason <text> --ticket <ref> --apply` (blocks new processing via the capability store; restore with `ops:restore-property`). Disconnect → `ops:disconnect-connection <connectionId> --org <id>` (revokes Google tokens, sets connection `disconnected`).
-**Recovery:** Archive → data preserved, can restore to `active`. Purge → irreversible, confirm via typed property name; bounded purge/retention sweeps re-run via `ops:purge <reviews|retention>` (destructive — typed confirmation). Purge propagates to reviews, replies, inbox, metrics, notifications, cache, queue jobs.
-**Verification:** Lifecycle state correct. No active jobs for the property. Purge evidence report generated.
+**Diagnostics:** Check property `lifecycle_state`; use `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` for identifier-only import state. Check for active sync jobs, pending publications, inbox items.
+**Containment:** Suspend → `ops:suspend-property --org <id> --property <id> --reason <text> --ticket <ref> --apply` (blocks new processing via the capability store; restore with `ops:restore-property`). Disconnect → `ops:disconnect-connection <connectionId> --org <id>` (fences import work, revokes Google tokens, and sets connection `disconnected`). A stuck request may be fenced with `ops:google-import-lifecycle cancel-request <importJobId> --org <id> --reason <text> --apply --yes ops:google-import-lifecycle`.
+**Recovery:** Archive → data preserved, can restore to `active`. Purge → irreversible, confirm via typed property name; bounded purge/retention sweeps re-run via `ops:purge <reviews|retention>` (destructive — typed confirmation). Property/member/connection/org removal fences matching import parents/items and invalidates provider references before authority disappears.
+**Verification:** Lifecycle state correct. `ops:google-import-lifecycle inspect` reports zero overdue/release backlog; scoped inspection reports no outstanding authority. Purge evidence includes `integration.google_import_v2.lifecycle`.
 **Escalation:** Purge requires operator confirmation + evidence report. Bozhidar Denev signs off.
 
 ---

@@ -48,6 +48,7 @@ function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = 
       removePortal: async () => false,
       findPortalMembership: async () => null,
       getGroupPortalIds: async () => [],
+      findGroupIdsByPortalIds: async () => [],
       findGroupForPortal: async () => null,
     },
     events,

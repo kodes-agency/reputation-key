@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
-import { SLOS } from './catalogue'
+import { FAULTS, SLOS, type FaultName } from './catalogue'
 import {
   SCENARIO_EXECUTORS,
   FAULT_EXECUTORS,
@@ -75,6 +75,7 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
     release: { sha: 'test-sha' },
     versions: {
       capabilityPolicy: 'cap-1',
+      executionPolicy: 'exec-1',
       policyStore: 1,
       routingPolicy: 1,
       sourceContentPolicy: 1,
@@ -97,11 +98,14 @@ type FakeEnv = ScenarioRunEnv & {
 function fakeEnv(opts: {
   vt: ReturnType<typeof virtualTime>
   waiting?: number | ((read: number) => number)
+  snapshotSource?: ScenarioRunEnv['snapshotSource']
   dashboardProbe?: () => Promise<void>
   withHotJob?: boolean
   restartReadPath?: () => Promise<void>
   replyPublication?: ScenarioRunEnv['replyPublication']
   externalCollector?: ScenarioRunEnv['externalCollector']
+  lifecycle?: ScenarioRunEnv['lifecycle']
+  faults?: ScenarioRunEnv['faults']
 }): FakeEnv {
   let reads = 0
   const env: FakeEnv = {
@@ -120,7 +124,7 @@ function fakeEnv(opts: {
       env.removedIds.push(...ids)
       return { removed: ids.length, missing: 0 }
     },
-    snapshotSource: {
+    snapshotSource: opts.snapshotSource ?? {
       read: async () => {
         reads += 1
         const waiting =
@@ -139,6 +143,8 @@ function fakeEnv(opts: {
     restartReadPath: opts.restartReadPath,
     replyPublication: opts.replyPublication,
     externalCollector: opts.externalCollector,
+    lifecycle: opts.lifecycle,
+    faults: opts.faults,
     clock: opts.vt.clock,
     now: opts.vt.now,
     sleep: opts.vt.sleep,
@@ -168,14 +174,14 @@ describe('registry', () => {
     expect(getScenarioExecutor('fleetDispatch')).toBeDefined()
     expect(getScenarioExecutor('dashboardCold')).toBeDefined()
     expect(getScenarioExecutor('replyBurst')).toBeDefined()
-    // Catalogue scenarios without an executor resolve to undefined — the CLI
-    // fails closed on them instead of pretending to run.
-    expect(getScenarioExecutor('retention')).toBeUndefined()
+    // BQC-8.3 now executes its lifecycle proof through an explicit production
+    // seam; remaining unimplemented catalogue entries still fail closed.
+    expect(getScenarioExecutor('retention')).toBeDefined()
   })
 
-  it('has a fault registry slot for 8.4/8.5 but no executors yet', () => {
-    expect(FAULT_EXECUTORS).toEqual({})
-    expect(getFaultExecutor('redisUnavailable')).toBeUndefined()
+  it('registers every BQC-8.4/8.5 fault through an explicit production seam', () => {
+    expect(Object.keys(FAULT_EXECUTORS)).toEqual(Object.keys(FAULTS))
+    expect(getFaultExecutor('redisUnavailable')).toBeDefined()
   })
 })
 
@@ -473,6 +479,38 @@ describe('reconnect executor', () => {
     expect(record.metrics.remainingWaiting).toBe(0)
   })
 
+  it('does not sleep negative time when monitoring overruns the outage deadline', async () => {
+    const vt = virtualTime()
+    const sleepCalls: number[] = []
+    const base = fakeEnv({
+      vt,
+      snapshotSource: {
+        read: async () => {
+          vt.advance(2500)
+          return snapshotWithWaiting(0)
+        },
+      },
+    })
+    const env: ScenarioRunEnv = {
+      ...base,
+      sleep: async (ms) => {
+        sleepCalls.push(ms)
+        vt.advance(ms)
+      },
+    }
+
+    await SCENARIO_EXECUTORS.reconnect!(env, {
+      ratePerSec: 100,
+      baselineS: 1,
+      outageS: 1,
+      hotRatePerSec: 100,
+      timeoutS: 1,
+      pollIntervalMs: 1000,
+    })
+
+    expect(sleepCalls.every((ms) => ms >= 0)).toBe(true)
+  })
+
   it('honestly fails when the catch-up backlog does not drain in time', async () => {
     const vt = virtualTime()
     const env = fakeEnv({ vt, waiting: 500 })
@@ -728,5 +766,90 @@ describe('external collectors (BQC-8.2)', () => {
       dbCpuLocks: 'not-collected-in-this-environment',
     })
     expect(outcome.raw.monitoring.external).toBeUndefined()
+  })
+})
+
+describe('source lifecycle executors (BQC-8.3)', () => {
+  it('requires the real lifecycle seam instead of recording synthetic evidence', async () => {
+    const vt = virtualTime()
+    const outcome = await SCENARIO_EXECUTORS.retention!(fakeEnv({ vt }), {})
+
+    expect(outcome.record.passed).toBe(false)
+    expect(outcome.record.assertions).toContainEqual({
+      check: 'lifecycle harness configured',
+      passed: false,
+      detail: 'retention executor requires the production lifecycle seam',
+    })
+  })
+
+  it('records bounded purge, canary disappearance, and retention bounds from the live seam', async () => {
+    const vt = virtualTime()
+    const lifecycle = {
+      runRetention: async () => ({
+        expiredBefore: 500_000,
+        purged: 500_000,
+        expiredAfter: 0,
+        batches: 10,
+        canariesChecked: 12,
+        canariesRemaining: 0,
+        bounded: true,
+      }),
+    }
+    const outcome = await SCENARIO_EXECUTORS.retention!(fakeEnv({ vt, lifecycle }), {})
+
+    expect(outcome.record.passed).toBe(true)
+    expect(outcome.record.metrics).toMatchObject({
+      expiredBefore: 500_000,
+      purged: 500_000,
+      expiredAfter: 0,
+      batches: 10,
+      canariesChecked: 12,
+    })
+    expect(outcome.record.samples.count).toBe(1)
+    expect(outcome.record.monitoring.points).toBeGreaterThan(0)
+  })
+})
+
+describe('fault executors (BQC-8.4/8.5)', () => {
+  it('fails closed when no production fault controller is configured', async () => {
+    const vt = virtualTime()
+    const outcome = await FAULT_EXECUTORS.redisUnavailable!(fakeEnv({ vt }), {})
+
+    expect(outcome.record.passed).toBe(false)
+    expect(outcome.record.assertions).toContainEqual({
+      check: 'fault controller configured',
+      passed: false,
+      detail: 'redisUnavailable requires a production fault controller',
+    })
+  })
+
+  it('records injected and recovered fault evidence from the configured controller', async () => {
+    const vt = virtualTime()
+    const faults = {
+      execute: async (fault: FaultName) => ({
+        fault,
+        injected: true,
+        recovered: true,
+        assertions: [
+          {
+            check: 'no event lost during relay recovery',
+            passed: true,
+          },
+        ],
+        metrics: { backlogBeforeRecovery: 100, backlogAfterRecovery: 0 },
+      }),
+    }
+    const outcome = await FAULT_EXECUTORS.redisUnavailable!(fakeEnv({ vt, faults }), {})
+
+    expect(outcome.record.passed).toBe(true)
+    expect(outcome.record.metrics).toMatchObject({
+      backlogBeforeRecovery: 100,
+      backlogAfterRecovery: 0,
+    })
+    expect(outcome.record.assertions).toContainEqual({
+      check: 'fault injection confirmed',
+      passed: true,
+    })
+    expect(outcome.record.samples.count).toBe(1)
   })
 })

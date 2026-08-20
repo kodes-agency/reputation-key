@@ -2,7 +2,11 @@
 // Each span logs timing on success or full error context on failure.
 // Reads parent context from ALS — no parameter threading needed.
 
-import { getLogger } from '#/shared/observability/logger'
+import {
+  getLogger,
+  normalizeTelemetryPath,
+  sanitizeTelemetryValue,
+} from '#/shared/observability/logger'
 import { getRequestContext } from '#/shared/observability/request-context'
 
 export interface Span {
@@ -25,16 +29,14 @@ function endSpan(span: Span, error?: unknown): void {
   const duration = Math.round(performance.now() - span.startedAt)
 
   if (error) {
-    const message = error instanceof Error ? error.message : String(error)
     logger.error(
       {
         span: span.name,
         requestId: span.requestId,
         duration,
-        error: message,
-        stack: error instanceof Error ? error.stack : undefined,
+        error: sanitizeTelemetryValue(error),
       },
-      `✕ ${span.name} ${duration}ms — ${message}`,
+      `Span ${span.name} failed after ${duration}ms`,
     )
   } else {
     logger.debug(
@@ -69,24 +71,33 @@ export function startRequestSpan(
   method: string,
   path: string,
 ): { end: (error?: unknown) => void } {
+  const safePath = normalizeTelemetryPath(path)
   const startedAt = performance.now()
   const logger = getLogger()
 
-  logger.debug({ requestId, method, path }, `REQ ${requestId} ${method} ${path}`)
+  logger.debug(
+    { requestId, method, path: safePath },
+    `REQ ${requestId} ${method} ${safePath}`,
+  )
 
   return {
     end: (error?: unknown) => {
       const duration = Math.round(performance.now() - startedAt)
       if (error) {
-        const message = error instanceof Error ? error.message : String(error)
         logger.error(
-          { requestId, method, path, duration, error: message },
-          `REQ ${requestId} ${method} ${path} — FAILED ${duration}ms`,
+          {
+            requestId,
+            method,
+            path: safePath,
+            duration,
+            error: sanitizeTelemetryValue(error),
+          },
+          `REQ ${requestId} ${method} ${safePath} — FAILED ${duration}ms`,
         )
       } else {
         logger.debug(
-          { requestId, method, path, duration },
-          `REQ ${requestId} ${method} ${path} — ${duration}ms`,
+          { requestId, method, path: safePath, duration },
+          `REQ ${requestId} ${method} ${safePath} — ${duration}ms`,
         )
       }
     },

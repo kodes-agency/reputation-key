@@ -1,5 +1,6 @@
 // Review context — review mapper tests
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
 import { reviewFromRow, reviewToRow } from './review.mapper'
 import type { reviews } from '#/shared/db/schema/review.schema'
@@ -17,12 +18,13 @@ const sampleRow: ReviewRow = {
   propertyId: 'prop-uuid-001',
   platform: 'google',
   externalId: 'google-review-123',
-  externalLocationId: 'accounts/111/locations/222',
+  externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   googleConnectionId: 'conn-uuid-001',
   reviewerName: 'Jane Doe',
   reviewerProfilePhotoUrl: 'https://example.com/photo.jpg',
   rating: 5,
   text: 'Great place!',
+  translatedText: null,
   languageCode: 'en',
   reviewedAt,
   expiresAt,
@@ -35,6 +37,12 @@ const sampleRow: ReviewRow = {
   contentExpiresAt: null,
   contentHash: null,
   sourceSeenGeneration: null,
+  sourceEpoch: 3,
+  sourceRevision: 7,
+  analysisSequence: 11,
+  aiSourceByteLength: 32,
+  aiSourceDigest: 'a'.repeat(64),
+  replyStateRevision: 0,
   createdAt: now,
   updatedAt: now,
 }
@@ -52,7 +60,7 @@ describe('reviewFromRow', () => {
     const review = reviewFromRow(sampleRow)
     expect(review.platform).toBe('google')
     expect(review.externalId).toBe('google-review-123')
-    expect(review.externalLocationId).toBe('accounts/111/locations/222')
+    expect(review.externalLocationId).toBe(GOOGLE_LOCATION_PRIMARY_RESOURCE)
     expect(review.reviewerName).toBe('Jane Doe')
     expect(review.reviewerProfilePhotoUrl).toBe('https://example.com/photo.jpg')
     expect(review.rating).toBe(5)
@@ -62,6 +70,8 @@ describe('reviewFromRow', () => {
     expect(review.expiresAt).toBe(expiresAt)
     expect(review.sentimentLabel).toBe('positive')
     expect(review.sentimentScore).toBe(0.92)
+    expect(review.sourceEpoch).toBe(3)
+    expect(review.sourceRevision).toBe(7)
     expect(review.createdAt).toBe(now)
     expect(review.updatedAt).toBe(now)
   })
@@ -89,6 +99,24 @@ describe('reviewFromRow', () => {
     expect(review.languageCode).toBeNull()
     expect(review.sentimentLabel).toBeNull()
     expect(review.sentimentScore).toBeNull()
+  })
+
+  it('carries the stored Google translation in both directions', () => {
+    // `text` holds the guest's original words; the machine translation is a
+    // separate column so the review display can show both without ever feeding
+    // the translation to language detection.
+    const row: ReviewRow = { ...sampleRow, text: 'Ок', translatedText: 'Ok' }
+
+    const review = reviewFromRow(row)
+    expect(review.text).toBe('Ок')
+    expect(review.translatedText).toBe('Ok')
+    expect(reviewToRow(review).translatedText).toBe('Ok')
+  })
+
+  it('keeps a missing translation null in both directions', () => {
+    const review = reviewFromRow(sampleRow)
+    expect(review.translatedText).toBeNull()
+    expect(reviewToRow(review).translatedText).toBeNull()
   })
 
   it('throws a tagged ReviewError (not bare Error) for an invalid platform', () => {

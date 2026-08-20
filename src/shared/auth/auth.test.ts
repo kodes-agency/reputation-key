@@ -65,6 +65,20 @@ describe('Auth configuration', () => {
     // form posts / redirects to any other origin are rejected.
     expect(auth.options.trustedOrigins).toEqual(['http://localhost:3000'])
   })
+
+  it('persists session cookies for the loopback HTTP production stack', async () => {
+    // This suite resets the module graph so the cached environment is rebuilt
+    // after each case's process.env setup.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    process.env.NODE_ENV = 'production'
+    process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3000'
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(false)
+  })
 })
 
 describe('Auth context and role helpers', () => {

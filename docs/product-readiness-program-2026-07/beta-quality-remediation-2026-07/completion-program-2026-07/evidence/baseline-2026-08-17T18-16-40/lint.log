@@ -1,0 +1,25 @@
+$ pnpm lint
+started: 2026-08-17T18:17:10.995Z  durationMs: 13397  exit: 0
+
+
+> reputation-key@ lint /Users/bozhidardenev/kodes/projects/rep-key
+> eslint . && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && node scripts/check-test-quality.mjs && pnpm check:google-provider-fixtures && pnpm check:ai-contract-attestations && pnpm check:ai-governance-artifacts
+
+✓ All component files use kebab-case naming.
+✓ No component/server boundary violations.
+[test-quality] scanned 696 test/spec files; 1 file(s) with registered skips (1 registered)
+[test-quality] OK — no focused tests, no unregistered skips, no generic-error acceptance, no unasserted async failures
+
+> reputation-key@ check:google-provider-fixtures /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/generate-google-provider-fixtures.ts --check && node scripts/check-google-provider-identifiers.mjs
+
+
+> reputation-key@ check:ai-contract-attestations /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/check-ai-contract-attestations.ts
+
+{"sourceCanonicalizerDigest":"df0c9ea9ea7efebe0fe270bb86f644a8dfffc411f58538bd6fc0634d295fcac5","reviewProviderSubjectCanonicalizerDigest":"9b6c7ff2467dcce05c1482a5b242b0f2925ead9d9be4b08340e374e1634a3ef6"}
+
+> reputation-key@ check:ai-governance-artifacts /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/generate-ai-governance-artifacts.ts --check
+
+

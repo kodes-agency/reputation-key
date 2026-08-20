@@ -15,12 +15,14 @@ up the deployed schema:
    `account`, `verification`, `organization`, `member`, `invitation`,
    `organizationRole`). Drizzle never manages these; `schema/auth.ts` is a
    read-only query mirror of them.
-3. **Registered deploy sidecars** — raw SQL for constructs Drizzle cannot
-   express or must not own. Currently exactly one:
-   `scripts/migrations/2026-07-06-permission-version-triggers.sql`
-   (idempotent; functions/triggers + the `organizationRole` expression
-   index). Everything in `scripts/migrations/` else is a historical one-off —
-   do not apply them.
+3. **Registered deploy sidecars** — constructs Drizzle cannot safely own:
+   `scripts/google-property-binding-index.ts` owns the duplicate-audited,
+   advisory-locked `CREATE UNIQUE INDEX CONCURRENTLY` lifecycle for
+   `properties_org_gbp_location_id_unique`; and
+   `scripts/migrations/2026-07-06-permission-version-triggers.sql` owns the
+   idempotent DAC functions/triggers plus the `organizationRole` expression
+   index. Everything else in `scripts/migrations/` is a historical one-off —
+   do not apply it.
 
 The Drizzle model (`schema/*.ts`) is the application-side model of track 1 (+2
 as a mirror). It is **verified semantically** against the actually-migrated
@@ -31,17 +33,21 @@ expressions/partial predicates, enum labels, and journal continuity — by
 migrated DB). The comparator lives in `schema-drift.ts` and is also runnable
 standalone: `pnpm check:schema-drift` (see `scripts/check-schema-drift.ts`).
 
-**Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` → registered
-sidecars (`psql "$DATABASE_URL" -f <sidecar>`). CI applies the same order in
-the `check` and `e2e` jobs, so the tested DB matches the deploy state.
-BQC-7.1: production deploys run the trio via the Railway `preDeployCommand`
-(`node dist-worker/migrate-deploy.js`, source `scripts/migrate-deploy.ts`) —
-a PostgreSQL advisory lock serializes concurrent deploys, every step is
-idempotent, and the recovery policy is fix-forward-and-rerun (never hand-roll
-partial schema). The script drives better-auth's `getMigrations` and
-drizzle-orm's migrator — the same engines the two CLIs wrap; the `check`
-job's "Predeploy migration parity" step proves it converges to the manual
-trio's end state on every PR.
+**Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` →
+`pnpm db:google-property-binding-index` → the registered SQL sidecar. The
+`db:migrate` wrapper applies the journal through immutable migration 0033 and
+commits, autocommits the `cleanup_required` enum label, then applies 0034 onward.
+PostgreSQL otherwise rejects 0034 for using a new enum label in the transaction
+that added it. The stages are idempotent on fresh, partial, and already-current
+databases. CI applies the same order, so the tested DB matches deploy state.
+BQC-7.1: production deploys run the sequence via the Railway
+`preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
+`scripts/migrate-deploy.ts`). A deployment advisory lock serializes the full
+sequence; the Property index sidecar takes its own session lock and runs its
+concurrent DDL outside the Drizzle transactions. Recovery is
+fix-forward-and-rerun (never hand-roll partial schema). CI's “Predeploy migration
+parity” step proves the manual and production runners converge to the same end
+state on every PR.
 
 ## How to change the schema
 

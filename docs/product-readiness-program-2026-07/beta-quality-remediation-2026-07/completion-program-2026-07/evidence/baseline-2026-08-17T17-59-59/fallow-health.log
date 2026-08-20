@@ -1,0 +1,466 @@
+$ node_modules/.bin/fallow health --changed-since HEAD --report-only
+started: 2026-08-17T18:02:40.546Z  durationMs: 455  exit: 0
+
+● Health score: 75 B
+  Deductions: hotspots -10.0 · unit size -10.0 · coupling -2.4 · duplication -2.1 · complexity -0.4
+
+■ Metrics: 49,873 LOC · dead files 0.0% · dead exports 0.0% · avg cyclomatic 1.9 · p90 cyclomatic 3 · maintainability 89.8 (good) · 1 churn hotspot (since 6 months) · duplication 7.1%
+
+  Function size: 70% low · 15% medium · 8% high · 8% very high  (1-15 / 16-30 / 31-60 / >60 LOC)
+  Parameters:    96% low · 3% medium · 1% high · 0% very high  (0-2 / 3-4 / 5-6 / >=7 params)
+
+  Render fan-in: <Button> 94 parents (148 incl. repeats) · <Badge> 45 parents (55 incl. repeats) · <PageHeader> 36 parents (41 incl. repeats) · <Card> 33 parents (41 incl. repeats) · <PageShell> 33 parents (38 incl. repeats)
+
+● Large functions (10 shown, 188 total)
+  src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts
+    :330 <arrow>  2593 lines
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :239 createAiOutputStoreAdapter  1225 lines
+  src/composition.ts
+    :416 createContainer  1043 lines
+  src/contexts/review/infrastructure/reply-command-store.test.ts
+    :273 <arrow>  911 lines
+  src/contexts/review/infrastructure/ai-suggested-draft-store.integration.test.ts
+    :82 <arrow>  647 lines
+  src/bootstrap.ts
+    :69 bootstrap  534 lines
+  src/contexts/review/infrastructure/repositories/review.repository.ts
+    :167 createReviewRepository  483 lines
+  src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts
+    :2445 <arrow>  477 lines
+    :2009 <arrow>  435 lines
+  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+    :95 createInboxRepository  433 lines
+  Functions exceeding 60 lines of code (very high risk): https://docs.fallow.tools/explanations/health#unit-size
+  use --top 188 to see all
+
+● High complexity functions (30)
+  CRAP scores are estimated from export references; run `fallow health --coverage <coverage-final.json>` for exact scores.
+  src/contexts/review/infrastructure/ai-suggested-draft-store.ts
+    :79 <arrow> CRITICAL
+         105 cyclomatic   26 cognitive  369 lines
+         2486.4 CRAP
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :1144 <arrow> CRITICAL
+          64 cyclomatic   15 cognitive  317 lines
+         948.7 CRAP
+  src/contexts/ai/domain/rules.ts
+    :153 parseAiPrivateBetaPolicy CRITICAL
+          49 cyclomatic   56 cognitive  123 lines
+    :574 createAiOperationIdentity HIGH
+          48 cyclomatic   18 cognitive  136 lines
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :665 <arrow> CRITICAL
+          48 cyclomatic    9 cognitive  245 lines
+         545.7 CRAP
+    :913 <arrow> CRITICAL
+          48 cyclomatic   13 cognitive  228 lines
+         545.7 CRAP
+  src/contexts/ai/application/use-cases/analyze-review-event.ts
+    :141 <arrow> CRITICAL
+          41 cyclomatic   44 cognitive  365 lines
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :86 isCurrentAuthorizedEffect HIGH
+          41 cyclomatic   11 cognitive  152 lines
+  src/contexts/ai/domain/rules.ts
+    :365 parseAiExecutionBinding HIGH
+          39 cyclomatic   16 cognitive  100 lines
+  src/contexts/ai/application/use-cases/generate-property-trend.ts
+    :176 <arrow> HIGH
+          38 cyclomatic   27 cognitive  299 lines
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :242 <arrow> HIGH
+          38 cyclomatic   13 cognitive  202 lines
+  src/contexts/ai/application/use-cases/generate-reply-suggestion.ts
+    :108 <arrow> HIGH
+          32 cyclomatic   23 cognitive  268 lines
+  src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    :446 <arrow> HIGH
+          32 cyclomatic    7 cognitive  151 lines
+  src/shared/db/staged-drizzle-migrator.test.ts
+    :62 query HIGH
+          27 cyclomatic   36 cognitive   83 lines
+  src/contexts/ai/domain/rules.ts
+    :466 parseAiCanaryExecutionBinding
+          26 cyclomatic    6 cognitive   56 lines
+  src/contexts/review/infrastructure/repositories/review.repository.ts
+    :192 <arrow>
+          25 cyclomatic   14 cognitive   82 lines
+  services/ai-egress-gateway/route-preparer.ts
+    :258 prepare HIGH
+          23 cyclomatic   34 cognitive  328 lines
+  src/composition.ts
+    :324 createAiRuntimeProviders
+          19 cyclomatic   18 cognitive   88 lines
+  src/shared/ed25519-key-material.ts
+    :34 loadNamedEd25519PublicKeyring
+          16 cyclomatic   16 cognitive   61 lines
+  src/components/features/property/property-ai-trend-section.tsx
+    :15 PropertyAiTrendSection HIGH
+          15 cyclomatic   28 cognitive   95 lines
+         react: 2 props, 1 hooks (1 custom), JSX depth 4
+  src/components/inbox/reply-suggestion-controls.tsx
+    :39 ReplySuggestionControls CRITICAL
+          15 cyclomatic   92 cognitive  147 lines
+         react: 13 props, JSX depth 6
+  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+    :156 <arrow>
+          15 cyclomatic   16 cognitive  102 lines
+  src/components/inbox/inbox-detail-content.tsx
+    :50 InboxDetailContent
+          13 cyclomatic   21 cognitive  112 lines
+         react: 10 props, 1 hooks (1 custom), JSX depth 3
+         blast radius: <InboxDetailContent> rendered in 2 places
+  src/contexts/ai/application/use-cases/generate-property-trend.ts
+    :71 addDays
+          13 cyclomatic   18 cognitive   38 lines
+  src/contexts/review/application/use-cases/reply-operations.ts
+    :148 <arrow>
+          12 cyclomatic   18 cognitive   99 lines
+  src/components/inbox/reply-editor-compose.tsx
+    :25 ReplyCompose
+          10 cyclomatic   22 cognitive  106 lines
+         react: 6 props, 1 hooks (1 custom), JSX depth 4
+  src/components/inbox/inbox-page-v2.tsx
+    :31 InboxPageV2 HIGH
+           7 cyclomatic   28 cognitive  137 lines
+         react: 7 props, 3 hooks (1 state, 2 custom), JSX depth 5
+         blast radius: <InboxPageV2> rendered in 2 places
+  src/components/inbox/inbox-filters.tsx
+    :46 InboxFilters HIGH
+           6 cyclomatic   27 cognitive  101 lines
+         react: 3 props, 1 hooks (1 callback), JSX depth 4
+  src/components/features/property/property-dashboard.tsx
+    :37 PropertyDashboard HIGH
+           5 cyclomatic   32 cognitive  149 lines
+         react: 10 props, JSX depth 5
+  src/components/inbox/inbox-list-header.tsx
+    :27 InboxListHeader CRITICAL
+           5 cyclomatic   45 cognitive   71 lines
+         react: 7 props, JSX depth 5
+  Functions exceeding cyclomatic, cognitive, or CRAP thresholds (https://docs.fallow.tools/explanations/health#complexity-metrics)
+  To suppress: // fallow-ignore-next-line complexity
+
+● Coverage gaps (28 untested files, 58 untested exports, 68.2% file coverage)
+
+  Files
+  src/bootstrap.ts
+  src/components/features/property/property-ai-trend-section.tsx
+  src/components/features/property/property-dashboard.tsx
+  src/components/inbox/inbox-detail-content.tsx
+  src/components/inbox/inbox-filters.tsx
+  src/components/inbox/inbox-list-header.tsx
+  src/components/inbox/inbox-list-panel-parts.tsx
+  src/components/inbox/inbox-list-panel-v2.tsx
+  src/components/inbox/inbox-page-v2.tsx
+  src/components/inbox/inbox-review-analysis.tsx
+  ... and 18 more files (--format json for full list)
+
+  Exports
+  src/bootstrap.ts:69 `bootstrap`
+  src/components/features/property/property-ai-trend-section.tsx:15 `PropertyAiTrendSection`
+  src/components/features/property/property-dashboard.tsx:37 `PropertyDashboard`
+  src/components/inbox/inbox-detail-content.tsx:50 `InboxDetailContent`
+  src/components/inbox/inbox-filters.tsx:46 `InboxFilters`
+  src/components/inbox/inbox-list-header.tsx:27 `InboxListHeader`
+  src/components/inbox/inbox-list-panel-parts.tsx:128 `BulkActionBar`
+  src/components/inbox/inbox-list-panel-parts.tsx:100 `LoadMoreButton`
+  src/components/inbox/inbox-list-panel-parts.tsx:83 `renderListContent`
+  src/components/inbox/inbox-list-panel-v2.tsx:15 `InboxListPanel`
+  ... and 48 more exports (--format json for full list)
+
+  Static test dependency gaps (not line-level coverage): https://docs.fallow.tools/explanations/health#coverage-gaps
+
+● File health scores (150 files) · sorted by triage concern
+
+   84.4    src/contexts/review/infrastructure/ai-suggested-draft-store.ts  risk
+            464 LOC    2 fan-in    5 fan-out    0% dead  0.28 density  >999 risk
+
+   85.7    src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts  risk
+           1464 LOC    4 fan-in    7 fan-out    0% dead  0.20 density  948.7 risk
+
+   83.4    src/worker/index.ts                             risk
+            473 LOC    0 fan-in   29 fan-out    0% dead  0.10 density  506.0 risk
+
+   84.9    src/contexts/ai/application/use-cases/analyze-review-event.ts  risk
+            507 LOC    4 fan-in   18 fan-out    0% dead  0.11 density  404.1 risk
+
+   84.3    src/contexts/ai/application/use-cases/generate-property-trend.ts  risk
+            476 LOC    3 fan-in   13 fan-out    0% dead  0.17 density  349.9 risk
+
+   85.3    src/contexts/ai/application/use-cases/generate-reply-suggestion.ts  risk
+            377 LOC    2 fan-in   19 fan-out    0% dead  0.09 density  253.2 risk
+
+   89.5    src/components/inbox/reply-suggestion-controls.tsx  risk
+            186 LOC    1 fan-in    5 fan-out    0% dead  0.11 density  240.0 risk
+
+   90.0    src/components/features/property/property-ai-trend-section.tsx  risk
+            110 LOC    1 fan-in    3 fan-out    0% dead  0.15 density  240.0 risk
+
+   92.1    src/shared/db/staged-drizzle-migrator.test.ts   risk
+            254 LOC    0 fan-in    1 fan-out    0% dead  0.17 density  184.5 risk
+
+   85.8    src/components/inbox/inbox-detail-content.tsx   risk
+            162 LOC    3 fan-in   13 fan-out    0% dead  0.12 density  182.0 risk
+
+  ... and 140 more files (--format json for full list)
+
+  Sorted by triage concern: the larger of low-MI concern and CRAP risk. The risk / structure tag marks which one placed each file. MI reflects complexity, coupling, and dead code; risk reflects untested complexity (CRAP) and can diverge from MI. Risk: low <15, moderate 15-30, high >=30. CRAP estimated from export references (85% direct, 40% indirect, 0% untested). Run `fallow health --coverage <coverage-final.json>` for exact scores. https://docs.fallow.tools/explanations/health#file-health-scores
+
+● Hotspots (67 files, since 6 months)
+
+   53.6 ─  src/composition.ts
+          82 commits   3641 churn  0.15 density  69 fan-in  ─ stable
+
+   16.2 ▲  src/worker/index.ts
+          35 commits    976 churn  0.10 density   0 fan-in  ▲ accelerating
+
+   15.3 ─  src/bootstrap.ts
+          35 commits   1020 churn  0.10 density   1 fan-in  ─ stable
+
+   14.8 ▼  src/contexts/inbox/infrastructure/repositories/inbox.repository.ts
+          18 commits   1260 churn  0.19 density   4 fan-in  ▼ cooling
+
+   14.2 ─  src/contexts/review/application/use-cases/sync-reviews.ts
+          29 commits   1422 churn  0.11 density   1 fan-in  ─ stable
+
+   12.6 ─  src/contexts/review/infrastructure/repositories/review.repository.ts
+          15 commits    755 churn  0.18 density  11 fan-in  ─ stable
+
+   10.7 ─  src/contexts/review/application/use-cases/reply-operations.ts
+          21 commits   1799 churn  0.11 density   3 fan-in  ─ stable
+
+   10.3 ▼  src/shared/queries/query-keys.ts
+           7 commits    199 churn  0.28 density  42 fan-in  ▼ cooling
+
+    9.9 ─  src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts [test]
+          15 commits    485 churn  0.15 density   0 fan-in  ─ stable
+
+    8.5 ▲  src/contexts/review/application/use-cases/reply-operations.test.ts [test]
+          14 commits   1775 churn  0.12 density   0 fan-in  ▲ accelerating
+
+    8.4 ─  src/components/inbox/use-inbox-state.ts
+           8 commits    410 churn  0.24 density   1 fan-in  ─ stable
+
+    8.3 ─  src/contexts/review/build.ts
+          25 commits    573 churn  0.07 density   2 fan-in  ─ stable
+
+    7.4 ▼  src/routes/_authenticated/properties/$propertyId/index.tsx
+          16 commits   1071 churn  0.13 density   0 fan-in  ▼ cooling
+
+    7.0 ─  src/components/inbox/inbox-detail-content.tsx
+          14 commits    352 churn  0.12 density   3 fan-in  ─ stable
+
+    6.8 ─  src/shared/config/env.ts
+          39 commits    347 churn  0.04 density  73 fan-in  ─ stable
+
+    6.7 ▲  src/components/inbox/use-inbox-page.ts
+           7 commits    261 churn  0.20 density   2 fan-in  ▲ accelerating
+
+    6.2 ▼  src/contexts/inbox/infrastructure/repositories/inbox.repository.test.ts [test]
+          14 commits   1156 churn  0.10 density   0 fan-in  ▼ cooling
+
+    6.1 ▲  src/contexts/review/domain/rules.test.ts [test]
+           8 commits    226 churn  0.16 density   0 fan-in  ▲ accelerating
+
+    5.9 ─  src/contexts/review/server/reply-read.ts
+          10 commits    122 churn  0.13 density   3 fan-in  ─ stable
+
+    5.8 ▼  src/contexts/review/infrastructure/repositories/reply.repository.ts
+           9 commits    253 churn  0.16 density   7 fan-in  ▼ cooling
+
+    5.5 ▲  src/contexts/inbox/server/inbox-queries.ts
+           9 commits    385 churn  0.13 density   1 fan-in  ▲ accelerating
+
+    4.5 ▼  src/components/inbox/inbox-filters.tsx
+           8 commits    317 churn  0.14 density   3 fan-in  ▼ cooling
+
+    4.4 ─  src/contexts/review/domain/constructors.ts
+           9 commits    180 churn  0.11 density   1 fan-in  ─ stable
+
+    4.2 ▼  src/contexts/inbox/application/use-cases/get-inbox-item-detail.ts
+          11 commits    168 churn  0.09 density   4 fan-in  ▼ cooling
+
+    4.2 ─  src/contexts/inbox/build.ts
+          16 commits    513 churn  0.06 density   2 fan-in  ─ stable
+
+    3.9 ▼  src/components/inbox/inbox-page-v2.tsx
+           8 commits    383 churn  0.11 density   3 fan-in  ▼ cooling
+
+    3.9 ▲  src/components/inbox/reply-form.tsx
+           6 commits    425 churn  0.14 density   3 fan-in  ▲ accelerating
+
+    3.8 ▲  src/contexts/goal/application/public-api.test.ts [test]
+           9 commits     90 churn  0.11 density   0 fan-in  ▲ accelerating
+
+    3.7 ▼  src/contexts/review/infrastructure/mappers/reply.mapper.ts
+           6 commits     84 churn  0.16 density   4 fan-in  ▼ cooling
+
+    3.6 ─  src/contexts/review/domain/types.ts
+           8 commits    210 churn  0.10 density  45 fan-in  ─ stable
+
+    3.5 ▼  src/shared/db/migration-verification.test.ts [test]
+           7 commits    341 churn  0.09 density   0 fan-in  ▼ cooling
+
+    3.4 ▼  src/components/inbox/inbox-detail-panel.stories.tsx
+           5 commits    163 churn  0.13 density   0 fan-in  ▼ cooling
+
+    3.4 ▼  src/components/inbox/inbox-detail-sheet.stories.tsx
+           5 commits    173 churn  0.13 density   0 fan-in  ▼ cooling
+
+    3.4 ▼  src/contexts/review/infrastructure/reply-command-store.ts
+           4 commits    669 churn  0.16 density   8 fan-in  ▼ cooling
+
+    3.3 ▲  src/shared/db/staged-drizzle-migrator.test.ts [test]
+           3 commits    247 churn  0.17 density   0 fan-in  ▲ accelerating
+
+    3.3 ▼  src/components/inbox/inbox-detail-content.stories.tsx
+           7 commits    345 churn  0.09 density   0 fan-in  ▼ cooling
+
+    3.3 ▲  src/contexts/review/server/reply-draft.ts
+           7 commits    221 churn  0.10 density   1 fan-in  ▲ accelerating
+
+    3.0 ▲  vite.config.ts
+          13 commits    223 churn  0.05 density   0 fan-in  ▲ accelerating
+
+    3.0 ▼  src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts [test]
+           5 commits    940 churn  0.10 density   0 fan-in  ▼ cooling
+
+    3.0 ▼  src/contexts/review/infrastructure/jobs/publish-reply.job.test.ts [test]
+           6 commits    647 churn  0.09 density   0 fan-in  ▼ cooling
+
+    2.9 ▼  src/shared/outbox/infrastructure/repositories/durable-cutover.test.ts [test]
+           5 commits    996 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.4 ▼  src/components/inbox/inbox-list-panel-parts.tsx
+           5 commits    155 churn  0.10 density   1 fan-in  ▼ cooling
+
+    2.3 ▼  src/components/inbox/reply-editor-compose.tsx
+           5 commits     82 churn  0.11 density   2 fan-in  ▼ cooling
+
+    2.3 ▼  src/shared/domain/period-range.test.ts [test]
+           3 commits    139 churn  0.13 density   0 fan-in  ▼ cooling
+
+    2.2 ▼  src/contexts/metric/domain/metric-reading.test.ts [test]
+           3 commits    454 churn  0.13 density   0 fan-in  ▼ cooling
+
+    2.2 ▼  src/contexts/review/application/use-cases/reconcile-reply-publication.test.ts [test]
+           4 commits    396 churn  0.10 density   0 fan-in  ▼ cooling
+
+    2.1 ▼  src/contexts/inbox/infrastructure/repositories/inbox-command-store.test.ts [test]
+           4 commits    651 churn  0.09 density   0 fan-in  ▼ cooling
+
+    2.1 ▼  src/composition.characterization.test.ts [test]
+           6 commits    389 churn  0.06 density   0 fan-in  ▼ cooling
+
+    2.0 ▼  src/components/features/property/property-dashboard.tsx
+           8 commits    612 churn  0.06 density   2 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/review/infrastructure/reply-command-store.test.ts [test]
+           4 commits   1605 churn  0.09 density   0 fan-in  ▼ cooling
+
+    1.9 ▼  src/contexts/review/domain/errors.ts
+           6 commits     36 churn  0.08 density  21 fan-in  ▼ cooling
+
+    1.8 ─  src/components/inbox/reply-editor.tsx
+           6 commits    356 churn  0.07 density   2 fan-in  ─ stable
+
+    1.8 ▲  src/contexts/review/infrastructure/mappers/review.mapper.test.ts [test]
+           4 commits    182 churn  0.09 density   0 fan-in  ▲ accelerating
+
+    1.8 ▼  src/contexts/review/infrastructure/repositories/reply.repository.test.ts [test]
+           5 commits    406 churn  0.08 density   0 fan-in  ▼ cooling
+
+    1.7 ▼  src/contexts/review/infrastructure/repositories/reply-command-store.test.ts [test]
+           5 commits    338 churn  0.06 density   0 fan-in  ▼ cooling
+
+    1.3 ▼  src/components/inbox/reply-editor.stories.tsx
+           5 commits    150 churn  0.05 density   0 fan-in  ▼ cooling
+
+    1.2 ▼  src/components/inbox/inbox-list-header.tsx
+           3 commits    130 churn  0.09 density   1 fan-in  ▼ cooling
+
+    1.2 ▼  src/contexts/review/infrastructure/repositories/publication-state.test.ts [test]
+           3 commits    508 churn  0.07 density   0 fan-in  ▼ cooling
+
+    0.9 ▼  src/contexts/review/infrastructure/mappers/reply.mapper.test.ts [test]
+           4 commits    136 churn  0.06 density   0 fan-in  ▼ cooling
+
+    0.9 ─  src/shared/db/schema/review.schema.ts
+          10 commits    527 churn  0.02 density  16 fan-in  ─ stable
+
+    0.8 ─  src/contexts/inbox/build-use-cases.ts
+           6 commits    170 churn  0.03 density   2 fan-in  ─ stable
+
+    0.7 ▼  src/shared/governance/event-job-catalogue.ts
+          13 commits   2466 churn  0.01 density   6 fan-in  ▼ cooling
+
+    0.7 ▼  src/test-setup.ts
+           3 commits     14 churn  0.08 density   0 fan-in  ▼ cooling
+
+    0.6 ─  src/components/inbox/reply-form.stories.tsx
+           4 commits    137 churn  0.03 density   0 fan-in  ─ stable
+
+    0.6 ▼  src/shared/events/schema-registrations.ts
+          11 commits    920 churn  0.01 density  29 fan-in  ▼ cooling
+
+    0.3 ▼  src/components/inbox/inbox-list-panel-v2.tsx
+           4 commits    299 churn  0.02 density   1 fan-in  ▼ cooling
+
+    0.0 ▼  src/shared/governance/entry-point-catalogue.ts
+          33 commits   3956 churn  0.00 density   7 fan-in  ▼ cooling
+
+  33 files excluded (< 3 commits)
+
+  Files with high churn and high complexity: https://docs.fallow.tools/explanations/health#hotspot-metrics
+
+● Refactoring targets (9)
+  1 low effort · 4 medium · 4 high
+    score = quick-win ROI (higher = better) · pri = absolute priority
+
+   14.3  pri:42.9    src/composition.ts
+         complexity · effort:high · confidence:high  Extract createContainer (cognitive: 76) in 1518-LOC file into smaller functions
+         importers: server/plugins/graceful-shutdown.ts (closeContainer); src/bootstrap.ts (Container); src/composition.characterization.test.ts (Container, createContainer); src/composition.test.ts (applyProviderEndpointOverrides, closeContainer, providerConfigFor); src/contexts/activity/server/activity.ts (getContainer)
+
+    8.6  pri:17.1    src/worker/index.ts
+         complexity · effort:medium · confidence:high  Extract main (cognitive: 34) in 473-LOC file into smaller functions
+         clones: src/worker/index.ts:320-327 dup:475026a4; src/worker/index.ts:372-379 dup:475026a4
+
+    6.0  pri:6.0    src/components/inbox/inbox-list-header.tsx
+         complexity · effort:low · confidence:high  Extract InboxListHeader (cognitive: 45) in 98-LOC file into smaller functions
+         importers: src/components/inbox/inbox-list-panel-v2.tsx (InboxListHeader)
+
+    5.9  pri:17.7    src/contexts/ai/domain/rules.ts
+         high impact · effort:high · confidence:medium  Split high-impact file (710 LOC), 4 dependents amplify every change
+         importers: src/contexts/ai/domain/rules.test.ts (createAiOperationIdentity, parseAiCanaryExecutionBinding, parseAiExecutionBinding, parseAiPrivateBetaPolicy, resolveAiProcessingCell); src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts (createAiOperationIdentity); src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts (createAiOperationIdentity, parseAiCanaryExecutionBinding, parseAiExecutionBinding); src/contexts/ai/infrastructure/adapters/property-processing-profile.adapter.ts (resolveAiProcessingCell)
+
+    5.3  pri:16.0    src/contexts/ai/application/use-cases/analyze-review-event.ts
+         complexity · effort:high · confidence:high  Extract <arrow> (cognitive: 44) in 507-LOC file into smaller functions
+         importers: src/contexts/ai/application/use-cases/analyze-review-event.test.ts (AnalyzeReviewEventDependencies, createAnalyzeReviewEvent); src/contexts/ai/build.ts (createAnalyzeReviewEvent); src/contexts/ai/infrastructure/outbox-consumers.test.ts (AnalyzeReviewEventResult); src/contexts/ai/infrastructure/outbox-consumers.ts (AnalyzeReviewEventInput, AnalyzeReviewEventResult)
+         clones: src/contexts/ai/application/use-cases/analyze-review-event.ts:327-349 dup:7054ce1b; src/contexts/ai/application/use-cases/analyze-review-event.ts:475-497 dup:7054ce1b; src/contexts/ai/application/use-cases/generate-property-trend.ts:353-375 dup:e7b27a2f; src/contexts/ai/application/use-cases/generate-reply-suggestion.ts:289-308 dup:8202a1ab
+
+    5.1  pri:10.2    src/components/features/property/property-dashboard.tsx
+         complexity · effort:medium · confidence:high  Extract PropertyDashboard (cognitive: 32) in 186-LOC file into smaller functions
+         importers: src/components/features/property/property-dashboard.stories.tsx (PropertyDashboard); src/routes/_authenticated/properties/$propertyId/index.tsx (PropertyDashboard)
+         clones: src/components/features/property/property-dashboard.tsx:124-135 dup:f692e3dd; src/components/features/property/property-dashboard.tsx:144-160 dup:f692e3dd
+
+    4.8  pri:14.4    services/ai-egress-gateway/route-preparer.ts
+         complexity · effort:high · confidence:high  Extract prepare (cognitive: 34) in 588-LOC file into smaller functions
+         importers: services/ai-egress-gateway/bootstrap.ts (createAiGatewayRoutePreparer); services/ai-egress-gateway/route-preparer.test.ts (createAiGatewayRoutePreparer)
+
+    3.4  pri:6.7    src/components/inbox/reply-suggestion-controls.tsx
+         complexity · effort:medium · confidence:high  Extract ReplySuggestionControls (cognitive: 92) in 186-LOC file into smaller functions
+         importers: src/components/inbox/reply-editor-compose.tsx (ReplySuggestionControls)
+
+    3.2  pri:6.3    src/shared/db/staged-drizzle-migrator.test.ts
+         complexity · effort:medium · confidence:high  Extract query (cognitive: 36) in 254-LOC file into smaller functions
+
+  Prioritized refactoring recommendations based on complexity, churn, and coupling signals: https://docs.fallow.tools/explanations/health#refactoring-targets
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+   0.185312709s  WARN invalid entry pattern '["node","dist-ai-egress-gateway/index.js"]': error parsing glob '["node","dist-ai-egress-gateway/index.js"]': invalid range; 't' > 'a'
+   0.185325792s  WARN invalid entry pattern '["node","dist-google-import-compatibility/google-import-lifecycle.js"]': error parsing glob '["node","dist-google-import-compatibility/google-import-lifecycle.js"]': invalid range; 't' > 'g'
+   0.284533084s  WARN boundary zone 'shared-testing' matched 0 reachable files, check your directory structure, pattern, or whether these files are all currently unreachable
+
+✗ 30 above threshold · 2523 analyzed · maintainability 89.8 (good) (0.27s)

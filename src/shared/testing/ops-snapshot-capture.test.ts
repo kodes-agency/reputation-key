@@ -10,6 +10,7 @@ import {
   createCapture,
   toPoint,
   viaContainer,
+  viaContainerFactory,
   viaHttp,
   serializeSeries,
   parseSeries,
@@ -66,6 +67,7 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
     release: { sha: 'abc123' },
     versions: {
       capabilityPolicy: 'cap-1',
+      executionPolicy: 'exec-1',
       policyStore: 7,
       routingPolicy: 1,
       sourceContentPolicy: 3,
@@ -116,6 +118,17 @@ describe('viaContainer source', () => {
     const source = viaContainer({ read: async () => snapshot })
     expect(await source.read()).toBe(snapshot)
   })
+})
+
+it('resolves the reader for every capture after an in-process restart', async () => {
+  const first = fakeSnapshot({ release: { sha: 'before-restart' } })
+  const second = fakeSnapshot({ release: { sha: 'after-restart' } })
+  let current = { read: async () => first }
+  const source = viaContainerFactory(() => current)
+
+  expect(await source.read()).toBe(first)
+  current = { read: async () => second }
+  expect(await source.read()).toBe(second)
 })
 
 describe('viaHttp source', () => {

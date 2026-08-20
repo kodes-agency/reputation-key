@@ -2,7 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import { createInboxRepository } from './inbox.repository'
 import type {
   ReviewLookupPort,
@@ -10,6 +10,7 @@ import type {
 } from '../../application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
+import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import { getDb } from '#/shared/db'
 import {
   inboxItemId,
@@ -120,8 +121,17 @@ async function seedProperties(pool: Pool) {
 
 async function seedReviews(pool: Pool) {
   await pool.query(
-    `INSERT INTO reviews (id, organization_id, property_id, external_id, external_location_id, platform, rating, text, reviewer_name, reviewed_at, expires_at, created_at, updated_at)
-     VALUES ($1, $2, $3, 'ext-rev-001', 'ext-loc-001', 'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year', NOW(), NOW())
+    `INSERT INTO reviews (
+       id, organization_id, property_id, external_id, external_location_id,
+       platform, rating, text, reviewer_name, reviewed_at, expires_at,
+       source_epoch, source_revision, analysis_sequence,
+       ai_source_byte_length, ai_source_digest, created_at, updated_at
+     )
+     VALUES (
+       $1, $2, $3, 'ext-rev-001', 'ext-loc-001',
+       'google', 4, 'Great service', 'John Doe', NOW(), NOW() + INTERVAL '1 year',
+       0, 0, 0, 1, repeat('0', 64), NOW(), NOW()
+     )
      ON CONFLICT (platform, external_id, organization_id) DO NOTHING`,
     [REVIEW_ID_A, ORG_A as string, PROP_A as string],
   )
@@ -413,6 +423,93 @@ describe('inbox repository — detail view', () => {
     // BQC-1.2: the stub lookup reports not_found — typed status, no content.
     expect(detail!.reviewContentStatus).toBe('not_found')
     expect(detail!.reviewText).toBeNull()
+    // BQC-1.2: an ineligible source may not leak a translation either.
+    expect(detail!.reviewTranslatedText).toBeNull()
+  })
+
+  it('findDetailById surfaces the guest original and Google translation together', async () => {
+    const srcId = crypto.randomUUID()
+    const item = makeInboxItem({ sourceType: 'review', sourceId: reviewId(srcId) })
+    await repo.create(item, ORG_A)
+
+    const translatedRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
+          status: 'available',
+          snippet: {
+            reviewerName: 'Мария',
+            text: 'Хотелът беше чист и уютен, а закуската беше много вкусна.',
+            translatedText:
+              'The hotel was clean and cosy, and the breakfast was very tasty.',
+            reviewerProfilePhotoUrl: null,
+            rating: 5,
+          },
+        }),
+      },
+    })
+
+    const detail = await translatedRepo.findDetailById(item.id, ORG_A)
+    expect(detail!.reviewContentStatus).toBe('available')
+    expect(detail!.reviewText).toBe(
+      'Хотелът беше чист и уютен, а закуската беше много вкусна.',
+    )
+    expect(detail!.reviewTranslatedText).toBe(
+      'The hotel was clean and cosy, and the breakfast was very tasty.',
+    )
+  })
+
+  it('findDetailById leaves the translation null for an untranslated review', async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+
+    const englishRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
+          status: 'available',
+          snippet: {
+            reviewerName: 'Jane',
+            text: 'Wonderful stay.',
+            translatedText: null,
+            reviewerProfilePhotoUrl: null,
+            rating: 5,
+          },
+        }),
+      },
+    })
+
+    const detail = await englishRepo.findDetailById(item.id, ORG_A)
+    expect(detail!.reviewText).toBe('Wonderful stay.')
+    expect(detail!.reviewTranslatedText).toBeNull()
+  })
+
+  it('findDetailById serves neither text nor translation for an expired review', async () => {
+    const item = makeInboxItem({
+      sourceType: 'review',
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    await repo.create(item, ORG_A)
+
+    const expiredRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetById: async (): Promise<ReviewSnippetResult> => ({
+          status: 'expired',
+        }),
+      },
+    })
+
+    const detail = await expiredRepo.findDetailById(item.id, ORG_A)
+    expect(detail!.reviewContentStatus).toBe('expired')
+    expect(detail!.reviewText).toBeNull()
+    expect(detail!.reviewTranslatedText).toBeNull()
   })
 
   it('findDetailById returns null for non-existent item', async () => {
@@ -438,6 +535,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
               srcId,
               {
                 text: 'Live text',
+                translatedText: null,
                 reviewerName: 'Live Reviewer',
                 reviewerProfilePhotoUrl: null,
                 rating: 5,
@@ -486,6 +584,33 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     )
     expect(result.items).toHaveLength(1)
     expect(result.items[0]!.sourceId).toBe(reviewId(srcMatch))
+  })
+
+  it('attention filters resolve through the tenant and property-scoped AI projection', async () => {
+    const srcMatch = reviewId(crypto.randomUUID())
+    const srcOther = reviewId(crypto.randomUUID())
+    await repo.create(makeInboxItem({ sourceId: srcMatch }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: srcOther }), ORG_A)
+    const findCurrentReviewIdsByAttention = vi.fn(async () => [srcMatch])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention,
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await filteredRepo.findFilteredPaginated(
+      { propertyId: PROP_A, attention: ['urgent', 'high'] },
+      ORG_A,
+      undefined,
+      50,
+    )
+
+    expect(findCurrentReviewIdsByAttention).toHaveBeenCalledWith({
+      organizationId: ORG_A,
+      propertyIds: [PROP_A],
+      attention: ['urgent', 'high'],
+    })
+    expect(result.items.map((item) => item.sourceId)).toEqual([srcMatch])
   })
 
   it('rating/search filters match nothing when no reviews are eligible', async () => {

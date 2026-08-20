@@ -13,13 +13,6 @@ export type PropertyCreated = Readonly<{
   propertyId: PropertyId
   name: string
   slug: string
-  // F063 NOTE: gbpPlaceId and gbpLocationName are optional because
-  // properties can be created without GBP integration. When populated
-  // via importProperty, googleConnectionId is set but gbpLocationName
-  // is still empty — it must be filled in by a subsequent GBP sync.
-  gbpPlaceId?: string
-  gbpLocationName?: string
-  googleConnectionId?: GoogleConnectionId
   /**
    * BQC-4.1 / ADR 0048: content-free routing fact at creation time. The
    * initial-sync consumer enqueues only when this names an approved cell.
@@ -82,4 +75,36 @@ export const propertyDeleted = (
   }
 }
 
-export type PropertyEvent = PropertyCreated | PropertyUpdated | PropertyDeleted
+export type PropertyGoogleBindingChanged = Readonly<{
+  _tag: 'property.google_binding.changed'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  connectionId: GoogleConnectionId
+  sourceEpoch: number
+  change: 'created' | 'relinked' | 'disconnected' | 'deletion_started'
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const propertyGoogleBindingChanged = (
+  args: Omit<PropertyGoogleBindingChanged, '_tag' | 'eventId' | 'correlationId'>,
+): PropertyGoogleBindingChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch invalid',
+  )
+  return {
+    _tag: 'property.google_binding.changed',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export type PropertyEvent =
+  | PropertyCreated
+  | PropertyUpdated
+  | PropertyDeleted
+  | PropertyGoogleBindingChanged

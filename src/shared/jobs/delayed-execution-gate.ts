@@ -33,17 +33,26 @@ import type { Job } from 'bullmq'
 import {
   ENTRY_POINT_CATALOGUE,
   type EntryPointRow,
+  type SystemAction,
 } from '#/shared/governance/entry-point-catalogue'
 import {
   getDelayedExecutionPolicy,
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
+import type { Capability } from '#/shared/auth/beta-capabilities'
+import {
+  EXECUTION_POLICY_VERSION,
+  isConsentSelectorBoundToScope,
+  type ConsentSelector,
+  type MerchantAiConsentFence,
+} from '#/shared/auth/execution-policy'
 import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
 import {
   workloadClassForJob,
   type ProcessingRouter,
+  type ProcessingSubject,
   type RoutingEnvelope,
 } from '#/shared/routing/processing-router'
 import { GateDenyRetryError, JobTimeoutError, UnknownJobError } from './errors'
@@ -58,12 +67,60 @@ import type { JobRegistry } from './registry'
  */
 export const TENANT_CROSS_ORG = 'tenant-cross'
 
-/** Content-free envelope extension stamped at enqueue (BQC-3.2 §9). */
-export type JobPolicyContext = Readonly<{
+/**
+ * Content-free, producer-stamped execution metadata for controlled jobs.
+ * Scope remains duplicated in domain payload fields so handlers do not need
+ * to unwrap policy machinery; the gate owns this metadata.
+ */
+export type JobExecutionEnvelope = Readonly<{
+  organizationId: string
+  propertyId?: string
+  capability: Capability | 'none'
+  policyVersionAtEnqueue: string
+  initiator: Readonly<{ kind: 'user' | 'system'; id: string }>
+  consent?: ConsentSelector
   correlationId?: string
-  policyVersionAtEnqueue?: string
-  initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
 }>
+
+export type JobEnqueueAttribution = Readonly<
+  Partial<Pick<JobExecutionEnvelope, 'initiator' | 'correlationId' | 'consent'>>
+>
+
+export function createJobExecutionEnvelope(
+  input: Omit<JobExecutionEnvelope, 'policyVersionAtEnqueue'>,
+): JobExecutionEnvelope {
+  if (input.organizationId.length === 0) {
+    throw new Error('job execution envelope requires organizationId')
+  }
+  if (input.propertyId !== undefined && input.propertyId.length === 0) {
+    throw new Error('job execution envelope propertyId cannot be empty')
+  }
+  if (input.initiator.id.length === 0) {
+    throw new Error('job execution envelope requires a named initiator')
+  }
+  if (input.consent !== undefined) {
+    const consent = envelopeConsent({ consent: input.consent })
+    const scopeMatches =
+      consent !== undefined &&
+      isConsentSelectorBoundToScope(consent, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.initiator.kind === 'user' ? input.initiator.id : undefined,
+      })
+    if (!scopeMatches) {
+      throw new Error('job execution envelope consent selector does not match scope')
+    }
+  }
+  return {
+    organizationId: input.organizationId,
+    capability: input.capability,
+    initiator: input.initiator,
+    policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+    ...(input.propertyId === undefined ? {} : { propertyId: input.propertyId }),
+    ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }),
+    ...(input.consent === undefined ? {} : { consent: input.consent }),
+  }
+}
 
 export type GateOutcome =
   | Readonly<{ kind: 'allow'; decision: DelayedDecision }>
@@ -102,8 +159,90 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function envelopePolicy(data: Record<string, unknown>): JobPolicyContext | undefined {
-  return isRecord(data.policy) ? (data.policy as JobPolicyContext) : undefined
+function envelopeCapability(
+  data: Record<string, unknown>,
+): Capability | 'none' | undefined {
+  const capability = data.capability
+  return typeof capability === 'string' ? (capability as Capability | 'none') : undefined
+}
+
+function envelopeInitiator(
+  data: Record<string, unknown>,
+): JobExecutionEnvelope['initiator'] | undefined {
+  const initiator = data.initiator
+  if (
+    !isRecord(initiator) ||
+    (initiator.kind !== 'user' && initiator.kind !== 'system') ||
+    typeof initiator.id !== 'string' ||
+    initiator.id.length === 0
+  ) {
+    return undefined
+  }
+  return { kind: initiator.kind, id: initiator.id }
+}
+function envelopeFence(value: unknown): MerchantAiConsentFence | null | undefined {
+  if (value === undefined) return undefined
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 6 ||
+    typeof value.authorizationLineageId !== 'string' ||
+    typeof value.capabilityEpoch !== 'number' ||
+    !Number.isSafeInteger(value.capabilityEpoch) ||
+    value.capabilityEpoch < 1 ||
+    typeof value.authorizedSourceEpoch !== 'number' ||
+    !Number.isSafeInteger(value.authorizedSourceEpoch) ||
+    // 0-based source epoch (drizzle/0060), unlike capabilityEpoch/stateVersion.
+    value.authorizedSourceEpoch < 0 ||
+    typeof value.stateVersion !== 'number' ||
+    !Number.isSafeInteger(value.stateVersion) ||
+    value.stateVersion < 1 ||
+    typeof value.noticeDigest !== 'string' ||
+    typeof value.runtimeProfileVersion !== 'string'
+  ) {
+    return null
+  }
+  return {
+    authorizationLineageId: value.authorizationLineageId,
+    capabilityEpoch: value.capabilityEpoch,
+    authorizedSourceEpoch: value.authorizedSourceEpoch,
+    stateVersion: value.stateVersion,
+    noticeDigest: value.noticeDigest,
+    runtimeProfileVersion: value.runtimeProfileVersion,
+  }
+}
+
+function envelopeConsent(data: Record<string, unknown>): ConsentSelector | undefined {
+  if (!Object.hasOwn(data, 'consent')) return undefined
+  const consent = data.consent
+  if (!isRecord(consent)) {
+    return { subjectType: 'property', subjectId: '', purpose: '' }
+  }
+  const expectedFence = envelopeFence(consent.expectedFence)
+  if (
+    Object.keys(consent).some(
+      (key) =>
+        key !== 'subjectType' &&
+        key !== 'subjectId' &&
+        key !== 'purpose' &&
+        key !== 'expectedFence',
+    ) ||
+    (consent.subjectType !== 'organization' &&
+      consent.subjectType !== 'property' &&
+      consent.subjectType !== 'user') ||
+    typeof consent.subjectId !== 'string' ||
+    consent.subjectId.length === 0 ||
+    typeof consent.purpose !== 'string' ||
+    consent.purpose.length === 0 ||
+    expectedFence === null
+  ) {
+    return { subjectType: 'property', subjectId: '', purpose: '' }
+  }
+  return {
+    subjectType: consent.subjectType,
+    subjectId: consent.subjectId,
+    purpose: consent.purpose,
+    ...(expectedFence === undefined ? {} : { expectedFence }),
+  }
 }
 
 function resolveOrganizationId(
@@ -157,20 +296,54 @@ export async function gateJob(
 ): Promise<GateOutcome> {
   const payload = isRecord(data) ? data : {}
   const row = rowForJob(jobName, executionKind)
-  const policy = envelopePolicy(payload)
   const decision = await getDelayedExecutionPolicy().decide({
     principal: { kind: 'system', id: principalId },
     // Unknown rows pass the job name through — decide() denies unknown_action.
     action: row?.action ?? jobName,
     organizationId: resolveOrganizationId(payload, row),
     propertyId: await resolvePropertyId(jobName, payload, resolveScope),
+    capabilityAtEnqueue: envelopeCapability(payload),
     executionKind,
-    initiator: policy?.initiator,
-    policyVersionAtEnqueue: policy?.policyVersionAtEnqueue,
-    correlationId: policy?.correlationId,
+    initiator: envelopeInitiator(payload),
+    consent: envelopeConsent(payload),
+    policyVersionAtEnqueue:
+      typeof payload.policyVersionAtEnqueue === 'string'
+        ? payload.policyVersionAtEnqueue
+        : undefined,
+    correlationId:
+      typeof payload.correlationId === 'string' ? payload.correlationId : undefined,
     now: new Date(),
   })
   return toOutcome(decision)
+}
+
+export type ScheduledScopeAuthorizer = (
+  organizationId: string,
+  propertyId?: string,
+) => Promise<boolean>
+
+/**
+ * Authorizes one concrete target discovered by a tenant-cross schedule.
+ * Policy unavailability is retryable; stable scope/capability denials skip
+ * only that target so one ineligible tenant cannot block the eligible cohort.
+ */
+export function createScheduledScopeAuthorizer(
+  action: SystemAction,
+): ScheduledScopeAuthorizer {
+  return async (organizationId, propertyId) => {
+    const decision = await getDelayedExecutionPolicy().decide({
+      principal: { kind: 'system', id: `schedule:${action}` },
+      action,
+      organizationId,
+      ...(propertyId === undefined ? {} : { propertyId }),
+      executionKind: 'schedule',
+      now: new Date(),
+    })
+    if (!decision.allowed && decision.reason === 'policy_unavailable') {
+      throw new GateDenyRetryError(action, decision.reason)
+    }
+    return decision.allowed
+  }
 }
 
 /** Authorize an in-process bus consumer (registration carries the catalogue name). */
@@ -269,22 +442,43 @@ async function enforceJobRouting(
   const workloadClass = workloadClassForJob(job.name)
   if (!workloadClass) return true
   const row = JOB_ROW_BY_NAME.get(job.name)
-  if (row?.resourceScope !== 'property') return true
 
   const payload = isRecord(job.data) ? job.data : {}
-  const propertyId = await resolvePropertyId(job.name, payload, resolveScope)
-  if (!propertyId) {
-    // Fail closed: a routed job whose property scope cannot be established
-    // must never run unrouted (the 3.2 policy gate normally denies first).
-    logger.warn(
-      { jobName: job.name },
-      'job routing scope unresolved — quarantining (fail closed)',
-    )
-    await routing.quarantine(job, 'routing_blocked:property_missing')
-    return false
+  let subject: ProcessingSubject
+  if (workloadClass === 'property.import' && row?.resourceScope === 'organization') {
+    const organizationId = payload.organizationId
+    const itemId = payload.itemId
+    if (
+      typeof organizationId !== 'string' ||
+      organizationId.length === 0 ||
+      typeof itemId !== 'string' ||
+      itemId.length === 0
+    ) {
+      logger.warn(
+        { jobName: job.name },
+        'import-item routing scope unresolved — quarantining (fail closed)',
+      )
+      await routing.quarantine(job, 'routing_blocked:import_item_missing')
+      return false
+    }
+    subject = { kind: 'import_item', organizationId, itemId }
+  } else {
+    if (row?.resourceScope !== 'property') return true
+    const propertyId = await resolvePropertyId(job.name, payload, resolveScope)
+    if (!propertyId) {
+      // Fail closed: a routed job whose property scope cannot be established
+      // must never run unrouted (the 3.2 policy gate normally denies first).
+      logger.warn(
+        { jobName: job.name },
+        'job routing scope unresolved — quarantining (fail closed)',
+      )
+      await routing.quarantine(job, 'routing_blocked:property_missing')
+      return false
+    }
+    subject = { kind: 'property', propertyId }
   }
 
-  const decision = await routing.router.resolve(propertyId, workloadClass)
+  const decision = await routing.router.resolve(subject, workloadClass)
   if (decision.kind === 'blocked') {
     logger.warn(
       {
@@ -347,14 +541,14 @@ function isScheduleFiring(job: Job): boolean {
  * NOT cancelled on timeout (no AbortController threading) — handlers must
  * stay idempotent under a retry that races a zombie execution.
  */
-async function withJobTimeout(
+async function withJobTimeout<TResult>(
   jobName: string,
   timeoutMs: number,
-  work: Promise<void>,
-): Promise<void> {
+  work: Promise<TResult>,
+): Promise<TResult> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    await Promise.race([
+    return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
         timer = setTimeout(
@@ -381,7 +575,7 @@ export function createGatedJobHandler(
   resolveScope?: ScopeResolver,
   routing?: JobRoutingGate,
   timeoutForJob: (jobName: string) => number = jobTimeoutMs,
-): (job: Job) => Promise<void> {
+): (job: Job) => Promise<unknown> {
   const logger = getLogger()
   return async (job: Job) => {
     const handler = registry.getHandler(job.name)
@@ -408,8 +602,7 @@ export function createGatedJobHandler(
       // routing. Blocked/wrong-cell jobs are quarantined and return WITHOUT
       // running the handler and without burning retries (fail closed).
       if (routing && !(await enforceJobRouting(job, routing, resolveScope))) return
-      await withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
-      return
+      return withJobTimeout(job.name, timeoutForJob(job.name), handler(job))
     }
     if (outcome.kind === 'deny_terminal') {
       logger.warn(

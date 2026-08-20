@@ -10,6 +10,13 @@ export default defineConfig({
     // image runs it with plain `node dist-worker/migrate-deploy.js` — no tsx
     // or TypeScript toolchain in the runtime container.
     'migrate-deploy': 'scripts/migrate-deploy.ts',
+    // Local Docker stack one-shot seed. Bundled into the production image so
+    // the host controller never runs a database command against the stack.
+    'seed-e2e-user': 'scripts/seed-e2e-user.ts',
+    'provision-ai-admission-role': 'scripts/local-stack/provision-ai-admission-role.ts',
+    // Immutable-release proof: exercises only final schema reads on expand
+    // and contract schemas from the exact web/worker image bits.
+    'google-import-final-schema-probe': 'scripts/google-import-final-schema-probe.ts',
   },
   outDir: 'dist-worker',
   format: ['esm'],

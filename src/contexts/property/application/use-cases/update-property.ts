@@ -120,20 +120,19 @@ async function validateUpdateFields(
     organizationId,
   )
 
-  const newName = input.name ?? existing.name
+  let newName = existing.name
   if (input.name !== undefined) {
     const nameResult = validatePropertyName(input.name)
     if (nameResult.isErr()) throw nameResult.error
+    newName = nameResult.value
   }
 
-  const newTimezone = input.timezone ?? existing.timezone
+  let newTimezone = existing.timezone
   if (input.timezone !== undefined) {
     const tzResult = validateTimezone(input.timezone)
     if (tzResult.isErr()) throw tzResult.error
+    newTimezone = tzResult.value
   }
-
-  const newGbpPlaceId =
-    input.gbpPlaceId !== undefined ? input.gbpPlaceId : existing.gbpPlaceId
 
   // BQC-4.5: a region move in flight owns the routing fields — country edits
   // are locked (region_locked) until the move completes or rolls back.
@@ -152,7 +151,7 @@ async function validateUpdateFields(
 
   const routing = resolveRoutingUpdate(existing, input.countryCode, now)
 
-  return { newName, newSlug, newTimezone, newGbpPlaceId, routing }
+  return { newName, newSlug, newTimezone, routing }
 }
 
 export const updateProperty =
@@ -188,20 +187,34 @@ export const updateProperty =
       fields.newName !== existing.name ||
       fields.newSlug !== existing.slug ||
       fields.newTimezone !== existing.timezone ||
-      fields.newGbpPlaceId !== existing.gbpPlaceId ||
       fields.routing !== null
 
     if (!hasChanges) return existing
 
+    const profileChanged =
+      fields.newName !== existing.name || fields.newTimezone !== existing.timezone
+    const timezoneChanged = fields.newTimezone !== existing.timezone
+    const nextProfileVersion = existing.profileVersion + (profileChanged ? 1 : 0)
+    const nextSourceEpoch = existing.sourceEpoch + (timezoneChanged ? 1 : 0)
+
     await deps.commandStore.updateProperty({
       organizationId: ctx.organizationId,
       propertyId,
+      expectedSourceEpoch: existing.sourceEpoch,
+      expectedProfileVersion: existing.profileVersion,
       patch: {
         name: fields.newName,
         slug: fields.newSlug,
         timezone: fields.newTimezone,
-        gbpPlaceId: fields.newGbpPlaceId,
         ...(fields.routing ?? {}),
+        profileVersion: nextProfileVersion,
+        sourceEpoch: nextSourceEpoch,
+        ...(timezoneChanged
+          ? {
+              timezoneSource: 'tenant_confirmed',
+              timezoneResolvedAt: updatedAt,
+            }
+          : {}),
         updatedAt,
       },
       event: propertyUpdated({
@@ -218,8 +231,15 @@ export const updateProperty =
       name: fields.newName,
       slug: fields.newSlug,
       timezone: fields.newTimezone,
-      gbpPlaceId: fields.newGbpPlaceId,
       ...(fields.routing ?? {}),
+      profileVersion: nextProfileVersion,
+      sourceEpoch: nextSourceEpoch,
+      ...(timezoneChanged
+        ? {
+            timezoneSource: 'tenant_confirmed',
+            timezoneResolvedAt: updatedAt,
+          }
+        : {}),
       updatedAt,
     }
   }

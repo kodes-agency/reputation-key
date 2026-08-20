@@ -1,6 +1,4 @@
-import { StarRating } from './star-rating'
-import { FeedbackForm } from './feedback-form'
-import type { ScanSource } from '#/contexts/guest/application/dto/public-portal.dto'
+import { GuestResponseForm, type GuestResponseFormProps } from './guest-response-form'
 
 export type PortalCategory = {
   id: string
@@ -15,6 +13,8 @@ export type PortalLinkItem = {
 }
 
 export type PublicPortalContentProps = Readonly<{
+  /** Omitted only by authenticated manager previews. Public pages must supply it. */
+  token?: string
   portal: {
     id: string
     name: string
@@ -25,28 +25,15 @@ export type PublicPortalContentProps = Readonly<{
   }
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
-  source?: ScanSource
-  submitFeedback?: (input: {
-    data: {
-      portalId: string
-      comment: string
-      source: ScanSource
-      honeypot: string
-      submittedAt: number
-    }
-  }) => Promise<unknown>
-  submitRating?: (input: {
-    data: { portalId: string; value: number; source: ScanSource }
-  }) => Promise<unknown>
+  responseForm?: Omit<GuestResponseFormProps, 'token'>
 }>
 
 export function PublicPortalContent({
+  token,
   portal,
   categories,
   links,
-  source = 'direct',
-  submitFeedback,
-  submitRating,
+  responseForm,
 }: PublicPortalContentProps) {
   const theme = portal.theme as Record<string, string> | null
   const themeStyle = theme
@@ -66,16 +53,16 @@ export function PublicPortalContent({
         ...themeStyle,
       }}
     >
-      <div className="max-w-lg mx-auto px-4 py-8 space-y-8">
+      <div className="mx-auto max-w-lg space-y-8 px-4 py-8">
         {portal.heroImageUrl && (
           <img
             src={portal.heroImageUrl}
-            alt={portal.name}
-            className="w-full h-48 object-cover rounded-lg"
+            alt=""
+            className="h-48 w-full rounded-lg object-cover"
           />
         )}
 
-        <div className="text-center space-y-2">
+        <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold">{portal.name}</h1>
           <p className="text-sm text-gray-500">{portal.organizationName}</p>
         </div>
@@ -84,36 +71,60 @@ export function PublicPortalContent({
           <p className="text-center text-gray-600">{portal.description}</p>
         )}
 
-        <StarRating portalId={portal.id} source={source} submitRating={submitRating} />
-
-        <FeedbackForm
-          portalId={portal.id}
-          source={source}
-          submitFeedback={submitFeedback}
-        />
-
-        <div className="space-y-6">
+        <nav aria-label="Review destinations" className="space-y-6">
           {categories.map((category) => {
-            const categoryLinks = links.filter((l) => l.categoryId === category.id)
+            const categoryLinks = links.filter((link) => link.categoryId === category.id)
+            if (categoryLinks.length === 0) return null
             return (
-              <div key={category.id} className="space-y-2">
+              <section key={category.id} className="space-y-2">
                 <h2 className="text-lg font-semibold">{category.title}</h2>
                 <div className="space-y-2">
                   {categoryLinks.map((link) => (
                     <a
                       key={link.id}
-                      href={`/api/public/click/${link.id}`}
-                      className="block p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      href={
+                        token
+                          ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
+                          : link.url
+                      }
+                      rel="noreferrer"
+                      className="block rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2"
                       style={{ color: 'inherit' }}
                     >
                       {link.label}
                     </a>
                   ))}
                 </div>
-              </div>
+              </section>
             )
           })}
-        </div>
+          {links.some((link) => link.categoryId === null) && (
+            <section className="space-y-2">
+              <h2 className="text-lg font-semibold">More destinations</h2>
+              <div className="space-y-2">
+                {links
+                  .filter((link) => link.categoryId === null)
+                  .map((link) => (
+                    <a
+                      key={link.id}
+                      href={
+                        token
+                          ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
+                          : link.url
+                      }
+                      rel="noreferrer"
+                      className="block rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2"
+                      style={{ color: 'inherit' }}
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+              </div>
+            </section>
+          )}
+        </nav>
+
+        {token && responseForm && <GuestResponseForm token={token} {...responseForm} />}
       </div>
     </div>
   )

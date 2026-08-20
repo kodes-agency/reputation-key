@@ -56,6 +56,8 @@ export type InboxItemDetail = Readonly<{
   item: InboxItem
   // Review-specific (null for feedback)
   reviewText: string | null
+  /** Google's machine translation of `reviewText`; null when none was served. */
+  reviewTranslatedText: string | null
   reviewerProfilePhotoUrl: string | null
   /** BQC-1.2: typed eligibility outcome of the authorized review read. */
   reviewContentStatus: 'available' | 'expired' | 'not_found' | null

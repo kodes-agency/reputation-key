@@ -11,6 +11,7 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import type { Queue } from '#/shared/jobs/queue'
 import { PROCESS_IMAGE_JOB_NAME as JOB_NAME } from '../job-names'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 
 export type FinalizeUploadInput = Readonly<{
   portalId: string
@@ -53,7 +54,13 @@ export const finalizeUpload =
         {
           key: input.key,
           portalId: input.portalId,
-          organizationId: unbrand(ctx.organizationId),
+          ...createJobExecutionEnvelope({
+            organizationId: unbrand(ctx.organizationId),
+            propertyId: unbrand(portal.propertyId),
+            capability: 'portal.upload',
+            initiator: { kind: 'user', id: unbrand(ctx.userId) },
+            correlationId: `portal-upload:${input.portalId}`,
+          }),
         },
         jobEnqueueOptions(JOB_NAME),
       )

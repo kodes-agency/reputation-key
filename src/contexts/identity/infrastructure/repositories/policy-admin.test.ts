@@ -33,6 +33,8 @@ import {
   setPropertyPolicy,
   addOrganizationCapability,
   removeOrganizationCapability,
+  addPropertyCapability,
+  removePropertyCapability,
   isOrgMember,
   getMemberRole,
   loadOrgPolicyState,
@@ -69,16 +71,27 @@ const ops = createPolicyAdminOps({
       createProcessingRouter({
         loadPropertyRouting: createPropertyRoutingLoader({ db }),
         cell: 'us',
-      }).resolve(propertyId, 'review.sync'),
+      }).resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
     cell: 'us',
     providerRef: providerRefForCell('us') ?? null,
   }),
+  refreshPolicy: async () => {},
   setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
   setPropertyPolicy: (input) => setPropertyPolicy(db, input),
+  propertyBelongsToOrganization: async (orgId, propertyId) => {
+    const result = await db.execute(
+      sql`SELECT 1 FROM properties WHERE organization_id = ${orgId} AND id = ${propertyId}`,
+    )
+    return result.rows.length > 0
+  },
   addOrganizationCapability: (orgId, cap, by) =>
     addOrganizationCapability(db, orgId, cap, by),
   removeOrganizationCapability: (orgId, cap) =>
     removeOrganizationCapability(db, orgId, cap),
+  addPropertyCapability: (propertyId, cap, by) =>
+    addPropertyCapability(db, propertyId, cap, by),
+  removePropertyCapability: (propertyId, cap) =>
+    removePropertyCapability(db, propertyId, cap),
   isOrgMember: (orgId, uid) => isOrgMember(db, orgId, uid),
   loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
   grantPropertyAccess: (input) => grantPropertyAccess(db, input),
@@ -89,7 +102,7 @@ const ops = createPolicyAdminOps({
 
 async function auditRows(): Promise<Array<Record<string, unknown>>> {
   const rows = await db.execute(
-    sql`SELECT actor_type, actor_id, action, decision, reason, execution_kind
+    sql`SELECT actor_type, actor_id, property_id, action, capability, decision, reason, execution_kind
         FROM policy_decision_audit WHERE organization_id = ${ORG} ORDER BY occurred_at, id`,
   )
   return rows.rows as Array<Record<string, unknown>>
@@ -171,6 +184,70 @@ describe('policy administration (BQC-2.7)', () => {
     ).toBe(false)
   })
 
+  it('allowlist: non-core capability can be enabled/disabled for one tenant Property with audit', async () => {
+    await ops.setPropertyCapability({
+      organizationId: ORG,
+      propertyId: PROP,
+      capability: 'property.read_gbp_performance',
+      enabled: true,
+      reason: 'approved Performance canary',
+      actorUserId: ADMIN,
+      now: NOW,
+    })
+
+    let snapshot = await loadPolicySnapshot(db)
+    expect(
+      snapshot.propertyCapabilities.some(
+        (c) => c.propertyId === PROP && c.capability === 'property.read_gbp_performance',
+      ),
+    ).toBe(true)
+    expect(await auditRows()).toContainEqual(
+      expect.objectContaining({
+        actor_id: ADMIN,
+        property_id: PROP,
+        action: 'policy.property.allowlist.set',
+        capability: 'property.read_gbp_performance',
+        reason: 'approved Performance canary',
+      }),
+    )
+
+    await ops.setPropertyCapability({
+      organizationId: ORG,
+      propertyId: PROP,
+      capability: 'property.read_gbp_performance',
+      enabled: false,
+      reason: 'Performance canary complete',
+      actorUserId: ADMIN,
+      now: NOW,
+    })
+
+    snapshot = await loadPolicySnapshot(db)
+    expect(
+      snapshot.propertyCapabilities.some(
+        (c) => c.propertyId === PROP && c.capability === 'property.read_gbp_performance',
+      ),
+    ).toBe(false)
+  })
+
+  it('allowlist: rejects a Property outside the tenant before policy mutation', async () => {
+    const before = await loadPolicySnapshot(db)
+
+    await expect(
+      ops.setPropertyCapability({
+        organizationId: ORG,
+        propertyId: 'd4000000-0000-4000-8000-000000000099',
+        capability: 'property.read_gbp_performance',
+        enabled: true,
+        reason: 'must remain tenant scoped',
+        actorUserId: ADMIN,
+        now: NOW,
+      }),
+    ).rejects.toThrow('property not found in organization')
+
+    const after = await loadPolicySnapshot(db)
+    expect(after.propertyCapabilities).toEqual(before.propertyCapabilities)
+  })
+
   it('allowlist rejects core and blocked capabilities (no-op prevention)', async () => {
     await expect(
       ops.setOrgCapability({
@@ -185,7 +262,7 @@ describe('policy administration (BQC-2.7)', () => {
     await expect(
       ops.setOrgCapability({
         organizationId: ORG,
-        capability: 'portal.write',
+        capability: 'gbp.reply.auto_publish',
         enabled: true,
         reason: 'must stay blocked',
         actorUserId: ADMIN,
@@ -231,6 +308,18 @@ describe('policy administration (BQC-2.7)', () => {
     expect(
       snapshot.propertyPolicies.find((p) => p.propertyId === PROP)?.suspendedReason,
     ).toBe('quality review')
+
+    await expect(
+      ops.setPropertySuspension({
+        organizationId: ORG,
+        propertyId: 'd4000000-0000-4000-8000-000000000099',
+        suspend: true,
+        reason: 'cross-tenant containment probe',
+        ticketRef: 'OPS-102',
+        actorUserId: ADMIN,
+        now: NOW,
+      }),
+    ).rejects.toThrow(/property not found in organization/)
 
     await ops.setOrgSuspension({
       organizationId: ORG,

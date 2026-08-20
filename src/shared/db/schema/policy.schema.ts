@@ -178,5 +178,8 @@ export const policyDecisionAudit = pgTable(
 export const policyVersion = pgTable('policy_version', {
   scope: text('scope').primaryKey(),
   version: bigint('version', { mode: 'number' }).notNull().default(0),
+  emergencyKillVersion: bigint('emergency_kill_version', { mode: 'number' })
+    .notNull()
+    .default(0),
   updatedAt: timestamptz('updated_at').notNull().defaultNow(),
 })

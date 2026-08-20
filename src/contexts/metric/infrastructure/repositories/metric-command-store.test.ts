@@ -15,8 +15,8 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
 import { organizationId, propertyId, metricReadingId } from '#/shared/domain/ids'
-import type { MetricReading } from '../../domain/types'
-import { metricRecorded } from '../../domain/events'
+import { createReading, type MetricReading } from '../../domain/metric-reading'
+import { metricRecorded, type MetricRecorded } from '../../domain/events'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
 
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
@@ -34,17 +34,25 @@ const silentEvents: EventBus = {
 }
 
 function makeReading(overrides: Partial<MetricReading> = {}): MetricReading {
-  return {
+  return createReading({
     id: READING_ID,
+    definitionVersionId: '11111111-1111-4111-8111-111111111205',
+    metricKey: 'property.review',
     organizationId: ORG_ID,
     propertyId: PROP_ID,
     portalId: null,
-    metricKey: 'property.review',
+    portalGroupId: null,
     value: 4,
-    groupId: null,
+    sampleCount: 1,
+    sourceEventId: 'integration-source-event-1',
+    sourcePolicy: 'google_property_derivative',
     occurredAt: NOW,
+    propertyLocalDate: '2026-06-01',
+    attributionQuality: 'exact',
+    retentionClass: 'provider-aligned',
+    now: NOW,
     ...overrides,
-  }
+  })
 }
 
 const recordedEvent = (reading: MetricReading = makeReading()) =>
@@ -53,9 +61,17 @@ const recordedEvent = (reading: MetricReading = makeReading()) =>
     organizationId: reading.organizationId,
     propertyId: reading.propertyId,
     portalId: reading.portalId,
-    groupId: reading.groupId,
+    portalGroupId: reading.portalGroupId,
+    definitionVersionId: reading.definitionVersionId,
+    sourceEventId: reading.sourceEventId,
+    sourcePolicy: reading.sourcePolicy,
     metricKey: reading.metricKey,
     value: reading.value,
+    numerator: reading.numerator,
+    denominator: reading.denominator,
+    sampleCount: reading.sampleCount,
+    attributionQuality: reading.attributionQuality,
+    permittedConsumers: ['dashboard'],
     occurredAt: reading.occurredAt,
   })
 
@@ -105,7 +121,7 @@ describe.sequential('metricCommandStore (integration)', () => {
 
     const inserted = await store.recordMetric({ reading, event })
 
-    expect(inserted.id).toBe(READING_ID)
+    expect(inserted).toEqual({ status: 'recorded', reading })
     const rows = await pool.query(
       'SELECT id, metric_key, value FROM metric_readings WHERE id = $1',
       [READING_ID],
@@ -129,7 +145,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const ghost = {
       ...recordedEvent(),
       _tag: 'metric.ghost',
-    } as unknown as ReturnType<typeof recordedEvent>
+    } as unknown as MetricRecorded
 
     await expect(
       store.recordMetric({ reading: makeReading(), event: ghost }),

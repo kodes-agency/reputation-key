@@ -57,9 +57,7 @@ const portal: PortalData = {
   description: 'Main guest-facing portal.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
-  smartRoutingEnabled: true,
-  smartRoutingThreshold: 4,
-  isActive: true,
+  publicationState: 'published',
 }
 
 const requestUploadUrl = async (_input: {
@@ -81,6 +79,7 @@ export const Default: Story = {
   args: {
     portal,
     mutation: idleMutation,
+    primaryColor: portal.theme.primaryColor,
     requestUploadUrl,
     finalizeUpload,
   },

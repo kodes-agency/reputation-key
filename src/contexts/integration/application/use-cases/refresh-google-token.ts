@@ -11,9 +11,9 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 
-export type RefreshGoogleTokenInput = Readonly<{
-  orgId: OrganizationId
-  connectionId: string
+export type RefreshGoogleTokenOptions = Readonly<{
+  force?: boolean
+  expectedCredentialGeneration?: number
 }>
 
 export type RefreshGoogleTokenDeps = Readonly<{
@@ -25,7 +25,11 @@ export type RefreshGoogleTokenDeps = Readonly<{
 
 export const refreshGoogleToken =
   (deps: RefreshGoogleTokenDeps) =>
-  async (orgId: OrganizationId, connectionIdStr: string): Promise<GoogleConnection> => {
+  async (
+    orgId: OrganizationId,
+    connectionIdStr: string,
+    options: RefreshGoogleTokenOptions = {},
+  ): Promise<GoogleConnection> => {
     const connectionId = googleConnectionId(connectionIdStr)
 
     // 1. Find connection
@@ -35,7 +39,7 @@ export const refreshGoogleToken =
     }
 
     // 2. Check status
-    if (connection.status === 'disconnected') {
+    if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
       throw integrationError(
         'connection_disconnected',
         'Cannot refresh token for disconnected connection',
@@ -46,8 +50,13 @@ export const refreshGoogleToken =
     const now = deps.clock().getTime()
     const expiresAt = connection.tokenExpiresAt.getTime()
 
-    if (expiresAt > now + TOKEN_EXPIRY_BUFFER_MS) {
-      // Token is still valid, return as-is
+    if (!options.force && expiresAt > now + TOKEN_EXPIRY_BUFFER_MS) {
+      return connection
+    }
+    if (
+      options.expectedCredentialGeneration !== undefined &&
+      connection.credentialGeneration !== options.expectedCredentialGeneration
+    ) {
       return connection
     }
 
@@ -62,20 +71,39 @@ export const refreshGoogleToken =
     const encryptedAccessToken = deps.encryption.encrypt(refreshResult.accessToken)
 
     // 7. Update tokens
-    await deps.connectionRepo.updateTokens(
+    const updated = await deps.connectionRepo.updateTokens(
       orgId,
       connectionId,
+      {
+        lifecycleVersion: connection.lifecycleVersion,
+        credentialGeneration: connection.credentialGeneration,
+      },
       encryptedAccessToken,
       connection.encryptedRefreshToken, // Keep same refresh token
       tokenExpiresAt,
     )
+    if (!updated) {
+      throw integrationError(
+        'connection_disconnected',
+        'Credential authority changed during token refresh',
+      )
+    }
 
-    // 8. Return refreshed connection
+    // 8. Re-read after the conditional commit; never return cleanup-only material.
     const updatedConnection = await deps.connectionRepo.findById(orgId, connectionId)
     if (!updatedConnection) {
       throw integrationError(
         'connection_not_found',
         'Connection not found after token refresh',
+      )
+    }
+    if (
+      updatedConnection.status !== 'active' ||
+      updatedConnection.credentialUseState !== 'active'
+    ) {
+      throw integrationError(
+        'connection_disconnected',
+        'Credential authority changed after token refresh',
       )
     }
 

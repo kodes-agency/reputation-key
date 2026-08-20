@@ -1,10 +1,8 @@
-// BQC-6.6 — browser-initiated request collector.
+// Browser-initiated request collector for positive and negative beta journeys.
 //
-// The BQC-6.2 harness (error-detection.ts) records DETECTIONS, not a request
-// log, so it cannot prove an ABSENCE. Dark-context promotion needs exactly
-// that proof: "no browser-initiated read, mutation, upload, export, or
-// external call". This helper is a tiny page.on('request') collector with two
-// assertions:
+// The error harness records detections, not a request log, so it cannot prove
+// an absence of mutations, uploads, exports, or external calls. This helper
+// provides that complementary evidence through page.on('request').
 //
 //   assertNoMutations(except)          — zero browser-issued POST/PUT/PATCH/
 //                                        DELETE whose URL matches none of the
@@ -36,9 +34,9 @@ export type RequestLog = Readonly<{
   /** Requests recorded so far (copy — safe to inspect mid-test). */
   requests: readonly RecordedRequest[]
   /**
-   * Fails when any recorded http(s) mutation (POST/PUT/PATCH/DELETE) matches
-   * none of the `except` substrings. GET server-fn RPCs (gateDarkRoute and
-   * the denied GET /_server reads) are reads, not mutations, and never count.
+   * Fails when a recorded HTTP mutation matches none of the `except`
+   * substrings. GET server-function policy checks and denied reads are reads,
+   * not mutations, and never count.
    */
   assertNoMutations(except?: readonly string[]): void
   /**

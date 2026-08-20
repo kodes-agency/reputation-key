@@ -77,12 +77,16 @@ export const Route = createFileRoute('/_authenticated')({
 
     // Error handling strategy for getActiveOrganization:
     //  1. isRedirect — always forward (e.g., auth middleware redirects).
-    //  2. no_active_org — expected for new users who haven't selected an org yet;
+    //  2. availability: disabled — the entire workspace is intentionally dark;
+    //     redirect before rendering any authenticated surface.
+    //  3. no_active_org — expected for new users who haven't selected an org yet;
     //     silently default to Staff role with no active organization.
-    //  3. Everything else (network failures, server errors) — propagate to
-    //     TanStack Router's error boundary so the user sees a real error page.
+    //  4. Everything else — propagate to the route error boundary.
     try {
       const org = await getActiveOrganization()
+      if (org.availability === 'disabled') {
+        throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
+      }
       if (org.role) {
         role = org.role as Role
       }
@@ -103,15 +107,16 @@ export const Route = createFileRoute('/_authenticated')({
     } catch (e) {
       if (isRedirect(e)) throw e
 
-      // Expected: new user with no active organization yet — valid empty state.
-      const isNoActiveOrg =
+      const errorCode =
         e instanceof Error &&
         'code' in e &&
-        (e as { code: string }).code === 'no_active_org'
-      if (isNoActiveOrg) {
+        typeof (e as { code?: unknown }).code === 'string'
+          ? (e as { code: string }).code
+          : null
+      if (errorCode === 'no_active_org') {
         console.info('[beforeLoad] No active organization selected — using defaults')
       } else {
-        // Unexpected error — propagate to error boundary
+        // Unexpected error — propagate to error boundary.
         throw e
       }
     }
@@ -188,7 +193,11 @@ function AuthenticatedLayout() {
           isInbox ? 'overflow-hidden' : ''
         }`}
       >
-        <AppTopBar user={ctx.user} notificationFns={notificationFns} />
+        <AppTopBar
+          user={ctx.user}
+          organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
+          notificationFns={notificationFns}
+        />
         <main
           className={`min-w-0 flex-1 ${
             isInbox ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'

@@ -51,11 +51,13 @@ import type {
   LeaderboardRowInput,
   LeaderboardScope,
 } from '../../domain/types'
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { leaderboardEntryFromRow } from '../mappers/leaderboard.mapper'
 
 export const createLeaderboardRepository = (
   db: Database,
   clock: Clock,
+  authorizeReconciliationScope: ScheduledScopeAuthorizer,
 ): LeaderboardRepository => {
   const listPropertiesWithMetricEvents = async () => {
     return trace('leaderboard.listPropertiesWithMetricEvents', async () => {
@@ -125,6 +127,11 @@ export const createLeaderboardRepository = (
       .limit(1)
 
     if (!orgRows[0]) {
+      return { snapshotsRefreshed: 0, entriesWritten: 0 }
+    }
+    if (
+      !(await authorizeReconciliationScope(orgRows[0].organizationId, propertyIdValue))
+    ) {
       return { snapshotsRefreshed: 0, entriesWritten: 0 }
     }
 

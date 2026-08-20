@@ -19,16 +19,17 @@ type Props = Readonly<{
     handleChange: (value: string[]) => void
   }
   portals: ReadonlyArray<PortalOption>
+  label?: string
 }>
 
-export function PortalSelector({ field, portals }: Props) {
+export function PortalSelector({ field, portals, label = 'Portals' }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
   const selected = new Set(field.state.value)
 
   return (
     <Field data-invalid={isInvalid}>
       <FieldLabel>
-        Portals{' '}
+        {label}{' '}
         {selected.size > 0 && (
           <span className="font-normal text-muted-foreground">
             ({selected.size} selected)
@@ -41,7 +42,7 @@ export function PortalSelector({ field, portals }: Props) {
         </p>
       ) : (
         <>
-          <label className="flex cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border-b px-3 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground">
             <Checkbox
               checked={
                 selected.size === portals.length
@@ -60,7 +61,7 @@ export function PortalSelector({ field, portals }: Props) {
             {portals.map((p) => (
               <label
                 key={p.id}
-                className="flex cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
+                className="flex min-h-11 cursor-pointer items-center gap-3 rounded-sm px-1 py-1.5 hover:bg-accent"
               >
                 <Checkbox
                   checked={selected.has(p.id)}

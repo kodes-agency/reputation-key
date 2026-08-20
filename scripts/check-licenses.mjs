@@ -23,7 +23,8 @@
 // dev machines). Expiry is platform-independent, so it always fails.
 // There is no continue-on-error anywhere: a red gate blocks the PR.
 
-import { readFileSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -31,19 +32,22 @@ import { spawnSync } from 'node:child_process'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const POLICY_FILE = join(ROOT, 'security/license-policy.json')
 
-const TREES = [
-  { scope: 'prod', args: ['licenses', 'list', '--json', '--prod'] },
-  { scope: 'dev', args: ['licenses', 'list', '--json', '--dev'] },
-]
-
-function runLicenses(args) {
-  const res = spawnSync('pnpm', args, { cwd: ROOT, encoding: 'utf8', shell: false })
+function runLicenses(args, allowNoLicenses = false) {
+  const res = spawnSync('pnpm', args, {
+    cwd: INVENTORY_ROOT,
+    encoding: 'utf8',
+    shell: false,
+  })
   if (res.error) {
     console.error(`[licenses] failed to spawn pnpm: ${res.error.message}`)
     process.exit(2)
   }
+  const output = res.stdout.trim()
+  if (allowNoLicenses && res.status === 0 && output === 'No licenses in packages found') {
+    return null
+  }
   try {
-    return JSON.parse(res.stdout)
+    return JSON.parse(output)
   } catch {
     console.error(
       `[licenses] could not parse \`pnpm ${args.join(' ')}\` output ` +
@@ -108,6 +112,59 @@ function isAllowedExpression(expression, allowed) {
 const packageMatches = (pattern, name) =>
   pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : name === pattern
 
+const INVENTORY_ROOT = mkdtempSync(join(tmpdir(), 'repkey-license-inventory-'))
+const cleanupInventory = () => {
+  rmSync(INVENTORY_ROOT, { recursive: true, force: true })
+}
+process.once('exit', cleanupInventory)
+copyFileSync(join(ROOT, 'package.json'), join(INVENTORY_ROOT, 'package.json'))
+copyFileSync(join(ROOT, 'pnpm-lock.yaml'), join(INVENTORY_ROOT, 'pnpm-lock.yaml'))
+const install = spawnSync('pnpm', ['install', '--frozen-lockfile', '--ignore-scripts'], {
+  cwd: INVENTORY_ROOT,
+  encoding: 'utf8',
+  shell: false,
+})
+if (install.error || install.status !== 0) {
+  console.error(
+    `[licenses] could not materialize the committed dependency graph (exit ${install.status}):\n` +
+      `${install.error?.message ?? install.stderr?.slice(-1000) ?? 'unknown install failure'}`,
+  )
+  process.exit(2)
+}
+
+function subtractInventory(allInventory, excludedInventory) {
+  const excluded = new Map()
+  for (const [license, packages] of Object.entries(excludedInventory)) {
+    for (const pkg of packages) {
+      const key = `${license}\u0000${pkg.name}\u0000${pkg.version ?? ''}`
+      excluded.set(key, (excluded.get(key) ?? 0) + 1)
+    }
+  }
+  const result = {}
+  for (const [license, packages] of Object.entries(allInventory)) {
+    const devOnly = packages.filter((pkg) => {
+      const key = `${license}\u0000${pkg.name}\u0000${pkg.version ?? ''}`
+      const remaining = excluded.get(key) ?? 0
+      if (remaining === 0) return true
+      excluded.set(key, remaining - 1)
+      return false
+    })
+    if (devOnly.length > 0) result[license] = devOnly
+  }
+  return result
+}
+
+const prodInventory = runLicenses(['licenses', 'list', '--json', '--prod'])
+const devCommandInventory = runLicenses(['licenses', 'list', '--json', '--dev'], true)
+const devInventory =
+  devCommandInventory ??
+  subtractInventory(runLicenses(['licenses', 'list', '--json']), prodInventory)
+const TREES = [
+  { scope: 'prod', inventory: prodInventory },
+  { scope: 'dev', inventory: devInventory },
+]
+cleanupInventory()
+
 const policy = loadPolicy()
 const allowed = new Set(policy.allowed)
 const matchedExceptions = new Set()
@@ -115,7 +172,7 @@ const failures = []
 const reports = []
 
 for (const tree of TREES) {
-  const inventory = runLicenses(tree.args)
+  const inventory = tree.inventory
   const summary = []
   for (const [license, packages] of Object.entries(inventory).sort()) {
     summary.push(`${license}×${packages.length}`)

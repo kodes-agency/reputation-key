@@ -72,6 +72,13 @@ export type SystemAction =
   | 'system:guest.feedback'
   | 'system:guest.scan'
   | 'system:guest.click_track'
+  | 'public:portal.response.submit'
+  | 'public:portal.response.correct'
+  | 'public:portal.response.withdraw'
+  | 'public:portal.media.issue'
+  | 'public:portal.media.confirm'
+  | 'public:portal.read'
+  | 'public:portal.analytics.record'
   // machine ingress
   | 'system:integration.google_callback'
   | 'system:integration.gbp_webhook'
@@ -81,6 +88,7 @@ export type SystemAction =
   | 'system:health.check'
   | 'system:image.process'
   | 'system:property.import'
+  | 'system:property.import_v2'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
   | 'system:review.purge'
@@ -90,6 +98,8 @@ export type SystemAction =
   | 'system:metric.record'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
+  | 'system:permit.start_deadline_fence'
+  | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
   | 'system:goal.spawn'
   | 'system:goal.progress'
@@ -102,6 +112,8 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
   | 'system:inbox.update'
+  | 'system:ai.trend'
+  | 'system:ai.trend_schedule'
   // operator commands
   | 'system:ops'
 
@@ -594,6 +606,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'allowlist non-core capability; reason required' },
     ),
     sf(
+      'setPropertyCapabilityFn',
+      `${IDENTITY}/policy-admin.ts`,
+      'policy.admin',
+      'identity.invite',
+      'property',
+      { notes: 'allowlist non-core capability for one tenant Property; reason required' },
+    ),
+    sf(
       'setOrgSuspensionFn',
       `${IDENTITY}/policy-admin.ts`,
       'policy.admin',
@@ -642,6 +662,77 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         notes:
           'BQC-4.4: read-only region diagnostic (region/source/policy version/processable/blocked reason/cell/provider ref — content-free); every read writes an operator audit row',
+      },
+    ),
+    // ── Merchant AI authorization (private beta) ──
+    sf(
+      'getMerchantAiAuthorizationFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'shared helper enforces property-scoped ai.manage authorization',
+      },
+    ),
+    sf(
+      'enableMerchantAiFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'changeMerchantAiCapabilitiesFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'revokeMerchantAiFn',
+      `${IDENTITY}/merchant-ai.ts`,
+      'ai.manage',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'shared helper enforces property-scoped ai.manage and step-up authorization',
+      },
+    ),
+    sf(
+      'generateReplySuggestionFn',
+      'src/contexts/ai/server/reply-suggestion.ts',
+      'ai.reply.generate',
+      'ai.generate_reply',
+      'property',
+      {
+        externalEffect: true,
+        purpose: 'ai.generate_reply',
+        notes: 'manager-only ephemeral reply suggestion; result is browser-held',
+      },
+    ),
+    sf(
+      'getPropertyAiTrendFn',
+      'src/contexts/ai/server/property-trend.ts',
+      'ai.trends.read',
+      'ai.detect_trends',
+      'property',
+      {
+        purpose: 'ai.detect_trends',
+        notes: 'property-scoped read of a current persisted deterministic trend report',
       },
     ),
   ],
@@ -740,31 +831,97 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { externalEffect: true, notes: 'generates Google OAuth consent URL' },
     ),
     sf(
-      'listGbpLocations',
+      'listImportAccounts',
       `${INTEGRATION}/gbp-import.ts`,
       'integration.manage',
-      'integration.use',
-      'organization',
-      { externalEffect: true, notes: 'calls Google GBP API; POST used for a read' },
-    ),
-    sf(
-      'startPropertyImport',
-      `${INTEGRATION}/gbp-import.ts`,
-      'property.create',
-      'property.create',
+      'property.import_gbp_v2',
       'organization',
       {
         externalEffect: true,
-        notes: 'enqueues GBP import/sync jobs; effect executes in worker',
+        notes: 'POST discovery read through admitted Google provider execution',
       },
     ),
     sf(
-      'getImportStatus',
+      'listImportCandidates',
       `${INTEGRATION}/gbp-import.ts`,
       'integration.manage',
-      'integration.use',
+      'property.import_gbp_v2',
       'organization',
-      { notes: 'POST used for a read' },
+      {
+        externalEffect: true,
+        notes: 'POST paged location discovery with opaque references',
+      },
+    ),
+    sf(
+      'renewImportAuthorizationLease',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      { notes: 'POST renewal of a bounded server-side authorization lease' },
+    ),
+    sf(
+      'startPropertyImportV2',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      {
+        externalEffect: true,
+        notes: 'atomically commits identifier-only import intent and durable dispatch',
+      },
+    ),
+    sf(
+      'retryPropertyImportItem',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      {
+        externalEffect: true,
+        notes: 'atomically advances one retry revision and dispatches the new attempt',
+      },
+    ),
+    sf(
+      'recoverPropertyImportV2',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      { notes: 'request-id recovery after an ambiguous start response' },
+    ),
+    sf(
+      'getPropertyImportV2Status',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      { notes: 'tenant and initiator scoped inert status read' },
+    ),
+    sf(
+      'getPropertyGooglePerformance',
+      `${INTEGRATION}/google-performance.ts`,
+      'property.read',
+      'property.read_gbp_performance',
+      'property',
+      {
+        externalEffect: true,
+        canonicalOnly: true,
+        notes:
+          'volatile no-store Google Performance read through fresh policy, approval, permit, and provider authorization',
+      },
+    ),
+    sf(
+      'renewPropertyGooglePerformanceLease',
+      `${INTEGRATION}/google-performance.ts`,
+      'property.read',
+      'property.read_gbp_performance',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'renews only the bounded volatile Performance authorization lease after a fresh authorization recheck',
+      },
     ),
   ],
 
@@ -1054,6 +1211,22 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'staged RPC, UI not yet wired' },
     ),
+    sf(
+      'getNotificationUserSettingsFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.read',
+      'notification.in_app',
+      'organization',
+      { notes: 'durable user locale, timezone, quiet-hour, and cadence settings' },
+    ),
+    sf(
+      'updateNotificationUserSettingsFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.update',
+      'notification.in_app',
+      'organization',
+      { notes: 'durable user locale, timezone, quiet-hour, and cadence settings' },
+    ),
   ],
 
   // ── activity ──────────────────────────────────────────────────────
@@ -1096,6 +1269,61 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'scoped via goalId',
     }),
     sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property'),
+    sf(
+      'createGovernedGoal',
+      `${GOAL}/governed-goals.ts`,
+      'goal.create',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'authorization is injected through the governed Goal service policy',
+      },
+    ),
+    sf(
+      'reviseGovernedGoal',
+      `${GOAL}/governed-goals.ts`,
+      'goal.update',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'authorization is injected through the governed Goal service policy',
+      },
+    ),
+    sf(
+      'changeGovernedGoalStatus',
+      `${GOAL}/governed-goals.ts`,
+      'goal.update',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'authorization is injected through the governed Goal service policy',
+      },
+    ),
+    sf(
+      'getGovernedGoal',
+      `${GOAL}/governed-goals.ts`,
+      'goal.read',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'authorization is injected through the governed Goal service policy',
+      },
+    ),
+    sf(
+      'listGovernedGoals',
+      `${GOAL}/governed-goals.ts`,
+      'goal.read',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'authorization is injected through the governed Goal service policy',
+      },
+    ),
   ],
 
   // ── team (dark) ───────────────────────────────────────────────────
@@ -1108,23 +1336,78 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf('deleteTeam', `${TEAM}/teams.ts`, 'team.delete', 'team.use', 'property', {
       notes: 'soft-delete; scoped via teamId',
     }),
+    sf('listTeamMemberships', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
+      notes: 'scoped via teamId',
+    }),
+    sf(
+      'addTeamMember',
+      `${TEAM}/teams.ts`,
+      'team.membership.manage',
+      'team.use',
+      'property',
+      { notes: 'scoped via teamId and participationId' },
+    ),
+    sf(
+      'removeTeamMember',
+      `${TEAM}/teams.ts`,
+      'team.membership.manage',
+      'team.use',
+      'property',
+      { notes: 'scoped via teamId and participationId' },
+    ),
+    sf('setTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
+      notes: 'one lead per team; scoped via teamId and participationId',
+    }),
+    sf('clearTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
+      notes: 'scoped via teamId',
+    }),
+    sf('listMyTeam', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
+      canonicalOnly: true,
+      notes: 'authorization is applied per assigned scope before team details are read',
+    }),
   ],
 
-  // ── leaderboard (dark) ────────────────────────────────────────────
+  // ── property-scoped recognition ───────────────────────────────────
   ...[
     sf(
-      'getLeaderboard',
+      'getRecognitionBoard',
       `${LEADERBOARD}/leaderboards.ts`,
       'leaderboard.read',
       'leaderboard.use',
       'property',
     ),
     sf(
-      'getComparisonMatrix',
+      'getRecognitionSettings',
       `${LEADERBOARD}/leaderboards.ts`,
-      'leaderboard.read',
-      'leaderboard.use',
+      'badge.manage',
+      'badge.use',
       'property',
+      {
+        alsoActions: ['leaderboard.read'],
+        notes: 'also requires leaderboard.read through ExecutionPolicy',
+      },
+    ),
+    sf(
+      'activateRecognition',
+      `${LEADERBOARD}/leaderboards.ts`,
+      'badge.manage',
+      'badge.use',
+      'property',
+      {
+        alsoActions: ['leaderboard.read'],
+        notes: 'also requires leaderboard.read through ExecutionPolicy',
+      },
+    ),
+    sf(
+      'deactivateRecognition',
+      `${LEADERBOARD}/leaderboards.ts`,
+      'badge.manage',
+      'badge.use',
+      'property',
+      {
+        alsoActions: ['leaderboard.read'],
+        notes: 'also requires leaderboard.read through ExecutionPolicy',
+      },
     ),
   ],
 
@@ -1166,14 +1449,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'createStaffAssignment',
       `${STAFF}/staff-assignments.ts`,
-      'staff_assignment.create',
+      'staff.manage',
       'staff.use',
       'property',
     ),
     sf(
       'removeStaffAssignment',
       `${STAFF}/staff-assignments.ts`,
-      'staff_assignment.delete',
+      'staff.manage',
       'staff.use',
       'property',
       { notes: 'scoped via assignmentId' },
@@ -1181,14 +1464,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'listStaffAssignments',
       `${STAFF}/staff-assignments.ts`,
-      'staff_assignment.read',
+      'staff.read',
       'staff.use',
       'property',
     ),
     sf(
       'updateStaffPortals',
       `${STAFF}/staff-portals-update.ts`,
-      'staff_assignment.create',
+      'staff.manage',
       'staff.use',
       'property',
       { notes: 'defense-in-depth; use case also enforces' },
@@ -1196,13 +1479,43 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'listStaffPortals',
       `${STAFF}/staff-portals.ts`,
-      'staff_assignment.read',
+      'staff.read',
       'staff.use',
       'property',
     ),
+    sf(
+      'createStaffParticipation',
+      `${STAFF}/staff-participations.ts`,
+      'staff.manage',
+      'staff.use',
+      'property',
+    ),
+    sf(
+      'listStaffParticipations',
+      `${STAFF}/staff-participations.ts`,
+      'staff.read',
+      'staff.use',
+      'property',
+    ),
+    sf(
+      'archiveStaffParticipation',
+      `${STAFF}/staff-participations.ts`,
+      'staff.manage',
+      'staff.use',
+      'property',
+      { notes: 'scoped through staffParticipationId' },
+    ),
+    sf(
+      'updatePortalResponsibilities',
+      `${STAFF}/staff-participations.ts`,
+      'staff.manage',
+      'staff.use',
+      'property',
+      { notes: 'scoped through staffParticipationId and portal ownership' },
+    ),
   ],
 
-  // ── portal (dark; write/upload hard-blocked) ──────────────────────
+  // ── portal management and guest publication ──────────────────────
   ...[
     sf(
       'createPortal',
@@ -1218,6 +1531,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.write',
       'property',
       { notes: 'scoped via portalId' },
+    ),
+    sf(
+      'completeContentReview',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      { notes: 'scoped via authoritative portalId before recording workflow facts' },
     ),
     sf('listPortals', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property'),
     sf('getPortal', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property', {
@@ -1248,12 +1569,28 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { externalEffect: true, notes: 'verifies uploaded object in S3' },
     ),
     sf(
-      'getPortalForQR',
+      'issuePortalToken',
       `${PORTAL}/portals.ts`,
-      'portal.read',
-      'portal.read',
+      'portal.update',
+      'portal.write',
       'property',
-      { notes: 'scoped via portalId' },
+      { notes: 'issues a one-time public capability URL; scoped via portalId' },
+    ),
+    sf(
+      'rotatePortalToken',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      { notes: 'rotates the public capability token; scoped via portalId' },
+    ),
+    sf(
+      'revokePortalTokens',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      { notes: 'revokes every active token; scoped via portalId' },
     ),
     sf(
       'createPortalGroup',
@@ -1299,6 +1636,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.write',
       'property',
+      {
+        canonicalOnly: true,
+        notes: 'helper authorizes matching group and Portal resources before mutation',
+      },
     ),
     sf(
       'removePortalFromGroup',
@@ -1306,6 +1647,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.write',
       'property',
+      {
+        canonicalOnly: true,
+        notes: 'helper authorizes matching group and Portal resources before mutation',
+      },
     ),
     sf(
       'createLink',
@@ -1375,36 +1720,92 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── guest (public; dark) ──────────────────────────────────────────
   ...[
     sfPublic(
-      'submitRatingFn',
+      'submitGuestResponseFn',
       `${GUEST}/public.ts`,
-      'system:guest.rating',
-      'portal.read',
+      'public:portal.response.submit',
+      'portal.guest_response',
       'property',
-      { notes: 'public; guest session cookie + rate limit' },
+      {
+        canonicalOnly: true,
+        notes:
+          'opaque token + signed portal-scoped session + CSRF; free text additionally checks portal.guest_text',
+      },
     ),
     sfPublic(
-      'submitFeedbackFn',
+      'correctGuestResponseFn',
       `${GUEST}/public.ts`,
-      'system:guest.feedback',
-      'portal.read',
+      'public:portal.response.correct',
+      'portal.guest_response',
       'property',
-      { notes: 'public; honeypot + rate limit' },
+      {
+        canonicalOnly: true,
+        notes: 'same signed session; exactly one correction inside one hour',
+      },
+    ),
+    sfPublic(
+      'withdrawGuestResponseFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.withdraw',
+      'portal.guest_response',
+      'property',
+      {
+        canonicalOnly: true,
+        notes: 'terminal anonymization and durable media purge scheduling',
+      },
+    ),
+    sfPublic(
+      'issueGuestMediaFn',
+      `${GUEST}/public.ts`,
+      'public:portal.media.issue',
+      'portal.guest_media',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes: 'single-use scoped object issuance after response/media consent',
+      },
+    ),
+    sfPublic(
+      'confirmGuestMediaFn',
+      `${GUEST}/public.ts`,
+      'public:portal.media.confirm',
+      'portal.guest_media',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes: 'confirms object then conditionally completes a leased media row',
+      },
+    ),
+    sf(
+      'moderateGuestResponseFn',
+      `${GUEST}/public.ts`,
+      'feedback.respond',
+      'portal.guest_response',
+      'property',
+      { notes: 'manager quarantine/delete; tenant and property scoped' },
     ),
     sfPublic(
       'recordScanFn',
       `${GUEST}/guest-scans.ts`,
-      'system:guest.scan',
-      'portal.read',
+      'public:portal.analytics.record',
+      'portal.public_read',
       'property',
-      { notes: 'public unauthenticated write; rate-limited' },
+      {
+        canonicalOnly: true,
+        notes: 'public signed-session write; analytics consent and rate limit required',
+      },
     ),
     sfPublic(
       'getPublicPortal',
       `${GUEST}/guest-scans.ts`,
-      'system:guest.portal_read',
-      'portal.read',
+      'public:portal.read',
+      'portal.public_read',
       'property',
-      { notes: 'public portal read' },
+      {
+        canonicalOnly: true,
+        notes: 'opaque-token public portal read; policy enforced by Portal resolver',
+      },
     ),
     sfPublic(
       'resolveLinkAndTrack',
@@ -1412,7 +1813,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:guest.click_track',
       'portal.read',
       'property',
-      { notes: 'public click-tracking redirect' },
+      {
+        canonicalOnly: true,
+        notes: 'opaque token resolves through Portal public policy before click tracking',
+      },
     ),
   ],
 
@@ -1496,14 +1900,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'BQC-2.6: intentional unavailable experience for dark features',
     }),
     ui(
-      '/p/$propertySlug/$portalSlug',
-      `${ROUTES}/p/$propertySlug/$portalSlug.tsx`,
+      '/p/$token',
+      `${ROUTES}/p/$token.tsx`,
       'system:guest.portal_read',
-      'portal.read',
+      'portal.public_read',
       'property',
       {
         principals: ['public'],
-        notes: 'guest portal; sets guest_session cookie, records scan',
+        notes: 'opaque-token guest portal; sets guest_session cookie and records scan',
       },
     ),
   ],
@@ -1546,16 +1950,16 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'placeholder page (dark)',
     }),
     ui(
-      '/import',
-      `${AUTHED}/import/index.tsx`,
+      '/properties/import-google',
+      `${AUTHED}/properties/import-google/index.tsx`,
       'integration.manage',
       'integration.use',
       'organization',
       { notes: 'Google OAuth connect + GBP import start' },
     ),
     ui(
-      '/import/$importId',
-      `${AUTHED}/import/$importId.tsx`,
+      '/properties/import-google/$importId',
+      `${AUTHED}/properties/import-google/$importId.tsx`,
       'system:ui.render',
       'integration.use',
       'organization',
@@ -1640,6 +2044,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'badge admin surface (dark)' },
     ),
     ui(
+      '/settings/ai',
+      `${AUTHED}/settings/ai.tsx`,
+      'ai.manage',
+      'property.create',
+      'property',
+      { notes: 'property-scoped Merchant AI authorization and notice' },
+    ),
+    ui(
       '/settings/integrations',
       `${AUTHED}/settings/integrations.tsx`,
       'integration.manage',
@@ -1686,7 +2098,7 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
     ui(
       '/properties/$propertyId/people',
       `${AUTHED}/properties/$propertyId/people.tsx`,
-      'staff_assignment.read',
+      'staff.read',
       'staff.use',
       'property',
       { notes: 'staff/teams/portal assignments' },
@@ -1751,6 +2163,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.read',
       'property',
       { notes: 'loader notFound if missing; dark' },
+    ),
+    ui(
+      '/properties/$propertyId/teams',
+      `${AUTHED}/properties/$propertyId/teams/index.tsx`,
+      'team.read',
+      'team.use',
+      'property',
+      { notes: 'manager team listing and creation surface' },
     ),
     ui(
       '/properties/$propertyId/teams/$teamId (layout)',
@@ -1858,25 +2278,14 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   api(
-    '/api/portals/$id/qr',
-    `${ROUTES}/api/portals/$id/qr.ts`,
-    'portal.read',
-    'portal.read',
-    'property',
-    {
-      principals: ['user'],
-      notes: 'session + assertBetaCapability(portal.read) via getPortalForQR; QR PNG',
-    },
-  ),
-  api(
-    '/api/public/click/$linkId',
-    `${ROUTES}/api/public/click/$linkId.ts`,
+    '/api/public/p/$token/click/$linkId',
+    `${ROUTES}/api/public/p/$token/click/$linkId.ts`,
     'system:guest.click_track',
-    'portal.read',
+    'portal.public_read',
     'property',
     {
       notes:
-        'validates external URL; 302 redirect; no capability assert in code — BQC-2.4 wires',
+        'token resolves authoritative org/property/Portal and public ExecutionPolicy before exact link ownership; neutral 404/no effect on mismatch; validates stored HTTPS URL; 302 no-referrer redirect',
     },
   ),
   api(
@@ -1915,15 +2324,15 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'import-property',
-    'src/contexts/integration/infrastructure/jobs/import-property.job.ts',
-    'system:property.import',
-    'property.connect_gbp',
+    'import-gbp-property-item-v2',
+    'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
+    'system:property.import_v2',
+    'property.import_gbp_v2',
     'organization',
     {
       externalEffect: true,
       notes:
-        'GBP property import; BQC-3.2: org-scoped fan-out; per-property authorization happens in the per-property sync jobs; dispatch gate authorizes',
+        'tenant-scoped GBP import v2 item; dispatch re-resolves current item routing before fenced effects',
     },
   ),
   job(
@@ -1936,6 +2345,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
       externalEffect: true,
       notes:
         'GBP review sync; BQC-3.2 dispatch gate authorizes; BQC-4.2 routing gate re-resolves region at dispatch (blocked/wrong-cell → quarantine); enqueued manual/cron/webhook/sweep',
+    },
+  ),
+  job(
+    'generate-property-ai-trend',
+    'src/contexts/ai/infrastructure/jobs/generate-property-trend.job.ts',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+    {
+      notes:
+        'content-free coalesced property trend generation after durable review analysis',
+    },
+  ),
+  job(
+    'schedule-property-ai-trends',
+    'src/contexts/ai/infrastructure/jobs/schedule-property-trends.job.ts',
+    'system:ai.trend_schedule',
+    'ai.detect_trends',
+    'tenant_cross',
+    {
+      notes:
+        'DB-fenced property-local calendar scheduler; scans at most 100 due properties per firing',
     },
   ),
   job(
@@ -1956,6 +2387,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'DB delete + review.expired event; retention evidence rows' },
+  ),
+  job(
+    'expire-review-provider-source',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'system:review.purge',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded Review raw-source expiry continuation; identifier-only source transition is committed with the row deletion',
+    },
+  ),
+  job(
+    'sweep-review-provider-tombstones',
+    'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
+    'system:review.purge',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded expired provider-correlation tombstone continuation after the fixed retention fence',
+    },
   ),
   job(
     'publish-reply',
@@ -2027,20 +2480,26 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'reconcile-goal-progress',
-    'src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job.ts',
-    'system:goal.reconcile',
-    'goal.use',
+    'permit-start-deadline-sweep',
+    'src/shared/jobs/permit-start-deadline-sweep.job.ts',
+    'system:permit.start_deadline_fence',
+    'none',
     'tenant_cross',
-    { notes: 'registration-gated; no-op when dark' },
+    {
+      notes:
+        'ADR 0050: bounded CAS of admitted -> fenced past start_deadline_at through fenceElapsedStartDeadlinePermit; unblocks ON DELETE RESTRICT approval rotation',
+    },
   ),
   job(
-    'spawn-recurring-instances',
-    'src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job.ts',
-    'system:goal.spawn',
-    'goal.use',
+    'google-import-claim-reaper',
+    'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
+    'system:property.import_claim_reap',
+    'property.import_gbp_v2',
     'tenant_cross',
-    { notes: 'registration-gated; spawns goal instances ±1 day window' },
+    {
+      notes:
+        'bounded claim-lease recovery: releases or terminalizes items still processing past claim_lease_expires_at through the store CAS helpers; no provider effect',
+    },
   ),
   job(
     'insert-activity-log',
@@ -2055,36 +2514,32 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'src/contexts/notification/infrastructure/jobs/insert-notification.job.ts',
     'system:notification.insert',
     'none',
-    'organization',
-    { notes: 'DB insert + email-queue rows; enqueued by 11 notification event handlers' },
+    'property',
+    { notes: 'property-scoped durable in-app + email-queue insert' },
   ),
   job(
     'urgent-email',
     'src/contexts/notification/infrastructure/jobs/urgent-email.job.ts',
     'system:notification.email_urgent',
     'notification.send_email',
-    'organization',
-    { externalEffect: true, notes: 'Resend send; registration-gated; blocked for beta' },
+    'property',
+    {
+      externalEffect: true,
+      notes:
+        'property resolution, current preference, quiet-hours, and policy rechecked before provider effect',
+    },
   ),
   job(
     'digest-notification',
     'src/contexts/notification/infrastructure/jobs/digest-notification.job.ts',
     'system:notification.email_digest',
     'notification.send_email',
-    'organization',
+    'tenant_cross',
     {
       externalEffect: true,
       notes:
-        'hourly tick → sends at org 8am local (ADR 0011); registration-gated; blocked for beta',
+        'hourly fanout resolves and authorizes each property; daily batches run at property-local 08:00 and never combine properties',
     },
-  ),
-  job(
-    'badge.reconcile',
-    'src/bootstrap.ts',
-    'system:badge.reconcile',
-    'badge.use',
-    'tenant_cross',
-    { notes: 'inline literal (no *.job.ts); registration-gated; dark' },
   ),
   job(
     'leaderboard.reconcile',
@@ -2107,6 +2562,47 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
+    },
+  ),
+  consumer(
+    'integration.property-import-dispatch',
+    'src/contexts/integration/infrastructure/outbox-consumers.ts',
+    'system:property.import_v2',
+    'property.import_gbp_v2',
+    'organization',
+    ['integration.property_import.requested'],
+    {
+      notes:
+        'durable identifier-only intent consumer; deterministic item job IDs converge ambiguous relay delivery',
+    },
+  ),
+  consumer(
+    'property.import-retention-release',
+    'src/contexts/property/infrastructure/outbox-consumers.ts',
+    'system:property.import_v2',
+    'property.import_gbp_v2',
+    'organization',
+    ['integration.property_import.retention_released'],
+    {
+      notes:
+        'durable bounded retention-release projection; state and consumer receipt co-commit',
+    },
+  ),
+  consumer(
+    'ai.outbox-consumers',
+    'src/contexts/ai/infrastructure/outbox-consumers.ts',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+    [
+      'review.created',
+      'review.updated',
+      'review.source_transitioned',
+      'ai.property_trend.generation_requested',
+    ],
+    {
+      notes:
+        'durable review-analysis consumers plus identifier-only trend-generation dispatch; each event family retains its exact event-catalogue capability',
     },
   ),
   consumer(
@@ -2144,7 +2640,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'integration.google_account.connected',
       'integration.google_account.disconnected',
       'integration.google_connection.visibility_changed',
-      'integration.property_import.completed',
+      'property.created',
       'property.updated',
       'property.deleted',
     ],
@@ -2189,8 +2685,33 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'guest.feedback.submitted',
       'guest.review_link.clicked',
       'review.created',
+      'portal.content_review.completed',
+      'portal.configuration_completeness.recorded',
+      'portal.approved_destination_ratio.recorded',
     ],
     { notes: 'guest-sourced tags only flow when portal.read is enabled (dark)' },
+  ),
+  consumer(
+    'metric.portal-workflow',
+    'src/contexts/metric/infrastructure/outbox-consumers.ts',
+    'system:metric.record',
+    'portal.write',
+    'organization',
+    [
+      'portal.content_review.completed',
+      'portal.configuration_completeness.recorded',
+      'portal.approved_destination_ratio.recorded',
+    ],
+    { notes: 'durable governed Portal workflow metric ingestion' },
+  ),
+  consumer(
+    'metric.correction-reconciliation',
+    'src/contexts/metric/infrastructure/correction-outbox-consumers.ts',
+    'system:metric.record',
+    'none',
+    'organization',
+    ['metric.corrected'],
+    { notes: 'durable append-only correction reconciliation watermark' },
   ),
   consumer(
     'notification.event-handlers',
@@ -2219,10 +2740,9 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.sync',
     'none',
     'property',
-    ['property.created', 'integration.google_account.disconnected'],
+    ['integration.google_account.disconnected'],
     {
-      notes:
-        'enqueues initial GBP sync (BQC-3.2 dispatch gate authorizes); BQC-3.8: disconnect cancels in-flight reply publications',
+      notes: 'disconnect cancels in-flight reply publications (BQC-3.8)',
     },
   ),
   consumer(
@@ -2246,6 +2766,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
   schedule('health-check-recurring', 'system:health.check', 'none', 'none', {
     notes: 'every 5 min',
   }),
+  schedule(
+    'schedule-property-ai-trends-recurring',
+    'system:ai.trend_schedule',
+    'ai.detect_trends',
+    'tenant_cross',
+    { notes: 'every minute; DB lease and property-local due date fence duplicate scans' },
+  ),
   schedule(
     'refresh-expiring-reviews-recurring',
     'system:review.refresh_sweep',
@@ -2282,6 +2809,23 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'daily, offset 4h (after retention sweep)' },
   ),
   schedule(
+    'permit-start-deadline-sweep-recurring',
+    'system:permit.start_deadline_fence',
+    'none',
+    'tenant_cross',
+    { notes: 'every 5 min (execution-permit start-deadline fence)' },
+  ),
+  schedule(
+    'google-import-claim-reaper-recurring',
+    'system:property.import_claim_reap',
+    'property.import_gbp_v2',
+    'tenant_cross',
+    {
+      notes:
+        'every 60s (one claim-lease width); tenant-cross enumeration only — each recovered item is re-authorized by the item job before any effect',
+    },
+  ),
+  schedule(
     'refresh-daily-metrics-recurring',
     'system:metric.refresh',
     'none',
@@ -2303,27 +2847,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'cron 5 * * * * (hourly)' },
   ),
   schedule(
-    'reconcile-goal-progress-recurring',
-    'system:goal.reconcile',
-    'goal.use',
-    'tenant_cross',
-    { notes: 'cron 10 * * * *; NOT scheduled while goal.use dark' },
-  ),
-  schedule(
-    'spawn-recurring-instances-recurring',
-    'system:goal.spawn',
-    'goal.use',
-    'tenant_cross',
-    { notes: 'daily; NOT scheduled while goal.use dark' },
-  ),
-  schedule(
-    'badge.reconcile-recurring',
-    'system:badge.reconcile',
-    'badge.use',
-    'tenant_cross',
-    { notes: 'cron 20 * * * *; NOT scheduled while badge.use dark' },
-  ),
-  schedule(
     'leaderboard.reconcile-recurring',
     'system:leaderboard.reconcile',
     'leaderboard.use',
@@ -2334,8 +2857,8 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'digest-notification-recurring',
     'system:notification.email_digest',
     'notification.send_email',
-    'organization',
-    { notes: 'cron 0 * * * *; blocked for beta (notification.send_email)' },
+    'tenant_cross',
+    { notes: 'hourly tenant enumeration; each org delivery is capability-scoped' },
   ),
 ]
 
@@ -2388,6 +2911,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/reconcile-people-team.ts',
+    'scripts/ops/reconcile-people-team.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-people-team — report/apply legacy assignment to participation/team reconciliation; ambiguous mappings remain findings',
+    },
+  ),
+  ops(
     'scripts/ops/rebuild-projection.ts',
     'scripts/ops/rebuild-projection.ts',
     'organization',
@@ -2425,6 +2957,24 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension (reason+ticket; own audit row + harness row) (BQC-7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/property-capabilities.ts',
+    'scripts/ops/property-capabilities.ts',
+    'property',
+    {
+      notes:
+        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default, harness audit row per invocation (BQC-7.5)',
+    },
+  ),
+  ops(
+    'scripts/ops/reparse-review-translations.ts',
+    'scripts/ops/reparse-review-translations.ts',
+    'property',
+    {
+      notes:
+        "ops:reparse-review-translations — re-splits Google's \"(Translated by Google) … (Original) …\" envelope on reviews stored before the adapter parsed it, so cld3 reads the guest's words instead of Google's English; recomputes content_hash and the ai_source_digest/byte_length pair with the same production functions the sync path uses, via a targeted column UPDATE that leaves source_revision, analysis_sequence and the review lifecycle untouched so no reviewUpdated event crosses the analysis watermark; report/repair, dry-run by default, idempotent (BQC-7.5)",
     },
   ),
   ops('scripts/ops/inspect-decision.ts', 'scripts/ops/inspect-decision.ts', 'property', {
@@ -2469,6 +3019,150 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
   }),
+  ops(
+    'scripts/check-google-import-artifacts.mjs',
+    'scripts/check-google-import-artifacts.mjs',
+    'none',
+    {
+      notes:
+        'check:google-import-artifacts — fails when browser/build/log artifacts contain protected Google import identifiers or Content',
+    },
+  ),
+  ops(
+    'scripts/check-ai-contract-attestations.ts',
+    'scripts/check-ai-contract-attestations.ts',
+    'none',
+    {
+      notes:
+        'build gate recomputing the exact source/provider-subject ordered-manifest attestations and rejecting drift or local runtime imports',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-egress-gateway-bundle.mjs',
+    'scripts/verify-ai-egress-gateway-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving the gateway bundle alone owns the OpenAI SDK and excludes caller, database, Google, browser, probe, and local-stub paths',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-execution-admission-bundle.mjs',
+    'scripts/verify-ai-execution-admission-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving the admission bundle excludes provider SDKs, gateway dependencies, browsers, queues, and Google clients',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-gateway-runtime-assets.ts',
+    'scripts/verify-ai-gateway-runtime-assets.ts',
+    'none',
+    {
+      notes:
+        'build-time digest and inventory gate for immutable AI gateway runtime assets',
+    },
+  ),
+  ops(
+    'scripts/verify-ai-runtime-image.mjs',
+    'scripts/verify-ai-runtime-image.mjs',
+    'none',
+    {
+      notes:
+        'build-time image-profile gate for the pinned AI runtime, ICU, Unicode, and production dependency inventory',
+    },
+  ),
+  ops(
+    'scripts/check-google-provider-identifiers.mjs',
+    'scripts/check-google-provider-identifiers.mjs',
+    'none',
+    {
+      notes:
+        'static gate rejecting uncatalogued Google provider-resource literals outside the generated fixture targets',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-governance-artifacts.ts',
+    'scripts/generate-ai-governance-artifacts.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the immutable AI governance policy catalogue and evidence artifacts',
+    },
+  ),
+  ops(
+    'scripts/ai-language-attestation.ts',
+    'scripts/ai-language-attestation.ts',
+    'none',
+    {
+      notes:
+        'dependency-neutral build helper for domain-separated, length-prefixed AI language-profile attestations',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-language-script-table.ts',
+    'scripts/generate-ai-language-script-table.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned Unicode script-extension table used by the reply language gate',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-reply-language-profile.ts',
+    'scripts/generate-ai-reply-language-profile.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned reply-language verifier profile and CLD3 attestation',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-review-language-profile.ts',
+    'scripts/generate-ai-review-language-profile.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the immutable Review-language catalogue profile',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-review-language-regions.ts',
+    'scripts/generate-ai-review-language-regions.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the closed supported regional language-tag data',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-zh-orthography-table.ts',
+    'scripts/generate-ai-zh-orthography-table.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned allocation-free Chinese orthography evidence table',
+    },
+  ),
+  ops(
+    'scripts/generate-ai-unicode-case-folding.ts',
+    'scripts/generate-ai-unicode-case-folding.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the pinned Unicode case-fold table consumed by ai-source-v1',
+    },
+  ),
+  ops(
+    'scripts/generate-google-provider-fixtures.ts',
+    'scripts/generate-google-provider-fixtures.ts',
+    'none',
+    {
+      notes:
+        'deterministically generates the canonical synthetic Google provider-resource fixture catalogue and test targets',
+    },
+  ),
   ops('scripts/check-changed-code.mjs', 'scripts/check-changed-code.mjs', 'none', {
     notes:
       'check:changed-code — CI gate (BQC-6.9): every added src production file must carry a colocated test (or a registered exemption)',
@@ -2487,6 +3181,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'check:security-headers — CI gate (BQC-7.6, STD-P1-07): boots the built production server and asserts the full B0.7 header set on 200 AND 404 responses, x-request-id behavior, and the 413 body limit; exits 1 listing missing headers',
+    },
+  ),
+  ops(
+    'scripts/check-runtime-language-verifier.mjs',
+    'scripts/check-runtime-language-verifier.mjs',
+    'none',
+    {
+      notes:
+        'check:language-verifier — CI gate: asserts cld3-asm stayed external to the Nitro server bundle and still resolves, initializes its WASM and detects a language from inside .output/server, with the loader matching the sha256 attested by ai-reply-language-verifier-v1.manifest.json; bundling it throws "runtimeModule is not a function" and 500s every reply suggestion',
     },
   ),
   ops('scripts/check-test-quality.mjs', 'scripts/check-test-quality.mjs', 'none', {
@@ -2541,15 +3244,110 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
   }),
+  ops('scripts/migrate-drizzle.ts', 'scripts/migrate-drizzle.ts', 'tenant_cross', {
+    notes:
+      'db:migrate — staged local Drizzle runner that commits required enum additions before dependent migrations',
+  }),
   ops('scripts/migrate-deploy.ts', 'scripts/migrate-deploy.ts', 'tenant_cross', {
     notes:
       'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
   }),
   ops(
+    'scripts/google-import-final-schema-probe.ts',
+    'scripts/google-import-final-schema-probe.ts',
+    'tenant_cross',
+    {
+      notes:
+        'read-only release gate proving the final Google import contract schema after the compatibility migration drill',
+    },
+  ),
+  ops(
+    'scripts/google-property-binding-index.ts',
+    'scripts/google-property-binding-index.ts',
+    'tenant_cross',
+    {
+      notes:
+        'expand-migration sidecar: advisory-locked concurrent binding backfill and unique-index convergence',
+    },
+  ),
+  ops(
+    'scripts/ops/google-content-approval.ts',
+    'scripts/ops/google-content-approval.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-content-approval — signature-verified global content-treatment approval installation; ticketed and audited',
+    },
+  ),
+  ops(
+    'scripts/ops/google-content-approval-sign.ts',
+    'scripts/ops/google-content-approval-sign.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-content-approval-sign — operator-held role keystore; re-signs the existing evidence for a moved approval-bound version and installs it through ops:google-content-approval',
+    },
+  ),
+  ops(
+    'scripts/ops/google-import-lifecycle.ts',
+    'scripts/ops/google-import-lifecycle.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-import-lifecycle — tenant-scoped import backlog inspection and guarded cancellation',
+    },
+  ),
+  ops(
+    'scripts/local-stack/provision-ai-admission-role.ts',
+    'scripts/local-stack/provision-ai-admission-role.ts',
+    'tenant_cross',
+    {
+      notes:
+        'local acceptance provisioner for the execute-only AI admission PostgreSQL role; rejects owner/superuser/BYPASSRLS and verifies exact grants plus session limits',
+    },
+  ),
+  ops(
+    'scripts/ops/ai-canary-authorization.ts',
+    'scripts/ops/ai-canary-authorization.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:ai-canary — ticketed inspect/issue/revoke lifecycle for one release-bound synthetic canary authorization generation',
+    },
+  ),
+  ops(
+    'scripts/ops/ai-execution-control.ts',
+    'scripts/ops/ai-execution-control.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
+    },
+  ),
+  ops(
+    'scripts/ops/permit-start-deadline-backfill.ts',
+    'scripts/ops/permit-start-deadline-backfill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:permit-start-deadline-fence — one-off bounded backfill of admitted execution permits past start_deadline_at; reuses the recurring sweeper and its fenceElapsedStartDeadlinePermit path (no raw UPDATE)',
+    },
+  ),
+  ops(
     'scripts/verify-auth-schema.mjs',
     'scripts/verify-auth-schema.mjs',
     'tenant_cross',
     { notes: 'audit:auth-schema — read-only better-auth column casing check' },
+  ),
+  // ── release evidence ──────────────────────────────────────────────
+  ops(
+    'scripts/release/validate-bundle.ts',
+    'scripts/release/validate-bundle.ts',
+    'none',
+    {
+      notes:
+        'release:validate-evidence — validates the named, path-contained BQC-8.8 reviewer evidence bundle; read-only',
+    },
   ),
   // ── bqc ───────────────────────────────────────────────────────────
   ops('scripts/bqc/validate-status.ts', 'scripts/bqc/validate-status.ts', 'none', {
@@ -2588,6 +3386,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/add-materialized-views-and-gbp-index.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): db:matviews — 3 materialized views + GBP unique index' },
+  ),
+  ops(
+    'scripts/migrations/google-import-contract.sql',
+    'scripts/migrations/google-import-contract.sql',
+    'tenant_cross',
+    {
+      notes:
+        'DIRECT-DB compatibility contract probe for additive Google import schema and final cutover invariants',
+    },
   ),
   ops(
     'scripts/migrations/verify-existing-emails.sql',
@@ -2660,6 +3467,82 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): organization response_sla_hours column' },
   ),
+  // ── local beta stack ───────────────────────────────────────────────
+  ops('scripts/local-stack/stack.ts', 'scripts/local-stack/stack.ts', 'tenant_cross', {
+    notes:
+      'Generates revision-bound loopback configuration and orchestrates the isolated Docker acceptance stack',
+  }),
+  ops(
+    'scripts/local-stack/google-import-release-drill.ts',
+    'scripts/local-stack/google-import-release-drill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'Runs the immutable local Google import expand/backfill/contract lifecycle drill against disposable stack databases',
+    },
+  ),
+  ops(
+    'scripts/local-stack/fault-operation.ts',
+    'scripts/local-stack/fault-operation.ts',
+    'tenant_cross',
+    {
+      notes:
+        'Executes one bounded Compose dependency fault/restore probe selected by the beta stack acceptance controller',
+    },
+  ),
+  ops('scripts/beta/smoke.ts', 'scripts/beta/smoke.ts', 'tenant_cross', {
+    notes:
+      'Exclusive beta-local acceptance controller; runs exact digest-bound gates and writes an immutable smoke manifest',
+  }),
+  ops('scripts/beta/command-runner.ts', 'scripts/beta/command-runner.ts', 'none', {
+    notes:
+      'Shared finite child-command adapter used by injectable beta gate controllers; it has no standalone CLI',
+  }),
+  ops(
+    'scripts/beta/create-pre-cutover-dump.ts',
+    'scripts/beta/create-pre-cutover-dump.ts',
+    'none',
+    {
+      notes:
+        'Creates the deterministic beta-local-1 SQL fixture at migration head 0021 with later migrations provably pending',
+    },
+  ),
+  ops(
+    'scripts/beta/run-quality-gate.ts',
+    'scripts/beta/run-quality-gate.ts',
+    'tenant_cross',
+    {
+      notes:
+        'Runs the exact static, unit, integration, build, component, and Compose critical/full browser quality sequence with per-command logs',
+    },
+  ),
+  ops(
+    'scripts/beta/run-storybook-gate.ts',
+    'scripts/beta/run-storybook-gate.ts',
+    'none',
+    {
+      notes:
+        'Starts the beta Storybook server, waits for readiness, runs the blocking browser story suite, and terminates the server',
+    },
+  ),
+  ops(
+    'scripts/beta/run-product-journeys.ts',
+    'scripts/beta/run-product-journeys.ts',
+    'tenant_cross',
+    {
+      notes:
+        'Owns beta stack up/Playwright promoted-journey/down lifecycle and writes checksummed journey evidence only on success',
+    },
+  ),
+  ops(
+    'scripts/beta/verify-gate-evidence.ts',
+    'scripts/beta/verify-gate-evidence.ts',
+    'none',
+    {
+      notes:
+        'Read-only checksum and semantic verifier for scale, fault, migration, and release-bundle gate evidence',
+    },
+  ),
   // ── perf ──────────────────────────────────────────────────────────
   ops('scripts/perf/load-test.ts', 'scripts/perf/load-test.ts', 'none', {
     notes:
@@ -2668,6 +3551,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/perf/seed-scale.ts', 'scripts/perf/seed-scale.ts', 'tenant_cross', {
     notes:
       'DIRECT-DB: deterministic scale dataset load/verify/clean (raw pg bulk INSERT, manifest hash, BQC-8.1)',
+  }),
+  ops('scripts/perf/seed-fleet.ts', 'scripts/perf/seed-fleet.ts', 'tenant_cross', {
+    notes:
+      'DIRECT-DB: deterministic beta-local 5,000-property P1/P2 fleet fixture with constant-query verification evidence',
   }),
   ops(
     'scripts/perf/write-scale-evidence.ts',
@@ -2686,6 +3573,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'perf:cell stub process — GBP/mail sandbox fixtures serving the cell (no DB; provider endpoints pinned here, BQC-8.2)',
   }),
+  ops(
+    'scripts/release/promote-local-evidence.ts',
+    'scripts/release/promote-local-evidence.ts',
+    'none',
+    {
+      notes:
+        'Promotes a digest-bound beta-local manifest only after all five role approvals validate',
+    },
+  ),
   // ── package.json-only commands (CLI tools, no repo script file) ───
   ops('db:generate', 'package.json', 'none', {
     notes: 'drizzle-kit generate — writes migration SQL (broken meta chain: STD-P2-02)',

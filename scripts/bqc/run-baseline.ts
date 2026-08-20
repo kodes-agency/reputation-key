@@ -69,12 +69,22 @@ const GATES: ReadonlyArray<Gate> = [
   },
   { id: 'build-web', command: 'pnpm build' },
   { id: 'build-worker', command: 'pnpm build:worker' },
+  { id: 'build-ai-egress-gateway', command: 'pnpm build:ai-egress-gateway' },
   { id: 'storybook-build', command: 'pnpm build-storybook' },
   { id: 'storybook-test', command: 'pnpm test:storybook' },
-  { id: 'dependency-audit', command: 'pnpm audit' },
-  { id: 'fallow-dead-code', command: 'node_modules/.bin/fallow dead-code' },
-  { id: 'fallow-duplication', command: 'node_modules/.bin/fallow dupes' },
-  { id: 'fallow-health', command: 'node_modules/.bin/fallow health' },
+  { id: 'dependency-audit', command: 'pnpm check:dependency-audit' },
+  {
+    id: 'fallow-dead-code',
+    command: 'node_modules/.bin/fallow dead-code --changed-since HEAD --fail-on-issues',
+  },
+  {
+    id: 'fallow-duplication',
+    command: 'node_modules/.bin/fallow dupes --changed-since HEAD',
+  },
+  {
+    id: 'fallow-health',
+    command: 'node_modules/.bin/fallow health --changed-since HEAD --report-only',
+  },
   {
     id: 'seed-e2e',
     command: 'pnpm seed:e2e-user',

@@ -11,6 +11,7 @@ import type { RecordMetricInput } from '../../application/use-cases/record-metri
 import type { ReviewRatingLookupPort } from '../../application/ports/review-rating-lookup.port'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
 
 export type OnReviewCreatedDeps = Readonly<{
   recordMetric(input: RecordMetricInput): Promise<unknown>
@@ -31,9 +32,15 @@ export const onReviewCreated =
           organizationId: event.organizationId,
           propertyId: event.propertyId,
           portalId: null,
-          metricKey: 'property.review',
+          portalGroupId: null,
+          definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
+          sourceEventId: event.eventId,
+          sourcePolicy: 'google_property_derivative',
+          scope: 'property',
           value: rating,
-          groupId: null,
+          sampleCount: 1,
+          occurredAt: event.occurredAt,
+          attributionQuality: 'exact',
         })
       } catch (err) {
         getLogger().error(

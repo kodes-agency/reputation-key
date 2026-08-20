@@ -14,6 +14,7 @@ import {
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
+import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export const inboxFns: InboxServerFns = {
   getInboxItems: getInboxItemsFn,
@@ -26,4 +27,5 @@ export const inboxFns: InboxServerFns = {
   resolveEscalation: resolveEscalationFn,
   addInboxNote: addInboxNoteFn,
   bulkUpdateInboxStatus: bulkUpdateInboxStatusFn,
+  generateReplySuggestion: generateReplySuggestionFn,
 }

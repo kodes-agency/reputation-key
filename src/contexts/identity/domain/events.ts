@@ -7,6 +7,7 @@ import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
+import type { MerchantAiState } from './merchant-ai-authorization'
 
 export type IdentityOrganizationCreated = Readonly<{
   _tag: 'identity.organization.created'
@@ -150,6 +151,60 @@ export const identityMemberRoleChanged = (
   }
 }
 
+export type IdentityMerchantAiChanged = Readonly<{
+  _tag: 'identity.merchant_ai.changed'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: string
+  authorizationLineageId: string
+  state: MerchantAiState
+  reviewAnalysisEpoch: number
+  replyDraftingEpoch: number
+  propertyTrendsEpoch: number
+  authorizedSourceEpoch: number
+  analysisStartSequence: number
+  stateVersion: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const identityMerchantAiChanged = (
+  args: Omit<IdentityMerchantAiChanged, '_tag' | 'eventId' | 'correlationId'>,
+): IdentityMerchantAiChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.authorizationLineageId.length > 0, 'authorizationLineageId required')
+  assert(
+    Number.isSafeInteger(args.reviewAnalysisEpoch) && args.reviewAnalysisEpoch >= 1,
+    'reviewAnalysisEpoch must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.replyDraftingEpoch) && args.replyDraftingEpoch >= 1,
+    'replyDraftingEpoch must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.propertyTrendsEpoch) && args.propertyTrendsEpoch >= 1,
+    'propertyTrendsEpoch must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.stateVersion) && args.stateVersion >= 1,
+    'stateVersion must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.authorizedSourceEpoch) && args.authorizedSourceEpoch >= 0,
+    'authorizedSourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.analysisStartSequence) && args.analysisStartSequence >= 0,
+    'analysisStartSequence must be a nonnegative safe integer',
+  )
+  return {
+    _tag: 'identity.merchant_ai.changed',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
 export type IdentityEvent =
   | IdentityOrganizationCreated
   | IdentityMemberInvited
@@ -157,3 +212,4 @@ export type IdentityEvent =
   | IdentityInvitationCanceled
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged
+  | IdentityMerchantAiChanged

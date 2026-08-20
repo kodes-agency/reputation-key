@@ -42,12 +42,15 @@ const POLL_INTERVAL_MS = 250
 const BODY_LIMIT_BYTES = 1024
 
 // The B0.7 header set, exactly as served in production (HSTS included —
-// NODE_ENV=production). Source of truth: getSecurityHeaders() in
+// NODE_ENV=production). The CSP allows the application shell's per-response
+// nonce but otherwise matches every directive and trusted origin exactly.
+// Source of truth: getSecurityHeaders() in
 // src/shared/security/security-headers.ts — keep in sync deliberately; this
 // independent encoding is what makes the gate fail on drift.
+const EXPECTED_CSP_PATTERN =
+  /^script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self'; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
+
 const EXPECTED_HEADERS = {
-  'content-security-policy':
-    "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'strict-origin-when-cross-origin',
@@ -96,12 +99,21 @@ function serverEnv(port) {
     ENCRYPTION_KEY: hex(32),
     OAUTH_STATE_SECRET: hex(32),
     GUEST_SESSION_SALT: hex(16),
+    PORTAL_TOKEN_HASH_SECRET: hex(32),
     REQUEST_BODY_LIMIT_BYTES: String(BODY_LIMIT_BYTES),
     LOG_LEVEL: 'warn',
   }
 }
 
 function assertHeaders(label, headers, failures) {
+  const csp = headers.get('content-security-policy')
+  if (csp === null) {
+    failures.push(`${label}: missing header content-security-policy`)
+  } else if (!EXPECTED_CSP_PATTERN.test(csp)) {
+    failures.push(
+      `${label}: content-security-policy = ${JSON.stringify(csp)} (unexpected)`,
+    )
+  }
   for (const [name, value] of Object.entries(EXPECTED_HEADERS)) {
     const actual = headers.get(name)
     if (actual === null) {

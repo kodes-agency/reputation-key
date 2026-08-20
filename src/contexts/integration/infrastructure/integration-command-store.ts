@@ -1,26 +1,13 @@
 // Atomic integration command store (BQC-3.5).
 //
-// One PostgreSQL transaction per command: google_connections / gbp_import_jobs
-// state mutation + outbox_events insert. After commit: in-process EventBus
-// emit for expand-phase legacy consumers.
-//
-// Crash contract:
-// - Crash anywhere inside the transaction rolls back BOTH the state mutation
-//   and the outbox row — no state/outbox split is ever observable (the
-//   pre-BQC-3.5 disconnect could mark the row disconnected, purge, redact,
-//   and STILL lose the fact between separate awaits).
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
-// - The gbp_cache purge and the source-content retention purge stay OUTSIDE
-//   the disconnect transaction: the durable disconnected fact + redaction
-//   are the recovery record for the cleanup machinery. (The gbp_cache purge
-//   is PG-backed but idempotent cleanup; the review-side purge command
-//   remains a noted gap for later.)
+// One PostgreSQL transaction per command: google_connections state mutation
+// plus outbox_events insert. After commit, the in-process EventBus receives
+// the same fact; a crash after commit is recovered by the durable relay.
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { gbpImportJobs } from '#/shared/db/schema/gbp-import-job.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -35,7 +22,6 @@ import type {
   DisconnectGoogleAccountCommand,
   IntegrationCommandStore,
   ReconnectGoogleAccountCommand,
-  RecordImportCompletedCommand,
   UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
 
@@ -54,6 +40,11 @@ function isPgUniqueViolation(err: unknown): boolean {
   )
 }
 
+type GoogleConnectionInsert = typeof googleConnections.$inferInsert
+type GoogleConnectionUpdateSet = {
+  [K in keyof GoogleConnectionInsert]?: GoogleConnectionInsert[K] | SQL
+}
+
 /**
  * Update the google_connections row for (organizationId, connectionId)
  * inside the command transaction (single source for the guarded connection
@@ -62,7 +53,7 @@ function isPgUniqueViolation(err: unknown): boolean {
 function updateConnectionRow(
   tx: Tx,
   command: Readonly<{ organizationId: string; connectionId: string }>,
-  set: Partial<typeof googleConnections.$inferInsert>,
+  set: GoogleConnectionUpdateSet,
 ) {
   return tx
     .update(googleConnections)
@@ -92,9 +83,7 @@ export function createAtomicIntegrationCommandStore(
         } catch (err) {
           // Global one-account-one-org race — the use case's fallback contract.
           if (isPgUniqueViolation(err)) {
-            throw uniqueViolationError(
-              `Duplicate google connection for accountId=${command.connection.googleAccountId}`,
-            )
+            throw uniqueViolationError('Duplicate Google connection identity')
           }
           throw err
         }
@@ -104,21 +93,39 @@ export function createAtomicIntegrationCommandStore(
 
     reconnectGoogleAccount: async (command: ReconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.reconnectGoogleAccount', async () => {
-        const updated = await db.transaction(async (tx) => {
-          const rows = await updateConnectionRow(tx, command, {
-            encryptedAccessToken: command.encryptedAccessToken,
-            encryptedRefreshToken: command.encryptedRefreshToken,
-            tokenExpiresAt: command.tokenExpiresAt,
-            status: 'active',
-            visibility: command.visibility,
-            updatedAt: new Date(),
-          }).returning()
-          if (!rows[0]) {
-            throw integrationError('connection_not_found', 'Google connection not found')
+        let updated: typeof googleConnections.$inferSelect
+        try {
+          updated = await db.transaction(async (tx) => {
+            const rows = await updateConnectionRow(tx, command, {
+              googleSubject: command.googleSubject,
+              encryptedAccessToken: command.encryptedAccessToken,
+              encryptedRefreshToken: command.encryptedRefreshToken,
+              tokenExpiresAt: command.tokenExpiresAt,
+              scopes: [...command.scopes],
+              status: 'active',
+              visibility: command.visibility,
+              credentialUseState: 'active',
+              cleanupMaterialDeadlineAt: null,
+              lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+              accessVersion: sql`${googleConnections.accessVersion} + 1`,
+              credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+              updatedAt: new Date(),
+            }).returning()
+            if (!rows[0]) {
+              throw integrationError(
+                'connection_not_found',
+                'Google connection not found',
+              )
+            }
+            await insertOutboxRow(tx, command.event)
+            return rows[0]
+          })
+        } catch (error) {
+          if (isPgUniqueViolation(error)) {
+            throw uniqueViolationError('Duplicate Google connection identity')
           }
-          await insertOutboxRow(tx, command.event)
-          return rows[0]
-        })
+          throw error
+        }
         await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(updated)
       })
@@ -129,6 +136,7 @@ export function createAtomicIntegrationCommandStore(
         const redacted = await db.transaction(async (tx) => {
           const statusRows = await updateConnectionRow(tx, command, {
             status: 'disconnected',
+            lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
             updatedAt: new Date(),
           }).returning({ id: googleConnections.id })
           if (!statusRows[0]) {
@@ -139,9 +147,12 @@ export function createAtomicIntegrationCommandStore(
           const redactedRows = await updateConnectionRow(tx, command, {
             encryptedAccessToken: 'redacted',
             encryptedRefreshToken: 'redacted',
-            googleEmail: 'redacted',
-            googleAccountId: `redacted:${command.connectionId as string}`,
+            googleSubject: null,
             scopes: [],
+            credentialUseState: 'none',
+            cleanupMaterialDeadlineAt: null,
+            accessVersion: sql`${googleConnections.accessVersion} + 1`,
+            credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
             updatedAt: new Date(),
           }).returning()
           if (!redactedRows[0]) {
@@ -160,6 +171,7 @@ export function createAtomicIntegrationCommandStore(
         const updated = await db.transaction(async (tx) => {
           const rows = await updateConnectionRow(tx, command, {
             visibility: command.visibility,
+            accessVersion: sql`${googleConnections.accessVersion} + 1`,
             updatedAt: new Date(),
           }).returning()
           if (!rows[0]) {
@@ -170,24 +182,6 @@ export function createAtomicIntegrationCommandStore(
         })
         await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(updated)
-      })
-    },
-
-    recordImportCompleted: async (command: RecordImportCompletedCommand) => {
-      return trace('integration.commandStore.recordImportCompleted', async () => {
-        await db.transaction(async (tx) => {
-          await tx
-            .update(gbpImportJobs)
-            .set({ status: command.finalStatus, updatedAt: command.now })
-            .where(
-              and(
-                eq(gbpImportJobs.organizationId, command.organizationId as string),
-                eq(gbpImportJobs.id, command.importJobId as string),
-              ),
-            )
-          await insertOutboxRow(tx, command.event)
-        })
-        await emitAfterCommit(events, command.event)
       })
     },
   }

@@ -2,6 +2,7 @@ import {
   createRootRouteWithContext,
   HeadContent,
   Scripts,
+  useRouter,
   useRouterState,
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
@@ -35,12 +36,13 @@ export const Route = createRootRouteWithContext<{
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
+  const cspNonce = router.options.ssr?.nonce
+
   const showChrome = useRouterState({
     select: (s) => {
       const ids = s.matches.map((m) => m.routeId)
-      return (
-        !ids.includes('/_authenticated') && !ids.includes('/p/$propertySlug/$portalSlug')
-      )
+      return !ids.includes('/_authenticated') && !ids.includes('/p/$token')
     },
   })
 
@@ -54,7 +56,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script
+          nonce={cspNonce}
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.42_0.18_290/0.25)]">

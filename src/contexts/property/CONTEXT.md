@@ -13,19 +13,19 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 
 - Property → Organization (required `organizationId`).
 - Property ← Portal, Team, StaffAssignment, Goal, Review (all reference `propertyId`).
-- Property ← Integration context (via `PropertyPublicApi` for GBP imports and webhook resolution).
+- Property ← Integration context (via `PropertyGoogleBindingPublicApi` for canonical binding lifecycle).
 - Property ← Guest context (via slug lookup for public portal resolution).
 - Property context **depends on** `StaffPublicApi` for accessible property filtering.
 
 ## Invariants
 
 - Property slugs must be unique within an organization.
-- Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`); `propertyRepo.hardDelete` then cascades to gbp_cache via FK. The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
-- GBP place IDs must be unique within an organization (enforced by `PropertyImportConflict`).
+- Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`). The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
+- Canonical GBP location suffixes must be unique within an organization.
 
 ## Events produced
 
-- **`property.created`** — propertyId, organizationId, name, slug, gbpPlaceId?, gbpLocationName?, googleConnectionId?, occurredAt.
+- **`property.created`** — propertyId, organizationId, name, slug, processingRegion, processingRegionSource, occurredAt.
 - **`property.updated`** — propertyId, organizationId, name, slug, occurredAt.
 - **`property.deleted`** — propertyId, organizationId, occurredAt.
 
@@ -41,7 +41,7 @@ property/
   application/
     ports/             property.repository.ts
     dto/               create-property.dto.ts, update-property.dto.ts
-    public-api.ts      re-exports PropertyPublicApi, import types, event types/constructors
+    public-api.ts      exports read-only property queries and binding lifecycle contracts
     use-cases/         create-property.ts, update-property.ts, soft-delete-property.ts,
                        get-property.ts, list-properties.ts
   infrastructure/
@@ -57,16 +57,14 @@ property/
 - **`updateProperty`** — Update property settings, emits `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
-- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. BQC-1.7: bounded lifecycle purge of reviews/replies/inbox rows first; FK cascade handles gbp_cache. Requires `property.delete` permission.
+- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. BQC-1.7: bounded lifecycle purge of reviews/replies/inbox rows first. Requires `property.delete` permission.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `PropertySlugLookupResult`, `PropertyLookupResult`, `PropertyImportResult`, `PropertyImportConflict`, `PropertyPublicApi`
-- Functions: `propertyImportConflict`, `isPropertyImportConflict`
-- Event types: `PropertyCreated`
-- Event constructors: `propertyCreated`
+- Types: `PropertySlugLookupResult`, `PropertyLookupResult`, `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`
+- Binding contract: `GOOGLE_BINDING_STATES`, `PROPERTY_GOOGLE_BINDING_CHANGED_EVENT`, `isGoogleBindingState`
 
 ## Server functions
 

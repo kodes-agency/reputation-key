@@ -35,6 +35,16 @@ describe('catchUntagged', () => {
     expect(thrown.message).toBe('Not authenticated')
   })
 
+  it('preserves an already translated execution-policy denial', () => {
+    const denial = new ServerFunctionError(
+      'AuthError',
+      'Authorization denied: property_disabled',
+      'property_disabled',
+      403,
+    )
+    expect(surface(denial)).toBe(denial)
+  })
+
   it('masks truly unknown errors as a generic 500 (no stack/SQL leak)', () => {
     const thrown = surface(new Error('relation "organizationRole" does not exist'))
     expect(thrown.status).toBe(500)

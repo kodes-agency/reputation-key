@@ -3,6 +3,7 @@
 
 import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
 import type { PortalLinkCategory, PortalLink } from '#/contexts/portal/domain/types'
+import { portalError } from '#/contexts/portal/domain/errors'
 
 export type InMemoryPortalLinkRepo = PortalLinkRepository &
   Readonly<{
@@ -22,9 +23,14 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
         .filter((c) => c.organizationId === orgId && c.portalId === portalId)
         .sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
 
-    listLinks: async (orgId, categoryId) =>
+    listLinks: async (orgId, portalId, categoryId) =>
       [...linkStore.values()]
-        .filter((l) => l.organizationId === orgId && l.categoryId === categoryId)
+        .filter(
+          (l) =>
+            l.organizationId === orgId &&
+            l.portalId === portalId &&
+            l.categoryId === categoryId,
+        )
         .sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
 
     listAllLinks: async (orgId, portalId) =>
@@ -36,33 +42,51 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
       categoryStore.set(String(cat.id), cat)
     },
 
-    updateCategory: async (orgId, id, patch) => {
+    updateCategory: async (orgId, portalId, id, patch) => {
       const key = String(id)
       const existing = categoryStore.get(key)
-      if (!existing || existing.organizationId !== orgId) return
+      if (
+        !existing ||
+        existing.organizationId !== orgId ||
+        existing.portalId !== portalId
+      )
+        return
       categoryStore.set(key, { ...existing, ...patch })
     },
 
-    deleteCategory: async (orgId, id) => {
+    deleteCategory: async (orgId, portalId, id) => {
       const key = String(id)
       const existing = categoryStore.get(key)
-      if (!existing || existing.organizationId !== orgId) return
+      if (
+        !existing ||
+        existing.organizationId !== orgId ||
+        existing.portalId !== portalId
+      )
+        return
       categoryStore.delete(key)
-      // Cascade delete links in this category
       for (const [linkId, link] of linkStore) {
-        if (link.categoryId === id) {
+        if (link.categoryId === id && link.portalId === portalId) {
           linkStore.delete(linkId)
         }
       }
     },
 
-    reorderCategories: async (orgId, updates) => {
+    reorderCategories: async (orgId, portalId, updates) => {
+      const categories = updates.map(({ id }) => categoryStore.get(String(id)))
+      if (
+        categories.some(
+          (category) =>
+            !category ||
+            category.organizationId !== orgId ||
+            category.portalId !== portalId,
+        )
+      ) {
+        throw portalError('forbidden', 'Portal category scope mismatch')
+      }
       for (const { id, sortKey } of updates) {
         const key = String(id)
-        const existing = categoryStore.get(key)
-        if (existing && existing.organizationId === orgId) {
-          categoryStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
-        }
+        const existing = categoryStore.get(key)!
+        categoryStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
       }
     },
 
@@ -70,27 +94,47 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
       linkStore.set(String(link.id), link)
     },
 
-    updateLink: async (orgId, id, patch) => {
+    updateLink: async (orgId, portalId, id, patch) => {
       const key = String(id)
       const existing = linkStore.get(key)
-      if (!existing || existing.organizationId !== orgId) return
+      if (
+        !existing ||
+        existing.organizationId !== orgId ||
+        existing.portalId !== portalId
+      )
+        return
       linkStore.set(key, { ...existing, ...patch })
     },
 
-    deleteLink: async (orgId, id) => {
+    deleteLink: async (orgId, portalId, id) => {
       const key = String(id)
       const existing = linkStore.get(key)
-      if (!existing || existing.organizationId !== orgId) return
+      if (
+        !existing ||
+        existing.organizationId !== orgId ||
+        existing.portalId !== portalId
+      )
+        return
       linkStore.delete(key)
     },
 
-    reorderLinks: async (orgId, updates) => {
+    reorderLinks: async (orgId, portalId, categoryId, updates) => {
+      const links = updates.map(({ id }) => linkStore.get(String(id)))
+      if (
+        links.some(
+          (link) =>
+            !link ||
+            link.organizationId !== orgId ||
+            link.portalId !== portalId ||
+            link.categoryId !== categoryId,
+        )
+      ) {
+        throw portalError('forbidden', 'Portal link scope mismatch')
+      }
       for (const { id, sortKey } of updates) {
         const key = String(id)
-        const existing = linkStore.get(key)
-        if (existing && existing.organizationId === orgId) {
-          linkStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
-        }
+        const existing = linkStore.get(key)!
+        linkStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
       }
     },
 

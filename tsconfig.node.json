@@ -13,5 +13,12 @@
       "#/*": ["./src/*"]
     }
   },
-  "include": ["vite.config.ts", "drizzle.config.ts", "tsup.config.ts", "vitest.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "drizzle.config.ts",
+    "tsup.config.ts",
+    "tsup.google-execution-admission.config.ts",
+    "tsup.google-egress-gateway.config.ts",
+    "vitest.config.ts"
+  ]
 }

@@ -395,6 +395,7 @@ async function assembleSnapshot() {
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     versions: {
       capabilityPolicy: 'test-cap',
+      executionPolicy: 'test-exec',
       policyStore: () => 7,
       routingPolicy: 1,
       sourceContentPolicy: 1,

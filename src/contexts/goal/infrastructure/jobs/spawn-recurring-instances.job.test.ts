@@ -32,7 +32,7 @@ const makeTemplate = (overrides: Partial<Goal> & { id: Goal['id'] }): Goal => ({
   createdBy: USER_ID,
   goalType: 'recurring',
   aggregationFunction: 'avg',
-  metricKey: 'property.review',
+  metricKey: 'portal.configuration_completeness',
   targetValue: 4.5,
   status: 'active',
   periodStart: null,
@@ -57,7 +57,7 @@ const makeInstance = (overrides: Partial<Goal> & { id: Goal['id'] }): Goal => ({
   createdBy: USER_ID,
   goalType: 'recurring',
   aggregationFunction: 'avg',
-  metricKey: 'property.review',
+  metricKey: 'portal.configuration_completeness',
   targetValue: 4.5,
   status: 'active',
   periodStart: d('2026-05-01T00:00:00Z'),
@@ -141,6 +141,7 @@ function createFakeDeps(state: {
     events: eventBus,
     clock: () => state.now,
     idGen: () => `spawned-${++idCounter}`,
+    authorizeScope: async () => true,
   }
 
   return { deps, created, state }
@@ -396,6 +397,24 @@ describe('spawn-recurring-instances job', () => {
       })
 
       const handler = createSpawnRecurringInstancesHandler(deps)
+      const result = await handler(fakeJob)
+
+      expect(result.spawned).toBe(0)
+      expect(created).toHaveLength(0)
+    })
+
+    it('skips a recurring template whose concrete tenant scope is not eligible', async () => {
+      const template = makeTemplate({ id: goalId('template-denied') })
+      const { deps, created } = createFakeDeps({
+        templates: [template],
+        latestInstance: new Map(),
+        now: d('2026-02-01T00:00:00Z'),
+      })
+
+      const handler = createSpawnRecurringInstancesHandler({
+        ...deps,
+        authorizeScope: async () => false,
+      })
       const result = await handler(fakeJob)
 
       expect(result.spawned).toBe(0)

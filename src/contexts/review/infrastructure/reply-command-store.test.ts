@@ -86,6 +86,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: null,
@@ -561,7 +562,7 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('markPublicationSending (BQC-3.8 claim)', () => {
-    it('claim hit: single guarded UPDATE → sending, attempts+1, NO fact/emit/tx', async () => {
+    it('claim hit: binding assertion and guarded UPDATE commit without a fact', async () => {
       const order: string[] = []
       const setPayloads: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -586,7 +587,7 @@ describe('createAtomicReplyCommandStore', () => {
       )
 
       expect(result?.publicationState).toBe('sending')
-      expect(order).toEqual(['db.state'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
       expect(setPayloads[0]).toMatchObject({ publicationState: 'sending' })
       // attempts+1 is an atomic SQL fragment, not a caller-computed value.
       expect(typeof setPayloads[0]!.publicationAttempts).not.toBe('number')
@@ -612,7 +613,7 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationSending(sendingReply(), NOW)
 
       expect(result?.publicationAttempts).toBe(2)
-      expect(order).toEqual(['db.state'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
     })
 
     it('guard miss (cancelled/racing) returns null — no write, no fact', async () => {
@@ -627,7 +628,7 @@ describe('createAtomicReplyCommandStore', () => {
       )
 
       expect(result).toBeNull()
-      expect(order).toEqual(['db.state'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
       expect(events.emit).not.toHaveBeenCalled()
     })
 

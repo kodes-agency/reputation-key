@@ -21,7 +21,7 @@ export const getAssignedPortals =
     input: GetAssignedPortalsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<PortalId>> => {
-    if (!canForContext(ctx, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
 

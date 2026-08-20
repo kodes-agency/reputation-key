@@ -145,7 +145,7 @@ export const createStaffAssignment =
     ctx: AuthContext,
   ): Promise<StaffAssignment> => {
     // 1. Authorize
-    if (!canForContext(ctx, 'staff_assignment.create')) {
+    if (!canForContext(ctx, 'staff.manage')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
@@ -172,7 +172,7 @@ export const createStaffAssignment =
       (orgId, uId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
       ctx,
-      'staff_assignment.create',
+      'staff.manage',
       propertyId,
     )
     if (!accessible) {

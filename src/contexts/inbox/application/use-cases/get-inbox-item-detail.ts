@@ -4,6 +4,10 @@
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
+import type {
+  AiReviewInsightsPort,
+  InboxReviewAnalysis,
+} from '../ports/ai-review-insights.port'
 import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
 import type { InboxItemDetail } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -20,6 +24,7 @@ export type GetInboxItemDetailDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
   replyLookup: ReplyLookupPort
+  aiInsights?: AiReviewInsightsPort
 }>
 
 /** Detail result with the review's reply attached (review items only).
@@ -28,7 +33,10 @@ export type GetInboxItemDetailDeps = Readonly<{
  *  asymmetry with the review/feedback/property lookups, which enrich inside
  *  the repo (no auth needed for snippets). */
 export type InboxItemDetailResult = Readonly<
-  InboxItemDetail & { reply: ReplyView | null }
+  InboxItemDetail & {
+    reply: ReplyView | null
+    analysis: InboxReviewAnalysis | null
+  }
 >
 
 export const getInboxItemDetail =
@@ -62,6 +70,15 @@ export const getInboxItemDetail =
     // with ADR 0009 §6 ("each use case maps to exactly one permission") —
     // justified by mandatory leak prevention.
     let reply: ReplyView | null = null
+    let analysis: InboxReviewAnalysis | null = null
+    if (detail.item.sourceType === 'review' && deps.aiInsights) {
+      analysis = await deps.aiInsights.readCurrentReviewAnalysis({
+        organizationId: ctx.organizationId,
+        propertyId: detail.item.propertyId,
+        reviewId: detail.item.sourceId as ReviewId,
+        actorUserId: ctx.userId,
+      })
+    }
     if (detail.item.sourceType === 'review' && canForContext(ctx, 'reply.manage')) {
       reply = await deps.replyLookup.getEffectiveReplyByReviewId(
         detail.item.sourceId as ReviewId,
@@ -69,7 +86,7 @@ export const getInboxItemDetail =
       )
     }
 
-    return { ...detail, reply }
+    return { ...detail, reply, analysis }
   }
 
 export type GetInboxItemDetailUseCase = ReturnType<typeof getInboxItemDetail>

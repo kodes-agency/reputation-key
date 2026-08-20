@@ -1,0 +1,601 @@
+$ pnpm test:unit
+started: 2026-08-17T18:06:14.410Z  durationMs: 52116  exit: 1
+
+
+> reputation-key@ test:unit /Users/bozhidardenev/kodes/projects/rep-key
+> vitest run --project=unit
+
+
+ RUN  v4.1.10 /Users/bozhidardenev/kodes/projects/rep-key
+
+ ❯ |unit| src/contexts/ai/domain/catalogues/operation-profiles-migration.test.ts (5 tests | 1 failed) 17ms
+     × pins readiness to the observed Postgres image and rejects source mutations 10ms
+{"level":50,"time":1786989976108,"pid":18463,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":20,"time":1786989976177,"pid":18467,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":6,"msg":"✓ health.check 6ms"}
+{"level":20,"time":1786989976370,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":4,"msg":"✓ googleOAuth.exchangeCode 4ms"}
+{"level":20,"time":1786989976374,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976395,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976395,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976395,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976485,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976485,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976529,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976530,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976178,"pid":18467,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989976586,"pid":18467,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989976600,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976600,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976601,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989976601,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.fetchJwks","duration":0,"msg":"✓ googleOAuth.fetchJwks 0ms"}
+{"level":20,"time":1786989976602,"pid":18483,"hostname":"Bozhidars-MacBook-Air.local","span":"googleOAuth.exchangeCode","duration":0,"msg":"✓ googleOAuth.exchangeCode 0ms"}
+{"level":20,"time":1786989978467,"pid":18514,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":6,"msg":"✓ health.check 6ms"}
+{"level":50,"time":1786989978469,"pid":18514,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"error":{"name":"Error"},"msg":"Span health.check failed after 0ms"}
+{"level":20,"time":1786989978469,"pid":18514,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989978470,"pid":18514,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":40,"time":1786989980333,"pid":18533,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"[cache] get failed"}
+{"level":40,"time":1786989980335,"pid":18533,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"[cache] set failed"}
+{"level":40,"time":1786989980336,"pid":18533,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"[cache] delete failed"}
+{"level":40,"time":1786989980336,"pid":18533,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"[cache] exists check failed"}
+{"level":30,"time":1786989981587,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":40,"time":1786989981590,"pid":18608,"hostname":"Bozhidars-MacBook-Air.local","contentLength":"101","limitBytes":100,"msg":"[request-guard] body limit exceeded — 413"}
+{"level":30,"time":1786989981635,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"health-check","msg":"registered health-check job handler"}
+{"level":30,"time":1786989981635,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"process-image","capability":"portal.upload","msg":"registered capability-gated job handler"}
+{"level":30,"time":1786989981635,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"import-gbp-property-item-v2","capability":"property.import_gbp_v2","msg":"registered capability-gated job handler"}
+{"level":30,"time":1786989981635,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"sync-property-reviews","msg":"registered sync-property-reviews job handler"}
+{"level":30,"time":1786989981635,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","jobs":["expire-review-provider-source","sweep-review-provider-tombstones"],"msg":"registered Review provider lifecycle handlers"}
+{"level":30,"time":1786989981643,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-expiring-reviews","msg":"registered refresh-expiring-reviews job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"purge-expired-reviews","msg":"registered purge-expired-reviews job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"publish-reply","msg":"registered publish-reply job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"generate-property-ai-trend","capability":"ai.detect_trends","msg":"registered capability-gated job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"generate-property-ai-trend","msg":"registered property AI trend job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"schedule-property-ai-trends","capability":"ai.detect_trends","msg":"registered capability-gated job handler"}
+{"level":30,"time":1786989981644,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"schedule-property-ai-trends","msg":"registered property AI trend scheduler job handler"}
+{"level":30,"time":1786989981652,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"reconcile-ambiguous-publications","msg":"registered reconcile-ambiguous-publications job handler"}
+{"level":30,"time":1786989981652,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1786989981652,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-weekly-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1786989981652,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"refresh-daily-inbox-metrics","msg":"registered metric rollup refresh job handler"}
+{"level":30,"time":1786989981658,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"retention-sweep","msg":"registered retention sweep job handler"}
+{"level":30,"time":1786989981663,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"quarantine-ttl-sweep","msg":"registered quarantine TTL sweep job handler"}
+{"level":30,"time":1786989981671,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-activity-log","msg":"registered activity log insertion job handler"}
+{"level":30,"time":1786989981679,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"insert-notification","msg":"registered insert-notification job handler"}
+{"level":30,"time":1786989981679,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"urgent-email","capability":"notification.send_email","msg":"registered capability-gated job handler"}
+{"level":30,"time":1786989981685,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"digest-notification","capability":"notification.send_email","msg":"registered capability-gated job handler"}
+{"level":20,"time":1786989981692,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","span":"badge.seedDefinitions","duration":7,"msg":"✓ badge.seedDefinitions 7ms"}
+{"level":30,"time":1786989981692,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","msg":"seeded system badge definitions"}
+{"level":30,"time":1786989981692,"pid":18516,"hostname":"Bozhidars-MacBook-Air.local","job":"leaderboard.reconcile","capability":"leaderboard.use","msg":"registered capability-gated job handler"}
+{"level":20,"time":1786989982588,"pid":18675,"hostname":"Bozhidars-MacBook-Air.local","span":"googleReviewApi.reviews.list","duration":6,"msg":"✓ googleReviewApi.reviews.list 6ms"}
+{"level":20,"time":1786989982596,"pid":18675,"hostname":"Bozhidars-MacBook-Air.local","span":"googleReviewApi.reviews.list","duration":0,"msg":"✓ googleReviewApi.reviews.list 0ms"}
+{"level":20,"time":1786989982601,"pid":18675,"hostname":"Bozhidars-MacBook-Air.local","span":"googleReviewApi.reviews.list","duration":0,"msg":"✓ googleReviewApi.reviews.list 0ms"}
+{"level":20,"time":1786989982605,"pid":18675,"hostname":"Bozhidars-MacBook-Air.local","span":"googleReviewApi.reviews.list","duration":0,"msg":"✓ googleReviewApi.reviews.list 0ms"}
+{"level":30,"time":1786989982621,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":40,"time":1786989982669,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"policy snapshot refresh failed — keeping previous snapshot"}
+{"level":30,"time":1786989982676,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":40,"time":1786989982678,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"policy snapshot refresh failed — keeping previous snapshot"}
+{"level":30,"time":1786989982679,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":40,"time":1786989982681,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"policy snapshot refresh failed — keeping previous snapshot"}
+{"level":30,"time":1786989982682,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","releaseSha":"unknown","msg":"composition root boot"}
+{"level":40,"time":1786989982684,"pid":18544,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"policy snapshot refresh failed — keeping previous snapshot"}
+{"level":50,"time":1786989982884,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982886,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982887,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982887,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982887,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982887,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982888,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":50,"time":1786989982888,"pid":18670,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":20,"time":1786989983175,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","requestId":"8dfdc561-c5be-4d","method":"GET","path":"/team.listMyTeam","msg":"REQ 8dfdc561-c5be-4d GET /team.listMyTeam"}
+{"level":30,"time":1786989983190,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"team.listMyTeam","method":"GET","useCase":"team.listMyTeam","duration":14,"msg":"request complete"}
+{"level":20,"time":1786989983190,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","useCase":"team.listMyTeam","duration":20,"requestId":"8dfdc561-c5be-4d","method":"GET","path":"/team.listMyTeam","msg":"REQ 8dfdc561-c5be-4d GET /team.listMyTeam — 20ms"}
+{"level":20,"time":1786989983193,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","requestId":"534353b7-e063-4d","method":"POST","path":"/team.addTeamMember","msg":"REQ 534353b7-e063-4d POST /team.addTeamMember"}
+{"level":50,"time":1786989983194,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","useCase":"team.addTeamMember","requestId":"534353b7-e063-4d","method":"POST","path":"/team.addTeamMember","duration":1,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ 534353b7-e063-4d POST /team.addTeamMember — FAILED 1ms"}
+{"level":20,"time":1786989983195,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","requestId":"b368863d-5663-4c","method":"POST","path":"/team.setTeamLead","msg":"REQ b368863d-5663-4c POST /team.setTeamLead"}
+{"level":50,"time":1786989983195,"pid":18678,"hostname":"Bozhidars-MacBook-Air.local","useCase":"team.setTeamLead","requestId":"b368863d-5663-4c","method":"POST","path":"/team.setTeamLead","duration":0,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ b368863d-5663-4c POST /team.setTeamLead — FAILED 0ms"}
+{"level":20,"time":1786989983749,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"79de2e1f-9f32-46","method":"GET","path":"/portal.listPortals","msg":"REQ 79de2e1f-9f32-46 GET /portal.listPortals"}
+{"level":30,"time":1786989983764,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"portal.listPortals","method":"GET","useCase":"portal.listPortals","duration":15,"msg":"request complete"}
+{"level":20,"time":1786989983764,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.listPortals","duration":21,"requestId":"79de2e1f-9f32-46","method":"GET","path":"/portal.listPortals","msg":"REQ 79de2e1f-9f32-46 GET /portal.listPortals — 21ms"}
+{"level":20,"time":1786989983766,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"0b395953-292f-48","method":"GET","path":"/portal.listPortals","msg":"REQ 0b395953-292f-48 GET /portal.listPortals"}
+{"level":30,"time":1786989983766,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"portal.listPortals","method":"GET","useCase":"portal.listPortals","duration":0,"msg":"request complete"}
+{"level":20,"time":1786989983766,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.listPortals","duration":0,"requestId":"0b395953-292f-48","method":"GET","path":"/portal.listPortals","msg":"REQ 0b395953-292f-48 GET /portal.listPortals — 0ms"}
+{"level":20,"time":1786989983767,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"f2e6a0f9-f59e-47","method":"GET","path":"/portal.listPortals","msg":"REQ f2e6a0f9-f59e-47 GET /portal.listPortals"}
+{"level":30,"time":1786989983767,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","component":"server-fn","fn":"portal.listPortals","method":"GET","useCase":"portal.listPortals","duration":0,"msg":"request complete"}
+{"level":20,"time":1786989983767,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.listPortals","duration":0,"requestId":"f2e6a0f9-f59e-47","method":"GET","path":"/portal.listPortals","msg":"REQ f2e6a0f9-f59e-47 GET /portal.listPortals — 0ms"}
+{"level":20,"time":1786989983769,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"acf58106-8297-46","method":"GET","path":"/portal.listPortals","msg":"REQ acf58106-8297-46 GET /portal.listPortals"}
+{"level":50,"time":1786989983770,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.listPortals","requestId":"acf58106-8297-46","method":"GET","path":"/portal.listPortals","duration":0,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ acf58106-8297-46 GET /portal.listPortals — FAILED 0ms"}
+{"level":20,"time":1786989983771,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"7ef97754-06f0-43","method":"POST","path":"/portal.updatePortal","msg":"REQ 7ef97754-06f0-43 POST /portal.updatePortal"}
+{"level":50,"time":1786989983771,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.updatePortal","requestId":"7ef97754-06f0-43","method":"POST","path":"/portal.updatePortal","duration":0,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ 7ef97754-06f0-43 POST /portal.updatePortal — FAILED 0ms"}
+{"level":20,"time":1786989983771,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"9c0bed34-a623-47","method":"POST","path":"/portal.rotatePortalToken","msg":"REQ 9c0bed34-a623-47 POST /portal.rotatePortalToken"}
+{"level":50,"time":1786989983771,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.rotatePortalToken","requestId":"9c0bed34-a623-47","method":"POST","path":"/portal.rotatePortalToken","duration":0,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ 9c0bed34-a623-47 POST /portal.rotatePortalToken — FAILED 0ms"}
+{"level":20,"time":1786989983772,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","requestId":"4eafb2fb-d058-41","method":"POST","path":"/portal.deletePortal","msg":"REQ 4eafb2fb-d058-41 POST /portal.deletePortal"}
+{"level":50,"time":1786989983772,"pid":18687,"hostname":"Bozhidars-MacBook-Air.local","useCase":"portal.deletePortal","requestId":"4eafb2fb-d058-41","method":"POST","path":"/portal.deletePortal","duration":0,"error":{"name":"AuthError","code":"property_disabled"},"msg":"REQ 4eafb2fb-d058-41 POST /portal.deletePortal — FAILED 0ms"}
+{"level":40,"time":1786989984384,"pid":18693,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"Failed to auto-assign property on invitation acceptance"}
+{"level":50,"time":1786989984747,"pid":18695,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":50,"time":1786989984750,"pid":18695,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":50,"time":1786989985170,"pid":18705,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"tag":"identity.organization.created","msg":"event handler threw"}
+{"level":50,"time":1786989985171,"pid":18705,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"tag":"identity.organization.created","msg":"event handler threw"}
+{"level":50,"time":1786989985201,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"unauthorized","status":401,"message":"Valid session required","msg":"← THROW AuthError(unauthorized) → 401"}
+{"level":50,"time":1786989985203,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"no_active_org","status":400,"message":"No active organization selected","msg":"← THROW AuthError(no_active_org) → 400"}
+{"level":50,"time":1786989985203,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Not a member of the active organization","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":40,"time":1786989985204,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","memberRole":"content-manager","msg":"auth.unsupported_member_role: custom role rejected while custom roles are disabled"}
+{"level":50,"time":1786989985204,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Member role is not supported","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":40,"time":1786989985204,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","memberRole":"owner,admin","msg":"auth.unsupported_member_role: custom role rejected while custom roles are disabled"}
+{"level":50,"time":1786989985204,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"Member role is not supported","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":50,"time":1786989985206,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"memberRole":"content-manager","msg":"auth.authorization_unavailable: dynamic resolver failed; fail-closed"}
+{"level":50,"time":1786989985206,"pid":18700,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"authorization_unavailable","status":503,"message":"Authorization resolution failed","msg":"← THROW AuthError(authorization_unavailable) → 503"}
+{"level":50,"time":1786989985597,"pid":18708,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"scope_denied","status":403,"message":"Authorization denied: scope_denied","msg":"← THROW AuthError(scope_denied) → 403"}
+{"level":20,"time":1786989986409,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":6,"msg":"✓ event.onMetricRecorded 6ms"}
+{"level":20,"time":1786989986412,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":1,"msg":"✓ event.onMetricRecorded 1ms"}
+{"level":20,"time":1786989986414,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986414,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986415,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986415,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986416,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986416,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986418,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986418,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986419,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986419,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986420,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986420,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986420,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986420,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986421,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986421,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":20,"time":1786989986422,"pid":18736,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onMetricRecorded","duration":0,"msg":"✓ event.onMetricRecorded 0ms"}
+{"level":30,"time":1786989987976,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987976,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":7,"msg":"✓ job.spawnRecurringInstances 7ms"}
+{"level":30,"time":1786989987979,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987979,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987980,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":1,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987981,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":1,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":30,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","templatesChecked":0,"spawned":0,"failed":0,"msg":"Spawned recurring instances"}
+{"level":20,"time":1786989987982,"pid":18757,"hostname":"Bozhidars-MacBook-Air.local","span":"job.spawnRecurringInstances","duration":0,"msg":"✓ job.spawnRecurringInstances 0ms"}
+{"level":50,"time":1786989989029,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"not_found","status":404,"message":"Goal not found","msg":"← THROW GoalError(not_found) → 404"}
+{"level":50,"time":1786989989030,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW GoalError(forbidden) → 403"}
+{"level":50,"time":1786989989030,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"immutable_goal","status":409,"message":"Goal is completed","msg":"← THROW GoalError(immutable_goal) → 409"}
+{"level":50,"time":1786989989031,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW GoalError(forbidden) → 403"}
+{"level":50,"time":1786989989031,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"not_found","status":404,"message":"test not_found","msg":"← THROW GoalError(not_found) → 404"}
+{"level":50,"time":1786989989031,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"validation_error","status":400,"message":"test validation_error","msg":"← THROW GoalError(validation_error) → 400"}
+{"level":50,"time":1786989989031,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"immutable_goal","status":409,"message":"test immutable_goal","msg":"← THROW GoalError(immutable_goal) → 409"}
+{"level":50,"time":1786989989032,"pid":18766,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GoalError","code":"forbidden","status":403,"message":"No goal write permission","msg":"← THROW GoalError(forbidden) → 403"}
+{"level":20,"time":1786989989542,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":7,"msg":"✓ event.onReplyPublished 7ms"}
+{"level":20,"time":1786989989546,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":0,"msg":"✓ event.onReplyPublished 0ms"}
+{"level":40,"time":1786989989547,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","msg":"inbox: reply.published but no inbox item found"}
+{"level":20,"time":1786989989547,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":0,"msg":"✓ event.onReplyPublished 0ms"}
+{"level":20,"time":1786989989548,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":0,"msg":"✓ event.onReplyPublished 0ms"}
+{"level":20,"time":1786989989548,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":0,"msg":"✓ event.onReplyPublished 0ms"}
+{"level":20,"time":1786989989549,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":0,"msg":"✓ event.onReplyPublished 0ms"}
+{"level":50,"time":1786989989550,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"inbox: failed to handle reply.published"}
+{"level":20,"time":1786989989550,"pid":18792,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onReplyPublished","duration":1,"msg":"✓ event.onReplyPublished 1ms"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989741,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989742,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989742,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989742,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":40,"time":1786989989742,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":50,"time":1786989989743,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing CLOSED (requests denied)"}
+{"level":50,"time":1786989989743,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"[rate-limit] Redis error — failing CLOSED"}
+{"level":50,"time":1786989989744,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing CLOSED (requests denied)"}
+{"level":40,"time":1786989989744,"pid":18794,"hostname":"Bozhidars-MacBook-Air.local","msg":"[rate-limit] Redis unavailable — failing open (all requests allowed)"}
+{"level":20,"time":1786989990252,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":9,"msg":"✓ health.check 9ms"}
+{"level":20,"time":1786989990254,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989990255,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989990256,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989990257,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":20,"time":1786989990257,"pid":18795,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":0,"msg":"✓ health.check 0ms"}
+{"level":30,"time":1786989990264,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":1,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786989990265,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":1,"msg":"✓ outbox.relay.poll 1ms"}
+{"level":30,"time":1786989990266,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786989990266,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990266,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":30,"time":1786989990266,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","eventType":"integration.property_import.completed","msg":"Outbox publication denied by lifecycle fence"}
+{"level":20,"time":1786989990266,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":25,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":10,"msg":"Relay claimed outbox events"}
+{"level":20,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":12,"msg":"Relay claimed outbox events"}
+{"level":40,"time":1786989990267,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"count":2,"msg":"Outbox lease renewal failed"}
+{"level":20,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":2,"msg":"Relay claimed outbox events"}
+{"level":50,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"eventType":"test.unregistered_poison","msg":"Failed to publish outbox event to BullMQ"}
+{"level":20,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":30,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","count":1,"msg":"Relay claimed outbox events"}
+{"level":40,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","eventType":"test.unregistered_poison","msg":"No domain-events queue — skipping publish"}
+{"level":20,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":20,"time":1786989990268,"pid":18796,"hostname":"Bozhidars-MacBook-Air.local","span":"outbox.relay.poll","duration":0,"msg":"✓ outbox.relay.poll 0ms"}
+{"level":40,"time":1786989990316,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","raw":"{not json","msg":"permission_catalogue: organizationRole.permission is not valid JSON; treating as no permissions"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","raw":"[1,2,3]","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","raw":"42","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","raw":"\"a string\"","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","raw":"null","msg":"permission_catalogue: organizationRole.permission is not a record; treating as no permissions"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","permission":"bogus.x","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+{"level":40,"time":1786989990317,"pid":18801,"hostname":"Bozhidars-MacBook-Air.local","permission":"dashboard.nope","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+{"level":30,"time":1786989990585,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990586,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":7,"msg":"✓ job.reconcileGoalProgress 7ms"}
+{"level":30,"time":1786989990587,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990587,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990588,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":1,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990588,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990589,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990589,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990589,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":1,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990589,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":1,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":1,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":1,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990590,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990591,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990591,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":30,"time":1786989990591,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","goalsReconciled":1,"updated":0,"expired":0,"completed":0,"failed":0,"msg":"Reconciled goal progress"}
+{"level":20,"time":1786989990591,"pid":18805,"hostname":"Bozhidars-MacBook-Air.local","span":"job.reconcileGoalProgress","duration":0,"msg":"✓ job.reconcileGoalProgress 0ms"}
+{"level":50,"time":1786989991052,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_failed","status":400,"message":"OAuth flow failed","msg":"← THROW IntegrationError(oauth_failed) → 400"}
+{"level":50,"time":1786989991053,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IntegrationError(forbidden) → 403"}
+{"level":50,"time":1786989991054,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_not_found","status":404,"message":"Not found","msg":"← THROW IntegrationError(connection_not_found) → 404"}
+{"level":50,"time":1786989991054,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW IntegrationError(forbidden) → 403"}
+{"level":50,"time":1786989991054,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_not_found","status":404,"message":"test connection_not_found","msg":"← THROW IntegrationError(connection_not_found) → 404"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"import_not_found","status":404,"message":"test import_not_found","msg":"← THROW IntegrationError(import_not_found) → 404"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_failed","status":400,"message":"test oauth_failed","msg":"← THROW IntegrationError(oauth_failed) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_denied","status":400,"message":"test oauth_denied","msg":"← THROW IntegrationError(oauth_denied) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"oauth_state_invalid","status":400,"message":"test oauth_state_invalid","msg":"← THROW IntegrationError(oauth_state_invalid) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"token_refresh_failed","status":400,"message":"test token_refresh_failed","msg":"← THROW IntegrationError(token_refresh_failed) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"gbp_api_error","status":400,"message":"test gbp_api_error","msg":"← THROW IntegrationError(gbp_api_error) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"invalid_visibility","status":400,"message":"test invalid_visibility","msg":"← THROW IntegrationError(invalid_visibility) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"encryption_error","status":400,"message":"test encryption_error","msg":"← THROW IntegrationError(encryption_error) → 400"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"gbp_api_rate_limited","status":429,"message":"test gbp_api_rate_limited","msg":"← THROW IntegrationError(gbp_api_rate_limited) → 429"}
+{"level":50,"time":1786989991055,"pid":18808,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IntegrationError","code":"connection_disconnected","status":409,"message":"test connection_disconnected","msg":"← THROW IntegrationError(connection_disconnected) → 409"}
+{"level":50,"time":1786989991196,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_rating","status":400,"message":"Rating must be between 1 and 5","msg":"← THROW GuestError(invalid_rating) → 400"}
+{"level":50,"time":1786989991197,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_not_found","status":404,"message":"Portal missing","msg":"← THROW GuestError(portal_not_found) → 404"}
+{"level":50,"time":1786989991197,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_inactive","status":410,"message":"Portal deactivated","msg":"← THROW GuestError(portal_inactive) → 410"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"rate_limit_exceeded","status":429,"message":"test rate_limit_exceeded","msg":"← THROW GuestError(rate_limit_exceeded) → 429"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_rating","status":400,"message":"test invalid_rating","msg":"← THROW GuestError(invalid_rating) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"duplicate_rating","status":400,"message":"test duplicate_rating","msg":"← THROW GuestError(duplicate_rating) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"feedback_too_long","status":400,"message":"test feedback_too_long","msg":"← THROW GuestError(feedback_too_long) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"feedback_empty","status":400,"message":"test feedback_empty","msg":"← THROW GuestError(feedback_empty) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_source","status":400,"message":"test invalid_source","msg":"← THROW GuestError(invalid_source) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"invalid_session","status":400,"message":"test invalid_session","msg":"← THROW GuestError(invalid_session) → 400"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_not_found","status":404,"message":"test portal_not_found","msg":"← THROW GuestError(portal_not_found) → 404"}
+{"level":50,"time":1786989991198,"pid":18811,"hostname":"Bozhidars-MacBook-Air.local","errorType":"GuestError","code":"portal_inactive","status":410,"message":"test portal_inactive","msg":"← THROW GuestError(portal_inactive) → 410"}
+{"level":50,"time":1786989991835,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_slug","status":400,"message":"slug must be URL-friendly","msg":"← THROW PropertyError(invalid_slug) → 400"}
+{"level":50,"time":1786989991839,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW PropertyError(forbidden) → 403"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"slug_taken","status":409,"message":"Slug already exists","msg":"← THROW PropertyError(slug_taken) → 409"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW PropertyError(forbidden) → 403"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"property_not_found","status":404,"message":"test property_not_found","msg":"← THROW PropertyError(property_not_found) → 404"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"slug_taken","status":409,"message":"test slug_taken","msg":"← THROW PropertyError(slug_taken) → 409"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"region_locked","status":409,"message":"test region_locked","msg":"← THROW PropertyError(region_locked) → 409"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW PropertyError(invalid_slug) → 400"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW PropertyError(invalid_name) → 400"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_timezone","status":400,"message":"test invalid_timezone","msg":"← THROW PropertyError(invalid_timezone) → 400"}
+{"level":50,"time":1786989991840,"pid":18816,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PropertyError","code":"invalid_country","status":400,"message":"test invalid_country","msg":"← THROW PropertyError(invalid_country) → 400"}
+{"level":40,"time":1786989992162,"pid":18930,"hostname":"Bozhidars-MacBook-Air.local","role":"orphan-role","msg":"resolve_permissions: custom role missing definition or policy; skipping (fail-closed)"}
+{"level":40,"time":1786989992163,"pid":18930,"hostname":"Bozhidars-MacBook-Air.local","role":"no-def","msg":"resolve_permissions: custom role missing definition or policy; skipping (fail-closed)"}
+{"level":50,"time":1786989992397,"pid":18929,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"org_not_allowlisted","status":403,"message":"Authorization denied: org_not_allowlisted","msg":"← THROW AuthError(org_not_allowlisted) → 403"}
+{"level":30,"time":1786989992437,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","type":"review.created","msg":"Processing insert-notification job"}
+{"level":30,"time":1786989992438,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","type":"review.created","msg":"Notification inserted"}
+{"level":20,"time":1786989992438,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","span":"job.insertNotification","duration":8,"msg":"✓ job.insertNotification 8ms"}
+{"level":30,"time":1786989992443,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","type":"review.created","msg":"Processing insert-notification job"}
+{"level":50,"time":1786989992443,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","type":"review.created","err":{"type":"Object","message":"propertyId is required","stack":"","_tag":"NotificationError","code":"invalid_input"},"msg":"insert-notification job failed"}
+{"level":50,"time":1786989992444,"pid":18933,"hostname":"Bozhidars-MacBook-Air.local","span":"job.insertNotification","duration":1,"error":{"_tag":"NotificationError","code":"invalid_input","message":"propertyId is required"},"msg":"Span job.insertNotification failed after 1ms"}
+{"level":50,"time":1786989992537,"pid":18931,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"forbidden","status":403,"message":"No goal read permission","msg":"← THROW AuthError(forbidden) → 403"}
+{"level":40,"time":1786989992798,"pid":18938,"hostname":"Bozhidars-MacBook-Air.local","permission":"bogus.read","msg":"permission_catalogue: unknown permission in role statement; dropping"}
+{"level":40,"time":1786989992799,"pid":18938,"hostname":"Bozhidars-MacBook-Air.local","raw":"not json","msg":"permission_catalogue: organizationRole.permission is not valid JSON; treating as no permissions"}
+{"level":50,"time":1786989992940,"pid":18937,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"forbidden","status":403,"message":"Access denied","msg":"← THROW StaffError(forbidden) → 403"}
+{"level":50,"time":1786989992941,"pid":18937,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"already_assigned","status":409,"message":"Duplicate assignment","msg":"← THROW StaffError(already_assigned) → 409"}
+{"level":50,"time":1786989992942,"pid":18937,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"assignment_not_found","status":404,"message":"Not found","msg":"← THROW StaffError(assignment_not_found) → 404"}
+{"level":50,"time":1786989992942,"pid":18937,"hostname":"Bozhidars-MacBook-Air.local","errorType":"StaffError","code":"invalid_input","status":400,"message":"Bad data","msg":"← THROW StaffError(invalid_input) → 400"}
+{"level":20,"time":1786989993135,"pid":18943,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onFeedbackSubmitted","duration":5,"msg":"✓ event.onFeedbackSubmitted 5ms"}
+{"level":20,"time":1786989993137,"pid":18943,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onFeedbackSubmitted","duration":0,"msg":"✓ event.onFeedbackSubmitted 0ms"}
+{"level":50,"time":1786989993138,"pid":18943,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"msg":"inbox: failed to handle feedback.submitted"}
+{"level":20,"time":1786989993138,"pid":18943,"hostname":"Bozhidars-MacBook-Air.local","span":"event.onFeedbackSubmitted","duration":0,"msg":"✓ event.onFeedbackSubmitted 0ms"}
+{"level":30,"time":1786989993305,"pid":18945,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786989993307,"pid":18945,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786989993308,"pid":18945,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue paused"}
+{"level":30,"time":1786989993311,"pid":18945,"hostname":"Bozhidars-MacBook-Air.local","queue":"default","msg":"region move: queue resumed"}
+{"level":20,"time":1786989993359,"pid":18940,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.getAccessiblePropertyIds","duration":4,"msg":"✓ staff.getAccessiblePropertyIds 4ms"}
+{"level":20,"time":1786989993360,"pid":18940,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.getAccessiblePropertyIds","duration":0,"msg":"✓ staff.getAccessiblePropertyIds 0ms"}
+{"level":50,"time":1786989993360,"pid":18940,"hostname":"Bozhidars-MacBook-Air.local","span":"staff.getAccessiblePropertyIds","duration":0,"error":{"name":"Error"},"msg":"Span staff.getAccessiblePropertyIds failed after 0ms"}
+{"level":20,"time":1786989993548,"pid":18948,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onRatingSubmitted","duration":5,"msg":"✓ metric.event.onRatingSubmitted 5ms"}
+{"level":20,"time":1786989993550,"pid":18948,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onRatingSubmitted","duration":0,"msg":"✓ metric.event.onRatingSubmitted 0ms"}
+{"level":20,"time":1786989993551,"pid":18948,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onRatingSubmitted","duration":0,"msg":"✓ metric.event.onRatingSubmitted 0ms"}
+{"level":50,"time":1786989993551,"pid":18948,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"event":"guest.rating.submitted","msg":"metric: failed to record portal.rating"}
+{"level":20,"time":1786989993552,"pid":18948,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onRatingSubmitted","duration":0,"msg":"✓ metric.event.onRatingSubmitted 0ms"}
+{"level":50,"time":1786989993631,"pid":18947,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"permission_denied","status":403,"message":"Authorization denied: permission_denied","msg":"← THROW AuthError(permission_denied) → 403"}
+{"level":50,"time":1786989993633,"pid":18947,"hostname":"Bozhidars-MacBook-Air.local","errorType":"AuthError","code":"permission_denied","status":403,"message":"Authorization denied: permission_denied","msg":"← THROW AuthError(permission_denied) → 403"}
+{"level":20,"time":1786989994010,"pid":18956,"hostname":"Bozhidars-MacBook-Air.local","span":"mybusinessNotifications.subscribe","duration":5,"msg":"✓ mybusinessNotifications.subscribe 5ms"}
+{"level":20,"time":1786989994013,"pid":18956,"hostname":"Bozhidars-MacBook-Air.local","span":"mybusinessNotifications.unsubscribe","duration":0,"msg":"✓ mybusinessNotifications.unsubscribe 0ms"}
+{"level":20,"time":1786989994013,"pid":18956,"hostname":"Bozhidars-MacBook-Air.local","span":"mybusinessNotifications.subscribe","duration":0,"msg":"✓ mybusinessNotifications.subscribe 0ms"}
+{"level":20,"time":1786989994014,"pid":18956,"hostname":"Bozhidars-MacBook-Air.local","span":"mybusinessNotifications.unsubscribe","duration":0,"msg":"✓ mybusinessNotifications.unsubscribe 0ms"}
+{"level":50,"time":1786989994017,"pid":18953,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"FORBIDDEN","code":"api_error","message":"You don't have permission to do that.","msg":"← THROW APIError(FORBIDDEN) → 403"}
+{"level":50,"time":1786989994018,"pid":18953,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"FORBIDDEN","code":"api_error","message":"You don't have permission to do that.","msg":"← THROW APIError(FORBIDDEN) → 403"}
+{"level":50,"time":1786989994019,"pid":18953,"hostname":"Bozhidars-MacBook-Air.local","errorType":"APIError","status":"UNAUTHORIZED","code":"api_error","message":"Not authenticated","msg":"← THROW APIError(UNAUTHORIZED) → 401"}
+{"level":50,"time":1786989994019,"pid":18953,"hostname":"Bozhidars-MacBook-Air.local","error":"relation \"organizationRole\" does not exist","stack":"Error: relation \"organizationRole\" does not exist\n    at /Users/bozhidardenev/kodes/projects/rep-key/src/shared/auth/server-errors.test.ts:49:28\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)\n    at runWithTimeout (file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)\n    at file:///Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64","errorType":"UntaggedError","msg":"← THROW InternalError → 500"}
+{"level":20,"time":1786989994218,"pid":18952,"hostname":"Bozhidars-MacBook-Air.local","span":"health.check","duration":7,"msg":"✓ health.check 7ms"}
+{"level":20,"time":1786989994687,"pid":18963,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findByToken","duration":6,"msg":"✓ publicPortal.findByToken 6ms"}
+{"level":20,"time":1786989994688,"pid":18963,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findByToken","duration":0,"msg":"✓ publicPortal.findByToken 0ms"}
+{"level":50,"time":1786989994689,"pid":18963,"hostname":"Bozhidars-MacBook-Air.local","span":"publicPortal.findByToken","duration":0,"error":{"name":"Error"},"msg":"Span publicPortal.findByToken failed after 0ms"}
+{"level":20,"time":1786989995854,"pid":18977,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onScanRecorded","duration":6,"msg":"✓ metric.event.onScanRecorded 6ms"}
+{"level":20,"time":1786989995856,"pid":18977,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onScanRecorded","duration":0,"msg":"✓ metric.event.onScanRecorded 0ms"}
+{"level":20,"time":1786989995857,"pid":18977,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onScanRecorded","duration":0,"msg":"✓ metric.event.onScanRecorded 0ms"}
+{"level":50,"time":1786989995858,"pid":18977,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"event":"guest.scan.recorded","msg":"metric: failed to record portal.scan"}
+{"level":20,"time":1786989995858,"pid":18977,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onScanRecorded","duration":0,"msg":"✓ metric.event.onScanRecorded 0ms"}
+{"level":20,"time":1786989996266,"pid":18981,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onFeedbackSubmitted","duration":6,"msg":"✓ metric.event.onFeedbackSubmitted 6ms"}
+{"level":20,"time":1786989996269,"pid":18981,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onFeedbackSubmitted","duration":0,"msg":"✓ metric.event.onFeedbackSubmitted 0ms"}
+{"level":20,"time":1786989996269,"pid":18981,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onFeedbackSubmitted","duration":0,"msg":"✓ metric.event.onFeedbackSubmitted 0ms"}
+{"level":50,"time":1786989996270,"pid":18981,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"event":"guest.feedback.submitted","msg":"metric: failed to record portal.feedback"}
+{"level":20,"time":1786989996270,"pid":18981,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onFeedbackSubmitted","duration":1,"msg":"✓ metric.event.onFeedbackSubmitted 1ms"}
+{"level":50,"time":1786989996491,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_slug","status":400,"message":"slug must be URL-friendly","msg":"← THROW PortalError(invalid_slug) → 400"}
+{"level":50,"time":1786989996492,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW PortalError(forbidden) → 403"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"slug_taken","status":409,"message":"Slug already exists","msg":"← THROW PortalError(slug_taken) → 409"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW PortalError(forbidden) → 403"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"portal_not_found","status":404,"message":"test portal_not_found","msg":"← THROW PortalError(portal_not_found) → 404"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"property_not_found","status":404,"message":"test property_not_found","msg":"← THROW PortalError(property_not_found) → 404"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"category_not_found","status":404,"message":"test category_not_found","msg":"← THROW PortalError(category_not_found) → 404"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"link_not_found","status":404,"message":"test link_not_found","msg":"← THROW PortalError(link_not_found) → 404"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"slug_taken","status":409,"message":"test slug_taken","msg":"← THROW PortalError(slug_taken) → 409"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"upload_failed","status":422,"message":"test upload_failed","msg":"← THROW PortalError(upload_failed) → 422"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW PortalError(invalid_slug) → 400"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW PortalError(invalid_name) → 400"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_description","status":400,"message":"test invalid_description","msg":"← THROW PortalError(invalid_description) → 400"}
+{"level":50,"time":1786989996493,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_theme","status":400,"message":"test invalid_theme","msg":"← THROW PortalError(invalid_theme) → 400"}
+{"level":50,"time":1786989996494,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_threshold","status":400,"message":"test invalid_threshold","msg":"← THROW PortalError(invalid_threshold) → 400"}
+{"level":50,"time":1786989996494,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_url","status":400,"message":"test invalid_url","msg":"← THROW PortalError(invalid_url) → 400"}
+{"level":50,"time":1786989996494,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_label","status":400,"message":"test invalid_label","msg":"← THROW PortalError(invalid_label) → 400"}
+{"level":50,"time":1786989996494,"pid":18965,"hostname":"Bozhidars-MacBook-Air.local","errorType":"PortalError","code":"invalid_title","status":400,"message":"test invalid_title","msg":"← THROW PortalError(invalid_title) → 400"}
+{"level":20,"time":1786989999327,"pid":19040,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onReviewLinkClicked","duration":6,"msg":"✓ metric.event.onReviewLinkClicked 6ms"}
+{"level":20,"time":1786989999329,"pid":19040,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onReviewLinkClicked","duration":0,"msg":"✓ metric.event.onReviewLinkClicked 0ms"}
+{"level":20,"time":1786989999330,"pid":19040,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onReviewLinkClicked","duration":0,"msg":"✓ metric.event.onReviewLinkClicked 0ms"}
+{"level":50,"time":1786989999331,"pid":19040,"hostname":"Bozhidars-MacBook-Air.local","err":{"name":"Error"},"event":"guest.review_link.clicked","msg":"metric: failed to record portal.review_link_click"}
+{"level":20,"time":1786989999331,"pid":19040,"hostname":"Bozhidars-MacBook-Air.local","span":"metric.event.onReviewLinkClicked","duration":0,"msg":"✓ metric.event.onReviewLinkClicked 0ms"}
+{"level":50,"time":1786990003235,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1786990003236,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"Insufficient role","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1786990003236,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"org_setup_failed","status":409,"message":"Slug conflict","msg":"← THROW IdentityError(org_setup_failed) → 409"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"forbidden","status":403,"message":"test forbidden","msg":"← THROW IdentityError(forbidden) → 403"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invalid_slug","status":400,"message":"test invalid_slug","msg":"← THROW IdentityError(invalid_slug) → 400"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invalid_name","status":400,"message":"test invalid_name","msg":"← THROW IdentityError(invalid_name) → 400"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"registration_failed","status":400,"message":"test registration_failed","msg":"← THROW IdentityError(registration_failed) → 400"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"org_setup_failed","status":409,"message":"test org_setup_failed","msg":"← THROW IdentityError(org_setup_failed) → 409"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"member_not_found","status":404,"message":"test member_not_found","msg":"← THROW IdentityError(member_not_found) → 404"}
+{"level":50,"time":1786990003237,"pid":19073,"hostname":"Bozhidars-MacBook-Air.local","errorType":"IdentityError","code":"invitation_not_found","status":404,"message":"test invitation_not_found","msg":"← THROW IdentityError(invitation_not_found) → 404"}
+{"level":50,"time":1786990017932,"pid":19535,"hostname":"Bozhidars-MacBook-Air.local","errorType":"TeamError","code":"forbidden","status":403,"message":"Access denied","msg":"← THROW TeamError(forbidden) → 403"}
+{"level":50,"time":1786990017933,"pid":19535,"hostname":"Bozhidars-MacBook-Air.local","errorType":"TeamError","code":"name_taken","status":409,"message":"Duplicate name","msg":"← THROW TeamError(name_taken) → 409"}
+
+ Test Files  1 failed | 619 passed (620)
+      Tests  1 failed | 6297 passed | 146 skipped (6444)
+   Start at  21:06:15
+   Duration  51.27s (transform 7.78s, setup 34.95s, import 62.82s, tests 17.71s, environment 62ms)
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| src/contexts/ai/domain/catalogues/operation-profiles-migration.test.ts > PR5 migration catalogue finalization > pins readiness to the observed Postgres image and rejects source mutations
+AssertionError: expected 'CREATE TABLE "ai_property_aggregate_c…' to contain '"tested_postgres_major_versions" = AR…'
+
+- Expected
++ Received
+
+- "tested_postgres_major_versions" = ARRAY[16,17]::integer[]
++ CREATE TABLE "ai_property_aggregate_contributions" (
++ 	"organization_id" varchar(255) NOT NULL,
++ 	"property_id" uuid NOT NULL,
++ 	"review_id" uuid NOT NULL,
++ 	"source_epoch" integer NOT NULL,
++ 	"source_revision" bigint NOT NULL,
++ 	"analysis_sequence" bigint NOT NULL,
++ 	"review_analysis_epoch" integer NOT NULL,
++ 	"property_profile_version" integer NOT NULL,
++ 	"calendar_profile_version" varchar(100) NOT NULL,
++ 	"local_date" date NOT NULL,
++ 	"rating" integer NOT NULL,
++ 	"sentiment" varchar(20) NOT NULL,
++ 	"primary_category" varchar(40) NOT NULL,
++ 	"attention" varchar(20) NOT NULL,
++ 	"applied_aggregate_revision" bigint NOT NULL,
++ 	"applied_at" timestamp with time zone NOT NULL,
++ 	CONSTRAINT "ai_property_aggregate_contributions_pk" PRIMARY KEY("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence"),
++ 	CONSTRAINT "ai_property_aggregate_contributions_values_valid" CHECK ("ai_property_aggregate_contributions"."source_epoch" >= 1 AND "ai_property_aggregate_contributions"."source_revision" BETWEEN 1 AND '9007199254740991'::bigint AND "ai_property_aggregate_contributions"."analysis_sequence" BETWEEN 1 AND '9007199254740991'::bigint AND "ai_property_aggregate_contributions"."review_analysis_epoch" >= 1 AND "ai_property_aggregate_contributions"."property_profile_version" >= 1 AND "ai_property_aggregate_contributions"."rating" BETWEEN 1 AND 5 AND "ai_property_aggregate_contributions"."applied_aggregate_revision" BETWEEN 1 AND '9007199254740991'::bigint),
++ 	CONSTRAINT "ai_property_aggregate_contributions_derivative_valid" CHECK ("ai_property_aggregate_contributions"."sentiment" IN ('positive', 'neutral', 'negative', 'mixed') AND "ai_property_aggregate_contributions"."primary_category" IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other') AND "ai_property_aggregate_contributions"."attention" IN ('urgent', 'high', 'medium', 'low'))
++ );
++ --> statement-breakpoint
++ CREATE TABLE "ai_property_calendar_catalogues" (
++ 	"profile_version" varchar(100) PRIMARY KEY NOT NULL,
++ 	"epoch_millis_function_name" varchar(100) NOT NULL,
++ 	"epoch_millis_function_digest" varchar(64) NOT NULL,
++ 	"local_date_function_name" varchar(100) NOT NULL,
++ 	"local_date_function_digest" varchar(64) NOT NULL,
++ 	"local_midnight_function_name" varchar(100) NOT NULL,
++ 	"local_midnight_function_digest" varchar(64) NOT NULL,
++ 	"image_digest" varchar(64) NOT NULL,
++ 	"vector_digest" varchar(64) NOT NULL,
++ 	"vector_count" integer NOT NULL,
++ 	"minimum_year" integer NOT NULL,
++ 	"maximum_year" integer NOT NULL,
++ 	"tested_postgres_major_versions" integer[] NOT NULL,
++ 	"test_vectors" jsonb NOT NULL,
++ 	"created_at" timestamp with time zone NOT NULL,
++ 	CONSTRAINT "ai_property_calendar_profile_valid" CHECK ("ai_property_calendar_catalogues"."profile_version" = 'property-calendar-v1'),
++ 	CONSTRAINT "ai_property_calendar_function_valid" CHECK ("ai_property_calendar_catalogues"."epoch_millis_function_name" = 'ai_epoch_millis_v1' AND "ai_property_calendar_catalogues"."local_date_function_name" = 'ai_property_local_date_v1' AND "ai_property_calendar_catalogues"."local_midnight_function_name" = 'ai_property_local_midnight_v1'),
++ 	CONSTRAINT "ai_property_calendar_digests_valid" CHECK ("ai_property_calendar_catalogues"."epoch_millis_function_digest" ~ '^[0-9a-f]{64}$' AND "ai_property_calendar_catalogues"."local_date_function_digest" ~ '^[0-9a-f]{64}$' AND "ai_property_calendar_catalogues"."local_midnight_function_digest" ~ '^[0-9a-f]{64}$' AND "ai_property_calendar_catalogues"."image_digest" = '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20' AND "ai_property_calendar_catalogues"."vector_digest" ~ '^[0-9a-f]{64}$'),
++ 	CONSTRAINT "ai_property_calendar_range_valid" CHECK ("ai_property_calendar_catalogues"."vector_count" = 10 AND "ai_property_calendar_catalogues"."minimum_year" = 1970 AND "ai_property_calendar_catalogues"."maximum_year" = 2100 AND "ai_property_calendar_catalogues"."tested_postgres_major_versions" = ARRAY[16]::integer[] AND jsonb_typeof("ai_property_calendar_catalogues"."test_vectors") = 'array' AND jsonb_array_length("ai_property_calendar_catalogues"."test_vectors") = "ai_property_calendar_catalogues"."vector_count")
++ );
++ --> statement-breakpoint
++ CREATE TABLE "ai_property_daily_aggregates" (
++ 	"organization_id" varchar(255) NOT NULL,
++ 	"property_id" uuid NOT NULL,
++ 	"local_date" date NOT NULL,
++ 	"source_epoch" integer NOT NULL,
++ 	"review_analysis_epoch" integer NOT NULL,
++ 	"property_profile_version" integer NOT NULL,
++ 	"calendar_profile_version" varchar(100) NOT NULL,
++ 	"aggregate_revision" bigint NOT NULL,
++ 	"terminal_analysis_sequence" bigint NOT NULL,
++ 	"review_count" integer NOT NULL,
++ 	"rating_sum" integer NOT NULL,
++ 	"positive_count" integer NOT NULL,
++ 	"neutral_count" integer NOT NULL,
++ 	"negative_count" integer NOT NULL,
++ 	"mixed_count" integer NOT NULL,
++ 	"service_count" integer NOT NULL,
++ 	"staff_count" integer NOT NULL,
++ 	"quality_count" integer NOT NULL,
++ 	"value_count" integer NOT NULL,
++ 	"cleanliness_count" integer NOT NULL,
++ 	"wait_time_count" integer NOT NULL,
++ 	"atmosphere_count" integer NOT NULL,
++ 	"location_count" integer NOT NULL,
++ 	"accessibility_count" integer NOT NULL,
++ 	"other_count" integer NOT NULL,
++ 	"urgent_count" integer NOT NULL,
++ 	"high_count" integer NOT NULL,
++ 	"medium_count" integer NOT NULL,
++ 	"low_count" integer NOT NULL,
++ 	"updated_at" timestamp with time zone NOT NULL,
++ 	CONSTRAINT "ai_property_daily_aggregates_pk" PRIMARY KEY("organization_id","property_id","local_date","source_epoch","review_analysis_epoch","property_profile_version"),
++ 	CONSTRAINT "ai_property_daily_aggregates_versions_valid" CHECK ("ai_property_daily_aggregates"."source_epoch" >= 1 AND "ai_property_daily_aggregates"."review_analysis_epoch" >= 1 AND "ai_property_daily_aggregates"."property_profile_version" >= 1 AND "ai_property_daily_aggregates"."aggregate_revision" BETWEEN 0 AND '9007199254740991'::bigint AND "ai_property_daily_aggregates"."terminal_analysis_sequence" BETWEEN 0 AND '9007199254740991'::bigint),
++ 	CONSTRAINT "ai_property_daily_aggregates_counts_nonnegative" CHECK ("ai_property_daily_aggregates"."review_count" >= 0 AND "ai_property_daily_aggregates"."rating_sum" >= 0 AND "ai_property_daily_aggregates"."positive_count" >= 0 AND "ai_property_daily_aggregates"."neutral_count" >= 0 AND "ai_property_daily_aggregates"."negative_count" >= 0 AND "ai_property_daily_aggregates"."mixed_count" >= 0 AND "ai_property_daily_aggregates"."service_count" >= 0 AND "ai_property_daily_aggregates"."staff_count" >= 0 AND "ai_property_daily_aggregates"."quality_count" >= 0 AND "ai_property_daily_aggregates"."value_count" >= 0 AND "ai_property_daily_aggregates"."cleanliness_count" >= 0 AND "ai_property_daily_aggregates"."wait_time_count" >= 0 AND "ai_property_daily_aggregates"."atmosphere_count" >= 0 AND "ai_property_daily_aggregates"."location_count" >= 0 AND "ai_property_daily_aggregates"."accessibility_count" >= 0 AND "ai_property_daily_aggregates"."other_count" >= 0 AND "ai_property_daily_aggregates"."urgent_count" >= 0 AND "ai_property_daily_aggregates"."high_count" >= 0 AND "ai_property_daily_aggregates"."medium_count" >= 0 AND "ai_property_daily_aggregates"."low_count" >= 0),
++ 	CONSTRAINT "ai_property_daily_aggregates_count_sums_valid" CHECK ("ai_property_daily_aggregates"."positive_count" + "ai_property_daily_aggregates"."neutral_count" + "ai_property_daily_aggregates"."negative_count" + "ai_property_daily_aggregates"."mixed_count" = "ai_property_daily_aggregates"."review_count" AND "ai_property_daily_aggregates"."service_count" + "ai_property_daily_aggregates"."staff_count" + "ai_property_daily_aggregates"."quality_count" + "ai_property_daily_aggregates"."value_count" + "ai_property_daily_aggregates"."cleanliness_count" + "ai_property_daily_aggregates"."wait_time_count" + "ai_property_daily_aggregates"."atmosphere_count" + "ai_property_daily_aggregates"."location_count" + "ai_property_daily_aggregates"."accessibility_count" + "ai_property_daily_aggregates"."other_count" = "ai_property_daily_aggregates"."review_count" AND "ai_property_daily_aggregates"."urgent_count" + "ai_property_daily_aggregates"."high_count" + "ai_property_daily_aggregates"."medium_count" + "ai_property_daily_aggregates"."low_count" = "ai_property_daily_aggregates"."review_count" AND "ai_property_daily_aggregates"."rating_sum" <= "ai_property_daily_aggregates"."review_count" * 5)
++ );
++ --> statement-breakpoint
++ CREATE TABLE "ai_property_trend_reports" (
++ 	"organization_id" varchar(255) NOT NULL,
++ 	"property_id" uuid NOT NULL,
++ 	"due_local_date" date NOT NULL,
++ 	"source_epoch" integer NOT NULL,
++ 	"review_analysis_epoch" integer NOT NULL,
++ 	"property_trends_epoch" integer NOT NULL,
++ 	"property_profile_version" integer NOT NULL,
++ 	"terminal_analysis_sequence" bigint NOT NULL,
++ 	"aggregate_revision" bigint NOT NULL,
++ 	"operation_id" uuid NOT NULL,
++ 	"report_profile_version" varchar(100) NOT NULL,
++ 	"signal_key" varchar(64) NOT NULL,
++ 	"direction" varchar(20) NOT NULL,
++ 	"confidence_basis_points" integer NOT NULL,
++ 	"supporting_review_count" integer NOT NULL,
++ 	"generated_at" timestamp with time zone NOT NULL,
++ 	"expires_at" timestamp with time zone NOT NULL,
++ 	CONSTRAINT "ai_property_trend_reports_pk" PRIMARY KEY("organization_id","property_id","due_local_date","source_epoch","review_analysis_epoch","property_trends_epoch","property_profile_version","terminal_analysis_sequence","aggregate_revision"),
++ 	CONSTRAINT "ai_property_trend_reports_versions_valid" CHECK ("ai_property_trend_reports"."source_epoch" >= 1 AND "ai_property_trend_reports"."review_analysis_epoch" >= 1 AND "ai_property_trend_reports"."property_trends_epoch" >= 1 AND "ai_property_trend_reports"."property_profile_version" >= 1 AND "ai_property_trend_reports"."terminal_analysis_sequence" BETWEEN 0 AND '9007199254740991'::bigint AND "ai_property_trend_reports"."aggregate_revision" BETWEEN 0 AND '9007199254740991'::bigint),
++ 	CONSTRAINT "ai_property_trend_reports_output_valid" CHECK ("ai_property_trend_reports"."signal_key" ~ '^[a-z][a-z0-9_]{2,63}$' AND "ai_property_trend_reports"."direction" IN ('improving', 'stable', 'declining') AND "ai_property_trend_reports"."confidence_basis_points" BETWEEN 0 AND 10000 AND "ai_property_trend_reports"."supporting_review_count" >= 0 AND "ai_property_trend_reports"."expires_at" > "ai_property_trend_reports"."generated_at")
++ );
++ --> statement-breakpoint
++ CREATE TABLE "ai_review_analyses" (
++ 	"organization_id" varchar(255) NOT NULL,
++ 	"property_id" uuid NOT NULL,
++ 	"review_id" uuid NOT NULL,
++ 	"source_epoch" integer NOT NULL,
++ 	"source_revision" bigint NOT NULL,
++ 	"analysis_sequence" bigint NOT NULL,
++ 	"operation_id" uuid NOT NULL,
++ 	"authorization_lineage_id" uuid NOT NULL,
++ 	"review_analysis_epoch" integer NOT NULL,
++ 	"property_profile_version" integer NOT NULL,
++ 	"analysis_profile_version" varchar(100) NOT NULL,
++ 	"status" varchar(20) NOT NULL,
++ 	"unavailable_reason" varchar(40),
++ 	"sentiment" varchar(20),
++ 	"primary_category" varchar(40),
++ 	"attention" varchar(20),
++ 	"generated_at" timestamp with time zone NOT NULL,
++ 	"expires_at" timestamp with time zone NOT NULL,
++ 	CONSTRAINT "ai_review_analyses_pk" PRIMARY KEY("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence"),
++ 	CONSTRAINT "ai_review_analyses_versions_valid" CHECK ("ai_review_analyses"."source_epoch" >= 1 AND "ai_review_analyses"."source_revision" BETWEEN 1 AND '9007199254740991'::bigint AND "ai_review_analyses"."analysis_sequence" BETWEEN 1 AND '9007199254740991'::bigint AND "ai_review_analyses"."review_analysis_epoch" >= 1 AND "ai_review_analyses"."property_profile_version" >= 1),
++ 	CONSTRAINT "ai_review_analyses_result_valid" CHECK ((
++         ("ai_review_analyses"."status" = 'ready' AND "ai_review_analyses"."unavailable_reason" IS NULL AND "ai_review_analyses"."sentiment" IN ('positive', 'neutral', 'negative', 'mixed') AND "ai_review_analyses"."primary_category" IN ('service', 'staff', 'quality', 'value', 'cleanliness', 'wait_time', 'atmosphere', 'location', 'accessibility', 'other') AND "ai_review_analyses"."attention" IN ('urgent', 'high', 'medium', 'low'))
++         OR ("ai_review_analyses"."status" = 'unavailable' AND "ai_review_analyses"."unavailable_reason" = 'language_not_supported' AND "ai_review_analyses"."sentiment" IS NULL AND "ai_review_analyses"."primary_category" IS NULL AND "ai_review_analyses"."attention" IS NULL)
++       )),
++ 	CONSTRAINT "ai_review_analyses_retention_valid" CHECK ("ai_review_analyses"."expires_at" > "ai_review_analyses"."generated_at")
++ );
++ --> statement-breakpoint
++ ALTER TABLE "ai_property_aggregate_contributions" ADD CONSTRAINT "ai_property_aggregate_contributions_calendar_profile_version_ai_property_calendar_catalogues_profile_version_fk" FOREIGN KEY ("calendar_profile_version") REFERENCES "public"."ai_property_calendar_catalogues"("profile_version") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_aggregate_contributions" ADD CONSTRAINT "ai_property_aggregate_contributions_analysis_fk" FOREIGN KEY ("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence") REFERENCES "public"."ai_review_analyses"("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_daily_aggregates" ADD CONSTRAINT "ai_property_daily_aggregates_calendar_profile_version_ai_property_calendar_catalogues_profile_version_fk" FOREIGN KEY ("calendar_profile_version") REFERENCES "public"."ai_property_calendar_catalogues"("profile_version") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_daily_aggregates" ADD CONSTRAINT "ai_property_daily_aggregates_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_trend_reports" ADD CONSTRAINT "ai_property_trend_reports_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_trend_reports" ADD CONSTRAINT "ai_property_trend_reports_report_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("report_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_property_trend_reports" ADD CONSTRAINT "ai_property_trend_reports_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_analysis_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("analysis_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
++ ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
++ CREATE UNIQUE INDEX "reviews_tenant_identity_unique" ON "reviews" USING btree ("organization_id","property_id","id");--> statement-breakpoint
++ ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_review_fk" FOREIGN KEY ("organization_id","property_id","review_id") REFERENCES "public"."reviews"("organization_id","property_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
++ CREATE INDEX "ai_property_aggregate_contributions_date_idx" ON "ai_property_aggregate_contributions" USING btree ("organization_id","property_id","local_date","source_epoch","review_analysis_epoch");--> statement-breakpoint
++ CREATE INDEX "ai_property_daily_aggregates_window_idx" ON "ai_property_daily_aggregates" USING btree ("organization_id","property_id","source_epoch","review_analysis_epoch","local_date");--> statement-breakpoint
++ CREATE UNIQUE INDEX "ai_property_trend_reports_operation_unique" ON "ai_property_trend_reports" USING btree ("operation_id");--> statement-breakpoint
++ CREATE INDEX "ai_property_trend_reports_current_idx" ON "ai_property_trend_reports" USING btree ("organization_id","property_id","due_local_date" DESC NULLS LAST);--> statement-breakpoint
++ CREATE INDEX "ai_property_trend_reports_expiry_idx" ON "ai_property_trend_reports" USING btree ("expires_at");--> statement-breakpoint
++ CREATE UNIQUE INDEX "ai_review_analyses_operation_unique" ON "ai_review_analyses" USING btree ("operation_id");--> statement-breakpoint
++ CREATE INDEX "ai_review_analyses_current_idx" ON "ai_review_analyses" USING btree ("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence");--> statement-breakpoint
++ CREATE INDEX "ai_review_analyses_expiry_idx" ON "ai_review_analyses" USING btree ("expires_at");--> statement-breakpoint
++ CREATE OR REPLACE FUNCTION "ai_property_local_date_v1"(
++   p_reviewed_at timestamp with time zone,
++   p_timezone text
++ )
++ RETURNS date
++ LANGUAGE plpgsql
++ IMMUTABLE
++ STRICT
++ PARALLEL SAFE
++ SET search_path = pg_catalog, public
++ AS $$
++ DECLARE
++   v_epoch_millis bigint;
++   v_millisecond_instant timestamp with time zone;
++   v_local_date date;
++ BEGIN
++   IF length(p_timezone) NOT BETWEEN 1 AND 64
++     OR p_timezone !~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$'
++   THEN
++     RETURN NULL;
++   END IF;
++   v_epoch_millis := public.ai_epoch_millis_v1(p_reviewed_at);
++   v_millisecond_instant :=
++     timestamp with time zone '1970-01-01 00:00:00+00'
++     + (v_epoch_millis * interval '1 millisecond');
++   v_local_date := (v_millisecond_instant AT TIME ZONE p_timezone)::date;
++   IF extract(year FROM v_local_date) NOT BETWEEN 1970 AND 2100 THEN
++     RETURN NULL;
++   END IF;
++   RETURN v_local_date;
++ EXCEPTION
++   WHEN invalid_parameter_value OR numeric_value_out_of_range THEN RETURN NULL;
++ END;
++ $$;--> statement-breakpoint
++ CREATE TRIGGER "ai_property_calendar_catalogues_immutable"
++ BEFORE UPDATE OR DELETE ON "ai_property_calendar_catalogues"
++ FOR EACH ROW EXECUTE FUNCTION "reject_ai_catalogue_mutation_v1"();--> statement-breakpoint
++ CREATE TRIGGER "ai_property_calendar_catalogues_no_truncate"
++ BEFORE TRUNCATE ON "ai_property_calendar_catalogues"
++ FOR EACH STATEMENT EXECUTE FUNCTION "reject_ai_catalogue_mutation_v1"();
+
+ ❯ src/contexts/ai/domain/catalogues/operation-profiles-migration.test.ts:124:21
+    122|     const sql0047 = migration('0047_ai-derivatives-and-property-calend…
+    123|     const sql0048 = migration('0048_ai-lifecycle-authority.sql')
+    124|     expect(sql0047).toContain(`"tested_postgres_major_versions" = ARRA…
+       |                     ^
+    125|     expect(sql0048).toContain(
+    126|       'v_authority.tested_postgres_major_versions <> ARRAY[16,17]::int…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

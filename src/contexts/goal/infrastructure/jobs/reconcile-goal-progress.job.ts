@@ -14,9 +14,9 @@ import {
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
-// ── Job name ──────────────────────────────────────────────────────────────
-
-export const RECONCILE_GOAL_JOB_NAME = 'reconcile-goal-progress' as const
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+// Retained only for migration diagnostics; the governed Goal runtime does not register it.
+export const LEGACY_RECONCILE_GOAL_NAME = 'reconcile-goal-progress' as const
 
 // ── Deps ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ export type ReconcileGoalProgressDeps = Readonly<{
   metricApi: MetricPublicApi
   events: EventBus
   clock: () => Date
+  authorizeScope: ScheduledScopeAuthorizer
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────────
@@ -49,6 +50,14 @@ export const createReconcileGoalProgressHandler =
         let failed = 0
 
         for (const goal of goals) {
+          if (
+            !(await deps.authorizeScope(
+              goal.organizationId as string,
+              goal.propertyId as string,
+            ))
+          ) {
+            continue
+          }
           try {
             // Skip recurring templates — they have no period, progress lives on instances
             if (goal.goalType === 'recurring' && !goal.periodStart && !goal.periodEnd) {

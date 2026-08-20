@@ -27,7 +27,12 @@
 
 import type { Job, JobsOptions } from 'bullmq'
 import { GateDenyRetryError } from './errors'
-import { isCatalogueKnownWork, jobEnqueueOptions, jobFamilyRow } from './job-policy'
+import {
+  isCatalogueKnownWork,
+  isDomainRedriveOnlyJob,
+  jobEnqueueOptions,
+  jobFamilyRow,
+} from './job-policy'
 
 /** The dead-letter queue name. Created in the worker; never processed. */
 export const QUARANTINE_QUEUE_NAME = 'quarantine'
@@ -217,6 +222,7 @@ export type RedriveResult =
         | 'malformed-quarantine-envelope'
         | 'payload-redacted'
         | 'target-queue-unavailable'
+        | 'domain-redrive-required'
     }>
 
 /**
@@ -235,6 +241,9 @@ export function createRedriveJob(
     const envelope = parseQuarantineEnvelope(quarantined.data)
     if (!envelope) return { redriven: false, reason: 'malformed-quarantine-envelope' }
     if (isRedacted(envelope.data)) return { redriven: false, reason: 'payload-redacted' }
+    if (isDomainRedriveOnlyJob(envelope.jobName)) {
+      return { redriven: false, reason: 'domain-redrive-required' }
+    }
 
     const target = resolveTargetQueue(envelope.originalQueue)
     if (!target) return { redriven: false, reason: 'target-queue-unavailable' }

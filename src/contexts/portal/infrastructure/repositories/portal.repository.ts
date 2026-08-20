@@ -11,13 +11,13 @@ import {
   portalLinks,
   portalGroupMembers,
 } from '#/shared/db/schema/portal.schema'
-import { properties } from '#/shared/db/schema/property.schema'
 import type {
   PortalRepository,
   PublicPortalResult,
   ResolvePortalContextResult,
 } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
+import type { Portal } from '../../domain/types'
 import { portalError } from '../../domain/errors'
 import {
   unbrand,
@@ -26,6 +26,7 @@ import {
   type PortalGroupId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
+import { isPubliclyAvailable } from '../../domain/portal-publication'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
 type SetValues = {
@@ -34,11 +35,72 @@ type SetValues = {
   description?: string | null
   heroImageUrl?: string | null
   theme?: Record<string, unknown>
-  smartRoutingEnabled?: boolean
-  smartRoutingThreshold?: number
-  isActive?: boolean
+  publicationState?: Portal['publicationState']
   updatedAt?: Date
   deletedAt?: Date | null
+}
+
+async function loadPublicPortal(
+  db: Database,
+  portalRow: typeof portals.$inferSelect,
+): Promise<PublicPortalResult | null> {
+  const portal = portalFromRow(portalRow)
+  if (!isPubliclyAvailable(portal.publicationState)) {
+    throw portalError('portal_inactive', 'Portal is unavailable')
+  }
+  const orgResult = await db.execute(
+    sql`SELECT id, name FROM "organization" WHERE id = ${portalRow.organizationId} LIMIT 1`,
+  )
+  const org = orgResult.rows[0] as { id: string; name: string } | undefined
+  if (!org) return null
+
+  const [categories, links] = await Promise.all([
+    db
+      .select()
+      .from(portalLinkCategories)
+      .where(
+        and(
+          eq(portalLinkCategories.organizationId, portalRow.organizationId),
+          eq(portalLinkCategories.portalId, portalRow.id),
+        ),
+      )
+      .orderBy(portalLinkCategories.sortKey),
+    db
+      .select()
+      .from(portalLinks)
+      .where(
+        and(
+          eq(portalLinks.organizationId, portalRow.organizationId),
+          eq(portalLinks.portalId, portalRow.id),
+        ),
+      )
+      .orderBy(portalLinks.sortKey),
+  ])
+  return {
+    portal: {
+      id: portalRow.id,
+      name: portalRow.name,
+      slug: portalRow.slug,
+      description: portalRow.description,
+      heroImageUrl: portalRow.heroImageUrl,
+      theme: portalRow.theme as Record<string, string | number | boolean | null> | null,
+      organizationName: org.name,
+    },
+    categories: categories.map((category) => ({
+      id: category.id,
+      title: category.title,
+      sortKey: category.sortKey,
+    })),
+    links: links.map((link) => ({
+      id: link.id,
+      label: link.label,
+      url: link.url,
+      categoryId: link.categoryId,
+      sortKey: link.sortKey,
+    })),
+    organizationId: org.id,
+    propertyId: portalRow.propertyId,
+  }
 }
 
 export const createPortalRepository = (db: Database): PortalRepository => ({
@@ -122,11 +184,8 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       if (patch.heroImageUrl !== undefined) setValues.heroImageUrl = patch.heroImageUrl
       if (patch.theme !== undefined)
         setValues.theme = patch.theme as Record<string, unknown>
-      if (patch.smartRoutingEnabled !== undefined)
-        setValues.smartRoutingEnabled = patch.smartRoutingEnabled
-      if (patch.smartRoutingThreshold !== undefined)
-        setValues.smartRoutingThreshold = patch.smartRoutingThreshold
-      if (patch.isActive !== undefined) setValues.isActive = patch.isActive
+      if (patch.publicationState !== undefined)
+        setValues.publicationState = patch.publicationState
 
       await db
         .update(portals)
@@ -142,29 +201,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .update(portals)
         .set({ deletedAt: now, updatedAt: now })
         .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
-    })
-  },
-
-  getPortalQrInfo: async (orgId, id) => {
-    return trace('portal.getPortalQrInfo', async () => {
-      const rows = await db
-        .select({
-          portalSlug: portals.slug,
-          propertySlug: properties.slug,
-        })
-        .from(portals)
-        .innerJoin(properties, eq(properties.id, portals.propertyId))
-        .where(
-          and(
-            eq(portals.id, unbrand(id)),
-            eq(portals.organizationId, unbrand(orgId)),
-            isNull(portals.deletedAt),
-          ),
-        )
-        .limit(1)
-      if (rows.length === 0) return null
-
-      return { slug: rows[0].portalSlug, propertySlug: rows[0].propertySlug }
     })
   },
 
@@ -188,86 +224,14 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 
-  findPublicPortalBySlug: async (propertySlug, portalSlug) => {
-    return trace('portal.findPublicPortalBySlug', async () => {
-      // 1. Find property by slug
-      const propRows = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(
-          and(eq(properties.slug, propertySlug), sql`${properties.deletedAt} IS NULL`),
-        )
-        .limit(1)
-      if (propRows.length === 0) return null
-
-      // 2. Find portal by propertyId + slug (exclude soft-deleted)
-      const portalRows = await db
+  findPublicPortalById: async (orgId, portalIdParam) => {
+    return trace('portal.findPublicPortalById', async () => {
+      const [portal] = await db
         .select()
         .from(portals)
-        .where(
-          and(
-            eq(portals.propertyId, propRows[0].id),
-            eq(portals.slug, portalSlug),
-            isNull(portals.deletedAt),
-          ),
-        )
+        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(portalIdParam))))
         .limit(1)
-      if (portalRows.length === 0) return null
-
-      const portal = portalRows[0]
-
-      // 3. Check active
-      if (!portal.isActive) {
-        throw portalError('portal_inactive', 'Portal is inactive')
-      }
-
-      // 4. Load organization name
-      const orgResult = await db.execute(
-        sql`SELECT id, name FROM "organization" WHERE id = ${portal.organizationId} LIMIT 1`,
-      )
-      const org = orgResult.rows[0] as { id: string; name: string } | undefined
-      if (!org) return null
-
-      // 5. Load categories and links
-      const categories = await db
-        .select()
-        .from(portalLinkCategories)
-        .where(eq(portalLinkCategories.portalId, portal.id))
-        .orderBy(portalLinkCategories.sortKey)
-
-      const links = await db
-        .select()
-        .from(portalLinks)
-        .where(eq(portalLinks.portalId, portal.id))
-        .orderBy(portalLinks.sortKey)
-
-      return {
-        portal: {
-          id: portal.id,
-          name: portal.name,
-          slug: portal.slug,
-          description: portal.description,
-          heroImageUrl: portal.heroImageUrl,
-          theme: portal.theme as Record<string, string | number | boolean | null> | null,
-          smartRoutingEnabled: portal.smartRoutingEnabled,
-          smartRoutingThreshold: portal.smartRoutingThreshold,
-          organizationName: org.name,
-        },
-        categories: categories.map((c) => ({
-          id: c.id,
-          title: c.title,
-          sortKey: c.sortKey,
-        })),
-        links: links.map((l) => ({
-          id: l.id,
-          label: l.label,
-          url: l.url,
-          categoryId: l.categoryId,
-          sortKey: l.sortKey,
-        })),
-        organizationId: org.id,
-        propertyId: portal.propertyId,
-      } satisfies PublicPortalResult
+      return portal ? loadPublicPortal(db, portal) : null
     })
   },
 

@@ -17,5 +17,9 @@ export type StaffPortalLookupPort = Readonly<{
   getPortalInfo: (
     orgId: OrganizationId,
     portalId: PortalId,
-  ) => Promise<Readonly<{ id: PortalId; name: string; isActive: boolean }> | null>
+  ) => Promise<Readonly<{
+    id: PortalId
+    name: string
+    publicationState: 'draft' | 'published' | 'disabled' | 'archived'
+  }> | null>
 }>

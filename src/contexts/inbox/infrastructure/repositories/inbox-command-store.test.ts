@@ -11,6 +11,7 @@
 //   4. rebuildInboxProjection heals a corrupted projection from canonical
 //      review/reply data; dryRun writes nothing.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
@@ -127,12 +128,13 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     propertyId: PROP_A,
     platform: 'google',
     externalId: `ext-${crypto.randomUUID()}`,
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -145,6 +147,11 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt: new Date('2027-01-01T00:00:00.000Z'),
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -164,6 +171,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: new Date('2026-05-28T10:00:00.000Z'),
     approvedAt: new Date('2026-05-28T11:00:00.000Z'),
     publishedAt: new Date('2026-05-29T10:00:00.000Z'),
@@ -246,7 +254,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       propertyId: PROP_A,
       organizationId: ORG_A,
       platform: 'google',
-      externalId: 'ext-1',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: NOW,
     })
     await insertSourceEvent(source)
@@ -287,7 +297,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       propertyId: PROP_A,
       organizationId: ORG_A,
       platform: 'google',
-      externalId: 'ext-1',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: NOW,
     })
     await insertSourceEvent(source)
@@ -361,7 +373,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       propertyId: PROP_A,
       organizationId: ORG_A,
       platform: 'google',
-      externalId: 'ext-1',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: NOW,
     })
     await insertSourceEvent(source)
@@ -410,7 +424,9 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       propertyId: PROP_A,
       organizationId: ORG_A,
       platform: 'google',
-      externalId: 'ext-1',
+      sourceEpoch: 0,
+      sourceRevision: 1,
+      analysisSequence: 1,
       occurredAt: NOW,
     })
     await insertSourceEvent(source)

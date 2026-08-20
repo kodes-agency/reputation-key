@@ -13,6 +13,7 @@ import type {
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
+import type { PortalPublicationState } from './portal-publication'
 
 // ── Theme ──────────────────────────────────────────────────────────
 
@@ -39,9 +40,7 @@ export type Portal = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalTheme
-  smartRoutingEnabled: boolean
-  smartRoutingThreshold: number
-  isActive: boolean
+  publicationState: PortalPublicationState
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

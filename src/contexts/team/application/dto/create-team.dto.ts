@@ -9,7 +9,6 @@ export const createTeamInputSchema = z.object({
     .min(1, 'Team name is required')
     .max(100, 'Team name must be at most 100 characters'),
   description: z.string().max(500, 'Must be 500 characters or less').optional(),
-  teamLeadId: z.string().min(1, 'This field is required').optional(),
 })
 
 export type CreateTeamInput = z.infer<typeof createTeamInputSchema>

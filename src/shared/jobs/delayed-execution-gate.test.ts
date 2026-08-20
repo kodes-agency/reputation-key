@@ -15,6 +15,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   gateJob,
+  createJobExecutionEnvelope,
   gateBusConsumer,
   gateDispatcherConsumer,
   TENANT_CROSS_ORG,
@@ -38,6 +39,14 @@ import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 
 const PROP = 'd4000000-0000-4000-8000-000000000051'
+const CONSENT_FENCE = {
+  authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
+  capabilityEpoch: 9,
+  authorizedSourceEpoch: 3,
+  stateVersion: 5,
+  noticeDigest: 'a'.repeat(64),
+  runtimeProfileVersion: 'reply-drafting-runtime-v1',
+} as const
 
 const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>>()
 
@@ -215,7 +224,81 @@ describe('gateJob — request building (stubbed policy)', () => {
     expect(lastRequest().propertyId).toBeUndefined()
   })
 
-  it('forwards the content-free policy envelope (initiator, correlation, version)', async () => {
+  it('requires Merchant AI consent to bind a positive epoch to the exact property', () => {
+    const base = {
+      organizationId: 'org-1',
+      propertyId: PROP,
+      capability: 'ai.generate_reply' as const,
+      initiator: { kind: 'user' as const, id: 'user-9' },
+    }
+
+    expect(
+      createJobExecutionEnvelope({
+        ...base,
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: CONSENT_FENCE,
+        },
+      }),
+    ).toMatchObject({
+      consent: {
+        subjectType: 'property',
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+    })
+
+    for (const consent of [
+      {
+        subjectType: 'property' as const,
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+      },
+      {
+        subjectType: 'organization' as const,
+        subjectId: 'org-1',
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+      {
+        subjectType: 'property' as const,
+        subjectId: 'd4000000-0000-4000-8000-000000000099',
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
+    ]) {
+      expect(() => createJobExecutionEnvelope({ ...base, consent })).toThrow(
+        'consent selector does not match scope',
+      )
+    }
+  })
+
+  it('binds a consent fence at the domain default source epoch of 0', () => {
+    // Source epoch is 0-based; only the capability epoch and state version are
+    // 1-based. Rejecting 0 here dropped the fence from the envelope for every
+    // freshly imported property (see drizzle/0060).
+    const fence = { ...CONSENT_FENCE, authorizedSourceEpoch: 0 }
+
+    expect(
+      createJobExecutionEnvelope({
+        organizationId: 'org-1',
+        propertyId: PROP,
+        capability: 'ai.generate_reply' as const,
+        initiator: { kind: 'user' as const, id: 'user-9' },
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: fence,
+        },
+      }),
+    ).toMatchObject({ consent: { expectedFence: fence } })
+  })
+
+  it('forwards the flat content-free execution envelope', async () => {
     installStub()
     decideMock.mockResolvedValue(ALLOW)
 
@@ -225,18 +308,30 @@ describe('gateJob — request building (stubbed policy)', () => {
         replyId: 'reply-1',
         organizationId: 'org-1',
         propertyId: PROP,
-        policy: {
-          initiator: { kind: 'user', id: 'user-9' },
-          correlationId: 'corr-1',
-          policyVersionAtEnqueue: 'bqc-0.3',
+        capability: 'gbp.reply.publish',
+        initiator: { kind: 'user', id: 'user-9' },
+        consent: {
+          subjectType: 'property',
+          subjectId: PROP,
+          purpose: 'ai.generate_reply',
+          expectedFence: CONSENT_FENCE,
         },
+        correlationId: 'corr-1',
+        policyVersionAtEnqueue: 'bqc-0.3',
       },
       'worker:default',
       'worker',
     )
 
     expect(lastRequest()).toMatchObject({
+      capabilityAtEnqueue: 'gbp.reply.publish',
       initiator: { kind: 'user', id: 'user-9' },
+      consent: {
+        subjectType: 'property',
+        subjectId: PROP,
+        purpose: 'ai.generate_reply',
+        expectedFence: CONSENT_FENCE,
+      },
       correlationId: 'corr-1',
       policyVersionAtEnqueue: 'bqc-0.3',
     })
@@ -368,7 +463,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policy: { policyVersionAtEnqueue: EXECUTION_POLICY_VERSION },
+        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
       'worker:default',
       'worker',
@@ -409,7 +504,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         organizationId: 'org-fixture',
         connectionId: 'c-1',
         locationName: 'l',
-        policy: { policyVersionAtEnqueue: EXECUTION_POLICY_VERSION },
+        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
       'worker:default',
       'worker',
@@ -428,7 +523,7 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
         replyId: 'reply-1',
         organizationId: 'org-fixture',
         propertyId: PROP,
-        policy: { policyVersionAtEnqueue: 'bqc-0.3' },
+        policyVersionAtEnqueue: 'bqc-0.3',
       },
       'worker:default',
       'worker',
@@ -439,24 +534,8 @@ describe('gateJob against the REAL BQC-2.5 policy (shared contract fixtures)', (
     expect(outcome.decision.allowed).toBe(true)
   })
 
-  it('dark deny — goal reconcile schedule firing denies while goal.use is dark', async () => {
-    const refreshPolicy = installRealPolicy(fixtureEnv('dark job (goal reconcile)'))
-
-    const outcome = await gateJob(
-      'reconcile-goal-progress',
-      {},
-      'schedule:reconcile-goal-progress',
-      'schedule',
-    )
-
-    expect(outcome.kind).toBe('deny_terminal')
-    expect(outcome.decision.reason).toBe('org_not_allowlisted')
-    expect(outcome.decision.freshRead).toBe(false)
-    expect(refreshPolicy).not.toHaveBeenCalled()
-  })
-
   it('reconcile-ambiguous-publications sweep allows under its own tenant-cross action (regression: shared system:review.sync scope merge denied it missing_scope)', async () => {
-    installRealPolicy(fixtureEnv('dark job (goal reconcile)'))
+    installRealPolicy({})
 
     const outcome = await gateJob(
       'reconcile-ambiguous-publications',

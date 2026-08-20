@@ -194,6 +194,7 @@ async function createReviews(
       googleConnectionId: null,
       rating: spec.rating,
       text: spec.text ?? `Simulated ${spec.rating}-star review`,
+      translatedText: null,
       reviewerName: spec.reviewerName ?? `Sim Reviewer ${created + 1}`,
       reviewerProfilePhotoUrl: null,
       languageCode: 'en',
@@ -208,6 +209,11 @@ async function createReviews(
       contentExpiresAt: null,
       contentHash: null,
       sourceSeenGeneration: null,
+      sourceEpoch: 0,
+      sourceRevision: 0,
+      analysisSequence: 0,
+      aiSourceByteLength: 1,
+      aiSourceDigest: '0'.repeat(64),
     }
     try {
       await ctx.container.reviewRepo.upsert(review, ctx.now)
@@ -217,7 +223,9 @@ async function createReviews(
           propertyId: propId,
           organizationId: ctx.orgId,
           platform: 'google',
-          externalId: review.externalId,
+          sourceEpoch: review.sourceEpoch,
+          sourceRevision: review.sourceRevision,
+          analysisSequence: review.analysisSequence,
           occurredAt: ctx.now,
         }),
       )

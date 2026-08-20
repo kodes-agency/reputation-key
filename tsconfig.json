@@ -1,5 +1,5 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "services/**/*.ts"],
   "exclude": ["node_modules", "dist", ".output", "dist-worker", "drizzle"],
   "compilerOptions": {
     "target": "ES2022",
@@ -15,7 +15,14 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node", "react", "react-dom", "@tanstack/react-router", "vite/client"],
+    "types": [
+      "node",
+      "react",
+      "react-dom",
+      "@tanstack/react-router",
+      "vite/client",
+      "vitest/globals"
+    ],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

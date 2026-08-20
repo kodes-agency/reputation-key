@@ -1,99 +1,121 @@
-// Goals list route — thin wrapper around GoalsListPage component
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, Link, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
+import { Plus, Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listGoals } from '#/contexts/goal/server/goals'
-import { GoalsListPage } from '#/components/features/property/goals/goals-list-page'
-import {
-  goalStatusSchema,
-  goalTypeSchema,
-} from '#/contexts/goal/application/dto/goal.dto'
-import type { GoalListView, HistoryGoalStatus } from '#/contexts/goal/ui/helpers'
-import type { GoalType } from '#/contexts/goal/application/public-api'
-import { goalKeys } from '#/shared/queries/query-keys'
+import { listGovernedGoals } from '#/contexts/goal/server/governed-goals'
 import { propertyQuery } from '#/routes/-queries/route-queries'
+import { PageShell } from '#/components/layout/page-shell'
+import { PageHeader } from '#/components/layout/page-header'
+import { Button } from '#/components/ui/button'
+import { Badge } from '#/components/ui/badge'
+import { Card, CardContent } from '#/components/ui/card'
+import { EmptyState } from '#/components/ui/empty-state'
 
 const authRoute = getRouteApi('/_authenticated')
-
-const historyStatusSchema = z.enum(['completed', 'expired', 'cancelled'])
-
-const rawGoalsSearchSchema = z.object({
-  view: z.enum(['active', 'history']).optional(),
-  historyStatus: historyStatusSchema.optional(),
-  status: goalStatusSchema.optional(),
-  goalType: goalTypeSchema.optional(),
+const goalsSearchSchema = z.object({
+  view: z.enum(['active', 'history']).default('active'),
 })
-
-type GoalSearchParams = Readonly<{
-  view: GoalListView
-  historyStatus?: HistoryGoalStatus
-  goalType?: GoalType
-}>
-
-function normalizeGoalsSearch(search: unknown): GoalSearchParams {
-  const parsed = rawGoalsSearchSchema.parse(search)
-  const legacyHistoryStatus =
-    parsed.status && parsed.status !== 'active' ? parsed.status : undefined
-  const view =
-    parsed.view ?? (legacyHistoryStatus ? 'history' : ('active' satisfies GoalListView))
-
-  return {
-    view,
-    historyStatus:
-      view === 'history' ? (parsed.historyStatus ?? legacyHistoryStatus) : undefined,
-    goalType: parsed.goalType,
-  }
-}
-
-const goalsQuery = (propertyId: string, goalType: GoalSearchParams['goalType']) =>
+const goalsQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: goalKeys.list({ propertyId, goalType }),
-    queryFn: () => listGoals({ data: { propertyId, goalType } }),
+    queryKey: ['goals', 'governed', propertyId] as const,
+    queryFn: () => listGovernedGoals({ data: { propertyId } }),
     staleTime: 30_000,
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
   beforeLoad: ({ context }) => {
-    const role = (context as AuthRouteContext).role
-    if (!can(role, 'goal.read')) {
+    if (!can((context as AuthRouteContext).role, 'goal.read')) {
       throw redirect({ to: '/properties' })
     }
   },
-  validateSearch: normalizeGoalsSearch,
-  staleTime: 30_000,
-  loaderDeps: ({ search }) => {
-    const s = search as GoalSearchParams
-    return { goalType: s.goalType }
-  },
-  loader: async ({ params: { propertyId }, deps, context }) => {
-    const { goalType } = deps as GoalSearchParams
-    const { goals } = await context.queryClient.ensureQueryData(
-      goalsQuery(propertyId, goalType),
-    )
-    return { goals }
-  },
+  validateSearch: goalsSearchSchema,
+  loader: async ({ params: { propertyId }, context }) =>
+    context.queryClient.ensureQueryData(goalsQuery(propertyId)),
   component: GoalsRoute,
 })
 
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
+  const { view } = Route.useSearch()
   const ctx = authRoute.useRouteContext() as AuthRouteContext
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const search = Route.useSearch() as GoalSearchParams
-  const { data: goalsData } = useSuspenseQuery(goalsQuery(propertyId, search.goalType))
-  const { goals } = goalsData
+  const { data } = useSuspenseQuery(goalsQuery(propertyId))
+  const goals = data.goals.filter((goal) =>
+    view === 'active' ? goal.status !== 'cancelled' : goal.status === 'cancelled',
+  )
 
   return (
-    <GoalsListPage
-      goals={goals}
-      propertyId={propertyId}
-      propertyName={propData.property.name}
-      view={search.view}
-      historyStatus={search.historyStatus}
-      goalType={search.goalType}
-      canCreateGoal={can(ctx.role, 'goal.create')}
-    />
+    <PageShell>
+      <PageHeader
+        title="Goals"
+        description="Governed property and portal-group targets."
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: propData.property.name, to: `/properties/${propertyId}` },
+          { label: 'Goals' },
+        ]}
+        actions={
+          can(ctx.role, 'goal.create') ? (
+            <Button asChild>
+              <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
+                <Plus data-icon="inline-start" /> New Goal
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
+      <div className="flex gap-2" aria-label="Goal views">
+        <Button variant={view === 'active' ? 'default' : 'outline'} asChild>
+          <Link
+            to="/properties/$propertyId/goals"
+            params={{ propertyId }}
+            search={{ view: 'active' }}
+          >
+            Active
+          </Link>
+        </Button>
+        <Button variant={view === 'history' ? 'default' : 'outline'} asChild>
+          <Link
+            to="/properties/$propertyId/goals"
+            params={{ propertyId }}
+            search={{ view: 'history' }}
+          >
+            History
+          </Link>
+        </Button>
+      </div>
+      {goals.length === 0 ? (
+        <EmptyState
+          icon={Target}
+          title={view === 'active' ? 'No active goals' : 'No goal history'}
+        />
+      ) : (
+        <div className="grid gap-3">
+          {goals.map((goal) => (
+            <Card key={goal.id}>
+              <CardContent className="flex items-center justify-between gap-4 py-4">
+                <div className="min-w-0">
+                  <Link
+                    className="font-medium hover:underline"
+                    to="/properties/$propertyId/goals/$goalId"
+                    params={{ propertyId, goalId: goal.id }}
+                  >
+                    {goal.name}
+                  </Link>
+                  <p className="text-sm text-muted-foreground">
+                    {goal.scope.kind === 'property'
+                      ? 'Property goal'
+                      : 'Portal group goal'}
+                  </p>
+                </div>
+                <Badge variant="outline">{goal.status}</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </PageShell>
   )
 }

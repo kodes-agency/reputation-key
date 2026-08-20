@@ -12,31 +12,35 @@ export type InMemoryGoogleOAuthPort = GoogleOAuthPort &
     setRefreshResult: (result: { accessToken: string; expiresIn: number }) => void
     setExchangeError: (error: Error) => void
     revokeTokenCalls: () => string[]
+    refreshAccessTokenCalls: () => string[]
     /** The PKCE verifiers received by exchangeCode, in call order (BQC-7.6). */
     exchangeVerifierCalls: () => ReadonlyArray<string>
   }>
 
 export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
   let exchangeResult: GoogleOAuthResult = {
-    googleAccountId: 'google-account-123',
-    googleEmail: 'test@gmail.com',
+    identity: { kind: 'oidc', googleSubject: 'google-subject-123' },
     accessToken: 'mock-access-token',
     refreshToken: 'mock-refresh-token',
     expiresIn: 3600,
-    scopes: ['https://www.googleapis.com/auth/business.manage'],
+    scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
   }
   let refreshResult = { accessToken: 'refreshed-access-token', expiresIn: 3600 }
   let exchangeError: Error | null = null
   const revokedTokens: string[] = []
   const exchangeVerifiers: string[] = []
+  const refreshedTokens: string[] = []
 
   return {
-    exchangeCode: async (_code, _redirectUri, codeVerifier) => {
-      exchangeVerifiers.push(codeVerifier)
+    exchangeCode: async (input) => {
+      exchangeVerifiers.push(input.codeVerifier)
       if (exchangeError) throw exchangeError
       return exchangeResult
     },
-    refreshAccessToken: async (_refreshToken) => refreshResult,
+    refreshAccessToken: async (refreshToken) => {
+      refreshedTokens.push(refreshToken)
+      return refreshResult
+    },
     revokeToken: async (token) => {
       revokedTokens.push(token)
     },
@@ -50,6 +54,7 @@ export const createInMemoryGoogleOAuthPort = (): InMemoryGoogleOAuthPort => {
       exchangeError = error
     },
     revokeTokenCalls: () => [...revokedTokens],
+    refreshAccessTokenCalls: () => [...refreshedTokens],
     exchangeVerifierCalls: () => [...exchangeVerifiers],
   }
 }

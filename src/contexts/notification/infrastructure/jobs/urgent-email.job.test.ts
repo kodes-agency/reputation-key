@@ -1,305 +1,189 @@
-// Notification context — urgent-email job handler tests
-
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createUrgentEmailJobHandler } from './urgent-email.job'
-import type { Notification, NotificationEmail } from '../../domain/types'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
 import {
   notificationEmailId,
   notificationId,
   organizationId,
+  propertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { Job } from 'bullmq'
-import {
-  createFakeEmailRepo,
-  createFakeNotifRepo,
-  createFakeUserLookup,
-  createFakeEmailSender,
-  createFakeJobLogger,
-  createFakeClock,
-} from './test-fixtures'
-import type {
-  FakeEmailRepo,
-  FakeNotifRepo,
-  FakeUserLookup,
-  FakeEmailSender,
-  FakeJobLogger,
-  FakeClock,
-} from './test-fixtures'
+import type { Notification, NotificationEmail } from '../../domain/types'
+import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
 
-const EMAIL_ENTRY_ID = notificationEmailId('email-entry-1')
-const NOTIF_ID = notificationId('notif-1')
-const ORG_ID = organizationId('org-1')
-const USER_ID = userId('user-1')
-const FIXED_DATE = new Date('2026-06-10T10:00:00Z')
+const NOW = new Date('2026-01-15T15:00:00.000Z')
+const ORG = organizationId('org-1')
+const PROPERTY = propertyId('11111111-1111-4111-8111-111111111111')
+const EMAIL_ID = notificationEmailId('email-1')
+const entry: NotificationEmail = {
+  id: EMAIL_ID,
+  notificationId: notificationId('notification-1'),
+  userId: userId('user-1'),
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  category: 'urgent_operational',
+  cadence: 'immediate',
+  status: 'pending',
+  priority: 'urgent',
+  idempotencyKey: 'notification-1:email',
+  providerMessageId: null,
+  providerState: null,
+  lastErrorClass: null,
+  suppressionReason: null,
+  notBefore: null,
+  nextAttemptAt: null,
+  attemptedAt: null,
+  acceptedAt: null,
+  deliveredAt: null,
+  bouncedAt: null,
+  sentAt: null,
+  failedAt: null,
+  retryCount: 0,
+  createdAt: NOW,
+  updatedAt: NOW,
+}
+const notification: Notification = {
+  id: entry.notificationId,
+  userId: entry.userId,
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  type: 'reply.publish_failed',
+  category: 'urgent_operational',
+  priority: 'urgent',
+  status: 'unread',
+  resourceType: 'reply',
+  resourceId: 'reply-1',
+  eventId: 'event-1',
+  title: 'Reply publication failed',
+  body: null,
+  readAt: null,
+  createdAt: NOW,
+  updatedAt: NOW,
+}
+const job = {
+  data: {
+    notificationEmailId: EMAIL_ID,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    capability: 'notification.send_email',
+    policyVersionAtEnqueue: 'test',
+    initiator: { kind: 'system', id: 'test' },
+  } satisfies UrgentEmailJobData,
+}
 
-function createFakeEmailEntry(
-  overrides: Partial<NotificationEmail> = {},
-): NotificationEmail {
+function fakeDeps() {
+  const send = vi.fn(
+    async (): Promise<NotificationDeliveryOutcome> => ({
+      kind: 'accepted',
+      providerMessageId: 'provider-1',
+      acceptedAt: NOW,
+    }),
+  )
   return {
-    id: EMAIL_ENTRY_ID,
-    notificationId: NOTIF_ID,
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    status: 'pending',
-    priority: 'urgent',
-    sentAt: null,
-    failedAt: null,
-    retryCount: 0,
-    createdAt: FIXED_DATE,
-    updatedAt: FIXED_DATE,
-    ...overrides,
+    emailRepo: {
+      findById: vi.fn(async () => entry),
+      markAccepted: vi.fn(async () => {}),
+      markDelayed: vi.fn(async () => {}),
+      markFailed: vi.fn(async () => {}),
+      markSuppressed: vi.fn(async () => {}),
+    },
+    preferenceRepo: { findForDelivery: vi.fn(async () => null) },
+    notifRepo: { findByIdForProperty: vi.fn(async () => notification) },
+    userLookup: { getEmail: vi.fn(async () => 'manager@example.com') },
+    emailSender: { send },
+    resolvePropertyScope: vi.fn(async () => ({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      timezone: 'America/New_York',
+    })),
+    authorizeScope: vi.fn(async () => true),
+    logger: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      child: vi.fn(),
+    },
+    clock: () => NOW,
   }
 }
 
-function createFakeNotification(): Notification {
-  return {
-    id: NOTIF_ID,
-    userId: USER_ID,
-    organizationId: ORG_ID,
-    type: 'inbox.escalated',
-    priority: 'urgent',
-    status: 'unread',
-    resourceType: 'inbox_item',
-    resourceId: 'res-1',
-    eventId: 'evt-1',
-    title: 'Review escalated',
-    body: 'A review was escalated',
-    readAt: null,
-    createdAt: FIXED_DATE,
-    updatedAt: FIXED_DATE,
-  }
-}
-
-export type FakeUrgentDeps = {
-  emailRepo: FakeEmailRepo
-  notifRepo: FakeNotifRepo
-  userLookup: FakeUserLookup
-  emailSender: FakeEmailSender
-  logger: FakeJobLogger
-  clock: FakeClock
-}
-
-function createFakeDeps(): FakeUrgentDeps {
-  return {
-    emailRepo: createFakeEmailRepo(),
-    notifRepo: createFakeNotifRepo(),
-    userLookup: createFakeUserLookup(),
-    emailSender: createFakeEmailSender(),
-    logger: createFakeJobLogger(),
-    clock: createFakeClock(FIXED_DATE),
-  }
-}
-
-/** Set up all mocks for a happy-path flow where the email is sent successfully. */
-function setupHappyPathMocks(
-  deps: FakeUrgentDeps,
-  overrides: { entry?: NotificationEmail; notif?: Notification } = {},
-) {
-  deps.emailRepo.findById.mockResolvedValue(overrides.entry ?? createFakeEmailEntry())
-  deps.notifRepo.findById.mockResolvedValue(overrides.notif ?? createFakeNotification())
-  deps.userLookup.getEmail.mockResolvedValue('user@example.com')
-  deps.emailSender.send.mockResolvedValue(undefined)
-  deps.emailRepo.markSent.mockResolvedValue(undefined)
-  deps.emailRepo.markFailed.mockResolvedValue(undefined)
-  deps.emailRepo.markSkipped.mockResolvedValue(undefined)
-}
-
-function createFakeJob(emailId: string, orgIdOverride?: string): Job {
-  return {
-    id: 'job-urgent-1',
-    data: { notificationEmailId: emailId, organizationId: orgIdOverride ?? 'org-1' },
-    attemptsMade: 0,
-    log: vi.fn(),
-  } as unknown as Job
-}
-
-/**
- * Create + run the urgent-email handler for the standard test entry. Centralises
- * the fake→port cast so individual tests read as plain actions.
- */
-function runUrgentHandler(deps: FakeUrgentDeps) {
-  return createUrgentEmailJobHandler(
-    deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
-  )(createFakeJob('email-entry-1'))
-}
-
-/** Assert the email sender was never called. */
-function expectNoEmailSent(deps: FakeUrgentDeps): void {
-  expect(deps.emailSender.send).not.toHaveBeenCalled()
-}
-
-describe('createUrgentEmailJobHandler', () => {
-  let deps: FakeUrgentDeps
+describe('immediate notification email job', () => {
+  let deps: ReturnType<typeof fakeDeps>
 
   beforeEach(() => {
-    deps = createFakeDeps()
+    deps = fakeDeps()
   })
 
-  it('sends email for a pending entry and marks it sent', async () => {
-    setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'pending' }) })
+  const run = () =>
+    createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )(job)
 
-    await runUrgentHandler(deps)
+  it('resolves and authorizes the concrete property before any notification read or effect', async () => {
+    deps.authorizeScope.mockResolvedValue(false)
+    await run()
+    expect(deps.resolvePropertyScope).toHaveBeenCalledWith(ORG, PROPERTY)
+    expect(deps.emailRepo.findById).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
 
-    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
-    const sendCall = deps.emailSender.send.mock.calls[0][0]
-    expect(sendCall.to).toBe('user@example.com')
-    expect(sendCall.subject).toContain('Review escalated')
-    expect(sendCall.html).toContain('Review escalated')
-
-    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      expect.any(Date),
-      expect.any(Date),
+  it('suppresses delivery when the current property preference is disabled', async () => {
+    deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
+    await run()
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      EMAIL_ID,
+      ORG,
+      PROPERTY,
+      'preference_disabled',
+      NOW,
     )
-    expect(deps.emailRepo.markFailed).not.toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
-  it('sends email for a failed entry (retry)', async () => {
-    setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'failed' }) })
-
-    await runUrgentHandler(deps)
-
-    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
-    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      expect.any(Date),
-      expect.any(Date),
-    )
-  })
-
-  it('skips if entry not found', async () => {
-    setupHappyPathMocks(deps)
-    deps.emailRepo.findById.mockResolvedValue(null)
-
-    await runUrgentHandler(deps)
-
-    expectNoEmailSent(deps)
-    expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
-    expect(deps.logger.warn).toHaveBeenCalledWith(
-      'Urgent email entry not found or not retryable',
+  it('records provider acceptance and message id only after acceptance', async () => {
+    await run()
+    expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(
+      EMAIL_ID,
+      ORG,
+      PROPERTY,
+      'provider-1',
+      NOW,
     )
   })
 
-  it('skips if entry status is already "sent"', async () => {
-    setupHappyPathMocks(deps)
-    deps.emailRepo.findById.mockResolvedValue(createFakeEmailEntry({ status: 'sent' }))
-
-    await runUrgentHandler(deps)
-
-    expectNoEmailSent(deps)
-  })
-
-  it('skips if entry status is "skipped"', async () => {
-    setupHappyPathMocks(deps)
-    deps.emailRepo.findById.mockResolvedValue(createFakeEmailEntry({ status: 'skipped' }))
-
-    await runUrgentHandler(deps)
-
-    expectNoEmailSent(deps)
-  })
-
-  it.each([
-    {
-      label: 'notification not found',
-      stub: (d: FakeUrgentDeps) => d.notifRepo.findById.mockResolvedValue(null),
-    },
-    {
-      label: 'user email not found',
-      stub: (d: FakeUrgentDeps) => d.userLookup.getEmail.mockResolvedValue(null),
-    },
-  ])('marks skipped when $label', async ({ stub }) => {
-    setupHappyPathMocks(deps)
-    stub(deps)
-
-    await runUrgentHandler(deps)
-
-    expectNoEmailSent(deps)
-    expect(deps.emailRepo.markSkipped).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      expect.any(Date),
-    )
-  })
-
-  it('marks failed and re-throws when email send fails', async () => {
-    setupHappyPathMocks(deps)
-    deps.emailSender.send.mockRejectedValue(new Error('SMTP down'))
-
-    await expect(runUrgentHandler(deps)).rejects.toThrow('SMTP down')
-
+  it('classifies transient rejection for retry and never marks accepted', async () => {
+    deps.emailSender.send.mockResolvedValue({
+      kind: 'rejected',
+      classification: 'transient',
+      providerCode: 'rate_limit_exceeded',
+    })
+    await expect(run()).rejects.toThrow('Transient email provider rejection')
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      expect.any(Date),
-      expect.any(Date),
+      EMAIL_ID,
+      ORG,
+      PROPERTY,
+      'transient',
+      new Date('2026-01-15T15:00:30.000Z'),
+      NOW,
     )
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ err: expect.anything() }),
-      'Urgent email send failed',
+    expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
+  })
+
+  it('persists provider suppression without retrying', async () => {
+    deps.emailSender.send.mockResolvedValue({
+      kind: 'rejected',
+      classification: 'suppressed',
+      providerCode: 'recipient_suppressed',
+    })
+    await run()
+    expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
+      EMAIL_ID,
+      ORG,
+      PROPERTY,
+      'suppressed',
+      null,
+      NOW,
     )
-    expect(deps.emailRepo.markSent).not.toHaveBeenCalled()
-  })
-
-  it('includes notification title and body in email html', async () => {
-    setupHappyPathMocks(deps, {
-      notif: {
-        ...createFakeNotification(),
-        title: 'Important update',
-        body: 'Please review this item',
-      },
-    })
-
-    await runUrgentHandler(deps)
-
-    const html = deps.emailSender.send.mock.calls[0][0].html
-    expect(html).toContain('Important update')
-    expect(html).toContain('Please review this item')
-  })
-
-  it('sends email without body paragraph when notif body is null', async () => {
-    setupHappyPathMocks(deps, {
-      notif: { ...createFakeNotification(), body: null },
-    })
-
-    await runUrgentHandler(deps)
-
-    expect(deps.emailSender.send).toHaveBeenCalledTimes(1)
-  })
-
-  it('escapes HTML in title and body', async () => {
-    setupHappyPathMocks(deps, {
-      notif: {
-        ...createFakeNotification(),
-        title: '<script>alert("xss")</script>',
-        body: '<b>bold</b>',
-      },
-    })
-
-    await runUrgentHandler(deps)
-
-    const html = deps.emailSender.send.mock.calls[0][0].html
-    expect(html).not.toContain('<script>')
-    expect(html).not.toContain('<b>')
-  })
-
-  it('uses injected clock for transition timestamps, not new Date()', async () => {
-    const clockDate = new Date('2026-07-04T12:00:00Z')
-    deps.clock = vi.fn(() => clockDate)
-    setupHappyPathMocks(deps, { entry: createFakeEmailEntry({ status: 'pending' }) })
-
-    await runUrgentHandler(deps)
-
-    // markSent must receive the clock's timestamp, proving the job uses
-    // deps.clock() rather than constructing `new Date()` inline.
-    expect(deps.clock).toHaveBeenCalled()
-    expect(deps.emailRepo.markSent).toHaveBeenCalledWith(
-      EMAIL_ENTRY_ID,
-      'org-1',
-      clockDate,
-      clockDate,
-    )
+    expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
   })
 })

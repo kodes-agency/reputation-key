@@ -11,7 +11,8 @@ import type { OutboxEventInsert } from '#/shared/db/schema/outbox.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { isEventRegistered, validateEventPayload } from '#/shared/events/schema-registry'
 
-const EVENT_VERSION = 1
+const eventVersionFor = (event: DomainEvent): number =>
+  event._tag === 'integration.google_account.connected' ? 2 : 1
 
 /**
  * Content fields that must NEVER appear in outbox payloads (ADR 0030).
@@ -52,7 +53,7 @@ export class OutboxPayloadError extends Error {
  */
 export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'> {
   const eventType = event._tag
-  const eventVersion = EVENT_VERSION
+  const eventVersion = eventVersionFor(event)
 
   if (!isEventRegistered(eventType, eventVersion)) {
     throw new OutboxPayloadError(

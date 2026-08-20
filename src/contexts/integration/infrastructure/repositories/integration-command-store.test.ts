@@ -1,12 +1,8 @@
 // BQC-3.5 — integration command store integration tests (real Postgres).
 //
-// Crash-boundary proofs on the real google_connections / gbp_import_jobs
-// tables:
-//   1. A forced outbox failure (unregistered fact type) rolls back EVERYTHING
-//      — no connection row, no status/redaction, no job status survives.
-//   2. Happy path: the state row and the outbox_events row commit together
-//      with the same eventId.
-//   3. The global-uniqueness race contract (UniqueViolationError) holds.
+// Crash-boundary proofs on the real google_connections table: forced outbox
+// failure rolls back state, happy paths co-commit state and facts, and global
+// identity uniqueness maps to the domain race error.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
@@ -15,18 +11,12 @@ import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
-import {
-  gbpImportJobId,
-  googleConnectionId,
-  organizationId,
-  userId,
-} from '#/shared/domain/ids'
+import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '../../domain/types'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleConnectionVisibilityChanged,
-  integrationPropertyImportCompleted,
 } from '../../domain/events'
 import { isIntegrationError } from '../../domain/errors'
 import { isUniqueViolationError } from '../../application/ports/google-connection.repository'
@@ -34,7 +24,6 @@ import { createAtomicIntegrationCommandStore } from '../integration-command-stor
 
 const ORG_ID = organizationId('org-intcmd-0000-0000-0000-000000000001')
 const CONN_ID = googleConnectionId('6c000000-0000-0000-0000-000000000001')
-const JOB_ID = gbpImportJobId('6b000000-0000-0000-0000-000000000001')
 const NOW = new Date('2026-06-01T12:00:00.000Z')
 
 let pool: Pool
@@ -50,8 +39,7 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
   return {
     id: CONN_ID,
     organizationId: ORG_ID,
-    googleAccountId: 'ga-intcmd-1',
-    googleEmail: 'intcmd@test.com',
+    googleSubject: 'subject-intcmd-1',
     encryptedAccessToken: 'enc-a',
     encryptedRefreshToken: 'enc-r',
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
@@ -59,6 +47,11 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     connectedBy: userId('user-intcmd-00000000000000000001'),
     visibility: 'private',
     status: 'active',
+    credentialUseState: 'active',
+    cleanupMaterialDeadlineAt: null,
+    lifecycleVersion: 1,
+    accessVersion: 1,
+    credentialGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -73,13 +66,12 @@ const connectedEvent = () =>
   integrationGoogleAccountConnected({
     connectionId: CONN_ID,
     organizationId: ORG_ID,
-    googleEmail: 'intcmd@test.com',
+    connectedBy: userId('user-intcmd-00000000000000000001'),
     occurredAt: NOW,
   })
 
 async function truncateAll(p: Pool) {
   await p.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
-  await p.query('DELETE FROM gbp_import_jobs WHERE organization_id = $1', [ORG_ID])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
 }
 
@@ -110,7 +102,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
     await store.connectGoogleAccount({ connection: makeConnection(), event })
 
     const rows = await pool.query(
-      'SELECT id, status, google_email FROM google_connections WHERE organization_id = $1',
+      'SELECT id, status FROM google_connections WHERE organization_id = $1',
       [ORG_ID],
     )
     expect(rows.rows).toHaveLength(1)
@@ -121,8 +113,12 @@ describe.sequential('integrationCommandStore (integration)', () => {
       [ORG_ID, event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
-    // Identifier-only: provider email never enters the durable payload.
-    expect(facts.rows[0].payload).not.toHaveProperty('googleEmail')
+    expect(Object.keys(facts.rows[0].payload as object).sort()).toEqual([
+      'connectedBy',
+      'connectionId',
+      'correlationId',
+      'organizationId',
+    ])
   })
 
   it('connectGoogleAccount rolls back the insert when the fact insert fails (unregistered type)', async () => {
@@ -170,6 +166,8 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const updated = await store.reconnectGoogleAccount({
       organizationId: ORG_ID,
       connectionId: CONN_ID,
+      googleSubject: 'google-subject-2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       encryptedAccessToken: 'enc-a2',
       encryptedRefreshToken: 'enc-r2',
       tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
@@ -177,13 +175,19 @@ describe.sequential('integrationCommandStore (integration)', () => {
       event: connectedEvent(),
     })
 
-    expect(updated.visibility).toBe('organization')
+    expect(updated).toMatchObject({
+      googleSubject: 'google-subject-2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
+      visibility: 'organization',
+    })
     const rows = await pool.query(
-      'SELECT encrypted_access_token, visibility, status FROM google_connections WHERE id = $1',
+      'SELECT google_subject, encrypted_access_token, scopes, visibility, status FROM google_connections WHERE id = $1',
       [CONN_ID],
     )
     expect(rows.rows[0]).toMatchObject({
+      google_subject: 'google-subject-2',
       encrypted_access_token: 'enc-a2',
+      scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
       visibility: 'organization',
       status: 'active',
     })
@@ -215,14 +219,13 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     expect(result.status).toBe('disconnected')
     const rows = await pool.query(
-      'SELECT status, encrypted_access_token, google_email, google_account_id, scopes FROM google_connections WHERE id = $1',
+      'SELECT status, encrypted_access_token, google_subject, scopes FROM google_connections WHERE id = $1',
       [CONN_ID],
     )
     expect(rows.rows[0]).toMatchObject({
       status: 'disconnected',
       encrypted_access_token: 'redacted',
-      google_email: 'redacted',
-      google_account_id: `redacted:${CONN_ID as string}`,
+      google_subject: null,
       scopes: [],
     })
     const facts = await pool.query(
@@ -315,43 +318,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
       `SELECT id FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'integration.google_connection.visibility_changed'`,
       [ORG_ID],
-    )
-    expect(facts.rows).toHaveLength(1)
-  })
-
-  it('recordImportCompleted commits terminal status + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents)
-    await pool.query(
-      `INSERT INTO gbp_import_jobs (id, organization_id, initiated_by, status, total_count, created_at, updated_at)
-       VALUES ($1, $2, $3, 'in_progress', 3, NOW(), NOW())`,
-      [JOB_ID, ORG_ID, 'user-intcmd-00000000000000000001'],
-    )
-    const event = integrationPropertyImportCompleted({
-      importJobId: JOB_ID,
-      organizationId: ORG_ID,
-      totalCount: 3,
-      importedCount: 2,
-      skippedCount: 1,
-      failedCount: 0,
-      occurredAt: NOW,
-    })
-
-    await store.recordImportCompleted({
-      organizationId: ORG_ID,
-      importJobId: JOB_ID,
-      finalStatus: 'completed_with_skips',
-      now: NOW,
-      event,
-    })
-
-    const rows = await pool.query('SELECT status FROM gbp_import_jobs WHERE id = $1', [
-      JOB_ID,
-    ])
-    expect(rows.rows[0].status).toBe('completed_with_skips')
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.property_import.completed' AND id = $2`,
-      [ORG_ID, event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
   })

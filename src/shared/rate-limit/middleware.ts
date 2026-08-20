@@ -32,10 +32,14 @@ export type RateLimitResult = Readonly<{
   /** When the window resets */
   resetAt: Date
 }>
+export type RateLimitCheckOptions = Readonly<{
+  maxRequests: number
+  windowSeconds: number
+}>
 
 export type RateLimiter = Readonly<{
   /** Check if a request with the given key is allowed. */
-  check(key: string): Promise<RateLimitResult>
+  check(key: string, override?: RateLimitCheckOptions): Promise<RateLimitResult>
 }>
 
 // Atomic Lua script: increment counter and set TTL on first request.
@@ -57,17 +61,18 @@ export function createRateLimiter(
   const failClosed = opts.failClosed ?? process.env.NODE_ENV === 'production'
 
   /** Result when the backend cannot answer. */
-  const degraded = (): RateLimitResult => {
+  const degraded = (limits: RateLimitCheckOptions): RateLimitResult => {
     const base = {
-      resetAt: new Date(Date.now() + opts.windowSeconds * 1000),
+      resetAt: new Date(Date.now() + limits.windowSeconds * 1000),
     }
     return failClosed
       ? { allowed: false, remaining: 0, ...base }
-      : { allowed: true, remaining: opts.maxRequests, ...base }
+      : { allowed: true, remaining: limits.maxRequests, ...base }
   }
 
   return {
-    async check(key: string): Promise<RateLimitResult> {
+    async check(key: string, override?: RateLimitCheckOptions): Promise<RateLimitResult> {
+      const limits = override ?? opts
       if (!redis) {
         if (failClosed) {
           getLogger().error(
@@ -78,7 +83,7 @@ export function createRateLimiter(
             '[rate-limit] Redis unavailable — failing open (all requests allowed)',
           )
         }
-        return degraded()
+        return degraded(limits)
       }
 
       try {
@@ -89,17 +94,17 @@ export function createRateLimiter(
           INCR_WITH_EXPIRE_SCRIPT,
           1,
           redisKey,
-          opts.windowSeconds,
+          limits.windowSeconds,
         )) as number
 
         // Get TTL for accurate reset time
         const ttl = await redis.ttl(redisKey)
         const resetAt = new Date(Date.now() + Math.max(ttl, 0) * 1000)
 
-        const remaining = Math.max(opts.maxRequests - count, 0)
+        const remaining = Math.max(limits.maxRequests - count, 0)
 
         return {
-          allowed: count <= opts.maxRequests,
+          allowed: count <= limits.maxRequests,
           remaining,
           resetAt,
         }
@@ -110,7 +115,7 @@ export function createRateLimiter(
           // Fail open on Redis errors, but log for monitoring
           getLogger().warn({ err }, '[rate-limit] Redis error — failing open')
         }
-        return degraded()
+        return degraded(limits)
       }
     },
   }

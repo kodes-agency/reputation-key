@@ -56,6 +56,7 @@ export const updateLinkCategory =
       const updatedAt = deps.clock()
       await deps.portalLinkRepo.updateCategory(
         ctx.organizationId,
+        existing.portalId,
         portalLinkCategoryId(input.categoryId),
         {
           title: r.value,

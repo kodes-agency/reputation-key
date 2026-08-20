@@ -16,6 +16,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
 import type { ReplyData } from './reply-status-view'
 
+import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 export type { ReplyData } from './reply-status-view'
 
 type InnerProps = Readonly<{
@@ -23,6 +24,7 @@ type InnerProps = Readonly<{
   reply: ReplyData | null
   loading: boolean
   onReplyChanged: (reply: ReplyData | null) => void
+  generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
 export function ReplyEditorInner({
@@ -30,6 +32,7 @@ export function ReplyEditorInner({
   reply,
   loading,
   onReplyChanged,
+  generateReplySuggestion,
 }: InnerProps) {
   const draft = useActionMutation(draftReplyFn, {
     successMessage: 'Draft saved',
@@ -75,15 +78,41 @@ export function ReplyEditorInner({
     <ReplyStatusView
       view={resolveReplyView(reply)}
       isSaving={isSaving}
-      onSaveDraft={(text) => draft({ data: { reviewId, text } })}
-      onSubmitReply={(text) =>
-        draft({ data: { reviewId, text } }).then(() => submit({ data: { reviewId } }))
+      onSaveDraft={(text, provenanceToken) =>
+        draft({
+          data: {
+            reviewId,
+            text,
+            ...(provenanceToken ? { provenanceToken } : {}),
+          },
+        })
+      }
+      onSubmitReply={(text, provenanceToken) =>
+        draft({
+          data: {
+            reviewId,
+            text,
+            ...(provenanceToken ? { provenanceToken } : {}),
+          },
+        }).then(() => submit({ data: { reviewId } }))
       }
       onDeleteDraft={reply ? () => del({ data: { reviewId } }) : undefined}
       onApprove={() => approve({ data: { reviewId } })}
       onReject={(reason) => reject({ data: { reviewId, reason } })}
       onRetry={() => retry({ data: { reviewId } })}
       onSaveEdit={(text) => edit({ data: { reviewId, text } })}
+      onGenerateSuggestion={
+        generateReplySuggestion
+          ? (tone) =>
+              generateReplySuggestion({
+                data: {
+                  reviewId,
+                  tone,
+                  idempotencyKey: crypto.randomUUID(),
+                },
+              })
+          : undefined
+      }
     />
   )
 }

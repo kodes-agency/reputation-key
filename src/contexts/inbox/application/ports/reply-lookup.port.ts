@@ -52,6 +52,8 @@ export type ReplyView = Readonly<{
   rejectedBy: UserId | null
   rejectionReason: string | null
   aiGenerated: boolean
+  /** Monotonic durable reply lifecycle revision. */
+  stateRevision: number
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null

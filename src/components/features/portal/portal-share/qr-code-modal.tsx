@@ -1,69 +1,73 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import { AlertCircle, Copy, Download } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '#/components/ui/dialog'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '#/components/ui/tooltip'
-import { Copy, Download } from 'lucide-react'
 import { copyToClipboard } from '#/lib/clipboard'
 
 type QRCodeModalProps = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
-  portalSlug: string
-  propertySlug: string
+  publicUrl: string
+  portalName: string
 }>
 
 export function QRCodeModal({
   open,
   onOpenChange,
-  portalSlug,
-  propertySlug,
+  publicUrl,
+  portalName,
 }: QRCodeModalProps) {
   const [copied, setCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [generationError, setGenerationError] = useState(false)
 
-  const path = `/p/${propertySlug}/${portalSlug}?source=qr`
-  const guestUrl = typeof window !== 'undefined' ? `${window.location.origin}${path}` : ''
-
-  // Generate QR code client-side
   useEffect(() => {
-    if (open && guestUrl) {
-      QRCode.toDataURL(guestUrl, {
-        width: 256,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
+    if (!open) return
+    let cancelled = false
+    setQrDataUrl(null)
+    setGenerationError(false)
+    void QRCode.toDataURL(publicUrl, {
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#16151a',
+        light: '#faf9fc',
+      },
+    })
+      .then((dataUrl) => {
+        if (!cancelled) setQrDataUrl(dataUrl)
       })
-        .then(setQrDataUrl)
-        .catch((err) => console.error('Failed to generate QR code', err))
+      .catch(() => {
+        if (!cancelled) setGenerationError(true)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [open, guestUrl])
+  }, [open, publicUrl])
 
   const handleCopy = async () => {
-    if (await copyToClipboard(guestUrl)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
+    if (!(await copyToClipboard(publicUrl))) return
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDownload = () => {
     if (!qrDataUrl) return
+    const safeName = portalName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
     const link = document.createElement('a')
     link.href = qrDataUrl
-    link.download = `qr-${portalSlug}.png`
+    link.download = `${safeName || 'portal'}-qr.png`
     link.click()
   }
 
@@ -71,49 +75,69 @@ export function QRCodeModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>QR Code</DialogTitle>
-          <DialogDescription>Scan this code to open the guest portal.</DialogDescription>
+          <DialogTitle>Portal QR code</DialogTitle>
+          <DialogDescription>
+            Download this code before leaving the page. It contains the newly issued
+            opaque public link.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-4 py-4">
+          {!qrDataUrl && !generationError && (
+            <div
+              className="flex size-64 items-center justify-center rounded-lg border bg-muted"
+              aria-busy="true"
+              aria-live="polite"
+            >
+              <span className="text-sm text-muted-foreground">Generating QR code…</span>
+            </div>
+          )}
+
+          {generationError && (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>QR code unavailable</AlertTitle>
+              <AlertDescription>
+                The link is still valid. Close this dialog and try again, or copy the link
+                instead.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {qrDataUrl && (
             <img
               src={qrDataUrl}
-              alt={`QR code for ${portalSlug}`}
-              className="w-64 h-64 rounded-lg border"
+              alt={`QR code for ${portalName}`}
+              className="size-64 max-w-full rounded-lg border"
             />
           )}
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-2 w-full px-4 cursor-help">
-                  <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-md truncate">
-                    {path}
-                  </code>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{guestUrl}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <code className="w-full break-all rounded-md bg-muted px-3 py-2 text-sm">
+            {publicUrl}
+          </code>
 
-          <div className="flex items-center gap-2 w-full px-4">
-            <Button variant="outline" size="sm" onClick={handleCopy} className="flex-1">
-              <Copy className="size-3.5 mr-2" />
-              {copied ? 'Copied' : 'Copy URL'}
+          <div className="flex w-full flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleCopy()}
+              className="min-h-11 flex-1 sm:min-h-9"
+            >
+              <Copy /> {copied ? 'Copied' : 'Copy link'}
             </Button>
             <Button
+              type="button"
               variant="outline"
               onClick={handleDownload}
-              className="flex-1"
+              className="min-h-11 flex-1 sm:min-h-9"
               disabled={!qrDataUrl}
             >
-              <Download className="size-3.5 mr-2" />
-              Download PNG
+              <Download /> Download PNG
             </Button>
           </div>
+          <p className="sr-only" role="status" aria-live="polite">
+            {copied ? 'Portal link copied' : ''}
+          </p>
         </div>
       </DialogContent>
     </Dialog>

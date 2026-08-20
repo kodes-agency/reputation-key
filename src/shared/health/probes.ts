@@ -39,7 +39,12 @@ export function liveProbe(now: () => Date = () => new Date()): LiveProbe {
 }
 
 export function readyProbe(
-  deps: Readonly<{ db: boolean; redis: boolean; migrations: boolean; policy: boolean }>,
+  deps: Readonly<{
+    db: boolean
+    redis: boolean
+    migrations: boolean
+    policy: boolean
+  }>,
   now: () => Date = () => new Date(),
 ): ReadyProbe {
   const ok = deps.db && deps.redis && deps.migrations && deps.policy

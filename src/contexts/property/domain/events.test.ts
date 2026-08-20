@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 
-import { propertyCreated, propertyUpdated, propertyDeleted } from './events'
-import { propertyId, organizationId } from '#/shared/domain/ids'
+import {
+  propertyCreated,
+  propertyDeleted,
+  propertyGoogleBindingChanged,
+  propertyUpdated,
+} from './events'
+import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 
 const PROP_ID = propertyId('prop-1')
 const ORG_ID = organizationId('org-1')
@@ -38,5 +43,31 @@ describe('property events', () => {
       occurredAt: NOW,
     })
     expect(event._tag).toBe('property.deleted')
+  })
+
+  it('emits identifier-only Google binding changes and validates the epoch', () => {
+    const event = propertyGoogleBindingChanged({
+      propertyId: PROP_ID,
+      organizationId: ORG_ID,
+      connectionId: googleConnectionId('connection-1'),
+      sourceEpoch: 2,
+      change: 'relinked',
+      occurredAt: NOW,
+    })
+    expect(event).toMatchObject({
+      _tag: 'property.google_binding.changed',
+      sourceEpoch: 2,
+      correlationId: null,
+    })
+    expect(() =>
+      propertyGoogleBindingChanged({
+        propertyId: PROP_ID,
+        organizationId: ORG_ID,
+        connectionId: googleConnectionId('connection-1'),
+        sourceEpoch: -1,
+        change: 'relinked',
+        occurredAt: NOW,
+      }),
+    ).toThrow('sourceEpoch invalid')
   })
 })

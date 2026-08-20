@@ -8,16 +8,70 @@ export type { GoogleConnectionDto } from './dto/google-connection.dto'
 
 export type { GoogleConnectionStatus, GoogleConnectionVisibility } from '../domain/types'
 
-export type { GbpLocation } from '../domain/types'
-
-export type { GbpImportJob, GbpImportJobStatus } from '../domain/types'
 export type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
   IntegrationGoogleConnectionVisibilityChanged,
-  IntegrationPropertyImportCompleted,
 } from '../domain/events'
 export {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
 } from '../domain/events'
+
+export {
+  GOOGLE_PERFORMANCE_CATALOG_VERSION,
+  GOOGLE_PERFORMANCE_DAILY_METRICS,
+  GOOGLE_PERFORMANCE_EXCLUDED_DAILY_METRICS,
+  GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION,
+  GOOGLE_PROVIDER_ROUTE_KEYS,
+  MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,
+  MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES,
+  isGooglePerformanceDailyMetric,
+} from './google-provider-contract'
+export type {
+  GbpAccount,
+  GbpLocationCandidate,
+  GoogleAccountManagementPort,
+  GoogleBusinessInformationPort,
+  GoogleDailyMetric,
+  GooglePerformanceSourcePort,
+  GooglePerformanceSourceReport,
+  GoogleProviderRouteKey,
+  ProviderPage,
+} from './google-provider-contract'
+
+export {
+  GBP_IMPORT_ITEM_STATUSES,
+  GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION,
+  GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
+  GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT,
+  IMPORT_ITEM_USER_ACTIONS,
+  IMPORT_OUTCOME_CODES,
+  IMPORT_OUTCOME_PRESENTATION,
+  IMPORT_PARENT_STATUSES,
+  PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
+  getImportOutcomePresentation,
+} from './google-import-v2-contract'
+export type {
+  ConfirmedCreatePropertyProfileInput,
+  ConfirmedRelinkProfileInput,
+  GbpImportItemStatus,
+  GooglePropertyImportItemJobId,
+  ImportAccountDto,
+  ImportAccountPageDto,
+  ImportCandidateDto,
+  ImportCandidateEligibility,
+  ImportCandidatePageDto,
+  ImportItemUserAction,
+  ImportOutcomeCode,
+  ImportOutcomePresentation,
+  ImportParentStatus,
+  ImportProgressDto,
+  ImportProgressItemDto,
+  ImportReducerClass,
+  IntegrationPropertyImportRequestedV1,
+  IntegrationPropertyImportRetentionReleasedV1,
+  RelinkPropertyProfileDto,
+  StartPropertyImportInput,
+  StartPropertyImportItemInput,
+} from './google-import-v2-contract'

@@ -1,12 +1,10 @@
 // Dashboard context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the dashboard context.
-//
-// Facade ports per ADR-0007: dashboard never queries review/reply/metric
-// tables directly — BQC-5.5: review-content reads cross the review-owned
-// governed serving interface (wired by composition); the build constructs
-// only the remaining direct-read SQL adapters (metric/inbox/goal tables)
-// itself and the dashboard repo only composes.
+// Review-detail reads cross the review-owned governed serving interface.
+// Fleet overview uses a dashboard-owned bulk projection because the per-property
+// serving facade would create an O(N) fan-out; that projection repeats the same
+// tenant and source-eligibility predicates in one bounded statement.
 
 import type { Database } from '#/shared/db'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -15,6 +13,7 @@ import { createDashboardRepository } from './infrastructure/repositories/dashboa
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
 import { createPortalMetricsAdapter } from './infrastructure/adapters/portal-metrics.adapter'
 import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
+import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
 import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
 import { getDashboardData } from './application/use-cases/get-dashboard-data'
 import { getPortalAnalytics } from './application/use-cases/get-portal-analytics'
@@ -65,6 +64,7 @@ export const buildDashboardContext = (
   const metricStats = createMetricStatsAdapter(input.db)
   const portalMetrics = createPortalMetricsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
+  const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
   const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
 
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
@@ -93,8 +93,13 @@ export const buildDashboardContext = (
   })
 
   const getFleet = getFleetOverview({
-    repo: dashboardRepo,
-    signals: attentionSignals,
+    projection: fleetOverviewProjection,
+    resolveAccessiblePropertyIds: (organizationId, scope) =>
+      input.staffPublicApi.getAccessiblePropertyIds(
+        organizationId,
+        scope.userId,
+        scope.organizationWide,
+      ),
     clock: input.clock,
   })
 

@@ -29,7 +29,11 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({ actor: ctx, action: 'badge.read' })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'badge.read',
+            propertyId: data.propertyId,
+          })
           return (await getContainer().badgePublicApi.getStaffVisibleBadges({
             organizationId: toOrgId(ctx.organizationId),
             userId: ctx.userId,
@@ -53,7 +57,11 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
         try {
           const headers = await headersFromContext()
           const ctx = await resolveTenantContext(headers)
-          await requireExecutionAllowed({ actor: ctx, action: 'badge.read' })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'badge.read',
+            propertyId: data.propertyId,
+          })
           // Role-Filtered Badge Visibility (root CONTEXT.md):
           // AccountAdmin sees the whole org; PropertyManager must manage the
           // target property; Staff may only view an assigned portal or a group

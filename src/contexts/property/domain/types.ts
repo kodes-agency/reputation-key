@@ -13,8 +13,19 @@ export type Property = Readonly<{
   name: string
   slug: string
   timezone: string
-  gbpPlaceId: string | null
+  address: string | null
+  gbpLocationId: string | null
+  gbpAccountId: string | null
   googleConnectionId: GoogleConnectionId | null
+  profileVersion: number
+  googleBindingState:
+    | 'unbound'
+    | 'account_confirmation_required'
+    | 'active'
+    | 'disconnected'
+  profileSource: 'legacy' | 'tenant_confirmed'
+  profileConfirmedAt: Date | null
+  profileConfirmedBy: string | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
@@ -58,6 +69,24 @@ export const DEFAULT_PROPERTY_ROUTING = {
   | 'routingPolicyVersion'
   | 'processingRegionResolvedAt'
   | 'sourceEpoch'
+>
+export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
+  address: null,
+  gbpAccountId: null,
+  profileVersion: 1,
+  googleBindingState: 'unbound',
+  profileSource: 'legacy',
+  profileConfirmedAt: null,
+  profileConfirmedBy: null,
+} as const satisfies Pick<
+  Property,
+  | 'address'
+  | 'gbpAccountId'
+  | 'profileVersion'
+  | 'googleBindingState'
+  | 'profileSource'
+  | 'profileConfirmedAt'
+  | 'profileConfirmedBy'
 >
 
 /** Re-export PropertyId from shared for convenience */

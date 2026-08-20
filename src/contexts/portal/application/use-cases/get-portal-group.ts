@@ -3,6 +3,7 @@
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
+import type { PortalId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
@@ -17,7 +18,10 @@ export type GetPortalGroupDeps = Readonly<{
 
 export const getPortalGroup =
   (deps: GetPortalGroupDeps) =>
-  async (input: { portalGroupId: string }, ctx: AuthContext): Promise<PortalGroup> => {
+  async (
+    input: { portalGroupId: string },
+    ctx: AuthContext,
+  ): Promise<PortalGroup & Readonly<{ portalIds: ReadonlyArray<PortalId> }>> => {
     if (!canForContext(ctx, 'portal.read')) {
       throw portalError('forbidden', 'No portal read permission')
     }
@@ -29,7 +33,13 @@ export const getPortalGroup =
     }
     // D6-001: verify caller's staff_assignment includes this group's property
     await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.read', group.propertyId)
-    return group
+    return {
+      ...group,
+      portalIds: await deps.portalGroupRepo.getGroupPortalIds(
+        ctx.organizationId,
+        group.id,
+      ),
+    }
   }
 
 export type GetPortalGroup = ReturnType<typeof getPortalGroup>

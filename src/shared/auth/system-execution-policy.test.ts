@@ -24,6 +24,7 @@ import {
   initCapabilityPolicyStore,
   resetCapabilityPolicyStore,
 } from './beta-capabilities'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 
 afterEach(() => {
   resetCapabilityPolicyStore()
@@ -36,9 +37,10 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       initCapabilityPolicyStore(createEnvCapabilityPolicyStore(fixture.env))
 
       const refreshPolicy = vi.fn(async () => {})
+      const hasActiveConsent = vi.fn(async () => false)
       const deps: DelayedPolicyDeps = {
         refreshPolicy,
-        hasActiveConsent: async () => false,
+        hasActiveConsent,
       }
       const policy = createDelayedExecutionPolicy(deps)
       const decision = await policy.decide({
@@ -50,6 +52,13 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       if (fixture.expect.reason) expect(decision.reason).toBe(fixture.expect.reason)
       expect(decision.freshRead).toBe(fixture.expect.freshRead)
       expect(refreshPolicy).toHaveBeenCalledTimes(fixture.expect.freshRead ? 1 : 0)
+      if (fixture.request.consent) {
+        expect(hasActiveConsent).toHaveBeenCalledWith({
+          organizationId: fixture.request.organizationId,
+          ...fixture.request.consent,
+          at: new Date('2026-07-17T12:00:00Z'),
+        })
+      }
       // stale_context annotates — the fresh decision itself is never overridden.
       if (fixture.expect.outcome === 'stale_context') {
         expect(decision.allowed).toBe(true)
@@ -77,6 +86,63 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(decision.outcome).toBe('deny')
     expect(decision.reason).toBe('policy_unavailable')
     expect(decision.allowed).toBe(false)
+  })
+
+  it('denies an enqueue capability that disagrees with the catalogue', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+
+    const decision = await policy.decide({
+      principal: { kind: 'system', id: 'worker:default' },
+      action: 'system:metric.refresh',
+      organizationId: 'org-fixture',
+      executionKind: 'worker',
+      capabilityAtEnqueue: 'goal.use',
+      now: new Date(),
+    })
+
+    expect(decision).toMatchObject({
+      allowed: false,
+      outcome: 'deny',
+      reason: 'capability_mismatch',
+    })
+  })
+
+  it('allows an ungated tenant-cross schedule to enumerate targets', async () => {
+    initCapabilityPolicyStore(createEnvCapabilityPolicyStore({}))
+    const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
+
+    const decision = await policy.decide({
+      principal: { kind: 'system', id: 'schedule:metrics' },
+      action: 'system:metric.refresh',
+      organizationId: 'tenant-cross',
+      executionKind: 'schedule',
+      now: new Date(),
+    })
+
+    expect(decision).toMatchObject({
+      allowed: true,
+      outcome: 'allow',
+      reason: 'allowed',
+    })
+  })
+
+  it('never aliases one delayed action to different capabilities', () => {
+    const capabilitiesByAction = new Map<string, Set<string>>()
+    for (const row of ENTRY_POINT_CATALOGUE) {
+      if (!['job', 'consumer', 'schedule'].includes(row.kind)) continue
+      const capabilities = capabilitiesByAction.get(row.action) ?? new Set<string>()
+      if (row.capability !== 'none') capabilities.add(row.capability)
+      capabilitiesByAction.set(row.action, capabilities)
+    }
+
+    const conflicts = [...capabilitiesByAction]
+      .filter(([, capabilities]) => capabilities.size > 1)
+      .map(
+        ([action, capabilities]) => `${action}: ${[...capabilities].sort().join(', ')}`,
+      )
+
+    expect(conflicts).toEqual([])
   })
 
   it('catalogue-derived contract data: capability, fresh read, scope per action', () => {

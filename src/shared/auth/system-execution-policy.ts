@@ -29,7 +29,11 @@ import {
   type Capability,
   type CapabilityDenyReason,
 } from './beta-capabilities'
-import { EXECUTION_POLICY_VERSION, type DecisionAuditEntry } from './execution-policy'
+import {
+  EXECUTION_POLICY_VERSION,
+  type ConsentSelector,
+  type DecisionAuditEntry,
+} from './execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -49,6 +53,9 @@ for (const r of DELAYED_ROWS) {
 }
 const PROPERTY_SCOPED_ACTIONS: Set<string> = new Set(
   DELAYED_ROWS.filter((r) => r.resourceScope === 'property').map((r) => r.action),
+)
+const TENANT_CROSS_ACTIONS: ReadonlySet<string> = new Set(
+  DELAYED_ROWS.filter((r) => r.resourceScope === 'tenant_cross').map((r) => r.action),
 )
 const FRESH_READ_ACTIONS: Set<string> = new Set(
   DELAYED_ROWS.filter((r) => r.externalEffect).map((r) => r.action),
@@ -73,10 +80,12 @@ export type DelayedDecisionRequest = Readonly<{
   action: string
   organizationId: string
   propertyId?: string
+  /** Capability recorded by the producer; must match the catalogue when present. */
+  capabilityAtEnqueue?: Capability | 'none'
   executionKind: 'worker' | 'consumer' | 'schedule'
   /** Who enqueued the work, when relevant (user or system). */
   initiator?: Readonly<{ kind: 'user' | 'system'; id: string }>
-  purpose?: string
+  consent?: ConsentSelector
   /** Policy version recorded at enqueue — stale-context detection only. */
   policyVersionAtEnqueue?: string
   correlationId?: string
@@ -88,6 +97,7 @@ export type DelayedDenyReason =
   | 'missing_scope'
   | 'consent_required'
   | 'policy_unavailable'
+  | 'capability_mismatch'
   | 'unknown_action'
 
 export type DelayedDecision = Readonly<{
@@ -110,13 +120,12 @@ export type DelayedPolicyDeps = Readonly<{
   /** Version-gated strong read (container.refreshPolicyStore). */
   refreshPolicy: () => Promise<void>
   hasActiveConsent?: (
-    input: Readonly<{
-      organizationId: string
-      subjectType: string
-      subjectId: string
-      purpose: string
-      at: Date
-    }>,
+    input: Readonly<
+      ConsentSelector & {
+        organizationId: string
+        at: Date
+      }
+    >,
   ) => Promise<boolean>
   writeDecisionAudit?: (entry: DecisionAuditEntry) => Promise<void>
   onAuditError?: (err: unknown) => void
@@ -194,8 +203,27 @@ export function createDelayedExecutionPolicy(
         return finish(request, 'none', false, 'missing_scope', freshRead)
       }
 
-      // Rule 5: capability + suspension re-check against CURRENT policy.
       const capability = capabilityForSystemAction(request.action)
+      if (
+        request.capabilityAtEnqueue !== undefined &&
+        request.capabilityAtEnqueue !== capability
+      ) {
+        return finish(request, capability, false, 'capability_mismatch', freshRead)
+      }
+
+      // A tenant-cross schedule is only the enumeration boundary. It may
+      // inspect identifiers across tenants, but every candidate must be
+      // authorized again with its real organization/property before work.
+      // Worker/consumer invocations never receive this exception.
+      if (
+        request.executionKind === 'schedule' &&
+        request.organizationId === 'tenant-cross' &&
+        TENANT_CROSS_ACTIONS.has(request.action)
+      ) {
+        return finish(request, capability, true, 'allowed', freshRead)
+      }
+
+      // Rule 5: capability + suspension re-check against CURRENT policy.
       if (capability !== 'none') {
         const systemCtx: AuthContext = {
           userId: userId(request.principal.id),
@@ -208,17 +236,25 @@ export function createDelayedExecutionPolicy(
         }
       }
 
-      // Purpose/consent re-check (org-level subject, as interactive).
-      if (request.purpose) {
-        const consented = deps.hasActiveConsent
-          ? await deps.hasActiveConsent({
-              organizationId: request.organizationId,
-              subjectType: 'organization',
-              subjectId: request.organizationId,
-              purpose: request.purpose,
-              at: request.now,
-            })
-          : false
+      // Explicit consent subject is forwarded from enqueue and rechecked now.
+      if (request.consent) {
+        const subjectMatchesRequest =
+          (request.consent.subjectType === 'organization' &&
+            request.consent.subjectId === request.organizationId) ||
+          (request.consent.subjectType === 'property' &&
+            request.propertyId !== undefined &&
+            request.consent.subjectId === request.propertyId) ||
+          (request.consent.subjectType === 'user' &&
+            request.initiator?.kind === 'user' &&
+            request.consent.subjectId === request.initiator.id)
+        const consented =
+          subjectMatchesRequest && deps.hasActiveConsent
+            ? await deps.hasActiveConsent({
+                organizationId: request.organizationId,
+                ...request.consent,
+                at: request.now,
+              })
+            : false
         if (!consented) {
           return finish(request, capability, false, 'consent_required', freshRead)
         }

@@ -1,12 +1,10 @@
-// Integration context — disconnect Google account use case
-// Steps: authorize → find connection → unsubscribe/revoke → atomic disconnect
-// (status + redaction + fact) → purge cache → purge source content (BQC-1.7)
+// Integration context — authorize, fence, revoke, atomically disconnect, and
+// purge connection-owned source content.
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
 import type { GoogleOAuthPort } from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
-import type { GbpCacheRepository } from '../ports/gbp-cache.repository'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { DisconnectGoogleInput } from '../dto/disconnect-google.dto'
@@ -22,7 +20,6 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
   oauth: GoogleOAuthPort
   encryption: TokenEncryptionPort
-  cacheRepo: GbpCacheRepository
   commandStore: IntegrationCommandStore
   clock: () => Date
   logger: LoggerPort
@@ -39,6 +36,11 @@ export type DisconnectGoogleAccountDeps = Readonly<{
    * Optional until wired in composition (kept out of older test fixtures).
    */
   sourceContentPurge?: SourceContentPurge
+  /** Fail-closed import lifecycle fence before provider or connection mutation. */
+  cancelGoogleImportsForConnection?: (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ) => Promise<void>
 }>
 
 export const disconnectGoogleAccount =
@@ -67,6 +69,8 @@ export const disconnectGoogleAccount =
       return connection
     }
 
+    await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
+
     // GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid).
     if (deps.unsubscribeFromNotifications) {
       try {
@@ -89,13 +93,9 @@ export const disconnectGoogleAccount =
       )
     }
 
-    // 4. Atomic disconnect: status → disconnected + identifier/secret redaction
-    //    + the durable disconnected fact in ONE transaction (BQC-3.5). The
-    //    cache purge (step 5) and the source-content retention purge (step 6)
-    //    stay OUTSIDE the transaction: they are idempotent cross-system
-    //    cleanup, and the committed status + redaction + fact are the
-    //    recovery record for them. (The review-side purge command remains a
-    //    noted gap for later.)
+    // 4. Atomic disconnect: status, identifier/secret redaction, and the
+    // durable disconnected fact commit in one transaction. Source-content
+    // purge remains an idempotent cross-context cleanup after the commit.
     const updated = await deps.commandStore.disconnectGoogleAccount({
       organizationId: ctx.organizationId,
       connectionId,
@@ -106,13 +106,7 @@ export const disconnectGoogleAccount =
       }),
     })
 
-    // 5. Purge cache
-    await deps.cacheRepo.deleteByConnectionId(connectionId, ctx.organizationId)
-
-    // 6. BQC-1.7: bounded lifecycle purge of source content for this
-    // connection — reviews (and replies via per-batch FK cascade), with
-    // content-free evidence. Without a valid grant, refresh is impossible;
-    // keeping the content would be an unmanaged copy (ADR 0031).
+    // 5. Purge source content owned under this connection.
     if (deps.sourceContentPurge) {
       await deps.sourceContentPurge.forConnection(ctx.organizationId, input.connectionId)
     }

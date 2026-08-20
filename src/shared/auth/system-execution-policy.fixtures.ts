@@ -68,7 +68,7 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'deny', reason: 'capability_disabled', freshRead: true },
   },
   {
-    name: 'deny — blocked capability (email) never executes',
+    name: 'deny — controlled email is not allowlisted',
     env: {},
     request: {
       ...BASE,
@@ -78,7 +78,7 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       executionKind: 'schedule',
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
-    expect: { outcome: 'deny', reason: 'capability_blocked', freshRead: true },
+    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: true },
   },
   {
     name: 'deny — consent required and missing',
@@ -88,7 +88,19 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       principal: { kind: 'system', id: 'worker:default' },
       action: 'system:review.sync',
       propertyId: 'd4000000-0000-4000-8000-000000000051',
-      purpose: 'ai.analyze',
+      consent: {
+        subjectType: 'property',
+        subjectId: 'd4000000-0000-4000-8000-000000000051',
+        purpose: 'ai.analyze',
+        expectedFence: {
+          authorizationLineageId: 'a4000000-0000-4000-8000-000000000001',
+          capabilityEpoch: 4,
+          authorizedSourceEpoch: 2,
+          stateVersion: 6,
+          noticeDigest: 'a'.repeat(64),
+          runtimeProfileVersion: 'review-analysis-runtime-v1',
+        },
+      },
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },
     expect: { outcome: 'deny', reason: 'consent_required', freshRead: true },
@@ -127,30 +139,6 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
       policyVersionAtEnqueue: 'bqc-0.3',
     },
     expect: { outcome: 'stale_context', reason: 'allowed', freshRead: true },
-  },
-  {
-    name: 'deny — dark job (goal reconcile) never executes while goal.use is dark',
-    env: {},
-    request: {
-      ...BASE,
-      principal: { kind: 'system', id: 'schedule:goal-reconcile' },
-      action: 'system:goal.reconcile',
-      executionKind: 'schedule',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-    },
-    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: false },
-  },
-  {
-    name: 'deny — dark job (badge reconcile) never executes while badge.use is dark',
-    env: {},
-    request: {
-      ...BASE,
-      principal: { kind: 'system', id: 'schedule:badge-reconcile' },
-      action: 'system:badge.reconcile',
-      executionKind: 'schedule',
-      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
-    },
-    expect: { outcome: 'deny', reason: 'org_not_allowlisted', freshRead: false },
   },
   {
     name: 'deny — consumer with missing scope (inbox update without org)',

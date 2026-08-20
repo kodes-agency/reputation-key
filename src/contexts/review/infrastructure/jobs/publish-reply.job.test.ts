@@ -19,6 +19,11 @@
 //     (markPublished throws → retry re-claims 'sending' → upsert-idempotent
 //     second send → published exactly once).
 
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import { createPublishReplyHandler } from './publish-reply.job'
 
@@ -49,6 +54,7 @@ const approvedReply = {
   rejectedBy: null,
   rejectionReason: null,
   aiGenerated: false,
+  stateRevision: 1,
   submittedAt: NOW,
   approvedAt: NOW,
   publishedAt: null,
@@ -65,8 +71,8 @@ const review = {
   organizationId: 'org-1',
   propertyId: 'prop-1',
   googleConnectionId: 'conn-1',
-  externalLocationId: 'accounts/111/locations/222',
-  externalId: 'ext-1',
+  externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
 }
 
 /** Error shape thrown by the Google review API adapter (integration context). */
@@ -188,7 +194,7 @@ describe('publish-reply job handler', () => {
     expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledWith(
       'org-1',
       'conn-1',
-      'accounts/111/locations/222/reviews/ext-1',
+      GOOGLE_REVIEW_PRIMARY_RESOURCE,
       'Thanks!',
     )
     expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(1)
@@ -446,7 +452,7 @@ describe('publish-reply job handler', () => {
       2,
       'org-1',
       'conn-1',
-      'accounts/111/locations/222/reviews/ext-1',
+      GOOGLE_REVIEW_PRIMARY_RESOURCE,
       'Thanks!',
     )
     expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(2)

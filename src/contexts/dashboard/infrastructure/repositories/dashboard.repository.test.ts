@@ -64,8 +64,13 @@ async function seedReview(
   const expiresAt = new Date(reviewedAt.getTime() + 30 * MS_PER_DAY)
 
   await pool.query(
-    `INSERT INTO reviews (id, organization_id, property_id, platform, external_id, external_location_id, rating, text, reviewed_at, expires_at, content_expires_at)
-     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9, $10)`,
+    `INSERT INTO reviews (
+       id, organization_id, property_id, platform, external_id, external_location_id,
+       rating, text, reviewed_at, expires_at, content_expires_at,
+       source_epoch, source_revision, analysis_sequence,
+       ai_source_byte_length, ai_source_digest
+     )
+     VALUES ($1, $2, $3, 'google', $4, $5, $6, $7, $8, $9, $10, 0, 0, 0, 1, repeat('0', 64))`,
     [
       id,
       orgId,
@@ -552,9 +557,9 @@ describe('dashboardRepository (integration)', () => {
       // Seed portal
       await pool.query(
         `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug)
-         VALUES ($1, $2, $3, 'property', $3, 'Test Portal', 'test-portal')
+         VALUES ($1, $2, $3, 'property', $4, 'Test Portal', 'test-portal')
          ON CONFLICT (id) DO NOTHING`,
-        [PORTAL_A, ORG_A, PROP_A],
+        [PORTAL_A, ORG_A, PROP_A, PROP_A],
       )
 
       // Seed metric readings for the portal

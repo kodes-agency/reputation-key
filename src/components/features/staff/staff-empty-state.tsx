@@ -5,7 +5,7 @@ export function StaffEmptyState() {
   return (
     <EmptyState
       icon={Building2}
-      title="Your manager hasn't assigned you to any portals yet."
+      title="You don't have an active portal responsibility at this property."
     />
   )
 }

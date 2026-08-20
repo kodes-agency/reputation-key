@@ -166,6 +166,26 @@ describe('buildScaleEvidence', () => {
     expect(built.markdown).toContain('30 jobs still waiting')
   })
 
+  it('renders measured fault rows and leaves only unexecuted fault paths unclaimed', () => {
+    const fault = runRecord({
+      scenario: 'redisUnavailable',
+      metrics: { backlogBeforeRecovery: 100, backlogAfterRecovery: 0 },
+      assertions: [{ check: 'relay drained after Redis recovery', passed: true }],
+    })
+    const built = buildScaleEvidence({
+      results: [runRecord(), fault],
+      rawFiles: ['redisUnavailable.result.json', 'redisUnavailable.raw.json'],
+      identity: IDENTITY,
+    })
+
+    expect(built.executed).toContainEqual({ key: 'redisUnavailable', passed: true })
+    expect(built.faultsNotExecuted).toHaveLength(11)
+    expect(built.markdown).toMatch(
+      /\| `redisUnavailable` \| Redis unavailable \|.*\| PASS/,
+    )
+    expect(built.markdown).not.toContain('Fault executors land with BQC-8.4')
+  })
+
   it('throws on an unknown scenario result (no silent extra rows)', () => {
     expect(() =>
       buildScaleEvidence({

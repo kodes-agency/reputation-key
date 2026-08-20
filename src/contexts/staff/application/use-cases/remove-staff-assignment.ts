@@ -24,7 +24,7 @@ export const removeStaffAssignment =
   (deps: RemoveStaffAssignmentDeps) =>
   async (input: RemoveStaffAssignmentInput, ctx: AuthContext): Promise<void> => {
     // 1. Authorize
-    if (!canForContext(ctx, 'staff_assignment.delete')) {
+    if (!canForContext(ctx, 'staff.manage')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 

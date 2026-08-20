@@ -1,10 +1,14 @@
 // Property context — row ↔ domain mapper tests
 // Verifies propertyFromRow and propertyToRow round-trip correctly,
-// including nullable fields (gbpPlaceId, deletedAt) and branded ID casts.
+// including nullable provider-binding fields, deletion state, and branded ID casts.
 
 import { describe, it, expect } from 'vitest'
 import { propertyFromRow, propertyToRow } from './property.mapper'
-import { DEFAULT_PROPERTY_ROUTING, type Property } from '../../domain/types'
+import {
+  DEFAULT_PROPERTY_GOOGLE_PROFILE,
+  DEFAULT_PROPERTY_ROUTING,
+  type Property,
+} from '../../domain/types'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -15,8 +19,15 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   name: 'Sunset Apartments',
   slug: 'sunset-apartments',
   timezone: 'America/Los_Angeles',
-  gbpPlaceId: 'ChIJ123',
   googleConnectionId: null,
+  address: null,
+  gbpAccountId: null,
+  gbpLocationId: 'ChIJ123',
+  profileVersion: 1,
+  googleBindingState: 'unbound',
+  profileSource: 'legacy',
+  profileConfirmedAt: null,
+  profileConfirmedBy: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -43,7 +54,7 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   name: 'Sunset Apartments',
   slug: 'sunset-apartments',
   timezone: 'America/Los_Angeles',
-  gbpPlaceId: 'ChIJ123',
+  gbpLocationId: 'ChIJ123',
   googleConnectionId: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
@@ -53,6 +64,7 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   lifecycleStateChangedAt: null,
   purgeScheduledFor: null,
   lifecycleInitiatedBy: null,
+  ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
   ...DEFAULT_PROPERTY_ROUTING,
   ...overrides,
 })
@@ -67,18 +79,18 @@ describe('propertyFromRow', () => {
     expect(property.name).toBe('Sunset Apartments')
     expect(property.slug).toBe('sunset-apartments')
     expect(property.timezone).toBe('America/Los_Angeles')
-    expect(property.gbpPlaceId).toBe('ChIJ123')
+    expect(property.gbpLocationId).toBe('ChIJ123')
     expect(property.createdAt).toBe(FIXED_TIME)
     expect(property.updatedAt).toBe(FIXED_TIME)
     expect(property.deletedAt).toBeNull()
     expect(property.lifecycleState).toBe('active')
   })
 
-  it('maps null gbpPlaceId correctly', () => {
-    const row = makePropertyRow({ gbpPlaceId: null })
+  it('maps a null canonical location ID correctly', () => {
+    const row = makePropertyRow({ gbpLocationId: null })
     const property = propertyFromRow(row)
 
-    expect(property.gbpPlaceId).toBeNull()
+    expect(property.gbpLocationId).toBeNull()
   })
 
   it('maps deletedAt date when present', () => {
@@ -107,15 +119,15 @@ describe('propertyToRow', () => {
     expect(row.name).toBe('Sunset Apartments')
     expect(row.slug).toBe('sunset-apartments')
     expect(row.timezone).toBe('America/Los_Angeles')
-    expect(row.gbpPlaceId).toBe('ChIJ123')
+    expect(row.gbpLocationId).toBe('ChIJ123')
     expect(row.lifecycleState).toBe('active')
   })
 
-  it('maps null gbpPlaceId to row', () => {
-    const property = makeProperty({ gbpPlaceId: null })
+  it('maps a null canonical location ID to both compatibility columns', () => {
+    const property = makeProperty({ gbpLocationId: null })
     const row = propertyToRow(property)
 
-    expect(row.gbpPlaceId).toBeNull()
+    expect(row.gbpLocationId).toBeNull()
   })
 })
 
@@ -130,7 +142,7 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.name).toBe(original.name)
     expect(restored.slug).toBe(original.slug)
     expect(restored.timezone).toBe(original.timezone)
-    expect(restored.gbpPlaceId).toBe(original.gbpPlaceId)
+    expect(restored.gbpLocationId).toBe(original.gbpLocationId)
     expect(restored.createdAt).toBe(original.createdAt)
     expect(restored.updatedAt).toBe(original.updatedAt)
     expect(restored.deletedAt).toBe(original.deletedAt)

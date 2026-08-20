@@ -1,45 +1,60 @@
+import { Crown } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { TableCell, TableRow } from '#/components/ui/table'
-import type { AssignmentInTeam } from '#/components/features/team/shared/types'
+import type { TeamMembershipView } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
-  assignment: AssignmentInTeam
-  memberName: string
-  memberEmail: string
-  isLead: boolean
-  onRemove: () => void
+  membership: TeamMembershipView
+  canRemove: boolean
+  onRemove?: () => void
   isRemoving: boolean
 }>
 
-export function MemberTableRow({
-  assignment,
-  memberName,
-  memberEmail,
-  isLead,
-  onRemove,
-  isRemoving,
-}: Props) {
+export function MemberTableRow({ membership, canRemove, onRemove, isRemoving }: Props) {
   return (
-    <TableRow key={assignment.id}>
+    <TableRow>
       <TableCell className="font-medium">
-        {memberName}
-        {isLead && (
-          <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-link">
-            Lead
+        <span className="flex min-w-40 items-center gap-2">
+          {membership.displayName}
+          {membership.role === 'lead' && (
+            <Badge variant="secondary">
+              <Crown className="size-3" aria-hidden="true" />
+              Lead
+            </Badge>
+          )}
+        </span>
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        {new Date(membership.effectiveFrom).toLocaleDateString()} –{' '}
+        {membership.effectiveTo
+          ? new Date(membership.effectiveTo).toLocaleDateString()
+          : 'Present'}
+      </TableCell>
+      <TableCell className="text-right">
+        {canRemove &&
+        onRemove &&
+        membership.effectiveTo == null &&
+        membership.role !== 'lead' ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            disabled={isRemoving}
+            className="text-muted-foreground hover:text-destructive"
+            aria-label={`Remove ${membership.displayName} from team`}
+          >
+            {isRemoving ? 'Removing…' : 'Remove'}
+          </Button>
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            {membership.effectiveTo
+              ? 'Ended'
+              : membership.role === 'lead'
+                ? 'Manager changes lead'
+                : 'View only'}
           </span>
         )}
-      </TableCell>
-      <TableCell className="text-muted-foreground">{memberEmail ?? '—'}</TableCell>
-      <TableCell className="text-right">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRemove}
-          disabled={isRemoving}
-          className="text-muted-foreground hover:text-destructive"
-        >
-          Remove
-        </Button>
       </TableCell>
     </TableRow>
   )

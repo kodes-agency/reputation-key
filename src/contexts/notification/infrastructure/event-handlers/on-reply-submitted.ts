@@ -42,6 +42,7 @@ export const onReplySubmitted =
     const jobs: InsertNotificationJobData[] = recipients.map((userId) => ({
       userId,
       organizationId: event.organizationId,
+      propertyId: event.propertyId,
       type: 'reply.pending_approval' as const,
       resourceType: 'inbox_item' as const,
       resourceId: inboxItemId,

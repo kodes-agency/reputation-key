@@ -19,11 +19,14 @@ export const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with(
-      'assignment_not_found',
+      'participation_not_found',
       'property_not_found',
       'team_not_found',
+      'assignment_not_found',
+      'user_not_member',
       () => HTTP_STATUS.NOT_FOUND,
     )
+    .with('participation_archived', 'responsibility_conflict', () => HTTP_STATUS.CONFLICT)
     .with('already_assigned', () => HTTP_STATUS.CONFLICT)
     .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()

@@ -1,0 +1,1 @@
+ALTER TABLE "legacy_import_effect_leases" ADD CONSTRAINT "legacy_import_effect_leases_control_fk" FOREIGN KEY ("environment") REFERENCES "public"."legacy_import_control"("environment") ON DELETE restrict ON UPDATE no action;

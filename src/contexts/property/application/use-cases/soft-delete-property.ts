@@ -5,9 +5,9 @@ import type { PropertyCommandStore } from '../ports/property-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
+import { propertyId as toPropertyId, type OrganizationId } from '#/shared/domain/ids'
 import { propertyError } from '../../domain/errors'
-import { propertyDeleted } from '../../domain/events'
+import { propertyDeleted, propertyGoogleBindingChanged } from '../../domain/events'
 
 export type DeletePropertyDeps = Readonly<{
   propertyRepo: PropertyRepository
@@ -15,6 +15,18 @@ export type DeletePropertyDeps = Readonly<{
   clock: () => Date
   /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete. */
   sourceContentPurge?: SourceContentPurge
+  /**
+   * Fence all import rows before the Property mutation. The returned IDs are
+   * identifier-only input for post-delete receipt reconciliation.
+   */
+  prepareGoogleImportDeletion?: (
+    organizationId: OrganizationId,
+    propertyId: string,
+  ) => Promise<Readonly<{ itemIds: ReadonlyArray<string> }>>
+  finalizeGoogleImportDeletion?: (
+    organizationId: OrganizationId,
+    itemIds: ReadonlyArray<string>,
+  ) => Promise<void>
 }>
 
 export type DeletePropertyInput = Readonly<{
@@ -36,30 +48,53 @@ export const deleteProperty =
       throw propertyError('property_not_found', 'property not found in this organization')
     }
 
+    const importDeletion = await deps.prepareGoogleImportDeletion?.(
+      ctx.organizationId,
+      propertyId,
+    )
+
     // 3. BQC-1.7: bounded lifecycle purge first — reviews (+ replies via
     // per-batch FK cascade) and inbox rows are deleted in bounded, evidenced
-    // batches instead of one unbounded cascade. gbp_cache dies with the
-    // property row via its FK below. The purge is the retention machinery and
-    // stays OUTSIDE the delete transaction: purge → (delete + fact) is a
-    // noted remaining non-atomicity (a crash between them leaves purged
-    // content with a live property; re-running the delete converges).
+    // batches instead of one unbounded cascade. The purge is the retention
+    // machinery and stays OUTSIDE the delete transaction: purge → (delete +
+    // fact) is a noted remaining non-atomicity (a crash between them leaves
+    // purged content with a live property; re-running the delete converges).
     if (deps.sourceContentPurge) {
       await deps.sourceContentPurge.inboxForProperty(ctx.organizationId, propertyId)
       await deps.sourceContentPurge.forProperty(ctx.organizationId, propertyId)
     }
 
     // 4. Hard delete + fact — atomic via the command store (BQC-3.5);
-    // cascades to gbp_cache (FK); reviews/replies/inbox rows are already
-    // gone via the bounded purge above.
+    // reviews/replies/inbox rows are already gone via the bounded purge above.
+    const now = deps.clock()
     await deps.commandStore.deleteProperty({
       organizationId: ctx.organizationId,
       propertyId,
+      expectedSourceEpoch: existing.sourceEpoch,
+      expectedProfileVersion: existing.profileVersion,
       event: propertyDeleted({
         propertyId,
         organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
+        occurredAt: now,
       }),
+      bindingEvent: existing.googleConnectionId
+        ? propertyGoogleBindingChanged({
+            organizationId: ctx.organizationId,
+            propertyId,
+            connectionId: existing.googleConnectionId,
+            sourceEpoch: existing.sourceEpoch + 1,
+            change: 'deletion_started',
+            occurredAt: now,
+          })
+        : undefined,
     })
+
+    if (importDeletion) {
+      await deps.finalizeGoogleImportDeletion?.(
+        ctx.organizationId,
+        importDeletion.itemIds,
+      )
+    }
   }
 
 export type DeletePropertyUseCase = ReturnType<typeof deleteProperty>

@@ -15,7 +15,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { Property } from '../../domain/types'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
 import { propertyCreated, propertyDeleted, propertyUpdated } from '../../domain/events'
 import { isPropertyError } from '../../domain/errors'
 import { createAtomicPropertyCommandStore } from '../property-command-store'
@@ -40,8 +40,9 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     name: 'Grand Hotel',
     slug: 'propcmd-grand-hotel',
     timezone: 'UTC',
-    gbpPlaceId: null,
+    gbpLocationId: null,
     googleConnectionId: null,
+    ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null,
@@ -195,6 +196,8 @@ describe.sequential('propertyCommandStore (integration)', () => {
     await store.updateProperty({
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      expectedSourceEpoch: 0,
+      expectedProfileVersion: 1,
       patch: { name: 'Renamed Hotel', slug: 'propcmd-renamed', updatedAt: NOW },
       event,
     })
@@ -230,7 +233,13 @@ describe.sequential('propertyCommandStore (integration)', () => {
       organizationId: ORG_ID,
       occurredAt: NOW,
     })
-    await store.deleteProperty({ organizationId: ORG_ID, propertyId: PROP_ID, event })
+    await store.deleteProperty({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      expectedSourceEpoch: 0,
+      expectedProfileVersion: 1,
+      event,
+    })
 
     const rows = await pool.query('SELECT id FROM properties WHERE id = $1', [PROP_ID])
     expect(rows.rows).toHaveLength(0)

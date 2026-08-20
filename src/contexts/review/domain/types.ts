@@ -39,6 +39,13 @@ export type Review = Readonly<{
   reviewerProfilePhotoUrl: string | null
   rating: StarRating
   text: string | null
+  /**
+   * Google's machine translation of `text`, split out of the single
+   * `(Translated by Google) … (Original) …` provider field. `text` always holds
+   * the guest's own words so language detection and the AI reply plane read the
+   * original; this field exists only for display.
+   */
+  translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
   expiresAt: Date
@@ -52,6 +59,16 @@ export type Review = Readonly<{
   contentExpiresAt: Date | null
   contentHash: string | null
   sourceSeenGeneration: string | null
+  /** Property binding generation captured for this source observation. */
+  sourceEpoch: number
+  /** Monotonic content revision; unchanged refreshes preserve it. */
+  sourceRevision: number
+  /** Gap-free source event sequence within the Property/source epoch. */
+  analysisSequence: number
+  /** Exact canonical ai-source-v1 byte length retained only in Review storage. */
+  aiSourceByteLength: number
+  /** Lowercase SHA-256 over the domain-separated canonical source bytes. */
+  aiSourceDigest: string
   createdAt: Date
   updatedAt: Date
 }>
@@ -77,6 +94,8 @@ export type Reply = Readonly<{
   rejectedBy: UserId | null
   rejectionReason: string | null
   aiGenerated: boolean
+  /** Monotonic lifecycle revision used to bind ephemeral AI suggestions. */
+  stateRevision: number
   submittedAt: Date | null
   approvedAt: Date | null
   publishedAt: Date | null
@@ -106,6 +125,12 @@ export function defaultReviewLifecycle(args: {
   now: Date
   /** Hash of current normalized source fields; required on production write paths. */
   contentHash?: string | null
+  /** Current property binding generation. */
+  sourceEpoch?: number
+  /** Exact canonical source byte length computed by the infrastructure boundary. */
+  aiSourceByteLength: number
+  /** Domain-separated lowercase SHA-256 computed by the infrastructure boundary. */
+  aiSourceDigest: string
   existing?: Pick<
     Review,
     | 'sourceCreatedAt'
@@ -115,6 +140,11 @@ export function defaultReviewLifecycle(args: {
     | 'contentExpiresAt'
     | 'contentHash'
     | 'sourceSeenGeneration'
+    | 'sourceEpoch'
+    | 'sourceRevision'
+    | 'analysisSequence'
+    | 'aiSourceByteLength'
+    | 'aiSourceDigest'
   > | null
 }): Pick<
   Review,
@@ -125,9 +155,15 @@ export function defaultReviewLifecycle(args: {
   | 'contentExpiresAt'
   | 'contentHash'
   | 'sourceSeenGeneration'
+  | 'sourceEpoch'
+  | 'sourceRevision'
+  | 'analysisSequence'
+  | 'aiSourceByteLength'
+  | 'aiSourceDigest'
 > {
   const existing = args.existing
   const lastFetchedAt = args.now
+  const aiSourceDigest = args.aiSourceDigest
   return {
     sourceCreatedAt: existing?.sourceCreatedAt ?? args.reviewedAt,
     sourceUpdatedAt: existing?.sourceUpdatedAt ?? null,
@@ -136,6 +172,16 @@ export function defaultReviewLifecycle(args: {
     contentExpiresAt: contentExpiresAtFromFetch(lastFetchedAt),
     contentHash: args.contentHash ?? existing?.contentHash ?? null,
     sourceSeenGeneration: existing?.sourceSeenGeneration ?? null,
+    sourceEpoch: args.sourceEpoch ?? existing?.sourceEpoch ?? 0,
+    sourceRevision:
+      existing == null
+        ? 1
+        : aiSourceDigest !== existing.aiSourceDigest
+          ? existing.sourceRevision + 1
+          : existing.sourceRevision,
+    analysisSequence: existing?.analysisSequence ?? 0,
+    aiSourceByteLength: args.aiSourceByteLength,
+    aiSourceDigest,
   }
 }
 
@@ -148,6 +194,8 @@ export type GoogleReview = Readonly<{
   reviewerProfilePhotoUrl: string | null
   rating: StarRating
   text: string | null
+  /** Google's machine translation; `text` holds the guest's original words. */
+  translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
   replyText: string | null

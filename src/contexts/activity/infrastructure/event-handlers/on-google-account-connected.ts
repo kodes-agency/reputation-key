@@ -20,8 +20,8 @@ export const onGoogleAccountConnected =
         subject: 'integration',
         from: null,
         to: null,
-        // BQC-1.2 / ADR 0045 r.3-4: content-free — no googleEmail; the
-        // connection ID identifies the resource, detail resolves at view time.
+        // BQC-1.2 / ADR 0045 r.3-4: identifier-only; provider contact
+        // data is resolved at view time from the connection ID.
         detail: null,
       },
     }

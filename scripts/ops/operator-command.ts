@@ -27,6 +27,7 @@ import {
   runOperatorCommand as runCore,
   type OperatorAction,
   type OperatorCommandResult,
+  type OperatorIO,
   type OperatorCommandSpec,
   type OperatorRuntime,
 } from '../../src/shared/ops/operator-command'
@@ -70,13 +71,14 @@ export async function runOperatorCommand(
   spec: OperatorCommandSpec,
   action: OperatorAction,
   argv: ReadonlyArray<string> = process.argv.slice(2),
+  io?: OperatorIO,
 ): Promise<OperatorCommandResult> {
   const boot = await bootOperatorRuntime()
   // The instance the runtime closure decides on (no re-install happens
   // between boot and the decision).
   const decidingPolicy = getExecutionPolicy()
   try {
-    return await runCore(spec, action, boot.runtime, argv)
+    return await runCore(spec, action, boot.runtime, argv, io)
   } finally {
     boot.cleanup()
     await decidingPolicy.flushAudits()

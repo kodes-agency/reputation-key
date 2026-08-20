@@ -153,20 +153,25 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       expect(manifest.policyVersion).toBeTruthy()
       expect(manifest.nodeEnv).toBe('test')
       expect(manifest.coreCapabilities.length).toBeGreaterThan(0)
-      expect(manifest.blockedCapabilities).toContain('portal.write')
-      expect(manifest.blockedCapabilities).toContain('portal.upload')
+      expect(manifest.blockedCapabilities).toContain('gbp.reply.auto_publish')
+      expect(manifest.blockedCapabilities).toContain('gbp.ai.cross_property_summary')
       expect(manifest.e2eGlobalOverrides).toEqual(
         expect.arrayContaining(['identity.register', 'organization.create']),
       )
       expect(manifest.e2eExecutionIdentity).toBe('playwright-e2e')
     })
 
-    it('filters blocked capabilities out of recorded overrides', () => {
+    it('filters permanent prohibitions but records controlled overrides', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
-        BETA_E2E_GLOBAL_CAPABILITIES: 'portal.write,portal.upload,team.use',
+        BETA_E2E_GLOBAL_CAPABILITIES:
+          'gbp.reply.auto_publish,portal.write,portal.upload,team.use',
       })
-      expect(manifest.e2eGlobalOverrides).toEqual(['team.use'])
+      expect(manifest.e2eGlobalOverrides).toEqual([
+        'portal.upload',
+        'portal.write',
+        'team.use',
+      ])
     })
 
     it('records no tenant identifiers', () => {

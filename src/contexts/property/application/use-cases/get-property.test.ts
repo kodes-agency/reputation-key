@@ -107,8 +107,7 @@ describe('getProperty', () => {
 
   it.each([
     ['unresolved', 'region_unresolved'],
-    ['europe', 'region_denied'],
-    ['global', 'region_denied'],
+    ['unsupported-cell', 'region_denied'],
   ] as const)('reports %s as not processable with reason %s', async (region, reason) => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext()
@@ -120,6 +119,21 @@ describe('getProperty', () => {
     expect(result.regionProcessable).toBe(false)
     expect(result.regionBlockedReason).toBe(reason)
   })
+
+  it.each(['europe', 'global'] as const)(
+    'reports the resolved %s processing cell as processable',
+    async (region) => {
+      const { useCase, propertyRepo } = setup()
+      const ctx = buildTestAuthContext()
+      const prop = buildTestProperty({ id: 'p1', processingRegion: region })
+      propertyRepo.seed([prop])
+
+      const result = await useCase({ propertyId: prop.id }, ctx)
+
+      expect(result.regionProcessable).toBe(true)
+      expect(result.regionBlockedReason).toBeNull()
+    },
+  )
 
   it('reports a missing region as region_unresolved (fail closed)', async () => {
     const { useCase, propertyRepo } = setup()

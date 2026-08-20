@@ -37,7 +37,7 @@ const setup = (rows: Readonly<Record<string, RegionRow>>) => {
     cell: 'us',
   })
   const resolveRouting = vi.fn((propertyId: string) =>
-    router.resolve(propertyId, 'review.sync'),
+    router.resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
   )
   const getRegionDiagnostic = createRegionDiagnostic({
     loadPropertyRegion,
@@ -87,7 +87,22 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
     expect(result.blockedReason).toBe('region_unresolved')
   })
 
-  it.each(['europe', 'global'])('reports %s as region_denied', async (region) => {
+  it.each(['us', 'europe', 'global'])('reports %s as processable', async (region) => {
+    const { getRegionDiagnostic } = setup({
+      [PROP]: {
+        processingRegion: region,
+        processingRegionSource: 'google_address',
+        routingPolicyVersion: 1,
+      },
+    })
+
+    const result = await getRegionDiagnostic({ organizationId: ORG, propertyId: PROP })
+
+    expect(result.processable).toBe(true)
+    expect(result.blockedReason).toBeNull()
+  })
+
+  it.each(['ap-southeast-2', 'eu'])('reports %s as region_denied', async (region) => {
     const { getRegionDiagnostic } = setup({
       [PROP]: {
         processingRegion: region,

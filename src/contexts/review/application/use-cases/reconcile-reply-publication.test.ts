@@ -1,11 +1,16 @@
 // BQC-3.3 — reconcileReplyPublication use case tests.
 //
-// Manual/operator recovery for an ambiguous publish outcome: re-read the
-// provider state via the sync read path; if Google shows the reply, heal the
+// Manual/operator recovery for an ambiguous publish outcome: make one targeted
+// provider read; if Google shows the reply, heal the
 // divergence atomically (markPublished + durable fact); otherwise the reply
 // stays publish_failed ('still_failed'). Never calls the publish endpoint —
 // never duplicates a Google-visible reply.
 
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, vi } from 'vitest'
 import { reconcileReplyPublication } from './reconcile-reply-publication'
 import type { ReconcileReplyPublicationDeps } from './reconcile-reply-publication'
@@ -45,6 +50,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: NOW,
     approvedAt: NOW,
     publishedAt: null,
@@ -64,13 +70,14 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     organizationId: ORG_ID,
     propertyId: PROP_ID,
     platform: 'google',
-    externalId: 'ext-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_ID,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     expiresAt: NOW,
@@ -83,6 +90,11 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -91,13 +103,14 @@ function makeReview(overrides: Partial<Review> = {}): Review {
 
 function makeGoogleReview(overrides: Partial<GoogleReview> = {}): GoogleReview {
   return {
-    reviewName: 'accounts/111/locations/222/reviews/ext-1',
-    externalId: 'ext-1',
-    externalLocationId: 'accounts/111/locations/222',
+    reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW,
     replyText: null,
@@ -109,7 +122,7 @@ function makeGoogleReview(overrides: Partial<GoogleReview> = {}): GoogleReview {
 function makeDeps(overrides: {
   reply?: Reply | null
   review?: Review | null
-  googleReviews?: ReadonlyArray<GoogleReview>
+  googleReview?: GoogleReview | null
   googleError?: Error
 }) {
   const emitted: Array<Record<string, unknown>> = []
@@ -127,11 +140,15 @@ function makeDeps(overrides: {
     findById: vi.fn(async () => overrides.review ?? null),
   } as unknown as ReviewRepository
   const googleReviewApi = {
-    fetchReviews: overrides.googleError
+    getReview: overrides.googleError
       ? vi.fn(async () => {
           throw overrides.googleError
         })
-      : vi.fn(async () => overrides.googleReviews ?? []),
+      : vi.fn(async () =>
+          overrides.googleReview
+            ? { status: 'found' as const, review: overrides.googleReview }
+            : { status: 'not_found' as const },
+        ),
     replyToReview: vi.fn(async () => {}),
   } as unknown as GoogleReviewApiPort
 
@@ -171,7 +188,7 @@ describe('reconcileReplyPublication', () => {
     const { deps, emitted, commandStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
-      googleReviews: [makeGoogleReview({ replyText: 'Thank you!' })],
+      googleReview: makeGoogleReview({ replyText: 'Thank you!' }),
     })
 
     const result = await reconcileReplyPublication(deps)({
@@ -198,7 +215,7 @@ describe('reconcileReplyPublication', () => {
     const { deps, emitted, commandStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
-      googleReviews: [makeGoogleReview({ replyText: null })],
+      googleReview: makeGoogleReview({ replyText: null }),
     })
 
     const result = await reconcileReplyPublication(deps)({
@@ -216,7 +233,7 @@ describe('reconcileReplyPublication', () => {
     const { deps, commandStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
-      googleReviews: [],
+      googleReview: null,
     })
 
     const result = await reconcileReplyPublication(deps)({
@@ -233,7 +250,7 @@ describe('reconcileReplyPublication', () => {
     const { deps, googleReviewApi } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
-      googleReviews: [makeGoogleReview({ replyText: 'Thank you!' })],
+      googleReview: makeGoogleReview({ replyText: 'Thank you!' }),
     })
 
     await reconcileReplyPublication(deps)({ replyId: REPLY_ID, organizationId: ORG_ID })
@@ -241,20 +258,23 @@ describe('reconcileReplyPublication', () => {
     expect(googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 
-  it('re-reads provider state through the sync read path (fetchReviews for the review location)', async () => {
+  it('re-reads only the targeted review through getReview', async () => {
     const { deps, googleReviewApi } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
-      googleReviews: [],
+      googleReview: null,
     })
 
     await reconcileReplyPublication(deps)({ replyId: REPLY_ID, organizationId: ORG_ID })
 
-    expect(googleReviewApi.fetchReviews).toHaveBeenCalledWith(
-      ORG_ID,
-      CONN_ID,
-      'accounts/111/locations/222',
-    )
+    expect(googleReviewApi.getReview).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      connectionId: CONN_ID,
+      sourceEpoch: 0,
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
   })
 
   it('reply not found → err reply_not_found', async () => {
@@ -310,7 +330,7 @@ describe('reconcileReplyPublication', () => {
 
     expect(result.isOk()).toBe(true)
     if (result.isOk()) expect(result.value.outcome).toBe('still_failed')
-    expect(googleReviewApi.fetchReviews).not.toHaveBeenCalled()
+    expect(googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 
   it('provider read failure → err sync_failed', async () => {

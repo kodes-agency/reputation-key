@@ -1,48 +1,39 @@
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import { MemberTableRow } from './member-table-row'
-import type { AssignmentInTeam } from '#/components/features/team/shared/types'
+import type { TeamMembershipView } from '#/components/features/team/shared/types'
 
 type Props = Readonly<{
-  assignments: ReadonlyArray<AssignmentInTeam>
-  memberLookup: Map<string, { name: string; email: string }>
-  teamLeadId: string | null | undefined
-  onRemove: (assignmentId: string) => void
+  memberships: ReadonlyArray<TeamMembershipView>
+  canRemove: boolean
+  onRemove?: (staffParticipationId: string) => void
   isRemoving: boolean
 }>
 
-export function MemberTable({
-  assignments,
-  memberLookup,
-  teamLeadId,
-  onRemove,
-  isRemoving,
-}: Props) {
+export function MemberTable({ memberships, canRemove, onRemove, isRemoving }: Props) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {assignments.map((a) => {
-          const member = memberLookup.get(a.userId)
-          const isLead = teamLeadId != null && a.userId === teamLeadId
-          return (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Effective period</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {memberships.map((membership) => (
             <MemberTableRow
-              key={a.id}
-              assignment={a}
-              memberName={member?.name ?? a.userId}
-              memberEmail={member?.email ?? '—'}
-              isLead={isLead}
-              onRemove={() => onRemove(a.id)}
+              key={membership.id}
+              membership={membership}
+              canRemove={canRemove}
+              onRemove={
+                onRemove ? () => onRemove(membership.staffParticipationId) : undefined
+              }
               isRemoving={isRemoving}
             />
-          )
-        })}
-      </TableBody>
-    </Table>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }

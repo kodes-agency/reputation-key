@@ -71,6 +71,7 @@ export function InboxPageV2({
     folderLabel: folderLabelFor(s.folder),
     openCount: s.openCount,
     searchQ: search.q,
+    attention: search.attention,
     items: s.items,
     selectedIds: s.selectedIds,
     isLoading: s.isLoading,
@@ -81,6 +82,11 @@ export function InboxPageV2({
     listRef,
     onSearchChange: (q) =>
       onNavigate({ to: '.', search: (p) => ({ ...p, q, itemId: undefined }) }),
+    onAttentionChange: (attention) =>
+      onNavigate({
+        to: '.',
+        search: (p) => ({ ...p, attention, itemId: undefined }),
+      }),
     onToggleSelect: s.handleToggleSelect,
     onSelectAll: s.handleSelectAll,
     onDeselectAll: s.handleDeselectAll,

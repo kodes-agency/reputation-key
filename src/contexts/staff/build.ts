@@ -13,7 +13,7 @@ import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
 import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
 import type { StaffPublicApi } from './application/public-api'
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import { portalId, type OrganizationId, type UserId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   createStaffAssignment,
@@ -25,6 +25,14 @@ import { getAssignedPortals } from './application/use-cases/get-assigned-portals
 import { updateStaffPortals } from './application/use-cases/update-staff-portals'
 import { listStaffPortals } from './application/use-cases/list-staff-portals'
 import { createAtomicStaffCommandStore } from './infrastructure/staff-command-store'
+import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
+import {
+  archiveStaffParticipation,
+  createStaffParticipation,
+  listStaffParticipations,
+  updatePortalResponsibilities,
+} from './application/use-cases/staff-participations'
+import { createParticipation } from './domain/staff-participation'
 import { randomUUID } from 'crypto'
 
 type StaffContextDeps = Readonly<{
@@ -50,7 +58,8 @@ type StaffContextDeps = Readonly<{
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
   const idGen = () => randomUUID()
-  // BQC-3.5: every staff state mutation + fact commits atomically here.
+  const participationRepo = createStaffParticipationRepository(deps.db)
+  // BQC-3.5: legacy assignment mutations remain isolated until contract removal.
   const commandStore = createAtomicStaffCommandStore(deps.db, deps.events)
 
   const getAssignedPortalsUC = getAssignedPortals({
@@ -75,11 +84,29 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
         deps.accessiblePropertyLookup(orgId, userId),
       )
     },
-    getAssignedPortals: getAssignedPortalsUC,
+    getAssignedPortals: async (input, ctx) => {
+      const participation = await participationRepo.findActiveByUser(
+        ctx.organizationId,
+        input.propertyId,
+        input.userId,
+      )
+      if (!participation) return []
+      const responsibilities = await participationRepo.listActiveResponsibilities(
+        ctx.organizationId,
+        participation.id,
+      )
+      return responsibilities.map((responsibility) => portalId(responsibility.portalId))
+    },
     countAssignmentsByTeam: async (orgId, teamId) => {
       const assignments = await deps.repo.listByTeam(orgId, teamId)
       return assignments.length
     },
+    findParticipationById: (organizationId, staffParticipationId) =>
+      participationRepo.findById(organizationId, staffParticipationId),
+    findActiveParticipation: (organizationId, propertyId, userId) =>
+      participationRepo.findActiveByUser(organizationId, propertyId, userId),
+    listActiveParticipations: (organizationId, propertyId) =>
+      participationRepo.list(organizationId, { propertyId, activeOnly: true }),
   }
 
   const useCases = {
@@ -112,7 +139,55 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       assignmentRepo: deps.repo,
       portalLookup: deps.portalLookup,
     }),
+    createStaffParticipation: createStaffParticipation({
+      repo: participationRepo,
+      identityMembership: deps.identityMembership,
+      accessibleProperties: deps.accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen,
+    }),
+    listStaffParticipations: listStaffParticipations({
+      repo: participationRepo,
+      identityMembership: deps.identityMembership,
+      accessibleProperties: deps.accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen,
+    }),
+    archiveStaffParticipation: archiveStaffParticipation({
+      repo: participationRepo,
+      identityMembership: deps.identityMembership,
+      accessibleProperties: deps.accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen,
+    }),
+    updatePortalResponsibilities: updatePortalResponsibilities({
+      repo: participationRepo,
+      identityMembership: deps.identityMembership,
+      accessibleProperties: deps.accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen,
+    }),
   } as const
+
+  const systemStaffParticipation = async (
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      displayName?: string
+    }>,
+  ) =>
+    participationRepo.create(
+      createParticipation({
+        id: idGen(),
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        userId: input.userId,
+        displayName: input.displayName?.trim() || input.userId,
+        createdBy: `invitation:${input.userId}`,
+        now: deps.clock(),
+      }),
+    )
 
   // Privileged SYSTEM write behind the identity invitation-acceptance hook:
   // bootstraps an assignment for the invitee. Skips can(), the membership
@@ -130,10 +205,14 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
   return {
     publicApi,
     internal: {
-      repos: { staffAssignmentRepo: deps.repo } as const,
+      repos: {
+        staffAssignmentRepo: deps.repo,
+        staffParticipationRepo: participationRepo,
+      } as const,
       commandStore,
       useCases,
       systemStaffAssignment,
+      systemStaffParticipation,
     },
   } as const
 }

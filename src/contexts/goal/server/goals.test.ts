@@ -388,8 +388,8 @@ describe('permission gates in goal server functions', () => {
     expect(can('PropertyManager', 'goal.create')).toBe(true)
   })
 
-  it('can() returns true for Staff + goal.create', () => {
-    expect(can('Staff', 'goal.create')).toBe(true)
+  it('can() returns false for Staff + goal.create', () => {
+    expect(can('Staff', 'goal.create')).toBe(false)
   })
 
   it('can() returns true for AccountAdmin + goal.read', () => {
@@ -400,7 +400,7 @@ describe('permission gates in goal server functions', () => {
     expect(can('PropertyManager', 'goal.read')).toBe(true)
   })
 
-  it('can() returns true for Staff + goal.read (Staff has read + create access)', () => {
+  it('can() returns true for Staff + goal.read (Staff is read-only)', () => {
     expect(can('Staff', 'goal.read')).toBe(true)
   })
 

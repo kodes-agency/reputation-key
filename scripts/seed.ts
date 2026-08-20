@@ -26,8 +26,10 @@ const MS_PER_DAY = 86_400_000
 // Job names for time-travel triggering
 import { JOB_NAME as PURGE_JOB } from '../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as REFRESH_JOB } from '../src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB } from '../src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
-import { SPAWN_RECURRING_JOB_NAME as SPAWN_JOB } from '../src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
+// Renamed to LEGACY_* when the governed Goal runtime stopped registering this job;
+// the string value is unchanged, so time-travel seeding behaves exactly as before.
+import { LEGACY_RECONCILE_GOAL_NAME as RECONCILE_JOB } from '../src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
+import { LEGACY_SPAWN_RECURRING_NAME as SPAWN_JOB } from '../src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 
 const args = process.argv.slice(2)
 const orgArg = args.find((a) => a.startsWith('--org='))

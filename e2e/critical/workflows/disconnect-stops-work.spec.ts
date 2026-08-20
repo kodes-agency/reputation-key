@@ -52,8 +52,8 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
-        type: 'LOCATION_GROUP',
-        roleInfo: { name: 'OWNER' },
+        accountName: `E2E disconnect account ${e2eRunId}`,
+        role: 'OWNER',
       },
       locations: [
         {
@@ -79,15 +79,17 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     const { connectionId } = await seedGoogleConnection({
       organizationId: seed.organizationId,
       connectedBy: admin!.id,
-      googleAccountId: ACCOUNT,
-      googleEmail: `disconnect-${e2eRunId}@e2e.example.com`,
+      googleSubject: ACCOUNT,
     })
     const { propertyId } = await seedProperty({
       organizationId: seed.organizationId,
       name: `E2E Disconnect Hotel ${e2eRunId}`,
       slug: `${PREFIX}prop-${e2eRunId}`,
-      gbpPlaceId: 'dis-loc',
-      googleConnectionId: connectionId,
+      googleBinding: {
+        connectionId,
+        accountId: ACCOUNT,
+        locationId: 'dis-loc',
+      },
     })
     const { reviewId } = await seedReview({
       organizationId: seed.organizationId,

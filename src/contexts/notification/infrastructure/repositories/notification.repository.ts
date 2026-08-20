@@ -11,14 +11,16 @@ import { notificationError } from '../../domain/errors'
 
 // ── Repository ──────────────────────────────────────────────────────
 
-// Exclude notifications where the user opted out of in-app display for
-// that type. Correlated NOT EXISTS against the sparse preference table.
+// Email-only notifications remain durable anchors, but are excluded from the
+// in-app list when the concrete property/category/channel preference disables it.
 const notOptedOutInApp = sql`NOT EXISTS (
   SELECT 1 FROM notification_preferences
   WHERE user_id = notifications.user_id
     AND organization_id = notifications.organization_id
-    AND type = notifications.type
-    AND in_app_enabled = false
+    AND property_id = notifications.property_id
+    AND category = notifications.category
+    AND channel = 'in_app'
+    AND enabled = false
 )`
 
 // Paginated, newest-first read of a user's visible notifications.
@@ -59,7 +61,9 @@ export const createNotificationRepository = (db: Database) => ({
         id: unbrand(notification.id),
         userId: unbrand(notification.userId),
         organizationId: unbrand(notification.organizationId),
+        propertyId: unbrand(notification.propertyId),
         type: notification.type,
+        category: notification.category,
         priority: notification.priority,
         status: notification.status,
         resourceType: notification.resourceType,
@@ -149,6 +153,7 @@ export const createNotificationRepository = (db: Database) => ({
   findUnreadByUserTypeResource: async (
     userId: string,
     orgId: string,
+    propertyId: string,
     type: string,
     resourceId: string,
   ): Promise<Notification | null> => {
@@ -159,6 +164,7 @@ export const createNotificationRepository = (db: Database) => ({
         and(
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
+          eq(notifications.propertyId, propertyId),
           eq(notifications.type, type),
           eq(notifications.resourceId, resourceId),
           eq(notifications.status, 'unread'),
@@ -219,6 +225,24 @@ export const createNotificationRepository = (db: Database) => ({
 
     return rows[0] ? notificationFromRow(rows[0]) : null
   },
+  findByIdForProperty: async (
+    id: string,
+    orgId: string,
+    propertyId: string,
+  ): Promise<Notification | null> => {
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.organizationId, orgId),
+          eq(notifications.propertyId, propertyId),
+        ),
+      )
+      .limit(1)
+    return rows[0] ? notificationFromRow(rows[0]) : null
+  },
   findByIds: async (
     ids: readonly string[],
     orgId: string,
@@ -232,6 +256,29 @@ export const createNotificationRepository = (db: Database) => ({
     for (const row of rows) {
       const n = notificationFromRow(row)
       map.set(n.id, n)
+    }
+    return map
+  },
+  findByIdsForProperty: async (
+    ids: readonly string[],
+    orgId: string,
+    propertyId: string,
+  ): Promise<Map<string, Notification>> => {
+    if (ids.length === 0) return new Map()
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.organizationId, orgId),
+          eq(notifications.propertyId, propertyId),
+          inArray(notifications.id, ids),
+        ),
+      )
+    const map = new Map<string, Notification>()
+    for (const row of rows) {
+      const notification = notificationFromRow(row)
+      map.set(notification.id, notification)
     }
     return map
   },

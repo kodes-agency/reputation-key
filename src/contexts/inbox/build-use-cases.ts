@@ -7,6 +7,7 @@ import type { InboxViewRepository } from './application/ports/inbox-view.reposit
 import type { InboxCommandStore } from './application/ports/inbox-command-store.port'
 import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
+import type { AiReviewInsightsPort } from './application/ports/ai-review-insights.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxContextApi } from './build'
@@ -33,6 +34,7 @@ type WireInput = Readonly<{
   commandStore: InboxCommandStore
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
+  aiInsights?: AiReviewInsightsPort
   staffPublicApi: StaffPublicApi
   logger: LoggerPort
   clock: () => Date
@@ -101,6 +103,7 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
       replyLookup: input.replyLookup,
+      aiInsights: input.aiInsights,
     }),
     getInboxNotes: getInboxNotes({
       noteRepo: input.inboxNoteRepo,

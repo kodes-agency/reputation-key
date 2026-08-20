@@ -199,7 +199,6 @@ function makeFakeDeps() {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
-    findGroupForPortal: async () => null,
     getLogger: () =>
       logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
         ? R
@@ -240,9 +239,17 @@ function makeEvent(overrides: Partial<MetricRecorded> = {}): MetricRecorded {
     organizationId: organizationId('org-1'),
     propertyId: propertyId('prop-1'),
     portalId: null,
-    groupId: null,
+    portalGroupId: null,
+    definitionVersionId: '11111111-1111-4111-8111-111111111201',
+    sourceEventId: 'source-event-1',
+    sourcePolicy: 'review_solicitation_analytics_only',
     metricKey: 'portal.scan',
     value: 1,
+    numerator: null,
+    denominator: null,
+    sampleCount: 1,
+    attributionQuality: 'exact',
+    permittedConsumers: ['goal'],
     occurredAt: FIXED_TIME,
     correlationId: null,
     ...overrides,

@@ -2,6 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createReplyRepository } from './reply.repository'
 import { createReviewRepository } from './review.repository'
@@ -86,12 +87,13 @@ async function seedReview(
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'rpl-ext-001',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt,
     expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -104,6 +106,11 @@ async function seedReview(
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     ...overrides,
   })
 }
@@ -123,6 +130,7 @@ function makeReply(overrides: Partial<Omit<Reply, 'id'>> & { id?: string } = {})
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: null,
     approvedAt: null,
     publishedAt: now,
@@ -215,6 +223,19 @@ describe.sequential('replyRepository (integration)', () => {
 
       expect(updated.text).toBe('Updated reply')
       expect(updated.id).toBe(reply.id)
+    })
+
+    it('increments the durable state revision on every internal reply update', async () => {
+      const db = getDb()
+      await seedReview(db)
+      const repo = createReplyRepository(db)
+      const reply = makeReply({ text: 'Original reply', source: 'internal' })
+
+      const created = await repo.upsert(reply)
+      const updated = await repo.upsert({ ...reply, text: 'Updated reply' })
+
+      expect(created.stateRevision).toBe(1)
+      expect(updated.stateRevision).toBe(2)
     })
   })
 

@@ -9,7 +9,12 @@ export type TeamErrorCode =
   | 'team_not_found'
   | 'property_not_found'
   | 'team_has_assignments'
-
+  | 'participation_not_found'
+  | 'participation_not_active'
+  | 'membership_not_found'
+  | 'membership_conflict'
+  | 'membership_is_lead'
+  | 'ambiguous_membership'
 export type TeamError = Readonly<{
   _tag: 'TeamError'
   code: TeamErrorCode

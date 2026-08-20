@@ -1,0 +1,194 @@
+$ pnpm test:e2e --project=critical
+started: 2026-08-17T18:26:52.719Z  durationMs: 1018  exit: 1
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=critical
+
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/accessibility.spec.ts:39:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/property.ts:7:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/beta-product-journeys.spec.ts:17:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/guest-portal.spec.ts:10:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/activity-notification-facts.spec.ts:33:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/dashboard-governance.spec.ts:30:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/disconnect-stops-work.spec.ts:40:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/google-import-sync.spec.ts:32:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/google-performance.spec.ts:23:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/inbox-triage.spec.ts:26:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/property-access.spec.ts:34:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/reply-lifecycle.spec.ts:37:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/review-expiry.spec.ts:32:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/critical/workflows/review-inbox-slo.spec.ts:33:14
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:44715) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)

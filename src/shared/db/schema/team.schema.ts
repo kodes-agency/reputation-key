@@ -3,7 +3,15 @@
 // Per architecture: snake_case columns, camelCase field names.
 
 import { sql } from 'drizzle-orm'
-import { pgTable, uuid, varchar, text, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  index,
+  uniqueIndex,
+  foreignKey,
+} from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 
@@ -27,5 +35,15 @@ export const teams = pgTable(
     orgPropertyNameUnique: uniqueIndex('teams_org_property_name_unique')
       .on(t.organizationId, t.propertyId, t.name)
       .where(sql`deleted_at IS NULL`),
+    tenantKey: uniqueIndex('teams_org_property_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    propertyTenantFk: foreignKey({
+      name: 'teams_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
   }),
 )

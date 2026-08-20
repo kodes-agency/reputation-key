@@ -33,6 +33,7 @@ type AcceptInvitationContext = Readonly<{
   userId: string
   organizationId: string
   propertyIds: ReadonlyArray<string>
+  displayName?: string
 }>
 
 type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
@@ -50,6 +51,26 @@ export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
  * acceptInvitation txn calls this directly since it bypasses BA's afterAcceptInvitation hook. */
 export function getOnAcceptInvitation(): AcceptInvitationHandler | undefined {
   return _onAcceptInvitation
+}
+
+type MembershipRemovalLifecycle = Readonly<{
+  beforeRemoveMember: (organizationId: string, userId: string) => Promise<void>
+  beforeDeleteOrganization: (organizationId: string) => Promise<void>
+}>
+
+let _membershipRemovalLifecycle: MembershipRemovalLifecycle | undefined
+
+export function setMembershipRemovalLifecycle(
+  lifecycle: MembershipRemovalLifecycle,
+): void {
+  _membershipRemovalLifecycle = lifecycle
+}
+
+function membershipRemovalLifecycle(): MembershipRemovalLifecycle {
+  if (!_membershipRemovalLifecycle) {
+    throw new Error('membership removal lifecycle is not initialized')
+  }
+  return _membershipRemovalLifecycle
 }
 
 export function createAuth() {
@@ -89,7 +110,7 @@ export function createAuth() {
     },
     advanced: {
       defaultCookieAttributes: {
-        secure: process.env.NODE_ENV === 'production',
+        secure: new URL(env.BETTER_AUTH_URL).protocol === 'https:',
         sameSite: 'lax',
         httpOnly: true,
       },
@@ -149,6 +170,13 @@ export function createAuth() {
         // After an invitation is accepted, auto-create staff assignments
         // for the properties specified in the invitation.
         organizationHooks: {
+          beforeRemoveMember: ({ member, organization }) =>
+            membershipRemovalLifecycle().beforeRemoveMember(
+              organization.id,
+              member.userId,
+            ),
+          beforeDeleteOrganization: ({ organization }) =>
+            membershipRemovalLifecycle().beforeDeleteOrganization(organization.id),
           afterAcceptInvitation: async ({ invitation, member, organization }) => {
             if (!_onAcceptInvitation) return
 

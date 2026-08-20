@@ -43,7 +43,11 @@ export const deleteLink =
       existing.portalId,
     )
 
-    await deps.portalLinkRepo.deleteLink(ctx.organizationId, portalLinkId(input.linkId))
+    await deps.portalLinkRepo.deleteLink(
+      ctx.organizationId,
+      existing.portalId,
+      portalLinkId(input.linkId),
+    )
   }
 
 export type DeleteLink = ReturnType<typeof deleteLink>

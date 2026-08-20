@@ -44,6 +44,7 @@ function makeAmbiguousReply(id: string, reconcileDueAt: Date = DUE): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: NOW,
     approvedAt: NOW,
     publishedAt: null,

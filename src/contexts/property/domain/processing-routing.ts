@@ -3,10 +3,8 @@
 // Pure helpers: country → provider-neutral processing region with provenance.
 // No silent region change after a property is already resolved.
 //
-// BQC-4.1 / ADR 0048: of the four region identifiers, only 'us' is an
-// APPROVED processing cell for beta. 'europe' is denied until its
-// infrastructure and privacy/data-flow evidence pass (ADR 0031/0032);
-// 'global' is a denied placeholder, not a cell; 'unresolved' fails closed.
+// Private beta executes for every resolved country-derived cell. A genuinely
+// unresolved property remains denied because no routing fact exists.
 
 import { resolveRegion } from '#/shared/domain/processing-profile'
 import { propertyError } from './errors'
@@ -82,16 +80,14 @@ export function wouldChangeResolvedRegion(
 }
 
 /**
- * Regions approved to execute protected workloads in the beta cell topology
- * (ADR 0048). Deliberately a Set so widening requires an explicit decision.
- * Module-private — `isRegionProcessable` is the public predicate.
+ * Resolved processing cells available to the global private beta.
+ * `unresolved` is intentionally absent and continues to fail closed.
  */
-const PROCESSABLE_REGIONS: ReadonlySet<string> = new Set(['us'])
+const PROCESSABLE_REGIONS: ReadonlySet<string> = new Set(['us', 'europe', 'global'])
 
 /**
- * True when the region is an approved processing cell. Everything else —
- * 'unresolved', the denied 'europe' cell, the denied 'global' placeholder,
- * or a missing region — is not processable (fail closed).
+ * True when the property has a resolved processing cell. Missing and
+ * `unresolved` routing facts fail closed.
  */
 export function isRegionProcessable(region: string | null): boolean {
   return region != null && PROCESSABLE_REGIONS.has(region)

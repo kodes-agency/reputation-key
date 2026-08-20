@@ -1,130 +1,220 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import type { MetricReading } from '../../domain/types'
-import {
-  organizationId as orgIdCtor,
-  propertyId as propIdCtor,
-  portalId as portalIdCtor,
-  metricReadingId,
-} from '#/shared/domain/ids'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
+import { getDb } from '#/shared/db'
+import { getEnv } from '#/shared/config/env'
+import { organizationId, propertyId } from '#/shared/domain/ids'
+import type { MetricReadingsQuery } from '../../application/ports/metric.repository'
+import { createMetricRepository } from './metric.repository'
 
-// In-memory fake for MetricRepository port.
-// Tests the port contract, not the Drizzle implementation.
-// The Drizzle implementation is covered by integration tests.
+const ORG_ID = organizationId('org-metricrepo-0000-0000-0000-000000000001')
+const PROP_ID = propertyId('4f000000-0000-4000-8000-000000000001')
+const NOW = new Date('2026-08-08T12:00:00Z')
+const PROPERTY_REVIEW_VERSION = '11111111-1111-4111-8111-111111111205'
+const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
+const CONTENT_REVIEW_VERSION = '11111111-1111-4111-8111-111111111101'
 
-type InsertInput = Omit<MetricReading, 'id'>
+let pool: Pool
+let nextReading = 1
 
-const createFakeMetricRepository = () => {
-  const readings: MetricReading[] = []
-  let nextId = 1
+const query = (
+  metricKey: MetricReadingsQuery['metricKey'],
+  consumer: MetricReadingsQuery['consumer'],
+): MetricReadingsQuery => ({
+  organizationId: ORG_ID,
+  propertyId: PROP_ID,
+  portalId: null,
+  groupId: null,
+  metricKey,
+  consumer,
+})
 
-  return {
-    readings,
-    repo: {
-      insertReading: async (input: InsertInput) => {
-        const reading: MetricReading = {
-          ...input,
-          id: metricReadingId(`metric-${nextId++}`),
-        }
-        readings.push(reading)
-        return reading
-      },
-    },
-  }
+async function insertReading(
+  input: Readonly<{
+    versionId: string
+    metricKey: MetricReadingsQuery['metricKey']
+    sourcePolicy: string
+    value: number
+    sampleCount?: number
+  }>,
+): Promise<string> {
+  const id = `4f000000-0000-4000-8000-${String(nextReading++).padStart(12, '0')}`
+  await pool.query(
+    `INSERT INTO metric_readings (
+       id, organization_id, property_id, portal_id, group_id, metric_key,
+       value, recorded_at, definition_version_id, source_event_id,
+       source_policy, exact_value, numerator, denominator, sample_count,
+       attribution_quality, event_at, property_local_date, data_quality,
+       retention_class
+     ) VALUES (
+       $1, $2, $3, NULL, NULL, $4,
+       $5::real, $6, $7, $8,
+       $9, $5::numeric, NULL, NULL, $10,
+       'exact', $6, '2026-08-08', 'exact', 'standard'
+     )`,
+    [
+      id,
+      ORG_ID,
+      PROP_ID,
+      input.metricKey,
+      input.value,
+      NOW,
+      input.versionId,
+      `metric-repository-source-${id}`,
+      input.sourcePolicy,
+      input.sampleCount ?? 1,
+    ],
+  )
+  return id
 }
 
-const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
-const ORG_1 = orgIdCtor('org-1')
-const ORG_2 = orgIdCtor('org-2')
+async function clean(): Promise<void> {
+  await pool.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (SELECT id FROM metric_readings WHERE organization_id = $1)`,
+    [ORG_ID],
+  )
+  await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
+}
 
-describe('MetricRepository', () => {
-  let fake: ReturnType<typeof createFakeMetricRepository>
+beforeAll(async () => {
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, 'Metric Repository Org', 'metric-repository-org', NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [ORG_ID],
+  )
+  await pool.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Metric Repository Property', 'metric-repository-property', 'UTC', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [PROP_ID, ORG_ID],
+  )
+})
 
-  beforeEach(() => {
-    fake = createFakeMetricRepository()
-  })
+beforeEach(async () => {
+  nextReading = 1
+  await clean()
+})
 
-  it('inserts a portal scan reading and stores it', async () => {
-    await fake.repo.insertReading({
-      organizationId: ORG_1,
-      propertyId: propIdCtor('prop-1'),
-      portalId: portalIdCtor('portal-1'),
-      metricKey: 'portal.scan',
-      value: 1,
-      groupId: null,
-      occurredAt: FIXED_TIME,
-    })
+afterAll(async () => {
+  await clean()
+  await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
+  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await pool.end()
+})
 
-    expect(fake.readings).toHaveLength(1)
-    expect(fake.readings[0].metricKey).toBe('portal.scan')
-    expect(fake.readings[0].value).toBe(1)
-    expect(fake.readings[0].portalId).toEqual(portalIdCtor('portal-1'))
-    expect(fake.readings[0].occurredAt).toEqual(FIXED_TIME)
-  })
-
-  it('inserts a property review reading without portalId', async () => {
-    await fake.repo.insertReading({
-      organizationId: ORG_1,
-      propertyId: propIdCtor('prop-1'),
-      portalId: null,
+describe.sequential('governed metric aggregate reader (integration)', () => {
+  it('returns exact values only to a consumer permitted by the immutable version', async () => {
+    await insertReading({
+      versionId: PROPERTY_REVIEW_VERSION,
       metricKey: 'property.review',
+      sourcePolicy: 'google_property_derivative',
       value: 4,
-      groupId: null,
-      occurredAt: FIXED_TIME,
     })
+    const repository = createMetricRepository(getDb(), () => NOW)
 
-    expect(fake.readings).toHaveLength(1)
-    expect(fake.readings[0].metricKey).toBe('property.review')
-    expect(fake.readings[0].value).toBe(4)
-    expect(fake.readings[0].portalId).toBeNull()
+    await expect(
+      repository.queryAggregate(query('property.review', 'dashboard')),
+    ).resolves.toEqual({
+      sum: 4,
+      count: 1,
+      max: 4,
+      available: true,
+      sampleCount: 1,
+      minimumSample: 1,
+    })
+    await expect(
+      repository.queryAggregate(query('property.review', 'goal')),
+    ).resolves.toEqual({
+      sum: 0,
+      count: 0,
+      max: 0,
+      available: false,
+      sampleCount: 0,
+      minimumSample: 1,
+    })
   })
 
-  it('stores multiple readings with distinct metric keys', async () => {
-    await fake.repo.insertReading({
-      organizationId: ORG_1,
-      propertyId: propIdCtor('prop-1'),
-      portalId: portalIdCtor('portal-1'),
-      metricKey: 'portal.scan',
-      value: 1,
-      groupId: null,
-      occurredAt: FIXED_TIME,
-    })
-    await fake.repo.insertReading({
-      organizationId: ORG_1,
-      propertyId: propIdCtor('prop-1'),
-      portalId: portalIdCtor('portal-1'),
-      metricKey: 'portal.rating',
-      value: 5,
-      groupId: null,
-      occurredAt: FIXED_TIME,
-    })
+  it('returns unavailable rather than a partial value below the minimum sample', async () => {
+    for (const value of [4, 5]) {
+      await insertReading({
+        versionId: PORTAL_RATING_VERSION,
+        metricKey: 'portal.rating',
+        sourcePolicy: 'first_party_guest_private',
+        value,
+      })
+    }
+    const repository = createMetricRepository(getDb(), () => NOW)
 
-    const scans = fake.readings.filter((r) => r.metricKey === 'portal.scan')
-    expect(scans).toHaveLength(1)
-    expect(scans[0].metricKey).toBe('portal.scan')
+    await expect(
+      repository.queryAggregate(query('portal.rating', 'portal_analytics')),
+    ).resolves.toEqual({
+      sum: 0,
+      count: 0,
+      max: 0,
+      available: false,
+      sampleCount: 2,
+      minimumSample: 5,
+    })
   })
 
-  it('isolates tenants — org-2 readings kept distinct from org-1', async () => {
-    await fake.repo.insertReading({
-      organizationId: ORG_1,
-      propertyId: propIdCtor('prop-1'),
-      portalId: portalIdCtor('portal-1'),
-      metricKey: 'portal.scan',
-      value: 1,
-      groupId: null,
-      occurredAt: FIXED_TIME,
+  it('uses the tip of append-only correction lineage without changing the source reading', async () => {
+    const readingId = await insertReading({
+      versionId: CONTENT_REVIEW_VERSION,
+      metricKey: 'portal.content_review.completed',
+      sourcePolicy: 'first_party_workflow',
+      value: 2,
     })
-    await fake.repo.insertReading({
-      organizationId: ORG_2,
-      propertyId: propIdCtor('prop-2'),
-      portalId: portalIdCtor('portal-2'),
-      metricKey: 'portal.scan',
-      value: 1,
-      groupId: null,
-      occurredAt: FIXED_TIME,
-    })
+    const firstCorrectionId = '4f000000-0000-4000-8000-000000000101'
+    await pool.query(
+      `INSERT INTO metric_corrections (
+         id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         exact_delta, replacement_value, event_at
+       ) VALUES ($1, $2, 'metric-correction-source-1', 'replace', 'source correction',
+                 'system', 'metric-reconciliation', NULL, 10, $3)`,
+      [firstCorrectionId, readingId, NOW],
+    )
+    await pool.query(
+      `INSERT INTO metric_corrections (
+         id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         exact_delta, replacement_value, event_at, supersedes_correction_id
+       ) VALUES ('4f000000-0000-4000-8000-000000000102', $1,
+                 'metric-correction-source-2', 'adjust', 'reconciled delta',
+                 'system', 'metric-reconciliation', 3, NULL, $2, $3)`,
+      [readingId, NOW, firstCorrectionId],
+    )
+    const repository = createMetricRepository(getDb(), () => NOW)
 
-    const org1Readings = fake.readings.filter((r) => r.organizationId === ORG_1)
-    expect(org1Readings).toHaveLength(1)
-    expect(org1Readings[0].organizationId).toEqual(ORG_1)
+    await expect(
+      repository.queryAggregate(query('portal.content_review.completed', 'goal')),
+    ).resolves.toMatchObject({ sum: 5, count: 1, max: 5, available: true })
+    const source = await pool.query(
+      'SELECT exact_value FROM metric_readings WHERE id = $1',
+      [readingId],
+    )
+    expect(Number(source.rows[0]?.exact_value)).toBe(2)
+  })
+
+  it('excludes ambiguous legacy rows from governed reads', async () => {
+    await pool.query(
+      `INSERT INTO metric_readings (
+         id, organization_id, property_id, metric_key, value, recorded_at
+       ) VALUES ('4f000000-0000-4000-8000-000000000201', $1, $2,
+                 'property.review', 5, $3)`,
+      [ORG_ID, PROP_ID, NOW],
+    )
+    const repository = createMetricRepository(getDb(), () => NOW)
+
+    await expect(
+      repository.queryAggregate(query('property.review', 'dashboard')),
+    ).resolves.toEqual({
+      sum: 0,
+      count: 0,
+      max: 0,
+      available: false,
+      sampleCount: 0,
+      minimumSample: 1,
+    })
   })
 })

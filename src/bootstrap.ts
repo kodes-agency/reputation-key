@@ -19,10 +19,14 @@ import {
   createProcessImageJob,
   JOB_NAME as PROCESS_IMAGE_JOB_NAME,
 } from '#/contexts/portal/infrastructure/jobs/process-image.job'
+import { createGoogleImportV2ItemJobHandler } from '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job'
+import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from '#/contexts/integration/application/google-import-v2-contract'
 import {
-  createImportPropertyHandler,
-  JOB_NAME as IMPORT_PROPERTY_JOB_NAME,
-} from '#/contexts/integration/infrastructure/jobs/import-property.job'
+  createGoogleImportClaimReaperHandler,
+  JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
+} from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
+import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
+import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
 import {
   createSyncPropertyReviewsHandler,
   JOB_NAME as SYNC_REVIEWS_JOB_NAME,
@@ -45,12 +49,33 @@ import {
 } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
 import { activityLogId, replyId } from '#/shared/domain/ids'
+import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import {
+  createExpireReviewProviderSourceHandler,
+  createSweepReviewProviderTombstonesHandler,
+  EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+  SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+  type ReviewProviderLifecycleSweepJobData,
+} from '#/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job'
+import { createReviewProviderSnapshotRepository } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
+import {
+  createGeneratePropertyTrendJobHandler,
+  GENERATE_PROPERTY_TREND_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
+import {
+  createSchedulePropertyTrendsJobHandler,
+  SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
+} from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
 // consumes the same read-only handles as /api/health/metrics.
 
-export async function bootstrap(container: Container): Promise<void> {
+export async function bootstrap(
+  container: Container,
+  options: Readonly<{ allowUnavailableGoogleImportV2Processor?: boolean }> = {},
+): Promise<void> {
   const logger = getLogger()
 
   /**
@@ -116,11 +141,8 @@ export async function bootstrap(container: Container): Promise<void> {
       ]),
   })
 
-  // Handler returns HealthCheckResult (BullMQ stores it as return value);
-  // wrap to satisfy the JobHandler<unknown> signature which expects void.
-  container.jobRegistry.register(JOB_NAME, async (job) => {
-    void (await healthCheckHandler(job))
-  })
+  // Preserve the result: BullMQ writes it to the job record for diagnostics.
+  container.jobRegistry.register(JOB_NAME, async (job) => healthCheckHandler(job))
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
 
   // ── Portal image processing job (portal dark / portal.upload blocked) ──
@@ -137,23 +159,50 @@ export async function bootstrap(container: Container): Promise<void> {
     )
   })
 
-  // ── GBP property import job ─────────────────────────────────────
-  const importHandler = createImportPropertyHandler({
-    importPropertyUseCase: container.useCases.importProperty,
-  })
-  container.jobRegistry.register(IMPORT_PROPERTY_JOB_NAME, async (job) => {
-    await importHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/integration/infrastructure/jobs/import-property.job').ImportPropertyJobData
-      >,
+  const processGoogleImportV2Item = container.useCases.processGoogleImportV2Item
+  if (processGoogleImportV2Item) {
+    const importV2Handler = createGoogleImportV2ItemJobHandler(processGoogleImportV2Item)
+    registerCapabilityGatedJob(
+      GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
+      'property.import_gbp_v2',
+      async (job) => {
+        await importV2Handler(
+          job as import('bullmq').Job<
+            import('#/contexts/integration/application/ports/gbp-queue.port').GoogleImportV2ItemJobData
+          >,
+        )
+      },
     )
-  })
-  logger.info({ job: IMPORT_PROPERTY_JOB_NAME }, 'registered import-property job handler')
+  } else if (
+    isCapabilityJobEnabled('property.import_gbp_v2') &&
+    !options.allowUnavailableGoogleImportV2Processor
+  ) {
+    throw new Error('Google import v2 processor dependencies are unavailable')
+  }
 
-  // ── Review sync jobs ─────────────────────────────────────────────
+  // Claim-lease reaper for the job above. Registered under the same
+  // capability so its posture cannot drift from the work it recovers, and
+  // built from the container db directly: it only needs the import store's
+  // CAS helpers, no processor dependencies, so it stays available even when
+  // the item processor could not be constructed.
+  registerCapabilityGatedJob(
+    GOOGLE_IMPORT_CLAIM_REAPER_JOB,
+    'property.import_gbp_v2',
+    createGoogleImportClaimReaperHandler({
+      reap: createGoogleImportV2ClaimReaper({
+        store: createGoogleImportV2Store(container.db),
+        clock: container.clock,
+      }),
+    }),
+  )
+
+  // ── Review provider-snapshot jobs ────────────────────────────────
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
-    // BQR-2.3: use composition-wired use case (atomic ReviewCommandStore)
-    syncReviews: container.useCases.syncReviews,
+    runSnapshot: container.useCases.runReviewProviderSnapshot,
+    propertyRouting: container.propertyProcessingScopeApi,
+    enqueueContinuation: async (data) => {
+      await container.reviewQueue.addSyncJob(data)
+    },
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
@@ -165,6 +214,76 @@ export async function bootstrap(container: Container): Promise<void> {
   logger.info(
     { job: SYNC_REVIEWS_JOB_NAME },
     'registered sync-property-reviews job handler',
+  )
+  const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
+    container.db,
+    container.eventBus,
+  )
+  const enqueueReviewProviderLifecycleContinuation = async (
+    jobName:
+      | typeof EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME
+      | typeof SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+    data: ReviewProviderLifecycleSweepJobData,
+  ): Promise<void> => {
+    if (!container.backgroundQueue) {
+      throw new Error('Review provider lifecycle queue is unavailable')
+    }
+    await container.backgroundQueue.add(jobName, data, {
+      jobId: `${jobName}-${data.beforeOrAtEpochMillis}-${data.afterReviewId ?? 'start'}`,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 50 },
+      ...jobEnqueueOptions(jobName),
+    })
+  }
+  const expireReviewProviderSourceHandler = createExpireReviewProviderSourceHandler({
+    repository: reviewProviderSnapshotRepository,
+    enqueueExpiryContinuation: (data) =>
+      enqueueReviewProviderLifecycleContinuation(
+        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+        data,
+      ),
+    enqueueTombstoneContinuation: (data) =>
+      enqueueReviewProviderLifecycleContinuation(
+        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+        data,
+      ),
+  })
+  const sweepReviewProviderTombstonesHandler = createSweepReviewProviderTombstonesHandler(
+    {
+      repository: reviewProviderSnapshotRepository,
+      enqueueExpiryContinuation: (data) =>
+        enqueueReviewProviderLifecycleContinuation(
+          EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+          data,
+        ),
+      enqueueTombstoneContinuation: (data) =>
+        enqueueReviewProviderLifecycleContinuation(
+          SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+          data,
+        ),
+    },
+  )
+  container.jobRegistry.register(EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME, async (job) => {
+    await expireReviewProviderSourceHandler(
+      job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
+    )
+  })
+  container.jobRegistry.register(
+    SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+    async (job) => {
+      await sweepReviewProviderTombstonesHandler(
+        job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
+      )
+    },
+  )
+  logger.info(
+    {
+      jobs: [
+        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
+        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
+      ],
+    },
+    'registered Review provider lifecycle handlers',
   )
 
   // ── Review retention jobs ────────────────────────────────────────
@@ -197,9 +316,7 @@ export async function bootstrap(container: Container): Promise<void> {
     clock: container.clock,
     db: container.db,
   })
-  container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => {
-    await purgeHandler(job)
-  })
+  container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => purgeHandler(job))
   logger.info(
     { job: PURGE_EXPIRED_JOB_NAME },
     'registered purge-expired-reviews job handler',
@@ -223,6 +340,30 @@ export async function bootstrap(container: Container): Promise<void> {
     )
   })
   logger.info({ job: PUBLISH_REPLY_JOB_NAME }, 'registered publish-reply job handler')
+  const generatePropertyTrendHandler = createGeneratePropertyTrendJobHandler({
+    generatePropertyTrend: container.useCases.generatePropertyTrend,
+  })
+  registerCapabilityGatedJob(
+    GENERATE_PROPERTY_TREND_JOB_NAME,
+    'ai.detect_trends',
+    generatePropertyTrendHandler,
+  )
+  logger.info(
+    { job: GENERATE_PROPERTY_TREND_JOB_NAME },
+    'registered property AI trend job handler',
+  )
+  const schedulePropertyTrendsHandler = createSchedulePropertyTrendsJobHandler({
+    schedulePropertyTrends: container.useCases.schedulePropertyTrends,
+  })
+  registerCapabilityGatedJob(
+    SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
+    'ai.detect_trends',
+    schedulePropertyTrendsHandler,
+  )
+  logger.info(
+    { job: SCHEDULE_PROPERTY_TRENDS_JOB_NAME },
+    'registered property AI trend scheduler job handler',
+  )
 
   // ── Reconcile ambiguous reply publications (BQC-3.8) ──────────────
   // Sweep over replies whose Google send outcome was ambiguous on the final
@@ -269,10 +410,10 @@ export async function bootstrap(container: Container): Promise<void> {
   const retentionSweepHandler = createRetentionSweepHandler({
     db: container.db,
     clock: container.clock,
+    googleImportLifecycleSweep:
+      container.useCases.sweepGoogleImportV2Lifecycle ?? undefined,
   })
-  container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, async (job) => {
-    await retentionSweepHandler(job)
-  })
+  container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, retentionSweepHandler)
   logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')
 
   // ── Quarantine TTL sweep (BQC-7.8: dead-letter lifecycle bound, daily) ──
@@ -305,36 +446,33 @@ export async function bootstrap(container: Container): Promise<void> {
     'registered quarantine TTL sweep job handler',
   )
 
-  // ── Goal event handlers ────────────────────────────────────────────
-  // NOTE: Goal event handlers are now registered inside buildGoalContext
-  // (composition.ts) so they're available in both web server and worker.
-  // No separate registration needed here.
-
-  // ── Goal reconciliation job (goal.use dark) ────────────────────────
-  const { createReconcileGoalProgressHandler, RECONCILE_GOAL_JOB_NAME } =
-    await import('#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job')
-  const reconcileHandler = createReconcileGoalProgressHandler({
-    goalRepo: container.goalRepo,
-    metricApi: container.metricPublicApi,
-    events: container.eventBus,
-    clock: container.clock,
-  })
-  registerCapabilityGatedJob(RECONCILE_GOAL_JOB_NAME, 'goal.use', async (job) => {
-    await reconcileHandler(job)
-  })
-
-  // ── Goal recurring instance spawner job (goal.use dark) ────────────
-  const { createSpawnRecurringInstancesHandler, SPAWN_RECURRING_JOB_NAME } =
-    await import('#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job')
-  const spawnHandler = createSpawnRecurringInstancesHandler({
-    goalRepo: container.goalRepo,
-    events: container.eventBus,
-    clock: container.clock,
-    idGen: () => crypto.randomUUID(),
-  })
-  registerCapabilityGatedJob(SPAWN_RECURRING_JOB_NAME, 'goal.use', async (job) => {
-    await spawnHandler(job)
-  })
+  // ── Execution-permit start-deadline fence (bounded, every 5 minutes) ──
+  // `admitted` permits are only fenced lazily by `startExecutionPermit` or by
+  // the emergency-kill drain, so an abandoned admission pins its ON DELETE
+  // RESTRICT approval binding and inflates the active-permit index forever.
+  // Registered unconditionally: an unconfigured/killed Google Content runtime is
+  // precisely when nothing will ever start those permits.
+  const {
+    createPermitStartDeadlineSweepHandler,
+    JOB_NAME: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+  } = await import('#/shared/jobs/permit-start-deadline-sweep.job')
+  const { createExecutionPermitStartDeadlineSweeper } =
+    await import('#/shared/auth/execution-permit-start-deadline-sweep')
+  const { createGoogleContentAuthorityRepository } =
+    await import('#/contexts/identity/infrastructure/repositories/google-content-authority.repository')
+  container.jobRegistry.register(
+    PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+    createPermitStartDeadlineSweepHandler({
+      sweep: createExecutionPermitStartDeadlineSweeper({
+        store: createGoogleContentAuthorityRepository(container.db),
+        clock: container.clock,
+      }),
+    }),
+  )
+  logger.info(
+    { job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME },
+    'registered permit start-deadline sweep job handler',
+  )
 
   // ── Activity log insertion job ────────────────────────────────────
   const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
@@ -372,8 +510,30 @@ export async function bootstrap(container: Container): Promise<void> {
   const { createResendEmailAdapter } =
     await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
-  const notifUserLookup = createNotifUserLookup(container.db)
+  const { createPropertyGrantHolderLookup } =
+    await import('#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter')
+  const notifUserLookup = createNotifUserLookup(
+    container.db,
+    createPropertyGrantHolderLookup(container.db),
+  )
   const notifEmailSender = createResendEmailAdapter()
+  const { getPool } = await import('#/shared/db/pool')
+  const { createNotificationPropertyScopeResolver } =
+    await import('#/contexts/notification/infrastructure/repositories/notification-property-scope.repository')
+  const resolveNotificationProperty = createNotificationPropertyScopeResolver(getPool())
+  const authorizeUrgentNotification = createScheduledScopeAuthorizer(
+    'system:notification.email_urgent',
+  )
+  const { createJobExecutionEnvelope } =
+    await import('#/shared/jobs/delayed-execution-gate')
+  // The insert handler must be able to dispatch the immediate email itself:
+  // the queue row alone is inert, so an urgent notification would sit pending
+  // until a digest sweep. `notification.send_email` is org-gated at execution,
+  // so enqueuing here is safe even when a tenant has email disabled.
+  const { URGENT_EMAIL_JOB_NAME: URGENT_EMAIL_JOB } =
+    await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
+  const { jobEnqueueOptions: urgentEnqueueOptions } =
+    await import('#/shared/jobs/job-policy')
   const insertNotifHandler = createInsertNotificationHandler({
     notificationRepo: container.notificationRepo,
     emailRepo: container.notificationEmailRepo,
@@ -382,6 +542,24 @@ export async function bootstrap(container: Container): Promise<void> {
     idGen: () => notificationId(crypto.randomUUID()),
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
+    enqueueImmediateEmail: container.jobQueue
+      ? async (data) => {
+          await container.jobQueue!.add(
+            URGENT_EMAIL_JOB,
+            {
+              ...data,
+              ...createJobExecutionEnvelope({
+                organizationId: data.organizationId,
+                propertyId: data.propertyId,
+                capability: 'notification.send_email',
+                initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+                correlationId: `notification-email:${data.notificationEmailId}`,
+              }),
+            },
+            { ...urgentEnqueueOptions(URGENT_EMAIL_JOB) },
+          )
+        }
+      : undefined,
   })
   container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
     await insertNotifHandler(
@@ -405,6 +583,9 @@ export async function bootstrap(container: Container): Promise<void> {
     emailSender: notifEmailSender,
     logger: container.logger,
     clock: container.clock,
+    preferenceRepo: container.notificationPrefRepo,
+    resolvePropertyScope: resolveNotificationProperty,
+    authorizeScope: authorizeUrgentNotification,
   })
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
@@ -420,7 +601,6 @@ export async function bootstrap(container: Container): Promise<void> {
 
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
-  const { getPool } = await import('#/shared/db/pool')
   const digestHandler = createDigestNotificationJobHandler({
     pool: getPool(),
     emailRepo: container.notificationEmailRepo,
@@ -429,6 +609,25 @@ export async function bootstrap(container: Container): Promise<void> {
     emailSender: notifEmailSender,
     logger: container.logger,
     clock: container.clock,
+    preferenceRepo: container.notificationPrefRepo,
+    authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
+    enqueueImmediate: async (data) => {
+      if (!container.jobQueue) return
+      await container.jobQueue.add(
+        URGENT_EMAIL_JOB_NAME,
+        {
+          notificationEmailId: data.notificationEmailId,
+          ...createJobExecutionEnvelope({
+            organizationId: data.organizationId,
+            propertyId: data.propertyId,
+            capability: 'notification.send_email',
+            initiator: { kind: 'system', id: 'notification:delivery-sweep' },
+            correlationId: `notification-email:${data.notificationEmailId}`,
+          }),
+        },
+        jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+      )
+    },
   })
   registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email', async (job) => {
     await digestHandler(job as import('bullmq').Job<void>)
@@ -444,13 +643,42 @@ export async function bootstrap(container: Container): Promise<void> {
     logger.error({ err: e }, 'failed to seed badge definitions')
   }
 
-  // ── Badge reconciliation job (badge.use dark) ─────────────────────
-  registerCapabilityGatedJob('badge.reconcile', 'badge.use', async () => {
-    await container.useCases.reconcileBadgeDefinitions({})
-  })
+  // Global ticks fan out to scoped children; each child re-authorizes the
+  // concrete organization/property before governed reads or projection writes.
+  registerCapabilityGatedJob('leaderboard.reconcile', 'leaderboard.use', async (job) => {
+    const payload = job.data as Readonly<{
+      scope?: string
+      organizationId?: string
+      propertyId?: string
+    }>
+    if (payload.scope === 'property' && payload.organizationId && payload.propertyId) {
+      await container.useCases.reconcileRecognition(
+        payload.organizationId,
+        payload.propertyId,
+      )
+      return
+    }
 
-  // ── Leaderboard reconciliation job (leaderboard.use dark) ─────────
-  registerCapabilityGatedJob('leaderboard.reconcile', 'leaderboard.use', async () => {
-    await container.useCases.reconcileLeaderboards()
+    const recognitionQueue = container.jobQueue
+    if (!recognitionQueue) {
+      throw new Error('recognition scoped reconciliation queue unavailable')
+    }
+
+    const scopes = await container.useCases.listRecognitionScopes()
+    for (const scope of scopes) {
+      await recognitionQueue.add(
+        'leaderboard.reconcile',
+        {
+          ...createJobExecutionEnvelope({
+            organizationId: scope.organizationId,
+            propertyId: scope.propertyId,
+            capability: 'leaderboard.use',
+            initiator: { kind: 'system', id: 'recognition:hourly-tick' },
+            correlationId: `recognition:${scope.organizationId}:${scope.propertyId}`,
+          }),
+        },
+        jobEnqueueOptions('leaderboard.reconcile'),
+      )
+    }
   })
 }

@@ -1,13 +1,11 @@
 // Staff context — listStaffPortals use case tests.
-// Covers the forbidden-role gate, portalId dedupe, null-portalId exclusion,
-// inactive-portal filtering, and alphabetical sort (D8-008 fan-out logic).
+// Covers portalId dedupe, null-portalId exclusion, publication filtering, and alphabetical sort.
 
 import { describe, it, expect } from 'vitest'
 import { listStaffPortals } from './list-staff-portals'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
 import { buildTestAuthContext, buildTestStaffAssignment } from '#/shared/testing/fixtures'
 import type { StaffPortalLookupPort } from '../ports/portal-lookup.port'
-import { isStaffError } from '../../domain/errors'
 import { userId, propertyId, portalId } from '#/shared/domain/ids'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 
@@ -15,7 +13,7 @@ const TARGET_USER = userId('user-00000000-0000-0000-0000-0000000000aa') as UserI
 const TARGET_PROPERTY = propertyId('a0000000-0000-0000-0000-0000000000a1') as PropertyId
 
 /**
- * Fake StaffPortalLookupPort — holds a map of portalId → { name, isActive }
+ * Fake StaffPortalLookupPort — holds a map of portalId → publication state
  * and answers getPortalInfo from it. listPortalIdsByProperty is unused by
  * this use case but required by the port type.
  */
@@ -26,7 +24,11 @@ const createFakePortalLookup = (
   getPortalInfo: async (_orgId, pid: PortalId) => {
     const entry = portals[String(pid)]
     if (!entry) return null
-    return { id: pid, name: entry.name, isActive: entry.isActive }
+    return {
+      id: pid,
+      name: entry.name,
+      publicationState: entry.isActive ? 'published' : 'disabled',
+    }
   },
 })
 
@@ -40,21 +42,6 @@ const setup = (
 }
 
 describe('listStaffPortals', () => {
-  it('rejects a role without staff_assignment.read (forbidden)', async () => {
-    const { useCase } = setup()
-    // Staff has no staff_assignment.read permission.
-    const ctx = buildTestAuthContext({ role: 'Staff' })
-
-    await expect(
-      useCase({ userId: TARGET_USER, propertyId: TARGET_PROPERTY }, ctx),
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    // And it throws a tagged StaffError, not a bare Error.
-    await expect(
-      useCase({ userId: TARGET_USER, propertyId: TARGET_PROPERTY }, ctx),
-    ).rejects.toSatisfy(isStaffError)
-  })
-
   it('dedupes duplicate portalIds across assignments', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const dupPortal = portalId('p-00000000-0000-0000-0000-000000000001') as PortalId

@@ -11,8 +11,6 @@ import type {
 export type GoogleConnectionDto = Readonly<{
   id: string
   organizationId: string
-  googleAccountId: string
-  googleEmail: string
   scopes: ReadonlyArray<string>
   connectedBy: string
   visibility: GoogleConnectionVisibility
@@ -26,8 +24,6 @@ export function toGoogleConnectionDto(conn: GoogleConnection): GoogleConnectionD
   return {
     id: conn.id,
     organizationId: conn.organizationId,
-    googleAccountId: conn.googleAccountId,
-    googleEmail: conn.googleEmail,
     scopes: conn.scopes,
     connectedBy: conn.connectedBy,
     visibility: conn.visibility,

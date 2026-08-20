@@ -1,37 +1,33 @@
-// Dashboard context — getFleetOverview use case.
-// Cross-property aggregation: per-property attention signals + KPI summary,
-// sorted by total attention (most-needing first), plus an org-total strip.
-// Authorization + property enumeration happen at the server-fn boundary;
-// this use case is pure aggregation over already-scoped property identities.
-
-import type { AttentionSignalsPort } from '../ports/attention-signals.port'
-import type { DashboardRepository } from '../ports/dashboard.repository'
+import type {
+  FleetCursorAnchor,
+  FleetOverviewProjectionPort,
+  FleetProjectionScope,
+} from '../ports/fleet-overview-projection.port'
 import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../domain/types'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId } from '#/shared/domain/ids'
+import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { isRatingDrop, priorPeriodDates } from '../utils'
-
-/** Property identity the fleet use case enriches. Resolved server-side. */
-export type FleetProperty = Readonly<{
-  propertyId: PropertyId
-  name: string
-  slug: string
-  timezone: string
-}>
+import { computeTrend, isRatingDrop, priorPeriodDates, slaCutoff } from '../utils'
+import { dashboardError } from '../../domain/errors'
 
 export type GetFleetOverviewInput = Readonly<{
   organizationId: OrganizationId
-  properties: readonly FleetProperty[]
-  /** Response SLA in hours (org-level setting). */
+  scope: FleetProjectionScope
+  portalReadEnabled: boolean
+  goalReadEnabled: boolean
   slaHours: number
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  cursor?: string
 }>
 
 export type GetFleetOverviewDeps = Readonly<{
-  signals: AttentionSignalsPort
-  repo: DashboardRepository
+  projection: FleetOverviewProjectionPort
+  resolveAccessiblePropertyIds(
+    organizationId: OrganizationId,
+    scope: FleetProjectionScope,
+  ): Promise<readonly import('#/shared/domain/ids').PropertyId[] | null>
   clock: () => Date
 }>
 
@@ -39,93 +35,108 @@ export type GetFleetOverview = (
   input: GetFleetOverviewInput,
 ) => Promise<FleetOverviewData>
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function encodeFleetCursor(anchor: FleetCursorAnchor): string {
+  return Buffer.from(
+    JSON.stringify({ n: anchor.lowerName, i: anchor.propertyId }),
+    'utf8',
+  ).toString('base64url')
+}
+
+export function decodeFleetCursor(cursor: string | undefined): FleetCursorAnchor | null {
+  if (!cursor) return null
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      n?: unknown
+      i?: unknown
+    }
+    if (
+      typeof value.n !== 'string' ||
+      value.n.length > 100 ||
+      typeof value.i !== 'string' ||
+      !UUID.test(value.i)
+    ) {
+      throw new Error('invalid shape')
+    }
+    return { lowerName: value.n, propertyId: propertyId(value.i) }
+  } catch {
+    throw dashboardError('invalid_input', 'Invalid fleet cursor')
+  }
+}
+
 export const getFleetOverview =
   (deps: GetFleetOverviewDeps): GetFleetOverview =>
   async (input) => {
-    const { organizationId, properties, slaHours, startDate, endDate, timeRange } = input
-
-    // Prior period mirrors getAttentionSignals so the rating-drop flag stays
-    // consistent with the per-property deep-dive. 'all' has no prior period.
+    const {
+      organizationId,
+      scope,
+      portalReadEnabled,
+      goalReadEnabled,
+      slaHours,
+      startDate,
+      endDate,
+      timeRange,
+    } = input
+    const now = deps.clock()
     const { priorStartDate, priorEndDate } = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
     )
+    const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
+      organizationId,
+      scope,
+    )
+    const projection = await deps.projection.read({
+      organizationId,
+      accessiblePropertyIds,
+      portalReadEnabled,
+      goalReadEnabled,
+      cursor: decodeFleetCursor(input.cursor),
+      startDate,
+      endDate,
+      priorStartDate,
+      priorEndDate,
+      now,
+      slaCutoff: slaCutoff(now, slaHours),
+    })
 
-    // Process properties in batches of 5 to bound DB connection pool usage.
-    // Each property fires 5 concurrent queries, so a batch of 5 = 25 concurrent
-    // queries — fits a typical pool of 10-20 with minimal queuing.
-    const BATCH_SIZE = 5
-    const entries: FleetEntry[] = []
-    for (let i = 0; i < properties.length; i += BATCH_SIZE) {
-      const batch = properties.slice(i, i + BATCH_SIZE)
-      const batchEntries = await Promise.all(
-        batch.map(async (p): Promise<FleetEntry> => {
-          // Five parallel queries per property: 4 attention counts + KPIs.
-          const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] =
-            await Promise.all([
-              deps.signals.getUnansweredReviewCount(
-                organizationId,
-                p.propertyId,
-                slaHours,
-              ),
-              deps.signals.getNewInboxItemCount(organizationId, p.propertyId),
-              deps.signals.getEscalatedInboxItemCount(organizationId, p.propertyId),
-              deps.signals.getGoalsBehindPaceCount(organizationId, p.propertyId),
-              deps.repo.getKPIs({
-                organizationId,
-                propertyId: p.propertyId,
-                startDate,
-                endDate,
-                priorStartDate,
-                priorEndDate,
-              }),
-            ])
-
-          const ratingDrop = isRatingDrop(kpis.avgRating.value, kpis.avgRating.priorValue)
-
-          const attentionSignals: AttentionSignals = {
-            unanswered,
-            newFeedback,
-            goalsBehindPace,
-            ratingDrop,
-            escalated,
-          }
-          const totalAttention =
-            unanswered + newFeedback + goalsBehindPace + (ratingDrop ? 1 : 0) + escalated
-
-          return {
-            propertyId: p.propertyId,
-            name: p.name,
-            slug: p.slug,
-            timezone: p.timezone,
-            avgRating: kpis.avgRating.value,
-            avgRatingTrend: kpis.avgRating.trend,
-            reviewCount: kpis.reviews.value,
-            feedbackCount: kpis.feedback.value,
-            scanCount: kpis.scans.value,
-            attentionSignals,
-            totalAttention,
-          }
-        }),
-      )
-      entries.push(...batchEntries)
-    }
-
-    // Most-needing first.
-    const sorted = [...entries].sort((a, b) => b.totalAttention - a.totalAttention)
-
-    const totalAttention = sorted.reduce((sum, e) => sum + e.totalAttention, 0)
-    const rated = sorted.filter((e) => e.avgRating > 0)
-    const overallAvgRating =
-      rated.length > 0 ? rated.reduce((sum, e) => sum + e.avgRating, 0) / rated.length : 0
+    const entries: FleetEntry[] = projection.rows.map((row) => {
+      const ratingDrop = isRatingDrop(row.avgRating, row.priorAvgRating)
+      const attentionSignals: AttentionSignals = {
+        unanswered: row.unanswered,
+        newFeedback: row.newFeedback,
+        goalsBehindPace: row.goalsBehindPace,
+        ratingDrop,
+        escalated: row.escalated,
+      }
+      return {
+        propertyId: row.propertyId,
+        name: row.name,
+        slug: row.slug,
+        timezone: row.timezone,
+        avgRating: row.avgRating,
+        avgRatingTrend: computeTrend(row.avgRating, row.priorAvgRating),
+        reviewCount: row.reviewCount,
+        feedbackCount: row.feedbackCount,
+        scanCount: row.scanCount,
+        reviewEvidence: row.reviewEvidence,
+        scanEvidence: row.scanEvidence,
+        feedbackEvidence: row.feedbackEvidence,
+        attentionSignals,
+        totalAttention:
+          row.unanswered +
+          row.newFeedback +
+          row.goalsBehindPace +
+          (ratingDrop ? 1 : 0) +
+          row.escalated,
+      }
+    })
 
     return {
-      entries: sorted,
-      totals: {
-        propertyCount: sorted.length,
-        totalAttention,
-        overallAvgRating,
-      },
+      entries,
+      totals: projection.summary,
+      nextCursor: projection.nextAnchor ? encodeFleetCursor(projection.nextAnchor) : null,
     }
   }

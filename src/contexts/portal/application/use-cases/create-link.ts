@@ -49,6 +49,9 @@ export const createLink =
     if (!category) {
       throw portalError('category_not_found', 'category not found')
     }
+    if (category.portalId !== portalId(input.portalId)) {
+      throw portalError('forbidden', 'Category does not belong to this portal')
+    }
     // Enforce property-assignment scoping for PropertyManager (D6-001.)
     await assertPortalPropertyAccess(
       deps.portalRepo,
@@ -64,6 +67,7 @@ export const createLink =
 
     const existing = await deps.portalLinkRepo.listLinks(
       ctx.organizationId,
+      portalId(input.portalId),
       portalLinkCategoryId(input.categoryId),
     )
     const lastSortKey = existing.length > 0 ? existing[existing.length - 1].sortKey : null

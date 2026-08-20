@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "bqc-baseline",
+  "environment": {
+    "sha": "7d47b1fe31fad04eb2b1ac1ccf2008b0ea26f85f",
+    "branch": "feat/bqc-8-3-lifecycle-at-scale",
+    "lockfileSha256": "33c121b7189465408d7fc86b6fd508bf281b6f217b159b0acf32f35bb4e9baa0",
+    "migrationVersion": "0054_rare_hercules",
+    "node": "v26.4.0",
+    "pnpm": "10.6.5",
+    "platform": "darwin/arm64",
+    "nodeEnv": "(unset)",
+    "database": "(unset)",
+    "redisConfigured": false,
+    "capturedAt": "2026-08-17T17:41:54.441Z"
+  },
+  "gates": [
+    {
+      "id": "migrations",
+      "command": "echo \"y\" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema",
+      "skipped": true,
+      "skipReason": "missing env DATABASE_URL",
+      "result": "skipped"
+    }
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 1,
+    "failedGates": []
+  }
+}

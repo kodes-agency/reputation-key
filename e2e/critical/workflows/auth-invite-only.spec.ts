@@ -13,7 +13,7 @@ import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
 import { callServerFnExpectError, getUserByEmail } from '../../helpers/fixtures'
 
-const LOCKED_ORIGIN = 'http://localhost:3001'
+const LOCKED_ORIGIN = process.env.E2E_LOCKED_BASE_URL ?? 'http://localhost:3001'
 
 test.use({ baseURL: LOCKED_ORIGIN })
 

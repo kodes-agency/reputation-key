@@ -32,7 +32,7 @@ function useActiveSection(): string {
       if (s.location.pathname.startsWith('/leaderboard')) return 'leaderboard'
       if (
         s.location.pathname === '/properties' ||
-        s.location.pathname.startsWith('/import')
+        s.location.pathname.startsWith('/properties/import-google')
       )
         return ''
       // eslint-disable-next-line security/detect-unsafe-regex -- BQC-7.7 (owner: platform): char-class-only pattern, no nested quantifiers; safe-regex star-height false positive

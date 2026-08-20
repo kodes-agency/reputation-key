@@ -280,6 +280,36 @@ function isIntegrationErrorShape(err: unknown): err is IntegrationErrorShape {
   )
 }
 
+type GbpApiErrorShape = Readonly<{
+  kind:
+    | 'auth_failed'
+    | 'rate_limited'
+    | 'permission_denied'
+    | 'upstream_error'
+    | 'parse_error'
+}>
+
+/** Structural check — the review domain must not import the integration context. */
+function isGbpApiErrorShape(err: unknown): err is GbpApiErrorShape {
+  if (
+    typeof err !== 'object' ||
+    err === null ||
+    !('_tag' in err) ||
+    (err as { _tag?: unknown })._tag !== 'GbpApiError' ||
+    !('kind' in err)
+  ) {
+    return false
+  }
+  const kind = (err as { kind?: unknown }).kind
+  return (
+    kind === 'auth_failed' ||
+    kind === 'rate_limited' ||
+    kind === 'permission_denied' ||
+    kind === 'upstream_error' ||
+    kind === 'parse_error'
+  )
+}
+
 function isAbortError(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -307,6 +337,15 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
 export function classifyPublicationFailure(err: unknown): PublicationFailureClass {
   // Timeout/abort: the PUT may have landed — outcome is honestly unknown.
   if (isAbortError(err)) return 'ambiguous'
+  if (isGbpApiErrorShape(err)) {
+    if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
+      return 'terminal_rejection'
+    }
+    if (err.kind === 'rate_limited' || err.kind === 'upstream_error') {
+      return 'retryable'
+    }
+    return 'ambiguous'
+  }
   if (!isIntegrationErrorShape(err)) {
     // fetch network failures (TypeError) surface before a response arrives.
     return err instanceof TypeError ? 'retryable' : 'ambiguous'

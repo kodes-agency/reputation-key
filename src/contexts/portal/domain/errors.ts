@@ -22,6 +22,8 @@ export type PortalErrorCode =
   | 'portal_already_grouped'
   | 'portal_not_in_group'
   | 'portal_inactive'
+  | 'invalid_publication_transition'
+  | 'token_unavailable'
   | 'upload_failed'
 
 export type PortalError = Readonly<{

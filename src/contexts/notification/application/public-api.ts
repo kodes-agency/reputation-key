@@ -4,16 +4,22 @@
 
 // ── Domain type re-exports ────────────────────────────────────────────
 export type {
+  DeliveryErrorClass,
+  EmailQueueStatus,
   Notification,
+  NotificationCadence,
+  NotificationCategory,
+  NotificationChannel,
   NotificationEmail,
   NotificationPreference,
-  NotificationType,
   NotificationPriority,
-  NotificationStatus,
-  EmailQueueStatus,
   NotificationResourceType,
+  NotificationStatus,
+  NotificationType,
+  NotificationUserSettings,
 } from '../domain/types'
 
+export { getDefaultEnabled } from '../domain/notification-policy'
 export { isUrgent, URGENT_TYPES } from '../domain/types'
 
 // ── Constructor re-exports ────────────────────────────────────────────

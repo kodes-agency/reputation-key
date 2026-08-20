@@ -12,6 +12,8 @@ import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 export type ReviewSnippet = Readonly<{
   reviewerName: string | null
   text: string | null
+  /** Provider machine translation; `text` holds the guest's original words. */
+  translatedText: string | null
   reviewerProfilePhotoUrl: string | null
   rating: number | null
 }>

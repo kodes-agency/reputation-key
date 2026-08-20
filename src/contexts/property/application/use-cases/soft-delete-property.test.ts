@@ -124,4 +124,80 @@ describe('deleteProperty', () => {
     )
     expect(propertyRepo.all()).toHaveLength(0)
   })
+
+  it('fences imports before purge/delete and reconciles tombstones afterward', async () => {
+    const propertyRepo = createInMemoryPropertyRepo()
+    const events = createCapturingEventBus()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const prop = buildTestProperty({})
+    propertyRepo.seed([prop])
+    const calls: string[] = []
+    const prepareGoogleImportDeletion = vi.fn(async () => {
+      calls.push('prepare')
+      return { itemIds: ['item-1', 'item-2'] }
+    })
+    const finalizeGoogleImportDeletion = vi.fn(async () => {
+      calls.push('finalize')
+    })
+    const useCase = deleteProperty({
+      propertyRepo,
+      commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
+      clock: () => FIXED_TIME,
+      sourceContentPurge: {
+        inboxForProperty: vi.fn(async () => {
+          calls.push('inbox')
+          return { subject: 'inbox_items.purge.property', batches: 0, rowsDeleted: 0 }
+        }),
+        forProperty: vi.fn(async () => {
+          calls.push('reviews')
+          return { subject: 'reviews.purge.property', batches: 0, rowsDeleted: 0 }
+        }),
+        forConnection: vi.fn(),
+        forOrganization: vi.fn(),
+      },
+      prepareGoogleImportDeletion,
+      finalizeGoogleImportDeletion,
+    })
+
+    await useCase({ propertyId: prop.id }, ctx)
+
+    expect(calls).toEqual(['prepare', 'inbox', 'reviews', 'finalize'])
+    expect(prepareGoogleImportDeletion).toHaveBeenCalledWith(ctx.organizationId, prop.id)
+    expect(finalizeGoogleImportDeletion).toHaveBeenCalledWith(ctx.organizationId, [
+      'item-1',
+      'item-2',
+    ])
+    expect(propertyRepo.all()).toEqual([])
+  })
+
+  it('does not purge or delete when import fencing fails', async () => {
+    const propertyRepo = createInMemoryPropertyRepo()
+    const events = createCapturingEventBus()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const prop = buildTestProperty({})
+    propertyRepo.seed([prop])
+    const sourceContentPurge = {
+      inboxForProperty: vi.fn(),
+      forProperty: vi.fn(),
+      forConnection: vi.fn(),
+      forOrganization: vi.fn(),
+    }
+    const useCase = deleteProperty({
+      propertyRepo,
+      commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
+      clock: () => FIXED_TIME,
+      sourceContentPurge,
+      prepareGoogleImportDeletion: async () => {
+        throw new Error('import lifecycle unavailable')
+      },
+    })
+
+    await expect(useCase({ propertyId: prop.id }, ctx)).rejects.toThrow(
+      'import lifecycle unavailable',
+    )
+
+    expect(sourceContentPurge.inboxForProperty).not.toHaveBeenCalled()
+    expect(propertyRepo.all()).toHaveLength(1)
+    expect(events.capturedByTag('property.deleted')).toEqual([])
+  })
 })

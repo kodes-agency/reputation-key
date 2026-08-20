@@ -26,16 +26,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     },
     getPropertyName: async () => null,
     getPropertyNames: async () => [],
-    findByGbpPlaceId: async () => null,
+    findByGbpLocationId: async () => null,
     findBySlug: async () => null,
     getProcessingRegion: async () => 'us',
     findIdsByGoogleConnection: async () => [],
     clearGoogleConnectionRef: async () => {},
-    importProperty: async () => {
-      throw new Error('not implemented')
-    },
-    findExistingGbpPlaceIds: async () => [],
-    existsByGbpPlaceId: async () => false,
   }
 
   // null = AccountAdmin org-wide access; [] = no assigned properties (PM/Staff).
@@ -72,7 +67,7 @@ describe('createTeam', () => {
     expect(teamRepo.all()).toHaveLength(1)
   })
 
-  it('creates a team with optional fields', async () => {
+  it('creates a team with an optional description', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const property = buildTestProperty({ organizationId: ctx.organizationId })
@@ -83,13 +78,11 @@ describe('createTeam', () => {
         propertyId: property.id,
         name: 'Housekeeping',
         description: 'Room cleaning team',
-        teamLeadId: 'user-00000000-0000-0000-0000-000000000001',
       },
       ctx,
     )
 
     expect(team.description).toBe('Room cleaning team')
-    expect(team.teamLeadId).toBeTruthy()
   })
 
   it('rejects users who cannot create teams', async () => {

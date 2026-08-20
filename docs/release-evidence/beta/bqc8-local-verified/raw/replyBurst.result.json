@@ -1,0 +1,70 @@
+{
+  "version": 2,
+  "scenario": "replyBurst",
+  "startedAt": "2026-08-08T15:08:46.493Z",
+  "durationMs": 5217.515,
+  "passed": true,
+  "metrics": {
+    "burstSize": 25,
+    "published": 25,
+    "terminal": 0,
+    "ambiguous": 0,
+    "publishP50": 2767.41,
+    "publishP95": 4927.34,
+    "publishP99": 5120.09,
+    "removedOnCleanup": 25,
+    "cleanupMissed": 0,
+    "executedDurationS": 5.218
+  },
+  "assertions": [
+    {
+      "check": "required_samples",
+      "passed": true,
+      "detail": "25 publish enqueues, 25 terminal observations"
+    },
+    {
+      "check": "enqueue_error_free",
+      "passed": true,
+      "detail": "0 publish enqueue failures"
+    },
+    {
+      "check": "all_terminal",
+      "passed": true,
+      "detail": "25/25 replies reached a terminal state within 60s"
+    },
+    {
+      "check": "publish_terminal_p95_within_slo",
+      "passed": true,
+      "detail": "publish→terminal p95 4927.3ms vs 10000ms (ADR 0038)"
+    },
+    {
+      "check": "monitoring_captured",
+      "passed": true,
+      "detail": "1 points, 0 read errors"
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "burstSize": 25,
+    "publishTerminalP95": 10000
+  },
+  "samples": {
+    "count": 50,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 1,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

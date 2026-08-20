@@ -1,11 +1,12 @@
 // Fleet overview — cross-property landing for orgs with 2+ properties.
-// Renders inside the `dashboard` tier. Rows are attention-sorted (most-needing first);
+// Renders inside the `dashboard` tier. Rows use stable name/id keyset ordering;
 // each row deep-links into that property's deep-dive.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { dashboardKeys } from '#/shared/queries/query-keys'
-import { Building2, AlertCircle, Star, Plus } from 'lucide-react'
+import { usePermissions } from '#/shared/hooks/usePermissions'
+import { Building2, AlertCircle, Star } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
@@ -18,6 +19,7 @@ import {
 } from '#/components/features/property/property-dashboard-helpers'
 import type {
   FleetEntry,
+  FleetMetricEvidence,
   FleetOverviewData,
 } from '#/contexts/dashboard/application/public-api'
 
@@ -54,20 +56,19 @@ export function FleetOverviewError({ message }: Readonly<{ message?: string }>) 
 }
 
 export function FleetOverviewEmpty() {
+  const { can } = usePermissions()
   return (
     <Shell>
       <div className="flex flex-col items-center justify-center gap-4 py-24">
         <h2 className="text-lg font-medium">No properties yet</h2>
         <p className="max-w-sm text-center text-sm text-muted-foreground">
-          Create your first property to start managing reviews, staff performance, and
-          reputation.
+          Create your first property to manage reviews, staff performance, and reputation.
         </p>
-        <Button asChild>
-          <Link to="/import">
-            <Plus />
-            Create Property
-          </Link>
-        </Button>
+        {can('property.import_gbp_v2') ? (
+          <Button asChild>
+            <Link to="/properties/import-google">Import property</Link>
+          </Button>
+        ) : null}
       </div>
     </Shell>
   )
@@ -114,17 +115,14 @@ export function FleetOverview({ data }: FleetOverviewProps) {
   )
 }
 
-function StripStat({
-  icon: Icon,
-  label,
-  value,
-  destructive,
-}: Readonly<{
+type StripStatProps = Readonly<{
   icon: typeof Building2
   label: string
   value: string
   destructive?: boolean
-}>) {
+}>
+
+function StripStat({ icon: Icon, label, value, destructive }: StripStatProps) {
   return (
     <div className="rounded-lg border p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -137,6 +135,35 @@ function StripStat({
         {value}
       </p>
     </div>
+  )
+}
+function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
+  const completeness = Math.round(evidence.completeness * 100)
+  const watermark = evidence.watermark?.toISOString() ?? 'No eligible reading'
+  const sources =
+    evidence.sourcePolicies.length > 0 ? evidence.sourcePolicies.join(', ') : 'None'
+  return [
+    `Definition ${evidence.definitionVersionId}`,
+    `Completeness ${completeness}%`,
+    `Watermark ${watermark}`,
+    `Corrections ${evidence.correctionCount}`,
+    `Sources ${sources}`,
+  ].join(' · ')
+}
+
+function EvidenceBadge({
+  label,
+  evidence,
+}: Readonly<{ label: string; evidence: FleetMetricEvidence }>) {
+  const freshnessLabel =
+    evidence.freshness === 'insufficient_data' ? 'insufficient data' : evidence.freshness
+  return (
+    <Badge
+      variant={evidence.freshness === 'fresh' ? 'secondary' : 'outline'}
+      title={metricEvidenceTitle(evidence)}
+    >
+      {label} {freshnessLabel}
+    </Badge>
   )
 }
 
@@ -163,6 +190,25 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
             <TrendIndicator trend={entry.avgRatingTrend} />
             {formatTrend(entry.avgRatingTrend)}
           </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <EvidenceBadge label="Reviews" evidence={entry.reviewEvidence} />
+          {entry.scanEvidence ? (
+            <>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {entry.scanCount} scans
+              </span>
+              <EvidenceBadge label="Scans" evidence={entry.scanEvidence} />
+            </>
+          ) : null}
+          {entry.feedbackEvidence ? (
+            <>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {entry.feedbackCount} responses
+              </span>
+              <EvidenceBadge label="Responses" evidence={entry.feedbackEvidence} />
+            </>
+          ) : null}
         </div>
       </div>
       {entry.totalAttention > 0 ? (

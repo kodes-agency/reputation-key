@@ -10,7 +10,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
-import { userId as toUserId } from '#/shared/domain/ids'
+import { userId as toUserId, type OrganizationId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../dto/invitation.dto'
 export type { RemoveMemberInput }
 
@@ -21,6 +21,11 @@ export type RemoveMemberDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
+  /** Fail-closed import lifecycle fence before membership removal. */
+  cancelGoogleImportsForUser?: (
+    organizationId: OrganizationId,
+    userId: string,
+  ) => Promise<void>
 }>
 export type RemoveMember = ReturnType<typeof removeMember>
 
@@ -60,6 +65,8 @@ export const removeMember =
         )
       }
     }
+
+    await deps.cancelGoogleImportsForUser?.(ctx.organizationId, targetMember.userId)
 
     // 3. Persist + fact — atomic via the command store
     await deps.commandStore.removeMember({

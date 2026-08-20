@@ -8,6 +8,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { Building2, ChevronsUpDown, Plus } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
@@ -17,6 +18,7 @@ type Props = Readonly<{
 
 export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Props) {
   const navigate = useNavigate()
+  const { can } = usePermissions()
   const activeProperty = properties.find((p) => p.id === propertyId)
 
   return (
@@ -57,10 +59,14 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
               <Building2 className="mr-2 size-4" />
               View all properties
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ to: '/import' })}>
-              <Plus className="mr-2 size-4" />
-              Import property
-            </DropdownMenuItem>
+            {can('property.import_gbp_v2') ? (
+              <DropdownMenuItem
+                onClick={() => navigate({ to: '/properties/import-google' })}
+              >
+                <Plus className="mr-2 size-4" />
+                Import property
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

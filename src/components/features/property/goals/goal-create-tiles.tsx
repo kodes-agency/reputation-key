@@ -36,6 +36,9 @@ export const METRIC_ICONS: Readonly<Record<MetricKey, Icon>> = {
   'portal.feedback': MessageSquare,
   'portal.review_link_click': MousePointerClick,
   'property.review': Globe,
+  'portal.content_review.completed': Check,
+  'portal.configuration_completeness': Layers,
+  'portal.approved_destination_ratio': MousePointerClick,
 }
 
 export const SCOPE_ICONS: Readonly<Record<EntityScope, Icon>> = {

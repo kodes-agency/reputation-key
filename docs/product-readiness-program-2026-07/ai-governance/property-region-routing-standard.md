@@ -87,6 +87,20 @@ The actual country list lives in versioned executable configuration and must be 
 
 Canada and other high-priority markets are not silently classified as `us`; they follow the reviewed rest-of-world map. “Europe” is a processing cell, not a claim that every European country has identical law or transfer requirements.
 
+### Closed-beta cell topology (2026-08-19)
+
+The Railway `google-closed-beta` environment runs ONE approved processing cell,
+and that cell serves every resolved region (`us`, `europe`, `global`). The cell
+itself is hosted in EU West together with its database, Redis and provider
+gateways, so the owner's EEA property is processed in-region. `unresolved` and
+any region without a routing target still fail closed and quarantine the work.
+
+The router's target table is the single authority: a region that the property
+domain treats as processable but that has no entry there is a defect, not a
+deny — the two are pinned to each other by a contract test
+(`src/contexts/property/domain/processing-routing.test.ts`). Adding a real
+per-region cell later changes only that table.
+
 ## 5. Resolution and change workflow
 
 ### On property onboarding/import

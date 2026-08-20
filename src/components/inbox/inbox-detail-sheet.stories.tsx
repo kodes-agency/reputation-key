@@ -102,11 +102,13 @@ export const Open: Story = {
       detail: {
         item,
         reviewText: 'Quick and friendly check-in.',
+        reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: 'available',
         feedbackComment: null,
         feedbackRatingValue: null,
         reply: null,
+        analysis: null,
       },
       notes: [],
     }),

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 
-import { identityOrganizationCreated, identityMemberInvited } from './events'
+import {
+  identityMemberInvited,
+  identityMerchantAiChanged,
+  identityOrganizationCreated,
+} from './events'
 import { organizationId, userId, invitationId } from '#/shared/domain/ids'
 import { isDomainError } from '#/shared/domain/errors'
 import type { Role } from '#/shared/domain/roles'
@@ -55,5 +59,65 @@ describe('identity events', () => {
     } else {
       expect.fail('expected a DomainError')
     }
+  })
+
+  it('emits a versioned identifier-only merchant AI authorization change', () => {
+    const valid = {
+      organizationId: ORG_ID,
+      propertyId: 'property-1',
+      authorizationLineageId: 'lineage-1',
+      state: 'enabled' as const,
+      reviewAnalysisEpoch: 1,
+      replyDraftingEpoch: 2,
+      propertyTrendsEpoch: 3,
+      authorizedSourceEpoch: 4,
+      analysisStartSequence: 0,
+      stateVersion: 5,
+      occurredAt: NOW,
+    }
+    expect(identityMerchantAiChanged(valid)).toMatchObject({
+      _tag: 'identity.merchant_ai.changed',
+      correlationId: null,
+      stateVersion: 5,
+    })
+
+    for (const [override, message] of [
+      [{ authorizationLineageId: '' }, 'authorizationLineageId required'],
+      [{ reviewAnalysisEpoch: 0 }, 'reviewAnalysisEpoch must be a positive safe integer'],
+      [{ replyDraftingEpoch: 0 }, 'replyDraftingEpoch must be a positive safe integer'],
+      [{ propertyTrendsEpoch: 0 }, 'propertyTrendsEpoch must be a positive safe integer'],
+      [
+        { authorizedSourceEpoch: -1 },
+        'authorizedSourceEpoch must be a nonnegative safe integer',
+      ],
+      [
+        { analysisStartSequence: -1 },
+        'analysisStartSequence must be a nonnegative safe integer',
+      ],
+      [{ stateVersion: 0 }, 'stateVersion must be a positive safe integer'],
+    ] as const) {
+      expect(() => identityMerchantAiChanged({ ...valid, ...override })).toThrow(message)
+    }
+  })
+
+  it('accepts the domain default source epoch of 0 for a merchant AI change', () => {
+    // `properties.source_epoch` starts at 0, so enabling AI on a property that
+    // has never been edited emits this event with 0. Asserting `>= 1` here was
+    // one of nine places that rejected it (see drizzle/0060).
+    expect(() =>
+      identityMerchantAiChanged({
+        organizationId: ORG_ID,
+        propertyId: 'property-1',
+        authorizationLineageId: 'lineage-1',
+        state: 'enabled' as const,
+        reviewAnalysisEpoch: 1,
+        replyDraftingEpoch: 1,
+        propertyTrendsEpoch: 1,
+        authorizedSourceEpoch: 0,
+        analysisStartSequence: 0,
+        stateVersion: 1,
+        occurredAt: NOW,
+      }),
+    ).not.toThrow()
   })
 })

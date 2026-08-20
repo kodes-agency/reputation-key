@@ -39,6 +39,7 @@ export const onGoalCompleted =
           {
             userId,
             organizationId: event.organizationId,
+            propertyId: event.propertyId,
             type: 'goal.completed',
             resourceType: 'goal',
             resourceId: event.goalId,

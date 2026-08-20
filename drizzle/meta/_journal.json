@@ -120,6 +120,363 @@
       "when": 1784409000000,
       "tag": "0016_region-moves",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786215504586,
+      "tag": "0017_neat_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786215511309,
+      "tag": "0018_governed-metric-seed",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786217266547,
+      "tag": "0019_metric-reading-quality",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786217841003,
+      "tag": "0020_people-team-expansion",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786221532839,
+      "tag": "0021_demonic_misty_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786230000000,
+      "tag": "0022_guest-response-lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786231000000,
+      "tag": "0023_guest-tenant-invariants",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786232000000,
+      "tag": "0024_goal-versioning",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786233000000,
+      "tag": "0025_recognition-governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786234000000,
+      "tag": "0026_notification-delivery-policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786235000000,
+      "tag": "0027_dashboard-fleet-cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786236000000,
+      "tag": "0028_recognition-beta-seeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786372326577,
+      "tag": "0029_google-content-control",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786377064603,
+      "tag": "0030_giant_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786385455142,
+      "tag": "0031_google-property-binding-expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786387221423,
+      "tag": "0032_property-operation-receipts-expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786528018434,
+      "tag": "0033_medical_morg",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786534800305,
+      "tag": "0034_google-import-v2-lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786535054676,
+      "tag": "0035_google-import-v2-lifecycle-parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786538233197,
+      "tag": "0036_property-operation-unreleased-expiry-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786539005313,
+      "tag": "0037_google-import-v2-lifecycle-scrub",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786539050264,
+      "tag": "0038_google-import-v2-profile-check-parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786557216201,
+      "tag": "0039_google-import-compatibility-lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786557257383,
+      "tag": "0040_google-import-effect-lease-control-fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786624182596,
+      "tag": "0041_railway-closed-beta-approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786703761879,
+      "tag": "0042_google-import-execution-policy-version",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786811862145,
+      "tag": "0043_review-source-provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786813064371,
+      "tag": "0044_merchant-ai-authorization",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786900000000,
+      "tag": "0045_merchant-ai-source-epoch",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786900001000,
+      "tag": "0046_ai-control-plane-and-operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786900002000,
+      "tag": "0047_ai-derivatives-and-property-calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786900003000,
+      "tag": "0048_ai-lifecycle-authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786900004000,
+      "tag": "0049_ai-execution-admission",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1786959866167,
+      "tag": "0050_youthful_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1786963598434,
+      "tag": "0051_puzzling_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1786964091357,
+      "tag": "0052_misty_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1786966147761,
+      "tag": "0053_assert_ai_reply_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1786967307183,
+      "tag": "0054_rare_hercules",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787070323258,
+      "tag": "0055_ai-key-inventory-rotation",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787089921794,
+      "tag": "0056_google-content-route-catalogue-approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1787116860321,
+      "tag": "0057_ai-property-trend-contract-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1787135262380,
+      "tag": "0058_ai-review-event-source-epoch-zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1787135952168,
+      "tag": "0059_restore-ai-review-event-source-epoch-guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1787137185946,
+      "tag": "0060_ai-plane-source-epoch-zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1787148133533,
+      "tag": "0061_review-translation-envelope-and-notice-v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787148931221,
+      "tag": "0062_ai-runtime-catalogue-notice-v2-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1787155924460,
+      "tag": "0063_ai-admission-authority-repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1787159658328,
+      "tag": "0064_ai-reply-grant-expiry-order",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1787160893298,
+      "tag": "0065_ai-reply-output-schema-repin",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1787166059207,
+      "tag": "0066_ai-reasoning-effort-per-route",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1787203843486,
+      "tag": "0067_ai-model-luna-switch",
+      "breakpoints": true
     }
   ]
 }

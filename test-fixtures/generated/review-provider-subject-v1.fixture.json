@@ -1,0 +1,11 @@
+{
+  "catalogueVersion": "google-provider-identifiers-v1",
+  "catalogueSha256": "44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87",
+  "fixtureId": "google-review-primary",
+  "resourceName": "accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001",
+  "expectedSegments": {
+    "accountId": "repkey-synthetic-do-not-use-account-0001",
+    "locationId": "repkey-synthetic-do-not-use-location-0001",
+    "reviewId": "repkey-synthetic-do-not-use-review-0001"
+  }
+}

@@ -19,6 +19,9 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export const JOB_NAME = 'retention-sweep' as const
+export const GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT =
+  'integration.google_import_v2.lifecycle' as const
+const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -108,13 +111,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 90 * DAY_MS,
   },
   {
-    subject: 'gbp_cache',
-    table: 'gbp_cache',
-    keyColumns: ['id'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
     // BQC-7.8: operator/policy decision audit — the beta audit trail
     // horizon (365d from the decision timestamp).
     subject: 'policy_decision_audit',
@@ -138,6 +134,16 @@ type RetentionSweepDeps = Readonly<{
   clock: () => Date
   rules?: ReadonlyArray<RetentionRule>
   batchSize?: number
+  googleImportLifecycleSweep?: () => Promise<
+    Readonly<{
+      expiredItemsVisited: number
+      receiptsReconciled: number
+      itemsTerminalized: number
+      parentsPurged: number
+      propertyReceiptsSwept: number
+      unreleasedExpiredReceipts: number
+    }>
+  >
 }>
 
 export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
@@ -148,6 +154,39 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
     return trace('job.retentionSweep', async () => {
       const logger = getLogger()
       const failures: Array<{ subject: string; error: string }> = []
+
+      if (deps.googleImportLifecycleSweep) {
+        const subject = GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT
+        const startedAt = deps.clock()
+        const runId = await openRetentionRun(
+          deps.db,
+          subject,
+          GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE,
+          startedAt,
+        )
+        try {
+          const result = await deps.googleImportLifecycleSweep()
+          await closeRetentionRun(deps.db, runId, {
+            finishedAt: deps.clock(),
+            batches: 1,
+            rowsDeleted: result.parentsPurged + result.propertyReceiptsSwept,
+            outcome: 'completed',
+          })
+          logger.info(
+            { subject, ...result },
+            'Google import lifecycle retention sweep completed',
+          )
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          failures.push({ subject, error: message })
+          await closeRetentionRun(deps.db, runId, {
+            finishedAt: deps.clock(),
+            outcome: 'failed',
+            errorCode: message.slice(0, 200),
+          }).catch(() => {})
+          logger.warn({ err, subject }, 'Google import lifecycle retention sweep failed')
+        }
+      }
 
       for (const rule of rules) {
         const startedAt = deps.clock()

@@ -21,6 +21,7 @@ import type {
 } from '../../application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
+import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
@@ -37,6 +38,7 @@ type LookupPorts = Readonly<{
   reviewLookup: ReviewLookupPort
   feedbackLookup: FeedbackLookupPort
   propertyLookup: PropertyLookupPort
+  aiInsights?: AiReviewInsightsPort
 }>
 
 const withDefaults = (row: InboxItemRow): InboxItem => ({
@@ -172,6 +174,22 @@ export const createInboxRepository = (
         if (eligibleIds.length === 0)
           return { items: [], nextCursor: null } as PaginatedResult
         conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
+      }
+      if (filters.attention && filters.attention.length > 0) {
+        const propertyIds =
+          filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
+        const reviewIds = await ports.aiInsights?.findCurrentReviewIdsByAttention({
+          organizationId: orgId,
+          propertyIds,
+          attention: filters.attention,
+        })
+        if (reviewIds === undefined || reviewIds.length === 0) {
+          return { items: [], nextCursor: null }
+        }
+        conditions.push(
+          eq(inboxItems.sourceType, 'review'),
+          inArray(inboxItems.sourceId, [...reviewIds]),
+        )
       }
 
       // Cursor-based pagination: sourceDate DESC, id DESC
@@ -483,6 +501,7 @@ export const createInboxRepository = (
         return {
           item: { ...item, propertyName, reviewerName: snippet?.reviewerName ?? null },
           reviewText: snippet?.text ?? null,
+          reviewTranslatedText: snippet?.translatedText ?? null,
           reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
           reviewContentStatus: result.status,
           feedbackComment: null,
@@ -499,6 +518,7 @@ export const createInboxRepository = (
       return {
         item: { ...item, propertyName, reviewerName: null },
         reviewText: null,
+        reviewTranslatedText: null,
         reviewerProfilePhotoUrl: null,
         reviewContentStatus: null,
         feedbackComment: snippet?.comment ?? null,

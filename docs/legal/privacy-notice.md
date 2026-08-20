@@ -1,8 +1,8 @@
 # Privacy Notice — Reputation Key Internal Beta
 
 **Status:** Draft — pending legal review
-**Date:** 2026-07-14
-**Version:** 1.0-draft
+**Date:** 2026-08-15
+**Version:** 1.1-draft
 **Accountable owner:** Bozhidar Denev
 
 ## Overview
@@ -72,6 +72,19 @@ We use the following third-party services to operate the Service:
 Google Business Profile is a data source, not a subprocessor: the Service reads review data you have authorized via OAuth and publishes replies you have approved. Google's [API terms](https://developers.google.com/terms/api-services-user-data-policy) apply to this data.
 
 We do not sell personal data. We do not use personal data for advertising. We do not train AI models on review content.
+
+### AI features are not active
+
+The internal beta does not currently send Google review content or reply
+drafts to an AI provider. OpenAI is an unapproved candidate, not an active
+subprocessor. Any future property-level AI feature requires a separate,
+unpreselected merchant opt-in, an accepted notice, local reviewer-identity and
+PII redaction, an approved US provider deployment with no-training and
+minimum-retention controls, and a separate human decision before a reply can
+be published to Google. Cross-property AI, automatic reply publication,
+provider training on submitted data, and review-derived staff scoring are
+prohibited. This notice must receive legal review and a material-change notice
+before any such feature is activated.
 
 ## Your rights
 

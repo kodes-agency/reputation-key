@@ -16,6 +16,7 @@ export interface InboxListPanelProps {
   folderLabel: string
   openCount: number
   searchQ: string | undefined
+  attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
   items: readonly InboxItem[]
   selectedIds: readonly string[]
   isLoading: boolean
@@ -25,6 +26,7 @@ export interface InboxListPanelProps {
   loadAction: { isPending: boolean }
   listRef: RefObject<HTMLDivElement | null>
   onSearchChange: (q: string | undefined) => void
+  onAttentionChange: (attention: 'urgent' | 'high' | 'medium' | 'low' | undefined) => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void

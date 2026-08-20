@@ -1,10 +1,10 @@
 # AI and Google Source Governance Package
 
-**Status:** Proposed implementation baseline; acceptance and evidence gates remain open  
+**Status:** Review package complete; acceptance, provider, and release evidence gates remain open  
 **Decision:** [ADR 0031](../../adr/0031-google-source-content-and-ai-processing-boundary.md)  
 **External disposition:** [Google support response, 2026-07-14](../google-business-profile-ai-policy-response-2026-07-14.md)  
-**Scope:** Real Google review data, future external AI processing, and per-property derived intelligence  
-**Not in scope:** Phase 17/18 product behavior, prompts, model selection, UI design, quotas, or pricing
+**Scope:** Real Google review data, exact initial external-AI boundary, and per-property derived intelligence  
+**Runtime posture:** AI denied; no provider deployment is approved
 
 ## 1. Purpose
 
@@ -48,17 +48,18 @@ Existing plans sometimes use “merchant consent.” New work uses **Merchant AI
 
 ## 4. Package contents
 
-| Artifact                                                                                | What it decides or records                                                             | Needed before                                       | Current state   |
-| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- | --------------- |
-| [ADR 0031](../../adr/0031-google-source-content-and-ai-processing-boundary.md)          | Hard-to-reverse source/AI boundary                                                     | Real GBP lifecycle migration; any AI implementation | Proposed        |
-| [Source-content policy specification](source-content-policy-specification.md)           | Executable capabilities, data classes, versions, and fail-closed evaluation            | PRE17B source-policy schema                         | Proposed        |
-| [Data lifecycle and deletion standard](data-lifecycle-and-deletion-standard.md)         | Retention clocks, propagation, backups, restore, disconnect, and proof                 | First real Google content                           | Proposed        |
-| [Property-region routing standard](property-region-routing-standard.md)                 | Property routing unit, cells, resolution, deployment mapping, and no-fallback rules    | Processing-profile schema; any regional AI call     | Proposed        |
-| [AI provider assessment template](ai-provider-assessment-template.md)                   | Provider hard gates, comparison criteria, evidence, and re-verification                | Selecting/contracting an AI provider                | Ready template  |
-| [Merchant AI opt-in and revocation specification](merchant-ai-opt-in-and-revocation.md) | Property enablement states, authority, epochs, UX facts, and revocation semantics      | Phase 17 schema/use-case planning                   | Proposed        |
-| [PII-redaction specification](pii-redaction-specification.md)                           | Minimization, supported-language gate, redaction pipeline, test corpus, and thresholds | Sending any real review to an external model        | Proposed        |
-| [AI release-evidence index](ai-release-evidence-index.md)                               | Candidate-release stages, required proof, owners, exceptions, and signatures           | Real-data beta and each later AI capability release | Ready template  |
-| [Primary-source research](../ai-governance-primary-sources-2026-07-14.md)               | Official-source basis, design inferences, and unresolved questions                     | Governance review                                   | Research record |
+| Artifact                                                                                | What it decides or records                                                             | Needed before                                       | Current state                      |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------- |
+| [ADR 0031](../../adr/0031-google-source-content-and-ai-processing-boundary.md)          | Hard-to-reverse source/AI boundary                                                     | Real GBP lifecycle migration; any AI implementation | Proposed; acceptance pending       |
+| [Source-content policy specification](source-content-policy-specification.md)           | Executable capabilities, data classes, versions, and fail-closed evaluation            | PRE17B source-policy schema                         | Proposed; acceptance pending       |
+| [Data lifecycle and deletion standard](data-lifecycle-and-deletion-standard.md)         | Retention clocks, propagation, backups, restore, disconnect, and proof                 | First real Google content                           | Proposed; acceptance pending       |
+| [Property-region routing standard](property-region-routing-standard.md)                 | Property routing unit, cells, resolution, deployment mapping, and no-fallback rules    | Processing-profile schema; any regional AI call     | Proposed; acceptance pending       |
+| [AI provider assessment template](ai-provider-assessment-template.md)                   | Reusable provider hard gates, comparison criteria, evidence, and re-verification       | Assessing any AI provider                           | Ready template                     |
+| [OpenAI GPT-5.4 mini US ZDR assessment](openai-gpt-5-4-mini-us-zdr-assessment.md)       | Exact intended provider/model/endpoint/region/retention disposition                    | Any provider-runtime implementation                 | Reviewing; runtime rejected        |
+| [Merchant AI opt-in and revocation specification](merchant-ai-opt-in-and-revocation.md) | Property enablement states, authority, epochs, UX facts, and revocation semantics      | AI authorization implementation                     | Control implemented; runtime gated |
+| [PII-redaction specification](pii-redaction-specification.md)                           | Minimization, supported-language gate, redaction pipeline, test corpus, and thresholds | Sending any real review to an external model        | Proposed; acceptance pending       |
+| [AI release-evidence index](ai-release-evidence-index.md)                               | Candidate-release stages, required proof, owners, exceptions, and signatures           | Provider runtime and each capability release        | Ready; no stage approved           |
+| [Primary-source research](../ai-governance-primary-sources-2026-07-14.md)               | Official-source basis, design inferences, and unresolved questions                     | Governance review                                   | Research record                    |
 
 ## 5. Control ownership
 
@@ -99,13 +100,18 @@ flowchart LR
 - preservation of the Google response and applicable public policy version; and
 - Stage A evidence from the release index.
 
-### May remain incomplete until Phase 17 planning
+### Current Phase 17 authority blockers
 
-- named model/provider selection and commercial quota;
-- final prompts, output schemas, model-quality corpus, and AI UX;
-- final supported-language list, provided unsupported languages fail closed;
-- populated provider assessment and redaction benchmark results; and
-- AI capability release evidence beyond Stage A.
+- accept ADR 0031 and the linked source, lifecycle, routing, opt-in, and
+  `gbp-review-en-v1` specifications as one package;
+- prove every hard gate in the exact
+  `openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1` assessment, including
+  contract/DPA, project-level US/ZDR/no-sharing configuration, quota, and
+  full-path regional evidence;
+- approve the synthetic/anonymized redaction and quality corpus results;
+- record engineering, security, privacy/legal, operations, and product
+  decisions after final evidence; and
+- satisfy each capability stage in the AI release-evidence index.
 
 ## 7. Change control
 

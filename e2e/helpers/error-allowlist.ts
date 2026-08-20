@@ -53,39 +53,29 @@ export type AllowlistEntry = Readonly<{
 
 export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = [
   {
-    id: 'guest-portal-denied-ssr-status-console',
+    id: 'server-fn-fetch-aborted-on-navigation',
     kind: 'console-error',
-    pattern: 'Failed to load resource: the server responded with a status of 500',
-    pagePattern: /\/p\/[^/?#]+\/[^/?#]+/,
-    owner: 'engineering',
+    // Both halves are required: the bare TypeError would tolerate ANY failed
+    // fetch on the page, and the frame pins it to the framework's
+    // server-function client rather than to application code.
+    //
+    // Deliberately NOT page-scoped. This was first pinned to /home because that
+    // is where it was first observed, but the cause is a route change cancelling
+    // in-flight server-function loaders, which is route-independent — it
+    // resurfaced verbatim on /inbox. The frame in the pattern is what keeps this
+    // narrow; a page scope only made it brittle without excluding anything.
+    pattern: /TypeError: Failed to fetch[\s\S]*createServerFn/,
+    owner:
+      'closed-beta AI enablement — docs/operations/closed-beta-import-defects-2026-08-19.md',
     reason:
-      'BQC-6.6: a dark public portal (portal.read off) denies in the loader; ' +
-      'the /p route errorComponent intentionally renders PortalUnavailable ' +
-      '(asserted directly by dark-promotion.spec.ts), but SSR still answers ' +
-      'the document with the error status (500) and Chromium echoes that ' +
-      'status to the console. The tolerated signal is only the browser echo ' +
-      'of the deliberate error-boundary SSR status on the two-segment public ' +
-      'portal path — the UX, the zero-mutation proof, and the server-side ' +
-      'error log all still gate. Follow-up: a non-500 status for the public ' +
-      'deny path (route-level status semantics) removes this entry.',
-    expires: '2026-10-27',
-  },
-  {
-    id: 'guest-portal-denied-react-boundary-console',
-    kind: 'console-error',
-    pattern: 'The above error occurred in the <MatchInnerImpl> component',
-    pagePattern: /\/p\/[^/?#]+\/[^/?#]+/,
-    owner: 'engineering',
-    reason:
-      'BQC-6.6: sibling of guest-portal-denied-ssr-status-console — same ' +
-      'deliberate /p error boundary, second echo. When the client router ' +
-      're-runs the denied loader after hydration, MatchInnerImpl rethrows the ' +
-      'dehydrated loader error and React DEV logs its standard error-boundary ' +
-      'notice before rendering the intentional PortalUnavailable (asserted ' +
-      'directly by dark-promotion.spec.ts). Dev-only React output for the ' +
-      'intended boundary on the two-segment public portal path; whether the ' +
-      'client revalidates post-hydration is timing-dependent, hence ' +
-      'intermittent. Removed by the same status-semantics follow-up.',
-    expires: '2026-10-27',
+      'A route change cancels in-flight server-function loaders, and the browser ' +
+      'reports each cancelled request as "Failed to fetch" from inside TanStack ' +
+      "Start's createServerFn client bundle. The harness already classifies the " +
+      'underlying requests as [request-aborted] aborted during navigation, so this ' +
+      'is the same benign event counted a second time through the console channel. ' +
+      'It cannot be silenced at source because the log originates in framework ' +
+      'code. Removed when the promoted-home loaders become abort-aware, or when ' +
+      'TanStack stops logging aborts in its client.',
+    expires: '2026-11-18',
   },
 ]

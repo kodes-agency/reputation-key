@@ -43,12 +43,12 @@
 //       with a fresh attempt budget + redriveMetadata; with healthy
 //       dependencies the dispatch succeeds and the handler runs EXACTLY ONCE
 //       across the whole saga.
-//   (f) DENIED EUROPE PROPERTY (the §4.6 repeat) — a property with
-//       processing_region='europe' dispatches a sync job; the 4.2 gate
-//       quarantines it with policyReason 'routing_blocked:region_denied' and
-//       the handler NEVER runs; a redrive (as after a region approval)
-//       re-queues it, but with the region unchanged the SECOND dispatch
-//       blocks again — no silent override.
+//   (f) DENIED REGION PROPERTY (the §4.6 repeat) — a property whose
+//       processing_region has no target in CELL_TARGETS dispatches a sync job;
+//       the 4.2 gate quarantines it with policyReason
+//       'routing_blocked:region_denied' and the handler NEVER runs; a redrive
+//       (as after a region approval) re-queues it, but with the region
+//       unchanged the SECOND dispatch blocks again — no silent override.
 //
 // Determinism: relay polls and dispatch closures are invoked directly (never
 // interval-driven); lease expiry is simulated by backdating lease_expires_at
@@ -58,6 +58,7 @@
 // shared Redis is never killed or restarted. Skips cleanly when Redis is
 // unreachable (same convention as the BQC-3.6 quarantine suite).
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import {
   describe,
   it,
@@ -451,10 +452,10 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
 // ── (c) Provider (GBP) down ──────────────────────────────────────────
 
 const ORG_C = organizationId('org-bqc46-faults-cc000001')
-const PROP_C = propertyId('4d000000-0000-0000-0000-000000000001')
-const CONN_C = googleConnectionId('4d000000-0000-0000-0000-000000000002')
-const REVIEW_C = reviewId('4d000000-0000-0000-0000-000000000010')
-const REPLY_C = replyId('4d000000-0000-0000-0000-000000000020')
+const PROP_C = propertyId('46c00000-0000-4000-8000-000000000001')
+const CONN_C = googleConnectionId('46c00000-0000-4000-8000-000000000002')
+const REVIEW_C = reviewId('46c00000-0000-4000-8000-000000000010')
+const REPLY_C = replyId('46c00000-0000-4000-8000-000000000020')
 const USER_C = userId('user-bqc46-faults-cc00001')
 const NOW_C = new Date('2026-07-18T12:00:00.000Z')
 
@@ -471,12 +472,13 @@ function makeReviewC(): Review {
     propertyId: PROP_C,
     platform: 'google',
     externalId: 'ext-bqc46-c-1',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: CONN_C,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
     rating: 5,
     text: 'Great place!',
+    translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
     expiresAt: new Date(NOW_C.getTime() + 25 * 24 * 60 * 60 * 1000),
@@ -489,6 +491,11 @@ function makeReviewC(): Review {
     contentExpiresAt: null,
     contentHash: null,
     sourceSeenGeneration: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: NOW_C,
     updatedAt: NOW_C,
   }
@@ -507,6 +514,7 @@ function makeReplyC(): Reply {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: NOW_C,
     approvedAt: NOW_C,
     publishedAt: null,
@@ -555,11 +563,11 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     `)
     await db.execute(sql`
       INSERT INTO google_connections
-        (id, organization_id, google_account_id, google_email,
+        (id, organization_id, google_subject,
          encrypted_access_token, encrypted_refresh_token, token_expires_at,
          scopes, connected_by)
       VALUES
-        (${CONN_C}, ${ORG_C}, 'bqc46-google-account-c', 'bqc46-c@example.test',
+        (${CONN_C}, ${ORG_C}, 'bqc46-google-subject-c',
          'enc-access', 'enc-refresh', NOW() + INTERVAL '1 hour',
          ARRAY['https://www.googleapis.com/auth/business.manage'], ${USER_C})
     `)
@@ -599,7 +607,13 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       .mockRejectedValueOnce(gbp5xx)
       .mockRejectedValueOnce(gbpTimeout)
     const googleReviewApi: GoogleReviewApiPort = {
-      fetchReviews: async () => [],
+      listReviewsPage: async () => ({
+        reviews: [],
+        totalReviewCount: 0,
+        nextCursorRef: null,
+      }),
+      getReview: async () => ({ status: 'not_found' }),
+      discardReviewCursors: async () => {},
       replyToReview,
     }
     const handler = createPublishReplyHandler({
@@ -790,12 +804,12 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
   })
 })
 
-// ── (f) Denied Europe property (the §4.6 repeat) ─────────────────────
+// ── (f) Denied (unrouted) region property (the §4.6 repeat) ──────────
 
 const ORG_F = 'org-bqc46-faults-ff000001'
 const PROP_EU = '4e000000-0000-0000-0000-000000000001'
 
-describe('(f) denied Europe property (BQC-4.6 repeat)', () => {
+describe('(f) denied region property (BQC-4.6 repeat)', () => {
   beforeAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
     await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
@@ -805,13 +819,15 @@ describe('(f) denied Europe property (BQC-4.6 repeat)', () => {
     `)
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Europe Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
+      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
     `)
+    // The approved cell serves us/europe/global; a region with no target in
+    // CELL_TARGETS is what must fail closed.
     await db.execute(sql`
       UPDATE properties
-      SET processing_region = 'europe', processing_region_source = 'country_default',
+      SET processing_region = 'ap-southeast-2', processing_region_source = 'country_default',
           routing_policy_version = 1, processing_region_resolved_at = NOW(),
-          country_code = 'DE', country_source = 'google_address'
+          country_code = 'AU', country_source = 'google_address'
       WHERE id = ${PROP_EU}
     `)
   })

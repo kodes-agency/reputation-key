@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { ServerFunctionError } from '#/shared/auth/server-errors'
 
 // ── TanStack Start context setup ──────────────────────────────────
 // createServerFn's middleware chain reads startOptions from a global ALS.
@@ -22,7 +23,14 @@ function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
 // Stable mock functions so we can control return values per-test.
 const mocks = vi.hoisted(() => ({
   listPortals: vi.fn(),
+  listPortalManagementPropertyIds: vi.fn(),
   resolveTenantContext: vi.fn(),
+  requireExecutionAllowed: vi.fn(),
+  decide: vi.fn(),
+  resolvePortalManagementScope: vi.fn(),
+  updatePortal: vi.fn(),
+  rotatePortalToken: vi.fn(),
+  softDeletePortal: vi.fn(),
 }))
 
 vi.mock('#/shared/auth/headers', () => ({
@@ -40,31 +48,81 @@ vi.mock('#/shared/auth/beta-capabilities', () => ({
   BetaCapabilityError: class BetaCapabilityError extends Error {},
 }))
 
-// BQC-2.6: ExecutionPolicy seam — default allow (handler tests cover use-case wiring).
+// BQC-2.6: ExecutionPolicy seam — per-property decisions are controlled by each test.
 vi.mock('#/shared/auth/execution-policy', () => ({
-  requireExecutionAllowed: vi.fn(async () => {}),
+  requireExecutionAllowed: mocks.requireExecutionAllowed,
+  getExecutionPolicy: vi.fn(() => ({ decide: mocks.decide })),
 }))
 
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
     useCases: {
       listPortals: mocks.listPortals,
+      listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
+      resolvePortalManagementScope: mocks.resolvePortalManagementScope,
+      updatePortal: mocks.updatePortal,
+      rotatePortalToken: mocks.rotatePortalToken,
+      softDeletePortal: mocks.softDeletePortal,
     },
   })),
 }))
 
-import { listPortals } from '#/contexts/portal/server/portals'
+import {
+  deletePortal,
+  listPortals,
+  rotatePortalToken,
+  updatePortal,
+} from '#/contexts/portal/server/portals'
 
 const TEST_CTX = {
   userId: 'user-test-1',
   organizationId: 'org-test-aaaa',
   role: 'AccountAdmin',
 } as const
+const deniedResourceProbes: readonly [
+  name: string,
+  invoke: () => Promise<unknown>,
+  effect: ReturnType<typeof vi.fn>,
+][] = [
+  [
+    'publication',
+    async () =>
+      updatePortal({
+        data: { portalId: 'portal-p2', publicationState: 'published' },
+      }),
+    mocks.updatePortal,
+  ],
+  [
+    'token rotation',
+    async () => rotatePortalToken({ data: { portalId: 'portal-p2' } }),
+    mocks.rotatePortalToken,
+  ],
+  [
+    'archive',
+    async () => deletePortal({ data: { portalId: 'portal-p2' } }),
+    mocks.softDeletePortal,
+  ],
+]
+const propertyDisabled = () =>
+  new ServerFunctionError(
+    'AuthError',
+    'Authorization denied: property_disabled',
+    'property_disabled',
+    403,
+  )
 
 describe('listPortals handler (executable)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(TEST_CTX)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.listPortalManagementPropertyIds.mockResolvedValue(['prop-test-1'])
+    mocks.decide.mockResolvedValue({ allowed: true, reason: 'allowed' })
+    mocks.resolvePortalManagementScope.mockResolvedValue({
+      organizationId: 'org-test-aaaa',
+      propertyId: 'property-p2',
+      portalId: 'portal-p2',
+    })
   })
 
   it('resolves auth context and invokes the listPortals use case with caller context', async () => {
@@ -82,7 +140,7 @@ describe('listPortals handler (executable)', () => {
     // The handler passes the validated data + resolved auth context to the use case
     expect(mocks.listPortals).toHaveBeenCalledTimes(1)
     const [dataArg, ctxArg] = mocks.listPortals.mock.calls[0]!
-    expect(dataArg).toEqual({})
+    expect(dataArg).toEqual({ propertyId: 'prop-test-1' })
     expect(ctxArg.organizationId).toBe('org-test-aaaa')
     expect(ctxArg.role).toBe('AccountAdmin')
   })
@@ -95,4 +153,50 @@ describe('listPortals handler (executable)', () => {
     const [dataArg] = mocks.listPortals.mock.calls[0]!
     expect(dataArg).toEqual({ propertyId: 'prop-test-1' })
   })
+
+  it('enumerates only P1 properties when Staff scope includes a disabled P2', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({ ...TEST_CTX, role: 'Staff' })
+    mocks.listPortalManagementPropertyIds.mockResolvedValue([
+      'property-p1',
+      'property-p2',
+    ])
+    mocks.decide.mockImplementation(async ({ propertyId }) => ({
+      allowed: propertyId === 'property-p1',
+      reason: propertyId === 'property-p1' ? 'allowed' : 'property_disabled',
+    }))
+    mocks.listPortals.mockImplementation(async ({ propertyId }) =>
+      propertyId === 'property-p1' ? [{ id: 'portal-p1' }] : [{ id: 'portal-p2' }],
+    )
+
+    await withStartContext(() => listPortals({ data: {} }))
+    expect(mocks.listPortals).toHaveBeenCalledTimes(1)
+    expect(mocks.listPortals).toHaveBeenCalledWith(
+      { propertyId: 'property-p1' },
+      expect.objectContaining({ role: 'Staff' }),
+    )
+  })
+
+  it('denies direct P2 list scope without querying Portal content', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(propertyDisabled())
+
+    await expect(
+      withStartContext(() => listPortals({ data: { propertyId: 'property-p2' } })),
+    ).rejects.toMatchObject({ _tag: 'AuthError', code: 'property_disabled', status: 403 })
+
+    expect(mocks.listPortals).not.toHaveBeenCalled()
+  })
+
+  it.each(deniedResourceProbes)(
+    'denies P2 %s before effects',
+    async (_name, invoke, effect) => {
+      mocks.requireExecutionAllowed.mockRejectedValue(propertyDisabled())
+
+      await expect(withStartContext(invoke)).rejects.toMatchObject({
+        _tag: 'AuthError',
+        code: 'property_disabled',
+        status: 403,
+      })
+      expect(effect).not.toHaveBeenCalled()
+    },
+  )
 })

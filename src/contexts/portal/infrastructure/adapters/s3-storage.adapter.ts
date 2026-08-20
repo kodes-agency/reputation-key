@@ -13,12 +13,45 @@ import type { StoragePort } from '../../application/ports/storage.port'
 import { portalError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
-export const createS3StorageAdapter = (config: {
+export type S3StorageConfig = Readonly<{
   accessKey?: string
   secretKey?: string
   bucketName?: string
   region?: string
-}): StoragePort => {
+  internalEndpoint?: string
+  presignEndpoint?: string
+  forcePathStyle?: boolean
+}>
+
+type ConfiguredS3Storage = Required<
+  Pick<S3StorageConfig, 'accessKey' | 'secretKey' | 'bucketName' | 'region'>
+> &
+  S3StorageConfig
+
+export function buildS3ClientConfigs(config: ConfiguredS3Storage) {
+  const common = {
+    region: config.region,
+    credentials: {
+      accessKeyId: config.accessKey,
+      secretAccessKey: config.secretKey,
+    },
+    forcePathStyle: config.forcePathStyle ?? false,
+  }
+  return {
+    internal: {
+      ...common,
+      ...(config.internalEndpoint ? { endpoint: config.internalEndpoint } : {}),
+    },
+    presign: {
+      ...common,
+      ...(config.presignEndpoint || config.internalEndpoint
+        ? { endpoint: config.presignEndpoint ?? config.internalEndpoint }
+        : {}),
+    },
+  } as const
+}
+
+export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => {
   // If S3 is not configured, return a noop adapter
   if (!config.accessKey || !config.secretKey || !config.bucketName || !config.region) {
     return {
@@ -26,6 +59,9 @@ export const createS3StorageAdapter = (config: {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
       confirmUpload: async () => {
+        throw portalError('upload_failed', 'S3 storage is not configured')
+      },
+      inspectObject: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
       deleteObject: async () => {
@@ -38,14 +74,9 @@ export const createS3StorageAdapter = (config: {
     }
   }
 
-  const client = new S3Client({
-    region: config.region,
-    credentials: {
-      accessKeyId: config.accessKey,
-      secretAccessKey: config.secretKey,
-    },
-  })
-
+  const clients = buildS3ClientConfigs(config as ConfiguredS3Storage)
+  const internalClient = new S3Client(clients.internal)
+  const presignClient = new S3Client(clients.presign)
   const bucketName = config.bucketName
   const region = config.region
 
@@ -58,7 +89,7 @@ export const createS3StorageAdapter = (config: {
       })
 
       const uploadUrl = await trace('s3.createPresignedUploadUrl', () =>
-        getSignedUrl(client, command, {
+        getSignedUrl(presignClient, command, {
           expiresIn: 3600, // 1 hour
         }),
       )
@@ -68,14 +99,24 @@ export const createS3StorageAdapter = (config: {
 
     confirmUpload: async (key) => {
       await trace('s3.confirmUpload', () =>
-        client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
+        internalClient.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
       )
       return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
     },
 
+    inspectObject: async (key) => {
+      const metadata = await trace('s3.inspectObject', () =>
+        internalClient.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
+      )
+      return {
+        contentType: metadata.ContentType ?? null,
+        sizeBytes: metadata.ContentLength ?? null,
+      }
+    },
+
     deleteObject: async (key) => {
       await trace('s3.deleteObject', () =>
-        client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })),
+        internalClient.send(new DeleteObjectCommand({ Bucket: bucketName, Key: key })),
       )
     },
 
@@ -85,7 +126,7 @@ export const createS3StorageAdapter = (config: {
 
     putObject: async (key, body, contentType) => {
       await trace('s3.putObject', () =>
-        client.send(
+        internalClient.send(
           new PutObjectCommand({
             Bucket: bucketName,
             Key: key,

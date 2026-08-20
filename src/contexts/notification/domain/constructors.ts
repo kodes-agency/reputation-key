@@ -8,9 +8,15 @@ import type {
   NotificationPriority,
   NotificationResourceType,
 } from './types'
-import type { NotificationId, UserId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  NotificationId,
+  UserId,
+  OrganizationId,
+  PropertyId,
+} from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
 import { isUrgent, NOTIFICATION_TYPES } from './types'
+import { classifyNotification } from './notification-delivery-policy'
 
 // ── Allowed values ──────────────────────────────────────────────────
 
@@ -29,6 +35,7 @@ export type CreateNotificationInput = Readonly<{
   id: NotificationId
   userId: UserId
   organizationId: OrganizationId
+  propertyId: PropertyId
   type: NotificationType
   resourceType: NotificationResourceType
   resourceId: string
@@ -43,6 +50,9 @@ export const createNotification = (
 ): Result<Notification, NotificationError> => {
   if (!input.userId) {
     return err(notificationError('invalid_input', 'userId is required'))
+  }
+  if (!input.propertyId) {
+    return err(notificationError('invalid_input', 'propertyId is required'))
   }
 
   if (!ALLOWED_TYPES.has(input.type)) {
@@ -80,7 +90,9 @@ export const createNotification = (
     id: input.id,
     userId: input.userId,
     organizationId: input.organizationId,
+    propertyId: input.propertyId,
     type: input.type,
+    category: classifyNotification(input.type),
     priority,
     status: 'unread',
     resourceType: input.resourceType,

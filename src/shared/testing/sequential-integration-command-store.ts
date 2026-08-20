@@ -1,21 +1,12 @@
 // Sequential integration command store — NON-transactional test/Storybook
-// fake (BQC-3.5). Lives in shared/testing (with the in-memory google
-// connection / gbp import repos) so application-zone tests and browser
-// bundles can use it without importing the drizzle-backed atomic store
-// (application must not import infrastructure). Applies the same operation
-// order (state → outbox → emit) against the repository ports without a
-// real transaction.
-//
-// Not for production — production must use
-// createAtomicIntegrationCommandStore
-// (src/contexts/integration/infrastructure/integration-command-store.ts).
+// fake. Applies the same state → outbox → emit order as the production store
+// without importing Drizzle into application-layer tests.
 
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { getLogger } from '#/shared/observability/logger'
 import { integrationError } from '#/contexts/integration/domain/errors'
 import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
-import type { GbpImportRepository } from '#/contexts/integration/application/ports/gbp-import.repository'
 import type { IntegrationCommandStore } from '#/contexts/integration/application/ports/integration-command-store.port'
 
 /** Post-commit emit, failure-isolated — same contract as the atomic store. */
@@ -32,7 +23,6 @@ async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<vo
 
 export function createSequentialIntegrationCommandStore(deps: {
   connectionRepo: GoogleConnectionRepository
-  importRepo?: GbpImportRepository
   events: EventBus
   recordOutbox?: (event: DomainEvent) => Promise<void>
 }): IntegrationCommandStore {
@@ -51,10 +41,12 @@ export function createSequentialIntegrationCommandStore(deps: {
       await deps.connectionRepo.updateReconnection(
         command.organizationId,
         command.connectionId,
+        command.googleSubject,
         command.encryptedAccessToken,
         command.encryptedRefreshToken,
         command.tokenExpiresAt,
         command.visibility,
+        command.scopes,
       )
       const updated = await deps.connectionRepo.findById(
         command.organizationId,
@@ -103,17 +95,6 @@ export function createSequentialIntegrationCommandStore(deps: {
       }
       await recordAndEmit(command.event)
       return updated
-    },
-
-    recordImportCompleted: async (command) => {
-      if (!deps.importRepo)
-        throw new Error('importRepo is required for recordImportCompleted')
-      await deps.importRepo.updateStatus(
-        command.organizationId,
-        command.importJobId,
-        command.finalStatus,
-      )
-      await recordAndEmit(command.event)
     },
   }
 }

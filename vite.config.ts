@@ -29,13 +29,35 @@ const config = defineConfig(({ mode }) => {
   const isE2E = !!process.env.E2E
 
   return {
-    build: {
-      rollupOptions: {
-        output: {
-          // Vite 8 / Rolldown requires manualChunks as a function, not an object.
-          manualChunks(id) {
-            if (id.includes('node_modules/recharts')) return 'vendor-charts'
-            if (id.includes('node_modules/@dnd-kit')) return 'vendor-dnd'
+    environments: {
+      client: {
+        build: {
+          rolldownOptions: {
+            output: {
+              codeSplitting: {
+                groups: [
+                  {
+                    name: 'vendor-charts',
+                    test: /node_modules[\\/](?:recharts|d3-|victory-vendor)/,
+                    priority: 30,
+                  },
+                  {
+                    name: 'vendor-dnd',
+                    test: /node_modules[\\/]@dnd-kit/,
+                    priority: 30,
+                  },
+                  {
+                    name: 'app-shared',
+                    test: /[\\/]src[\\/](?:components|contexts)[\\/]/,
+                    priority: 10,
+                    minShareCount: 2,
+                    entriesAwareMergeThreshold: 4 * 1024,
+                    entriesAware: true,
+                    includeDependenciesRecursively: false,
+                  },
+                ],
+              },
+            },
           },
         },
       },
@@ -46,12 +68,21 @@ const config = defineConfig(({ mode }) => {
       ...(isBuild && !isStorybook
         ? [
             nitro({
-              rollupConfig: { external: [/^@sentry\//] },
+              // `cld3-asm` ships emscripten glue whose loader expects to be
+              // called as a CJS factory; bundling it produces
+              // `runtimeModule is not a function` at the first
+              // `loadModule()` — reply drafting's language verifier. The
+              // manifest pins the package by sha256 under `node_modules`
+              // (ai-reply-language-verifier-v1.manifest.json), so runtime
+              // resolution is the attested path, not a workaround.
+              rollupConfig: { external: [/^@sentry\//, /^cld3-asm(\/|$)/] },
               // serverDir scanning stays off (default false under TanStack
               // Start), so this explicit list is the ONLY plugin registration
               // path. Wired plugins (init order):
               //   - production-secret-guard (BQC-7.6): refuse boot when a
               //     known placeholder/test secret leaks into production.
+              //   - release-identity-guard: refuse a declared candidate that
+              //     differs from the revision baked into the image.
               //   - restore-mode-guard (BQC-7.8): restore-isolated boot
               //     assertion + the loud RESTORE MODE ISOLATED log line; the
               //     capability fail-closed enforcement itself lives at the
@@ -66,6 +97,7 @@ const config = defineConfig(({ mode }) => {
               //     routing) + x-request-id on every response.
               plugins: [
                 'server/plugins/production-secret-guard.ts',
+                'server/plugins/release-identity-guard.ts',
                 'server/plugins/restore-mode-guard.ts',
                 'server/plugins/graceful-shutdown.ts',
                 'server/plugins/security-headers.ts',

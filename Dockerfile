@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+ARG SOURCE_REVISION=unknown
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WEB image (TanStack Start + Nitro, node-server preset).
 #
@@ -21,7 +22,7 @@
 #
 # Deploy contract (railway.json):
 #   - preDeployCommand: `node dist-worker/migrate-deploy.js` (advisory-locked,
-#     idempotent migration trio; see scripts/migrate-deploy.ts header)
+#     idempotent migration sequence; see scripts/migrate-deploy.ts header)
 #   - healthcheck: GET /api/health/started (healthcheckTimeout 30s) — BQC-7.2:
 #     the platform activation gate consumes STARTUP semantics (container +
 #     migrations + policy complete), NOT liveness. Activation ≠ liveness:
@@ -40,6 +41,15 @@
 
 # node:22-slim (bookworm) — digest resolved 2026-07-31 (created 2026-07-29;
 # BQC-7.7: bumped from the 2026-07-14 build to clear base-image CVE findings).
+#
+# A digest bump MUST keep the node/ICU/Unicode triple asserted below. Web and
+# worker run the AI review-language catalogue, which fails closed when the
+# runtime does not match its pinned triple; a silent patch bump would degrade
+# every analysis and reply draft. If a bump must move the triple, regenerate
+# src/shared/generated/ai-review-language-canonical-regions-v1.ts
+# (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
+# language corpus in the same change. Same assertion and failure style as
+# Dockerfile.ai-egress-gateway / Dockerfile.ai-execution-admission.
 FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
@@ -48,6 +58,7 @@ ENV PNPM_HOME=/pnpm \
 # corepack reads package.json#packageManager → exactly pnpm@10.6.5.
 RUN corepack enable
 WORKDIR /app
+RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 
 # ── Full dependencies (build toolchain) ──────────────────────────────────────
 FROM base AS deps
@@ -68,7 +79,8 @@ RUN NODE_ENV=production \
     GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
-    pnpm build && pnpm build:worker
+    pnpm build && pnpm build:worker \
+ && node scripts/check-google-import-artifacts.mjs final .output dist-worker
 
 # ── Production-only dependencies (runtime: worker externals + migrate trio) ─
 FROM base AS prod-deps
@@ -80,7 +92,17 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # ── Web runtime ──────────────────────────────────────────────────────────────
 FROM base AS web
-ENV NODE_ENV=production
+ARG SOURCE_REVISION
+ENV NODE_ENV=production \
+    IMAGE_SOURCE_REVISION=$SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      com.repkey.google-import-contract=final \
+      com.repkey.rollout-scope=serving-final
+# Re-assert the pinned AI language runtime in the serving stage: web AND worker
+# (dist-worker) both execute the review-language catalogue, which fails closed on
+# a drifted node/ICU/Unicode triple. Explicit here so a future `FROM` change in
+# this stage cannot silently lose the base-stage assertion.
+RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 # BQC-7.7: the runtime never installs packages — strip the npm CLI shipped in
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
@@ -91,7 +113,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY package.json ./
+COPY package.runtime.json ./package.json
 # Predeploy migration inputs (read by dist-worker/migrate-deploy.js); the
 # journal is ALSO read at runtime by the readiness/startup migration check
 # (src/shared/health/readiness.ts anchors it at cwd = /app here):

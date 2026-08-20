@@ -1,0 +1,10 @@
+$ pnpm seed:e2e-user
+started: 2026-08-17T18:20:18.701Z  durationMs: 2239  exit: 0
+
+
+> reputation-key@ seed:e2e-user /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/seed-e2e-user.ts
+
+E2E seed state written: /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json
+E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews
+

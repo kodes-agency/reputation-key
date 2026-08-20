@@ -42,8 +42,6 @@ const PII_FIELD_NAMES = new Set([
   'authorization',
   'apiKey',
   'api_key',
-  'googleEmail',
-  'google_email',
   'ipAddress',
   'ip_address',
   'userAgent',

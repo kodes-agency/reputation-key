@@ -13,6 +13,7 @@
 //
 // Setup pattern mirrors delayed-policy-init.test.ts (BQC-2.5 wiring proof).
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
@@ -24,6 +25,7 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
+import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
@@ -36,7 +38,7 @@ const SYNC_DATA = {
   propertyId: PROP,
   organizationId: ORG,
   connectionId: CONN,
-  locationName: 'accounts/111/locations/222',
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
 beforeAll(async () => {
@@ -139,10 +141,10 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
         replyId: 'd4000000-0000-4000-8000-0000000000aa',
         organizationId: ORG,
         propertyId: PROP,
-        policy: {
-          initiator: { kind: 'user', id: 'user-manual-1' },
-          correlationId: 'corr-manual-enqueue-1',
-        },
+        capability: 'property.publish_reply',
+        initiator: { kind: 'user', id: 'user-manual-1' },
+        correlationId: 'corr-manual-enqueue-1',
+        policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
       },
       'worker:default',
       'worker',

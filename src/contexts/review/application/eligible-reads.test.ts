@@ -19,6 +19,7 @@ function makeReview(overrides: Record<string, unknown> = {}): Review {
     organizationId: ORG,
     reviewerName: 'Jane Guest',
     text: 'Great stay',
+    translatedText: null,
     reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
     rating: 5,
     contentExpiresAt: FRESH_EXPIRY,
@@ -52,9 +53,24 @@ describe('eligible reads (BQC-1.4)', () => {
     expect(result.snippet).toEqual({
       reviewerName: 'Jane Guest',
       text: 'Great stay',
+      translatedText: null,
       reviewerProfilePhotoUrl: 'https://photo.example/j.jpg',
       rating: 5,
     })
+  })
+
+  it("carries the provider translation alongside the guest's original text", async () => {
+    const { reads } = makeDeps({
+      text: 'Хотелът беше чист и уютен.',
+      translatedText: 'The hotel was clean and cosy.',
+    })
+    const result = await reads.getReviewSnippetById(reviewId('rev-1'), ORG)
+    if (result.status !== 'available') throw new Error('expected available')
+    expect(result.snippet.text).toBe('Хотелът беше чист и уютен.')
+    expect(result.snippet.translatedText).toBe('The hotel was clean and cosy.')
+
+    const map = await reads.getReviewSnippetsByIds([reviewId('rev-1')], ORG)
+    expect(map.get('rev-1')?.translatedText).toBe('The hotel was clean and cosy.')
   })
 
   it('denies content when contentExpiresAt is in the past', async () => {

@@ -25,7 +25,7 @@ export const listStaffAssignments =
     input: ListStaffAssignmentsInput,
     ctx: AuthContext,
   ): Promise<ReadonlyArray<StaffAssignment>> => {
-    if (!canForContext(ctx, 'staff_assignment.read')) {
+    if (!canForContext(ctx, 'staff.read')) {
       throw staffError('forbidden', 'No staff assignment read permission')
     }
     if (input.teamId) {

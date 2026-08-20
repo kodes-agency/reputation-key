@@ -47,6 +47,16 @@ export function generateBqcStatusMarkdown(manifest: BqcStatusManifest): string {
   if (manifest.baseline.notes) {
     lines.push('', manifest.baseline.notes)
   }
+  if (manifest.acceptance) {
+    lines.push(
+      '',
+      '## Controlled beta acceptance profile',
+      '',
+      `**Evidence version:** \`${manifest.acceptance.evidenceVersion}\`  `,
+      `**Required gates:** ${manifest.acceptance.requiredGates.map((gate) => `\`${gate}\``).join(', ')}  `,
+      `**Post-beta / unmeasured:** ${manifest.acceptance.postBetaGates.map((gate) => `\`${gate}\``).join(', ')}  `,
+    )
+  }
 
   lines.push(
     '',

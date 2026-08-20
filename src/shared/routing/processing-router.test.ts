@@ -3,9 +3,9 @@
 // Phase BQC-4 §4/§4.2 + ADR 0048: the router is the ONE routing decision
 // model — it resolves (propertyId, workloadClass) to a typed ProcessingTarget
 // containing only approved execution references plus the routing-policy
-// version, or to a typed blocked decision. 'us' is the only APPROVED beta
-// cell; 'europe'/'global' are denied, 'unresolved'/missing region and a
-// missing property all fail closed.
+// version, or to a typed blocked decision. One approved beta cell serves all
+// three processable regions ('us','europe','global'); an unknown region,
+// 'unresolved', a missing region and a missing property all fail closed.
 //
 // The property-routing loader is a port: production wires a drizzle adapter
 // (property context infrastructure); these tests use a deterministic stub.
@@ -32,7 +32,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     const loadPropertyRouting = stubLoader({ 'prop-1': US_PROPERTY })
     const router = createProcessingRouter({ loadPropertyRouting, cell: 'us' })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'target',
@@ -58,13 +61,16 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       'reply.publish',
       'property.import',
     ] as const) {
-      const decision = await router.resolve('prop-1', workloadClass)
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        workloadClass,
+      )
       expect(decision).toMatchObject({ kind: 'target', queue: 'default' })
     }
   })
 
-  it.each(['europe', 'global'])(
-    "blocks the denied '%s' region with region_denied",
+  it.each(['us', 'europe', 'global'])(
+    "routes the processable '%s' region to the approved cell",
     async (region) => {
       const router = createProcessingRouter({
         loadPropertyRouting: stubLoader({
@@ -73,7 +79,36 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         cell: 'us',
       })
 
-      const decision = await router.resolve('prop-1', 'reply.publish')
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'reply.publish',
+      )
+
+      expect(decision).toEqual({
+        kind: 'target',
+        cell: 'us',
+        region,
+        queue: 'default',
+        provider: 'gbp-default',
+        routingPolicyVersion: 1,
+      })
+    },
+  )
+
+  it.each(['ap-southeast-2', 'eu', 'US', ''])(
+    "blocks the unknown '%s' region with region_denied",
+    async (region) => {
+      const router = createProcessingRouter({
+        loadPropertyRouting: stubLoader({
+          'prop-1': { processingRegion: region, routingPolicyVersion: 1 },
+        }),
+        cell: 'us',
+      })
+
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'reply.publish',
+      )
 
       expect(decision).toEqual({ kind: 'blocked', reason: 'region_denied', region })
     },
@@ -92,7 +127,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         cell: 'us',
       })
 
-      const decision = await router.resolve('prop-1', 'review.sync')
+      const decision = await router.resolve(
+        { kind: 'property', propertyId: 'prop-1' },
+        'review.sync',
+      )
 
       expect(decision).toEqual({
         kind: 'blocked',
@@ -108,7 +146,10 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       cell: 'us',
     })
 
-    const decision = await router.resolve('prop-gone', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-gone' },
+      'review.sync',
+    )
 
     expect(decision).toEqual({
       kind: 'blocked',
@@ -125,23 +166,93 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       cell: 'europe',
     })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision).toMatchObject({ kind: 'target', cell: 'us' })
   })
 })
 
-describe('workloadClassForJob (BQC-4.2)', () => {
-  it('maps the property-scoped protected jobs to workload classes', () => {
-    expect(workloadClassForJob('sync-property-reviews')).toBe('review.sync')
-    expect(workloadClassForJob('publish-reply')).toBe('reply.publish')
+describe('ProcessingRouter import-item routing', () => {
+  it('routes tenant-keyed work without a Property identity', async () => {
+    const loadPropertyRouting = stubLoader({})
+    const loadImportItemRouting = vi.fn(async () => ({
+      processingRegion: 'us',
+      routingPolicyVersion: 2,
+    }))
+    const router = createProcessingRouter({
+      loadPropertyRouting,
+      loadImportItemRouting,
+      cell: 'us',
+    })
+
+    const decision = await router.resolve(
+      { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
+      'property.import',
+    )
+
+    expect(decision).toMatchObject({
+      kind: 'target',
+      cell: 'us',
+      routingPolicyVersion: 2,
+    })
+    expect(loadImportItemRouting).toHaveBeenCalledWith('org-1', 'item-1')
+    expect(loadPropertyRouting).not.toHaveBeenCalled()
   })
 
-  it('does not route the org-scoped import fan-out or tenant-cross sweeps', () => {
-    // import-property is organization-scoped in the entry-point catalogue —
-    // its per-property effects ride the sync jobs it spawns. Tenant-cross
-    // sweeps (purge, retention, metric refresh) have no property to route.
-    expect(workloadClassForJob('import-property')).toBeUndefined()
+  it('fails closed when the import-item loader is absent', async () => {
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({}),
+      cell: 'us',
+    })
+
+    await expect(
+      router.resolve(
+        { kind: 'import_item', organizationId: 'org-1', itemId: 'item-gone' },
+        'property.import',
+      ),
+    ).resolves.toEqual({
+      kind: 'blocked',
+      reason: 'import_item_missing',
+      region: null,
+    })
+  })
+
+  it('rejects an import-item subject for any non-import workload', async () => {
+    const loadImportItemRouting = vi.fn(async () => ({
+      processingRegion: 'us',
+      routingPolicyVersion: 2,
+    }))
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({}),
+      loadImportItemRouting,
+      cell: 'us',
+    })
+
+    await expect(
+      router.resolve(
+        { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
+        'review.sync',
+      ),
+    ).resolves.toEqual({
+      kind: 'blocked',
+      reason: 'subject_workload_mismatch',
+      region: null,
+    })
+    expect(loadImportItemRouting).not.toHaveBeenCalled()
+  })
+})
+
+describe('workloadClassForJob (BQC-4.2)', () => {
+  it('maps every routed protected job to its workload class', () => {
+    expect(workloadClassForJob('sync-property-reviews')).toBe('review.sync')
+    expect(workloadClassForJob('publish-reply')).toBe('reply.publish')
+    expect(workloadClassForJob('import-gbp-property-item-v2')).toBe('property.import')
+  })
+
+  it('does not route the legacy org fan-out or tenant-cross sweeps', () => {
     expect(workloadClassForJob('purge-expired-reviews')).toBeUndefined()
     expect(workloadClassForJob('health-check')).toBeUndefined()
     expect(workloadClassForJob('unknown-job')).toBeUndefined()
@@ -163,12 +274,15 @@ describe('providerRefForCell (BQC-4.3)', () => {
   it('blocked routing decisions never carry a provider reference', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({
-        'prop-1': { processingRegion: 'europe', routingPolicyVersion: 1 },
+        'prop-1': { processingRegion: 'ap-southeast-2', routingPolicyVersion: 1 },
       }),
       cell: 'us',
     })
 
-    const decision = await router.resolve('prop-1', 'review.sync')
+    const decision = await router.resolve(
+      { kind: 'property', propertyId: 'prop-1' },
+      'review.sync',
+    )
 
     expect(decision.kind).toBe('blocked')
     expect('provider' in decision).toBe(false)

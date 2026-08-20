@@ -1,11 +1,7 @@
 // BQC-3.9 — activity audit handlers for the consumed orphan families.
 //
-// The five BQC-3.1 orphan event families whose facts were recorded but never
-// consumed (identity.organization.created, property.updated, property.deleted,
-// integration.google_connection.visibility_changed,
-// integration.property_import.completed) gain activity audit consumers —
-// mechanical mirrors of the on-member-removed pattern. Pure unit tests with a
-// mock queue — no DB needed. Each case asserts the EXACT enqueued payload.
+// Recorded lifecycle event families are consumed into content-minimized
+// activity audit jobs. Tests assert the exact queue payloads.
 
 import { describe, it, expect, vi } from 'vitest'
 import type { Queue } from 'bullmq'
@@ -14,21 +10,23 @@ import {
   propertyId,
   userId,
   googleConnectionId,
-  gbpImportJobId,
 } from '#/shared/domain/ids'
 
+import { onGoogleConnectionVisibilityChanged } from './on-google-connection-visibility-changed'
+import { onOrganizationCreated } from './on-organization-created'
+import { onPropertyCreated } from './on-property-created'
+import { onPropertyDeleted } from './on-property-deleted'
+import { onPropertyUpdated } from './on-property-updated'
 const ORG = organizationId('org-1')
 const PROP = propertyId('00000000-0000-4000-8000-000000000001')
 const USER = userId('00000000-0000-4000-8000-000000000020')
 const CONN = googleConnectionId('00000000-0000-4000-8000-000000000099')
-const IMPORT_JOB = gbpImportJobId('00000000-0000-4000-8000-000000000088')
 
 const mockQueue = () =>
   ({ add: vi.fn() }) as unknown as Queue & { add: ReturnType<typeof vi.fn> }
 
 describe('activity orphan audit handlers (BQC-3.9)', () => {
   it('onOrganizationCreated → created/organization with the owner as actor', async () => {
-    const { onOrganizationCreated } = await import('./on-organization-created')
     const queue = mockQueue()
 
     await onOrganizationCreated({ queue })({
@@ -55,8 +53,35 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
     })
   })
 
+  it('onPropertyCreated → created/property with the name in detail', async () => {
+    const queue = mockQueue()
+
+    await onPropertyCreated({ queue })({
+      _tag: 'property.created',
+      eventId: 'evt-prop-created',
+      organizationId: ORG,
+      propertyId: PROP,
+      name: 'Grand Hotel',
+      slug: 'grand-hotel',
+      processingRegion: 'us',
+      occurredAt: new Date(),
+      correlationId: null,
+    })
+
+    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+      action: 'created',
+      resourceType: 'property',
+      resourceId: PROP,
+      propertyId: PROP,
+      organizationId: ORG,
+      userId: null,
+      source: 'web',
+      eventId: 'evt-prop-created',
+      payload: { subject: 'property', from: null, to: null, detail: 'Grand Hotel' },
+    })
+  })
+
   it('onPropertyUpdated → changed/property with the name in detail', async () => {
-    const { onPropertyUpdated } = await import('./on-property-updated')
     const queue = mockQueue()
 
     await onPropertyUpdated({ queue })({
@@ -84,7 +109,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
   })
 
   it('onPropertyDeleted → deleted/property with no detail', async () => {
-    const { onPropertyDeleted } = await import('./on-property-deleted')
     const queue = mockQueue()
 
     await onPropertyDeleted({ queue })({
@@ -110,8 +134,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
   })
 
   it('onGoogleConnectionVisibilityChanged → changed/integration, new visibility in to', async () => {
-    const { onGoogleConnectionVisibilityChanged } =
-      await import('./on-google-connection-visibility-changed')
     const queue = mockQueue()
 
     await onGoogleConnectionVisibilityChanged({ queue })({
@@ -134,41 +156,6 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       source: 'web',
       eventId: 'evt-conn-1',
       payload: { subject: 'integration', from: null, to: 'organization', detail: null },
-    })
-  })
-
-  it('onPropertyImportCompleted → created/integration with content-free counts', async () => {
-    const { onPropertyImportCompleted } = await import('./on-property-import-completed')
-    const queue = mockQueue()
-
-    await onPropertyImportCompleted({ queue })({
-      _tag: 'integration.property_import.completed',
-      eventId: 'evt-imp-1',
-      importJobId: IMPORT_JOB,
-      organizationId: ORG,
-      totalCount: 5,
-      importedCount: 3,
-      skippedCount: 1,
-      failedCount: 1,
-      occurredAt: new Date(),
-      correlationId: null,
-    })
-
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
-      action: 'created',
-      resourceType: 'integration',
-      resourceId: IMPORT_JOB,
-      propertyId: null,
-      organizationId: ORG,
-      userId: null,
-      source: 'web',
-      eventId: 'evt-imp-1',
-      payload: {
-        subject: 'integration',
-        from: null,
-        to: null,
-        detail: 'import completed: 3/5 imported, 1 skipped, 1 failed',
-      },
     })
   })
 })

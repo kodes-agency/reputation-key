@@ -82,6 +82,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
       Array.from(memberships.entries())
         .filter(([, gid]) => String(gid) === String(groupId))
         .map(([pid]) => portalId(pid)),
+    findGroupIdsByPortalIds: async () => [],
     findGroupForPortal: async (_orgId, pid) => {
       const gid = memberships.get(String(pid))
       return gid ? (store.get(String(gid)) ?? null) : null
@@ -109,9 +110,7 @@ const seedPortal = (): Portal => ({
   description: null,
   heroImageUrl: null,
   theme: { primaryColor: '#000000' },
-  smartRoutingEnabled: false,
-  smartRoutingThreshold: 0,
-  isActive: true,
+  publicationState: 'published',
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -134,16 +133,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
         String(pid) === 'a0000000-0000-0000-0000-000000000001',
       getPropertyName: async () => null,
       getPropertyNames: async () => [],
-      findByGbpPlaceId: async () => null,
+      findByGbpLocationId: async () => null,
       findBySlug: async () => null,
       getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
-      importProperty: async () => {
-        throw new Error('not implemented')
-      },
-      findExistingGbpPlaceIds: async () => [],
-      existsByGbpPlaceId: async () => false,
     },
     events,
     idGen: () => FIXED_ID,

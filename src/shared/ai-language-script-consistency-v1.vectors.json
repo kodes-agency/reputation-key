@@ -1,0 +1,38 @@
+[
+  { "id": "zero", "tag": "en-Latn", "text": "123 😀", "status": "inconsistent" },
+  { "id": "one", "tag": "en-Latn", "text": "a", "status": "consistent" },
+  {
+    "id": "latin-79",
+    "tag": "en-Latn",
+    "expected": 79,
+    "total": 100,
+    "status": "inconsistent"
+  },
+  {
+    "id": "latin-80",
+    "tag": "en-Latn",
+    "expected": 80,
+    "total": 100,
+    "status": "consistent"
+  },
+  {
+    "id": "latin-81",
+    "tag": "en-Latn",
+    "expected": 81,
+    "total": 100,
+    "status": "consistent"
+  },
+  {
+    "id": "jpan-han",
+    "tag": "ja-Jpan",
+    "text": "漢字仮名交じり文",
+    "status": "consistent"
+  },
+  { "id": "kore-han", "tag": "ko-Kore", "text": "韓國語한글", "status": "consistent" },
+  {
+    "id": "combining-placeholder",
+    "tag": "en-Latn",
+    "text": "á [PERSON]",
+    "status": "consistent"
+  }
+]

@@ -28,7 +28,7 @@ import type { Permission } from '#/shared/domain/permissions'
 // ── Validation error mapping ─────────────────────────────────────────
 
 const VALIDATION_PATTERN =
-  /required|unknown capability|is core|is blocked|not a member|in the future/
+  /required|unknown capability|is core|is blocked|not a member|not found in organization|in the future/
 
 function mapPolicyAdminError(e: unknown): never {
   if (e instanceof Error && VALIDATION_PATTERN.test(e.message)) {
@@ -106,6 +106,51 @@ export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
       'identity.setOrgCapability',
     ),
   )
+// ── setPropertyCapability ────────────────────────────────────────────
+
+export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
+  .inputValidator(
+    z.object({
+      propertyId: z.string().min(1),
+      capability: z
+        .string()
+        .refine(
+          (c) => listAllCapabilities().includes(c as Capability),
+          'unknown capability',
+        ),
+      enabled: z.boolean(),
+      reason: reasonSchema,
+    }),
+  )
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        // Keep recovery callable while the target Property is suspended. The
+        // use case proves tenant ownership before changing the scoped allowlist.
+        await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
+
+        try {
+          const { policyAdmin } = getContainer()
+          await policyAdmin.setPropertyCapability({
+            organizationId: ctx.organizationId as string,
+            propertyId: data.propertyId,
+            capability: data.capability as Capability,
+            enabled: data.enabled,
+            reason: data.reason,
+            actorUserId: ctx.userId as string,
+            now: new Date(),
+          })
+          return { ok: true }
+        } catch (e) {
+          mapPolicyAdminError(e)
+        }
+      },
+      'POST',
+      'identity.setPropertyCapability',
+    ),
+  )
 
 // ── setOrgSuspension ─────────────────────────────────────────────────
 
@@ -156,11 +201,10 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'policy.admin',
-          propertyId: data.propertyId,
-        })
+        // Recovery must remain callable while the target property is suspended.
+        // The policy-admin use case proves the property belongs to this org
+        // before mutating its policy row.
+        await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
           const { policyAdmin } = getContainer()

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { softDeleteTeam } from './soft-delete-team'
 import { createInMemoryTeamRepo } from '#/shared/testing/in-memory-team-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -10,6 +10,7 @@ import type { PropertyId } from '#/shared/domain/ids'
 import { teamId } from '#/shared/domain/ids'
 import type { OrganizationId } from '#/shared/domain/ids'
 
+import type { TeamMembershipRepository } from '../ports/team-membership.repository'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 
 // AccountAdmin has org-wide access (null = all properties)
@@ -19,18 +20,19 @@ const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => (
   countAssignmentsByTeam: async () => 0,
 })
 
-const setup = (assignmentCount = 0) => {
+const setup = () => {
   const teamRepo = createInMemoryTeamRepo()
   const events = createCapturingEventBus()
-  const assignmentCheck = { countByTeam: async () => assignmentCount }
+  const closeForTeam = vi.fn(async () => 0)
+  const membershipRepo = { closeForTeam } as unknown as TeamMembershipRepository
   const useCase = softDeleteTeam({
     teamRepo,
     staffApi: createStaffApi(null),
-    assignmentCheck,
+    membershipRepo,
     events,
     clock: () => FIXED_TIME,
   })
-  return { useCase, teamRepo, events, assignmentCheck }
+  return { useCase, teamRepo, events, closeForTeam }
 }
 
 describe('softDeleteTeam', () => {
@@ -81,14 +83,19 @@ describe('softDeleteTeam', () => {
     expect(events.capturedEvents[0]._tag).toBe('team.deleted')
   })
 
-  it('rejects when team has active assignments', async () => {
-    const { useCase, teamRepo } = setup(3)
+  it('closes active memberships instead of rejecting or deleting history', async () => {
+    const { useCase, teamRepo, closeForTeam } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const team = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([team])
 
-    await expect(useCase({ teamId: team.id as TeamId }, ctx)).rejects.toSatisfy(
-      (e) => isTeamError(e) && e.code === 'team_has_assignments',
+    await useCase({ teamId: team.id as TeamId }, ctx)
+
+    expect(closeForTeam).toHaveBeenCalledWith(
+      ctx.organizationId,
+      team.id,
+      FIXED_TIME,
+      'team_archived',
     )
   })
 })

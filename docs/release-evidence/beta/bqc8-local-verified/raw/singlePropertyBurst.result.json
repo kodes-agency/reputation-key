@@ -1,0 +1,79 @@
+{
+  "version": 2,
+  "scenario": "singlePropertyBurst",
+  "startedAt": "2026-08-08T14:52:35.488Z",
+  "durationMs": 60742.842958999994,
+  "passed": true,
+  "metrics": {
+    "backgroundTargetRatePerSec": 20,
+    "backgroundAchievedRatePerSec": 19.76,
+    "hotTargetRatePerSec": 100,
+    "hotAchievedRatePerSec": 98.78,
+    "backgroundEnqueued": 1200,
+    "hotEnqueued": 6000,
+    "enqueueP95": 0.92,
+    "maxQueueWaiting": 6642,
+    "executedDurationS": 60.743,
+    "removedOnCleanup": 7200,
+    "cleanupMissed": 0
+  },
+  "assertions": [
+    {
+      "check": "required_samples",
+      "passed": true,
+      "detail": "7200 samples (1200 background, 6000 hot)"
+    },
+    {
+      "check": "hot_samples_land",
+      "passed": true,
+      "detail": "6000 hot samples, 0 errors"
+    },
+    {
+      "check": "background_error_free",
+      "passed": true,
+      "detail": "0 background enqueue failures"
+    },
+    {
+      "check": "background_rate_no_starvation",
+      "passed": true,
+      "detail": "background achieved 19.8/s vs floor 16.0/s (target 20/s)"
+    },
+    {
+      "check": "queue_depth_bounded",
+      "passed": true,
+      "detail": "max waiting 6642 vs bound 10000"
+    },
+    {
+      "check": "monitoring_captured",
+      "passed": true,
+      "detail": "60 points, 0 read errors"
+    }
+  ],
+  "environment": "local",
+  "releaseSha": "f46d2cd690899eace479e6ec9e08d5bbb3fece4c",
+  "versions": {
+    "capabilityPolicy": "bqc-0.3",
+    "policyStore": -1,
+    "routingPolicy": 1,
+    "sourceContentPolicy": 1
+  },
+  "slo": {
+    "backgroundRate": 20,
+    "hotRate": 100,
+    "duration": 60,
+    "backgroundRateFloor": 0.8,
+    "boundedDepth": 10000
+  },
+  "samples": {
+    "count": 7200,
+    "errors": 0
+  },
+  "monitoring": {
+    "points": 60,
+    "readErrors": 0
+  },
+  "collectors": {
+    "redisInfo": "redis-cli",
+    "dbCpuLocks": "not-collected-in-this-environment"
+  }
+}

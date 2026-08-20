@@ -13,20 +13,28 @@ import {
 import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
-import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
+import {
+  createDbUserLookupAdapter,
+  type PropertyAccessHolderLookup,
+} from './infrastructure/adapters/db-user-lookup.adapter'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
 import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
+import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import {
   markNotificationRead,
   dismissNotification,
 } from './domain/constructors-transitions'
 import { createNotificationPreference } from './domain/constructors-preference'
 import { notificationError } from './domain/errors'
-import type { NotificationType } from './domain/types'
-import type { UserId, OrganizationId } from '#/shared/domain/ids'
+import type {
+  NotificationCadence,
+  NotificationCategory,
+  NotificationChannel,
+} from './domain/types'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 type BuildInput = Readonly<{
   db: Database
@@ -35,13 +43,19 @@ type BuildInput = Readonly<{
   queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort
+  /**
+   * Identity-owned lookup for users holding active access to a property.
+   * `property_access_grant` is authoritative for property-scoped recipients, so
+   * this is required: without it every property-scoped notification is dropped.
+   */
+  propertyAccessHolders: PropertyAccessHolderLookup
 }>
 
 export const buildNotificationContext = (input: BuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
-  const userLookup = createDbUserLookupAdapter(input.db)
+  const userLookup = createDbUserLookupAdapter(input.db, input.propertyAccessHolders)
   const inboxItemLookup = createInboxItemLookupAdapter(input.db)
 
   // Register event handlers that enqueue BullMQ jobs.
@@ -66,11 +80,24 @@ export const buildNotificationContext = (input: BuildInput) => {
       idGen: () => notificationId(crypto.randomUUID()),
       emailIdGen: () => notificationEmailId(crypto.randomUUID()),
       logger: input.logger,
-      enqueueUrgentEmail: input.queue
+      enqueueImmediateEmail: input.queue
         ? async (data) => {
-            await input.queue!.add(URGENT_EMAIL_JOB_NAME, data, {
-              ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
-            })
+            await input.queue!.add(
+              URGENT_EMAIL_JOB_NAME,
+              {
+                ...data,
+                ...createJobExecutionEnvelope({
+                  organizationId: data.organizationId,
+                  propertyId: data.propertyId,
+                  capability: 'notification.send_email',
+                  initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+                  correlationId: `notification-email:${data.notificationEmailId}`,
+                }),
+              },
+              {
+                ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+              },
+            )
           }
         : undefined,
     }),
@@ -114,12 +141,19 @@ export const buildNotificationContext = (input: BuildInput) => {
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
     getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),
+    getUserSettings: (userId: string, orgId: string) =>
+      prefRepo.getUserSettings(userId, orgId),
     updatePreference: (
       userId: string,
       orgId: string,
-      type: NotificationType,
-      emailEnabled: boolean,
-      inAppEnabled: boolean,
+      propertyId: string,
+      category: NotificationCategory,
+      channel: NotificationChannel,
+      enabled: boolean,
+      cadence: NotificationCadence,
+      urgentBypassEnabled: boolean,
+      quietHoursStart: string | null,
+      quietHoursEnd: string | null,
     ) => {
       const now = input.clock()
       const result = createNotificationPreference(
@@ -127,16 +161,35 @@ export const buildNotificationContext = (input: BuildInput) => {
           id: notificationPreferenceId(crypto.randomUUID()),
           userId: userId as UserId,
           organizationId: orgId as OrganizationId,
-          type,
-          emailEnabled,
-          inAppEnabled,
+          propertyId: propertyId as PropertyId,
+          category,
+          channel,
+          enabled,
+          cadence,
+          urgentBypassEnabled,
+          quietHoursStart,
+          quietHoursEnd,
         },
         () => now,
       )
-      if (result.isErr()) {
-        throw result.error
-      }
+      if (result.isErr()) throw result.error
       return prefRepo.upsert(result.value)
+    },
+    updateUserSettings: (
+      userId: string,
+      orgId: string,
+      locale: string,
+      timezone: string,
+    ) => {
+      const now = input.clock()
+      return prefRepo.upsertUserSettings({
+        userId: userId as UserId,
+        organizationId: orgId as OrganizationId,
+        locale,
+        timezone,
+        createdAt: now,
+        updatedAt: now,
+      })
     },
   } as const
 

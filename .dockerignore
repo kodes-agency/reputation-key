@@ -5,6 +5,10 @@ node_modules
 .output
 dist
 dist-worker
+dist-google-import-compatibility
+dist-google-execution-admission
+dist-google-egress-gateway
+dist-provider-services
 storybook-static
 coverage
 test-results
@@ -18,6 +22,7 @@ better-auth_migrations
 .storybook
 .tanstack
 .vscode
+.local-stack
 .husky
 .claude
 .codex

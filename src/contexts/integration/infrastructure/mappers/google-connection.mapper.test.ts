@@ -14,8 +14,7 @@ const now = new Date('2025-06-01T12:00:00Z')
 const sampleRow: GoogleConnectionRow = {
   id: 'conn-uuid-001',
   organizationId: 'org-uuid-001',
-  googleAccountId: 'gacct-123',
-  googleEmail: 'user@example.com',
+  googleSubject: 'signed-subject-123',
   encryptedAccessToken: 'enc-access-token',
   encryptedRefreshToken: 'enc-refresh-token',
   tokenExpiresAt: now,
@@ -26,6 +25,11 @@ const sampleRow: GoogleConnectionRow = {
   connectedBy: 'user-uuid-001',
   visibility: 'organization',
   status: 'active',
+  credentialUseState: 'active',
+  cleanupMaterialDeadlineAt: null,
+  lifecycleVersion: 2,
+  accessVersion: 3,
+  credentialGeneration: 4,
   encryptionKeyId: 'v1',
   lastSuccessfulSyncAt: null,
   statusReason: null,
@@ -44,8 +48,7 @@ describe('googleConnectionFromRow', () => {
 
   it('maps all fields', () => {
     const conn = googleConnectionFromRow(sampleRow)
-    expect(conn.googleAccountId).toBe('gacct-123')
-    expect(conn.googleEmail).toBe('user@example.com')
+    expect(conn.googleSubject).toBe('signed-subject-123')
     expect(conn.encryptedAccessToken).toBe('enc-access-token')
     expect(conn.encryptedRefreshToken).toBe('enc-refresh-token')
     expect(conn.tokenExpiresAt).toBe(now)
@@ -55,6 +58,8 @@ describe('googleConnectionFromRow', () => {
     ])
     expect(conn.visibility).toBe('organization')
     expect(conn.status).toBe('active')
+    expect(conn.credentialUseState).toBe('active')
+    expect(conn.cleanupMaterialDeadlineAt).toBeNull()
     expect(conn.createdAt).toBe(now)
     expect(conn.updatedAt).toBe(now)
   })
@@ -84,8 +89,7 @@ describe('googleConnectionToInsert', () => {
 
     expect(insert.id).toBe(sampleRow.id)
     expect(insert.organizationId).toBe(sampleRow.organizationId)
-    expect(insert.googleAccountId).toBe(sampleRow.googleAccountId)
-    expect(insert.googleEmail).toBe(sampleRow.googleEmail)
+    expect(insert.googleSubject).toBe(sampleRow.googleSubject)
     expect(insert.encryptedAccessToken).toBe(sampleRow.encryptedAccessToken)
     expect(insert.encryptedRefreshToken).toBe(sampleRow.encryptedRefreshToken)
     expect(insert.tokenExpiresAt).toBe(sampleRow.tokenExpiresAt)
@@ -93,6 +97,11 @@ describe('googleConnectionToInsert', () => {
     expect(insert.connectedBy).toBe(sampleRow.connectedBy)
     expect(insert.visibility).toBe(sampleRow.visibility)
     expect(insert.status).toBe(sampleRow.status)
+    expect(insert.credentialUseState).toBe(sampleRow.credentialUseState)
+    expect(insert.cleanupMaterialDeadlineAt).toBe(sampleRow.cleanupMaterialDeadlineAt)
+    expect(insert.lifecycleVersion).toBe(sampleRow.lifecycleVersion)
+    expect(insert.accessVersion).toBe(sampleRow.accessVersion)
+    expect(insert.credentialGeneration).toBe(sampleRow.credentialGeneration)
     expect(insert.createdAt).toBe(sampleRow.createdAt)
     expect(insert.updatedAt).toBe(sampleRow.updatedAt)
   })

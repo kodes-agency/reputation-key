@@ -1,0 +1,27 @@
+$ echo "y" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema
+started: 2026-08-17T18:00:37.391Z  durationMs: 8040  exit: 0
+
+
+> reputation-key@ auth:migrate /Users/bozhidardenev/kodes/projects/rep-key
+> npx -y dotenv-cli -- npx -y @better-auth/cli migrate --config src/shared/auth/auth-cli.ts
+
+🚀 No migrations needed.
+
+> reputation-key@ db:migrate /Users/bozhidardenev/kodes/projects/rep-key
+> tsx scripts/migrate-drizzle.ts
+
+◇ injected env (0) from .env.local,.env // tip: ◈ encrypted .env [www.dotenvx.com]
+[db:migrate] staged drizzle track {"preEnumCommitApplied":0,"postEnumCommitApplied":0,"reviewAiSourceBackfilled":0,"outcome":{"typePresent":true,"cleanupRequiredPresent":true,"additionAttempted":false}}
+
+> reputation-key@ audit:auth-schema /Users/bozhidardenev/kodes/projects/rep-key
+> npx -y dotenv-cli -- node scripts/verify-auth-schema.mjs
+
+✓ Auth schema casing verified (member, organizationRole, invitation).
+
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+⠋ preparing migration...
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.

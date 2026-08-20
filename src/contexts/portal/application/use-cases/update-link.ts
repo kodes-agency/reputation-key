@@ -77,12 +77,17 @@ export const updateLink =
     if (!needsUpdate) return existing
 
     const updatedAt = deps.clock()
-    await deps.portalLinkRepo.updateLink(ctx.organizationId, portalLinkId(input.linkId), {
-      label: newLabel,
-      url: newUrl,
-      iconKey: newIconKey,
-      updatedAt,
-    })
+    await deps.portalLinkRepo.updateLink(
+      ctx.organizationId,
+      existing.portalId,
+      portalLinkId(input.linkId),
+      {
+        label: newLabel,
+        url: newUrl,
+        iconKey: newIconKey,
+        updatedAt,
+      },
+    )
 
     return { ...existing, label: newLabel, url: newUrl, iconKey: newIconKey, updatedAt }
   }

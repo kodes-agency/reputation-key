@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { buildProperty } from './constructors'
-import { propertyId, organizationId } from '#/shared/domain/ids'
+import { googleConnectionId, propertyId, organizationId } from '#/shared/domain/ids'
 
 const FIXED_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
 const FIXED_ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
@@ -27,7 +27,7 @@ describe('buildProperty', () => {
       expect(prop.name).toBe('Grand Hotel')
       expect(prop.slug).toBe('grand-hotel')
       expect(prop.timezone).toBe('America/New_York')
-      expect(prop.gbpPlaceId).toBeNull()
+      expect(prop.gbpLocationId).toBeNull()
       expect(prop.createdAt).toBe(FIXED_TIME)
       expect(prop.updatedAt).toBe(FIXED_TIME)
       expect(prop.deletedAt).toBeNull()
@@ -50,19 +50,23 @@ describe('buildProperty', () => {
     }
   })
 
-  it('sets gbpPlaceId when provided', () => {
+  it('sets a complete Google binding tuple when provided', () => {
     const result = buildProperty({
       id: FIXED_ID,
       organizationId: FIXED_ORG,
       name: 'Grand Hotel',
       timezone: 'UTC',
-      gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+      gbpLocationId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+      gbpAccountId: '123456789',
+      googleConnectionId: googleConnectionId('connection-1'),
       now: FIXED_TIME,
     })
 
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
-      expect(result.value.gbpPlaceId).toBe('ChIJN1t_tDeuEmsRUsoyG83frY4')
+      expect(result.value.gbpLocationId).toBe('ChIJN1t_tDeuEmsRUsoyG83frY4')
+      expect(result.value.gbpAccountId).toBe('123456789')
+      expect(result.value.googleBindingState).toBe('active')
     }
   })
 

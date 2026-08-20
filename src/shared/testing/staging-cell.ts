@@ -137,7 +137,6 @@ export function buildCellEnv(input: CellEnvInput): Record<string, string> {
     GBP_REVIEWS_API_BASE_URL: gbpBase,
     GBP_NOTIFICATIONS_API_BASE_URL: gbpBase,
     GOOGLE_OAUTH_TOKEN_URL: `${gbpBase}/oauth/token`,
-    GOOGLE_OAUTH_USERINFO_URL: `${gbpBase}/oauth/userinfo`,
     GOOGLE_OAUTH_REVOKE_URL: `${gbpBase}/oauth/revoke`,
     RESEND_BASE_URL: mailBase,
     // Hermetic boot: dotenv/config inside the worker must not merge a

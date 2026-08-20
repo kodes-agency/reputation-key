@@ -6,6 +6,7 @@ import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
+import { assertReleaseIdentity } from '#/shared/config/release-identity'
 import {
   assertRestoreModeCompatible,
   isRestoreIsolated,
@@ -13,7 +14,11 @@ import {
 } from '#/shared/config/restore-mode'
 import { createContainer } from '#/composition'
 import { bootstrap } from '#/bootstrap'
-import { createJobWorker } from '#/shared/jobs/worker'
+import {
+  BACKGROUND_QUEUE_CONCURRENCY,
+  createJobWorker,
+  DEFAULT_QUEUE_CONCURRENCY,
+} from '#/shared/jobs/worker'
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import {
   createGatedJobHandler,
@@ -29,6 +34,7 @@ import {
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
+import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
@@ -36,10 +42,11 @@ import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.jo
 import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
+import { JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME } from '#/shared/jobs/permit-start-deadline-sweep.job'
+import { JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
 import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
-import { RECONCILE_GOAL_JOB_NAME as RECONCILE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
-import { SPAWN_RECURRING_JOB_NAME as SPAWN_RECURRING_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
+import { SCHEDULE_PROPERTY_TRENDS_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
 import type { Worker } from 'bullmq'
 
 // Worker entry wires 10+ job schedules — complexity is inherent to the
@@ -47,6 +54,7 @@ import type { Worker } from 'bullmq'
 // fallow-ignore-next-line complexity
 async function main() {
   const env = getEnv()
+  assertReleaseIdentity(env)
   const logger = getLogger()
 
   logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
@@ -74,6 +82,9 @@ async function main() {
   // BQC-2.2: strong read of persisted policy state before any job runs —
   // worker decisions see DB truth from the start (allowlist/suspension).
   await container.refreshPolicyStore()
+  // Review provider-subject writers may start only after the decoded worker
+  // key set exactly matches the database's masked active/rotation inventory.
+  await container.refreshReviewProviderSubjectKeys()
 
   // Register all event handlers and job handlers BEFORE starting the BullMQ
   // worker — otherwise early jobs (badge/leaderboard reconciliation fire
@@ -129,6 +140,7 @@ async function main() {
   const routingGate: JobRoutingGate = {
     router: createProcessingRouter({
       loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
+      loadImportItemRouting: createImportItemRoutingLoader({ db: container.db }),
       cell: processingCell,
     }),
     cell: processingCell,
@@ -141,19 +153,27 @@ async function main() {
   }
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
-  // Higher concurrency so a single long-running job doesn't block user actions.
+  // Concurrency is budgeted against the connection pool, NOT maximized:
+  // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max.
+  // A Google-import item holds its fenced `FOR UPDATE` transaction while the
+  // nested Property effect opens a second one, so a concurrency equal to the
+  // pool max lets every slot hold a client and deadlock on the nested
+  // acquisition. See the invariant on the constants in shared/jobs/worker.
   if (container.jobQueue) {
     // BQC-3.2: every job authorizes through the delayed execution gate at
     // dispatch (current policy — a stale allow never overrides a deny).
     worker = createJobWorker(
       'default',
       createGatedJobHandler('default', registry, resolveScope, routingGate),
-      10,
+      DEFAULT_QUEUE_CONCURRENCY,
       quarantineQueue,
     )
 
     if (worker) {
-      logger.info('BullMQ worker started on default queue (concurrency: 10)')
+      logger.info(
+        { concurrency: DEFAULT_QUEUE_CONCURRENCY },
+        'BullMQ worker started on default queue',
+      )
     }
   } else {
     logger.warn('No Redis available — default worker not started')
@@ -166,12 +186,15 @@ async function main() {
     backgroundWorker = createJobWorker(
       'background',
       createGatedJobHandler('background', registry, resolveScope, routingGate),
-      3,
+      BACKGROUND_QUEUE_CONCURRENCY,
       quarantineQueue,
     )
 
     if (backgroundWorker) {
-      logger.info('BullMQ worker started on background queue (concurrency: 3)')
+      logger.info(
+        { concurrency: BACKGROUND_QUEUE_CONCURRENCY },
+        'BullMQ worker started on background queue',
+      )
     }
 
     // Schedule health-check job every 5 minutes
@@ -290,6 +313,55 @@ async function main() {
         logger.warn({ err }, 'Failed to schedule quarantine-ttl-sweep job')
       })
 
+    // Execution-permit start-deadline fence, every 5 minutes. `admitted` has
+    // exactly two other exits — a caller actually starting the permit (which
+    // detects `start_deadline_elapsed` lazily) and the emergency-kill drain — so
+    // an abandoned admission otherwise stays `admitted` forever, pinning its
+    // ON DELETE RESTRICT approval binding and inflating the active-permit index.
+    // Cadence is well under the approval-rotation window and each run is
+    // batch-bounded, so a backlog drains across runs.
+    container.backgroundQueue
+      .add(
+        PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+        {},
+        {
+          repeat: { every: 5 * 60 * 1000 },
+          jobId: 'permit-start-deadline-sweep-recurring',
+          ...jobEnqueueOptions(PERMIT_START_DEADLINE_SWEEP_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Permit start-deadline sweep job scheduled (every 5 minutes)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule permit-start-deadline-sweep job')
+      })
+
+    // Google-import claim-lease reaper, every 60 seconds — one claim-lease
+    // width (GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS). A worker killed mid-effect
+    // leaves its item 'processing' with an elapsed lease and nothing else
+    // re-dispatches it: pending-item dispatch is driven only by the outbox
+    // requested event, and the lifecycle sweep reacts to the effect deadline
+    // hours later. This bounds recovery at roughly two lease widths. The run
+    // is a bounded 100-row scan that routes every row through the store's CAS
+    // helpers, so it is a no-op when no claim is stale.
+    container.backgroundQueue
+      .add(
+        GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME,
+        {},
+        {
+          repeat: { every: 60 * 1000 },
+          jobId: 'google-import-claim-reaper-recurring',
+          ...jobEnqueueOptions(GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Google import claim-lease reaper scheduled (every 60 seconds)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule google-import-claim-reaper job')
+      })
+
     // ── Metric materialized view refresh jobs ──────────────────────────
     type MetricSchedule = Readonly<{
       jobName: string
@@ -322,38 +394,25 @@ async function main() {
         .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
     }
 
-    // ── Dark-context + outbound-email jobs (BQR-0 containment) ──────
-    // Goal / badge / leaderboard / portal are dark for beta. Outbound email
-    // is blocked (notification.send_email). Only schedule when the matching
-    // capability is globally enabled (core). Non-core allowlists do not
-    // re-enable background work until a later promotion path exists.
+    // ── Controlled-beta + outbound-email jobs ──────────────────────
+    // Promoted background work remains capability-gated so the persisted
+    // cohort policy and emergency kill switches apply at schedule time.
+    // Outbound email remains blocked unless notification.send_email is enabled.
     type CapabilitySchedule = Readonly<{
       jobName: string
       every?: number
       pattern?: string
       label: string
-      capability: 'goal.use' | 'badge.use' | 'leaderboard.use' | 'notification.send_email'
+      capability: 'leaderboard.use' | 'notification.send_email' | 'ai.detect_trends'
     }>
     const capabilitySchedules: CapabilitySchedule[] = [
       {
-        jobName: RECONCILE_JOB_NAME,
-        pattern: '10 * * * *',
-        label: 'hourly',
-        capability: 'goal.use',
+        jobName: SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
+        every: 60 * 1000,
+        label: 'minutely',
+        capability: 'ai.detect_trends',
       },
-      {
-        jobName: SPAWN_RECURRING_JOB_NAME,
-        every: 24 * 60 * 60 * 1000,
-        label: 'daily',
-        capability: 'goal.use',
-      },
-      // Stagger: badge at minute 20, leaderboard at minute 30
-      {
-        jobName: 'badge.reconcile',
-        pattern: '20 * * * *',
-        label: 'hourly',
-        capability: 'badge.use',
-      },
+      // Recognition refresh is staggered from metric rollups.
       {
         jobName: 'leaderboard.reconcile',
         pattern: '30 * * * *',
@@ -391,12 +450,15 @@ async function main() {
   }
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
-  // BQR-0 CONTAINMENT (still in force through BQR-2 exit): durable dispatch
-  // stays off by default. BQR-2.1 fixed the envelope; BQR-2.2 registers
-  // consumers on the worker so the registry is not empty when dispatch is
-  // enabled. Remaining: atomic producers, no-op consumer bodies (2.3–2.4).
-  // Enable only with OUTBOX_DISPATCHER_ENABLED=true in a controlled test
-  // environment — not until BQR-2 exit criteria are green.
+  // Durable dispatch stays off by default and is opted into per environment.
+  // BQR-2 exit criteria are met except crash-boundary evidence, which is
+  // structural unit tests only until the BQR-6 DB+Redis evidence pack: 2.1 gave
+  // relay and dispatcher one envelope contract, 2.2 registers consumers before
+  // the durable path can start, 2.3 commits state and outbox atomically on the
+  // enabled producer path, 2.4 stops consumers acknowledging work they did not
+  // perform, and 2.5 allowlist-validates at insert. Inbox families still
+  // default to `record-only`, so enabling this relays and records without
+  // handing delivery to durable consumers (see `resolveCutoverState`).
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
   let domainEventsQueue: Queue | undefined
@@ -418,7 +480,8 @@ async function main() {
       if (domainEventsWorker) {
         logger.warn(
           'Outbox relay + dispatcher started — OUTBOX_DISPATCHER_ENABLED is true. ' +
-            'This is unsafe until BQR-2 is complete (atomic producers / no-op consumers).',
+            'Crash-boundary coverage is structural until the BQR-6 evidence pack; ' +
+            'inbox families deliver per OUTBOX_CUTOVER state (default record-only).',
         )
       }
     }

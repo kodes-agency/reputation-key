@@ -57,6 +57,8 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
   countExpired: ReturnType<typeof vi.fn>
   purgeExpired: ReturnType<typeof vi.fn>
   purgeEvidence: ReturnType<typeof vi.fn>
+  inspectGoogleImportLifecycle: ReturnType<typeof vi.fn>
+  sweepGoogleImportLifecycle: ReturnType<typeof vi.fn>
 } {
   return {
     env: ISOLATED_ENV,
@@ -70,11 +72,19 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
         startedAt: '2026-07-31T00:00:00.000Z',
       },
     ]),
+    inspectGoogleImportLifecycle: vi.fn(async () => ({
+      expiredItems: 0,
+      purgeCandidates: 0,
+      unreleasedExpiredReceipts: 0,
+    })),
+    sweepGoogleImportLifecycle: vi.fn(async () => {}),
     ...overrides,
   } as RestoreVerifyDeps & {
     countExpired: ReturnType<typeof vi.fn>
     purgeExpired: ReturnType<typeof vi.fn>
     purgeEvidence: ReturnType<typeof vi.fn>
+    inspectGoogleImportLifecycle: ReturnType<typeof vi.fn>
+    sweepGoogleImportLifecycle: ReturnType<typeof vi.fn>
   }
 }
 
@@ -163,6 +173,30 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(out).toMatch(/zero expired-content row\(s\) remain/)
     // Cutover reminder: RESTORE_MODE must be UNSET.
     expect(out).toMatch(/UNSET RESTORE_MODE/)
+  })
+
+  it('apply fails when Google import lifecycle backlog remains', async () => {
+    const io = memoryIO()
+    const deps = depsFor({
+      inspectGoogleImportLifecycle: vi
+        .fn()
+        .mockResolvedValueOnce({
+          expiredItems: 1,
+          purgeCandidates: 0,
+          unreleasedExpiredReceipts: 0,
+        })
+        .mockResolvedValueOnce({
+          expiredItems: 0,
+          purgeCandidates: 0,
+          unreleasedExpiredReceipts: 1,
+        }),
+    })
+
+    const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
+
+    expect(code).toBe(1)
+    expect(deps.sweepGoogleImportLifecycle).toHaveBeenCalledTimes(1)
+    expect(io.errLines.join('\n')).toMatch(/Google import lifecycle backlog/)
   })
 
   it('apply exits 1 when expired rows remain after the purge', async () => {

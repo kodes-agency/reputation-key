@@ -24,10 +24,18 @@ export const inboxKeys = {
 
 export const notificationKeys = {
   all: ['notifications'] as const,
-  count: () => [...notificationKeys.all, 'count'] as const,
-  lists: () => [...notificationKeys.all, 'list'] as const,
-  list: (limit: number) => [...notificationKeys.lists(), { limit }] as const,
-  preferences: () => [...notificationKeys.all, 'preferences'] as const,
+  forOrganization: (organizationId: string) =>
+    [...notificationKeys.all, organizationId] as const,
+  count: (organizationId: string) =>
+    [...notificationKeys.forOrganization(organizationId), 'count'] as const,
+  lists: (organizationId: string) =>
+    [...notificationKeys.forOrganization(organizationId), 'list'] as const,
+  list: (organizationId: string, limit: number) =>
+    [...notificationKeys.lists(organizationId), { limit }] as const,
+  preferences: (organizationId: string) =>
+    [...notificationKeys.forOrganization(organizationId), 'preferences'] as const,
+  userSettings: (organizationId: string) =>
+    [...notificationKeys.forOrganization(organizationId), 'user-settings'] as const,
 }
 
 // ── Identity / organization context ────────────────────────────────────
@@ -57,6 +65,26 @@ export const dashboardKeys = {
     [...dashboardKeys.all, 'property', args] as const,
   signals: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'signals', args] as const,
+  googlePerformance: (
+    propertyId: string,
+    preset: string,
+    catalogVersion: string,
+    viewEpoch: number,
+  ) =>
+    [
+      ...dashboardKeys.all,
+      'google-performance',
+
+      propertyId,
+      preset,
+      catalogVersion,
+      viewEpoch,
+    ] as const,
+}
+export const aiKeys = {
+  all: ['ai'] as const,
+  propertyTrend: (propertyId: string) =>
+    [...aiKeys.all, 'property-trend', propertyId] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────
@@ -68,20 +96,11 @@ export const goalKeys = {
   detail: (goalId: string) => [...goalKeys.all, 'detail', goalId] as const,
 }
 
-// ── Leaderboard ──────────────────────────────────────────────────────────
-export const leaderboardKeys = {
-  all: ['leaderboard'] as const,
-  matrix: (args: Readonly<Record<string, unknown>>) =>
-    [...leaderboardKeys.all, 'matrix', args] as const,
-  board: (args: Readonly<Record<string, unknown>>) =>
-    [...leaderboardKeys.all, 'board', args] as const,
-}
-
-// ── Staff (assignments + staff-visible portals) ──────────────────────────
+// ── Staff participation and portal responsibility ────────────────────────
 export const staffKeys = {
   all: ['staff'] as const,
-  assignments: (propertyId: string) =>
-    [...staffKeys.all, 'assignments', propertyId] as const,
+  participations: (propertyId: string) =>
+    [...staffKeys.all, 'participations', propertyId] as const,
   portals: (propertyId: string) => [...staffKeys.all, 'portals', propertyId] as const,
 }
 
@@ -117,10 +136,37 @@ export const badgeKeys = {
   orgDefinitions: () => [...badgeKeys.all, 'org-definitions'] as const,
 }
 
-// ── Integrations (Google connections + import jobs) ──────────────────────
+// ── Integrations (Google connections + bounded import content) ───────────
 export const integrationKeys = {
   all: ['integrations'] as const,
   connections: () => [...integrationKeys.all, 'connections'] as const,
+  googleImportContent: () => [...integrationKeys.all, 'google-import-content'] as const,
+  googleImportAccounts: (organizationId: string, connectionId: string) =>
+    [
+      ...integrationKeys.googleImportContent(),
+      organizationId,
+      connectionId,
+      'accounts',
+    ] as const,
+  googleImportCandidates: (
+    organizationId: string,
+    connectionId: string,
+    accountRef: string | null,
+  ) =>
+    [
+      ...integrationKeys.googleImportContent(),
+      organizationId,
+      connectionId,
+      'candidates',
+      accountRef,
+    ] as const,
+  googleImportLease: (organizationId: string, connectionId: string) =>
+    [
+      ...integrationKeys.googleImportContent(),
+      organizationId,
+      connectionId,
+      'lease',
+    ] as const,
   import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
 }
 

@@ -6,7 +6,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
+import {
+  ServerFunctionError,
+  throwContextError,
+  catchUntagged,
+} from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import {
@@ -76,7 +80,11 @@ export const createGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'goal.create' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'goal.create',
+          propertyId: data.propertyId,
+        })
         try {
           const { useCases } = getContainer()
           const result = await useCases.createGoal(
@@ -145,6 +153,7 @@ export const createGoal = createServerFn({ method: 'POST' })
             },
           )
         } catch (e) {
+          if (e instanceof ServerFunctionError) throw e
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
         }
@@ -163,10 +172,26 @@ export const updateGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'goal.update' })
 
         try {
-          const { useCases } = getContainer()
+          const container = getContainer()
+          const scopedGoal = await container.goalRepo.getById(
+            toGoalId(data.goalId),
+            ctx.organizationId,
+          )
+          if (!scopedGoal) {
+            throwContextError(
+              'GoalError',
+              makeGoalError('not_found', 'Goal not found'),
+              404,
+            )
+          }
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'goal.update',
+            propertyId: scopedGoal.propertyId,
+          })
+          const { useCases } = container
           const result = await useCases.updateGoal(
             {
               goalId: toGoalId(data.goalId),
@@ -229,6 +254,7 @@ export const updateGoal = createServerFn({ method: 'POST' })
           )
           return { goal: updated }
         } catch (e) {
+          if (e instanceof ServerFunctionError) throw e
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
         }
@@ -247,10 +273,26 @@ export const cancelGoal = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'goal.cancel' })
 
         try {
-          const { useCases } = getContainer()
+          const container = getContainer()
+          const scopedGoal = await container.goalRepo.getById(
+            toGoalId(data.goalId),
+            ctx.organizationId,
+          )
+          if (!scopedGoal) {
+            throwContextError(
+              'GoalError',
+              makeGoalError('not_found', 'Goal not found'),
+              404,
+            )
+          }
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'goal.cancel',
+            propertyId: scopedGoal.propertyId,
+          })
+          const { useCases } = container
           const result = await useCases.cancelGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
@@ -289,6 +331,7 @@ export const cancelGoal = createServerFn({ method: 'POST' })
           )
           return { goal: cancelled }
         } catch (e) {
+          if (e instanceof ServerFunctionError) throw e
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
         }
@@ -307,7 +350,11 @@ export const listGoals = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'goal.read',
+          propertyId: data.propertyId,
+        })
 
         try {
           const { useCases } = getContainer()
@@ -347,6 +394,7 @@ export const listGoals = createServerFn({ method: 'GET' })
           )
           return { goals }
         } catch (e) {
+          if (e instanceof ServerFunctionError) throw e
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
         }
@@ -365,10 +413,26 @@ export const getGoal = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
 
         try {
-          const { useCases } = getContainer()
+          const container = getContainer()
+          const scopedGoal = await container.goalRepo.getById(
+            toGoalId(data.goalId),
+            ctx.organizationId,
+          )
+          if (!scopedGoal) {
+            throwContextError(
+              'GoalError',
+              makeGoalError('not_found', 'Goal not found'),
+              404,
+            )
+          }
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'goal.read',
+            propertyId: scopedGoal.propertyId,
+          })
+          const { useCases } = container
           const result = await useCases.getGoal({ goalId: toGoalId(data.goalId) }, ctx)
 
           if (result.isErr()) {
@@ -399,6 +463,7 @@ export const getGoal = createServerFn({ method: 'GET' })
             },
           )
         } catch (e) {
+          if (e instanceof ServerFunctionError) throw e
           if (isGoalError(e)) throwContextError('GoalError', e, goalErrorStatus(e.code))
           throw catchUntagged(e)
         }

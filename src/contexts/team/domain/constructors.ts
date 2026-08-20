@@ -4,7 +4,7 @@
 import type { Result } from '#/shared/domain'
 import type { Team, TeamId } from './types'
 import type { TeamError } from './errors'
-import type { OrganizationId, UserId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { validateTeamName } from './rules'
 
 export type BuildTeamInput = Readonly<{
@@ -13,7 +13,6 @@ export type BuildTeamInput = Readonly<{
   propertyId: PropertyId
   name: string
   description?: string | null
-  teamLeadId?: UserId | null
   now: Date
 }>
 
@@ -27,7 +26,6 @@ export const buildTeam = (input: BuildTeamInput): Result<Team, TeamError> => {
       propertyId: input.propertyId,
       name: validName,
       description: input.description ?? null,
-      teamLeadId: input.teamLeadId ?? null,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

@@ -1,0 +1,232 @@
+[
+  {
+    "vectorId": "canonical-16383-bytes",
+    "input": {
+      "text": { "repeat": "a", "count": 16367 },
+      "rating": 1,
+      "languageCode": null,
+      "reviewedAtEpochMillis": 0,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": { "repeat": "a", "count": 16367 },
+      "canonicalByteLength": 16383,
+      "digest": "ae4ddde82960cf0c4a7b1b300631e93bbe37bbe9dd3ce405aa6a681eb57ef6bb"
+    }
+  },
+  {
+    "vectorId": "canonical-16384-bytes-multibyte",
+    "input": {
+      "text": { "repeat": "é", "count": 8184 },
+      "rating": 5,
+      "languageCode": null,
+      "reviewedAtEpochMillis": 9007199254740991,
+      "reviewerDisplayName": ""
+    },
+    "expected": {
+      "status": "success",
+      "text": { "repeat": "é", "count": 8184 },
+      "canonicalByteLength": 16384,
+      "digest": "5e12a7433205e71ba4ff3ebe84434e5f9f5ac3c892909244308cb02d8131b42f"
+    }
+  },
+  {
+    "vectorId": "canonical-16385-bytes-rejected",
+    "input": {
+      "text": { "repeat": "a", "count": 16369 },
+      "rating": 3,
+      "languageCode": null,
+      "reviewedAtEpochMillis": 1,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "failure",
+      "error": "canonical source exceeds the operation byte limit"
+    }
+  },
+  {
+    "vectorId": "combining-fold-after-nfkc",
+    "input": {
+      "text": "A\u030a Å cafe\u0301",
+      "rating": 4,
+      "languageCode": "sv",
+      "reviewedAtEpochMillis": 1786793400001,
+      "reviewerDisplayName": "å"
+    },
+    "expected": {
+      "status": "success",
+      "text": "[PERSON] [PERSON] café",
+      "canonicalByteLength": 45,
+      "hex": "0101000000175b504552534f4e5d205b504552534f4e5d20636166c3a90401000000027376000001a0052f96c1",
+      "digest": "202ee3ff7d62d122e0c3574e19fe669b1d95af59e5856725c2669b286fa5cada"
+    }
+  },
+  {
+    "vectorId": "empty-display-name",
+    "input": {
+      "text": "Jane [PERSON] [CONTACT]",
+      "rating": 3,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400002,
+      "reviewerDisplayName": ""
+    },
+    "expected": {
+      "status": "success",
+      "text": "Jane {#1#} {#2#}",
+      "canonicalByteLength": 38,
+      "hex": "0101000000104a616e65207b2331237d207b2332237d030100000002656e000001a0052f96c2",
+      "digest": "1a850b48a312486a80b342ddc6f8fe910a189f57a9464c3033465272ae9b3ec2"
+    }
+  },
+  {
+    "vectorId": "empty-text",
+    "input": {
+      "text": "",
+      "rating": 1,
+      "languageCode": null,
+      "reviewedAtEpochMillis": 0,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "",
+      "canonicalByteLength": 16,
+      "hex": "01010000000001000000000000000000",
+      "digest": "691f460b20b95e5175d0b0c5f694edb37a5b9b6674471bd451057bc45bd5a70d"
+    }
+  },
+  {
+    "vectorId": "expanding-fold-and-placeholder-escape",
+    "input": {
+      "text": "Straße STRASSE — Jane Doe [PERSON] hi",
+      "rating": 5,
+      "languageCode": "de",
+      "reviewedAtEpochMillis": 1786793400000,
+      "reviewerDisplayName": "strasse"
+    },
+    "expected": {
+      "status": "success",
+      "text": "[PERSON] [PERSON] — Jane Doe {#1#} hi",
+      "canonicalByteLength": 61,
+      "hex": "0101000000275b504552534f4e5d205b504552534f4e5d20e28094204a616e6520446f65207b2331237d2068690501000000026465000001a0052f96c0",
+      "digest": "32853e38fd9bfec9ba8ebb426428593fdde8294dd6ce15bba134ad0667e094b0"
+    }
+  },
+  {
+    "vectorId": "generated-person-token-collision",
+    "input": {
+      "text": "{#1#} [PERSON] Jane",
+      "rating": 2,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400003,
+      "reviewerDisplayName": "Jane"
+    },
+    "expected": {
+      "status": "success",
+      "text": "{#1#} {#1#} [PERSON]",
+      "canonicalByteLength": 42,
+      "hex": "0101000000147b2331237d207b2331237d205b504552534f4e5d020100000002656e000001a0052f96c3",
+      "digest": "7f7810f3ff3f2a92c668715f412d7d37c02106f0617cb5b3ec1f6b98c3fb2da8"
+    }
+  },
+  {
+    "vectorId": "left-to-right-overlap",
+    "input": {
+      "text": "aaaaa",
+      "rating": 1,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400004,
+      "reviewerDisplayName": "aaa"
+    },
+    "expected": {
+      "status": "success",
+      "text": "[PERSON]aa",
+      "canonicalByteLength": 32,
+      "hex": "01010000000a5b504552534f4e5d6161010100000002656e000001a0052f96c4",
+      "digest": "384c38a01961049b9ba5db414c453adb3a8fe2e06ccf53ff24f4d0c1f482f96e"
+    }
+  },
+  {
+    "vectorId": "null-text",
+    "input": {
+      "text": null,
+      "rating": 2,
+      "languageCode": null,
+      "reviewedAtEpochMillis": 0,
+      "reviewerDisplayName": "Ignored"
+    },
+    "expected": {
+      "status": "success",
+      "text": null,
+      "canonicalByteLength": 12,
+      "hex": "010002000000000000000000",
+      "digest": "69356b17b54dd25425b93426bc63f3631036433702e7db876d49e7cf6a7b17b1"
+    }
+  },
+  {
+    "vectorId": "one-scalar-display-name",
+    "input": {
+      "text": "a cat A",
+      "rating": 4,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400005,
+      "reviewerDisplayName": "a"
+    },
+    "expected": {
+      "status": "success",
+      "text": "[PERSON] c[PERSON]t [PERSON]",
+      "canonicalByteLength": 50,
+      "hex": "01010000001c5b504552534f4e5d20635b504552534f4e5d74205b504552534f4e5d040100000002656e000001a0052f96c5",
+      "digest": "b69a8927c38128e7df038a29abac52deab298dec5c57a1e60f92fa276fa16b89"
+    }
+  },
+  {
+    "vectorId": "raw-cap-65536-bytes",
+    "input": {
+      "text": null,
+      "rating": 3,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 2,
+      "reviewerDisplayName": { "repeat": "z", "count": 65534 }
+    },
+    "expected": {
+      "status": "success",
+      "text": null,
+      "canonicalByteLength": 18,
+      "hex": "0100030100000002656e0000000000000002",
+      "digest": "ac785e1dd618466e09dea7d636cf5371d41144d4bd1ab2f98c51ced9a543896a"
+    }
+  },
+  {
+    "vectorId": "raw-cap-65537-bytes-rejected",
+    "input": {
+      "text": null,
+      "rating": 3,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 2,
+      "reviewerDisplayName": { "repeat": "z", "count": 65535 }
+    },
+    "expected": {
+      "status": "failure",
+      "error": "raw source exceeds the materialization byte limit"
+    }
+  },
+  {
+    "vectorId": "raw-placeholder-collisions",
+    "input": {
+      "text": "[PERSON] [CONTACT] [ADDRESS] [FINANCIAL] [IDENTIFIER] [SECRET]",
+      "rating": 2,
+      "languageCode": "en",
+      "reviewedAtEpochMillis": 1786793400006,
+      "reviewerDisplayName": null
+    },
+    "expected": {
+      "status": "success",
+      "text": "{#1#} {#2#} {#3#} {#4#} {#5#} {#6#}",
+      "canonicalByteLength": 57,
+      "hex": "0101000000237b2331237d207b2332237d207b2333237d207b2334237d207b2335237d207b2336237d020100000002656e000001a0052f96c6",
+      "digest": "0ceaff9295264d2febedd2ea76317086490ba191c661c926376a54dba30d844c"
+    }
+  }
+]

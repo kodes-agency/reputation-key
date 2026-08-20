@@ -54,6 +54,9 @@ describe('propertyErrorStatus (imported from server module)', () => {
       'region_locked',
       'invalid_transition',
       'property_not_active',
+      'region_unresolved',
+      'region_move_conflict',
+      'stale_property',
     ]
     for (const code of codes) {
       const status = propertyErrorStatus(code)
@@ -129,14 +132,23 @@ describe('createProperty input validation', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts create input with all fields', () => {
+  it('accepts create input with all browser-owned fields', () => {
     const result = createPropertyInputSchema.safeParse({
       name: 'Grand Hotel',
       slug: 'grand-hotel',
       timezone: 'UTC',
-      gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+      countryCode: 'US',
     })
     expect(result.success).toBe(true)
+  })
+
+  it('rejects protected provider identifiers on create', () => {
+    const result = createPropertyInputSchema.safeParse({
+      name: 'Grand Hotel',
+      timezone: 'UTC',
+      gbpLocationId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+    })
+    expect(result.success).toBe(false)
   })
 
   it('rejects create input missing required name', () => {
@@ -188,13 +200,13 @@ describe('updateProperty input validation', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts update with all fields', () => {
+  it('accepts update with all browser-owned fields', () => {
     const result = updatePropertyInputSchema.safeParse({
       propertyId: 'abc-123',
       name: 'New Name',
       slug: 'new-slug',
       timezone: 'Europe/London',
-      gbpPlaceId: 'ChIJ_test',
+      countryCode: 'GB',
     })
     expect(result.success).toBe(true)
   })
@@ -206,12 +218,12 @@ describe('updateProperty input validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('accepts null gbpPlaceId (to clear it)', () => {
+  it('rejects protected provider identifiers on update', () => {
     const result = updatePropertyInputSchema.safeParse({
       propertyId: 'abc-123',
-      gbpPlaceId: null,
+      gbpLocationId: null,
     })
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
   })
 })
 

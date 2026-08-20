@@ -39,7 +39,7 @@ describe('createProperty', () => {
 
     expect(property.slug).toBe('grand-hotel')
     expect(property.timezone).toBe('America/New_York')
-    expect(property.gbpPlaceId).toBeNull()
+    expect(property.gbpLocationId).toBeNull()
     expect(property.processingRegion).toBe('unresolved')
     expect(propertyRepo.all()).toHaveLength(1)
   })
@@ -94,7 +94,7 @@ describe('createProperty', () => {
     expect(() => assertRegionResolved(property)).not.toThrow()
   })
 
-  it('creates a property with custom slug and gbpPlaceId', async () => {
+  it('creates browser-submitted properties without a provider binding', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -103,13 +103,13 @@ describe('createProperty', () => {
         name: 'Grand Hotel',
         slug: 'custom-slug',
         timezone: 'UTC',
-        gbpPlaceId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
       },
       ctx,
     )
 
     expect(property.slug).toBe('custom-slug')
-    expect(property.gbpPlaceId).toBe('ChIJN1t_tDeuEmsRUsoyG83frY4')
+    expect(property.gbpLocationId).toBeNull()
+    expect(property.googleBindingState).toBe('unbound')
   })
 
   it('rejects users who cannot create properties', async () => {

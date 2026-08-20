@@ -46,10 +46,16 @@ beforeAll(async () => {
     [PROP_A as string, ORG_A as string, PROP_SLUG],
   )
   await seedPool.query(
-    `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, is_active, created_at, updated_at)
-     VALUES ($1, $2, $3, 'property', $3, 'Guest Test Portal', $4, true, NOW(), NOW())
+    `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, publication_state, created_at, updated_at)
+     VALUES ($1, $2, $3, 'property', $5, 'Guest Test Portal', $4, 'published', NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
-    [PORTAL_A as string, ORG_A as string, PROP_A as string, PORTAL_SLUG],
+    [
+      PORTAL_A as string,
+      ORG_A as string,
+      PROP_A as string,
+      PORTAL_SLUG,
+      PROP_A as string,
+    ],
   )
 })
 

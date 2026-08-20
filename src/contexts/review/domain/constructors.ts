@@ -34,9 +34,13 @@ type BuildReviewArgs = Readonly<{
   reviewerProfilePhotoUrl: string | null
   rating: number
   text: string | null
+  /** Provider machine translation; absent for every non-Google origin. */
+  translatedText?: string | null
   languageCode: string | null
   reviewedAt: Date
   now: Date
+  aiSourceByteLength: number
+  aiSourceDigest: string
   sentimentLabel?: SentimentLabel
   sentimentScore?: number | null
 }>
@@ -66,6 +70,7 @@ export const buildReview = (args: BuildReviewArgs) => {
     reviewerProfilePhotoUrl: args.reviewerProfilePhotoUrl,
     rating: args.rating as Review['rating'],
     text: args.text,
+    translatedText: args.translatedText ?? null,
     languageCode: args.languageCode,
     reviewedAt: args.reviewedAt,
     expiresAt,
@@ -75,6 +80,8 @@ export const buildReview = (args: BuildReviewArgs) => {
       reviewedAt: args.reviewedAt,
       now: args.now,
       contentHash,
+      aiSourceByteLength: args.aiSourceByteLength,
+      aiSourceDigest: args.aiSourceDigest,
     }),
     createdAt: args.now,
     updatedAt: args.now,
@@ -122,6 +129,7 @@ export const buildReply = (args: BuildReplyArgs) => {
     rejectedBy: args.rejectedBy ?? null,
     rejectionReason: args.rejectionReason ?? null,
     aiGenerated: args.aiGenerated ?? false,
+    stateRevision: 1,
     submittedAt: args.submittedAt ?? null,
     approvedAt: args.approvedAt ?? null,
     publishedAt: args.publishedAt ?? null,

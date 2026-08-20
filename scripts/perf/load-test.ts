@@ -40,9 +40,10 @@
 
 import { performance } from 'node:perf_hooks'
 import { execSync, execFile, spawnSync } from 'node:child_process'
+import type { Queue } from 'bullmq'
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { isAbsolute, resolve, join } from 'node:path'
 import { sql } from 'drizzle-orm'
 import { getEnv } from '../../src/shared/config/env'
 // NOTE: the composition root is imported DYNAMICALLY inside runScenario,
@@ -61,10 +62,15 @@ import {
 import {
   getScenarioExecutor,
   getFaultExecutor,
+  type FaultRunSummary,
+  type ScenarioExecutor,
   type ScenarioRunEnv,
   type ScenarioRunOptions,
 } from '../../src/shared/testing/scenarios/executors'
-import { viaContainer, viaHttp } from '../../src/shared/testing/ops-snapshot-capture'
+import {
+  viaContainerFactory,
+  viaHttp,
+} from '../../src/shared/testing/ops-snapshot-capture'
 import {
   createLcg,
   deterministicUuid,
@@ -72,6 +78,32 @@ import {
 } from '../../src/shared/testing/scale-dataset'
 import { createRedisInfoCollector } from '../../src/shared/testing/external-collectors'
 import { createTokenEncryptionAdapter } from '../../src/contexts/integration/infrastructure/adapters/token-encryption.adapter'
+import {
+  DEFAULT_BATCH_SIZE,
+  DEFAULT_MAX_BATCHES,
+  type PurgeRunResult,
+} from '../../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+
+const JOB_RESULT_POLL_INTERVAL_MS = 250
+
+async function waitForJobResult(
+  queue: Queue,
+  jobId: string,
+  timeoutMs: number,
+): Promise<unknown> {
+  const deadlineMs = performance.now() + timeoutMs
+  while (performance.now() < deadlineMs) {
+    const job = await queue.getJob(jobId)
+    if (!job) throw new Error(`job ${jobId} disappeared before a terminal result`)
+
+    const state = await job.getState()
+    if (state === 'completed') return job.returnvalue
+    if (state === 'failed') throw new Error(job.failedReason ?? `job ${jobId} failed`)
+
+    await new Promise<void>((resolve) => setTimeout(resolve, JOB_RESULT_POLL_INTERVAL_MS))
+  }
+  throw new Error(`job ${jobId} timed out before returning a terminal result`)
+}
 
 // ── Catalogue print (perf:catalog) ──────────────────────────────────
 
@@ -201,10 +233,10 @@ async function buildReplyPublicationSeam(deps: {
       // column type). Never put JS comments inside the sql template itself.
       await deps.db.execute(sql`
         INSERT INTO google_connections
-          (id, organization_id, google_account_id, google_email, encrypted_access_token,
+          (id, organization_id, google_subject, encrypted_access_token,
            encrypted_refresh_token, token_expires_at, scopes, connected_by, visibility, status)
         VALUES
-          (${connectionId}, ${probeOrgId}, ${accountName}, 'perf-stub@example.invalid',
+          (${connectionId}, ${probeOrgId}, ${accountName},
            ${encryption.encrypt('perf-stub-access-token')},
            ${encryption.encrypt('perf-stub-refresh-token')},
            ${new Date(Date.now() + 3_600_000)},
@@ -290,10 +322,88 @@ async function buildReplyPublicationSeam(deps: {
   }
 }
 
+function isPurgeRunResult(value: unknown): value is PurgeRunResult {
+  if (typeof value !== 'object' || value == null) return false
+  const result = value as Record<string, unknown>
+  return (
+    (result.status === 'completed' || result.status === 'budget_exhausted') &&
+    typeof result.batches === 'number' &&
+    typeof result.purged === 'number' &&
+    typeof result.failed === 'number' &&
+    Array.isArray(result.batchRows) &&
+    result.batchRows.every((rows) => typeof rows === 'number')
+  )
+}
+
+function isFaultRunSummary(value: unknown, fault: string): value is FaultRunSummary {
+  if (typeof value !== 'object' || value == null) return false
+  const result = value as Record<string, unknown>
+  const assertions = result.assertions
+  const metrics = result.metrics
+  return (
+    result.fault === fault &&
+    typeof result.injected === 'boolean' &&
+    typeof result.recovered === 'boolean' &&
+    Array.isArray(assertions) &&
+    assertions.length > 0 &&
+    assertions.every((assertion) => {
+      if (typeof assertion !== 'object' || assertion == null) return false
+      const row = assertion as Record<string, unknown>
+      return (
+        typeof row.check === 'string' &&
+        row.check.length > 0 &&
+        row.check.length <= 200 &&
+        typeof row.passed === 'boolean' &&
+        (row.detail == null ||
+          (typeof row.detail === 'string' && row.detail.length <= 240))
+      )
+    }) &&
+    typeof metrics === 'object' &&
+    metrics != null &&
+    Object.entries(metrics as Record<string, unknown>).every(
+      ([key, metric]) =>
+        /^[a-z][a-zA-Z0-9_]*$/.test(key) &&
+        ((typeof metric === 'number' && Number.isFinite(metric)) ||
+          (typeof metric === 'string' && /^[a-zA-Z0-9_.:/-]{1,120}$/.test(metric))),
+    )
+  )
+}
+
+function buildFaultController(runnerPath: string | undefined): ScenarioRunEnv['faults'] {
+  if (!runnerPath) return undefined
+  return {
+    execute: async (fault) => {
+      if (!isAbsolute(runnerPath)) {
+        throw new Error('BQC8_FAULT_RUNNER must be an absolute executable path')
+      }
+      const output = await new Promise<string>((resolveOutput, rejectOutput) => {
+        execFile(
+          runnerPath,
+          [fault],
+          { timeout: 15 * 60_000, maxBuffer: 64 * 1024 },
+          (error, stdout) => (error ? rejectOutput(error) : resolveOutput(stdout)),
+        )
+      })
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(output)
+      } catch {
+        throw new Error(`fault controller '${fault}' returned invalid JSON`)
+      }
+      if (!isFaultRunSummary(parsed, fault)) {
+        throw new Error(`fault controller '${fault}' returned an invalid summary`)
+      }
+      return parsed
+    },
+  }
+}
+
 // ── Scenario run ─────────────────────────────────────────────────────
 
-async function runScenario(name: string): Promise<number> {
-  const executor = getScenarioExecutor(name)
+async function runScenario(
+  name: string,
+  executor: ScenarioExecutor | undefined = getScenarioExecutor(name),
+): Promise<number> {
   if (!executor) {
     if (name in SCENARIOS) {
       return failUsage(
@@ -525,6 +635,79 @@ async function runScenario(name: string): Promise<number> {
     if (!replyPublication) return 2 // capability darkness — not executed here
   }
 
+  // BQC-8.3: run the actual scheduled purge handler through the production
+  // queue, waiting for each bounded run before scheduling the next. This
+  // prevents parallel sweeps from masking cursor or retention defects.
+  const lifecycle: ScenarioRunEnv['lifecycle'] =
+    name === 'retention'
+      ? {
+          runRetention: async () => {
+            const initialNow = container.clock()
+            const expiredBefore =
+              await container.reviewRepo.countExpiredBeforeAcrossTenants(initialNow)
+            const canaries =
+              await container.reviewRepo.findExpiredBatchBeforeAcrossTenants(
+                initialNow,
+                null,
+                12,
+              )
+            const timeoutMs = (options.timeoutS ?? SLOS.drainTimeout) * 1000
+            let remaining = expiredBefore
+            let purged = 0
+            let batches = 0
+            let bounded = true
+            while (remaining > 0) {
+              const job = await queue.add(
+                'purge-expired-reviews',
+                {},
+                {
+                  ...jobEnqueueOptions('purge-expired-reviews'),
+                  jobId: `perf-retention-${randomUUID()}`,
+                },
+              )
+              const run = await waitForJobResult(queue, job.id!, timeoutMs)
+              if (!isPurgeRunResult(run)) {
+                throw new Error('purge-expired-reviews returned an invalid run summary')
+              }
+              if (run.failed > 0) {
+                throw new Error(
+                  `purge-expired-reviews reported ${run.failed} failed rows`,
+                )
+              }
+              bounded =
+                bounded &&
+                run.batches <= DEFAULT_MAX_BATCHES &&
+                run.batchRows.length === run.batches &&
+                run.batchRows.every((rows) => rows > 0 && rows <= DEFAULT_BATCH_SIZE)
+              purged += run.purged
+              batches += run.batches
+              const next = await container.reviewRepo.countExpiredBeforeAcrossTenants(
+                container.clock(),
+              )
+              if (next >= remaining) {
+                throw new Error(
+                  `purge made no progress: ${next} rows remain after a bounded run`,
+                )
+              }
+              remaining = next
+            }
+            return {
+              expiredBefore,
+              purged,
+              expiredAfter: remaining,
+              batches,
+              canariesChecked: canaries.length,
+              // `expiredAfter === 0` proves every initial canary was removed
+              // through the same governed lifecycle predicate.
+              canariesRemaining: remaining === 0 ? 0 : canaries.length,
+              bounded,
+            }
+          },
+        }
+      : undefined
+
+  const faults = buildFaultController(process.env.BQC8_FAULT_RUNNER)
+
   // External collector: redis-cli INFO when the binary exists (the record's
   // collectors section states the coverage either way).
   const redisCli = spawnSync('redis-cli', ['--version'], { stdio: 'ignore' })
@@ -561,7 +744,7 @@ async function runScenario(name: string): Promise<number> {
     },
     snapshotSource: baseUrl
       ? viaHttp(baseUrl, env.OPS_METRICS_TOKEN as string)
-      : viaContainer(container.operationsSnapshot),
+      : viaContainerFactory(() => getContainer().operationsSnapshot),
     arrivalJob: {
       name: 'sync-property-reviews',
       data: arrivalData,
@@ -571,6 +754,8 @@ async function runScenario(name: string): Promise<number> {
     restartReadPath,
     replyPublication,
     externalCollector,
+    lifecycle,
+    faults,
     clock: () => new Date(),
     now: () => performance.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -618,24 +803,19 @@ async function runScenario(name: string): Promise<number> {
   }
 }
 
-// ── Fault dispatch (fails closed until 8.4/8.5 register executors) ──
+// ── Fault dispatch ───────────────────────────────────────────────────
 
-function dispatchFault(name: string): number {
+async function dispatchFault(name: string): Promise<number> {
   if (!(name in FAULTS)) {
     return failUsage(
       `unknown fault '${name}' — catalogue: ${Object.keys(FAULTS).join(', ')}`,
     )
   }
-  if (!getFaultExecutor(name)) {
-    console.error(
-      `fault '${name}' is catalogued but has no executor in this environment —\n` +
-        'BQC-8.4 (runtime fault matrix) / BQC-8.5 (region fault matrix) register fault executors.\n' +
-        'Not executed.',
-    )
-    return 2
+  const executor = getFaultExecutor(name)
+  if (!executor) {
+    return failUsage(`fault '${name}' has no registered executor`)
   }
-  // Unreachable today (registry is empty); kept for the 8.4/8.5 wiring point.
-  return failUsage(`fault '${name}' executor wiring is incomplete`)
+  return runScenario(name, executor)
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -650,7 +830,7 @@ async function main(): Promise<void> {
     return
   }
   if (fault) {
-    process.exit(dispatchFault(fault))
+    process.exit(await dispatchFault(fault))
   }
   if (scenario) {
     process.exit(await runScenario(scenario))

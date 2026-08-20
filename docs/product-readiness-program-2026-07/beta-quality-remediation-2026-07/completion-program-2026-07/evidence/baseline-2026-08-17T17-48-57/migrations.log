@@ -1,0 +1,49 @@
+$ echo "y" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema
+started: 2026-08-17T17:48:57.245Z  durationMs: 5857  exit: 1
+
+
+> reputation-key@ auth:migrate /Users/bozhidardenev/kodes/projects/rep-key
+> npx -y dotenv-cli -- npx -y @better-auth/cli migrate --config src/shared/auth/auth-cli.ts
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "store-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+⠋ preparing migration...
+/Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45
+    Error.captureStackTrace(err)
+          ^
+
+error: role "bozhidardev" does not exist
+    at /Users/bozhidardenev/kodes/projects/rep-key/node_modules/.pnpm/pg-pool@3.14.0_pg@8.21.0/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async PostgresDriver.acquireConnection (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/dialect/postgres/postgres-driver.js:21:24)
+    at async RuntimeDriver.acquireConnection (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/driver/runtime-driver.js:44:28)
+    at async DefaultConnectionProvider.provideConnection (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/driver/default-connection-provider.js:8:28)
+    at async DefaultQueryExecutor.executeQuery (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/query-executor/query-executor-base.js:34:16)
+    at async SelectQueryBuilderImpl.execute (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/query-builder/select-query-builder.js:318:24)
+    at async PostgresIntrospector.getTables (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/kysely/dist/esm/dialect/postgres/postgres-introspector.js:65:28)
+    at async getMigrations (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/better-auth/dist/db/get-migration.mjs:132:27)
+    at async Command.migrateAction (file:///Users/bozhidardenev/.npm/_npx/167ca1f116d365e6/node_modules/@better-auth/cli/dist/index.mjs:2554:52) {
+  length: 103,
+  severity: 'FATAL',
+  code: '28000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'miscinit.c',
+  line: '799',
+  routine: 'InitializeSessionUserId'
+}
+
+Node.js v26.4.0

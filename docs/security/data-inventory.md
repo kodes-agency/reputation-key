@@ -3,7 +3,7 @@
 **Date:** 2026-07-14
 **Accountable owner:** Bozhidar Denev (product, privacy, security)
 **Scope:** All data classes across the Reputation Key beta deployment.
-**Subprocessors:** Neon (PostgreSQL), Resend (email), AWS S3 (eu-west-3), Sentry (error monitoring)
+**Active subprocessors:** Neon (PostgreSQL), Resend (email), AWS S3 (eu-west-3), Sentry (error monitoring). OpenAI is an unapproved candidate and receives no RepKey data.
 
 ## Data classes by sensitivity
 
@@ -90,6 +90,25 @@
 | ------------------ | ----------------------------- | --------------------------- | ----------------------------------- |
 | GBP cache payload  | `gbp_cache.payload`           | Rate-limit-friendly caching | `expires_at` (Google cache-control) |
 | Google attribution | `gbp_cache.googleAttribution` | Display compliance          | Same as payload                     |
+
+### 8. Planned AI data classes — dark
+
+No AI schema, provider deployment, or real-data flow is active. The accepted
+target, if later approved, separates:
+
+| Class                        | Permitted shape                                                                                                             | Planned retention/deletion                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Transient inference material | One minimized/redacted current review, or aggregate-only deterministic trend candidates; strict provider output             | Request-local only; never jobs/Redis/logs/traces/evidence/backups; discard on every terminal or post-return denial             |
+| Derived review metadata      | Property-scoped sentiment/category/attention facts without text, PII, Google IDs, exact replies, or reversible fingerprints | Versioned TTL and lifecycle participant; purge/null linkage on expiry, revocation, delete, and restore reconciliation          |
+| AI reply suggestion          | One untrusted, unpublished suggestion adopted only by explicit manager action                                               | Transient until explicit adoption; adopted draft remains AI-labelled and follows draft/deletion rules; publication is separate |
+| Property trend report        | Aggregate-only deterministic values plus bounded narrative and selected opaque signal IDs                                   | Property/profile scoped; previous valid report may survive a failed refresh; purge on required lifecycle triggers              |
+| AI control/evidence          | Epochs, policy/profile versions, permit/quota states, code-only outcomes, counts, timestamps, digests                       | Content-free; bounded operational retention defined by the AI schema/release profile                                           |
+
+The candidate subprocessor is the exact
+[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
+deployment. It remains rejected until contract/DPA, US full-path location,
+project-level ZDR/no-sharing configuration, redaction, target-runtime, and
+release evidence are approved.
 
 ## Data flow map
 

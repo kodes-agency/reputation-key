@@ -1,0 +1,74 @@
+{
+  "catalogueVersion": "google-provider-identifiers-v1",
+  "entries": [
+    {
+      "fixtureId": "google-account-primary",
+      "kind": "account",
+      "literal": "accounts/repkey-synthetic-do-not-use-account-0001",
+      "valid": true,
+      "expectedSegments": {
+        "accountId": "repkey-synthetic-do-not-use-account-0001",
+        "locationId": null,
+        "reviewId": null
+      },
+      "allowedGeneratedTargets": [
+        "e2e/fixtures/generated/google-provider-identifiers-v1.ts",
+        "test-fixtures/generated/google-provider-identifiers-v1.ts"
+      ]
+    },
+    {
+      "fixtureId": "google-location-primary",
+      "kind": "location",
+      "literal": "accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001",
+      "valid": true,
+      "expectedSegments": {
+        "accountId": "repkey-synthetic-do-not-use-account-0001",
+        "locationId": "repkey-synthetic-do-not-use-location-0001",
+        "reviewId": null
+      },
+      "allowedGeneratedTargets": [
+        "e2e/fixtures/generated/google-provider-identifiers-v1.ts",
+        "test-fixtures/generated/google-provider-identifiers-v1.ts"
+      ]
+    },
+    {
+      "fixtureId": "google-review-invalid-percent-encoding",
+      "kind": "review",
+      "literal": "accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review%2F0001",
+      "valid": false,
+      "expectedSegments": null,
+      "allowedGeneratedTargets": [
+        "test-fixtures/generated/google-provider-identifiers-v1.ts"
+      ]
+    },
+    {
+      "fixtureId": "google-review-invalid-unicode",
+      "kind": "review",
+      "literal": "accounts/repkey-synthetic-do-not-use-accøunt-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001",
+      "valid": false,
+      "expectedSegments": null,
+      "allowedGeneratedTargets": [
+        "test-fixtures/generated/google-provider-identifiers-v1.ts"
+      ]
+    },
+    {
+      "fixtureId": "google-review-primary",
+      "kind": "review",
+      "literal": "accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001",
+      "valid": true,
+      "expectedSegments": {
+        "accountId": "repkey-synthetic-do-not-use-account-0001",
+        "locationId": "repkey-synthetic-do-not-use-location-0001",
+        "reviewId": "repkey-synthetic-do-not-use-review-0001"
+      },
+      "allowedGeneratedTargets": [
+        "docs/adr/0031-google-source-content-and-ai-processing-boundary.md",
+        "docs/operations/runbooks.md",
+        "docs/product-readiness-program-2026-07/ai-governance/source-content-policy-specification.md",
+        "e2e/fixtures/generated/google-provider-identifiers-v1.ts",
+        "test-fixtures/generated/google-provider-identifiers-v1.ts",
+        "test-fixtures/generated/review-provider-subject-v1.fixture.json"
+      ]
+    }
+  ]
+}

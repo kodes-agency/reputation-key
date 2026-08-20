@@ -1,0 +1,312 @@
+{
+  "version": 1,
+  "scenario": "dashboardCold",
+  "samples": [
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.885Z",
+      "durationMs": 13.628332999999884,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.898Z",
+      "durationMs": 2.2452919999998358,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.900Z",
+      "durationMs": 1.7522919999998976,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.902Z",
+      "durationMs": 1.802417000000105,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.904Z",
+      "durationMs": 1.5811670000000504,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.906Z",
+      "durationMs": 1.3091660000000047,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.907Z",
+      "durationMs": 1.3055409999999483,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.908Z",
+      "durationMs": 1.1888329999999314,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.909Z",
+      "durationMs": 1.2439160000001266,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.911Z",
+      "durationMs": 1.1287919999999758,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.912Z",
+      "durationMs": 1.4273749999999836,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.913Z",
+      "durationMs": 1.1981249999998909,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.914Z",
+      "durationMs": 1.471625000000131,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.916Z",
+      "durationMs": 1.0668339999999716,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.917Z",
+      "durationMs": 1.1369999999999436,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.918Z",
+      "durationMs": 0.9823749999998199,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.919Z",
+      "durationMs": 3.490833000000066,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.923Z",
+      "durationMs": 1.70637499999998,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.924Z",
+      "durationMs": 1.5887499999998909,
+      "ok": true
+    },
+    {
+      "name": "dashboard-cold-read",
+      "startedAt": "2026-08-08T15:06:12.926Z",
+      "durationMs": 2.4462080000000697,
+      "ok": true
+    }
+  ],
+  "monitoring": {
+    "startedAt": "2026-08-08T15:06:12.724Z",
+    "stoppedAt": "2026-08-08T15:06:13.069Z",
+    "intervalMs": 1000,
+    "points": [
+      {
+        "at": "2026-08-08T15:06:12.883Z",
+        "outbox": {
+          "unpublishedCount": 838890,
+          "oldestUnpublishedAgeMs": 625115346,
+          "expiredLeaseCount": 0,
+          "claimedCount": 0,
+          "oldestClaimedAgeMs": null,
+          "stalledLeaseCount": 0
+        },
+        "reviews": {
+          "totalActive": 500000,
+          "refreshDueCount": 430503,
+          "expiredCount": 416486,
+          "oldestDueAgeSeconds": 77540
+        },
+        "queues": [
+          {
+            "name": "default",
+            "waiting": 0,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          },
+          {
+            "name": "domain-events",
+            "waiting": 0,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          },
+          {
+            "name": "quarantine",
+            "waiting": 7210,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          }
+        ],
+        "heartbeat": {
+          "at": "2026-08-08T15:05:00.049Z",
+          "ageMs": 72696,
+          "stale": false
+        },
+        "db": {
+          "pool": {
+            "max": 10,
+            "totalCount": 2,
+            "idleCount": 2,
+            "waitingCount": 0
+          },
+          "migrationVersion": 17
+        },
+        "degraded": [],
+        "cache": {
+          "tenant": {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "size": 0
+          }
+        },
+        "replyPublication": {
+          "counts": {
+            "requested": 0,
+            "authorized": 0,
+            "sending": 0,
+            "published": 75,
+            "terminal": 0,
+            "ambiguous": 0,
+            "cancelled": 0
+          },
+          "oldestAmbiguousAgeMs": null
+        }
+      },
+      {
+        "at": "2026-08-08T15:06:13.069Z",
+        "outbox": {
+          "unpublishedCount": 838890,
+          "oldestUnpublishedAgeMs": 625115532,
+          "expiredLeaseCount": 0,
+          "claimedCount": 0,
+          "oldestClaimedAgeMs": null,
+          "stalledLeaseCount": 0
+        },
+        "reviews": {
+          "totalActive": 500000,
+          "refreshDueCount": 430503,
+          "expiredCount": 416486,
+          "oldestDueAgeSeconds": 77539
+        },
+        "queues": [
+          {
+            "name": "default",
+            "waiting": 0,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          },
+          {
+            "name": "domain-events",
+            "waiting": 0,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          },
+          {
+            "name": "quarantine",
+            "waiting": 7210,
+            "active": 0,
+            "delayed": 0,
+            "failed": 0,
+            "paused": 0
+          }
+        ],
+        "heartbeat": {
+          "at": "2026-08-08T15:05:00.049Z",
+          "ageMs": 72882,
+          "stale": false
+        },
+        "db": {
+          "pool": {
+            "max": 10,
+            "totalCount": 2,
+            "idleCount": 2,
+            "waitingCount": 0
+          },
+          "migrationVersion": 17
+        },
+        "degraded": [],
+        "cache": {
+          "tenant": {
+            "hits": 0,
+            "misses": 0,
+            "evictions": 0,
+            "size": 0
+          }
+        },
+        "replyPublication": {
+          "counts": {
+            "requested": 0,
+            "authorized": 0,
+            "sending": 0,
+            "published": 75,
+            "terminal": 0,
+            "ambiguous": 0,
+            "cancelled": 0
+          },
+          "oldestAmbiguousAgeMs": null
+        }
+      }
+    ],
+    "readErrors": [],
+    "external": {
+      "collector": "redis-info",
+      "points": [
+        {
+          "at": "2026-08-08T15:06:12.747Z",
+          "usedMemoryBytes": 13724128,
+          "usedMemoryPeakBytes": 18544000,
+          "keyspaceHits": 565806,
+          "keyspaceMisses": 536019,
+          "instantaneousOpsPerSec": 99
+        },
+        {
+          "at": "2026-08-08T15:06:12.935Z",
+          "usedMemoryBytes": 13724128,
+          "usedMemoryPeakBytes": 18544000,
+          "keyspaceHits": 565913,
+          "keyspaceMisses": 536046,
+          "instantaneousOpsPerSec": 186
+        }
+      ],
+      "readErrors": []
+    }
+  }
+}

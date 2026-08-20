@@ -38,8 +38,6 @@ describe('architecture: dark-context consumers and jobs are capability-gated (BQ
       'badge.event-handlers': 'badge.use',
       'goal.event-handlers': 'goal.use',
       'leaderboard.event-handlers': 'leaderboard.use',
-      'reconcile-goal-progress': 'goal.use',
-      'spawn-recurring-instances': 'goal.use',
       'process-image': 'portal.upload',
     })
   })

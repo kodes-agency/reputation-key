@@ -12,8 +12,12 @@
 
 import type { PropertyId } from './ids'
 
+/** Every provider-neutral processing region, enumerable so the domain
+ * predicate and the router's target table can be checked against each other. */
+export const ALL_PROCESSING_REGIONS = ['us', 'europe', 'global'] as const
+
 /** Provider-neutral processing region. */
-export type ProcessingRegion = 'us' | 'europe' | 'global'
+export type ProcessingRegion = (typeof ALL_PROCESSING_REGIONS)[number]
 
 /** How the processing region was determined. */
 export type RegionSource =

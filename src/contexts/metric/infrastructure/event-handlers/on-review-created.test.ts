@@ -9,15 +9,9 @@ vi.mock('#/shared/observability/logger', () => ({
     debug: () => {},
   }),
 }))
-import type { MetricReading } from '../../domain/types'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
-import {
-  organizationId,
-  propertyId,
-  reviewId,
-  metricReadingId,
-} from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
@@ -31,11 +25,7 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return {
-        id: metricReadingId('metric-1'),
-        ...input,
-        occurredAt: FIXED_TIME,
-      } as MetricReading
+      return input
     },
     reviewRatingLookup: {
       getEligibleRatingById: vi.fn(async () => rating),
@@ -51,7 +41,9 @@ const makeEvent = (overrides: Partial<ReviewCreated> = {}): ReviewCreated => ({
   propertyId: propertyId('prop-1'),
   organizationId: organizationId('org-1'),
   platform: 'google',
-  externalId: 'ext-1',
+  sourceEpoch: 2,
+  sourceRevision: 3,
+  analysisSequence: 4,
   occurredAt: FIXED_TIME,
   ...overrides,
 })
@@ -63,7 +55,7 @@ describe('onReviewCreated', () => {
     deps = createFakeDeps()
   })
 
-  it('records a property.review reading with the looked-up rating and null portalId', async () => {
+  it('records a governed property.review reading from the authorized rating lookup', async () => {
     const handler = onReviewCreated(deps)
     await handler(makeEvent())
 
@@ -76,16 +68,22 @@ describe('onReviewCreated', () => {
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
       portalId: null,
-      metricKey: 'property.review',
+      portalGroupId: null,
+      definitionVersionId: '11111111-1111-4111-8111-111111111205',
+      sourceEventId: 'test-event-id',
+      sourcePolicy: 'google_property_derivative',
+      scope: 'property',
       value: 3,
-      groupId: null,
+      sampleCount: 1,
+      attributionQuality: 'exact',
+      occurredAt: FIXED_TIME,
     })
   })
 
   it('records the exact rating value returned by the lookup', async () => {
     deps = createFakeDeps(5)
     const handler = onReviewCreated(deps)
-    await handler(makeEvent({ reviewId: reviewId('rev-2'), externalId: 'ext-2' }))
+    await handler(makeEvent({ reviewId: reviewId('rev-2'), sourceRevision: 4 }))
 
     expect(deps.readings[0]!.value).toBe(5)
     expect(deps.readings[0]!.portalId).toBeNull()

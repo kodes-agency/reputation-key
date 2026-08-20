@@ -1,0 +1,94 @@
+{
+  "attestationDigest": "e9f945b7c0b8e6982de737a63819640263e14aad9c97e837056f5e1a952b729d",
+  "constants": {
+    "minimumDecisiveLetters": 4,
+    "ratioDenominator": 5,
+    "ratioNumerator": 4
+  },
+  "generator": {
+    "path": "scripts/generate-ai-zh-orthography-table.ts",
+    "sha256": "82ce440dcf288fc5ca57eb140a5400b71a281cbaa1041bb7f44f7880459aeed0"
+  },
+  "icuVersion": "78.2",
+  "importedMembers": [
+    {
+      "path": "dist/esm/cn2t.js",
+      "sha256": "bd8511eaf9fb88fb47b0ff52965d352658c2c389af2ac09912d0d6eb5acaf3ad"
+    },
+    {
+      "path": "dist/esm/t2cn.js",
+      "sha256": "69fa82bbe93d05746ba5ab96e9c85864ca4f91c984d198abf85a098b43451a86"
+    }
+  ],
+  "package": {
+    "integrity": "sha512-2lPLcrg7cnh1ATSduOxhnk/jq6KlR6w+5Ihl4wF7Z5e5Rva4vxTyugV5rZ7EiUCOZl+EDOLetIix+BhgYDCC+A==",
+    "name": "opencc-js",
+    "version": "1.4.1"
+  },
+  "table": {
+    "path": "src/shared/generated/ai-zh-orthography-v1.ts",
+    "profileDigest": "74df64a36f1faf1bcfe646143f22356ed5d93ce67e879feb188cea42327a8cc9",
+    "sha256": "4c320df78508ba98247d953ad3b739a730a792a5fd7aa40283b58ff7bbb329a4"
+  },
+  "unicodeVersion": "17.0.0",
+  "vectors": {
+    "cases": [
+      {
+        "id": "decisive-3",
+        "script": "Hans",
+        "simplified": 3,
+        "status": "insufficient_evidence",
+        "traditional": 0
+      },
+      {
+        "id": "decisive-4",
+        "script": "Hans",
+        "simplified": 4,
+        "status": "accepted",
+        "traditional": 0
+      },
+      {
+        "id": "hans-79",
+        "script": "Hans",
+        "simplified": 79,
+        "status": "rejected",
+        "traditional": 21
+      },
+      {
+        "id": "hans-80",
+        "script": "Hans",
+        "simplified": 80,
+        "status": "accepted",
+        "traditional": 20
+      },
+      {
+        "id": "hans-100",
+        "script": "Hans",
+        "simplified": 100,
+        "status": "accepted",
+        "traditional": 0
+      },
+      {
+        "id": "hant-80",
+        "script": "Hant",
+        "simplified": 20,
+        "status": "accepted",
+        "traditional": 80
+      },
+      {
+        "id": "shared-only",
+        "script": "Hans",
+        "simplified": 0,
+        "status": "insufficient_evidence",
+        "traditional": 0
+      }
+    ],
+    "path": "src/shared/ai-zh-orthography-verifier-v1.vectors.json",
+    "sha256": "4acf6e0555eaee75ba82cb066e516d775327db883a79e2f8e8883874b9a7662f"
+  },
+  "version": "zh-orthography-verifier-v1",
+  "wrapper": {
+    "path": "src/shared/ai-zh-orthography-verifier.ts",
+    "sha256": "dbcf303a3bd2772592bf459f3ff4d86d01b7f2b8b95c44eaebb70fd2d331b4ae"
+  }
+}

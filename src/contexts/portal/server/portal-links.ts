@@ -6,7 +6,6 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import {
@@ -14,10 +13,40 @@ import {
   updateLinkInputSchema,
   reorderLinksInputSchema,
 } from '../application/dto/portal-link.dto'
-import { isPortalError } from '../domain/errors'
+import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  portalId as toPortalId,
+  portalLinkCategoryId as toCategoryId,
+  portalLinkId as toLinkId,
+} from '#/shared/domain/ids'
+import { requireMatchingPortalResourceScopes } from './property-scope'
 
 // Re-export domain rules for route-layer consumption (boundary compliance)
+async function authorizePortalLinkScopes(
+  ctx: AuthContext,
+  action: 'portal.create' | 'portal.read' | 'portal.update' | 'portal.delete',
+  lookups: readonly (() => Promise<{
+    organizationId: string
+    propertyId: string
+    portalId?: string
+  } | null>)[],
+): Promise<void> {
+  try {
+    await requireMatchingPortalResourceScopes({
+      actor: ctx,
+      action,
+      capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
+      notFound: portalError('link_not_found', 'portal link resource not found'),
+      lookups,
+    })
+  } catch (error) {
+    if (isPortalError(error))
+      throwContextError('PortalError', error, portalErrorStatus(error.code))
+    throw error
+  }
+}
 
 // ── Link CRUD ──────────────────────────────────────────────────────
 
@@ -28,11 +57,16 @@ export const createLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.create',
-          capability: 'portal.write',
-        })
+        await authorizePortalLinkScopes(ctx, 'portal.create', [
+          () =>
+            getContainer().useCases.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+          () =>
+            getContainer().useCases.resolvePortalCategoryManagementScope(
+              toCategoryId(data.categoryId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           const link = await useCases.createLink(data, ctx)
@@ -55,11 +89,12 @@ export const updateLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalLinkScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().useCases.resolvePortalLinkManagementScope(
+              toLinkId(data.linkId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           const link = await useCases.updateLink(data, ctx)
@@ -82,11 +117,12 @@ export const deleteLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.delete',
-          capability: 'portal.write',
-        })
+        await authorizePortalLinkScopes(ctx, 'portal.delete', [
+          () =>
+            getContainer().useCases.resolvePortalLinkManagementScope(
+              toLinkId(data.linkId),
+            ),
+        ])
         try {
           const { useCases } = getContainer()
           await useCases.deleteLink(data, ctx)
@@ -109,11 +145,20 @@ export const reorderLinks = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.update',
-          capability: 'portal.write',
-        })
+        await authorizePortalLinkScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().useCases.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+          () =>
+            getContainer().useCases.resolvePortalCategoryManagementScope(
+              toCategoryId(data.categoryId),
+            ),
+          ...data.items.map(
+            (item) => () =>
+              getContainer().useCases.resolvePortalLinkManagementScope(toLinkId(item.id)),
+          ),
+        ])
         try {
           const { useCases } = getContainer()
           await useCases.reorderLinks(data, ctx)
@@ -138,11 +183,12 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({
-          actor: ctx,
-          action: 'portal.read',
-          capability: 'portal.read',
-        })
+        await authorizePortalLinkScopes(ctx, 'portal.read', [
+          () =>
+            getContainer().useCases.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+        ])
         const { useCases } = getContainer()
 
         try {

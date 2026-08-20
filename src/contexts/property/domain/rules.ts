@@ -7,7 +7,7 @@
 // pure validation rules.
 import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
-import { VALID_TIMEZONES } from '#/shared/domain/timezones'
+import { isValidIanaTimezone } from '#/shared/domain/timezones'
 import type { PropertyError } from './errors'
 import { propertyError } from './errors'
 
@@ -40,12 +40,9 @@ export const validatePropertyName = (name: string): Result<string, PropertyError
 
 // ── Timezone validation ────────────────────────────────────────────
 
-// VALID_TIMEZONES is defined in shared/domain/timezones.ts — imported above.
-// Re-exported for backward compatibility with existing consumers.
-
 /** Validate that a timezone string is a recognized IANA timezone. */
 export const validateTimezone = (tz: string): Result<string, PropertyError> => {
-  if (VALID_TIMEZONES.includes(tz)) {
+  if (isValidIanaTimezone(tz)) {
     return ok(tz)
   }
   return err(propertyError('invalid_timezone', `Unknown timezone: ${tz}`))

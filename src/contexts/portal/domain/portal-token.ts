@@ -17,13 +17,16 @@ export interface PortalToken {
   readonly organizationId: string
   readonly propertyId: string
   readonly portalId: string
+  readonly tokenIdentifier: string
   readonly tokenHash: string
+  readonly tokenKeyVersion: number
   readonly version: number
   readonly printBatch: string | null
   readonly status: TokenStatus
   readonly issuedAt: Date
-  readonly revokedAt: Date | null
   readonly gracePeriodEnds: Date | null
+  readonly retiredAt: Date | null
+  readonly revokedAt: Date | null
   readonly revokedBy: string | null
   readonly revokedReason: string | null
 }
@@ -66,7 +69,9 @@ export function issueToken(params: {
   organizationId: string
   propertyId: string
   portalId: string
+  tokenIdentifier: string
   tokenHash: string
+  tokenKeyVersion: number
   version: number
   printBatch?: string
   now: Date
@@ -76,13 +81,16 @@ export function issueToken(params: {
     organizationId: params.organizationId,
     propertyId: params.propertyId,
     portalId: params.portalId,
+    tokenIdentifier: params.tokenIdentifier,
     tokenHash: params.tokenHash,
+    tokenKeyVersion: params.tokenKeyVersion,
     version: params.version,
     printBatch: params.printBatch ?? null,
     status: 'active',
     issuedAt: params.now,
-    revokedAt: null,
     gracePeriodEnds: null,
+    retiredAt: null,
+    revokedAt: null,
     revokedBy: null,
     revokedReason: null,
   }
@@ -97,9 +105,13 @@ export function issueToken(params: {
  */
 export function rotateToken(
   token: PortalToken,
-  newTokenHash: string,
-  newId: string,
-  newVersion: number,
+  replacement: Readonly<{
+    id: string
+    tokenIdentifier: string
+    tokenHash: string
+    tokenKeyVersion: number
+    version: number
+  }>,
   gracePeriodDuration: number,
   now: Date,
 ): { oldToken: PortalToken; newToken: PortalToken } | TokenError {
@@ -115,14 +127,17 @@ export function rotateToken(
       ...token,
       status: 'rotating',
       gracePeriodEnds: graceEnd,
+      retiredAt: graceEnd,
     },
     newToken: issueToken({
-      id: newId,
+      id: replacement.id,
       organizationId: token.organizationId,
       propertyId: token.propertyId,
       portalId: token.portalId,
-      tokenHash: newTokenHash,
-      version: newVersion,
+      tokenIdentifier: replacement.tokenIdentifier,
+      tokenHash: replacement.tokenHash,
+      tokenKeyVersion: replacement.tokenKeyVersion,
+      version: replacement.version,
       now,
     }),
   }
@@ -147,6 +162,7 @@ export function revokeToken(
     revokedAt: now,
     revokedBy,
     revokedReason: reason,
+    retiredAt: now,
   }
 }
 

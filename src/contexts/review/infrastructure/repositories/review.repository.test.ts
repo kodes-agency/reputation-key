@@ -2,6 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createReviewRepository } from './review.repository'
 import { getDb } from '#/shared/db'
@@ -91,7 +92,7 @@ function makeReview(
     propertyId: PROP_A,
     platform: 'google',
     externalId: 'ext-001',
-    externalLocationId: 'accounts/111/locations/222',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Jane Doe',
     reviewerProfilePhotoUrl: null,
@@ -102,6 +103,11 @@ function makeReview(
     expiresAt: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000),
     sentimentLabel: null,
     sentimentScore: null,
+    sourceEpoch: 0,
+    sourceRevision: 0,
+    analysisSequence: 0,
+    aiSourceByteLength: 1,
+    aiSourceDigest: '0'.repeat(64),
     createdAt: now,
     updatedAt: now,
     ...rest,
@@ -464,65 +470,173 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
-  describe('findAllExpiringBeforeAcrossTenants / findAllExpiredBeforeAcrossTenants', () => {
-    it('findAllExpiringBeforeAcrossTenants returns reviews where contentExpiresAt <= date', async () => {
+  describe('findExpiredBatchBeforeAcrossTenants keyset batches (BQC-8.3)', () => {
+    const NOW = new Date('2025-06-01T12:00:00Z')
+
+    async function seedLifecycle(
+      repo: ReturnType<typeof createReviewRepository>,
+      idSuffix: string,
+      contentExpiresAt: Date | null,
+    ) {
+      await repo.upsert(
+        makeReview({
+          id: `1a000000-0000-0000-0000-0000000000${idSuffix}`,
+          externalId: `ext-${idSuffix}`,
+          contentExpiresAt,
+        } as Partial<Omit<Review, 'id'>>),
+      )
+    }
+
+    async function walkAll(
+      repo: ReturnType<typeof createReviewRepository>,
+      date: Date,
+      batchSize: number,
+    ): Promise<string[]> {
+      const seen: string[] = []
+      let cursor: { contentExpiresAt: Date; id: string } | null = null
+      for (let batch = 0; batch < 20; batch++) {
+        const rows = await repo.findExpiredBatchBeforeAcrossTenants(
+          date,
+          cursor,
+          batchSize,
+        )
+        if (rows.length === 0) break
+        for (const r of rows) seen.push(r.externalId)
+        const last = rows[rows.length - 1]!
+        cursor = {
+          contentExpiresAt: last.contentExpiresAt as Date,
+          id: last.id as string,
+        }
+      }
+      return seen
+    }
+
+    it('walks all expired rows oldest-first across batch boundaries with no duplicates or skips', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
-      const now = new Date('2025-06-01T12:00:00Z')
+      const base = NOW.getTime()
+      // 12 expired rows + noise: future and null lifecycle rows must be ignored.
+      const suffixes = [
+        'a0',
+        'a1',
+        'a2',
+        'a3',
+        'a4',
+        'a5',
+        'a6',
+        'a7',
+        'a8',
+        'a9',
+        'aa',
+        'ab',
+      ]
+      for (const i of suffixes.keys()) {
+        // Seed shuffled — expiry order, not insert order, drives the walk.
+        const j = (i * 5) % 12
+        await seedLifecycle(repo, suffixes[j]!, new Date(base - (12 - j) * 60 * 1000))
+      }
+      await seedLifecycle(repo, 'af', new Date(base + 60 * 1000)) // future
+      await seedLifecycle(repo, 'b0', null) // pre-BQR-3.1 row
 
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-000000000001',
-          externalId: 'ext-soon',
-          contentExpiresAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days
-        }),
-      )
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-000000000002',
-          externalId: 'ext-later',
-          contentExpiresAt: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days
-        }),
-      )
-      await repo.upsert(
-        makeReview({
-          id: '1a000000-0000-0000-0000-000000000003',
-          externalId: 'ext-null-lifecycle',
-          contentExpiresAt: null, // pre-BQR-3.1 rows are ignored
-        }),
-      )
+      const seen = await walkAll(repo, NOW, 5)
 
-      const threshold = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000)
-      const expiring = await repo.findAllExpiringBeforeAcrossTenants(threshold)
-
-      expect(expiring).toHaveLength(1)
-      expect(expiring[0].externalId).toBe('ext-soon')
+      expect(seen).toHaveLength(12)
+      expect(new Set(seen).size).toBe(12)
+      expect(seen).toEqual(suffixes.map((s) => `ext-${s}`))
     })
 
-    it('findAllExpiredBeforeAcrossTenants uses exclusive contentExpiresAt boundary', async () => {
+    it('uses an exclusive contentExpiresAt boundary (a row expiring exactly at now is NOT eligible)', async () => {
       const db = getDb()
       const repo = createReviewRepository(db)
-      const now = new Date('2025-06-01T12:00:00Z')
+
+      await seedLifecycle(repo, 'b1', new Date(NOW.getTime() - 1)) // 1ms before now
+      await seedLifecycle(repo, 'b2', NOW) // exactly now — excluded
+
+      const seen = await walkAll(repo, NOW, 10)
+
+      expect(seen).toEqual(['ext-b1'])
+    })
+
+    it('breaks contentExpiresAt ties by id and resumes mid-tie without skips or repeats', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+      const tie = new Date(NOW.getTime() - 60 * 1000)
+      // Same expiry instant for all three — order must fall back to id.
+      await seedLifecycle(repo, 'c3', tie)
+      await seedLifecycle(repo, 'c1', tie)
+      await seedLifecycle(repo, 'c2', tie)
+
+      const seen = await walkAll(repo, NOW, 2)
+
+      expect(seen).toEqual(['ext-c1', 'ext-c2', 'ext-c3'])
+    })
+
+    it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+      await seedLifecycle(repo, 'd2', new Date(NOW.getTime() - 2 * 60 * 1000))
+      await seedLifecycle(repo, 'd3', new Date(NOW.getTime() - 1 * 60 * 1000))
+
+      const first = await repo.findExpiredBatchBeforeAcrossTenants(NOW, null, 1)
+      expect(first).toHaveLength(1)
+      expect(first[0]!.externalId).toBe('ext-d2')
+      const cursor = {
+        contentExpiresAt: first[0]!.contentExpiresAt as Date,
+        id: first[0]!.id as string,
+      }
+
+      // Insert a row that sorts BEFORE the cursor — the next sweep's fresh
+      // walk will catch it; this walk must not reprocess or loop.
+      await seedLifecycle(repo, 'd1', new Date(NOW.getTime() - 3 * 60 * 1000))
+
+      const rest: string[] = []
+      let c: typeof cursor | null = cursor
+      for (let batch = 0; batch < 5; batch++) {
+        const rows = await repo.findExpiredBatchBeforeAcrossTenants(NOW, c, 1)
+        if (rows.length === 0) break
+        rest.push(rows[0]!.externalId)
+        c = {
+          contentExpiresAt: rows[0]!.contentExpiresAt as Date,
+          id: rows[0]!.id as string,
+        }
+      }
+      expect(rest).toEqual(['ext-d3'])
+    })
+  })
+
+  describe('countExpiredBeforeAcrossTenants (BQC-8.3)', () => {
+    it('counts exactly the purge-eligible rows (exclusive boundary, null/future ignored)', async () => {
+      const db = getDb()
+      const repo = createReviewRepository(db)
+      const NOW = new Date('2025-06-01T12:00:00Z')
 
       await repo.upsert(
         makeReview({
           id: '1a000000-0000-0000-0000-000000000001',
           externalId: 'ext-expired',
-          contentExpiresAt: new Date(now.getTime() - 1), // 1ms before now
+          contentExpiresAt: new Date(NOW.getTime() - 1),
         }),
       )
       await repo.upsert(
         makeReview({
           id: '1a000000-0000-0000-0000-000000000002',
           externalId: 'ext-active',
-          contentExpiresAt: now, // exactly now — should NOT be included (exclusive)
+          contentExpiresAt: NOW, // exactly now — NOT eligible (exclusive)
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-000000000003',
+          externalId: 'ext-null-lifecycle',
+          contentExpiresAt: null,
         }),
       )
 
-      const expired = await repo.findAllExpiredBeforeAcrossTenants(now)
-
-      expect(expired).toHaveLength(1)
-      expect(expired[0].externalId).toBe('ext-expired')
+      expect(await repo.countExpiredBeforeAcrossTenants(NOW)).toBe(1)
+      // One second later the boundary row becomes eligible too.
+      expect(
+        await repo.countExpiredBeforeAcrossTenants(new Date(NOW.getTime() + 1000)),
+      ).toBe(2)
     })
   })
 

@@ -1,0 +1,60 @@
+[
+  {
+    "id": "letters-23",
+    "letters": 23,
+    "reliable": true,
+    "probability": 0.85,
+    "status": "insufficient_language_evidence"
+  },
+  {
+    "id": "letters-24",
+    "letters": 24,
+    "reliable": true,
+    "probability": 0.85,
+    "status": "resolved"
+  },
+  {
+    "id": "letters-25",
+    "letters": 25,
+    "reliable": true,
+    "probability": 0.85,
+    "status": "resolved"
+  },
+  {
+    "id": "unreliable",
+    "letters": 24,
+    "reliable": false,
+    "probability": 1,
+    "status": "insufficient_language_evidence"
+  },
+  {
+    "id": "confidence-below",
+    "letters": 24,
+    "reliable": true,
+    "probability": 0.849999,
+    "status": "insufficient_language_evidence"
+  },
+  {
+    "id": "wrong-primary",
+    "letters": 24,
+    "reliable": true,
+    "probability": 1,
+    "status": "metadata_language_mismatch"
+  },
+  {
+    "id": "und-inference",
+    "metadata": "und",
+    "detected": "es",
+    "tag": "es-Latn",
+    "group": "es-Latn",
+    "status": "resolved"
+  },
+  {
+    "id": "region-retained",
+    "metadata": "es-MX",
+    "detected": "es",
+    "tag": "es-Latn-MX",
+    "group": "es-Latn",
+    "status": "resolved"
+  }
+]

@@ -272,6 +272,24 @@ export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
     unit: 'reviews',
     isCountMetric: false,
   },
+  'portal.content_review.completed': {
+    label: 'Content reviews completed',
+    description: 'Published portal content reviewed by a manager',
+    unit: 'reviews',
+    isCountMetric: true,
+  },
+  'portal.configuration_completeness': {
+    label: 'Configuration completeness',
+    description: 'Share of required portal settings that are published',
+    unit: '%',
+    isCountMetric: false,
+  },
+  'portal.approved_destination_ratio': {
+    label: 'Approved destinations',
+    description: 'Share of configured review destinations that are approved',
+    unit: '%',
+    isCountMetric: false,
+  },
 }
 
 export function metricLabel(key: MetricKey): string {

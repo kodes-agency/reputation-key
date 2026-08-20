@@ -12,13 +12,15 @@
 // constraints and parallel files never collide on the shared seeded org.
 // `cleanupE2eData` deletes prefix-scoped rows in FK-safe order.
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
 import { Pool } from 'pg'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
-import { createCipheriv, randomBytes, randomUUID } from 'node:crypto'
+import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
 import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
+import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 
 /** Unique-per-run marker for every fixture-created external identifier. */
 export const e2eRunId = `r${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`
@@ -147,16 +149,19 @@ async function codec(): Promise<SerovalCodec> {
 }
 
 /**
- * Dev server-fn id (the Playwright webServer runs `pnpm dev`): base64url of
- * JSON { file: '/<repo-relative>?tss-serverfn-split', export: '<name>_createServerFn_handler' }.
+ * TanStack Start server-function URL. Dev uses a base64url module descriptor;
+ * production uses SHA-256 of `<file>--<generated handler export>`.
  */
 export function serverFnUrl(file: string, exportName: string): string {
-  const id = Buffer.from(
-    JSON.stringify({
-      file: `/${file}?tss-serverfn-split`,
-      export: `${exportName}_createServerFn_handler`,
-    }),
-  ).toString('base64url')
+  const handlerExport = `${exportName}_createServerFn_handler`
+  const id = process.env.E2E_EXTERNAL_STACK
+    ? createHash('sha256').update(`${file}--${handlerExport}`).digest('hex')
+    : Buffer.from(
+        JSON.stringify({
+          file: `/${file}?tss-serverfn-split`,
+          export: handlerExport,
+        }),
+      ).toString('base64url')
   return `/_serverFn/${id}`
 }
 
@@ -235,15 +240,50 @@ async function parseServerFnResponse(res: {
   return { httpStatus, result: decoded }
 }
 
+type BrowserServerFnResponse = Readonly<{
+  status: number
+  text: string
+}>
+
+async function browserServerFnRequest(
+  page: Page,
+  input: Readonly<{ url: string; method: 'GET' | 'POST'; body?: string }>,
+): Promise<{ status(): number; text(): Promise<string> }> {
+  const current = new URL(page.url())
+  if (current.protocol !== 'http:' && current.protocol !== 'https:') {
+    throw new Error('Server fn calls require a page loaded from the application origin')
+  }
+  const response = await page.evaluate(
+    async ({ url, method, body }): Promise<BrowserServerFnResponse> => {
+      const result = await fetch(url, {
+        method,
+        body,
+        credentials: 'same-origin',
+        headers: {
+          'x-tsr-serverFn': 'true',
+          ...(body ? { 'content-type': 'application/json' } : {}),
+        },
+      })
+      return { status: result.status, text: await result.text() }
+    },
+    input,
+  )
+  return {
+    status: () => response.status,
+    text: async () => response.text,
+  }
+}
+
 /** POST a server fn; throws when the fn returned a serialized error. */
 export async function callServerFn<T = unknown>(
   page: Page,
   fn: { file: string; exportName: string; data: unknown },
 ): Promise<T> {
   const body = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
-  const res = await page.request.post(serverFnUrl(fn.file, fn.exportName), {
-    headers: { 'content-type': 'application/json', 'x-tsr-serverFn': 'true' },
-    data: body,
+  const res = await browserServerFnRequest(page, {
+    url: serverFnUrl(fn.file, fn.exportName),
+    method: 'POST',
+    body,
   })
   const parsed = await parseServerFnResponse(res)
   if (parsed.error) {
@@ -260,9 +300,10 @@ export async function callServerFnExpectError(
   fn: { file: string; exportName: string; data: unknown },
 ): Promise<ServerFnErrorBody> {
   const body = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
-  const res = await page.request.post(serverFnUrl(fn.file, fn.exportName), {
-    headers: { 'content-type': 'application/json', 'x-tsr-serverFn': 'true' },
-    data: body,
+  const res = await browserServerFnRequest(page, {
+    url: serverFnUrl(fn.file, fn.exportName),
+    method: 'POST',
+    body,
   })
   const parsed = await parseServerFnResponse(res)
   if (!parsed.error) {
@@ -280,9 +321,7 @@ export async function callServerFnGet<T = unknown>(
 ): Promise<T> {
   const serialized = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
   const url = `${serverFnUrl(fn.file, fn.exportName)}?payload=${encodeURIComponent(serialized)}`
-  const res = await page.request.get(url, {
-    headers: { 'x-tsr-serverFn': 'true' },
-  })
+  const res = await browserServerFnRequest(page, { url, method: 'GET' })
   const parsed = await parseServerFnResponse(res)
   if (parsed.error) {
     throw new Error(
@@ -299,9 +338,7 @@ export async function callServerFnGetExpectError(
 ): Promise<ServerFnErrorBody> {
   const serialized = JSON.stringify(await (await codec()).toJSONAsync({ data: fn.data }))
   const url = `${serverFnUrl(fn.file, fn.exportName)}?payload=${encodeURIComponent(serialized)}`
-  const res = await page.request.get(url, {
-    headers: { 'x-tsr-serverFn': 'true' },
-  })
+  const res = await browserServerFnRequest(page, { url, method: 'GET' })
   const parsed = await parseServerFnResponse(res)
   if (!parsed.error) {
     throw new Error(
@@ -365,27 +402,25 @@ export async function seedStaffUserWithGrant(input: {
 // ── Integration fixtures ──────────────────────────────────────────────
 
 /**
- * An ACTIVE google connection with test-key-encrypted tokens. token_expires_at
+ * An ACTIVE Google connection with test-key-encrypted tokens. token_expires_at
  * is far-future so the app's refresh path (5-min buffer) never fires and the
  * OAuth token endpoint is never needed mid-test.
  */
 export async function seedGoogleConnection(input: {
   organizationId: string
   connectedBy: string
-  googleAccountId: string
-  googleEmail?: string
+  googleSubject: string
 }): Promise<{ connectionId: string }> {
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO google_connections
-       (organization_id, google_account_id, google_email, encrypted_access_token,
+       (organization_id, google_subject, encrypted_access_token,
         encrypted_refresh_token, token_expires_at, scopes, connected_by, visibility, status)
-     VALUES ($1, $2, $3, $4, $5, now() + interval '1 hour',
-             ARRAY['https://www.googleapis.com/auth/business.manage'], $6, 'organization', 'active')
+     VALUES ($1, $2, $3, $4, now() + interval '1 hour',
+             ARRAY['https://www.googleapis.com/auth/business.manage'], $5, 'organization', 'active')
      RETURNING id`,
     [
       input.organizationId,
-      input.googleAccountId,
-      input.googleEmail ?? `${input.googleAccountId}@e2e.example.com`,
+      input.googleSubject,
       encryptToken('stub-access-token'),
       encryptToken('stub-refresh-token'),
       input.connectedBy,
@@ -401,24 +436,51 @@ export async function seedProperty(input: {
   organizationId: string
   name: string
   slug: string
-  gbpPlaceId?: string
-  googleConnectionId?: string
+  googleBinding?: Readonly<{
+    connectionId: string
+    accountId: string
+    locationId: string
+    state?: 'active' | 'disconnected'
+  }>
 }): Promise<{ propertyId: string }> {
+  const binding = input.googleBinding
+  const confirmedBy = binding
+    ? (
+        await dbQuery<{ connectedBy: string }>(
+          `SELECT connected_by AS "connectedBy"
+           FROM google_connections
+           WHERE id = $1::uuid AND organization_id = $2::varchar`,
+          [binding.connectionId, input.organizationId],
+        )
+      )[0]?.connectedBy
+    : null
+  if (binding && !confirmedBy) {
+    throw new Error('E2E Google binding connection is unavailable')
+  }
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO properties
        (organization_id, name, slug, timezone, country_code, country_source,
         processing_region, processing_region_source, routing_policy_version,
         processing_region_resolved_at, lifecycle_state, source_epoch,
-        gbp_place_id, google_connection_id)
+        google_connection_id, gbp_account_id, gbp_location_id,
+        google_binding_state, profile_source, profile_confirmed_at,
+        profile_confirmed_by)
      VALUES ($1, $2, $3, 'America/New_York', 'US', 'manual',
-             'us', 'country_default', 1, now(), 'active', 0, $4, $5)
+             'us', 'country_default', 1, now(), 'active', $4,
+             $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [
       input.organizationId,
       input.name,
       input.slug,
-      input.gbpPlaceId ?? null,
-      input.googleConnectionId ?? null,
+      binding ? 1 : 0,
+      binding?.connectionId ?? null,
+      binding?.accountId ?? null,
+      binding?.locationId ?? null,
+      binding ? (binding.state ?? 'active') : 'unbound',
+      binding ? 'tenant_confirmed' : 'legacy',
+      binding ? new Date() : null,
+      confirmedBy,
     ],
   )
   return { propertyId: rows[0].id }
@@ -438,6 +500,7 @@ export async function seedReview(input: {
   rating: number
   text?: string | null
   reviewerName?: string | null
+  languageCode?: string | null
   reviewedAt?: Date
   contentExpiresAt?: Date | null
   googleConnectionId?: string | null
@@ -447,25 +510,54 @@ export async function seedReview(input: {
     'contentExpiresAt' in input
       ? (input.contentExpiresAt ?? null)
       : new Date(Date.now() + 25 * 24 * 60 * 60 * 1000)
+  const reviewedAt = input.reviewedAt ?? new Date()
+  const reviewerName = input.reviewerName ?? null
+  const languageCode = input.languageCode ?? 'en'
+  const provenance = computeAiReviewSourceProvenance({
+    text: input.text ?? null,
+    rating: input.rating as 1 | 2 | 3 | 4 | 5,
+    languageCode,
+    reviewedAtEpochMillis: reviewedAt.getTime(),
+    reviewerDisplayName: reviewerName,
+  })
+  const property = (
+    await dbQuery<{ sourceEpoch: number }>(
+      `SELECT source_epoch AS "sourceEpoch"
+       FROM properties
+       WHERE id = $1::uuid AND organization_id = $2::varchar`,
+      [input.propertyId, input.organizationId],
+    )
+  )[0]
+  if (!property) {
+    throw new Error('E2E review property is unavailable')
+  }
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO reviews
        (organization_id, property_id, platform, external_id, external_location_id,
-        google_connection_id, reviewer_name, rating, text, reviewed_at, expires_at,
-        content_expires_at)
-     VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, $9,
-             now() + interval '25 days', $10)
+        google_connection_id, reviewer_name, rating, text, language_code,
+        reviewed_at, expires_at, content_expires_at,
+        source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
+        source_epoch, source_revision, analysis_sequence,
+        ai_source_byte_length, ai_source_digest)
+     VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, $9, $10,
+             now() + interval '25 days', $11, $10, $10, $10, $10,
+             $12, 1, 0, $13, $14)
      RETURNING id`,
     [
       input.organizationId,
       input.propertyId,
       input.externalId,
-      input.externalLocationId ?? 'accounts/e2e-fixture/locations/e2e-fixture',
+      input.externalLocationId ?? GOOGLE_LOCATION_PRIMARY_RESOURCE,
       input.googleConnectionId ?? null,
-      input.reviewerName ?? null,
+      reviewerName,
       input.rating,
       input.text ?? null,
-      input.reviewedAt ?? new Date(),
+      languageCode,
+      reviewedAt,
       contentExpiresAt,
+      property.sourceEpoch,
+      provenance.byteLength,
+      provenance.digest,
     ],
   )
   return { reviewId: rows[0].id }
@@ -626,13 +718,13 @@ export async function getPropertyBySlug(organizationId: string, slug: string) {
   return rows[0] ?? null
 }
 
-export async function getPropertyByGbpPlaceId(
+export async function getPropertyByGbpLocationId(
   organizationId: string,
-  gbpPlaceId: string,
+  gbpLocationId: string,
 ) {
-  const rows = await dbQuery(
-    'SELECT * FROM properties WHERE organization_id = $1 AND gbp_place_id = $2 AND deleted_at IS NULL',
-    [organizationId, gbpPlaceId],
+  const rows = await dbQuery<{ id: string }>(
+    'SELECT * FROM properties WHERE organization_id = $1 AND gbp_location_id = $2 AND deleted_at IS NULL',
+    [organizationId, gbpLocationId],
   )
   return rows[0] ?? null
 }
@@ -679,7 +771,7 @@ export async function getNotificationsForUser(userId: string) {
 
 /**
  * Delete every fixture-created row matching the spec's prefix, in FK-safe
- * order. Prefixes match: reviews.external_id, google_connections.google_account_id,
+ * order. Prefixes match: reviews.external_id, google_connections.google_subject,
  * properties.slug, user.email. Call in beforeEach so reruns start clean.
  */
 export async function cleanupE2eData(input: {
@@ -726,12 +818,28 @@ export async function cleanupE2eData(input: {
     'DELETE FROM notifications WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)',
     [like],
   )
-  await dbQuery('DELETE FROM properties WHERE organization_id = $1 AND slug LIKE $2', [
-    input.organizationId,
-    like,
-  ])
   await dbQuery(
-    'DELETE FROM google_connections WHERE organization_id = $1 AND google_account_id LIKE $2',
+    `DELETE FROM property_operation_receipts
+     WHERE organization_id = $1 AND destination_property_id IN (
+       SELECT p.id
+       FROM properties p
+       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+       WHERE p.organization_id = $1
+         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    [input.organizationId, like],
+  )
+  await dbQuery(
+    `DELETE FROM properties
+     WHERE organization_id = $1 AND id IN (
+       SELECT p.id
+       FROM properties p
+       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+       WHERE p.organization_id = $1
+         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    [input.organizationId, like],
+  )
+  await dbQuery(
+    'DELETE FROM google_connections WHERE organization_id = $1 AND google_subject LIKE $2',
     [input.organizationId, like],
   )
   // staff users (account/member cascade from "user")

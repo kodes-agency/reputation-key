@@ -8,15 +8,24 @@
 import { describe, it, expect } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyGoogleBindingPublicApi,
+  PropertyPublicApi,
+} from '#/contexts/property/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
-import { createInMemoryPkceVerifierStore } from '#/shared/testing/in-memory-pkce-verifier-store'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { buildIntegrationContext } from './build'
+import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
+import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
+import type { GoogleImportContentAuthorizer } from './application/google-import-command-authorizer'
+import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import type { PerformanceContentAuthorizer } from './application/google-performance-authorizer'
+import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
+import type { OAuthStateHandleService } from './application/oauth-state-handle'
 
 /** Query-free guard: any DB access during construction throws. */
 const dbStub = new Proxy(
@@ -32,16 +41,27 @@ const silentEvents: EventBus = { on: () => {}, emit: async () => {}, clear: () =
 
 const ENDPOINTS: ProviderEndpoints = {
   gbpApiBaseUrl: 'https://gbp.example.test/v1',
+  gbpAccountManagementBaseUrl: 'https://accounts.example.test/v1',
+  gbpPerformanceBaseUrl: 'https://performance.example.test/v1',
   reviewsApiBaseUrl: 'https://reviews.example.test/v4',
   notificationsApiBaseUrl: 'https://notifications.example.test/v1',
   oauthTokenUrl: 'https://oauth.example.test/token',
-  oauthUserInfoUrl: 'https://oauth.example.test/userinfo',
+  oauthJwksUrl: 'https://oauth.example.test/jwks',
   oauthRevokeUrl: 'https://oauth.example.test/revoke',
 }
 
 function buildDeps(overrides: {
   googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
   gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
+  googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
+  googleImportReferences?: GoogleImportReferenceStore
+  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
+  propertyBindingApi?: PropertyGoogleBindingPublicApi
+  googleImportReplayKeys?: ReturnType<typeof createVersionedHmacKeyring>
+  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
+  googlePerformancePrincipalKeys?: ReturnType<typeof createVersionedHmacKeyring>
+  providerAuthorizationLeases?: ProviderAuthorizationLeaseService
+  oauthStateHandles?: OAuthStateHandleService
 }) {
   return {
     db: dbStub,
@@ -52,7 +72,7 @@ function buildDeps(overrides: {
     logger: createMockLogger(),
     sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
-    pkceStore: createInMemoryPkceVerifierStore(),
+    oauthStateHandles: {} as unknown as OAuthStateHandleService,
     ...overrides,
   }
 }
@@ -64,6 +84,71 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     const ctx = buildIntegrationContext(buildDeps({ googleOAuth, gbpApi }))
     expect(ctx.internal.repos.oauthPort).toBe(googleOAuth)
     expect(ctx.internal.repos.gbpApiPort).toBe(gbpApi)
+  })
+
+  it('constructs bounded import discovery only with every protected dependency', () => {
+    const complete = buildIntegrationContext(
+      buildDeps({
+        googleAuthorizedProviderExecutor:
+          {} as unknown as GoogleAuthorizedProviderExecutor,
+        googleImportReferences: {} as unknown as GoogleImportReferenceStore,
+        authorizeGoogleImportContent: async () => ({
+          ok: false,
+          code: 'runtime_unavailable',
+        }),
+        propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
+        googleImportReplayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
+      }),
+    )
+    const transportless = buildIntegrationContext(
+      buildDeps({
+        propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
+      }),
+    )
+
+    expect(complete.internal.useCases.googleImportDiscovery).not.toBeNull()
+    expect(transportless.internal.useCases.googleImportDiscovery).toBeNull()
+    expect(complete.internal.useCases.googleImportTransaction).not.toBeNull()
+    expect(transportless.internal.useCases.googleImportTransaction).toBeNull()
+    expect(complete.internal.useCases.processGoogleImportV2Item).not.toBeNull()
+    expect(transportless.internal.useCases.processGoogleImportV2Item).not.toBeNull()
+  })
+
+  it('constructs live Performance only with every protected dependency', () => {
+    const complete = buildIntegrationContext(
+      buildDeps({
+        propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
+        googleAuthorizedProviderExecutor:
+          {} as unknown as GoogleAuthorizedProviderExecutor,
+        authorizeGooglePerformanceContent: async () => ({
+          ok: false,
+          code: 'runtime_unavailable',
+        }),
+        googlePerformancePrincipalKeys: createVersionedHmacKeyring(
+          `v1:${'22'.repeat(32)}`,
+        ),
+        providerAuthorizationLeases: {} as unknown as ProviderAuthorizationLeaseService,
+      }),
+    )
+    const missingLease = buildIntegrationContext(
+      buildDeps({
+        propertyBindingApi: {} as unknown as PropertyGoogleBindingPublicApi,
+        googleAuthorizedProviderExecutor:
+          {} as unknown as GoogleAuthorizedProviderExecutor,
+        authorizeGooglePerformanceContent: async () => ({
+          ok: false,
+          code: 'runtime_unavailable',
+        }),
+        googlePerformancePrincipalKeys: createVersionedHmacKeyring(
+          `v1:${'22'.repeat(32)}`,
+        ),
+      }),
+    )
+
+    expect(complete.internal.useCases.getPropertyGooglePerformance).not.toBeNull()
+    expect(complete.internal.useCases.renewGooglePerformanceLease).not.toBeNull()
+    expect(missingLease.internal.useCases.getPropertyGooglePerformance).toBeNull()
+    expect(missingLease.internal.useCases.renewGooglePerformanceLease).toBeNull()
   })
 
   it('builds the real env-driven adapters when no overrides are injected', () => {

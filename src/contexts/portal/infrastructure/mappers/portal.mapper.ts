@@ -13,6 +13,7 @@ import {
   unbrand,
 } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
+import type { PortalPublicationState } from '../../domain/portal-publication'
 
 type PortalRow = typeof portals.$inferSelect
 type PortalInsertRow = typeof portals.$inferInsert
@@ -24,6 +25,23 @@ function parseEntityType(value: string): EntityType {
     throw portalError('portal_not_found', `[portal.mapper] invalid entityType: ${value}`)
   }
   return value as EntityType
+}
+
+const VALID_PUBLICATION_STATES: ReadonlySet<string> = new Set([
+  'draft',
+  'published',
+  'disabled',
+  'archived',
+])
+
+function parsePublicationState(value: string): PortalPublicationState {
+  if (!VALID_PUBLICATION_STATES.has(value)) {
+    throw portalError(
+      'portal_not_found',
+      `[portal.mapper] invalid publication state: ${value}`,
+    )
+  }
+  return value as PortalPublicationState
 }
 
 function brandEntityId(
@@ -68,9 +86,7 @@ export const portalFromRow = (row: PortalRow): Portal => ({
   description: row.description,
   heroImageUrl: row.heroImageUrl,
   theme: parseTheme(row.theme as Record<string, unknown> | null),
-  smartRoutingEnabled: row.smartRoutingEnabled,
-  smartRoutingThreshold: row.smartRoutingThreshold,
-  isActive: row.isActive,
+  publicationState: parsePublicationState(row.publicationState),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
@@ -87,9 +103,7 @@ export const portalToRow = (portal: Portal): PortalInsertRow => ({
   description: portal.description,
   heroImageUrl: portal.heroImageUrl,
   theme: portal.theme as Record<string, unknown>,
-  smartRoutingEnabled: portal.smartRoutingEnabled,
-  smartRoutingThreshold: portal.smartRoutingThreshold,
-  isActive: portal.isActive,
+  publicationState: portal.publicationState,
   createdAt: portal.createdAt,
   updatedAt: portal.updatedAt,
   deletedAt: portal.deletedAt,

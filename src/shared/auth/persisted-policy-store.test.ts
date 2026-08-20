@@ -22,6 +22,8 @@ import { createEnvCapabilityPolicyStore } from './beta-capabilities'
 function snapshot(overrides: Partial<PolicySnapshot> = {}): PolicySnapshot {
   return {
     version: 1,
+    emergencyKillVersion: 0,
+    killedCapabilities: [],
     orgPolicies: [],
     orgCapabilities: [],
     propertyPolicies: [],
@@ -35,10 +37,13 @@ function snapshot(overrides: Partial<PolicySnapshot> = {}): PolicySnapshot {
 function loader(initial: PolicySnapshot) {
   let current = initial
   const loadSnapshot = vi.fn(async () => current)
-  const loadVersion = vi.fn(async () => current.version)
+  const loadControlVersion = vi.fn(async () => ({
+    version: current.version,
+    emergencyKillVersion: current.emergencyKillVersion,
+  }))
   return {
     loadSnapshot,
-    loadVersion,
+    loadControlVersion,
     set(snap: PolicySnapshot) {
       current = snap
     },
@@ -88,7 +93,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     await store.refresh()
     await store.refresh()
     await store.refresh()
-    expect(l.loadVersion).toHaveBeenCalledTimes(3)
+    expect(l.loadControlVersion).toHaveBeenCalledTimes(3)
     expect(l.loadSnapshot).toHaveBeenCalledTimes(1)
   })
 
@@ -99,7 +104,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     await store.refresh()
     expect(store.currentVersion()).toBe(5)
 
-    l.loadVersion.mockRejectedValueOnce(new Error('db down'))
+    l.loadControlVersion.mockRejectedValueOnce(new Error('db down'))
     l.set(
       snapshot({
         version: 6,
@@ -154,14 +159,14 @@ describe('persisted policy store (BQC-2.2)', () => {
       const store = createPersistedPolicyStore(l)
       const stop = store.startPolling(1000)
       await vi.advanceTimersByTimeAsync(2500)
-      expect(l.loadVersion.mock.calls.length).toBeGreaterThanOrEqual(2)
+      expect(l.loadControlVersion.mock.calls.length).toBeGreaterThanOrEqual(2)
       l.set(snapshot({ version: 2 }))
       await vi.advanceTimersByTimeAsync(1000)
       expect(store.currentVersion()).toBe(2)
       stop()
-      const calls = l.loadVersion.mock.calls.length
+      const calls = l.loadControlVersion.mock.calls.length
       await vi.advanceTimersByTimeAsync(3000)
-      expect(l.loadVersion.mock.calls.length).toBe(calls)
+      expect(l.loadControlVersion.mock.calls.length).toBe(calls)
     } finally {
       vi.useRealTimers()
     }

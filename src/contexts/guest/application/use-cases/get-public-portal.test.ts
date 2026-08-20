@@ -1,10 +1,9 @@
-// Guest context — getPublicPortal use case tests
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getPublicPortal } from './get-public-portal'
 import { isGuestError } from '../../domain/errors'
-import type { PublicPortalLoaderData } from '../dto/public-portal.dto'
+import type { PublicPortalData } from '../dto/public-portal.dto'
 
-const fakeData: PublicPortalLoaderData = {
+const fakeData: PublicPortalData = {
   portal: {
     id: 'p1',
     name: 'Test Portal',
@@ -12,45 +11,30 @@ const fakeData: PublicPortalLoaderData = {
     description: null,
     heroImageUrl: null,
     theme: null,
-    smartRoutingEnabled: false,
-    smartRoutingThreshold: 4,
     organizationName: 'Test Org',
   },
   categories: [],
   links: [],
   organizationId: 'org-1',
   propertyId: 'prop-1',
-} as unknown as PublicPortalLoaderData
-
-const setup = (returns: PublicPortalLoaderData | null = fakeData) => {
-  const useCase = getPublicPortal({
-    publicPortalLookup: {
-      findBySlug: async () => returns,
-    },
-  })
-  return { useCase }
 }
 
-describe('getPublicPortal (use case)', () => {
-  it('returns portal data when found', async () => {
-    const { useCase } = setup()
-    const result = await useCase({
-      propertySlug: 'test-property',
-      portalSlug: 'test-portal',
-    })
-    expect(result).toEqual(fakeData)
+describe('getPublicPortal', () => {
+  it('resolves the opaque token through the lookup boundary', async () => {
+    const findByToken = vi.fn(async () => fakeData)
+    const useCase = getPublicPortal({ publicPortalLookup: { findByToken } })
+
+    await expect(useCase({ token: 'pt_key_secret' })).resolves.toEqual(fakeData)
+    expect(findByToken).toHaveBeenCalledWith('pt_key_secret')
   })
 
-  it('throws portal_not_found when portal does not exist', async () => {
-    const { useCase } = setup(null)
-    try {
-      await useCase({ propertySlug: 'bad', portalSlug: 'bad' })
-      expect.fail('Expected error to be thrown')
-    } catch (e) {
-      expect(isGuestError(e)).toBe(true)
-      if (isGuestError(e)) {
-        expect(e.code).toBe('portal_not_found')
-      }
-    }
+  it('maps every unavailable token to portal_not_found', async () => {
+    const useCase = getPublicPortal({
+      publicPortalLookup: { findByToken: async () => null },
+    })
+
+    await expect(useCase({ token: 'unknown' })).rejects.toSatisfy(
+      (error: unknown) => isGuestError(error) && error.code === 'portal_not_found',
+    )
   })
 })

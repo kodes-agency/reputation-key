@@ -16,6 +16,7 @@ export const inboxSearchSchema = z.object({
   platform: z.string().optional(),
   ratingMin: z.coerce.number().int().min(1).max(5).optional(),
   ratingMax: z.coerce.number().int().min(1).max(5).optional(),
+  attention: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
   q: z.string().optional(),
 })
 

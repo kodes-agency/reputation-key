@@ -1,0 +1,89 @@
+$ node_modules/.bin/fallow dupes --changed-since HEAD
+started: 2026-08-17T18:20:17.270Z  durationMs: 728  exit: 0
+
+● Duplicates (191 clone groups)
+
+    139 lines  2 instances  dup:f23a29cc
+    src/contexts/ai/infrastructure/adapters/ai-foundation-adapters.integration.test.ts:36-44
+    src/contexts/review/infrastructure/ai-suggested-draft-store.integration.test.ts:144-282
+
+     58 lines  2 instances  dup:d81c5089
+    src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts:759-815
+    src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts:1220-1277
+
+     54 lines  2 instances  dup:6b78d778
+    src/contexts/inbox/infrastructure/repositories/inbox-command-store.test.ts:69-122
+    src/contexts/inbox/infrastructure/repositories/inbox.repository.test.ts:36-86
+
+     53 lines  2 instances  dup:10b6efbc
+    src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts:834-886
+    src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts:1350-1398
+
+     53 lines  2 instances  dup:3d6949cc
+    src/contexts/goal/domain/goal-recurrence.ts:143-167
+    src/shared/domain/period-range.ts:117-169
+
+     53 lines  2 instances  dup:b8e6ac76
+    src/contexts/review/application/use-cases/reconcile-reply-publication.test.ts:76-118
+    src/contexts/review/application/use-cases/reply-operations.test.ts:62-114
+
+     47 lines  2 instances  dup:9a327f6c
+    src/contexts/inbox/application/use-cases/get-inbox-item-detail.test.ts:29-71
+    src/contexts/inbox/application/use-cases/get-inbox-items.test.ts:21-67
+
+     46 lines  2 instances  dup:6e20f863
+    src/contexts/review/infrastructure/repositories/publication-state.test.ts:221-250
+    src/contexts/review/infrastructure/repositories/publication-state.test.ts:325-370
+
+     43 lines  2 instances  dup:a3199814
+    src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts:339-381
+    src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts:811-836
+
+     38 lines  2 instances  dup:977667b7
+    src/components/inbox/inbox-detail-panel.stories.tsx:20-57
+    src/components/inbox/inbox-detail-sheet.stories.tsx:18-55
+
+  ... and 181 more clone groups
+  Identical code blocks detected via suffix-array analysis — https://docs.fallow.tools/explanations/duplication#clone-groups
+
+● Clone families (26 with multiple groups)
+
+  13 groups, 285 lines across src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts
+    → Extract 13 shared clone groups (285 lines) from ai-output-store.adapter.ts into src/contexts/ai/infrastructure/adapters
+
+  23 groups, 250 lines across src/contexts/review/application/use-cases/reply-operations.test.ts
+    → Extract 23 shared clone groups (250 lines) from reply-operations.test.ts into src/contexts/review/application/use-cases
+
+  2 groups, 153 lines across src/contexts/ai/infrastructure/adapters/ai-foundation-adapters.integration.test.ts, src/contexts/review/infrastructure/ai-suggested-draft-store.integration.test.ts
+    → Extract 2 shared clone groups (153 lines) from ai-foundation-adapters.integration.test.ts, ai-suggested-draft-store.integration.test.ts into a shared directory
+
+  10 groups, 141 lines across src/contexts/review/infrastructure/reply-command-store.test.ts
+    → Extract 10 shared clone groups (141 lines) from reply-command-store.test.ts into src/contexts/review/infrastructure
+
+  6 groups, 117 lines across src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts
+    → Extract 6 shared clone groups (117 lines) from ai-operation-store.adapter.integration.test.ts into src/contexts/ai/infrastructure/adapters
+
+  4 groups, 93 lines across src/contexts/review/infrastructure/repositories/publication-state.test.ts, src/contexts/review/infrastructure/repositories/reply-command-store.test.ts
+    → Extract 4 shared clone groups (93 lines) from publication-state.test.ts, reply-command-store.test.ts into src/contexts/review/infrastructure/repositories
+
+  3 groups, 77 lines across src/contexts/goal/domain/goal-recurrence.ts, src/shared/domain/period-range.ts
+    → Extract 3 shared clone groups (77 lines) from goal-recurrence.ts, period-range.ts into a shared directory
+
+  3 groups, 74 lines across src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts, src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts
+    → Extract 3 shared clone groups (74 lines) from ai-output-store.adapter.ts, ai-property-aggregate-store.adapter.ts into src/contexts/ai/infrastructure/adapters
+
+  3 groups, 74 lines across src/contexts/review/infrastructure/repositories/publication-state.test.ts
+    → Extract 3 shared clone groups (74 lines) from publication-state.test.ts into src/contexts/review/infrastructure/repositories
+
+  6 groups, 68 lines across src/contexts/review/application/use-cases/reconcile-reply-publication.test.ts
+    → Extract 6 shared clone groups (68 lines) from reconcile-reply-publication.test.ts into src/contexts/review/application/use-cases
+
+  ... and 16 more families
+
+  Groups of related clones across the same files — https://docs.fallow.tools/explanations/duplication#clone-families
+
+
+loaded config: /Users/bozhidardenev/kodes/projects/rep-key/.fallowrc.json
+note: module wiring excluded from clone detection (--no-ignore-imports to include it)
+
+✗ 5,193 lines (1.6%) duplicated across 105 files (0.64s)

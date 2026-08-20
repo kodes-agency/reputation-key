@@ -297,6 +297,20 @@ Do not store raw prompts, raw responses, redacted prompts, review excerpts, exac
 
 The candidate release records the exact active policy bundle hash/identifier, test report, production/staging configuration digest, and sample metadata-only decisions. See the [release-evidence index](ai-release-evidence-index.md).
 
+### Synthetic provider-resource evidence
+
+AI private-beta tests and release evidence refer to provider resources only
+through the generated fixture catalogue. Logs, traces, screenshots, database
+dumps, queue dumps, browser artifacts, and release artifacts receive no
+exception to this rule.
+
+<!-- google-provider-identifiers-v1:start -->
+
+> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87`). Do not edit this block.
+> Canonical synthetic review resource: `accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001`.
+
+<!-- google-provider-identifiers-v1:end -->
+
 ## 12. Open decisions that do not broaden the baseline
 
 - Exact Google refresh-clock semantics: continue conservative successful-fetch rule until clarified.

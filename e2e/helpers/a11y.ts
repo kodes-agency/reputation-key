@@ -16,14 +16,22 @@
 // Suppressions go through AXE_SUPPRESSIONS ONLY: rule + page pattern + owner
 // + reason, one entry per case. No blanket disables.
 
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
-import type { Page } from '@playwright/test'
+import type { Page, Route } from '@playwright/test'
 
 function axeSourcePath(): string {
   const req = createRequire(import.meta.url)
   const addonPkg = req.resolve('@storybook/addon-a11y/package.json')
   return req.resolve('axe-core/axe.min.js', { paths: [dirname(addonPkg)] })
+}
+
+let cachedAxeSource: string | undefined
+
+function axeSource(): string {
+  cachedAxeSource ??= readFileSync(axeSourcePath(), 'utf8')
+  return cachedAxeSource
 }
 
 export type AxeViolationNode = Readonly<{
@@ -62,13 +70,63 @@ const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice']
 export async function injectAxe(page: Page): Promise<void> {
   const present = await page.evaluate(() => 'axe' in window)
   if (present) return
-  await page.addScriptTag({ path: axeSourcePath() })
-  await page.waitForFunction(() => 'axe' in window)
+  const scriptUrl = new URL('/__e2e__/axe-core.js', page.url()).href
+  const serveAxe = (route: Route) =>
+    route.fulfill({
+      contentType: 'application/javascript; charset=utf-8',
+      body: axeSource(),
+    })
+
+  await page.route(scriptUrl, serveAxe)
+  try {
+    // A same-origin external script honors the production CSP without weakening
+    // it. Inline/path injection is correctly rejected by the nonce-only policy.
+    await page.addScriptTag({ url: scriptUrl })
+    await page.waitForFunction(() => 'axe' in window)
+  } finally {
+    await page.unroute(scriptUrl, serveAxe)
+  }
+}
+
+/**
+ * Settle CSS transitions and animations, then wait a frame.
+ *
+ * axe reads colours from computed styles at the instant it runs. Buttons carry
+ * `transition-all` at 150ms, so a scan that lands mid-transition measures an
+ * intermediate colour that was never a rendered resting state. Measured on the
+ * property deep-dive: releasing a button's colour back to the inherited
+ * `--foreground` produced 11 distinct intermediate values sweeping oklab L
+ * 0.80 -> 0.28, and CI once caught one at 3.47:1 on a control whose settled
+ * contrast is 18:1.
+ *
+ * This suppresses nothing real: every resting state is still measured exactly.
+ * It only stops the scan from grading frames the user never sees.
+ */
+async function settleMotion(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `*, *::before, *::after {
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+    }`,
+  })
+  await page.evaluate(async () => {
+    await Promise.all(
+      document
+        .getAnimations()
+        .map((animation) => animation.finished.catch(() => undefined)),
+    )
+    const { promise, resolve } = Promise.withResolvers<void>()
+    requestAnimationFrame(() => resolve())
+    await promise
+  })
 }
 
 /** Run axe on the full page; returns raw violations (suppressions NOT applied). */
 export async function runAxe(page: Page): Promise<readonly AxeViolation[]> {
   await injectAxe(page)
+  await settleMotion(page)
   return page.evaluate(async (tags) => {
     const axe = (
       window as unknown as {

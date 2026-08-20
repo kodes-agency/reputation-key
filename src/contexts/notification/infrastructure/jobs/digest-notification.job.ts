@@ -1,221 +1,247 @@
-// Notification context — hourly repeatable BullMQ job
-// Sends a daily digest email to users whose properties are at ~8am local time.
-
 import type { Job } from 'bullmq'
+import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import {
   notificationEmailId,
   notificationId,
-  organizationId as orgId,
+  organizationId,
+  propertyId,
 } from '#/shared/domain/ids'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
+import type { NotificationPreferenceRepositoryPort } from '../../application/ports/notification-preference-repository.port'
 import type { NotificationRepositoryPort } from '../../application/ports/notification-repository.port'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
-import type { NotificationEmail, Notification } from '../../domain/types'
-import type { OrganizationId } from '#/shared/domain/ids'
-import type { Pool } from 'pg'
+import type { Notification, NotificationEmail } from '../../domain/types'
+import {
+  deliveryTiming,
+  isDailyDigestWindow,
+} from '../../domain/notification-delivery-policy'
+import { getDefaultEnabled } from '../../domain/notification-policy'
 import { emailShell, escapeHtml } from '#/shared/email'
 
 export const DIGEST_JOB_NAME = 'digest-notification' as const
 
+type PropertyScope = Readonly<{
+  organization_id: string
+  property_id: string
+  timezone: string
+}>
+
 type DigestDeps = Readonly<{
   pool: Pool
   emailRepo: NotificationEmailRepositoryPort
+  preferenceRepo: NotificationPreferenceRepositoryPort
   notifRepo: NotificationRepositoryPort
   userLookup: UserLookupPort
   emailSender: EmailSenderPort
   logger: LoggerPort
   clock: () => Date
+  authorizeScope: ScheduledScopeAuthorizer
+  enqueueImmediate: (data: {
+    notificationEmailId: string
+    organizationId: string
+    propertyId: string
+  }) => Promise<void>
 }>
 
-/** Get current hour (0–23) in the given IANA timezone. */
-const currentHourInTz = (clock: () => Date, tz: string): number => {
-  const s = clock().toLocaleString('en-US', {
-    timeZone: tz,
-    hour: 'numeric',
-    hour12: false,
+const fetchPropertyScopes = async (pool: Pool): Promise<PropertyScope[]> => {
+  const result = await pool.query<PropertyScope>(
+    `SELECT organization_id, id::text AS property_id, timezone
+       FROM properties
+      WHERE deleted_at IS NULL
+        AND lifecycle_state = 'active'`,
+  )
+  return result.rows
+}
+
+const groupByUser = (
+  entries: readonly NotificationEmail[],
+): ReadonlyMap<string, readonly NotificationEmail[]> => {
+  const groups = new Map<string, NotificationEmail[]>()
+  for (const entry of entries) {
+    const key = entry.userId as string
+    const group = groups.get(key)
+    if (group) group.push(entry)
+    else groups.set(key, [entry])
+  }
+  return groups
+}
+
+const digestHtml = (
+  entries: readonly NotificationEmail[],
+  notifications: ReadonlyMap<string, Notification>,
+): string => {
+  const items = entries.flatMap((entry) => {
+    const notification = notifications.get(entry.notificationId as string)
+    return notification
+      ? [
+          `<p><strong>${escapeHtml(notification.title)}</strong>` +
+            (notification.body ? `<br/>${escapeHtml(notification.body)}` : '') +
+            '</p>',
+        ]
+      : []
   })
-  return parseInt(s, 10)
+  return emailShell(items.join('\\n'))
 }
 
-type OrgTimezoneRow = Readonly<{ organization_id: string; timezone: string }>
+const retryAt = (now: Date, retryCount: number): Date =>
+  new Date(now.getTime() + Math.min(60 * 60_000, 30_000 * 2 ** retryCount))
 
-/** Distinct org + timezone pairs across all non-deleted properties. */
-const fetchOrgTimezones = async (pool: Pool): Promise<OrgTimezoneRow[]> => {
-  const { rows } = await pool.query<OrgTimezoneRow>(
-    `SELECT DISTINCT organization_id, COALESCE(timezone, 'UTC') AS timezone FROM properties WHERE deleted_at IS NULL`,
-  )
-  return rows
-}
+async function sendPropertyDigests(
+  deps: DigestDeps,
+  scope: PropertyScope,
+): Promise<void> {
+  const now = deps.clock()
+  const orgId = organizationId(scope.organization_id)
+  const propId = propertyId(scope.property_id)
+  const allDue = await deps.emailRepo.findDueByProperty(orgId, propId, 'daily', now)
+  const due = isDailyDigestWindow(now, scope.timezone)
+    ? allDue
+    : allDue.filter((entry) => entry.status === 'delayed')
+  if (due.length === 0) return
 
-/** Orgs whose local hour is the digest window (8am). */
-const selectDigestOrgs = (
-  clock: () => Date,
-  rows: readonly OrgTimezoneRow[],
-): Set<string> => {
-  const qualifyingOrgIds = new Set<string>()
-  for (const row of rows) {
-    try {
-      if (currentHourInTz(clock, row.timezone) === 8) {
-        qualifyingOrgIds.add(row.organization_id)
+  for (const [rawUserId, userEntries] of groupByUser(due)) {
+    const deliverable: NotificationEmail[] = []
+    for (const entry of userEntries) {
+      const preference = await deps.preferenceRepo.findForDelivery(
+        entry.userId,
+        orgId,
+        propId,
+        entry.category,
+        'email',
+      )
+      if (!(preference?.enabled ?? getDefaultEnabled(entry.category, 'email'))) {
+        await deps.emailRepo.markSuppressed(
+          notificationEmailId(entry.id as string),
+          orgId,
+          propId,
+          'preference_disabled',
+          now,
+        )
+        continue
       }
-    } catch {
-      // invalid timezone — skip
+      const timing = deliveryTiming({
+        now,
+        timezone: scope.timezone,
+        quietHoursStart: preference?.quietHoursStart ?? null,
+        quietHoursEnd: preference?.quietHoursEnd ?? null,
+        urgent: false,
+        urgentBypassEnabled: false,
+      })
+      if (timing.kind === 'defer') {
+        await deps.emailRepo.markDelayed(
+          notificationEmailId(entry.id as string),
+          orgId,
+          propId,
+          timing.until,
+          now,
+        )
+      } else {
+        deliverable.push(entry)
+      }
     }
-  }
-  return qualifyingOrgIds
-}
+    if (deliverable.length === 0) continue
 
-/** Group email-queue entries by their owning user. */
-const groupEntriesByUser = (
-  entries: readonly NotificationEmail[],
-): Map<string, NotificationEmail[]> => {
-  const byUser = new Map<string, NotificationEmail[]>()
-  for (const entry of entries) {
-    const uid = entry.userId as string
-    const bucket = byUser.get(uid)
-    if (bucket) bucket.push(entry)
-    else byUser.set(uid, [entry])
-  }
-  return byUser
-}
-
-/** Render the per-entry notification fragments for one user's digest. */
-const buildDigestItems = (
-  entries: readonly NotificationEmail[],
-  notifMap: ReadonlyMap<string, Notification>,
-): string[] => {
-  const items: string[] = []
-  for (const entry of entries) {
-    const notif = notifMap.get(entry.notificationId as string)
-    if (!notif) continue
-    items.push(
-      `<p><strong>${escapeHtml(notif.title)}</strong>` +
-        (notif.body ? `<br/>${escapeHtml(notif.body)}` : '') +
-        '</p>',
+    const recipient = await deps.userLookup.getEmail(
+      rawUserId as Parameters<typeof deps.userLookup.getEmail>[0],
     )
-  }
-  return items
-}
-
-/** Mark every entry in a batch as sent. */
-const markEntriesSent = async (
-  deps: DigestDeps,
-  organizationId: OrganizationId,
-  entries: readonly NotificationEmail[],
-): Promise<void> => {
-  const sentNow = deps.clock()
-  for (const entry of entries) {
-    await deps.emailRepo.markSent(
-      notificationEmailId(entry.id as string),
-      organizationId,
-      sentNow,
-      sentNow,
-    )
-    // State machine: only 'pending' → 'sent'. Enforced at DB level by the repo's pending-only WHERE clause.
-  }
-}
-
-/** Mark every entry in a batch as failed (transient send error). */
-const markEntriesFailed = async (
-  deps: DigestDeps,
-  organizationId: OrganizationId,
-  entries: readonly NotificationEmail[],
-): Promise<void> => {
-  const failNow = deps.clock()
-  for (const entry of entries) {
-    try {
-      await deps.emailRepo.markFailed(
-        notificationEmailId(entry.id as string),
-        organizationId,
-        failNow,
-        failNow,
-      )
-      // State machine: only 'pending'/'failed' → 'failed'. Enforced at DB level by the repo WHERE clause.
-    } catch (markErr) {
-      deps.logger.error({ markErr }, 'Failed to mark digest email as failed')
+    if (!recipient) {
+      for (const entry of deliverable) {
+        await deps.emailRepo.markSuppressed(
+          notificationEmailId(entry.id as string),
+          orgId,
+          propId,
+          'recipient_unavailable',
+          now,
+        )
+      }
+      continue
     }
-  }
-}
 
-/** Build + send one user's digest, then transition the batch's status. */
-const sendUserDigest = async (
-  deps: DigestDeps,
-  organizationId: OrganizationId,
-  uid: string,
-  entries: readonly NotificationEmail[],
-): Promise<void> => {
-  const email = await deps.userLookup.getEmail(
-    uid as Parameters<typeof deps.userLookup.getEmail>[0],
-  )
-  if (!email) return
-
-  const notifIds = entries.map((e) => notificationId(e.notificationId as string))
-  const notifMap = await deps.notifRepo.findByIds(notifIds, organizationId)
-  const items = buildDigestItems(entries, notifMap)
-  if (items.length === 0) return
-
-  const html = emailShell(items.join('\n'))
-  try {
-    await deps.emailSender.send({
-      to: email,
-      subject: 'Your daily digest — Reputation Key',
-      html,
-    })
-    await markEntriesSent(deps, organizationId, entries)
-  } catch (err) {
-    deps.logger.error({ err }, 'Digest email send failed')
-    await markEntriesFailed(deps, organizationId, entries)
-  }
-}
-
-/** Send digests for one org: gather pending emails, group by user, send each. */
-const sendOrgDigest = async (
-  deps: DigestDeps,
-  organizationId: OrganizationId,
-): Promise<void> => {
-  // Pending normal-priority emails plus any orphaned urgent emails
-  // (enqueue failed / Redis was down).
-  const normal = await deps.emailRepo.findPendingByOrg(organizationId, 'normal')
-  const orphanedUrgent = await deps.emailRepo.findPendingByOrg(organizationId, 'urgent')
-  const pending = [...normal, ...orphanedUrgent]
-  if (pending.length === 0) return
-
-  const byUser = groupEntriesByUser(pending)
-  for (const [uid, entries] of byUser) {
+    const ids = deliverable.map((entry) => notificationId(entry.notificationId as string))
+    const notifications = await deps.notifRepo.findByIdsForProperty(ids, orgId, propId)
+    const present = deliverable.filter((entry) =>
+      notifications.has(entry.notificationId as string),
+    )
+    if (present.length === 0) continue
+    const localDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: scope.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now)
+    const maxRetry = Math.max(...present.map((entry) => entry.retryCount))
     try {
-      await sendUserDigest(deps, organizationId, uid, entries)
-    } catch (err) {
-      deps.logger.error(
-        { err },
-        'digest-notification: sendUserDigest failed — continuing to next user',
-      )
+      const outcome = await deps.emailSender.send({
+        to: recipient,
+        subject: 'Your daily digest — Reputation Key',
+        html: digestHtml(present, notifications),
+        idempotencyKey: `digest:${scope.property_id}:${rawUserId}:${localDate}`,
+      })
+      for (const entry of present) {
+        const id = notificationEmailId(entry.id as string)
+        if (outcome.kind === 'accepted') {
+          await deps.emailRepo.markAccepted(
+            id,
+            orgId,
+            propId,
+            outcome.providerMessageId,
+            outcome.acceptedAt,
+          )
+        } else {
+          await deps.emailRepo.markFailed(
+            id,
+            orgId,
+            propId,
+            outcome.classification,
+            outcome.classification === 'transient' ? retryAt(now, maxRetry) : null,
+            now,
+          )
+        }
+      }
+    } catch (error) {
+      deps.logger.error({ error }, 'Daily property digest provider call failed')
+      for (const entry of present) {
+        await deps.emailRepo.markFailed(
+          notificationEmailId(entry.id as string),
+          orgId,
+          propId,
+          'transient',
+          retryAt(now, maxRetry),
+          now,
+        )
+      }
     }
   }
 }
 
 export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
   return async (_job: Job<void>): Promise<void> => {
-    // 1. Distinct org + timezone pairs from properties
-    const rows = await fetchOrgTimezones(deps.pool)
-
-    // 2. Orgs currently in their 8am digest window
-    const qualifyingOrgIds = selectDigestOrgs(deps.clock, rows)
-    if (qualifyingOrgIds.size === 0) return
-
-    // 3. Send each qualifying org's digests.
-    // Per-org isolation: one org's failure must not prevent other orgs from
-    // receiving their digest, and must not cause retries that re-send to
-    // already-succeeded orgs (duplicate emails).
-    for (const rawOrgId of qualifyingOrgIds) {
+    const scopes = await fetchPropertyScopes(deps.pool)
+    for (const scope of scopes) {
+      if (!(await deps.authorizeScope(scope.organization_id, scope.property_id))) continue
       try {
-        await sendOrgDigest(deps, orgId(rawOrgId))
-      } catch (err) {
-        deps.logger.error(
-          { err },
-          'digest-notification: org digest failed — continuing to next org',
+        const now = deps.clock()
+        const orgId = organizationId(scope.organization_id)
+        const propId = propertyId(scope.property_id)
+        const immediate = await deps.emailRepo.findDueByProperty(
+          orgId,
+          propId,
+          'immediate',
+          now,
         )
+        for (const entry of immediate) {
+          await deps.enqueueImmediate({
+            notificationEmailId: entry.id as string,
+            organizationId: scope.organization_id,
+            propertyId: scope.property_id,
+          })
+        }
+        await sendPropertyDigests(deps, scope)
+      } catch (error) {
+        deps.logger.error({ error }, 'Property notification delivery sweep failed')
       }
     }
   }

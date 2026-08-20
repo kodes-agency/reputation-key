@@ -10,7 +10,6 @@ export const updateTeamInputSchema = z.object({
     .max(500, 'Must be 500 characters or less')
     .nullable()
     .optional(),
-  teamLeadId: z.string().min(1, 'This field is required').nullable().optional(),
 })
 
 export type UpdateTeamInput = z.infer<typeof updateTeamInputSchema>

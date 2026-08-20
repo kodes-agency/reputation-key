@@ -1,38 +1,39 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { metricRecorded } from './events'
 import {
   metricReadingId,
   organizationId,
-  propertyId,
-  portalId,
   portalGroupId,
+  propertyId,
 } from '#/shared/domain/ids'
 
-describe('metricRecorded event', () => {
-  it('accepts nullable groupId', () => {
-    const withGroup = metricRecorded({
-      readingId: metricReadingId('mr-1'),
+describe('metricRecorded', () => {
+  it('carries immutable provenance, event-time attribution, and consumer policy', () => {
+    const event = metricRecorded({
+      readingId: metricReadingId('d4000000-0000-4000-8000-000000000071'),
       organizationId: organizationId('org-1'),
-      propertyId: propertyId('prop-1'),
-      portalId: portalId('portal-1'),
-      metricKey: 'portal.scan',
-      value: 1,
-      groupId: portalGroupId('group-1'),
-      occurredAt: new Date('2026-01-01'),
-    })
-    expect(withGroup._tag).toBe('metric.recorded')
-    expect(withGroup.groupId).toBe('group-1')
-
-    const withoutGroup = metricRecorded({
-      readingId: metricReadingId('mr-2'),
-      organizationId: organizationId('org-1'),
-      propertyId: propertyId('prop-1'),
+      propertyId: propertyId('d4000000-0000-4000-8000-000000000051'),
       portalId: null,
-      metricKey: 'portal.scan',
+      portalGroupId: portalGroupId('d4000000-0000-4000-8000-000000000061'),
+      definitionVersionId: '11111111-1111-4111-8111-111111111101',
+      sourceEventId: 'source-event-1',
+      sourcePolicy: 'first_party_workflow',
+      metricKey: 'portal.content_review.completed',
       value: 1,
-      groupId: null,
-      occurredAt: new Date('2026-01-01'),
+      numerator: null,
+      denominator: null,
+      sampleCount: 1,
+      attributionQuality: 'exact',
+      permittedConsumers: ['dashboard', 'goal'],
+      occurredAt: new Date('2026-08-08T12:00:00Z'),
     })
-    expect(withoutGroup.groupId).toBeNull()
+
+    expect(event).toMatchObject({
+      _tag: 'metric.recorded',
+      portalGroupId: 'd4000000-0000-4000-8000-000000000061',
+      definitionVersionId: '11111111-1111-4111-8111-111111111101',
+      sourceEventId: 'source-event-1',
+      permittedConsumers: ['dashboard', 'goal'],
+    })
   })
 })

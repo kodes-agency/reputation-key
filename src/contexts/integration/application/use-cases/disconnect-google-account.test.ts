@@ -1,12 +1,11 @@
 // Integration context — disconnect Google account use case tests
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { disconnectGoogleAccount } from './disconnect-google-account'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
 import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createInMemoryGbpCacheRepo } from '#/shared/testing/in-memory-gbp-cache-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
@@ -14,7 +13,6 @@ import {
   buildTestGoogleConnection,
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
-import { propertyId, gbpCacheEntryId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -22,62 +20,37 @@ const setup = () => {
   const connectionRepo = createInMemoryGoogleConnectionRepo()
   const oauth = createInMemoryGoogleOAuthPort()
   const encryption = createInMemoryTokenEncryption()
-  const cacheRepo = createInMemoryGbpCacheRepo()
   const events = createCapturingEventBus()
-  const deps = {
+  const baseDeps = {
     connectionRepo,
     oauth,
     encryption,
-    cacheRepo,
     commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
   }
-  const useCase = disconnectGoogleAccount(deps)
-  return { useCase, connectionRepo, oauth, encryption, cacheRepo, events }
+  return {
+    useCase: disconnectGoogleAccount(baseDeps),
+    baseDeps,
+    connectionRepo,
+    oauth,
+    events,
+  }
 }
 
 describe('disconnectGoogleAccount', () => {
-  it('updates status to disconnected, purges cache, purges source content, redacts identifiers, and emits event', async () => {
-    const { connectionRepo, cacheRepo, events } = setup()
+  it('redacts the signed identity and secrets, purges source content, and records a fact', async () => {
+    const { baseDeps, connectionRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'active' })
     connectionRepo.seed([connection])
-
-    // Seed a cache entry tied to the connection
-    const testPropertyId = propertyId('a0000000-0000-0000-0000-000000000001')
-    const cacheEntry = {
-      id: gbpCacheEntryId('cache-001'),
-      organizationId: ctx.organizationId,
-      propertyId: testPropertyId,
-      gbpPlaceId: 'ChIJ-test',
-      dataType: 'location' as const,
-      payload: {},
-      googleAttribution: null,
-      fetchedAt: FIXED_TIME,
-      expiresAt: new Date('2026-05-10T12:00:00Z'),
-      updatedAt: FIXED_TIME,
-    }
-    cacheRepo.seed([cacheEntry])
-    cacheRepo.testSetConnectionForProperty(
-      connection.id as string,
-      testPropertyId as string,
-    )
-
-    // BQC-1.7: lifecycle purge of the connection's source content
     const forConnection = vi.fn(async () => ({
       subject: 'reviews.purge.connection',
       batches: 1,
       rowsDeleted: 3,
     }))
-    const useCaseWithPurge = disconnectGoogleAccount({
-      connectionRepo,
-      oauth: createInMemoryGoogleOAuthPort(),
-      encryption: createInMemoryTokenEncryption(),
-      cacheRepo,
-      commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
-      clock: () => FIXED_TIME,
-      logger: createMockLogger(),
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
       sourceContentPurge: {
         forConnection,
         forProperty: vi.fn(),
@@ -86,110 +59,117 @@ describe('disconnectGoogleAccount', () => {
       },
     })
 
-    const result = await useCaseWithPurge({ connectionId: connection.id as string }, ctx)
+    const result = await useCase({ connectionId: connection.id as string }, ctx)
 
     expect(result.status).toBe('disconnected')
-    expect(cacheRepo.all()).toHaveLength(0)
-
-    // Source content purge ran for exactly this connection
     expect(forConnection).toHaveBeenCalledWith(ctx.organizationId, connection.id)
-
-    // Identifiers + secrets redacted; row stays as content-free audit fact
-    const redacted = await connectionRepo.findById(ctx.organizationId, connection.id)
-    expect(redacted).not.toBeNull()
-    expect(redacted!.status).toBe('disconnected')
-    expect(redacted!.googleAccountId).toBe(`redacted:${connection.id}`)
-    expect(redacted!.googleEmail).toBe('redacted')
-    expect(redacted!.encryptedAccessToken).toBe('redacted')
-    expect(redacted!.encryptedRefreshToken).toBe('redacted')
-    expect(redacted!.scopes).toEqual([])
-
-    const emitted = events.capturedByTag('integration.google_account.disconnected')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].connectionId).toBe(connection.id)
-    expect(emitted[0].organizationId).toBe(ctx.organizationId)
+    await expect(
+      connectionRepo.findById(ctx.organizationId, connection.id),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      googleSubject: null,
+      encryptedAccessToken: 'redacted',
+      encryptedRefreshToken: 'redacted',
+      scopes: [],
+      credentialUseState: 'none',
+    })
+    expect(
+      events.capturedByTag('integration.google_account.disconnected')[0],
+    ).toMatchObject({
+      connectionId: connection.id,
+      organizationId: ctx.organizationId,
+    })
   })
 
   it('rejects users without integration.manage permission', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
-
-    await expect(useCase({ connectionId: 'any-id' }, ctx)).rejects.toSatisfy(
-      (e: unknown) =>
-        isIntegrationError(e) && (e as { code: string }).code === 'forbidden',
-    )
-  })
-
-  it('throws when connection not found', async () => {
-    const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
     await expect(
-      useCase({ connectionId: 'nonexistent-0000-0000-0000-000000000001' }, ctx),
+      useCase({ connectionId: 'any-id' }, buildTestAuthContext({ role: 'Staff' })),
     ).rejects.toSatisfy(
-      (e: unknown) =>
-        isIntegrationError(e) && (e as { code: string }).code === 'connection_not_found',
+      (error: unknown) =>
+        isIntegrationError(error) && (error as { code: string }).code === 'forbidden',
     )
   })
 
-  it('returns early when connection is already disconnected', async () => {
+  it('rejects an unknown tenant-scoped connection', async () => {
+    const { useCase } = setup()
+    await expect(
+      useCase(
+        { connectionId: 'nonexistent-0000-0000-0000-000000000001' },
+        buildTestAuthContext({ role: 'AccountAdmin' }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) &&
+        (error as { code: string }).code === 'connection_not_found',
+    )
+  })
+
+  it('returns an already-disconnected connection without another event', async () => {
     const { useCase, connectionRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'disconnected' })
     connectionRepo.seed([connection])
 
-    const result = await useCase({ connectionId: connection.id as string }, ctx)
-
-    expect(result.status).toBe('disconnected')
-    // No cache purge or event emission for already-disconnected connections
+    await expect(useCase({ connectionId: connection.id as string }, ctx)).resolves.toBe(
+      connection,
+    )
     expect(events.capturedByTag('integration.google_account.disconnected')).toHaveLength(
       0,
     )
   })
 
-  it('still disconnects when token revocation fails', async () => {
-    const { useCase, connectionRepo, oauth, events } = setup()
+  it('fails closed on import cancellation before provider or connection mutation', async () => {
+    const { baseDeps, connectionRepo, oauth } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'active' })
     connectionRepo.seed([connection])
+    const cancelGoogleImportsForConnection = vi.fn(async () => {
+      throw new Error('import lifecycle unavailable')
+    })
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
+      cancelGoogleImportsForConnection,
+    })
 
-    // Make revocation throw — use case should still succeed
-    ;(oauth as Record<string, unknown>).revokeToken = async () => {
-      throw new Error('Google revocation endpoint unreachable')
-    }
-
-    const result = await useCase({ connectionId: connection.id as string }, ctx)
-
-    expect(result.status).toBe('disconnected')
-
-    const emitted = events.capturedByTag('integration.google_account.disconnected')
-    expect(emitted).toHaveLength(1)
+    await expect(useCase({ connectionId: connection.id as string }, ctx)).rejects.toThrow(
+      'import lifecycle unavailable',
+    )
+    expect(cancelGoogleImportsForConnection).toHaveBeenCalledWith(
+      ctx.organizationId,
+      connection.id,
+    )
+    expect(oauth.revokeTokenCalls()).toEqual([])
+    await expect(
+      connectionRepo.findById(ctx.organizationId, connection.id),
+    ).resolves.toMatchObject({
+      status: 'active',
+    })
   })
-  it('unsubscribes from GBP notifications before revoking the token', async () => {
-    const { connectionRepo, oauth, encryption, cacheRepo, events } = setup()
+
+  it('unsubscribes before revocation and still disconnects if revocation fails', async () => {
+    const { baseDeps, connectionRepo, oauth, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'active' })
     connectionRepo.seed([connection])
-
     const order: string[] = []
     ;(oauth as Record<string, unknown>).revokeToken = async () => {
       order.push('revoke')
+      throw new Error('Google revocation endpoint unreachable')
     }
     const useCase = disconnectGoogleAccount({
-      connectionRepo,
-      oauth,
-      encryption,
-      cacheRepo,
-      commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
-      clock: () => FIXED_TIME,
-      logger: createMockLogger(),
+      ...baseDeps,
       unsubscribeFromNotifications: async () => {
         order.push('unsubscribe')
       },
     })
 
-    await useCase({ connectionId: connection.id as string }, ctx)
-
+    await expect(
+      useCase({ connectionId: connection.id as string }, ctx),
+    ).resolves.toMatchObject({ status: 'disconnected' })
     expect(order).toEqual(['unsubscribe', 'revoke'])
+    expect(events.capturedByTag('integration.google_account.disconnected')).toHaveLength(
+      1,
+    )
   })
 })

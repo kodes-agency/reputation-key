@@ -58,13 +58,19 @@ async function main(): Promise<void> {
       {
         env,
         countExpired: async () =>
-          (
-            await container.reviewRepo.findAllExpiredBeforeAcrossTenants(
-              container.clock(),
-            )
-          ).length,
+          container.reviewRepo.countExpiredBeforeAcrossTenants(container.clock()),
         purgeExpired: async () => {
           await purgeHandler({} as never)
+        },
+        inspectGoogleImportLifecycle: async () => {
+          const inspect = container.useCases.inspectGoogleImportV2Lifecycle
+          if (!inspect) throw new Error('Google import lifecycle unavailable')
+          return inspect()
+        },
+        sweepGoogleImportLifecycle: async () => {
+          const sweep = container.useCases.sweepGoogleImportV2Lifecycle
+          if (!sweep) throw new Error('Google import lifecycle unavailable')
+          await sweep()
         },
         purgeEvidence: async (): Promise<ReadonlyArray<RestoreVerifyEvidenceRow>> => {
           const rows = await container.db.execute(sql`

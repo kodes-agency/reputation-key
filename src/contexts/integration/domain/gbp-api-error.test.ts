@@ -24,11 +24,14 @@ describe('createGbpApiError', () => {
     expect(err._tag).toBe('GbpApiError')
   })
 
-  it('sets operation, kind, and body', () => {
+  it('retains only content-free error diagnostics', () => {
     const err = createGbpApiError('fetchAccounts', 'rate_limited', 'Rate limited')
     expect(err.operation).toBe('fetchAccounts')
     expect(err.kind).toBe('rate_limited')
-    expect(err.body).toBe('Rate limited')
+    expect(err.providerBodyBytes).toBe(12)
+    expect(err.retryAfterMs).toBeNull()
+    expect('body' in err).toBe(false)
+    expect(JSON.stringify(err)).not.toContain('Rate limited')
   })
 
   it('formats message as "GBP API {operation} failed ({kind})"', () => {
@@ -47,10 +50,14 @@ describe('createGbpApiError', () => {
     expect(err.kind).toBe('upstream_error')
   })
 
-  it('handles empty body', () => {
-    const err = createGbpApiError('fetchReviews', 'parse_error', '')
-    expect(err.body).toBe('')
-    expect(err.message).toBe('GBP API fetchReviews failed (parse_error)')
+  it('supports content-free retry metadata', () => {
+    const err = createGbpApiError('fetchReviews', 'rate_limited', {
+      providerBodyBytes: 42,
+      retryAfterMs: 5_000,
+    })
+    expect(err.providerBodyBytes).toBe(42)
+    expect(err.retryAfterMs).toBe(5_000)
+    expect(err.message).toBe('GBP API fetchReviews failed (rate_limited)')
   })
 
   it('exposes properties as enumerable', () => {
@@ -59,6 +66,8 @@ describe('createGbpApiError', () => {
     expect(keys).toContain('_tag')
     expect(keys).toContain('operation')
     expect(keys).toContain('kind')
-    expect(keys).toContain('body')
+    expect(keys).toContain('providerBodyBytes')
+    expect(keys).toContain('retryAfterMs')
+    expect(keys).not.toContain('body')
   })
 })

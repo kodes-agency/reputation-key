@@ -49,6 +49,7 @@ const PUBLICATION_ROW = [
 /** BQC-7.3: hermetic version identity + runtime readers (no real pool/env). */
 const VERSIONS = {
   capabilityPolicy: 'test-cap',
+  executionPolicy: 'test-exec',
   policyStore: () => 11,
   routingPolicy: 1,
   sourceContentPolicy: 1,
@@ -167,6 +168,7 @@ describe('createOperationsSnapshot', () => {
     expect(snapshot.release).toEqual({ sha: 'abc1234' })
     expect(snapshot.versions).toEqual({
       capabilityPolicy: 'test-cap',
+      executionPolicy: 'test-exec',
       policyStore: 11,
       routingPolicy: 1,
       sourceContentPolicy: 1,
@@ -266,6 +268,7 @@ describe('createOperationsSnapshot', () => {
     // Static version identity survives (policy store read nulled).
     expect(snapshot.versions).toEqual({
       capabilityPolicy: 'test-cap',
+      executionPolicy: 'test-exec',
       policyStore: null,
       routingPolicy: 1,
       sourceContentPolicy: 1,

@@ -1,0 +1,51 @@
+$ pnpm test:e2e --project=full
+started: 2026-08-17T18:26:53.737Z  durationMs: 506  exit: 1
+
+
+> reputation-key@ test:e2e /Users/bozhidardenev/kodes/projects/rep-key
+> playwright test --project\=full
+
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/property.ts:7:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/property.ts:7:14
+Error: E2E seed state missing or invalid (expected /Users/bozhidardenev/kodes/projects/rep-key/e2e/.seed-state.json). Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts
+
+   at helpers/seed-state.ts:126
+
+  124 |   const state = readE2eSeedState()
+  125 |   if (!state?.propertyId) {
+> 126 |     throw new Error(
+      |           ^
+  127 |       `E2E seed state missing or invalid (expected ${E2E_SEED_STATE_PATH}). ` +
+  128 |         `Run the local stack seed or: pnpm exec tsx scripts/seed-e2e-user.ts`,
+  129 |     )
+    at requireE2eSeedState (/Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/seed-state.ts:126:11)
+    at /Users/bozhidardenev/kodes/projects/rep-key/e2e/helpers/property.ts:7:14
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+(node:44777) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)

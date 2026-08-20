@@ -2,7 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect } from 'vitest'
 import { createPortalRepository } from './portal.repository'
 import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
@@ -11,11 +11,30 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
+const PROPERTY_A = propertyId('aa000000-0000-4000-8000-000000000001')
+const PROPERTY_B = propertyId('ab000000-0000-4000-8000-000000000001')
+const PROPERTY_ALT = propertyId('ac000000-0000-4000-8000-000000000001')
 
-setupIntegrationDb({
+const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: ['portal_links', 'portal_link_categories', 'portals'],
+})
+
+beforeEach(async () => {
+  const pool = getPool()
+  for (const [id, orgId, slug] of [
+    [PROPERTY_A, ORG_A, 'portal-repo-a'],
+    [PROPERTY_B, ORG_B, 'portal-repo-b'],
+    [PROPERTY_ALT, ORG_A, 'portal-repo-alt'],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO properties (id, organization_id, name, slug, timezone)
+       VALUES ($1, $2, $3, $3, 'UTC')
+       ON CONFLICT (id) DO UPDATE SET organization_id = EXCLUDED.organization_id`,
+      [id, orgId, slug],
+    )
+  }
 })
 
 describe('portalRepository (integration)', () => {
@@ -26,6 +45,7 @@ describe('portalRepository (integration)', () => {
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Test Portal',
         slug: 'test-portal',
       })
@@ -44,6 +64,7 @@ describe('portalRepository (integration)', () => {
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Slug Test',
         slug: 'slug-test',
       })
@@ -61,6 +82,7 @@ describe('portalRepository (integration)', () => {
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Tenant Test',
         slug: 'tenant-test',
       })
@@ -82,6 +104,7 @@ describe('portalRepository (integration)', () => {
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Shared Slug',
         slug: 'shared-slug',
       })
@@ -112,12 +135,14 @@ describe('portalRepository (integration)', () => {
       const portalA = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Portal A',
         slug: 'portal-a',
       })
       const portalB = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_B,
+        propertyId: PROPERTY_B,
         name: 'Portal B',
         slug: 'portal-b',
       })
@@ -139,7 +164,7 @@ describe('portalRepository (integration)', () => {
     it('filters by property and organization', async () => {
       const db = getDb()
       const repo = createPortalRepository(db)
-      const propId = propertyId('prop-11111111-1111-1111-1111-111111111111')
+      const propId = PROPERTY_ALT
 
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
@@ -163,6 +188,7 @@ describe('portalRepository (integration)', () => {
       const repo = createPortalRepository(db)
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
+        propertyId: PROPERTY_A,
         organizationId: ORG_A,
         name: 'To Delete',
         slug: 'to-delete',
@@ -183,6 +209,7 @@ describe('portalRepository (integration)', () => {
       const repo = createPortalRepository(db)
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
+        propertyId: PROPERTY_A,
         organizationId: ORG_A,
         name: 'Reuse Slug',
         slug: 'reuse-slug',
@@ -194,6 +221,7 @@ describe('portalRepository (integration)', () => {
       const newPortal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Reuse Slug New',
         slug: 'reuse-slug',
       })
@@ -213,6 +241,7 @@ describe('portalRepository (integration)', () => {
       const portal = buildTestPortal({
         id: crypto.randomUUID(),
         organizationId: ORG_A,
+        propertyId: PROPERTY_A,
         name: 'Original',
         slug: 'original',
       })

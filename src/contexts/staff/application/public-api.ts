@@ -1,41 +1,45 @@
 // Staff context — public API surface for cross-context consumers.
-// Other contexts (property, team) consume this typed interface
-// to query staff assignment data. Per ADR-0001.
+// Other contexts consume authoritative StaffParticipation and
+// PortalResponsibility lookups through this boundary.
 
-import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalId,
+  PropertyId,
+  TeamId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { StaffParticipation } from '../domain/staff-participation'
 
 export type StaffPublicApi = Readonly<{
   /**
-   * Get property IDs accessible to a user for a permission's scope.
-   * `orgWide=true` → null (all properties in the org). `orgWide=false` → the user's
-   * assigned-property set (from staff_assignments). The orgWide flag is resolved by
-   * the caller via scopeForPermission(ctx, permission) — this method never inspects
-   * the role, so custom/multi roles resolve correctly (ADR 0001).
+   * Resolve authorization scope from identity-owned PropertyAccessGrant.
+   * Participation, membership, and responsibility never widen this set.
    */
   getAccessiblePropertyIds: (
     orgId: OrganizationId,
     userId: UserId,
     orgWide: boolean,
   ) => Promise<ReadonlyArray<PropertyId> | null>
-
-  /**
-   * Get portal IDs assigned to a staff user for a given property.
-   * Returns empty array if no portal-level assignments exist.
-   */
   getAssignedPortals: (
     input: { userId: UserId; propertyId: PropertyId },
     ctx: AuthContext,
   ) => Promise<ReadonlyArray<PortalId>>
-
-  /**
-   * Count active staff assignments for a given team.
-   * Used by team context to prevent deleting teams with active assignments.
-   */
-  countAssignmentsByTeam: (
-    orgId: OrganizationId,
-    teamId: import('#/shared/domain/ids').TeamId,
-  ) => Promise<number>
+  countAssignmentsByTeam: (orgId: OrganizationId, teamId: TeamId) => Promise<number>
+  findParticipationById?: (
+    organizationId: OrganizationId,
+    staffParticipationId: string,
+  ) => Promise<StaffParticipation | null>
+  findActiveParticipation?: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    userId: UserId,
+  ) => Promise<StaffParticipation | null>
+  listActiveParticipations?: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<readonly StaffParticipation[]>
 }>
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events
@@ -45,6 +49,8 @@ export { staffUnassigned, staffAssigned } from '../domain/events'
 // ── Error type re-exports (server functions must import from public-api, not domain/errors) ──
 export type { StaffErrorCode, StaffError } from '../domain/errors'
 export { isStaffError } from '../domain/errors'
+export type { StaffParticipation } from '../domain/staff-participation'
+export type { PortalResponsibility } from '../domain/portal-responsibility'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────
 export type StaffPortalEntry = Readonly<{

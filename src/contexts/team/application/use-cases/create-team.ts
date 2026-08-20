@@ -11,7 +11,7 @@ import type { CreateTeamInput } from '../dto/create-team.dto'
 export type { CreateTeamInput } from '../dto/create-team.dto'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
-import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import { buildTeam } from '../../domain/constructors'
 import { teamError } from '../../domain/errors'
 import { teamCreated } from '../../domain/events'
@@ -70,7 +70,6 @@ export const createTeam =
       propertyId: pid,
       name: input.name,
       description: input.description,
-      teamLeadId: input.teamLeadId ? toUserId(input.teamLeadId) : null,
       now: deps.clock(),
     })
 

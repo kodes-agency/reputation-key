@@ -1,5 +1,6 @@
 // Integration context — handle GBP notification use case tests
 
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect } from 'vitest'
 import { handleGbpNotification } from './handle-gbp-notification'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -14,8 +15,8 @@ import type {
 const createFakePropertyLookup = (
   lookup: Record<string, PropertyLookup | null> = {},
 ) => ({
-  findByGbpPlaceId: async (gbpPlaceId: string): Promise<PropertyLookup | null> =>
-    lookup[gbpPlaceId] ?? null,
+  findByGbpLocationId: async (gbpLocationId: string): Promise<PropertyLookup | null> =>
+    lookup[gbpLocationId] ?? null,
 })
 
 const createFakeReviewQueue = () => {
@@ -65,7 +66,7 @@ describe('handleGbpNotification', () => {
 
     const result = await useCaseWithLookup({
       locationId: 'ChIJ-test-place',
-      locationName: 'accounts/123/locations/456',
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
       messageId: 'msg-001',
     })
 
@@ -80,13 +81,10 @@ describe('handleGbpNotification', () => {
       propertyId: 'prop-001',
       organizationId: 'org-001',
       connectionId: 'conn-001',
-      locationName: 'accounts/123/locations/456',
-      // BQC-3.2: webhook-initiated delayed work carries a named system
-      // initiator + content-free correlation.
-      policy: {
-        initiator: { kind: 'system', id: 'webhook:gbp' },
-        correlationId: 'webhook:msg-001',
-      },
+      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      // Named, content-free webhook attribution.
+      initiator: { kind: 'system', id: 'webhook:gbp' },
+      correlationId: 'webhook:msg-001',
     })
     expect(jobs[0].options?.jobId).toBe('webhook:msg-001')
   })
@@ -96,7 +94,7 @@ describe('handleGbpNotification', () => {
 
     const result = await useCase({
       locationId: 'ChIJ-unknown-place',
-      locationName: 'accounts/123/locations/999',
+      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-missing`,
       messageId: 'msg-002',
     })
 
@@ -127,7 +125,7 @@ describe('handleGbpNotification', () => {
 
     const result = await useCase({
       locationId: 'ChIJ-no-conn',
-      locationName: 'accounts/123/locations/111',
+      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-no-connection`,
       messageId: 'msg-003',
     })
 
@@ -155,7 +153,7 @@ describe('handleGbpNotification', () => {
 
     await useCase({
       locationId: 'ChIJ-dedup',
-      locationName: 'accounts/999/locations/1',
+      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-dedup`,
       messageId: 'unique-msg-id-12345',
     })
 
