@@ -21,19 +21,46 @@ binaries built by `tsup` were absent from the Fallow entry-point list, so dead-c
 analysis treated every one of them as unreachable. That config gap is fixed on this
 branch (`b6243e71`); the remaining delta is real debt.
 
-## 2. `simulate` (Simulation) — unsatisfiable in the harness, correct about production
+## 2. `simulate` (Simulation) — FIXED; the original diagnosis was wrong
 
-`scripts/seed.ts --invariants` runs the `review-inbox-consistency` checker, which
-asserts every review has a corresponding inbox item. Inbox items are created by an
-**outbox consumer**, and the outbox relay only runs in `src/worker/index.ts` behind
-`OUTBOX_DISPATCHER_ENABLED`. The simulation container never registers those
-consumers, so `review.created` never reaches the projection and the invariant
-cannot be satisfied by construction.
+**Superseded.** This section previously read "unsatisfiable in the harness, correct
+about production", and argued that because inbox items are created by an outbox
+consumer, and the relay only runs in `src/worker/index.ts` behind
+`OUTBOX_DISPATCHER_ENABLED`, `review.created` never reached the projection and the
+invariant "cannot be satisfied by construction".
 
-The invariant is right about production. The harness cannot meet it. Fixing it means
-either registering the consumers in the simulation container or driving the relay
-explicitly — a harness change, not a product change. This workflow is new on this
-branch and has never passed on `main`.
+Half of that is true and half of it is not, and the false half is the load-bearing
+half. The **durable** consumer path is genuinely absent: `createSimulationContainer`
+never calls `registerOutboxConsumers`, whose only caller is `src/worker/index.ts`.
+But the **in-process bus** path IS wired: `registerInboxHandlers` runs
+unconditionally during container construction and attaches the `review.created`
+handler whenever the cutover state is not `switch`, and the default is record-only.
+The simulation container's own header says it uses the real event bus so handlers
+fire synchronously. The handler was attached and was being called.
+
+The real cause was a fixture bug, and it was hidden by two nested swallows.
+`scenario/builder.server.ts` seeded every review with `sourceRevision: 0` and
+`analysisSequence: 0`. `sourceEpoch` is legitimately 0-based — migration 0060
+relaxed the AI-plane CHECK to `>= 0` — but `reviewCreated` asserts that
+`sourceRevision` and `analysisSequence` are **positive**, and
+`review-command-store` takes the sequence from a DB sequence it asserts is `> 0`
+before attaching it. So `reviewRepo.upsert` committed the review and the
+`reviewCreated(...)` constructor then threw `sourceRevision must be a positive safe
+integer`. A bare `catch { /* idempotent */ }` in the builder discarded it, and
+`on-review-created` only logs its own failures — so the sole surviving symptom was
+126 persisted reviews with no inbox item, reported five minutes later by the
+invariant with no cause attached.
+
+Fix: seed `sourceRevision: 1` / `analysisSequence: 1`, and replace the bare catch
+with the `logger.warn` the reply path in the same function already had. Verified
+locally with the exact command CI runs — `pnpm seed -- --invariants` now exits 0
+with `All invariant checks passed (no error-level violations)`; the remaining
+`sla-consistency` and `no-orphaned-jobs` items are warnings, which `scripts/seed.ts`
+tolerates by design.
+
+The lesson worth keeping: the invariant was right about production **and** right
+about the harness. It was the only check that noticed, and the previous conclusion
+would have retired or worked around it.
 
 ## 3. `beta-acceptance` — structurally over budget
 
