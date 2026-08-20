@@ -477,6 +477,13 @@
       "when": 1787203843486,
       "tag": "0067_ai-model-luna-switch",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1787203843487,
+      "tag": "0068_ai-prompt-rubric-repin",
+      "breakpoints": true
     }
   ]
 }
