@@ -51,4 +51,26 @@ export type AllowlistEntry = Readonly<{
   expires: string
 }>
 
-export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = []
+export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = [
+  {
+    id: 'server-fn-fetch-aborted-on-navigation',
+    kind: 'console-error',
+    // Both halves are required: the bare TypeError would tolerate ANY failed
+    // fetch on the page, and the frame pins it to the framework's
+    // server-function client rather than to application code.
+    pattern: /TypeError: Failed to fetch[\s\S]*createServerFn/,
+    pagePattern: /\/home\?propertyId=/,
+    owner:
+      'closed-beta AI enablement — docs/operations/closed-beta-import-defects-2026-08-19.md',
+    reason:
+      'A route change cancels in-flight server-function loaders, and the browser ' +
+      'reports each cancelled request as "Failed to fetch" from inside TanStack ' +
+      "Start's createServerFn client bundle. The harness already classifies the " +
+      'underlying requests as [request-aborted] aborted during navigation, so this ' +
+      'is the same benign event counted a second time through the console channel. ' +
+      'It cannot be silenced at source because the log originates in framework ' +
+      'code. Removed when the promoted-home loaders become abort-aware, or when ' +
+      'TanStack stops logging aborts in its client.',
+    expires: '2026-11-18',
+  },
+]
