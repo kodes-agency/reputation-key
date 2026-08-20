@@ -141,6 +141,50 @@ export function maximumCostMicros(
   return Number(result)
 }
 
+export type AiSettledUsageV1 = Readonly<{
+  inputTokens: number
+  cachedInputTokens: number
+  outputTokens: number
+}>
+
+/**
+ * The one settled-cost formula. Every party that recomputes what a settlement
+ * charged MUST call this.
+ *
+ * The egress gateway used to keep its own copy of the per-million literals in
+ * three places while the admission authority derived them from
+ * OPENAI_PRICE_CATALOGUE_V1. Repricing the model to gpt-5.6-luna moved the
+ * catalogue and left the gateway's copies behind, so admission signed a receipt
+ * the gateway then recomputed differently, `receiptMatches` failed on
+ * `costMicros`, and every successfully generated reply was discarded as an
+ * unverifiable receipt AFTER the provider had run and been charged. Callers saw
+ * only `operation_ambiguous`.
+ *
+ * Ceiling division, matching the SQL settlement function: partial micros are
+ * charged, never dropped.
+ */
+export function settledCostMicros(usage: AiSettledUsageV1): bigint {
+  if (
+    !Number.isSafeInteger(usage.inputTokens) ||
+    !Number.isSafeInteger(usage.cachedInputTokens) ||
+    !Number.isSafeInteger(usage.outputTokens) ||
+    usage.inputTokens < 0 ||
+    usage.cachedInputTokens < 0 ||
+    usage.outputTokens < 0 ||
+    usage.cachedInputTokens > usage.inputTokens
+  ) {
+    throw new RangeError('AI settled usage must be nonnegative safe integers')
+  }
+  const unitTokens = BigInt(OPENAI_PRICE_CATALOGUE_V1.unitTokens)
+  const numerator =
+    BigInt(usage.inputTokens - usage.cachedInputTokens) *
+      BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros) +
+    BigInt(usage.cachedInputTokens) *
+      BigInt(OPENAI_PRICE_CATALOGUE_V1.cachedInputMicros) +
+    BigInt(usage.outputTokens) * BigInt(OPENAI_PRICE_CATALOGUE_V1.outputMicros)
+  return (numerator + unitTokens - 1n) / unitTokens
+}
+
 export const AI_SERVICE_DRAIN_SECONDS_V1 = 130
 export const AI_SERVICE_HANDLER_DRAIN_TIMEOUT_MILLIS_V1 = 115_000
 

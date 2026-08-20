@@ -25,6 +25,7 @@ import {
 import { deriveCanarySafetyIdentifier } from './safety-identifier'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
+import { settledCostMicros } from '../../src/shared/ai-openai-provider-profile'
 
 const CANARY_SOURCE = Object.freeze({ canary: 'repkey_synthetic_canary_v1' })
 const canaryOutputSchema = AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA
@@ -64,11 +65,7 @@ function receiptMatches(
     request.disposition === 'no_dispatch'
       ? 0n
       : request.usageKnown
-        ? (BigInt(request.inputTokens - request.cachedInputTokens) * 750_000n +
-            BigInt(request.cachedInputTokens) * 75_000n +
-            BigInt(request.outputTokens) * 4_500_000n +
-            999_999n) /
-          1_000_000n
+        ? settledCostMicros(request)
         : BigInt(grant.limits.costMicros)
   const acceptedDisposition =
     receipt.disposition === request.disposition || receipt.disposition === 'policy_denied'

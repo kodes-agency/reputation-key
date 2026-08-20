@@ -25,6 +25,7 @@ import type {
 } from './contracts'
 import { createAiEgressGatewayService } from './service'
 import { createSensitiveSourceLease } from './source-lease'
+import { settledCostMicros } from '../../src/shared/ai-openai-provider-profile'
 
 const NOW = 1_780_000_000_000
 const SHA = 'a'.repeat(64)
@@ -236,7 +237,10 @@ function signedSuccessReceipt(request: AiSettlementRequestV1, grant: AiExecution
       cachedInputTokens: request.cachedInputTokens,
       outputTokens: request.outputTokens,
       reasoningTokens: request.reasoningTokens,
-      costMicros: 6,
+      // Derived from the catalogue, not frozen: this fixture's fake authority
+      // is the only thing standing in for real settlement pricing, and a frozen
+      // number here is why a repricing shipped green.
+      costMicros: Number(settledCostMicros(request)),
       settledAtEpochMillis: NOW + 2_000,
       settlementState: 'settled',
     },

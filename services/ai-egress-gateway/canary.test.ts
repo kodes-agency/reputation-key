@@ -6,6 +6,7 @@ import {
   type AiCanaryExecutionBindingV1,
   type AiExecutionGrantV1,
 } from '../../src/shared/ai-internal-transport-contract'
+import { settledCostMicros } from '../../src/shared/ai-openai-provider-profile'
 import { createVersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 import { createAiOneShotCanary } from './canary'
 import { deriveCanarySafetyIdentifier } from './safety-identifier'
@@ -104,15 +105,13 @@ function createAdmission(
             cachedInputTokens: request.cachedInputTokens,
             outputTokens: request.outputTokens,
             reasoningTokens: request.reasoningTokens,
+            // Derived, never copied: a fake admission authority that prices
+            // differently from the real one turns a repricing into green tests
+            // and a dead production path.
             costMicros:
               request.disposition === 'no_dispatch'
                 ? 0
-                : Math.ceil(
-                    ((request.inputTokens - request.cachedInputTokens) * 750_000 +
-                      request.cachedInputTokens * 75_000 +
-                      request.outputTokens * 4_500_000) /
-                      1_000_000,
-                  ),
+                : Number(settledCostMicros(request)),
             settledAtEpochMillis: options.settledAtEpochMillis ?? 1_780_000_002_000,
             settlementState:
               disposition === 'no_dispatch'

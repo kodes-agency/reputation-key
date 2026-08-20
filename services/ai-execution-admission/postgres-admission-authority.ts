@@ -1,7 +1,7 @@
 import type { Pool } from 'pg'
 import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
-  OPENAI_PRICE_CATALOGUE_V1,
+  settledCostMicros,
 } from '../../src/shared/ai-openai-provider-profile'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
 import {
@@ -166,14 +166,7 @@ function parseSettlementRow(
     request.disposition === 'no_dispatch'
       ? 0n
       : request.usageKnown
-        ? (BigInt(request.inputTokens - request.cachedInputTokens) *
-            BigInt(OPENAI_PRICE_CATALOGUE_V1.uncachedInputMicros) +
-            BigInt(request.cachedInputTokens) *
-              BigInt(OPENAI_PRICE_CATALOGUE_V1.cachedInputMicros) +
-            BigInt(request.outputTokens) *
-              BigInt(OPENAI_PRICE_CATALOGUE_V1.outputMicros) +
-            BigInt(OPENAI_PRICE_CATALOGUE_V1.unitTokens - 1)) /
-          BigInt(OPENAI_PRICE_CATALOGUE_V1.unitTokens)
+        ? settledCostMicros(request)
         : null
   if (
     row.status !== 'settled' ||

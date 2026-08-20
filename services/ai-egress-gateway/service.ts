@@ -23,6 +23,7 @@ import type {
 } from './contracts'
 import { createAiSettlementSignal } from './settlement-signal'
 import { enforceOutboundFetchDisposition } from './dispositions'
+import { settledCostMicros } from '../../src/shared/ai-openai-provider-profile'
 
 type AiGatewayErrorCode = Extract<AiGatewayRouteResponseV1, { status: 'error' }>['code']
 
@@ -182,11 +183,7 @@ function expectedSettlementCostMicros(
 ): number | null {
   if (request.disposition === 'no_dispatch') return 0
   if (!request.usageKnown) return grant.limits.costMicros
-  const numerator =
-    BigInt(request.inputTokens - request.cachedInputTokens) * 750_000n +
-    BigInt(request.cachedInputTokens) * 75_000n +
-    BigInt(request.outputTokens) * 4_500_000n
-  const value = (numerator + 999_999n) / 1_000_000n
+  const value = settledCostMicros(request)
   return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : null
 }
 
@@ -467,15 +464,31 @@ export function createAiEgressGatewayService(
         } finally {
           settlementDeadline.dispose()
         }
-        if (
-          settlement.status !== 'settled' ||
-          !receiptMatches(
+        const receiptBound =
+          settlement.status === 'settled' &&
+          receiptMatches(
             settlement.receipt,
             grant,
             settleRequest,
             dependencies.admissionPublicKeys,
           )
-        ) {
+        if (settlement.status !== 'settled' || !receiptBound) {
+          // Two independent causes behind one exit: admission did not return a
+          // settled receipt, or it returned one that does not bind to this
+          // grant and request. The provider may already have run and been
+          // charged, so `operation_ambiguous` is the honest code — but which
+          // half failed decides whether to look at admission or at binding,
+          // and this exit reported neither.
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_settlement_rejected',
+              route,
+              settlementStatus: settlement.status,
+              receiptBound,
+              disposition:
+                settlement.status === 'settled' ? settlement.receipt.disposition : null,
+            })}\n`,
+          )
           return errorResponse(route, 'operation_ambiguous')
         }
         const releaseNow = now()
@@ -488,6 +501,29 @@ export function createAiEgressGatewayService(
             (grant.replyTokenExpiresAtEpochMillis === null ||
               grant.replyTokenExpiresAtEpochMillis <= releaseNow))
         ) {
+          // Four independent expiry conditions collapsed into one exit. The
+          // provider has already answered and been charged at this point, so
+          // knowing WHICH clock ran out is the difference between a caller
+          // deadline, a grant TTL and a reply-token TTL.
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_post_settlement_expiry',
+              route,
+              successSettled,
+              aborted: signal.aborted,
+              pastOuterDeadline: releaseNow >= outerDeadlineEpochMillis,
+              settledAfterGrantExpiry:
+                settlement.receipt.settledAtEpochMillis >= grant.expiresAtEpochMillis,
+              replyTokenExpired:
+                route === 'reply-suggestion' &&
+                (grant.replyTokenExpiresAtEpochMillis === null ||
+                  grant.replyTokenExpiresAtEpochMillis <= releaseNow),
+              replyTokenTtlMillis:
+                grant.replyTokenExpiresAtEpochMillis === null
+                  ? null
+                  : grant.replyTokenExpiresAtEpochMillis - releaseNow,
+            })}\n`,
+          )
           return errorResponse(
             route,
             successSettled ? 'completed_without_delivery' : 'operation_ambiguous',
@@ -524,8 +560,22 @@ export function createAiEgressGatewayService(
           return errorResponse(route, 'completed_without_delivery')
         }
         return response
-      } catch {
+      } catch (error) {
         prepared.invocation.canonicalProviderBytes.fill(0)
+        // The last bare catch on the execute path. Everything above it can have
+        // already called and been charged for the provider, so swallowing the
+        // class of failure here is what made a settled-but-undelivered reply
+        // indistinguishable from a policy refusal.
+        process.stderr.write(
+          `${JSON.stringify({
+            event: 'gateway_execute_threw',
+            route,
+            successSettled,
+            authorizationInvoked,
+            reason: error instanceof Error ? error.name : 'unknown',
+            message: error instanceof Error ? error.message.slice(0, 160) : '',
+          })}\n`,
+        )
         return errorResponse(
           route,
           successSettled
