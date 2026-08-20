@@ -13,11 +13,6 @@ export type {
   PortalAnalyticsData,
   StaffDashboardData,
   PortalRatingTrendPoint,
-  // The two series `DashboardData` already carries. Absent from this list until
-  // now, which is why nothing outside the context could name them and the
-  // property dashboard never drew them.
-  RatingTrendPoint,
-  ReviewVolumePoint,
   AttentionSignals,
   FleetEntry,
   FleetOverviewData,
