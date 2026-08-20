@@ -1,9 +1,11 @@
 // Property dashboard — a property's KPI strip, rating distribution, reply
 // performance, engagement funnel and recent reviews. Pure data-display surface:
 // all data arrives via props (DashboardData + AttentionSignals), no server/RPC.
-// Charts are CSS bars (property-dashboard-helpers), not recharts, so no sizing hacks.
+// The rating distribution is CSS bars (property-dashboard-helpers); the
+// reputation-over-time chart is recharts via the shadcn ChartContainer, so the
+// trend stories wait for the series to mount before asserting.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, within } from 'storybook/test'
+import { expect, within, waitFor } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
 import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
@@ -125,6 +127,59 @@ export const EmptyDashboard: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no reviews yet/i)).toBeVisible()
+  },
+}
+
+// `ratingTrend` and `reviewVolume` were computed, shipped to the browser, and
+// never drawn. These pin that they render, and that the shapes which break
+// charts are handled rather than crashing or drawing an empty axis.
+export const ReputationTrend: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/reputation over time/i)).toBeVisible()
+    expect(canvas.queryByTestId('reputation-trend-empty')).toBeNull()
+    // Both series are drawn: bars for volume, a line for the rating.
+    await waitFor(() => {
+      expect(canvasElement.querySelector('.recharts-bar')).not.toBeNull()
+      expect(canvasElement.querySelector('.recharts-line')).not.toBeNull()
+    })
+  },
+}
+
+export const ReputationTrendEmpty: Story = {
+  args: {
+    ...Default.args,
+    dashboard: { ...populatedDashboard, ratingTrend: [], reviewVolume: [] },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // An axis with no series is worse than saying there is nothing yet.
+    expect(canvas.getByTestId('reputation-trend-empty')).toBeVisible()
+  },
+}
+
+export const ReputationTrendSparse: Story = {
+  args: {
+    ...Default.args,
+    dashboard: {
+      ...populatedDashboard,
+      // Deliberately misaligned: a volume day with no rating, and a rating day
+      // with no volume. Zipping these by index would drop or mispair points.
+      ratingTrend: [{ date: '2026-07-02', avgRating: 4.6 }],
+      reviewVolume: [{ date: '2026-07-01', count: 3 }],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByTestId('reputation-trend-empty')).toBeNull()
+    // Two distinct calendar days survive the merge.
+    await waitFor(() => {
+      const ticks = canvasElement.querySelectorAll(
+        '.recharts-xAxis .recharts-cartesian-axis-tick',
+      )
+      expect(ticks.length).toBeGreaterThanOrEqual(2)
+    })
   },
 }
 
