@@ -5,7 +5,7 @@
 // incomplete object to `Notification` and would have rendered `undefined` once
 // the row started reading `payload`.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   longPropertyNameNotification,
   makeNotification,
@@ -145,7 +145,19 @@ export const DismissIsKeyboardReachable: Story = {
   },
 }
 
-/** Safe secondary actions only — no inline Approve/Publish. */
+/**
+ * Safe secondary actions only — no inline Approve/Publish — and selecting one
+ * reports it.
+ *
+ * The story deliberately ends with the menu CLOSED AND SETTLED. Radix's
+ * DropdownMenu is modal: while open it puts `aria-hidden` on everything outside
+ * its portal, which includes `#storybook-root` — the element the a11y addon
+ * audits, and which still holds the row's focusable controls. Yielding while
+ * that is true makes axe report `aria-hidden-focus` about Radix's overlay
+ * strategy rather than about this row. Radix also clears those attributes
+ * asynchronously, and the runner's axe pass fires the instant `play` resolves,
+ * so the wait below is load-bearing, not cosmetic.
+ */
 export const OverflowMenu: Story = {
   args: { notification: newReview },
   play: async ({ canvasElement }) => {
@@ -158,8 +170,19 @@ export const OverflowMenu: Story = {
     ).toBeInTheDocument()
     expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toBeInTheDocument()
     expect(menu.getByRole('menuitem', { name: /^Mute/ })).toBeInTheDocument()
+    // The deliberate omission: approving or publishing a reply must not be one
+    // click away from a notification the reader has not opened.
     expect(menu.queryByRole('menuitem', { name: /approve|publish/i })).toBeNull()
+
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
     expect(actions.onMarkRead).toHaveBeenCalledWith(newReview.id)
+
+    await waitFor(() => {
+      expect(document.querySelector('[role="menu"]')).toBeNull()
+      const root = document.getElementById('storybook-root')
+      expect(root).not.toHaveAttribute('aria-hidden')
+      expect(root).not.toHaveAttribute('data-aria-hidden')
+      expect(document.body.style.pointerEvents).toBe('')
+    })
   },
 }
