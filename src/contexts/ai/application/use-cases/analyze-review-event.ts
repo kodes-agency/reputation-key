@@ -530,9 +530,16 @@ export function createAnalyzeReviewEvent(
         AbortSignal.timeout(PROFILE.requestDeadlineMs),
       )
       if (response.status === 'error') {
+        // ONE clock read for both instants. Anchoring the backoff to the pre-call
+        // `nowEpochMillis` while stamping the failure with a fresh read puts the
+        // retry BEFORE the write whenever the provider call outlasts the backoff,
+        // and ai_operations_attempt_valid enforces `next_attempt_at >= updated_at`,
+        // so the retry write itself threw and the whole request 500'd. aiRetryAt
+        // adds at least 1s, so any call slower than that inverted them.
+        const failedAtEpochMillis = dependencies.nowEpochMillis()
         const retryAtEpochMillis = aiRetryAt(
           expectedAttempt,
-          nowEpochMillis,
+          failedAtEpochMillis,
           response.retryAfterEpochMillis,
         )
         await dependencies.operations.recordFailure({
@@ -540,7 +547,7 @@ export function createAnalyzeReviewEvent(
           expectedAttempt,
           failureCode: response.code,
           retryAtEpochMillis,
-          failedAtEpochMillis: dependencies.nowEpochMillis(),
+          failedAtEpochMillis,
         })
         if (retryAtEpochMillis !== null) {
           return { status: 'retry', retryAtEpochMillis, code: response.code }
