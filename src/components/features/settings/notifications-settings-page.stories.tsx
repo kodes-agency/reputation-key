@@ -116,6 +116,27 @@ export const EmailAllowed: Story = {
   },
 }
 
+export const TitleColumnKeepsItsWidth: Story = {
+  play: async ({ canvasElement }) => {
+    const fieldset = canvasElement.querySelector('fieldset')
+    const heading = fieldset?.querySelector('[role="heading"]')
+    const description = fieldset?.querySelector('p')
+    if (!(heading instanceof HTMLElement) || !(description instanceof HTMLElement)) {
+      throw new Error('category row is missing its heading or description')
+    }
+    // A regression I shipped: the controls row spanned only columns 2-3, so it
+    // sized both `auto` tracks to the full fieldset width and left `1fr` at
+    // ZERO. "Account and safety" then wrapped one character per line — 0px wide
+    // and 72px tall. The earlier assertions all still passed, because state and
+    // alignment were both fine; nothing measured whether the column had usable
+    // width. This does.
+    expect(heading.getBoundingClientRect().width).toBeGreaterThan(150)
+    expect(description.getBoundingClientRect().width).toBeGreaterThan(150)
+    // Single line, not a vertical character stack.
+    expect(heading.getBoundingClientRect().height).toBeLessThan(40)
+  },
+}
+
 export const EmailUnavailableForProperty: Story = {
   args: { emailAllowed: false },
   play: async ({ canvasElement }) => {
