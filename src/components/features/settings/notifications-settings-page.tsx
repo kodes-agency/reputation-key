@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import {
   getDefaultEnabled,
-  type NotificationCadence,
   type NotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
@@ -20,7 +19,7 @@ type PreferenceUpdate = Readonly<{
     category: NotificationCategory
     channel: NotificationChannel
     enabled: boolean
-    cadence: NotificationCadence
+    cadence: NotificationPreference['cadence']
     urgentBypassEnabled: boolean
     quietHoursStart: string | null
     quietHoursEnd: string | null
@@ -35,6 +34,9 @@ type Props = Readonly<{
   properties: readonly Readonly<{ id: string; name: string }>[]
   preferences: readonly NotificationPreference[]
   userSettings: NotificationUserSettings | null
+  propertyId: string
+  emailAllowed: boolean
+  setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
   updateUserSettings: Action<SettingsUpdate, NotificationUserSettings>
 }>
@@ -43,16 +45,52 @@ export function NotificationsSettingsPage({
   properties,
   preferences,
   userSettings,
+  propertyId,
+  emailAllowed,
+  setPropertyId,
+  updatePreference,
+  updateUserSettings,
+}: Props) {
+  return (
+    <NotificationFormattingBoundary
+      // Remounting on the server values is the re-sync. The locale and timezone
+      // inputs need local edit state, but seeding it once meant a refetch — or
+      // another session — never reached the fields. Keying on the persisted
+      // values reseeds them exactly when the server truth changes and never
+      // while the user is mid-edit.
+      key={`${userSettings?.locale ?? 'en'}:${userSettings?.timezone ?? 'UTC'}`}
+      properties={properties}
+      preferences={preferences}
+      userSettings={userSettings}
+      propertyId={propertyId}
+      emailAllowed={emailAllowed}
+      setPropertyId={setPropertyId}
+      updatePreference={updatePreference}
+      updateUserSettings={updateUserSettings}
+    />
+  )
+}
+
+function NotificationFormattingBoundary({
+  properties,
+  preferences,
+  userSettings,
+  propertyId,
+  emailAllowed,
+  setPropertyId,
   updatePreference,
   updateUserSettings,
 }: Props) {
   const [locale, setLocale] = useState(userSettings?.locale ?? 'en')
   const [timezone, setTimezone] = useState(userSettings?.timezone ?? 'UTC')
-  const [localPreferences, setLocalPreferences] = useState(preferences)
-  const [propertyId, setPropertyId] = useState(properties[0]?.id ?? '')
 
+  // Read straight from the query result. There used to be a `localPreferences`
+  // mirror seeded once from this prop and patched by hand after each save,
+  // which made it the only render source: the mutation invalidates and the
+  // query refetches, but nothing re-seeded the mirror, so persisted state never
+  // reached the screen and any server-side normalisation was invisible.
   const preferenceFor = (category: NotificationCategory, channel: NotificationChannel) =>
-    localPreferences.find(
+    preferences.find(
       (preference) =>
         preference.propertyId === propertyId &&
         preference.category === category &&
@@ -80,18 +118,7 @@ export function NotificationsSettingsPage({
       quietHoursEnd: patch.quietHoursEnd ?? current?.quietHoursEnd ?? null,
     } as const
     try {
-      const saved = await updatePreference({ data: input })
-      setLocalPreferences((existing) => [
-        ...existing.filter(
-          (preference) =>
-            !(
-              preference.propertyId === propertyId &&
-              preference.category === category &&
-              preference.channel === channel
-            ),
-        ),
-        saved,
-      ])
+      await updatePreference({ data: input })
       toast.success('Notification preference updated')
     } catch {
       toast.error('Could not update notification preference')
@@ -104,6 +131,7 @@ export function NotificationsSettingsPage({
       propertyId={propertyId}
       locale={locale}
       timezone={timezone}
+      emailAllowed={emailAllowed}
       setPropertyId={setPropertyId}
       setLocale={setLocale}
       setTimezone={setTimezone}
