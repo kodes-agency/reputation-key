@@ -20,20 +20,35 @@ import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-re
 
 /**
  * `mapReviewLanguageMetadata` fails closed unless the process matches the pinned
- * node/ICU/Unicode triple, and this machine's runtime deliberately does not. The
- * pinned triple is asserted at image build time (Dockerfile), so BOTH branches
- * must be exercised here: `withPinnedLanguageRuntime` stubs the configurable
- * `process.versions` record so the supported/unsupported paths run everywhere,
- * while the un-stubbed default reproduces real runtime drift.
+ * node/ICU/Unicode triple, which is asserted at image build time (Dockerfile), so
+ * BOTH branches must be exercised here.
+ *
+ * Both are stubbed on purpose. An earlier version left the drift branch un-stubbed
+ * and relied on "this machine's runtime deliberately differs from the pin" — which
+ * inverts on any host that happens to match it. CI runs the pinned Node, so the
+ * drift tests saw no drift, took the happy path and returned `completed`. A test
+ * whose verdict depends on which machine runs it is not a test.
  */
 function withPinnedLanguageRuntime(): void {
+  stubProcessVersions({
+    node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
+    icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
+    unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
+  })
+}
+
+/** Forces real drift regardless of host, by moving ICU off the pinned value. */
+function withDriftedLanguageRuntime(): void {
+  stubProcessVersions({
+    node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
+    icu: `${Number.parseInt(AI_REVIEW_LANGUAGE_ICU_VERSION, 10) + 1}.0`,
+    unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
+  })
+}
+
+function stubProcessVersions(overrides: Readonly<Record<string, string>>): void {
   Object.defineProperty(process, 'versions', {
-    value: {
-      ...process.versions,
-      node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
-      icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
-      unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
-    },
+    value: { ...process.versions, ...overrides },
     configurable: true,
     writable: false,
     enumerable: true,
@@ -453,9 +468,9 @@ describe('analyze review event', () => {
     })
   })
 
-  // This machine's node/ICU/Unicode triple deliberately differs from the pinned
-  // one, so these run against real runtime drift with no stubbing.
   describe('with a drifted language runtime', () => {
+    beforeEach(withDriftedLanguageRuntime)
+
     it('retries instead of destroying the analysis', async () => {
       const harness = createHarness()
 
