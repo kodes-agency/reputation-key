@@ -98,6 +98,53 @@ async function countWhere(
   return Number(result[0]?.count ?? 0)
 }
 
+/**
+ * AI-derived narrowing for the item list: `attention` and `category`.
+ *
+ * Neither is a column on `inbox_items`. Each active filter resolves to the
+ * review ids whose CURRENT analysis matches, through the AI context's gated
+ * projection, and contributes its own `IN` predicate — so supplying both
+ * intersects them rather than unioning them.
+ *
+ * Returns `null` to mean "stop, nothing can match". An absent AI port or an
+ * empty id set is "no review matches", NEVER "no filter": treating it as the
+ * latter would show the entire inbox while the UI claimed a filter was applied.
+ */
+async function resolveAiNarrowing(
+  ports: LookupPorts,
+  orgId: OrganizationId,
+  filters: InboxFilters,
+): Promise<SQL[] | null> {
+  if (!filters.attention?.length && !filters.category?.length) return []
+  const propertyIds =
+    filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
+  const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
+  if (filters.attention?.length) {
+    lookups.push(
+      ports.aiInsights?.findCurrentReviewIdsByAttention({
+        organizationId: orgId,
+        propertyIds,
+        attention: filters.attention,
+      }),
+    )
+  }
+  if (filters.category?.length) {
+    lookups.push(
+      ports.aiInsights?.findCurrentReviewIdsByCategory({
+        organizationId: orgId,
+        propertyIds,
+        categories: filters.category,
+      }),
+    )
+  }
+  const narrowing: SQL[] = [eq(inboxItems.sourceType, 'review')]
+  for (const reviewIds of await Promise.all(lookups)) {
+    if (reviewIds === undefined || reviewIds.length === 0) return null
+    narrowing.push(inArray(inboxItems.sourceId, [...reviewIds]))
+  }
+  return narrowing
+}
+
 export const createInboxRepository = (
   db: Database,
   ports: LookupPorts,
@@ -181,41 +228,11 @@ export const createInboxRepository = (
           return { items: [], nextCursor: null } as PaginatedResult
         conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
       }
-      // AI-derived narrowing (attention / category): each active filter resolves
-      // to the review ids whose *current* analysis matches, via the AI context's
-      // gated projection. Both may be active — the sets intersect, since each
-      // contributes its own IN predicate. An absent AI port or an empty id set
-      // means "no review matches", never "no filter".
-      if (filters.attention?.length || filters.category?.length) {
-        const propertyIds =
-          filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
-        const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
-        if (filters.attention?.length)
-          lookups.push(
-            ports.aiInsights?.findCurrentReviewIdsByAttention({
-              organizationId: orgId,
-              propertyIds,
-              attention: filters.attention,
-            }),
-          )
-        if (filters.category?.length)
-          lookups.push(
-            ports.aiInsights?.findCurrentReviewIdsByCategory({
-              organizationId: orgId,
-              propertyIds,
-              categories: filters.category,
-            }),
-          )
-        const matched: string[][] = []
-        for (const reviewIds of await Promise.all(lookups)) {
-          if (reviewIds === undefined || reviewIds.length === 0) {
-            return { items: [], nextCursor: null }
-          }
-          matched.push([...reviewIds])
-        }
-        conditions.push(eq(inboxItems.sourceType, 'review'))
-        for (const ids of matched) conditions.push(inArray(inboxItems.sourceId, ids))
-      }
+      // AI-derived narrowing (attention / category). Extracted because adding
+      // the second filter pushed this function past the complexity threshold.
+      const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
+      if (aiNarrowing === null) return { items: [], nextCursor: null } as PaginatedResult
+      conditions.push(...aiNarrowing)
 
       // Cursor-based pagination: sourceDate DESC, id DESC
       // Keyset pagination: ORDER BY sourceDate DESC, id DESC means

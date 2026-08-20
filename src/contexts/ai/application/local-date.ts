@@ -17,9 +17,33 @@ function isLeapYear(year: number): boolean {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
 }
 
-export function daysInMonth(year: number, month: number): number {
+function daysInMonth(year: number, month: number): number {
   if (month === 2) return isLeapYear(year) ? 29 : 28
   return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31
+}
+
+type CivilDate = Readonly<{ year: number; month: number; day: number }>
+
+function previousDay({ year, month, day }: CivilDate): CivilDate {
+  if (day > 1) return { year, month, day: day - 1 }
+  const previousMonth = month === 1 ? 12 : month - 1
+  const previousYear = month === 1 ? year - 1 : year
+  return {
+    year: previousYear,
+    month: previousMonth,
+    day: daysInMonth(previousYear, previousMonth),
+  }
+}
+
+function nextDay({ year, month, day }: CivilDate): CivilDate {
+  if (day < daysInMonth(year, month)) return { year, month, day: day + 1 }
+  return month === 12
+    ? { year: year + 1, month: 1, day: 1 }
+    : { year, month: month + 1, day: 1 }
+}
+
+function format({ year, month, day }: CivilDate): string {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 export function addDays(localDate: string, delta: number): string {
@@ -27,36 +51,15 @@ export function addDays(localDate: string, delta: number): string {
   if (match === null || !Number.isSafeInteger(delta)) {
     throw new TypeError('invalid property-local date arithmetic input')
   }
-  let year = Number(match[1])
-  let month = Number(match[2])
-  let day = Number(match[3])
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
   if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) {
     throw new TypeError('invalid property-local date')
   }
-  let remaining = delta
-  while (remaining < 0) {
-    if (day > 1) day -= 1
-    else {
-      month -= 1
-      if (month === 0) {
-        year -= 1
-        month = 12
-      }
-      day = daysInMonth(year, month)
-    }
-    remaining += 1
+  let civil = { year, month, day }
+  for (let step = 0; step < Math.abs(delta); step += 1) {
+    civil = delta < 0 ? previousDay(civil) : nextDay(civil)
   }
-  while (remaining > 0) {
-    if (day < daysInMonth(year, month)) day += 1
-    else {
-      day = 1
-      month += 1
-      if (month === 13) {
-        year += 1
-        month = 1
-      }
-    }
-    remaining -= 1
-  }
-  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return format(civil)
 }
