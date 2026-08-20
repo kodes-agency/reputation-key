@@ -105,6 +105,8 @@ type StackPaths = Readonly<{
   env: string
   artifacts: string
   acceptance: string
+  /** Bind-mounted at /artifacts/perf for the perf-runner (see prepare()). */
+  perfArtifacts: string
   e2eArtifacts: string
   googleRuntime: string
   aiRuntime: string
@@ -187,6 +189,7 @@ function paths(mode: LocalStackMode): StackPaths {
     env: resolve(root, 'stack.env'),
     artifacts,
     acceptance: resolve(artifacts, 'acceptance'),
+    perfArtifacts: resolve(artifacts, 'perf'),
     googleRuntime: resolve(root, 'e2e', 'google-runtime'),
     aiRuntime: resolve(root, 'e2e', 'ai-runtime'),
     e2eArtifacts: resolve(root, 'e2e'),
@@ -992,6 +995,15 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
   mkdirSync(state.acceptance, { recursive: true })
   mkdirSync(state.e2eArtifacts, { recursive: true })
   chmodSync(state.e2eArtifacts, 0o777)
+  // Same bind-mount uid mismatch as e2eArtifacts, one directory deeper. The
+  // perf-runner image runs as USER node (uid 1000) while the host artifact tree
+  // is owned by whoever ran the stack — the CI runner user on Linux. Docker
+  // Desktop's uid mapping hides this on macOS, so it only ever failed in CI:
+  // `seed-scale failed: EACCES: permission denied, mkdir '/artifacts/perf'`.
+  // Creating it here, writable, means the container never has to mkdir it.
+  mkdirSync(state.perfArtifacts, { recursive: true })
+  chmodSync(state.artifacts, 0o777)
+  chmodSync(state.perfArtifacts, 0o777)
   const releaseSha = revision()
   const baseEnv = buildLocalStackEnv({
     mode,
