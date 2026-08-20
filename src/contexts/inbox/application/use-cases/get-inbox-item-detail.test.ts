@@ -195,6 +195,7 @@ describe('getInboxItemDetail', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis,
       findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByCategory: vi.fn(async () => []),
     }
 
     const result = await getInboxItemDetail({

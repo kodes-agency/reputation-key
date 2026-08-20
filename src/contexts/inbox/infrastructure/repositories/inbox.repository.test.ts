@@ -595,6 +595,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     const aiInsights: AiReviewInsightsPort = {
       readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
       findCurrentReviewIdsByAttention,
+      findCurrentReviewIdsByCategory: vi.fn(async () => []),
     }
     const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
 
@@ -611,6 +612,67 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
       attention: ['urgent', 'high'],
     })
     expect(result.items.map((item) => item.sourceId)).toEqual([srcMatch])
+  })
+
+  it('category filters intersect with attention through the AI projection', async () => {
+    const srcBoth = reviewId(crypto.randomUUID())
+    const srcAttentionOnly = reviewId(crypto.randomUUID())
+    const srcCategoryOnly = reviewId(crypto.randomUUID())
+    for (const sourceId of [srcBoth, srcAttentionOnly, srcCategoryOnly]) {
+      await repo.create(makeInboxItem({ sourceId }), ORG_A)
+    }
+    const findCurrentReviewIdsByCategory = vi.fn(async () => [srcBoth, srcCategoryOnly])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(async () => [srcBoth, srcAttentionOnly]),
+      findCurrentReviewIdsByCategory,
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await filteredRepo.findFilteredPaginated(
+      { propertyId: PROP_A, attention: ['urgent'], category: ['wait_time'] },
+      ORG_A,
+      undefined,
+      50,
+    )
+
+    expect(findCurrentReviewIdsByCategory).toHaveBeenCalledWith({
+      organizationId: ORG_A,
+      propertyIds: [PROP_A],
+      categories: ['wait_time'],
+    })
+    // Intersection, not union: only the review in BOTH id sets survives.
+    expect(result.items.map((item) => item.sourceId)).toEqual([srcBoth])
+  })
+
+  it('an empty AI id set means no matches, never no filter', async () => {
+    // The dangerous failure mode: a tenant without the AI capability, or a
+    // category nobody has mentioned, resolves to zero review ids. Skipping the
+    // predicate then would show the ENTIRE inbox while the UI claims a filter
+    // is applied -- the same class of defect as a search param that gets
+    // stripped before it reaches the query.
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) }), ORG_A)
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention: vi.fn(async () => []),
+      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+    }
+    const filteredRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    for (const filters of [
+      { propertyId: PROP_A, category: ['service' as const] },
+      { propertyId: PROP_A, attention: ['urgent' as const] },
+    ]) {
+      const result = await filteredRepo.findFilteredPaginated(
+        filters,
+        ORG_A,
+        undefined,
+        50,
+      )
+      expect(result.items).toHaveLength(0)
+      expect(result.nextCursor).toBeNull()
+    }
   })
 
   it('rating/search filters match nothing when no reviews are eligible', async () => {

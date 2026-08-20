@@ -45,6 +45,11 @@ function ChipContent({
  * each chip deep-links into a pre-filtered view. Hidden entirely when calm.
  */
 export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
+  // These chips used to pass `tab: 'unaddressed'`, which `inboxSearchSchema`
+  // does not declare — `z.object` strips unknown keys, so it never reached the
+  // inbox and nothing read it. "N items to triage" therefore navigated to the
+  // whole inbox unfiltered. `sourceType` is the real param and does what the
+  // labels claim.
   const chips: ReactNode[] = []
 
   if (signals.unanswered > 0) {
@@ -52,7 +57,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
       <Link
         key="unanswered"
         to="/inbox"
-        search={{ propertyId, sourceType: 'review', tab: 'unaddressed' }}
+        search={{ propertyId, sourceType: 'review' }}
         className={cn(CHIP_BASE, TONE_CLASS.destructive)}
       >
         <ChipContent
@@ -69,7 +74,7 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
       <Link
         key="newFeedback"
         to="/inbox"
-        search={{ propertyId, tab: 'unaddressed' }}
+        search={{ propertyId, sourceType: 'feedback' }}
         className={cn(CHIP_BASE, TONE_CLASS.warning)}
       >
         <ChipContent

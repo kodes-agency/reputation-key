@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
@@ -11,6 +12,7 @@ import {
 import { NotificationsSettingsPage } from '#/components/features/settings'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -52,7 +54,25 @@ function NotificationsSettings() {
   const { data: preferences } = useSuspenseQuery(preferencesQuery(organizationId))
   const { data: userSettings } = useSuspenseQuery(userSettingsQuery(organizationId))
   const { data: properties } = useSuspenseQuery(propertiesQuery)
-  const propertyId = properties.properties[0]?.id
+  // Explicitly `string`: the id is branded, so an inferred setter would refuse
+  // the plain string the Select hands back.
+  const [propertyId, setPropertyId] = useState<string>(properties.properties[0]?.id ?? '')
+  // `notification.send_email` is non-core and allowlisted per property, so the
+  // answer changes with the selector. Owned here because routes own data in
+  // this codebase; the view stays a pure function of its props.
+  const emailCapability = useQuery({
+    queryKey: notificationKeys.emailCapability(organizationId, propertyId),
+    queryFn: () =>
+      checkControlledRoute({
+        data: {
+          capability: 'notification.send_email',
+          featureLabel: 'Email notifications',
+          propertyId,
+        },
+      }),
+    enabled: propertyId !== '',
+    staleTime: 60_000,
+  })
   const updatePreference = useActionMutation(updateNotificationPreferenceFn, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
@@ -67,12 +87,18 @@ function NotificationsSettings() {
         description="Control property-specific in-app and email delivery."
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Notifications' }]}
       />
-      <div className="mt-6">
+      <div className="mt-6 min-w-0">
         {propertyId ? (
           <NotificationsSettingsPage
             properties={properties.properties}
             preferences={preferences}
             userSettings={userSettings}
+            propertyId={propertyId}
+            // Strictly true only once the decision is known. Treating an
+            // in-flight or failed check as "allowed" is what rendered a whole
+            // column of controls that could only ever fail.
+            emailAllowed={emailCapability.data?.allowed === true}
+            setPropertyId={setPropertyId}
             updatePreference={updatePreference}
             updateUserSettings={updateUserSettings}
           />

@@ -3,6 +3,7 @@
 // filters by the active escalation flag, not a status value.
 import { z } from 'zod/v4'
 import type { InboxStatus } from '#/contexts/inbox/application/public-api'
+import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
 
 export const INBOX_PAGE_SIZE = 50
 
@@ -17,6 +18,10 @@ export const inboxSearchSchema = z.object({
   ratingMin: z.coerce.number().int().min(1).max(5).optional(),
   ratingMax: z.coerce.number().int().min(1).max(5).optional(),
   attention: z.enum(['urgent', 'high', 'medium', 'low']).optional(),
+  // Enum over the canonical AI category catalogue — the same list the provider
+  // output schema is built from, so a deep link like `?category=wait_time`
+  // cannot drift from what the analysis actually stores.
+  category: z.enum(AI_PRIMARY_CATEGORIES).optional(),
   q: z.string().optional(),
 })
 

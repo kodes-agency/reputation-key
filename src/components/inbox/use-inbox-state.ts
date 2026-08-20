@@ -78,6 +78,7 @@ export function useInboxState(
     filters.ratingMin,
     filters.ratingMax,
     filters.attention,
+    filters.category,
     filters.propertyId,
     filters.q,
   ])

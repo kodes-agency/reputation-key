@@ -51,7 +51,15 @@ export const Default: Story = {
     expect(canvas.getByText(String(populatedData.totals.propertyCount))).toBeVisible()
     expect(canvas.getByText('Harborline Suites')).toBeVisible()
     expect(canvas.getByText('All clear')).toBeVisible()
-    expect(canvas.getByText('17 needing action')).toBeVisible()
+    // The row used to render only the sum, "17 needing action". The five
+    // signals behind it are what a manager actually triages on.
+    expect(canvas.getByText('1 escalated')).toBeVisible()
+    expect(canvas.getByText('rating dropped')).toBeVisible()
+    expect(canvas.getByText('9 unanswered')).toBeVisible()
+    expect(canvas.getByText('4 to triage')).toBeVisible()
+    expect(canvas.getByText('2 goals behind')).toBeVisible()
+    // The sum stays reachable for assistive tech and for scanning.
+    expect(canvas.getByLabelText('17 needing action')).toBeInTheDocument()
     expect(canvas.getByText('6 scans')).toBeVisible()
     expect(canvas.getByText('48 responses')).toBeVisible()
     expect(canvas.getAllByText('Reviews fresh')).toHaveLength(3)
@@ -88,6 +96,60 @@ export const AllClear: Story = {
     expect(canvas.getByText('Needs action')).toBeVisible()
     expect(canvas.getByText('0')).toBeVisible()
     expect(canvas.getByText('All clear')).toBeVisible()
+  },
+}
+
+// The whole point of the breakdown: two rows with an IDENTICAL total that
+// demand completely different responses. Under the old single-number badge
+// these were indistinguishable — both read "4 needing action".
+export const SameTotalDifferentUrgency: Story = {
+  args: {
+    data: {
+      entries: [
+        {
+          ...entries[0],
+          propertyId: 'prop-urgent',
+          name: 'Four Escalations',
+          slug: 'four-escalations',
+          attentionSignals: {
+            unanswered: 0,
+            newFeedback: 0,
+            goalsBehindPace: 0,
+            ratingDrop: false,
+            escalated: 4,
+          },
+          totalAttention: 4,
+        },
+        {
+          ...entries[0],
+          propertyId: 'prop-calm',
+          name: 'Four Stale Goals',
+          slug: 'four-stale-goals',
+          attentionSignals: {
+            unanswered: 0,
+            newFeedback: 0,
+            goalsBehindPace: 4,
+            ratingDrop: false,
+            escalated: 0,
+          },
+          totalAttention: 4,
+        },
+      ],
+      totals: { propertyCount: 2, totalAttention: 8, overallAvgRating: 4.2 },
+      nextCursor: null,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('4 escalated')).toBeVisible()
+    expect(canvas.getByText('4 goals behind')).toBeVisible()
+    // Same total on both rows, and it is still exposed.
+    expect(canvas.getAllByLabelText('4 needing action')).toHaveLength(2)
+    // Escalations are urgent; stale goals are not. Distinct treatment, not just
+    // distinct wording.
+    const escalated = canvas.getByText('4 escalated')
+    const goals = canvas.getByText('4 goals behind')
+    expect(escalated.className).not.toEqual(goals.className)
   },
 }
 

@@ -149,8 +149,19 @@ Inbox defines cross-context lookup ports (per ADR-0008):
 - **ReviewLookupPort** — fetches review snippet (reviewerName, text, translatedText, reviewerProfilePhotoUrl) by ID. `text` is the guest's original words; `translatedText` is the provider's machine translation (Google only, null elsewhere).
 - **FeedbackLookupPort** — fetches feedback snippet (comment, ratingValue) by ID.
 - **PropertyLookupPort** — fetches property name by ID (for denormalization).
+- **AiReviewInsightsPort** — reads the current AI analysis for a review, and resolves which reviews currently carry a given `attention` level or `primaryCategory`. Implemented by the AI context and wired at composition time.
 
 All ports are implemented by adapters from their respective contexts, wired at composition time.
+
+### AI-derived list filters
+
+`attention` and `category` are the two AI-derived filters on the item list. Neither is a column on `inbox_items`: both resolve to a set of review ids through `AiReviewInsightsPort` and then narrow the item query by `sourceId`. Consequences worth knowing before touching them:
+
+- The AI context's query carries the whole capability gate — the merchant authorization must be enabled and still hold `review_analysis`, and the analysis must agree with the authorization's lineage and epochs — so a tenant without the capability gets an empty set, not an unfiltered list.
+- An empty id set means **no matches**, never **no filter**. The same holds when the port is absent entirely.
+- Supplying both filters intersects them: each pushes its own `sourceId IN (…)` predicate into the same `and(…)`.
+- `attention` is the AI urgency level (`urgent`/`high`/`medium`/`low`); `category` is the primary topic. They are different dimensions, so a link that means "show me the service complaints" must use `category`, not `attention`.
+- Both search params must be declared in `inboxSearchSchema`. It is a `z.object`, which strips unknown keys, so an undeclared param arrives as `undefined` and silently filters nothing.
 
 
 - **Timestamp display**: `readAt` timestamp relabelled from "Read" to "Opened" in the detail panel. Auto-transition makes "Read" misleading — "Opened" is honest about what happened. The domain field stays `readAt`; only the display label changes. Status badge for `read` also changes from "Read" to "Opened".

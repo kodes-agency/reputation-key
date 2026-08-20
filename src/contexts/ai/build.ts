@@ -18,10 +18,12 @@ import {
   createReadPropertyTrend,
   createReadReviewAnalysis,
 } from './application/use-cases/read-ai-insights'
+import { createReadPropertyAggregates } from './application/use-cases/read-property-aggregates'
 import { createAiAuthorizationAdapter } from './infrastructure/adapters/ai-authorization.adapter'
 import { createAiControlAdapter } from './infrastructure/adapters/ai-control.adapter'
 import { createAiOperationStoreAdapter } from './infrastructure/adapters/ai-operation-store.adapter'
 import { createAiOutputStoreAdapter } from './infrastructure/adapters/ai-output-store.adapter'
+import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-property-calendar.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
@@ -92,6 +94,7 @@ export function buildAiContext(input: AiContextBuildInput) {
   const outputs = createAiOutputStoreAdapter(input.db)
   const aggregates = createAiPropertyAggregateStoreAdapter(input.db)
   const schedules = createAiPropertyTrendScheduleStore(input.db)
+  const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const processingProfiles = createPropertyProcessingProfileAdapter(
     input.db,
@@ -163,6 +166,21 @@ export function buildAiContext(input: AiContextBuildInput) {
           ...request,
           nowEpochMillis: nowEpochMillis(),
         }),
+      findCurrentReviewIdsByCategory: (
+        request: Omit<
+          Parameters<AiOutputStorePort['findCurrentReviewIdsByCategory']>[0],
+          'nowEpochMillis'
+        >,
+      ) =>
+        outputs.findCurrentReviewIdsByCategory({
+          ...request,
+          nowEpochMillis: nowEpochMillis(),
+        }),
+      readPropertyAggregates: createReadPropertyAggregates({
+        ...readDependencies,
+        aggregates,
+        calendar,
+      }),
     }),
     internal: Object.freeze({
       analyzeReviewEvent,

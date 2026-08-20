@@ -1,3 +1,4 @@
+import { Button } from '#/components/ui/button'
 import {
   Card,
   CardContent,
@@ -5,18 +6,23 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { Field, FieldLabel } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { Switch } from '#/components/ui/switch'
 import {
-  getDefaultEnabled,
-  type NotificationCadence,
-  type NotificationCategory,
-  type NotificationChannel,
-  type NotificationPreference,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
+import type {
+  NotificationCategory,
+  NotificationChannel,
+  NotificationPreference,
 } from '#/contexts/notification/application/public-api'
+import { NotificationsCategoryRow } from './notifications-category-row'
 import { CATEGORY_ROWS } from './notifications-type-rows'
-import { QuietHoursEditor } from './quiet-hours-editor'
 
 export type NotificationPreferencePatch = Partial<
   Pick<
@@ -30,6 +36,16 @@ type NotificationsSettingsViewProps = Readonly<{
   propertyId: string
   locale: string
   timezone: string
+  /**
+   * Whether `notification.send_email` is allowed for the SELECTED property.
+   *
+   * Email delivery is a non-core capability allowlisted per property, so every
+   * email write is refused server-side when it is off. This screen used to
+   * render the whole Email column fully enabled regardless and report the
+   * refusal as a generic "could not update" toast, which reads as a broken page
+   * rather than an unavailable feature.
+   */
+  emailAllowed: boolean
   setPropertyId: (value: string) => void
   setLocale: (value: string) => void
   setTimezone: (value: string) => void
@@ -47,8 +63,8 @@ type NotificationsSettingsViewProps = Readonly<{
 
 export function NotificationsSettingsView(props: NotificationsSettingsViewProps) {
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="min-w-0 space-y-6">
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Property</CardTitle>
           <CardDescription>
@@ -56,55 +72,75 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Label className="grid max-w-sm gap-2">
-            Property
-            <select
-              className="rounded-md border bg-background px-3 py-2"
-              value={props.propertyId}
-              onChange={(event) => props.setPropertyId(event.target.value)}
-            >
-              {props.properties.map((property) => (
-                <option key={property.id} value={property.id}>
-                  {property.name}
-                </option>
-              ))}
-            </select>
-          </Label>
+          <Field className="max-w-sm">
+            <FieldLabel htmlFor="notifications-property">Property</FieldLabel>
+            <Select value={props.propertyId} onValueChange={props.setPropertyId}>
+              <SelectTrigger
+                id="notifications-property"
+                className="h-11 min-h-11 w-full min-w-0 max-w-full"
+                aria-label="Property"
+              >
+                <SelectValue placeholder="Select a property" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {props.properties.map((property) => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
         </CardContent>
       </Card>
-      <Card>
+
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Language and timezone</CardTitle>
           <CardDescription>
             Used for notification formatting. Daily digests remain property-local.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Label className="grid gap-2">
-            Locale
-            <Input
-              value={props.locale}
-              onChange={(event) => props.setLocale(event.target.value)}
-            />
-          </Label>
-          <Label className="grid gap-2">
-            IANA timezone
-            <Input
-              value={props.timezone}
-              onChange={(event) => props.setTimezone(event.target.value)}
-            />
-          </Label>
-          <button
-            type="button"
-            className="w-fit rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
-            onClick={props.saveUserSettings}
+        <CardContent>
+          {/*
+            A real form, so Enter submits. These were bare inputs beside a bare
+            button: typing a timezone and pressing Enter did nothing at all.
+          */}
+          <form
+            className="grid min-w-0 gap-4 sm:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault()
+              props.saveUserSettings()
+            }}
           >
-            Save formatting
-          </button>
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="notifications-locale">Locale</FieldLabel>
+              <Input
+                id="notifications-locale"
+                className="min-w-0"
+                value={props.locale}
+                onChange={(event) => props.setLocale(event.target.value)}
+              />
+            </Field>
+            <Field className="min-w-0">
+              <FieldLabel htmlFor="notifications-timezone">IANA timezone</FieldLabel>
+              <Input
+                id="notifications-timezone"
+                className="min-w-0"
+                value={props.timezone}
+                onChange={(event) => props.setTimezone(event.target.value)}
+              />
+            </Field>
+            <Button type="submit" className="w-fit">
+              Save formatting
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Property notifications</CardTitle>
           <CardDescription>
@@ -113,89 +149,28 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
-          {CATEGORY_ROWS.map(({ category, label, description }) => {
-            const inApp = props.preferenceFor(category, 'in_app')
-            const email = props.preferenceFor(category, 'email')
-            const mandatory = category === 'mandatory'
-            return (
-              <fieldset
-                key={category}
-                className="grid gap-4 py-5 md:grid-cols-[1fr_auto_auto]"
-              >
-                <legend className="font-medium">{label}</legend>
-                <p className="text-sm text-muted-foreground md:col-start-1">
-                  {description}
-                </p>
-                <Label className="flex items-center gap-2 md:col-start-2 md:row-start-1">
-                  <Switch
-                    id={`${category}-in_app`}
-                    checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
-                    disabled={mandatory}
-                    onCheckedChange={(enabled) =>
-                      void props.savePreference(category, 'in_app', { enabled })
-                    }
-                  />
-                  In-app
-                </Label>
-                <Label className="flex items-center gap-2 md:col-start-3 md:row-start-1">
-                  <Switch
-                    id={`${category}-email`}
-                    checked={email?.enabled ?? getDefaultEnabled(category, 'email')}
-                    disabled={mandatory}
-                    onCheckedChange={(enabled) =>
-                      void props.savePreference(category, 'email', { enabled })
-                    }
-                  />
-                  Email
-                </Label>
-                <div className="flex flex-wrap items-center gap-4 md:col-span-2 md:col-start-2">
-                  <Label className="flex items-center gap-2">
-                    <select
-                      className="rounded-md border bg-background px-2 py-1"
-                      value={
-                        email?.cadence ??
-                        (category === 'urgent_operational' ? 'immediate' : 'daily')
-                      }
-                      onChange={(event) =>
-                        void props.savePreference(category, 'email', {
-                          cadence: event.target.value as NotificationCadence,
-                        })
-                      }
-                    >
-                      <option value="immediate">Immediate</option>
-                      <option value="daily">Daily at 08:00</option>
-                    </select>
-                    Cadence
-                  </Label>
-                  <QuietHoursEditor
-                    key={`${category}:${email?.quietHoursStart}:${email?.quietHoursEnd}`}
-                    start={email?.quietHoursStart ?? null}
-                    end={email?.quietHoursEnd ?? null}
-                    onSave={(quietHoursStart, quietHoursEnd) =>
-                      void props.savePreference(category, 'email', {
-                        quietHoursStart,
-                        quietHoursEnd,
-                      })
-                    }
-                  />
-                  {category === 'urgent_operational' ? (
-                    <Label className="flex items-center gap-2">
-                      <Switch
-                        id={`${category}-urgent-bypass`}
-                        checked={email?.urgentBypassEnabled ?? false}
-                        onCheckedChange={(urgentBypassEnabled) =>
-                          void props.savePreference(category, 'email', {
-                            urgentBypassEnabled,
-                          })
-                        }
-                      />
-                      Allow urgent email to bypass quiet hours
-                    </Label>
-                  ) : null}
-                </div>
-              </fieldset>
-            )
-          })}
+          {!props.emailAllowed ? (
+            <p
+              role="status"
+              className="pb-5 text-sm text-muted-foreground"
+              data-testid="email-unavailable-notice"
+            >
+              Email delivery is not enabled for this property, so the email controls below
+              are unavailable. In-app notifications are unaffected.
+            </p>
+          ) : null}
+          {CATEGORY_ROWS.map(({ category, label, description }) => (
+            <NotificationsCategoryRow
+              key={category}
+              category={category}
+              label={label}
+              description={description}
+              inApp={props.preferenceFor(category, 'in_app')}
+              email={props.preferenceFor(category, 'email')}
+              emailAllowed={props.emailAllowed}
+              savePreference={props.savePreference}
+            />
+          ))}
         </CardContent>
       </Card>
     </div>

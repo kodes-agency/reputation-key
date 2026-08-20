@@ -23,7 +23,13 @@ import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { InboxItemId, OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type {
+  InboxItemId,
+  OrganizationId,
+  PropertyId,
+  ReviewId,
+  UserId,
+} from '#/shared/domain/ids'
 import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
@@ -90,6 +96,53 @@ async function countWhere(
     .from(inboxItems)
     .where(and(...all))
   return Number(result[0]?.count ?? 0)
+}
+
+/**
+ * AI-derived narrowing for the item list: `attention` and `category`.
+ *
+ * Neither is a column on `inbox_items`. Each active filter resolves to the
+ * review ids whose CURRENT analysis matches, through the AI context's gated
+ * projection, and contributes its own `IN` predicate — so supplying both
+ * intersects them rather than unioning them.
+ *
+ * Returns `null` to mean "stop, nothing can match". An absent AI port or an
+ * empty id set is "no review matches", NEVER "no filter": treating it as the
+ * latter would show the entire inbox while the UI claimed a filter was applied.
+ */
+async function resolveAiNarrowing(
+  ports: LookupPorts,
+  orgId: OrganizationId,
+  filters: InboxFilters,
+): Promise<SQL[] | null> {
+  if (!filters.attention?.length && !filters.category?.length) return []
+  const propertyIds =
+    filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
+  const lookups: Array<Promise<readonly ReviewId[]> | undefined> = []
+  if (filters.attention?.length) {
+    lookups.push(
+      ports.aiInsights?.findCurrentReviewIdsByAttention({
+        organizationId: orgId,
+        propertyIds,
+        attention: filters.attention,
+      }),
+    )
+  }
+  if (filters.category?.length) {
+    lookups.push(
+      ports.aiInsights?.findCurrentReviewIdsByCategory({
+        organizationId: orgId,
+        propertyIds,
+        categories: filters.category,
+      }),
+    )
+  }
+  const narrowing: SQL[] = [eq(inboxItems.sourceType, 'review')]
+  for (const reviewIds of await Promise.all(lookups)) {
+    if (reviewIds === undefined || reviewIds.length === 0) return null
+    narrowing.push(inArray(inboxItems.sourceId, [...reviewIds]))
+  }
+  return narrowing
 }
 
 export const createInboxRepository = (
@@ -175,22 +228,11 @@ export const createInboxRepository = (
           return { items: [], nextCursor: null } as PaginatedResult
         conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
       }
-      if (filters.attention && filters.attention.length > 0) {
-        const propertyIds =
-          filters.propertyIds ?? (filters.propertyId ? [filters.propertyId] : undefined)
-        const reviewIds = await ports.aiInsights?.findCurrentReviewIdsByAttention({
-          organizationId: orgId,
-          propertyIds,
-          attention: filters.attention,
-        })
-        if (reviewIds === undefined || reviewIds.length === 0) {
-          return { items: [], nextCursor: null }
-        }
-        conditions.push(
-          eq(inboxItems.sourceType, 'review'),
-          inArray(inboxItems.sourceId, [...reviewIds]),
-        )
-      }
+      // AI-derived narrowing (attention / category). Extracted because adding
+      // the second filter pushed this function past the complexity threshold.
+      const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
+      if (aiNarrowing === null) return { items: [], nextCursor: null } as PaginatedResult
+      conditions.push(...aiNarrowing)
 
       // Cursor-based pagination: sourceDate DESC, id DESC
       // Keyset pagination: ORDER BY sourceDate DESC, id DESC means

@@ -36,6 +36,17 @@ export const notificationKeys = {
     [...notificationKeys.forOrganization(organizationId), 'preferences'] as const,
   userSettings: (organizationId: string) =>
     [...notificationKeys.forOrganization(organizationId), 'user-settings'] as const,
+  /**
+   * Per-property `notification.send_email` decision. Property-scoped because
+   * the capability is allowlisted per property, so the answer changes with the
+   * settings property selector.
+   */
+  emailCapability: (organizationId: string, propertyId: string) =>
+    [
+      ...notificationKeys.forOrganization(organizationId),
+      'email-capability',
+      propertyId,
+    ] as const,
 }
 
 // ── Identity / organization context ────────────────────────────────────
@@ -58,7 +69,10 @@ export const propertyKeys = {
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  fleet: () => [...dashboardKeys.all, 'fleet'] as const,
+  // Takes the range so an infinite cache entry exists per range. Existing
+  // `invalidateQueries({ queryKey: dashboardKeys.fleet() })` calls still match
+  // as a prefix.
+  fleet: (timeRange = '30d') => [...dashboardKeys.all, 'fleet', timeRange] as const,
   staff: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'staff', args] as const,
   property: (args: Readonly<Record<string, unknown>>) =>
@@ -85,6 +99,8 @@ export const aiKeys = {
   all: ['ai'] as const,
   propertyTrend: (propertyId: string) =>
     [...aiKeys.all, 'property-trend', propertyId] as const,
+  propertyAggregates: (propertyId: string) =>
+    [...aiKeys.all, 'property-aggregates', propertyId] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────

@@ -1,8 +1,11 @@
 // Inbox list panel parts — presentational sub-components + content picker,
 // split from inbox-list-panel-v2.tsx for line-count compliance.
 
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import type { Cursor } from '#/contexts/inbox/application/public-api'
+import type {
+  Cursor,
+  InboxItem,
+  ReviewCategory,
+} from '#/contexts/inbox/application/public-api'
 import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -17,6 +20,7 @@ export interface InboxListPanelProps {
   openCount: number
   searchQ: string | undefined
   attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
+  category: ReviewCategory | undefined
   items: readonly InboxItem[]
   selectedIds: readonly string[]
   isLoading: boolean
@@ -27,6 +31,7 @@ export interface InboxListPanelProps {
   listRef: RefObject<HTMLDivElement | null>
   onSearchChange: (q: string | undefined) => void
   onAttentionChange: (attention: 'urgent' | 'high' | 'medium' | 'low' | undefined) => void
+  onCategoryChange: (category: ReviewCategory | undefined) => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void

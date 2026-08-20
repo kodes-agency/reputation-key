@@ -1238,6 +1238,7 @@ export function createContainer(options?: {
         })
       },
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
+      findCurrentReviewIdsByCategory: ai.publicApi.findCurrentReviewIdsByCategory,
     },
     // Foreign read sources the inbox build adapts into its lookup ports.
     sources: {
@@ -1442,6 +1443,7 @@ export function createContainer(options?: {
       generatePropertyTrend: ai.internal.generatePropertyTrend,
       schedulePropertyTrends: ai.internal.schedulePropertyTrends,
       readPropertyAiTrend: ai.publicApi.readPropertyTrend,
+      readPropertyAiAggregates: ai.publicApi.readPropertyAggregates,
       ...inbox.internal.useCases,
       getDashboardData: dashboard.publicApi.getDashboardData,
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,

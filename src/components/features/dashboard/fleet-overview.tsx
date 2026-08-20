@@ -6,6 +6,8 @@ import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { FleetLoadMore } from './fleet-load-more'
+import { StripStat } from './fleet-totals-strip'
 import { Building2, AlertCircle, Star } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
@@ -22,6 +24,7 @@ import type {
   FleetMetricEvidence,
   FleetOverviewData,
 } from '#/contexts/dashboard/application/public-api'
+import { FleetAttentionBreakdown } from './fleet-attention-breakdown'
 
 /** Shared shell + header so every fleet state (loading/error/empty/data) is consistent. */
 function Shell({ children }: Readonly<{ children: ReactNode }>) {
@@ -76,9 +79,19 @@ export function FleetOverviewEmpty() {
 
 export interface FleetOverviewProps {
   readonly data: FleetOverviewData
+  /**
+   * Absent in the story/fixture cases that render a single settled page. The
+   * control only appears when the projection actually handed back a cursor.
+   */
+  readonly isFetchingNextPage?: boolean
+  readonly onLoadMore?: () => void
 }
 
-export function FleetOverview({ data }: FleetOverviewProps) {
+export function FleetOverview({
+  data,
+  isFetchingNextPage = false,
+  onLoadMore,
+}: FleetOverviewProps) {
   const { entries, totals } = data
   return (
     <Shell>
@@ -111,32 +124,16 @@ export function FleetOverview({ data }: FleetOverviewProps) {
           <FleetRow key={entry.propertyId} entry={entry} />
         ))}
       </div>
+
+      <FleetLoadMore
+        nextCursor={data.nextCursor}
+        isFetchingNextPage={isFetchingNextPage}
+        onLoadMore={onLoadMore}
+      />
     </Shell>
   )
 }
 
-type StripStatProps = Readonly<{
-  icon: typeof Building2
-  label: string
-  value: string
-  destructive?: boolean
-}>
-
-function StripStat({ icon: Icon, label, value, destructive }: StripStatProps) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="size-4" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <p
-        className={`mt-2 text-2xl font-semibold tabular-nums ${destructive ? 'text-destructive' : ''}`}
-      >
-        {value}
-      </p>
-    </div>
-  )
-}
 function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
   const completeness = Math.round(evidence.completeness * 100)
   const watermark = evidence.watermark?.toISOString() ?? 'No eligible reading'
@@ -211,11 +208,10 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
           ) : null}
         </div>
       </div>
-      {entry.totalAttention > 0 ? (
-        <Badge variant="destructive">{entry.totalAttention} needing action</Badge>
-      ) : (
-        <Badge variant="secondary">All clear</Badge>
-      )}
+      <FleetAttentionBreakdown
+        signals={entry.attentionSignals}
+        totalAttention={entry.totalAttention}
+      />
     </Link>
   )
 }

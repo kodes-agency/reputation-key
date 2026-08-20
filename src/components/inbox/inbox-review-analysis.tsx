@@ -1,19 +1,7 @@
 import { Badge } from '#/components/ui/badge'
 import type { InboxReviewAnalysis } from '#/contexts/inbox/application/public-api'
 import { formatDateTime } from './utils'
-
-const CATEGORY_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  service: 'Service',
-  staff: 'Staff',
-  quality: 'Quality',
-  value: 'Value',
-  cleanliness: 'Cleanliness',
-  wait_time: 'Wait time',
-  atmosphere: 'Atmosphere',
-  location: 'Location',
-  accessibility: 'Accessibility',
-  other: 'Other',
-})
+import { AI_CATEGORY_LABELS } from '#/shared/ai-category-labels'
 
 export function InboxReviewAnalysisPanel({
   analysis,
@@ -52,7 +40,7 @@ export function InboxReviewAnalysisPanel({
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
         <Badge variant="outline">{analysis.sentiment} sentiment</Badge>
-        <Badge variant="outline">{CATEGORY_LABELS[analysis.primaryCategory]}</Badge>
+        <Badge variant="outline">{AI_CATEGORY_LABELS[analysis.primaryCategory]}</Badge>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Generated {formatDateTime(new Date(analysis.generatedAtEpochMillis))}

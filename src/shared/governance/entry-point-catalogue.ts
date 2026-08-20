@@ -736,6 +736,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         notes: 'property-scoped read of a current persisted deterministic trend report',
       },
     ),
+    sf(
+      'getPropertyAiAggregatesFn',
+      'src/contexts/ai/server/property-aggregates.ts',
+      'dashboard.read',
+      'dashboard.use',
+      'property',
+      {
+        notes:
+          'property-scoped read of the 30 local-day AI category and sentiment aggregate window; no analysis-read permission exists and ai.trends.read grants on the unrelated ai.detect_trends, so the review_analysis capability gate lives in the use case',
+      },
+    ),
   ],
 
   // ── property ──────────────────────────────────────────────────────
@@ -2087,14 +2098,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'dashboard.use',
       'property',
       { notes: 'property deep-dive dashboard; loader via dashboard fns' },
-    ),
-    ui(
-      '/properties/$propertyId/metrics',
-      `${AUTHED}/properties/$propertyId/metrics.tsx`,
-      'dashboard.read',
-      'dashboard.use',
-      'property',
-      { notes: 'placeholder "coming soon"' },
     ),
     ui(
       '/properties/$propertyId/people',
