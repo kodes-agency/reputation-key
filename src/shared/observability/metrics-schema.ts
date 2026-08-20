@@ -352,6 +352,16 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Syncs in error whose retry is due.',
   }),
   def({
+    name: 'sync.gbp_push_enabled',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['sync.gbpPushEnabled'],
+    emitted: true,
+    description:
+      '1 when GBP_PUBSUB_TOPIC is configured. 0 = Google push notifications are dark and new reviews only arrive on the discover-new-reviews sweep cadence.',
+  }),
+  def({
     name: 'sync.webhook.dedupe',
     kind: 'counter',
     unit: 'count',

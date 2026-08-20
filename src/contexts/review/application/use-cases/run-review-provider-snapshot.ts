@@ -69,6 +69,18 @@ const failureCodeForProviderError = (
   return 'provider_failure'
 }
 
+/**
+ * Rate limiting and provider unavailability are TRANSIENT: the run's cursors
+ * are still valid, so the correct move is to checkpoint and let the queue
+ * retry the same page. Routing these through failAndDiscard threw away every
+ * published cursor and restarted a multi-page scan from zero on a single 429.
+ */
+const isRecoverableProviderError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error != null &&
+  'code' in error &&
+  (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
+
 const sameScope = async (
   deps: RunReviewProviderSnapshotDeps,
   input: RunReviewProviderSnapshotInput,
@@ -229,6 +241,16 @@ const runListPage = async (
       cursorRef,
     })
   } catch (error) {
+    // A transient provider error must not discard the scan: checkpoint so the
+    // queue retries this page with its cursors intact (same rule the targeted
+    // confirmation path already applies). Non-recoverable codes stay terminal.
+    if (isRecoverableProviderError(error)) {
+      return {
+        status: 'checkpointed',
+        runId: run.id,
+        state: phase === 'main' ? 'scanning' : 'confirming',
+      }
+    }
     return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))
   }
 
@@ -306,12 +328,7 @@ const confirmTargetedCandidate = async (
       reviewName: candidate.reviewName,
     })
   } catch (error) {
-    if (
-      typeof error === 'object' &&
-      error != null &&
-      'code' in error &&
-      (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
-    ) {
+    if (isRecoverableProviderError(error)) {
       return { status: 'checkpointed', runId: run.id, state: 'confirming' }
     }
     return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))

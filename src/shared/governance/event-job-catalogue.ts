@@ -1628,6 +1628,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'discover-new-reviews',
+    'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:review.discovery_sweep',
+      schedule: 'every:900000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'new-review discovery sweep (200×10, keyset on property id, per-property due times in review_sync_state.next_incremental_at); enqueues gated sync jobs — the ONLY ingestion path for a new review while GBP push is unconfigured; capability none + distinct tenant-cross action for the same reason as reconcile-ambiguous-publications (property-scoped system:review.sync would missing_scope-deny this sweep)',
+    },
+  ),
+  job(
     'purge-expired-reviews',
     'src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts',
     {

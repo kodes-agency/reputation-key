@@ -56,6 +56,10 @@ export function createAtomicReviewCommandStore(
                 reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
                 rating: row.rating,
                 text: row.text,
+                // sync-reviews computes translatedText on every observation;
+                // omitting it here froze the provider translation at whatever
+                // the very first fetch saw (or NULL) forever.
+                translatedText: row.translatedText,
                 languageCode: row.languageCode,
                 reviewedAt: row.reviewedAt,
                 expiresAt: row.expiresAt,

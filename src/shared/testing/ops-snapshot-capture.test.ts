@@ -37,7 +37,7 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
       expiredCount: 1,
       oldestDueAgeSeconds: 60,
     },
-    sync: { dueForIncrementalCount: 2, failedSyncCount: 0 },
+    sync: { dueForIncrementalCount: 2, failedSyncCount: 0, gbpPushEnabled: false },
     replyPublication: {
       counts: {
         requested: 0,

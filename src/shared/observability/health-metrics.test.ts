@@ -242,7 +242,7 @@ describe('health checker content safety (BQC-4.3)', () => {
         expiredCount: 0,
         oldestDueAgeSeconds: 3600,
       },
-      sync: { dueForIncrementalCount: 3, failedSyncCount: 1 },
+      sync: { dueForIncrementalCount: 3, failedSyncCount: 1, gbpPushEnabled: false },
       replyPublication: {
         counts: {
           requested: 1,
@@ -261,5 +261,17 @@ describe('health checker content safety (BQC-4.3)', () => {
         domainEventsQueueName: 'domain-events',
       },
     })
+  })
+
+  it('surfaces the GBP push readiness fact from the composition root', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW])
+
+    const dark = await createHealthChecker(db).check()
+    expect(dark.sync.gbpPushEnabled).toBe(false)
+
+    const live = await createHealthChecker(db, undefined, {
+      gbpPushEnabled: true,
+    }).check()
+    expect(live.sync.gbpPushEnabled).toBe(true)
   })
 })

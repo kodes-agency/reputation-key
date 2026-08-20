@@ -59,6 +59,8 @@ const setup = (overrides?: {
   })
   connectionRepo.seed([connection])
 
+  const warn = vi.fn()
+  const logger = { ...createMockLogger(), warn }
   const useCase = manageNotifications({
     connectionRepo,
     gbpApi,
@@ -68,7 +70,7 @@ const setup = (overrides?: {
     pubsubTopic: overrides?.pubsubTopic ?? 'projects/test/topics/gbp-reviews',
     notificationTypes: ['NEW_REVIEW'],
     clock: () => FIXED_TIME,
-    logger: createMockLogger(),
+    logger,
   })
 
   return {
@@ -78,6 +80,7 @@ const setup = (overrides?: {
     notifications,
     refreshGoogleToken,
     connection,
+    warn,
   }
 }
 
@@ -108,12 +111,17 @@ describe('manageNotifications', () => {
       expect(notifications.subscribeCalls[0]?.accessToken).toBe('new-access-token')
     })
 
-    it('is a no-op when pubsubTopic is empty (notifications disabled)', async () => {
-      const { useCase, notifications } = setup({ pubsubTopic: '' })
+    it('warns loudly instead of silently no-opping when pubsubTopic is empty', async () => {
+      const { useCase, notifications, warn } = setup({ pubsubTopic: '' })
 
       await useCase.subscribe(ORG, CONN)
 
       expect(notifications.subscribeCalls).toHaveLength(0)
+      // A silent return left operators with no signal that GBP push was dark.
+      expect(warn).toHaveBeenCalledWith(
+        { envVar: 'GBP_PUBSUB_TOPIC' },
+        expect.stringContaining('GBP push notifications disabled'),
+      )
     })
 
     it('is a no-op when the connection is not active', async () => {

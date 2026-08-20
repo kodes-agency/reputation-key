@@ -36,7 +36,7 @@ import {
   getTenantCacheStats,
   type TenantCacheStats,
 } from '#/shared/auth/tenant-cache-stats'
-import { getReleaseSha } from '#/shared/config/env'
+import { getEnv, getReleaseSha } from '#/shared/config/env'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -170,7 +170,11 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
       expiredCount: 0,
       oldestDueAgeSeconds: null,
     },
-    sync: { dueForIncrementalCount: 0, failedSyncCount: 0 },
+    sync: {
+      dueForIncrementalCount: 0,
+      failedSyncCount: 0,
+      gbpPushEnabled: false,
+    },
     replyPublication: {
       counts: {
         requested: 0,
@@ -245,6 +249,9 @@ export function createOperationsSnapshot(
   // Constructed ONCE here — not per request (BQC-5.5).
   const checker = createHealthChecker(deps.db, deps.outboxRepo, {
     quarantineQueue: deps.queues.quarantine,
+    // Readiness fact, not a DB metric: an empty GBP_PUBSUB_TOPIC means Google
+    // push is dark and new reviews only arrive on the discovery sweep.
+    gbpPushEnabled: getEnv().GBP_PUBSUB_TOPIC.length > 0,
   })
 
   return {

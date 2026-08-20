@@ -79,7 +79,7 @@ function healthySnapshot(): MutableSnapshot {
       expiredCount: 0,
       oldestDueAgeSeconds: null,
     },
-    sync: { dueForIncrementalCount: 0, failedSyncCount: 0 },
+    sync: { dueForIncrementalCount: 0, failedSyncCount: 0, gbpPushEnabled: false },
     replyPublication: {
       counts: {
         requested: 0,

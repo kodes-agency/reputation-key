@@ -48,6 +48,11 @@ export type HealthMetricsDeps = Readonly<{
    * outbox default lease.
    */
   leaseDurationMs?: number
+  /**
+   * GBP_PUBSUB_TOPIC is non-empty. Absent = treated as disabled, which is the
+   * honest default: without the topic there is no push subscription.
+   */
+  gbpPushEnabled?: boolean
 }>
 
 export type QuarantineMetrics = Readonly<{
@@ -78,6 +83,13 @@ export type HealthSnapshot = Readonly<{
   sync: Readonly<{
     dueForIncrementalCount: number
     failedSyncCount: number
+    /**
+     * True when GBP_PUBSUB_TOPIC is configured. When false, Google push
+     * notifications are DARK and a new review only reaches the app on the
+     * discover-new-reviews sweep's cadence — a readiness fact, not a metric
+     * the database can answer, so the composition root supplies it.
+     */
+    gbpPushEnabled: boolean
   }>
   /**
    * BQC-7.3 (reply.publication.*): durable publication-state counts (the
@@ -377,6 +389,7 @@ export function createHealthChecker(
           sync: {
             dueForIncrementalCount: syncRow?.due ?? 0,
             failedSyncCount: syncRow?.failed ?? 0,
+            gbpPushEnabled: deps?.gbpPushEnabled === true,
           },
           replyPublication,
           workers: {

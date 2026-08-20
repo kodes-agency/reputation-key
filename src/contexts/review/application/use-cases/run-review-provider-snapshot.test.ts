@@ -270,6 +270,59 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
   })
 
+  it('checkpoints a rate-limited page scan and preserves the run cursors', async () => {
+    const deps = makeDeps()
+    const providerError = Object.assign(new Error('429 from provider'), {
+      _tag: 'GoogleReviewApiError' as const,
+      code: 'provider_rate_limited' as const,
+      recoverable: true,
+    })
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(providerError)
+
+    // Transient: the queue retries the SAME page. Discarding cursors here
+    // restarted a multi-page scan from zero on a single 429.
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'checkpointed', runId, state: 'scanning' },
+    )
+    expect(deps.googleReviewApi.discardReviewCursors).not.toHaveBeenCalled()
+    expect(deps.repository.failRun).not.toHaveBeenCalled()
+    expect(deps.repository.commitPage).not.toHaveBeenCalled()
+  })
+
+  it('checkpoints a provider-unavailable page scan', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+      Object.assign(new Error('503 from provider'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'provider_unavailable' as const,
+        recoverable: true,
+      }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'checkpointed', runId, state: 'scanning' },
+    )
+    expect(deps.repository.failRun).not.toHaveBeenCalled()
+  })
+
+  it('still fails terminally when the page scan hits a non-recoverable code', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+      Object.assign(new Error('403 from provider'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'authorization_changed' as const,
+        recoverable: false,
+      }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'authorization_changed' },
+    )
+    expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith(
+      expect.objectContaining({ runId }),
+    )
+  })
+
   it('applies only the fixed 100-row deletion batch and resumes until complete', async () => {
     const deps = makeDeps({ currentRun: run({ state: 'deleting', phase: 'apply' }) })
     vi.mocked(deps.repository.applyDeletionBatch).mockResolvedValue({

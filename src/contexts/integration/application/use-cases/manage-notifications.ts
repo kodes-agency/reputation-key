@@ -87,8 +87,18 @@ export const manageNotifications = (
     organizationId,
     connectionId,
   ) => {
-    // Disabled when no topic is configured (dev/test) — no-op.
-    if (!deps.pubsubTopic) return
+    // Disabled when no topic is configured (dev/test, and every deployment
+    // that never finished the GCP setup). This used to return in silence, so
+    // nothing in the logs distinguished "GBP push is dark" from "GBP push is
+    // working" — and with the webhook dark, new reviews only ever arrive on
+    // the discovery sweep's cadence.
+    if (!deps.pubsubTopic) {
+      deps.logger.warn(
+        { envVar: 'GBP_PUBSUB_TOPIC' },
+        'GBP push notifications disabled (GBP_PUBSUB_TOPIC is empty); new reviews arrive only via the discovery sweep',
+      )
+      return
+    }
     try {
       const connection = await deps.connectionRepo.findById(
         organizationId,
