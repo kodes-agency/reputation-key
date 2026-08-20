@@ -5,6 +5,14 @@
 // Two tables per ADR 0011 and grilling decisions (Q10):
 // - notifications: in-app notification records (unread/read/dismissed)
 // - notificationEmailQueue: email delivery tracking (pending/sent/failed/skipped)
+//
+// `notifications.payload` (ADR 0046 r.8) carries the content-free metadata the
+// render-time templates interpolate — property name, star rating, actor ROLE,
+// counts, ages. It never carries review text, guest identity, media, or other
+// employees' names; the allowlist is enforced by the domain parser
+// (`domain/notification-payload.ts`) and classified in the protected-field
+// registry. `title`/`body` remain as the rendered snapshot so rows written
+// before the template layer still display.
 
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import {
@@ -12,6 +20,7 @@ import {
   uuid,
   varchar,
   text,
+  jsonb,
   boolean,
   integer,
   timestamp,
@@ -49,18 +58,25 @@ export const notifications = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     body: text('body'),
 
+    // Content-free render metadata (ADR 0046 r.8). Null for pre-template rows.
+    payload: jsonb('payload'),
+
+    // ADR 0046 r.2 coalescing: an unread row absorbs repeat events rather than
+    // stacking duplicates. `eventId` stays as first-delivery evidence.
+    coalescedCount: integer('coalesced_count').notNull().default(1),
+    coalescedLatestAt: timestamp('coalesced_latest_at', { withTimezone: true }),
+
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    // Idempotency: one notification per user per event per type+resource
-    uniqueIndex('notifications_user_event_unique').on(
-      t.userId,
-      t.type,
-      t.resourceId,
-      t.eventId,
-    ),
+    // ADR 0046 r.2: coalesce on (user, type, resource) — deliberately NOT on
+    // eventId, which would make every repeat event a new unread row. Partial on
+    // `unread` so a read/dismissed row does not block re-notification.
+    uniqueIndex('notifications_unread_resource_unique')
+      .on(t.userId, t.type, t.resourceId)
+      .where(sql`${t.status} = 'unread'`),
     // Query: unread count + list by user
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)
