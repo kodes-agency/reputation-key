@@ -28,6 +28,7 @@ export type AiErrorCode =
   | 'provider_unavailable'
   | 'provider_refused'
   | 'output_invalid'
+  | 'output_truncated'
   | 'policy_unavailable'
 
 export type AiError = Readonly<{
