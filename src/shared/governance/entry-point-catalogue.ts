@@ -1577,7 +1577,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'requestUploadUrl',
       `${PORTAL}/portals.ts`,
-      'portal.update',
+      'portal.create',
       'portal.upload',
       'property',
       { externalEffect: true, notes: 'issues S3 presigned upload URL' },
@@ -1585,7 +1585,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'finalizeUpload',
       `${PORTAL}/portals.ts`,
-      'portal.update',
+      'portal.create',
       'portal.upload',
       'property',
       { externalEffect: true, notes: 'verifies uploaded object in S3' },
@@ -1803,12 +1803,9 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'moderateGuestResponseFn',
       `${GUEST}/public.ts`,
       'feedback.respond',
-      'portal.write',
+      'portal.guest_response',
       'property',
-      {
-        notes:
-          'manager quarantine/delete; tenant and property scoped. Staff moderation gates on portal.write so it enables independently of guest collection (portal.guest_response)',
-      },
+      { notes: 'manager quarantine/delete; tenant and property scoped' },
     ),
     sfPublic(
       'recordScanFn',
