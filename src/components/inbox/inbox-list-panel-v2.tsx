@@ -18,6 +18,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     openCount,
     searchQ,
     attention,
+    category,
     items,
     selectedIds,
     isLoading,
@@ -26,6 +27,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     listRef,
     onSearchChange,
     onAttentionChange,
+    onCategoryChange,
     onBulkDone,
     bulkUpdateFn,
     onLoadMore,
@@ -41,6 +43,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
         onSearchChange={onSearchChange}
         attention={attention}
         onAttentionChange={onAttentionChange}
+        category={category}
+        onCategoryChange={onCategoryChange}
         onOpenSidebar={onOpenSidebar}
       />
       <BulkActionBar

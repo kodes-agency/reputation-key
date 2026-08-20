@@ -20,6 +20,7 @@ export type { Cursor } from './ports/inbox.repository'
 export type {
   InboxReviewAnalysis,
   ReviewAttention,
+  ReviewCategory,
 } from './ports/ai-review-insights.port'
 
 // Event re-exports — cross-context consumers must import event types from public-api, not domain/events

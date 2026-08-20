@@ -14,6 +14,7 @@ import type {
   renewPropertyGooglePerformanceLease,
 } from '#/contexts/integration/server/google-performance'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
+import type { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggregates'
 import {
   activeSignals,
   calmSignals,
@@ -52,6 +53,9 @@ const getAiTrend = (async () => ({
   },
   generatedAtEpochMillis: Date.UTC(2026, 7, 15, 12),
 })) as unknown as typeof getPropertyAiTrendFn
+const getAiAggregates = (async () => ({
+  status: 'disabled',
+})) as unknown as typeof getPropertyAiAggregatesFn
 
 const meta: Meta<typeof PropertyDashboard> = {
   title: 'Property/PropertyDashboard',
@@ -81,6 +85,7 @@ export const Default: Story = {
     onPerformanceRangeChange: () => {},
     performanceFns,
     getAiTrend,
+    getAiAggregates,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

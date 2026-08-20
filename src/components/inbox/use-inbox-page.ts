@@ -33,6 +33,7 @@ export function useInboxPage(
       ratingMin: rest.ratingMin ?? undefined,
       ratingMax: rest.ratingMax ?? undefined,
       attention: rest.attention ?? undefined,
+      category: rest.category ?? undefined,
       q: rest.q ?? undefined,
     }),
     [
@@ -42,6 +43,7 @@ export function useInboxPage(
       rest.ratingMin,
       rest.ratingMax,
       rest.attention,
+      rest.category,
       rest.q,
       folder,
     ],

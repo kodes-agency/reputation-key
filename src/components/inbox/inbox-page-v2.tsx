@@ -72,6 +72,7 @@ export function InboxPageV2({
     openCount: s.openCount,
     searchQ: search.q,
     attention: search.attention,
+    category: search.category,
     items: s.items,
     selectedIds: s.selectedIds,
     isLoading: s.isLoading,
@@ -86,6 +87,11 @@ export function InboxPageV2({
       onNavigate({
         to: '.',
         search: (p) => ({ ...p, attention, itemId: undefined }),
+      }),
+    onCategoryChange: (category) =>
+      onNavigate({
+        to: '.',
+        search: (p) => ({ ...p, category, itemId: undefined }),
       }),
     onToggleSelect: s.handleToggleSelect,
     onSelectAll: s.handleSelectAll,

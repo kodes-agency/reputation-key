@@ -178,6 +178,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'merchantAiAuthorization',
   'prepareGoogleImportV2PropertyDeletion',
   'processGoogleImportV2Item',
+  'readPropertyAiAggregates',
   'readPropertyAiTrend',
   'rebuildInboxProjection',
   'reconcileAllRecognition',

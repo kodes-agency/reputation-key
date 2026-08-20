@@ -88,6 +88,8 @@ export const aiKeys = {
   all: ['ai'] as const,
   propertyTrend: (propertyId: string) =>
     [...aiKeys.all, 'property-trend', propertyId] as const,
+  propertyAggregates: (propertyId: string) =>
+    [...aiKeys.all, 'property-aggregates', propertyId] as const,
 }
 
 // ── Goals ────────────────────────────────────────────────────────────────

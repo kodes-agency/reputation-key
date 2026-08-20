@@ -21,6 +21,10 @@ import {
   PropertyAiTrendSection,
   type PropertyAiTrendServerFn,
 } from './property-ai-trend-section'
+import {
+  PropertyAiAggregateSection,
+  type PropertyAiAggregatesServerFn,
+} from './property-ai-aggregate-section'
 
 export interface PropertyDashboardProps {
   property: Readonly<{ id: string; name: string }> | null | undefined
@@ -33,6 +37,7 @@ export interface PropertyDashboardProps {
   onPerformanceRangeChange: (value: PropertyPerformancePreset) => void
   performanceFns: GooglePerformanceServerFns
   getAiTrend: PropertyAiTrendServerFn
+  getAiAggregates: PropertyAiAggregatesServerFn
 }
 
 export function PropertyDashboard({
@@ -46,6 +51,7 @@ export function PropertyDashboard({
   onPerformanceRangeChange,
   performanceFns,
   getAiTrend,
+  getAiAggregates,
 }: PropertyDashboardProps) {
   if (!property) return null
 
@@ -119,6 +125,10 @@ export function PropertyDashboard({
         serverFns={performanceFns}
       />
       <PropertyAiTrendSection propertyId={propertyId} getTrend={getAiTrend} />
+      <PropertyAiAggregateSection
+        propertyId={propertyId}
+        getAggregates={getAiAggregates}
+      />
 
       {engagementFunnel && (
         <div>
