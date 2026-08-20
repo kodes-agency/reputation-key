@@ -16,13 +16,19 @@ import {
 import type { Database } from '#/shared/db'
 import { createRecognitionLookupAdapter } from './recognition-lookup.adapter'
 
-const ORG_A = organizationId('11111111-1111-4111-8111-111111111111')
-const ORG_B = organizationId('22222222-2222-4222-8222-222222222222')
-const PROPERTY_ID = '33333333-3333-4333-8333-333333333333'
-const GOAL_ID = '44444444-4444-4444-8444-444444444444'
-const PORTAL_ID = '55555555-5555-4555-8555-555555555555'
-const PORTAL_GROUP_ID = '66666666-6666-4666-8666-666666666666'
-const BADGE_DEF_ID = '77777777-7777-4777-8777-777777777777'
+// Distinct ids per integration FILE, not the conventional 1111…/2222… set:
+// every integration file shares one database, cleanup runs in `beforeEach` for
+// the declaring file's table list only, and this file is the only one that
+// seeds `portals`/`portal_groups`. Reusing the shared org id left those rows
+// behind for the next file, whose `DELETE FROM properties` then tripped
+// `portals_property_tenant_fk`.
+const ORG_A = organizationId('a1000000-0000-4000-8000-000000000001')
+const ORG_B = organizationId('a1000000-0000-4000-8000-000000000002')
+const PROPERTY_ID = 'a1000000-0000-4000-8000-000000000010'
+const GOAL_ID = 'a1000000-0000-4000-8000-000000000011'
+const PORTAL_ID = 'a1000000-0000-4000-8000-000000000012'
+const PORTAL_GROUP_ID = 'a1000000-0000-4000-8000-000000000013'
+const BADGE_DEF_ID = 'a1000000-0000-4000-8000-000000000014'
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
@@ -64,12 +70,15 @@ async function seedBadgeDefinition(): Promise<void> {
 
 async function seedPortals(): Promise<void> {
   const pool = getPool()
+  // `property_id` and `entity_id` are different column types, so binding one
+  // placeholder to both makes Postgres deduce conflicting types for it
+  // ("inconsistent types deduced for parameter $3"). Bind them separately.
   await pool.query(
     `INSERT INTO portals
        (id, organization_id, property_id, entity_type, entity_id, name, slug)
-     VALUES ($1, $2, $3, 'property', $3, 'Front desk', 'front-desk')
+     VALUES ($1, $2, $3, 'property', $4, 'Front desk', 'front-desk')
      ON CONFLICT (id) DO NOTHING`,
-    [PORTAL_ID, ORG_A, PROPERTY_ID],
+    [PORTAL_ID, ORG_A, PROPERTY_ID, PROPERTY_ID],
   )
   await pool.query(
     `INSERT INTO portal_groups (id, organization_id, property_id, name)
