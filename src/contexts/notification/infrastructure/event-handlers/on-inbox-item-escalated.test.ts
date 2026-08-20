@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildInboxItemEscalatedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   expectJobsEnqueued,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
@@ -20,7 +21,7 @@ describe('onInboxItemEscalated (notification)', () => {
     deps = createEventHandlerDeps()
   })
 
-  it('enqueues a notification job for each admin', async () => {
+  it('enqueues a facts-only notification job for each admin', async () => {
     deps.userLookup.findByRole.mockResolvedValue([
       NOTIF_TEST_IDS.admin1,
       NOTIF_TEST_IDS.admin2,
@@ -29,14 +30,16 @@ describe('onInboxItemEscalated (notification)', () => {
     await onInboxItemEscalated(deps)(escalatedEvent)
 
     expectJobsEnqueued(deps, 2)
+    // Was: body 'Inbox item <uuid> has been escalated and requires attention'.
+    // The id travels in the deep link; the copy now carries the rating, the
+    // property and the waiting age, rendered from these facts.
     expect(deps.jobs[0]).toEqual(
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.admin1,
         type: 'inbox.escalated',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Item escalated',
-        body: `Inbox item ${NOTIF_TEST_IDS.inboxItemId} has been escalated and requires attention`,
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -45,10 +48,29 @@ describe('onInboxItemEscalated (notification)', () => {
         type: 'inbox.escalated',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Item escalated',
-        body: `Inbox item ${NOTIF_TEST_IDS.inboxItemId} has been escalated and requires attention`,
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
+  })
+
+  it('puts no identifier anywhere in what the user will read', async () => {
+    deps.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+    await onInboxItemEscalated(deps)(escalatedEvent)
+
+    const payload = (deps.jobs[0]!.data as { payload: unknown }).payload
+    expect(JSON.stringify(payload)).not.toContain(NOTIF_TEST_IDS.inboxItemId)
+  })
+
+  it('names no actor: an SLA fired, not a colleague', async () => {
+    deps.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+
+    await onInboxItemEscalated(deps)(escalatedEvent)
+
+    expect(deps.userLookup.findActorRole).not.toHaveBeenCalled()
+    expect(
+      (deps.jobs[0]!.data as { payload: Record<string, unknown> }).payload.actorRole,
+    ).toBeUndefined()
   })
 
   it('looks up admins by organizationId and AccountAdmin role', async () => {

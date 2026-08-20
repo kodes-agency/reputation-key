@@ -12,12 +12,13 @@ import {
 import {
   NOTIFICATION_TYPES,
   type Notification,
-  type NotificationCategory,
   type NotificationPriority,
   type NotificationResourceType,
   type NotificationStatus,
   type NotificationType,
 } from '../../domain/types'
+import { parseNotificationPayload } from '../../domain/notification-payload'
+import { NOTIFICATION_CATEGORIES } from '../../domain/notification-delivery-policy'
 
 // ── Row type ───────────────────────────────────────────────────────
 
@@ -42,7 +43,14 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   userId: toUserId(row.userId),
   organizationId: toOrgId(row.organizationId),
   propertyId: toPropertyId(row.propertyId),
-  category: row.category as NotificationCategory,
+  // Fenced like every other enum column: migration 0070 retired the
+  // `digest_summary` category, and a bare cast would have let a stale row walk
+  // an impossible value into the domain instead of failing loudly.
+  category: assertLiteral(
+    row.category,
+    NOTIFICATION_CATEGORIES,
+    'notification.category',
+  ),
   type: assertLiteral(row.type, VALID_TYPES, 'notification.type'),
   priority: assertLiteral(row.priority, VALID_PRIORITIES, 'notification.priority'),
   status: assertLiteral(row.status, VALID_STATUSES, 'notification.status'),
@@ -55,6 +63,13 @@ export const notificationFromRow = (row: NotificationRow): Notification => ({
   eventId: row.eventId,
   title: row.title,
   body: row.body,
+  // JSONB is untrusted on the way out: the column is written by this context
+  // today, but legacy rows hold NULL and a hand-edited/older row can hold
+  // anything. `parseNotificationPayload` drops every unrecognised key and
+  // returns `{}` rather than null, so render never sees a surprise shape.
+  payload: parseNotificationPayload(row.payload),
+  coalescedCount: row.coalescedCount,
+  coalescedLatestAt: row.coalescedLatestAt,
   readAt: row.readAt,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,

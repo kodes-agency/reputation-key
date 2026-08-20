@@ -8,11 +8,13 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { Queue } from 'bullmq'
+import { buildInboxItemPayload } from './payload-facts'
 
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
   inboxItemLookup: InboxItemLookupPort
+  clock: () => Date
   logger: LoggerPort
 }>
 
@@ -39,6 +41,15 @@ export const onReplySubmitted =
     )
     if (!inboxItemId) return
 
+    // One payload for every recipient: the facts are about the item, not about
+    // who is being told. `actorId` is the submitter, so an approver reads "A
+    // property manager drafted a reply" — the role, never the person.
+    const payload = await buildInboxItemPayload(deps, {
+      inboxItemId,
+      orgId: event.organizationId,
+      actorId: event.userId,
+    })
+
     const jobs: InsertNotificationJobData[] = recipients.map((userId) => ({
       userId,
       organizationId: event.organizationId,
@@ -47,8 +58,7 @@ export const onReplySubmitted =
       resourceType: 'inbox_item' as const,
       resourceId: inboxItemId,
       eventId: event.eventId,
-      title: 'Reply pending approval',
-      body: 'A reply is awaiting your approval',
+      payload,
     }))
 
     await Promise.all(

@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildInboxItemCreatedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   expectJobsEnqueued,
   stubManagerForQueueAddError,
   NOTIF_TEST_IDS,
@@ -26,18 +27,32 @@ describe('onInboxItemCreated (notification)', () => {
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
     ])
+    // Facts come from the item, not the event: portal-sourced feedback.
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: 'prop-1',
+      propertyName: 'Riverside Hotel',
+      rating: 4,
+      sourceType: 'feedback',
+      createdAt: new Date('2026-06-01T11:30:00.000Z'),
+    })
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
     expectJobsEnqueued(deps, 2)
+    const expectedPayload = {
+      propertyName: 'Riverside Hotel',
+      rating: 4,
+      platform: 'portal',
+      // 30 minutes old — under an hour, so the copy shows no age at all.
+      waitingHours: 0,
+    } as const
     expect(deps.jobs[0]).toEqual(
       buildExpectedJob({
         userId: NOTIF_TEST_IDS.manager1,
         type: 'feedback.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'New feedback',
-        body: 'A guest submitted feedback',
+        payload: expectedPayload,
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -46,9 +61,20 @@ describe('onInboxItemCreated (notification)', () => {
         type: 'feedback.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'New feedback',
-        body: 'A guest submitted feedback',
+        payload: expectedPayload,
       }),
+    )
+  })
+
+  it('never carries guest or review content into the payload', async () => {
+    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+
+    await onInboxItemCreated(deps)(itemCreatedEvent)
+
+    // ADR 0046 r.8 / BQC-1.2: the inbox row also holds a snippet, a reviewer
+    // name and media. None of it may reach a notification.
+    expect(deps.jobs[0]!.data).toEqual(
+      expect.objectContaining({ payload: EXPECTED_INBOX_PAYLOAD }),
     )
   })
 
@@ -78,9 +104,9 @@ describe('onInboxItemCreated (notification)', () => {
         type: 'review.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'New review',
-        // BQC-1.2: content-free body — no star count (raw rating never copied).
-        body: 'New review received',
+        // The rating IS carried — a 1-5 star number is a numeric fact, not
+        // source content (ADR 0046 r.8). The review TEXT never is.
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
   })
@@ -99,16 +125,55 @@ describe('onInboxItemCreated (notification)', () => {
     )
   })
 
-  it('does not enqueue any jobs when no managers are assigned', async () => {
+  it('falls back to the org AccountAdmins when no manager is assigned', async () => {
     deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([
+      NOTIF_TEST_IDS.admin1,
+      NOTIF_TEST_IDS.admin2,
+    ])
+
+    await onInboxItemCreated(deps)(itemCreatedEvent)
+
+    expect(deps.userLookup.findByRole).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.orgId,
+      'AccountAdmin',
+    )
+    expect(deps.queue.add).toHaveBeenCalledTimes(2)
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ userId: NOTIF_TEST_IDS.admin1 }),
+    )
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ userId: NOTIF_TEST_IDS.admin2 }),
+    )
+    expect(deps.logger.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'onInboxItemCreated: no recipients found',
+    )
+  })
+
+  it('does not look up AccountAdmins when a manager is assigned', async () => {
+    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+
+    await onInboxItemCreated(deps)(itemCreatedEvent)
+
+    expect(deps.userLookup.findByRole).not.toHaveBeenCalled()
+    expect(deps.queue.add).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not enqueue any jobs when there is no manager and no AccountAdmin', async () => {
+    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
     expect(deps.queue.add).not.toHaveBeenCalled()
   })
 
-  it('logs a warning when no managers are assigned', async () => {
+  it('warns only when neither a manager nor an AccountAdmin exists', async () => {
     deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 

@@ -25,6 +25,25 @@ const envSchema = z.object({
   // byte-identical to the pre-seam behavior. The app still runs its REAL
   // Resend client against whatever this points at (no fake injection).
   RESEND_BASE_URL: z.url().optional(),
+  // ADR 0046 r.6: Svix signing secret for the Resend event webhook
+  // (/api/webhooks/resend/events), which is what makes `delivered`,
+  // `bounced` and `complained` reachable at all. OPTIONAL in the schema on
+  // purpose — same fail-closed-at-the-route posture as OPS_METRICS_TOKEN:
+  // absent env → the route answers 503 `webhook_disabled` instead of
+  // crashing boot, so a deployment without Resend webhooks configured still
+  // starts. Format is Resend's `whsec_<base64>`; the verifier strips the
+  // prefix and base64-decodes the remainder as the HMAC-SHA256 key.
+  RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // RFC 5322 From header for every outbound message. Defaulted, not required,
+  // so no deployment breaks on the upgrade — the default is the value that was
+  // previously hardcoded in shared/auth/emails.ts.
+  //
+  // OPS DEBT: the product domain is reputationkey.app but the sender is
+  // kodes.agency. SPF/DKIM/DMARC are aligned for the sending domain, not for
+  // the brand the reader sees, which costs deliverability and reads as a
+  // phishing tell. Fix by verifying reputationkey.app in Resend and setting
+  // this to `Reputation Key <notifications@reputationkey.app>`.
+  EMAIL_FROM: z.string().min(3).default('Reputation Key <info@kodes.agency>'),
 
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
@@ -166,6 +185,12 @@ const envSchema = z.object({
   GBP_PUBSUB_TOPIC: z.string().optional().default(''),
   // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW only).
   GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW'),
+  // Per-property minimum interval (minutes) between new-review discovery
+  // polls. The discover-new-reviews sweep FIRES every 15 minutes on the
+  // background queue; this is how long an individual connected property
+  // waits before it is polled again, so it — not the firing cadence — is the
+  // knob that trades review freshness against GBP quota. Default 15.
+  REVIEW_DISCOVERY_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   // Dynamic Access Control — Stage 1 safety gate (ADR 0001).
   // 'true' enables the custom-role model (Stage 2 dynamic resolver). Absent or any
   // other value = false. Parsed as string→bool to avoid z.coerce.boolean()'s

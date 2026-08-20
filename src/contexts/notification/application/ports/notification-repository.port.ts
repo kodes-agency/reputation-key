@@ -17,7 +17,11 @@ import type {
 } from '#/shared/domain/ids'
 
 export type NotificationRepositoryPort = Readonly<{
-  /** Upsert on conflict by idempotency key (userId + type + resourceId + eventId). */
+  /**
+   * Insert the unread row. Conflicts resolve on the ADR 0046 r.2 partial
+   * unique key (user, type, resource) WHERE status = 'unread' — the row's
+   * rendered copy and payload win.
+   */
   insert(notification: Notification): Promise<Notification>
 
   findById(id: NotificationId, orgId: OrganizationId): Promise<Notification | null>
@@ -73,15 +77,26 @@ export type NotificationRepositoryPort = Readonly<{
     resourceId: string,
   ): Promise<Notification | null>
 
-  /** Bump an existing unread notification (refresh title/body/updatedAt). */
-  refreshUnread(
+  /**
+   * Persist an ADR 0046 r.2 coalescing bump: the already-coalesced entity
+   * (title/body/payload/count/latest/updatedAt) produced by
+   * `applyCoalescence`. Scoped to the owning user + org so a bump can never
+   * cross a tenant.
+   */
+  refreshUnread(notification: Notification): Promise<void>
+
+  /**
+   * Flip a read row back to unread. Returns null — never throws — when the
+   * flip would collide with the partial unread-uniqueness key, i.e. another
+   * unread row already represents this (user, type, resource), or when the row
+   * is not the user's / not read.
+   */
+  markUnread(
     id: NotificationId,
     userId: UserId,
     orgId: OrganizationId,
-    title: string,
-    body: string | null,
     updatedAt: Date,
-  ): Promise<void>
+  ): Promise<Notification | null>
 
   /** Dismiss every non-dismissed notification for the user (Clear-all). */
   markAllDismissed(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>

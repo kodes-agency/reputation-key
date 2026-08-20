@@ -1,15 +1,30 @@
 // Notification context — badge.awarded handler
 // Enqueues one insert-notification job per assigned manager with the
 // correct InsertNotificationJobData payload shape.
+//
+// This handler used to put the raw badge-definition UUID in the body ("Badge
+// definition: 7f0c…"). It now resolves the badge's catalogue name and the
+// portal / portal-group that earned it, so the row reads "Front desk earned
+// Fast Responder".
 
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import type { BadgeAwarded } from '#/contexts/badge/application/public-api'
+import type { PortalGroupId, PortalId } from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
+import { buildBadgePayload, type BadgeTarget } from './payload-facts'
+
+type Deps = Readonly<{
+  queue: Queue
+  userLookup: UserLookupPort
+  recognitionLookup: RecognitionLookupPort
+  logger: LoggerPort
+}>
 
 export const onBadgeAwarded =
-  (deps: { queue: Queue; userLookup: UserLookupPort; logger: LoggerPort }) =>
+  (deps: Deps) =>
   async (event: BadgeAwarded): Promise<void> => {
     const managerIds = await deps.userLookup.findAssignedManagers(
       event.organizationId,
@@ -24,9 +39,17 @@ export const onBadgeAwarded =
       return
     }
 
-    const targetTypeLabel = event.targetType === 'portal' ? 'Portal' : 'Portal group'
-    const title = `${targetTypeLabel} earned a badge`
-    const body = `Badge definition: ${event.badgeDefinitionId}`
+    // The event's targetType decides which table names the recipient.
+    const target: BadgeTarget =
+      event.targetType === 'portal'
+        ? { kind: 'portal', id: event.targetId as PortalId }
+        : { kind: 'portal_group', id: event.targetId as PortalGroupId }
+
+    const payload = await buildBadgePayload(deps, {
+      badgeDefinitionId: event.badgeDefinitionId,
+      target,
+      orgId: event.organizationId,
+    })
 
     // Enqueue one job per manager — the worker contract expects a
     // single userId per InsertNotificationJobData.
@@ -43,8 +66,7 @@ export const onBadgeAwarded =
             resourceType: 'badge',
             resourceId: event.badgeDefinitionId,
             eventId: event.eventId,
-            title,
-            body,
+            payload,
           },
           {
             attempts: 3,

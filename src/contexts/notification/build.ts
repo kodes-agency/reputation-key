@@ -18,6 +18,7 @@ import {
   type PropertyAccessHolderLookup,
 } from './infrastructure/adapters/db-user-lookup.adapter'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
+import { createRecognitionLookupAdapter } from './infrastructure/adapters/recognition-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
@@ -25,6 +26,7 @@ import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-po
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import {
   markNotificationRead,
+  markNotificationUnread,
   dismissNotification,
 } from './domain/constructors-transitions'
 import { createNotificationPreference } from './domain/constructors-preference'
@@ -57,6 +59,7 @@ export const buildNotificationContext = (input: BuildInput) => {
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const userLookup = createDbUserLookupAdapter(input.db, input.propertyAccessHolders)
   const inboxItemLookup = createInboxItemLookupAdapter(input.db)
+  const recognitionLookup = createRecognitionLookupAdapter(input.db)
 
   // Register event handlers that enqueue BullMQ jobs.
   // BQC-3.6: the queue is wrapped so every insert-notification enqueue
@@ -67,6 +70,8 @@ export const buildNotificationContext = (input: BuildInput) => {
       queue: withCatalogueJobOptions(input.queue),
       userLookup,
       inboxItemLookup,
+      recognitionLookup,
+      clock: input.clock,
       logger: input.logger,
     })
   }
@@ -121,6 +126,24 @@ export const buildNotificationContext = (input: BuildInput) => {
       const result = markNotificationRead(n, () => now)
       if (result.isErr()) return // invalid transition, skip
       await notificationRepo.markRead(id, userId, orgId, now, now)
+    },
+    /**
+     * Read -> unread for the row menu. Resolves to the flipped notification, or
+     * null when the flip is a no-op: either the transition is invalid (the row
+     * is already unread or was dismissed) or ADR 0046 r.2's unread-uniqueness
+     * key is already held by another row for the same (user, type, resource) —
+     * in which case that row IS the user's unread signal and there is nothing
+     * to do. A wrong or foreign id still throws `not_found`.
+     */
+    markUnread: async (id: string, orgId: string, userId: UserId) => {
+      const n = await notificationRepo.findById(id, orgId)
+      if (!n || n.userId !== userId) {
+        throw notificationError('not_found', 'Notification not found or access denied')
+      }
+      const now = input.clock()
+      const result = markNotificationUnread(n, () => now)
+      if (result.isErr()) return null // invalid transition, skip
+      return notificationRepo.markUnread(id, userId, orgId, now)
     },
     markAllRead: (userId: string, orgId: string) => {
       const now = input.clock()

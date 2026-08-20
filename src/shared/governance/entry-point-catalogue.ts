@@ -91,6 +91,7 @@ export type SystemAction =
   | 'system:property.import_v2'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
+  | 'system:review.discovery_sweep'
   | 'system:review.purge'
   | 'system:review.reconcile'
   | 'system:reply.publish'
@@ -112,6 +113,7 @@ export type SystemAction =
   | 'system:notification.insert'
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
+  | 'system:notification.delivery_event'
   | 'system:inbox.update'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
@@ -1187,6 +1189,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
     ),
     sf(
+      'markNotificationUnreadFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.update',
+      'notification.in_app',
+      'organization',
+      { notes: 'inverse of markRead; no-op when the ADR 0046 r.2 unread key is taken' },
+    ),
+    sf(
       'markAllNotificationsReadFn',
       `${NOTIFICATION}/notifications.ts`,
       'notification.update',
@@ -1213,7 +1223,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.read',
       'notification.in_app',
       'organization',
-      { notes: 'staged RPC, UI not yet wired' },
+      { notes: 'notification preferences settings route' },
     ),
     sf(
       'updateNotificationPreferenceFn',
@@ -1221,7 +1231,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.update',
       'notification.in_app',
       'organization',
-      { notes: 'staged RPC, UI not yet wired' },
+      { notes: 'notification preferences settings route' },
     ),
     sf(
       'getNotificationUserSettingsFn',
@@ -1567,7 +1577,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'requestUploadUrl',
       `${PORTAL}/portals.ts`,
-      'portal.create',
+      'portal.update',
       'portal.upload',
       'property',
       { externalEffect: true, notes: 'issues S3 presigned upload URL' },
@@ -1575,7 +1585,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'finalizeUpload',
       `${PORTAL}/portals.ts`,
-      'portal.create',
+      'portal.update',
       'portal.upload',
       'property',
       { externalEffect: true, notes: 'verifies uploaded object in S3' },
@@ -1793,9 +1803,12 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'moderateGuestResponseFn',
       `${GUEST}/public.ts`,
       'feedback.respond',
-      'portal.guest_response',
+      'portal.write',
       'property',
-      { notes: 'manager quarantine/delete; tenant and property scoped' },
+      {
+        notes:
+          'manager quarantine/delete; tenant and property scoped. Staff moderation gates on portal.write so it enables independently of guest collection (portal.guest_response)',
+      },
     ),
     sfPublic(
       'recordScanFn',
@@ -1984,6 +1997,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'inbox.use',
       'organization',
       { notes: 'manager triage surface' },
+    ),
+    ui(
+      '/notifications',
+      `${AUTHED}/notifications.tsx`,
+      'notification.read',
+      'notification.in_app',
+      'organization',
+      { notes: 'full in-app notification history; reads via notification server fns' },
     ),
   ],
 
@@ -2305,6 +2326,19 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
         'Google Pub/Sub JWT verify (audience-bound); enqueues sync-property-reviews (stamps webhook:gbp initiator); capability not asserted in code — BQC-3.2 dispatch gate authorizes',
     },
   ),
+  api(
+    '/api/webhooks/resend/events',
+    `${ROUTES}/api/webhooks/resend/events.ts`,
+    'system:notification.delivery_event',
+    'notification.send_email',
+    'none',
+    {
+      principals: ['system'],
+      externalEffect: false,
+      notes:
+        'ADR 0046 r.6: Svix HMAC-SHA256 verify over the raw body (5-min replay window, constant-time compare); maps email.delivered/bounced/complained onto recordProviderState and suppresses a bounced recipient\u2019s remaining queued mail; 503 webhook_disabled when RESEND_WEBHOOK_SECRET is unset; scope none \u2014 the provider message id resolves the tenant',
+    },
+  ),
 ]
 
 const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
@@ -2382,6 +2416,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'BQC-1.5 bounded sweep (500×10, cursor in review_refresh_runs); enqueues gated sync jobs',
+    },
+  ),
+  job(
+    'discover-new-reviews',
+    'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
+    'system:review.discovery_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'new-review discovery sweep (200×10, keyset on property id, per-property due times in review_sync_state); enqueues gated sync jobs — never calls the provider itself, so no externalEffect. Distinct tenant-cross action with capability none for the same reason as system:review.reconcile: the strictest-scope merge on property-scoped system:review.sync would missing_scope-deny this sweep',
     },
   ),
   job(
@@ -2553,7 +2598,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'hourly fanout resolves and authorizes each property; daily batches run at property-local 08:00 and never combine properties',
+        'hourly fanout re-enqueues immediate orphans per authorized property; ADR 0046 r.4 digest batches are per USER in the user timezone, grouped by property inside one email',
     },
   ),
   job(
@@ -2794,6 +2839,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'hourly (BQC-1.5 bounded sweep)' },
+  ),
+  schedule(
+    'discover-new-reviews-recurring',
+    'system:review.discovery_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 15 min; per-property due times (REVIEW_DISCOVERY_INTERVAL_MINUTES, default 15) fence duplicate polls',
+    },
   ),
   schedule(
     'purge-expired-reviews-recurring',

@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildInboxNoteAddedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   expectJobsEnqueued,
   stubManagerForQueueAddError,
   NOTIF_TEST_IDS,
@@ -37,8 +38,7 @@ describe('onInboxNoteAdded (notification)', () => {
         type: 'inbox_note.added',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'New note added',
-        body: 'A note was added to an inbox item',
+        payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -47,8 +47,7 @@ describe('onInboxNoteAdded (notification)', () => {
         type: 'inbox_note.added',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'New note added',
-        body: 'A note was added to an inbox item',
+        payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
       }),
     )
   })

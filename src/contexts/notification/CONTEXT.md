@@ -80,17 +80,19 @@ infrastructure/
 
 | Name                 | Input                                                                  | Output                 | Permission                |
 | -------------------- | ---------------------------------------------------------------------- | ---------------------- | ------------------------- |
-| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, title, body) | `Notification \| null` | Internal (event handlers) |
+| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, `payload`)   | `Notification \| null` | Internal (event handlers) |
 
 `insertNotification` is invoked by the insert-notification BullMQ worker, not directly by server functions. Returns `null` when the user has disabled both channels (still persists if email-only) — see Q19.
+
+Callers pass **facts, never sentences**: `title`/`body` are derived inside `createNotification` from `renderNotification(type, payload)`, so the stored snapshot always matches what every channel renders (ADR 0046 r.8). A repeat event for a resource that already has an unread row **coalesces** into it instead of inserting (ADR 0046 r.2).
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- **Types:** `Notification`, `NotificationEmail`, `NotificationPreference`, `NotificationType`, `NotificationPriority`, `NotificationStatus`, `EmailQueueStatus`, `NotificationResourceType`, `CreateNotificationInput`, `CreateNotificationEmailInput`, `CreateNotificationPreferenceInput`, `NotificationError`.
-- **Values:** `isUrgent`, `URGENT_TYPES`, `NOTIFICATION_TYPES` (canonical type list), `notificationError`.
-- **Ports:** `NotificationRepositoryPort`, `NotificationEmailRepositoryPort`, `NotificationPreferenceRepositoryPort`, `UserLookupPort`, `EmailSenderPort`.
+- **Types:** `Notification`, `NotificationEmail`, `NotificationPreference`, `NotificationType`, `NotificationCategory`, `NotificationPriority`, `NotificationStatus`, `EmailQueueStatus`, `NotificationResourceType`, `NotificationPayload`, `NotificationRating`, `NotificationActorRole`, `NotificationPlatform`, `NotificationTargetKind`, `RenderedNotification`, `NotificationLink`, `CreateNotificationInput`, `InsertNotificationInput`, `CreateNotificationEmailInput`, `CreateNotificationPreferenceInput`, `NotificationError`.
+- **Values:** `isUrgent`, `URGENT_TYPES`, `NOTIFICATION_TYPES` (canonical type list), `notificationError`, `getDefaultEnabled`, `classifyNotification`, `NOTIFICATION_CATEGORIES` (all four, for settings), `GOVERNING_NOTIFICATION_CATEGORIES` (only those governing ≥ 1 type — what a filter may offer), and the render layer: `renderNotification`, `notificationLink`, `formatWaitingAge`, `parseNotificationPayload`, `isEmptyNotificationPayload`.
+- **Ports:** `NotificationRepositoryPort`, `NotificationEmailRepositoryPort`, `NotificationPreferenceRepositoryPort`, `UserLookupPort`, `EmailSenderPort`, `InboxItemLookupPort`, `RecognitionLookupPort`.
 
 The build function (`build.ts`) also exposes `publicApi` query/mutation helpers (`findById`, `getUnreadCount`, `getNotifications`, `markRead`, `markAllRead`, `dismiss`, `getPreferences`, `updatePreference`) consumed by the notification server functions.
 
@@ -101,11 +103,12 @@ The build function (`build.ts`) also exposes `publicApi` query/mutation helpers 
 | `getUnreadNotificationCountFn`   | GET    | `notification.read`   | RPC                          |
 | `getNotificationsFn`             | GET    | `notification.read`   | RPC                          |
 | `markNotificationReadFn`         | POST   | `notification.update` | RPC                          |
+| `markNotificationUnreadFn`       | POST   | `notification.update` | RPC                          |
 | `markAllNotificationsReadFn`     | POST   | `notification.update` | RPC                          |
 | `dismissNotificationFn`          | POST   | `notification.update` | RPC                          |
 | `dismissAllNotificationsFn`      | POST   | `notification.update` | RPC                          |
-| `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC (staged — not yet wired) |
-| `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC (staged — not yet wired) |
+| `getNotificationPreferencesFn`   | GET    | `notification.read`   | RPC                          |
+| `updateNotificationPreferenceFn` | POST   | `notification.update` | RPC                          |
 
 Server functions resolve tenant context from the authenticated session (never client payload) and verify notification ownership before mutating.
 
@@ -129,13 +132,17 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - `NotificationRepositoryPort` — CRUD + count/findByUser for notifications.
 - `NotificationEmailRepositoryPort` — email queue management (findPending, markSent/markFailed).
 - `NotificationPreferenceRepositoryPort` — preference upsert/findByUser/findByUserAndType.
-- `UserLookupPort` — `findByRole()`, `findAssignedManagers()` (managers AND staff), `getEmail()`, `getName()`.
+- `UserLookupPort` — `findByRole()`, `findAssignedManagers()` (managers AND staff), `getEmail()`, `getName()`, `findActorRole()` (role for `payload.actorRole`; never a name).
 - `EmailSenderPort` — wraps Resend `sendEmail()`.
+- `InboxItemLookupPort` — `findInboxItemByReviewId()`, `findInboxItemFacts()` (property name, rating, source, age — the render facts the events do not carry).
+- `RecognitionLookupPort` — `findGoalFacts()`, `findBadgeFacts()` (goal / badge / portal display names).
 
 - **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
 - **Review notification sources `inbox.inbox_item.created`** (2026-07 design) — the `review.created` notification subscribes to `inbox.inbox_item.created` (carries the `inboxItemId`, fires _after_ the item exists → no race), branching on `sourceType` (review vs feedback). That event is enriched with `rating`/`snippet` so the body derives fully. `resourceId` is the **inbox-item id**, making deep-links honest. (Replaces the old `review.created` subscription that stamped a `reviewId` under `resourceType: 'inbox_item'`.)
 - **Reply notifications resolve via `InboxItemLookupPort`** (2026-07 design) — reply-lifecycle handlers (`submitted/approved/rejected/published/publish_failed`) resolve `reviewId → inboxItemId` through a new `InboxItemLookupPort` (`findInboxItemByReviewId`) and stamp `resourceType: 'inbox_item'` / `resourceId: inboxItemId`. No race (the inbox item always exists by reply time). If the lookup returns null (item hard-deleted) the notification is **skipped**. Result: every action-oriented notification is uniformly `inbox_item`-keyed, so `getNotificationUrl` has one honest branch: `/inbox?itemId=<id>`.
 - **List excludes `dismissed`; header has both Mark-all-read and Clear-all** (2026-07 design) — `findByUser` now filters `status != 'dismissed'` (was returning all, so the per-item dismiss was a visual no-op). The popover header exposes two actions: **Mark all read** (existing → items move New→Earlier) and **Clear all** (new `dismissAll` use case + server fn → everything dismissed, list empties). No undo in v1 (rows persist in the DB, just hidden).
-- **At most one unread per `(userId, type, resourceId)`** (2026-07 design) — `insertNotification` dedups: if an _unread_ row already exists for that key, it **bumps** it (refresh `updatedAt`/body) instead of inserting; if the existing row is read/dismissed, a fresh unread row is created (so the user is re-notified). Prevents the duplicate-stacking seen for re-escalations / re-submitted replies. Replaces one-row-per-event.
+- **At most one unread per `(userId, type, resourceId)`** (2026-07 design, ADR 0046 r.2) — enforced in the database by the partial unique index `notifications_unread_resource_unique … WHERE status = 'unread'` (migration 0070, replacing the event-ID-keyed unique). `insertNotification` finds the unread row and **coalesces**: `coalesced_count + 1`, `coalesced_latest_at = now`, payload merged newest-wins with `occurrences` set, and title/body re-rendered so the row reads "… Updated 3 times". If the existing row is read/dismissed a fresh unread row is created (so the user is re-notified). Prevents the duplicate-stacking seen for re-escalations / re-submitted replies.
+- **Copy is rendered, never written by handlers** (2026-08 design, ADR 0046 r.8) — `domain/notification-templates.ts` is the single renderer for the in-app row, the urgent email and the digest line. Handlers emit a content-free `payload` (property name, rating, platform, waiting age, actor role, moderation reason, goal/badge/portal names, occurrences); `notifications.payload` is registered in `PROTECTED_FIELD_REGISTRY`, and `parseNotificationPayload` drops every unrecognised key on the way in AND out of the database. This is what removed the raw-UUID bodies ("Inbox item &lt;uuid&gt; has been escalated", "Badge definition: &lt;uuid&gt;").
+- **`digest_summary` retired as a category** (2026-08 design) — a digest is a **cadence** (`cadence = 'daily'`), and the category's default `{in_app:false, email:false}` silently dropped every `goal.completed`. Categories are now `mandatory | urgent_operational | workflow_collaboration | recognition`; `goal.completed` classifies as `recognition`. Migration 0070 remaps stored values in `notifications`, `notification_email_queue` and `notification_preferences`.
 - **Notification type names distinct from event tags** (Q4).

@@ -7,6 +7,4 @@ import { makeReplyNotificationHandler } from './reply-notification'
 export const onReplyPublishFailed =
   makeReplyNotificationHandler<ReviewReplyPublishFailed>({
     type: 'reply.publish_failed' as const,
-    title: 'Reply publish failed',
-    body: 'Failed to publish your reply to Google. Please retry.',
   })
