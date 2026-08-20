@@ -6,6 +6,10 @@
 // silently treat a template, mixed candidate, soft gate, or early approval as
 // release evidence.
 
+import {
+  BETA_LOCAL_EVIDENCE_VERSION,
+  BETA_LOCAL_REQUIRED_GATE_IDS,
+} from '#/shared/bqc/status-schema'
 import { parseManifest } from './scale-dataset'
 
 export const BETA_RELEASE_EVIDENCE_FILES = [
@@ -37,18 +41,24 @@ export const REQUIRED_APPROVAL_ROLES = [
  * Local controlled-beta evidence is the executable BQC contract. Hosted
  * capacity/PITR/region/pilot checks remain explicitly post-beta until they
  * are run in their own environment.
+ *
+ * These two constants used to be maintained here AND in `#/shared/bqc/status-schema`
+ * under permuted names -- `REQUIRED_BETA_LOCAL_GATE_IDS` here against
+ * `BETA_LOCAL_REQUIRED_GATE_IDS` there -- which is exactly why the duplication
+ * survived review. They fed two disjoint pipelines (this one validates gate
+ * evidence, that one validates the BQC status manifest), no test compared them,
+ * and nothing would have caught a divergence.
+ *
+ * `status-schema` owns them because the dependency can only run this way: the
+ * `.fallowrc.json` boundary rules let `shared-testing` import from `shared`, but
+ * `shared` may import only `shared-events`, so the reverse would be a boundary
+ * violation against a zero baseline -- and it would drag this whole beta-evidence
+ * apparatus into the production zone.
+ *
+ * Re-exported under the local name so the four downstream consumers are untouched.
  */
-export const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
-
-export const REQUIRED_BETA_LOCAL_GATE_IDS = [
-  'security-privacy',
-  'local-scale-recovery',
-  'source-lifecycle',
-  'runtime-fault-matrix',
-  'migration-upgrade',
-  'product-journeys',
-  'release-bundle',
-] as const
+export { BETA_LOCAL_EVIDENCE_VERSION }
+export const REQUIRED_BETA_LOCAL_GATE_IDS = BETA_LOCAL_REQUIRED_GATE_IDS
 
 export type ReleaseIdentity = Readonly<{
   releaseId: string
