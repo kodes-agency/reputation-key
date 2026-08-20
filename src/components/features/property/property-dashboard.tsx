@@ -12,6 +12,7 @@ import type { PropertyPerformancePreset } from '#/shared/google-performance-repo
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
+import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
 import { GooglePerformanceSection } from './google-performance-section'
@@ -48,8 +49,15 @@ export function PropertyDashboard({
 }: PropertyDashboardProps) {
   if (!property) return null
 
-  const { kpis, recentReviews, ratingDistribution, replyPerformance, engagementFunnel } =
-    dashboard
+  const {
+    kpis,
+    recentReviews,
+    ratingDistribution,
+    ratingTrend,
+    reviewVolume,
+    replyPerformance,
+    engagementFunnel,
+  } = dashboard
 
   return (
     <PageShell tier="dashboard">
@@ -131,6 +139,18 @@ export function PropertyDashboard({
           </div>
         </div>
       )}
+
+      <div className="min-w-0">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Reputation over time
+        </h2>
+        <div className="mt-3">
+          <PropertyReputationTrendChart
+            ratingTrend={ratingTrend}
+            reviewVolume={reviewVolume}
+          />
+        </div>
+      </div>
 
       <RatingDistributionChart distribution={ratingDistribution} />
 
