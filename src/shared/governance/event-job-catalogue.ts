@@ -1713,6 +1713,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'ai-operation-execution-reaper',
+    'src/shared/jobs/ai-operation-execution-reaper.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:ai.execution_reap',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'Abandoned-execution recovery: an operation whose owner died between claimExecution and its terminal write stays executing forever and claim refuses expired rows, so nothing else can ever finish it. Registered unconditionally — a killed AI runtime is exactly when executions are abandoned.',
+    },
+  ),
+  job(
     'quarantine-ttl-sweep',
     'src/shared/jobs/quarantine-ttl-sweep.job.ts',
     {

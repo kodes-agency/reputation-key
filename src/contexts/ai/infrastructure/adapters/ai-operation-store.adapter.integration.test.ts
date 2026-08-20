@@ -54,6 +54,7 @@ import {
   closeAiReadBarrier,
 } from './ai-read-barrier.adapter'
 import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
+import { createAiOperationExecutionReaper } from '../../application/ai-operation-execution-reaper'
 
 const NOW = Date.parse('2026-08-16T12:00:00.000Z')
 const CONTENT_EXPIRES_AT = Date.now() + 86_400_000
@@ -859,6 +860,71 @@ describe('AI operation store (real PostgreSQL)', () => {
       .where(eq(aiOperationAttempts.operationId, operationId))
     expect(attempts).toHaveLength(1)
     expect(attempts[0]).toMatchObject({ state: 'failed' })
+  })
+
+  it('reaps an execution abandoned past its horizon and leaves a live one alone', async () => {
+    const abandoned = await store.claim({
+      identity: identity(),
+      binding: binding(fences),
+      idempotencyKey: 'analysis-abandoned-key',
+      requestFingerprint: 'f'.repeat(64),
+      sourceProvenance: SOURCE_PROVENANCE,
+      nowEpochMillis: NOW,
+      expiresAtEpochMillis: NOW + 60_000,
+    })
+    if (abandoned.status === 'conflict') throw new Error('unexpected conflict')
+    const abandonedId = abandoned.operation.id
+    const claimedExecution = await store.claimExecution({
+      operationId: abandonedId,
+      expectedAttempt: 1,
+      nowEpochMillis: NOW,
+    })
+    expect(claimedExecution).not.toBeNull()
+
+    // Before the horizon nothing is reapable: this is the ordinary in-flight
+    // case and fencing it would abort live work.
+    await expect(
+      store.listExpiredExecutions({ nowEpochMillis: NOW + 30_000, limit: 100 }),
+    ).resolves.toEqual([])
+
+    const afterHorizon = NOW + 60_001
+    await expect(
+      store.listExpiredExecutions({ nowEpochMillis: afterHorizon, limit: 100 }),
+    ).resolves.toEqual([{ operationId: abandonedId, attempt: 1 }])
+
+    const reap = createAiOperationExecutionReaper({
+      store,
+      nowEpochMillis: () => afterHorizon,
+    })
+    await expect(reap()).resolves.toEqual({
+      abandonedVisited: 1,
+      operationsFenced: 1,
+      operationsRaced: 0,
+      batchFull: false,
+    })
+
+    // Terminal, not pending: the provider may already have run and been
+    // charged, so a retry could bill the merchant twice for one request.
+    expect(
+      await store.read({ operationId: abandonedId, command: 'analysis' }),
+    ).toMatchObject({
+      state: 'failed',
+      failureCode: 'operation_ambiguous',
+      nextAttemptAtEpochMillis: null,
+    })
+    const attempts = await db
+      .select()
+      .from(aiOperationAttempts)
+      .where(eq(aiOperationAttempts.operationId, abandonedId))
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]).toMatchObject({ state: 'failed' })
+
+    // Idempotent: the row is no longer `executing`, so a second tick finds
+    // nothing rather than rewriting a settled operation.
+    await expect(reap()).resolves.toMatchObject({
+      abandonedVisited: 0,
+      operationsFenced: 0,
+    })
   })
   it('atomically admits, settles, and exactly replays a property permit', async () => {
     const liveNow = Date.now()

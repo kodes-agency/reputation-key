@@ -28,6 +28,12 @@ import {
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
 import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
 import {
+  createAiOperationExecutionReaperHandler,
+  JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
+} from '#/shared/jobs/ai-operation-execution-reaper.job'
+import { createAiOperationExecutionReaper } from '#/contexts/ai/application/ai-operation-execution-reaper'
+import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
+import {
   createSyncPropertyReviewsHandler,
   JOB_NAME as SYNC_REVIEWS_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
@@ -472,6 +478,29 @@ export async function bootstrap(
   logger.info(
     { job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME },
     'registered permit start-deadline sweep job handler',
+  )
+
+  // ── AI operation abandoned-execution reaper ───────────────────────
+  // `claimExecution` moves an operation to `executing` and only the request
+  // path writes a terminal state after it. Anything that kills that path in
+  // between leaves the row `executing` forever, and `claim` refuses expired
+  // rows so it can never be picked up again either.
+  // Registered unconditionally for the same reason as the permit sweep above:
+  // a killed or unconfigured AI runtime is precisely when executions get
+  // abandoned, so gating the recovery on the capability would disable it
+  // exactly when it is needed.
+  container.jobRegistry.register(
+    AI_EXECUTION_REAPER_JOB_NAME,
+    createAiOperationExecutionReaperHandler({
+      reap: createAiOperationExecutionReaper({
+        store: createAiOperationStoreAdapter(container.db),
+        nowEpochMillis: () => container.clock().getTime(),
+      }),
+    }),
+  )
+  logger.info(
+    { job: AI_EXECUTION_REAPER_JOB_NAME },
+    'registered AI operation abandoned-execution reaper job handler',
   )
 
   // ── Activity log insertion job ────────────────────────────────────

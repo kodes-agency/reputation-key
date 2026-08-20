@@ -74,6 +74,22 @@ export type AiOperationStorePort = Readonly<{
     }>,
   ): Promise<boolean>
 
+  /**
+   * Operations still `executing` past their own horizon, oldest first, at most
+   * `limit` rows.
+   *
+   * Candidate selection only: nothing here decides the outcome. An attempt that
+   * dies between `claimExecution` and its terminal write — a crashed process, a
+   * killed request, a rejected settlement write — leaves the row `executing`
+   * with nobody left to finish it, and `claim` already refuses expired rows, so
+   * it can never be picked up again either. Without this the row stays
+   * `executing` forever and every count of in-flight AI work is permanently
+   * wrong.
+   */
+  listExpiredExecutions(
+    input: Readonly<{ nowEpochMillis: number; limit: number }>,
+  ): Promise<ReadonlyArray<Readonly<{ operationId: AiOperationId; attempt: number }>>>
+
   markDelivered(
     input: Readonly<{
       operationId: AiOperationId

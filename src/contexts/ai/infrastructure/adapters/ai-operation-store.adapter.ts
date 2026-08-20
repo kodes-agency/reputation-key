@@ -657,6 +657,31 @@ export function createAiOperationStoreAdapter(db: Database): AiOperationStorePor
       })
     },
 
+    async listExpiredExecutions(input) {
+      // Lock-free and allowed to be stale: every row this returns is re-checked
+      // by `recordFailure`, whose CAS matches on `state = 'executing'` AND the
+      // exact attempt. A row that settled between this scan and the write loses
+      // the CAS and is counted, never overwritten.
+      const rows = await db
+        .select({
+          operationId: aiOperations.id,
+          attempt: aiOperations.executionAttempt,
+        })
+        .from(aiOperations)
+        .where(
+          and(
+            eq(aiOperations.state, 'executing'),
+            lte(aiOperations.expiresAt, new Date(input.nowEpochMillis)),
+          ),
+        )
+        .orderBy(aiOperations.expiresAt)
+        .limit(input.limit)
+      return rows.map((row) => ({
+        operationId: row.operationId as AiOperationId,
+        attempt: row.attempt,
+      }))
+    },
+
     async markDelivered(input) {
       const deliveredAt = new Date(input.deliveredAtEpochMillis)
       const rows = await db
