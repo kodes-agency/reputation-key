@@ -70,7 +70,14 @@ export type GenerateReplySuggestionResult =
       code:
         | 'not_authorized'
         | 'source_changed'
+        // The review carries no text at all — distinct from source_changed,
+        // which asks the operator to reload. Reloading cannot add text.
+        | 'no_review_text'
+        // A language exists in the catalogue but has no reply templates.
         | 'language_not_supported'
+        // Not enough text (or too little detector confidence) to decide which
+        // language the review is in. Not the same as refusing a language.
+        | 'language_undetermined'
         | 'policy_unavailable'
         | 'completed_without_delivery'
         | 'provider_unavailable'
@@ -136,14 +143,16 @@ export function createGenerateReplySuggestion(
     }
     if (
       source.status !== 'available' ||
-      source.observation.text === null ||
       baseReplyStateRevision !== input.expectedBaseReplyStateRevision
     ) {
       return unavailable('source_changed')
     }
     const observation = source.observation
+    // A review with no text is not a review that CHANGED. Folding the two into
+    // source_changed told the operator to reload a review that was already
+    // current and could never gain text by reloading.
+    if (observation.text === null) return unavailable('no_review_text')
     const reviewText = observation.text
-    if (reviewText === null) return unavailable('source_changed')
     const evaluatedLanguage = mapReviewLanguageMetadata(observation.languageCode)
     if (evaluatedLanguage.status !== 'supported') {
       return unavailable(
@@ -157,10 +166,18 @@ export function createGenerateReplySuggestion(
       evaluatedLanguage: evaluatedLanguage.language,
     })
     if (concreteLanguage.status !== 'resolved') {
+      // The verifier already separates "cannot tell which language this is"
+      // (MIN_REPLY_LANGUAGE_LETTERS_V1 / detector confidence) from "this
+      // language has no templates". Only the second is an unsupported
+      // language. Collapsing both discarded the reason the code had already
+      // computed and reported a five-character review as a language we refuse
+      // to serve.
       return unavailable(
-        concreteLanguage.status === 'language_not_supported'
-          ? 'language_not_supported'
-          : 'policy_unavailable',
+        concreteLanguage.status !== 'language_not_supported'
+          ? 'policy_unavailable'
+          : concreteLanguage.reason === 'insufficient_language_evidence'
+            ? 'language_undetermined'
+            : 'language_not_supported',
       )
     }
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {

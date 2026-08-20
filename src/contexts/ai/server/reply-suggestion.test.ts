@@ -172,7 +172,11 @@ const RETRY_AT = 1_700_000_000_000
 const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> = {
   not_authorized: null,
   source_changed: null,
+  // Terminal: no amount of waiting gives a textless review text, and no
+  // amount of waiting lengthens a review below the detector's floor.
+  no_review_text: null,
   language_not_supported: null,
+  language_undetermined: null,
   completed_without_delivery: null,
   policy_unavailable: RETRY_AT,
   provider_unavailable: RETRY_AT,
@@ -181,7 +185,9 @@ const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> 
 /** The codes use-reply-suggestion.ts renders bespoke copy for. */
 const HOOK_DISTINGUISHED_CODES: ReadonlyArray<UnavailableCode> = [
   'language_not_supported',
+  'language_undetermined',
   'not_authorized',
+  'no_review_text',
   'source_changed',
 ]
 

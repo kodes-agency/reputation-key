@@ -39,7 +39,13 @@ const INPUT = Object.freeze({
   expectedBaseReplyStateRevision: 3,
 })
 
-function createHarness(options: Readonly<{ currentReplyStateRevision?: number }> = {}) {
+function createHarness(
+  options: Readonly<{
+    currentReplyStateRevision?: number
+    reviewText?: string | null
+    replyLanguage?: Readonly<{ status: string; language?: string; reason?: string }>
+  }> = {},
+) {
   const currentReplyStateRevision = options.currentReplyStateRevision ?? 3
   const claim = vi.fn(
     async (request: {
@@ -208,7 +214,10 @@ function createHarness(options: Readonly<{ currentReplyStateRevision?: number }>
           reviewId: REVIEW_ID,
           organizationId: ORGANIZATION_ID,
           propertyId: PROPERTY_ID,
-          text: 'A thoughtful review.',
+          text:
+            options.reviewText === undefined
+              ? 'A thoughtful review.'
+              : options.reviewText,
           rating: 5 as const,
           languageCode: 'en-US',
           reviewedAtEpochMillis: NOW - 1_000,
@@ -238,10 +247,9 @@ function createHarness(options: Readonly<{ currentReplyStateRevision?: number }>
       })),
       refreshForAi: vi.fn(),
     },
-    resolveReplyLanguage: vi.fn(async () => ({
-      status: 'resolved' as const,
-      language: 'en-Latn' as const,
-    })),
+    resolveReplyLanguage: vi.fn(
+      async () => options.replyLanguage ?? { status: 'resolved', language: 'en-Latn' },
+    ),
     nowEpochMillis: () => NOW,
   } as unknown as GenerateReplySuggestionDependencies
 
@@ -269,6 +277,47 @@ describe('generate reply suggestion', () => {
     })
     expect(harness.mocks.claim).not.toHaveBeenCalled()
     expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+  })
+
+  it('reports a textless review as no_review_text, not as a changed source', async () => {
+    const harness = createHarness({ reviewText: null })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'no_review_text',
+      retryAfterEpochMillis: null,
+    })
+    expect(harness.mocks.claim).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+  })
+
+  it('separates undetectable language from an unsupported one', async () => {
+    const tooShort = createHarness({
+      replyLanguage: {
+        status: 'language_not_supported',
+        reason: 'insufficient_language_evidence',
+      },
+    })
+    await expect(tooShort.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'language_undetermined',
+      retryAfterEpochMillis: null,
+    })
+
+    const mismatched = createHarness({
+      replyLanguage: {
+        status: 'language_not_supported',
+        reason: 'metadata_language_mismatch',
+      },
+    })
+    await expect(mismatched.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'language_not_supported',
+      retryAfterEpochMillis: null,
+    })
+
+    expect(tooShort.mocks.generateReply).not.toHaveBeenCalled()
+    expect(mismatched.mocks.generateReply).not.toHaveBeenCalled()
   })
 
   it('binds settlement and delivery to the current durable reply head', async () => {

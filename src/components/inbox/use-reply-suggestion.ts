@@ -34,8 +34,12 @@ type UseReplySuggestionInput = Readonly<{
 const unavailableMessage = (code: string): string => {
   if (code === 'language_not_supported')
     return 'A suggestion is not available for this review language.'
+  if (code === 'language_undetermined')
+    return 'This review is too short to tell which language it is written in.'
   if (code === 'not_authorized')
     return 'AI reply suggestions are not enabled for this property.'
+  if (code === 'no_review_text')
+    return 'This review has no text, so there is nothing to draft a reply from.'
   if (code === 'source_changed')
     return 'The review changed. Reload it before requesting a suggestion.'
   return 'A suggestion is unavailable right now. Try again.'

@@ -170,7 +170,29 @@ export function createAiGatewayAdapter(
           encoded,
           { signal, deadlineEpochMillis: request.deadlineEpochMillis },
         )
-      } catch {
+      } catch (error) {
+        // The transport leg, distinct from response validation below. This is
+        // where a settled provider call still fails the client: the gateway
+        // answers the provider, settles the permit, and the reply to this
+        // process dies on the socket, the deadline or the mTLS session. Naming
+        // the stage separately is the whole point — folding it into the same
+        // four words as a schema rejection is what made this undiagnosable.
+        // Content-free: a stage, an error class and a message, never bytes.
+        process.stderr.write(
+          `${JSON.stringify({
+            event: 'ai_gateway_transport_failed',
+            route: request.route,
+            requestBytes: encoded.byteLength,
+            deadlineEpochMillis: request.deadlineEpochMillis,
+            aborted: signal?.aborted ?? null,
+            reason: error instanceof Error ? error.name : 'unknown',
+            message: error instanceof Error ? error.message.slice(0, 160) : '',
+            cause:
+              error instanceof Error && error.cause instanceof Error
+                ? `${error.cause.name}: ${error.cause.message.slice(0, 120)}`
+                : null,
+          })}\n`,
+        )
         return Object.freeze({
           route: request.route,
           status: 'error',
