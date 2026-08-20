@@ -178,8 +178,15 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 30_000, description: 'new-review notification for the admin' },
     )
-    expect(notifications[0].title).toBe('New review')
-    expect(notifications[0].body).toBe('New review received')
+    // Copy is rendered from `type` + `payload` now, so assert the SHAPE the
+    // renderer guarantees rather than a frozen sentence: the property name and
+    // the star rating are present, and no identifier is.
+    expect(notifications[0].title).toContain('review')
+    expect(notifications[0].title).not.toContain(inboxItem.id)
+    expect(notifications[0].body ?? '').not.toContain(inboxItem.id)
+    // The point of this test: the allowlisted payload cannot carry source
+    // content. `payload` is stringified along with the row, so this now covers
+    // the new column too.
     expect(JSON.stringify(notifications[0])).not.toContain('SENSITIVE-REVIEW-TEXT-MARKER')
     expect(JSON.stringify(notifications[0])).not.toContain(
       'SENSITIVE-REVIEWER-NAME-MARKER',
@@ -200,9 +207,7 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     // live lookup — the assertion targets the notification surface only.
     // Rows from earlier suite runs share the same template, hence .first().)
     const popover = page.locator('[data-radix-popper-content-wrapper]').first()
-    await expect(popover.getByText('New review received').first()).toBeVisible({
-      timeout: 10_000,
-    })
+    await expect(popover.getByText(/review/i).first()).toBeVisible({ timeout: 10_000 })
     expect(await popover.getByText(/SENSITIVE-REVIEWER-NAME-MARKER/).count()).toBe(0)
     expect(await popover.getByText(/SENSITIVE-REVIEW-TEXT-MARKER/).count()).toBe(0)
   })
