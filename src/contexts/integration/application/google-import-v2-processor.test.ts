@@ -448,26 +448,34 @@ describe('GoogleImportV2Processor', () => {
     },
   )
 
-  it('cancels without a Property effect when current authorization changed', async () => {
-    const harness = setup({
-      authorization: { ok: false, code: 'authorization_changed' },
-    })
+  // The two authorization denials are DIFFERENT facts and must not share an
+  // outcome code. `authorization_denied` is the capability gate refusing —
+  // "this feature is unavailable" — while `authorization_changed` is the
+  // narrow claim that something the item froze at enqueue no longer matches.
+  // They were collapsed into `authorization_changed`, so a cancelled item's
+  // persisted `outcome_code` could not say which had happened, and an
+  // investigation spent its time in the wrong half of the authorizer.
+  it.each([
+    ['the capability gate denies', 'authorization_denied', 'policy_disabled'],
+    ['frozen authorization drifted', 'authorization_changed', 'authorization_changed'],
+  ] as const)(
+    'cancels with a distinct outcome when %s',
+    async (_label, code, outcomeCode) => {
+      const harness = setup({ authorization: { ok: false, code } })
 
-    await harness.processor.process({
-      organizationId: ORG_ID,
-      itemId: ITEM_ID,
-      retryRevision: 0,
-      attemptOrdinal: 1,
-    })
+      await harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
 
-    expect(harness.createBoundProperty).not.toHaveBeenCalled()
-    expect(harness.completeClaim).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outcomeCode: 'authorization_changed',
-        retainProtectedRouting: false,
-      }),
-    )
-  })
+      expect(harness.createBoundProperty).not.toHaveBeenCalled()
+      expect(harness.completeClaim).toHaveBeenCalledWith(
+        expect.objectContaining({ outcomeCode, retainProtectedRouting: false }),
+      )
+    },
+  )
 
   it.each([
     ['missing membership', { actor: null }, 'authorization_changed'],
