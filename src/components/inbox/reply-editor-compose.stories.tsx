@@ -106,7 +106,16 @@ export const AiSuggestionAdoption: Story = {
     await userEvent.click(canvas.getByRole('button', { name: /^use suggestion$/i }))
     const documentCanvas = within(canvasElement.ownerDocument.body)
     const dialog = await documentCanvas.findByRole('alertdialog')
-    expect(within(dialog).getByText(/no draft text/i)).toBeVisible()
+    // The assertion below must WAIT: findByRole resolves the instant Radix
+    // mounts AlertDialogContent, but that content fades in
+    // (data-[state=open]:animate-in fade-in-0), so its first frames compute to
+    // opacity: 0 — which jest-dom counts as NOT visible. A synchronous
+    // toBeVisible() here raced the entrance keyframes and lost in 14 of 114
+    // measured runner runs (and three times in CI today: the ancestor
+    // .group/alert-dialog-content was captured at opacity 0 with one running
+    // animation while this <p> already held "No draft text"). The dialog
+    // content is the assertion; the fade frame is not.
+    await waitFor(() => expect(within(dialog).getByText(/no draft text/i)).toBeVisible())
     await userEvent.click(
       within(dialog).getByRole('button', { name: /^use suggestion$/i }),
     )
