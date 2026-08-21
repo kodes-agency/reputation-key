@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
@@ -975,11 +975,19 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
     const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
 
-    const extractReviewCount = async (row: {
-      innerText: () => Promise<string | null>
-    }) => {
+    // The row renders with the property name first and the aggregate review
+    // count arrives with its query, so a bare innerText() reads a row that is
+    // attached but not yet complete — observed on main as
+    // `Expected review count in row text: E2E Beta Hotel P1`, passing on
+    // re-run. toContainText retries until the count is actually there, which
+    // is the same web-first form this test already uses at the round-trip
+    // assertion below. Nothing is weakened: every value below is still
+    // asserted, and a count that never renders still fails here.
+    const REVIEW_COUNT = /(\d+)\s+reviews/i
+    const extractReviewCount = async (row: Locator) => {
+      await expect(row).toContainText(REVIEW_COUNT)
       const text = (await row.innerText()) ?? ''
-      const match = text.match(/(\d+)\s+reviews/i)
+      const match = text.match(REVIEW_COUNT)
       if (!match) {
         throw new Error(`Expected review count in row text: ${text}`)
       }
