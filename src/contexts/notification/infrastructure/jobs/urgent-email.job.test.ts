@@ -1,78 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createUrgentEmailJobHandler, type UrgentEmailJobData } from './urgent-email.job'
 import {
-  notificationEmailId,
-  notificationId,
-  organizationId,
-  propertyId,
-  userId,
-} from '#/shared/domain/ids'
-import type { Notification, NotificationEmail } from '../../domain/types'
+  buildNotification,
+  buildNotificationEmail,
+  createFakeJobLogger,
+} from './test-fixtures'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
+import type { EmailSendRequest } from '../../application/ports/email-sender.port'
+import type { Notification, NotificationEmail } from '../../domain/types'
 
 const NOW = new Date('2026-01-15T15:00:00.000Z')
 const ORG = organizationId('org-1')
 const PROPERTY = propertyId('11111111-1111-4111-8111-111111111111')
-const EMAIL_ID = notificationEmailId('email-1')
-const entry: NotificationEmail = {
-  id: EMAIL_ID,
-  notificationId: notificationId('notification-1'),
-  userId: userId('user-1'),
-  organizationId: ORG,
-  propertyId: PROPERTY,
+const BASE_URL = 'https://app.example.com'
+
+const entry = buildNotificationEmail({
+  id: 'email-1',
+  propertyId: PROPERTY as string,
   category: 'urgent_operational',
   cadence: 'immediate',
-  status: 'pending',
   priority: 'urgent',
-  idempotencyKey: 'notification-1:email',
-  providerMessageId: null,
-  providerState: null,
-  lastErrorClass: null,
-  suppressionReason: null,
-  notBefore: null,
-  nextAttemptAt: null,
-  attemptedAt: null,
-  acceptedAt: null,
-  deliveredAt: null,
-  bouncedAt: null,
-  sentAt: null,
-  failedAt: null,
-  retryCount: 0,
-  createdAt: NOW,
-  updatedAt: NOW,
-}
-const notification: Notification = {
-  id: entry.notificationId,
-  userId: entry.userId,
-  organizationId: ORG,
-  propertyId: PROPERTY,
+})
+// A pre-template row: `title` is a raw identifier. The renderer must replace it.
+const notification = buildNotification({
+  propertyId: PROPERTY as string,
   type: 'reply.publish_failed',
   category: 'urgent_operational',
   priority: 'urgent',
-  status: 'unread',
   resourceType: 'reply',
   resourceId: 'reply-1',
-  eventId: 'event-1',
-  title: 'Reply publication failed',
-  body: null,
-  readAt: null,
-  createdAt: NOW,
-  updatedAt: NOW,
-}
+  payload: { propertyName: 'Riverside Hotel', platform: 'google', waitingHours: 5 },
+  title: 'Reply publication failed 61ed98fc-1c2b-4d6e-9f00-000000000001',
+})
+
 const job = {
   data: {
-    notificationEmailId: EMAIL_ID,
-    organizationId: ORG,
-    propertyId: PROPERTY,
+    notificationEmailId: entry.id as string,
+    organizationId: ORG as string,
+    propertyId: PROPERTY as string,
     capability: 'notification.send_email',
     policyVersionAtEnqueue: 'test',
     initiator: { kind: 'system', id: 'test' },
-  } satisfies UrgentEmailJobData,
+  } as unknown as UrgentEmailJobData,
 }
 
 function fakeDeps() {
   const send = vi.fn(
-    async (): Promise<NotificationDeliveryOutcome> => ({
+    async (_params: EmailSendRequest): Promise<NotificationDeliveryOutcome> => ({
       kind: 'accepted',
       providerMessageId: 'provider-1',
       acceptedAt: NOW,
@@ -80,30 +55,37 @@ function fakeDeps() {
   )
   return {
     emailRepo: {
-      findById: vi.fn(async () => entry),
+      findById: vi.fn(async (): Promise<NotificationEmail | null> => entry),
       markAccepted: vi.fn(async () => {}),
       markDelayed: vi.fn(async () => {}),
       markFailed: vi.fn(async () => {}),
       markSuppressed: vi.fn(async () => {}),
+      isRecipientSuppressed: vi.fn(async () => false),
     },
-    preferenceRepo: { findForDelivery: vi.fn(async () => null) },
-    notifRepo: { findByIdForProperty: vi.fn(async () => notification) },
-    userLookup: { getEmail: vi.fn(async () => 'manager@example.com') },
+    preferenceRepo: {
+      findForDelivery: vi.fn(async () => null),
+      getUserSettings: vi.fn(async () => null),
+    },
+    notifRepo: {
+      findByIdForProperty: vi.fn(async (): Promise<Notification | null> => notification),
+    },
+    userLookup: {
+      getEmail: vi.fn(async (): Promise<string | null> => 'manager@example.com'),
+    },
     emailSender: { send },
     resolvePropertyScope: vi.fn(async () => ({
-      organizationId: ORG,
-      propertyId: PROPERTY,
+      organizationId: ORG as string,
+      propertyId: PROPERTY as string,
       timezone: 'America/New_York',
     })),
+    resolveOrganizationScope: vi.fn(async () => ({
+      timezone: 'Europe/London',
+      propertyNames: new Map([[PROPERTY as string, 'Riverside Hotel']]),
+    })),
     authorizeScope: vi.fn(async () => true),
-    logger: {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      child: vi.fn(),
-    },
+    logger: createFakeJobLogger(),
     clock: () => NOW,
+    baseUrl: BASE_URL,
   }
 }
 
@@ -119,6 +101,8 @@ describe('immediate notification email job', () => {
       deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
     )(job)
 
+  const sentPayload = () => deps.emailSender.send.mock.calls[0]![0]
+
   it('resolves and authorizes the concrete property before any notification read or effect', async () => {
     deps.authorizeScope.mockResolvedValue(false)
     await run()
@@ -131,7 +115,7 @@ describe('immediate notification email job', () => {
     deps.preferenceRepo.findForDelivery.mockResolvedValue({ enabled: false } as never)
     await run()
     expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
-      EMAIL_ID,
+      entry.id,
       ORG,
       PROPERTY,
       'preference_disabled',
@@ -143,7 +127,7 @@ describe('immediate notification email job', () => {
   it('records provider acceptance and message id only after acceptance', async () => {
     await run()
     expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(
-      EMAIL_ID,
+      entry.id,
       ORG,
       PROPERTY,
       'provider-1',
@@ -159,7 +143,7 @@ describe('immediate notification email job', () => {
     })
     await expect(run()).rejects.toThrow('Transient email provider rejection')
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
-      EMAIL_ID,
+      entry.id,
       ORG,
       PROPERTY,
       'transient',
@@ -177,7 +161,7 @@ describe('immediate notification email job', () => {
     })
     await run()
     expect(deps.emailRepo.markFailed).toHaveBeenCalledWith(
-      EMAIL_ID,
+      entry.id,
       ORG,
       PROPERTY,
       'suppressed',
@@ -185,5 +169,177 @@ describe('immediate notification email job', () => {
       NOW,
     )
     expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
+  })
+
+  // ── ADR 0046 r.8: render, never concatenate ───────────────────────
+
+  it('renders from type + payload and never ships the stored raw-id title', async () => {
+    await run()
+
+    const payload = sentPayload()
+    expect(payload.subject).not.toContain('61ed98fc')
+    expect(payload.html).not.toContain('61ed98fc')
+    expect(payload.text).not.toContain('61ed98fc')
+    expect(payload.subject).toContain('Riverside Hotel')
+  })
+
+  it('sends a plain-text twin alongside the HTML', async () => {
+    await run()
+
+    const payload = sentPayload()
+    expect(payload.text.length).toBeGreaterThan(0)
+    expect(payload.text).not.toContain('<p>')
+  })
+
+  it('links the action to an absolute deep link on the injected base URL', async () => {
+    await run()
+
+    expect(sentPayload().html).toContain(`${BASE_URL}/`)
+  })
+
+  // ── ADR 0046 r.7: preferences link + one-click unsubscribe ─────────
+
+  it('sets List-Unsubscribe and the one-click directive for optional mail', async () => {
+    await run()
+
+    expect(sentPayload().headers).toEqual({
+      'List-Unsubscribe': `<${BASE_URL}/settings/notifications>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    })
+  })
+
+  it('includes the preferences URL in the body', async () => {
+    await run()
+
+    expect(sentPayload().html).toContain(`${BASE_URL}/settings/notifications`)
+    expect(sentPayload().text).toContain(`${BASE_URL}/settings/notifications`)
+  })
+
+  it('refuses to dispatch optional mail when the base URL cannot form a preferences link', async () => {
+    // The guard is in the job, not a template convention: a relative or empty
+    // base URL must fail the send rather than ship an email with no way out.
+    deps.baseUrl = ''
+
+    await expect(run()).rejects.toThrow(
+      expect.objectContaining({
+        _tag: 'NotificationError',
+        message: expect.stringContaining('ADR 0046 r.7'),
+      }),
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  it('omits List-Unsubscribe for mandatory mail, which has no off switch', async () => {
+    deps.emailRepo.findById.mockResolvedValue(
+      buildNotificationEmail({
+        id: 'email-1',
+        propertyId: PROPERTY as string,
+        category: 'mandatory',
+        cadence: 'immediate',
+        priority: 'urgent',
+      }),
+    )
+
+    await run()
+
+    expect(sentPayload().headers).toEqual({})
+  })
+
+  // ── ADR 0046 r.3: recipient timezone ──────────────────────────────
+
+  it('applies quiet hours in the USER timezone, not the property timezone', async () => {
+    // 15:00Z is 10:00 in New York (property) but 17:00 in Sofia (user).
+    // Quiet hours 16:00-08:00 must therefore defer.
+    deps.preferenceRepo.getUserSettings.mockResolvedValue({
+      timezone: 'Europe/Sofia',
+    } as never)
+    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+      enabled: true,
+      quietHoursStart: '16:00',
+      quietHoursEnd: '08:00',
+      urgentBypassEnabled: false,
+    } as never)
+
+    await run()
+
+    expect(deps.emailRepo.markDelayed).toHaveBeenCalled()
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ timezone: 'Europe/Sofia', timezoneSource: 'user' }),
+      'Urgent notification email deferred',
+    )
+  })
+
+  it('falls back to the organization timezone when the user never chose one', async () => {
+    // 15:00Z is 15:00 in London. Quiet hours 14:00-08:00 defer there but not
+    // in New York (10:00), so the deferral proves which clock was used.
+    deps.preferenceRepo.findForDelivery.mockResolvedValue({
+      enabled: true,
+      quietHoursStart: '14:00',
+      quietHoursEnd: '08:00',
+      urgentBypassEnabled: false,
+    } as never)
+
+    await run()
+
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timezone: 'Europe/London',
+        timezoneSource: 'organization',
+      }),
+      'Urgent notification email deferred',
+    )
+  })
+
+  // ── ADR 0046 r.6: bounced recipients ──────────────────────────────
+
+  it('suppresses instead of sending when the provider already reported a bounce', async () => {
+    deps.emailRepo.isRecipientSuppressed.mockResolvedValue(true)
+
+    await run()
+
+    expect(deps.emailRepo.markSuppressed).toHaveBeenCalledWith(
+      entry.id,
+      ORG,
+      PROPERTY,
+      'recipient_bounced',
+      NOW,
+    )
+    expect(deps.emailSender.send).not.toHaveBeenCalled()
+  })
+
+  // ── No invisible failure ──────────────────────────────────────────
+
+  it('logs every suppression with its reason and the shared correlation id', async () => {
+    deps.notifRepo.findByIdForProperty.mockResolvedValue(null)
+
+    await run()
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      {
+        correlationId: `notification-email:${entry.id as string}`,
+        reason: 'notification_unavailable',
+      },
+      'Urgent notification email suppressed',
+    )
+  })
+
+  it('logs a provider rejection rather than failing silently', async () => {
+    deps.emailSender.send.mockResolvedValue({
+      kind: 'rejected',
+      classification: 'permanent',
+      providerCode: 'invalid_recipient',
+    })
+
+    await run()
+
+    expect(deps.logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        classification: 'permanent',
+        providerCode: 'invalid_recipient',
+      }),
+      'Urgent notification email rejected by provider',
+    )
   })
 })

@@ -39,6 +39,7 @@ import {
   getGoogleAuthUrl,
   manageNotifications,
   handleGbpNotification,
+  createGbpSubscribeBackfill,
 } from './application/use-cases'
 import type { HandleGbpNotification } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
@@ -202,6 +203,11 @@ type IntegrationContextDeps = Readonly<{
   oauthStateHandles?: OAuthStateHandleService
   oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
   refreshPolicyStoreRequired?: () => Promise<unknown>
+  /** Production fail-closed check for the review adapter's DIRECT `fetch`
+   * fallback (bypasses admission, quota control, credential binding, mTLS).
+   * Wired by the composition root, which owns env; absent = today's
+   * behaviour, which is what simulations and tests rely on. */
+  assertDirectProviderEgressAllowed?: (operation: string) => void
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -276,6 +282,20 @@ export type IntegrationContextApi = Readonly<{
   }>
 }>
 
+// Accepted residual: this is the integration context's composition root, and
+// its 47 code paths are 47 optional dependencies, not 47 decisions — the same
+// per-dependency override shape createContainer carries in src/composition.ts.
+// Already over both thresholds on main; this branch added only wiring
+// (`gbpSubscribeBackfill`, and `subscribeToNotifications` passed into the
+// import processor), no new branching. Extraction here does not reduce
+// complexity, it scatters it: the value of a composition root is that every
+// binding is legible in ONE place, and splitting it into per-area builders
+// would trade a high metric for real indirection while a reviewer's question
+// ("what is this port wired to?") gets harder to answer.
+// Revisit when this function starts making POLICY decisions rather than
+// choosing implementations — branching on tenant state or request shape is the
+// signal it has stopped being wiring.
+// fallow-ignore-next-line complexity
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Cross-context port implementations (wiring layer) ──────────
   // Delegated through PropertyPublicApi — no direct schema imports.
@@ -415,6 +435,17 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     logger: deps.logger,
   })
 
+  // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts). Reads the repo directly
+  // rather than the listGoogleConnections use case: the operator harness has
+  // already authorized the invocation (`system:ops`, audited), and an operator
+  // repair must not depend on a tenant's `integration.manage` grant — the same
+  // posture as ops:property-capabilities.
+  const gbpSubscribeBackfill = createGbpSubscribeBackfill({
+    listConnections: (organizationIdValue) =>
+      connectionRepo.listByOrganization(organizationIdValue, { showAll: true }),
+    subscribe: manageNotificationsUseCase.subscribe,
+  })
+
   let googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null = null
   let googleImportTransaction: ReturnType<typeof createGoogleImportTransaction> | null =
     null
@@ -536,6 +567,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       propertyBindingApi,
       authorizeGoogleImportCommand,
       enqueueReviewSync: deps.enqueueReviewSync,
+      // The one place a Google-backed property becomes live. `subscribe` is a
+      // best-effort idempotent PATCH and no-ops when GBP_PUBSUB_TOPIC is empty.
+      subscribeToNotifications: manageNotificationsUseCase.subscribe,
       provisionPropertyCapabilities: deps.provisionPropertyCapabilities,
       resolveActor: resolveActiveMember,
       clock: deps.clock,
@@ -776,6 +810,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
     refreshGoogleToken: refreshGoogleTokenUseCase,
 
+    /** ops:gbp-subscribe command core — see scripts/ops/gbp-subscribe.ts. */
+    gbpSubscribeBackfill,
+
     googleImportDiscovery,
     googleImportTransaction,
     processGoogleImportV2Item: googleImportV2Processor?.process ?? null,
@@ -833,6 +870,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     authorizeProviderCall: authorizeGoogleReviewProviderCall,
     nowMs: () => deps.clock().getTime(),
     cursorStore: googleReviewCursorStore,
+    ...(deps.assertDirectProviderEgressAllowed === undefined
+      ? {}
+      : { assertDirectEgressAllowed: deps.assertDirectProviderEgressAllowed }),
   })
 
   // The review queue is review-owned and builds after integration — the

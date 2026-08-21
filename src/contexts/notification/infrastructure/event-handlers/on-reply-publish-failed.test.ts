@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildReplyPublishFailedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
 
@@ -29,8 +30,7 @@ describe('onReplyPublishFailed (notification)', () => {
         type: 'reply.publish_failed',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply publish failed',
-        body: 'Failed to publish your reply to Google. Please retry.',
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
   })

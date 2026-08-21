@@ -1,20 +1,49 @@
-// Notification popover content — header (title + mark-all-read + clear-all) and
-// the list body. Pure presentational wrapper; stories vary the header's action
-// affordances (visible when notifications exist, disabled while pending) and
-// the body state.
+// Bell popover content: header actions, filter tabs, list body, and the
+// "View all notifications" foot link. Pure presentational; stories vary the
+// header affordances, the active filter and the body state.
 import type { Meta, StoryObj } from '@storybook/react'
-import { notificationId, organizationId, userId } from '#/shared/domain/ids'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import { expect, fn, userEvent, within } from 'storybook/test'
+import { notificationFixtures } from './notification-fixtures'
+import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
+import type { NotificationRowActions } from './types'
+
+const actions: NotificationRowActions = {
+  onActivate: fn(),
+  onMarkRead: fn(),
+  onMarkUnread: fn(),
+  onDismiss: fn(),
+  onMuteCategory: fn(),
+}
+
+const noop = () => {}
+const onFilterChange = fn()
 
 const meta: Meta<typeof NotificationPopoverContent> = {
   title: 'Notification/NotificationPopoverContent',
   component: NotificationPopoverContent,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  args: {
+    groups: groupByReadState(notificationFixtures),
+    isLoading: false,
+    isLoadingMore: false,
+    error: null,
+    hasMore: false,
+    unreadCount: 3,
+    filter: 'all',
+    onFilterChange,
+    isMarkingAllRead: false,
+    isClearingAll: false,
+    onRetry: noop,
+    onLoadMore: noop,
+    onMarkAllRead: noop,
+    onClearAll: noop,
+    actions,
+  },
   decorators: [
     (Story) => (
-      <div className="w-80 rounded-lg border bg-popover text-popover-foreground shadow-md">
+      <div className="w-96 rounded-xl border bg-popover text-popover-foreground">
         <Story />
       </div>
     ),
@@ -23,161 +52,87 @@ const meta: Meta<typeof NotificationPopoverContent> = {
 export default meta
 type Story = StoryObj<typeof NotificationPopoverContent>
 
-const noop = () => {}
-
-function makeNotification(
-  overrides: Partial<Notification> & { id: string },
-): Notification {
-  return {
-    userId: userId('user-1'),
-    organizationId: organizationId('org-1'),
-    type: 'review.created',
-    priority: 'normal',
-    status: 'unread',
-    resourceType: 'inbox_item',
-    resourceId: 'res-1',
-    eventId: 'evt-1',
-    title: 'New review',
-    body: 'A customer left a 5-star review.',
-    readAt: null,
-    createdAt: new Date(Date.now() - 5 * 60_000),
-    updatedAt: new Date(),
-    ...overrides,
-  } as Notification
+export const Default: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
+    expect(canvas.getByRole('heading', { name: 'New' })).toBeInTheDocument()
+    expect(canvas.getByRole('heading', { name: 'Earlier' })).toBeInTheDocument()
+    // The popover is no longer the whole surface — it links to the full page.
+    expect(canvas.getByRole('link', { name: 'View all notifications' })).toHaveAttribute(
+      'href',
+      '/notifications',
+    )
+  },
 }
 
-const notifications: Notification[] = [
-  makeNotification({
-    id: notificationId('n-1'),
-    type: 'reply.pending_approval',
-    priority: 'urgent',
-    status: 'unread',
-    title: 'Reply needs approval',
-    body: 'A drafted reply is awaiting your approval.',
-  }),
-  makeNotification({
-    id: notificationId('n-2'),
-    type: 'goal.completed',
-    status: 'unread',
-    title: 'Monthly goal reached',
-    body: null,
-  }),
-  makeNotification({
-    id: notificationId('n-3'),
-    type: 'review.created',
-    status: 'read',
-    title: 'New review',
-    body: 'A customer left a 4-star review.',
-    readAt: new Date(Date.now() - 2 * 60 * 60_000),
-  }),
-]
-
-// Initial load — skeleton list, no mark-all-read (nothing unread confirmed yet).
-export const Loading: Story = {
-  args: {
-    notifications: [],
-    isLoading: true,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    unreadCount: 0,
-    isMarkingAllRead: false,
-    isClearingAll: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onMarkAllRead: noop,
-    onClearAll: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+/**
+ * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, so `mandatory` — which
+ * governs zero notification types — must never appear as a filter.
+ */
+export const FilterTabs: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
+    expect(tabs).toEqual([
+      'All',
+      'Unread',
+      'Urgent',
+      'Operations',
+      'Workflow',
+      'Recognition',
+    ])
+    expect(tabs).not.toContain('Account')
+    onFilterChange.mockClear()
+    await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))
+    expect(onFilterChange).toHaveBeenCalledWith('urgent')
   },
+}
+
+/** Urgent filter applied: only the two urgent rows survive. */
+export const UrgentFilterApplied: Story = {
+  args: {
+    filter: 'urgent',
+    groups: groupByReadState(
+      notificationFixtures.filter((n) => matchesNotificationFilter(n, 'urgent')),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('listitem')).toHaveLength(2)
+    expect(canvas.getAllByText('Urgent').length).toBeGreaterThan(0)
+  },
+}
+
+export const Loading: Story = {
+  args: { isLoading: true, groups: [] },
 }
 
 export const ErrorState: Story = {
-  args: {
-    notifications: [],
-    isLoading: false,
-    isLoadingMore: false,
-    error: new Error('Notifications service unavailable'),
-    hasMore: false,
-    unreadCount: 0,
-    isMarkingAllRead: false,
-    isClearingAll: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onMarkAllRead: noop,
-    onClearAll: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { groups: [], error: new Error('Notifications service unavailable') },
+  play: async ({ canvasElement }) => {
+    expect(
+      within(canvasElement).getByRole('button', { name: /retry/i }),
+    ).toBeInTheDocument()
   },
 }
 
-// Unread items present → "Mark all read" button visible and enabled.
-export const ListWithUnread: Story = {
-  args: {
-    notifications,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    unreadCount: 2,
-    isMarkingAllRead: false,
-    isClearingAll: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onMarkAllRead: noop,
-    onClearAll: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+export const Empty: Story = {
+  args: { groups: [], unreadCount: 0 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/nothing here right now/i)).toBeInTheDocument()
+    // Bulk actions are hidden when there is nothing to act on.
+    expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
   },
 }
 
-// Mark-all-read in flight → button disabled.
+/** Mark-all-read holds its disabled pending state while the mutation is in flight. */
 export const MarkingAllRead: Story = {
-  args: {
-    notifications,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    unreadCount: 2,
-    isMarkingAllRead: true,
-    isClearingAll: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onMarkAllRead: noop,
-    onClearAll: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
-  },
-}
-
-// All read → both action buttons still visible (Clear all remains useful).
-export const AllRead: Story = {
-  args: {
-    notifications: [
-      makeNotification({
-        id: notificationId('n-1'),
-        status: 'read',
-        readAt: new Date(),
-      }),
-    ],
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    unreadCount: 0,
-    isMarkingAllRead: false,
-    isClearingAll: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onMarkAllRead: noop,
-    onClearAll: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { isMarkingAllRead: true },
+  play: async ({ canvasElement }) => {
+    expect(
+      within(canvasElement).getByRole('button', { name: /mark all read/i }),
+    ).toBeDisabled()
   },
 }

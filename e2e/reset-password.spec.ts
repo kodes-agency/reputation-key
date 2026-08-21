@@ -10,10 +10,22 @@ import { waitForHydration, clickWhenReady } from './helpers/interaction'
 import { mailStubControl } from './fixtures/mail-stub'
 import { TEST_EMAIL, TEST_PASSWORD } from './helpers/auth'
 
+// Extract by URL CONTRACT, not by label adjacency. The old regex required the
+// anchor's text to be literally `Reset Password` immediately before `</a>`,
+// which coupled the test to one hand-rolled template; react-email's Button
+// wraps its label in nested markup, so it stopped matching a link that was
+// present and correct.
+//
+// Match on the route only. better-auth mints the reset URL itself and carries
+// the token as a PATH segment (`/api/auth/reset-password/<token>?callbackURL=…`),
+// so requiring a `token=` query parameter would be asserting our own guess
+// about someone else's URL shape rather than the contract that matters.
 function extractResetLink(html: string): string {
-  const href = html.match(/href="([^"]+)"[^>]*>Reset Password<\/a>/)?.[1]
-  if (!href) throw new Error('Reset email does not contain a Reset Password link')
-  return href.replaceAll('&amp;', '&')
+  const href = [...html.matchAll(/href="([^"]+)"/g)]
+    .map((m) => m[1].replaceAll('&amp;', '&'))
+    .find((url) => url.includes('reset-password'))
+  if (!href) throw new Error('Reset email does not link to the reset-password route')
+  return href
 }
 
 test.describe('Password Reset', () => {

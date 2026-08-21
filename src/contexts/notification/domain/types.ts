@@ -9,6 +9,7 @@ import type {
   OrganizationId,
   PropertyId,
 } from '#/shared/domain/ids'
+import type { NotificationPayload } from './notification-payload'
 
 // ── Notification types (single source of truth) ───────────────────
 // NOTIFICATION_TYPES is the canonical list; NotificationType and every
@@ -43,11 +44,19 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 // ── Delivery policy ────────────────────────────────────────────────
 
 export type NotificationPriority = 'urgent' | 'normal'
+/**
+ * ADR 0046 categories, minus `digest_summary`.
+ *
+ * A digest is a CADENCE, not a category: the digest job selects on
+ * `cadence = 'daily'` and the preferences UI already offers immediate|daily per
+ * category, so a `digest_summary` category was a second expression of the same
+ * axis — and, defaulting to {in_app:false, email:false}, it silently swallowed
+ * every `goal.completed`. Migration 0070 remaps stored rows to `recognition`.
+ */
 export type NotificationCategory =
   | 'mandatory'
   | 'urgent_operational'
   | 'workflow_collaboration'
-  | 'digest_summary'
   | 'recognition'
 export type NotificationChannel = 'in_app' | 'email'
 export type NotificationCadence = 'immediate' | 'daily'
@@ -79,8 +88,18 @@ export type Notification = Readonly<{
   resourceType: NotificationResourceType
   resourceId: string
   eventId: string
+  /**
+   * Rendered snapshot kept for pre-template rows and as a defensive fallback.
+   * Live surfaces render from `type` + `payload` via `renderNotification`.
+   */
   title: string
   body: string | null
+  /** Content-free render metadata (ADR 0046 r.8). `{}` when nothing was captured. */
+  payload: NotificationPayload
+  /** ADR 0046 r.2: how many events this unread row has absorbed. Always >= 1. */
+  coalescedCount: number
+  /** When the most recent absorbed event arrived. Null when never coalesced. */
+  coalescedLatestAt: Date | null
   readAt: Date | null
   createdAt: Date
   updatedAt: Date

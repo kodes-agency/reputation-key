@@ -19,6 +19,10 @@ import type {
   NotificationEmail,
   NotificationPriority,
 } from '../../domain/types'
+import type {
+  NotificationEmailRecipient,
+  ProviderStateTransition,
+} from '../../application/ports/notification-email-repository.port'
 import { notificationError } from '../../domain/errors'
 
 type EmailRow = typeof notificationEmailQueue.$inferSelect
@@ -57,6 +61,50 @@ const scope = (id: string, orgId: string, propertyId: string) =>
     eq(notificationEmailQueue.organizationId, orgId),
     eq(notificationEmailQueue.propertyId, propertyId),
   )
+
+/** Statuses a row can still be sent from. */
+const SENDABLE: readonly EmailQueueStatus[] = ['pending', 'failed', 'delayed']
+
+/**
+ * "Due" = still sendable, retry budget intact, and both time gates open.
+ * Shared by the property-scoped and the recipient-scoped reads so the digest
+ * sweep and the orphan sweep can never disagree about what is due.
+ */
+const dueForCadence = (cadence: string, now: Date) =>
+  and(
+    eq(notificationEmailQueue.cadence, cadence),
+    or(
+      eq(notificationEmailQueue.status, 'pending'),
+      eq(notificationEmailQueue.status, 'delayed'),
+      and(
+        eq(notificationEmailQueue.status, 'failed'),
+        sql`${notificationEmailQueue.retryCount} < 5`,
+      ),
+    ),
+    or(
+      sql`${notificationEmailQueue.notBefore} IS NULL`,
+      lte(notificationEmailQueue.notBefore, now),
+    ),
+    or(
+      sql`${notificationEmailQueue.nextAttemptAt} IS NULL`,
+      lte(notificationEmailQueue.nextAttemptAt, now),
+    ),
+  )
+
+/**
+ * ADR 0046 r.6 is a state MACHINE, not a last-writer-wins field. Provider
+ * webhooks arrive out of order often enough that a late `delivered` would
+ * otherwise erase a `bounced` and we would keep mailing a dead address.
+ * `delivered` may only advance an accepted row; the negative terminals may
+ * also overwrite `delivered`, never each other's row a second time.
+ */
+const PROVIDER_STATE_PREDECESSORS: Readonly<
+  Record<'delivered' | 'bounced' | 'complained', readonly EmailQueueStatus[]>
+> = {
+  delivered: ['accepted'],
+  bounced: ['accepted', 'delivered'],
+  complained: ['accepted', 'delivered'],
+}
 
 export const createNotificationEmailRepository = (db: Database) => ({
   insert: async (email: NotificationEmail): Promise<NotificationEmail> => {
@@ -141,23 +189,50 @@ export const createNotificationEmailRepository = (db: Database) => ({
         and(
           eq(notificationEmailQueue.organizationId, orgId),
           eq(notificationEmailQueue.propertyId, propertyId),
-          eq(notificationEmailQueue.cadence, cadence),
-          or(
-            eq(notificationEmailQueue.status, 'pending'),
-            eq(notificationEmailQueue.status, 'delayed'),
-            and(
-              eq(notificationEmailQueue.status, 'failed'),
-              sql`${notificationEmailQueue.retryCount} < 5`,
-            ),
-          ),
-          or(
-            sql`${notificationEmailQueue.notBefore} IS NULL`,
-            lte(notificationEmailQueue.notBefore, now),
-          ),
-          or(
-            sql`${notificationEmailQueue.nextAttemptAt} IS NULL`,
-            lte(notificationEmailQueue.nextAttemptAt, now),
-          ),
+          dueForCadence(cadence, now),
+        ),
+      )
+      .orderBy(asc(notificationEmailQueue.createdAt))
+      .limit(500)
+    return rows.map(emailFromRow)
+  },
+
+  findDueRecipients: async (
+    cadence: string,
+    now: Date,
+  ): Promise<readonly NotificationEmailRecipient[]> => {
+    const rows = await db
+      .selectDistinct({
+        organizationId: notificationEmailQueue.organizationId,
+        userId: notificationEmailQueue.userId,
+      })
+      .from(notificationEmailQueue)
+      .where(dueForCadence(cadence, now))
+      .orderBy(
+        asc(notificationEmailQueue.organizationId),
+        asc(notificationEmailQueue.userId),
+      )
+      .limit(5_000)
+    return rows.map((row) => ({
+      organizationId: toOrgId(row.organizationId),
+      userId: toUserId(row.userId),
+    }))
+  },
+
+  findDueByUser: async (
+    orgId: string,
+    userId: string,
+    cadence: string,
+    now: Date,
+  ): Promise<NotificationEmail[]> => {
+    const rows = await db
+      .select()
+      .from(notificationEmailQueue)
+      .where(
+        and(
+          eq(notificationEmailQueue.organizationId, orgId),
+          eq(notificationEmailQueue.userId, userId),
+          dueForCadence(cadence, now),
         ),
       )
       .orderBy(asc(notificationEmailQueue.createdAt))
@@ -188,7 +263,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           scope(id, orgId, propertyId),
-          inArray(notificationEmailQueue.status, ['pending', 'failed', 'delayed']),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
         ),
       )
   },
@@ -206,7 +281,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           scope(id, orgId, propertyId),
-          inArray(notificationEmailQueue.status, ['pending', 'failed', 'delayed']),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
         ),
       )
   },
@@ -233,7 +308,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           scope(id, orgId, propertyId),
-          inArray(notificationEmailQueue.status, ['pending', 'failed', 'delayed']),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
         ),
       )
   },
@@ -256,17 +331,23 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           scope(id, orgId, propertyId),
-          inArray(notificationEmailQueue.status, ['pending', 'failed', 'delayed']),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
         ),
       )
   },
 
+  /**
+   * ADR 0046 r.6. Returns the rows it actually moved so the caller can cascade
+   * a bounce onto the recipient's other queued mail; an empty array means the
+   * event was unknown or out of order, which the webhook logs rather than
+   * silently discards.
+   */
   recordProviderState: async (
     providerMessageId: string,
     state: 'delivered' | 'bounced' | 'complained',
     occurredAt: Date,
-  ): Promise<void> => {
-    await db
+  ): Promise<readonly ProviderStateTransition[]> => {
+    const rows = await db
       .update(notificationEmailQueue)
       .set({
         status: state,
@@ -276,6 +357,69 @@ export const createNotificationEmailRepository = (db: Database) => ({
           : { bouncedAt: occurredAt }),
         updatedAt: occurredAt,
       })
-      .where(eq(notificationEmailQueue.providerMessageId, providerMessageId))
+      .where(
+        and(
+          eq(notificationEmailQueue.providerMessageId, providerMessageId),
+          inArray(notificationEmailQueue.status, [...PROVIDER_STATE_PREDECESSORS[state]]),
+        ),
+      )
+      .returning({
+        id: notificationEmailQueue.id,
+        userId: notificationEmailQueue.userId,
+        organizationId: notificationEmailQueue.organizationId,
+        propertyId: notificationEmailQueue.propertyId,
+      })
+    return rows.map((row) => ({
+      emailId: notificationEmailId(row.id),
+      userId: toUserId(row.userId),
+      organizationId: toOrgId(row.organizationId),
+      propertyId: toPropertyId(row.propertyId),
+    }))
+  },
+
+  /**
+   * A dead address stays dead: once the provider reports a bounce or a
+   * complaint, every still-sendable row this recipient has in the org is
+   * suppressed rather than left to be attempted and rejected one by one.
+   */
+  suppressRecipient: async (
+    userId: string,
+    orgId: string,
+    reason: string,
+    updatedAt: Date,
+  ): Promise<number> => {
+    const rows = await db
+      .update(notificationEmailQueue)
+      .set({
+        status: 'suppressed',
+        providerState: 'suppressed',
+        suppressionReason: reason,
+        nextAttemptAt: null,
+        updatedAt,
+      })
+      .where(
+        and(
+          eq(notificationEmailQueue.userId, userId),
+          eq(notificationEmailQueue.organizationId, orgId),
+          inArray(notificationEmailQueue.status, [...SENDABLE]),
+        ),
+      )
+      .returning({ id: notificationEmailQueue.id })
+    return rows.length
+  },
+
+  isRecipientSuppressed: async (userId: string, orgId: string): Promise<boolean> => {
+    const rows = await db
+      .select({ id: notificationEmailQueue.id })
+      .from(notificationEmailQueue)
+      .where(
+        and(
+          eq(notificationEmailQueue.userId, userId),
+          eq(notificationEmailQueue.organizationId, orgId),
+          inArray(notificationEmailQueue.providerState, ['bounced', 'complained']),
+        ),
+      )
+      .limit(1)
+    return rows.length > 0
   },
 })

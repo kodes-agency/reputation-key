@@ -119,6 +119,47 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
     ),
   )
 
+// ── markNotificationUnreadFn ──────────────────────────────────────
+
+const markNotificationUnreadDto = z.object({
+  notificationId: z.string().uuid(),
+})
+
+/**
+ * Read -> unread, the inverse of markNotificationReadFn.
+ *
+ * Resolves to the flipped notification, or `null` when the flip is a no-op
+ * because another unread row already covers the same (user, type, resource)
+ * under ADR 0046 r.2's partial unique key. Callers refetch either way; this
+ * never surfaces a unique-violation as a 500.
+ */
+export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
+  .inputValidator(markNotificationUnreadDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
+        try {
+          const { notificationPublicApi } = getContainer()
+          return notificationPublicApi.markUnread(
+            data.notificationId,
+            ctx.organizationId,
+            ctx.userId,
+          )
+        } catch (e) {
+          if (isNotificationError(e)) {
+            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
+          }
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'notification.markUnread',
+    ),
+  )
+
 // ── markAllNotificationsReadFn ────────────────────────────────────
 
 export const markAllNotificationsReadFn = createServerFn({ method: 'POST' }).handler(
@@ -194,7 +235,7 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
 
 // ── getNotificationPreferencesFn ──────────────────────────────────
 
-/** @public Staged RPC entry point — consumed by the preferences settings UI (not yet wired). */
+/** @public Consumed by the notification preferences settings route. */
 export const getNotificationPreferencesFn = createServerFn({ method: 'GET' }).handler(
   tracedHandler(
     async () => {
@@ -225,7 +266,6 @@ const updateNotificationPreferenceDto = z.object({
     'mandatory',
     'urgent_operational',
     'workflow_collaboration',
-    'digest_summary',
     'recognition',
   ]),
   channel: z.enum(['in_app', 'email']),
@@ -236,7 +276,7 @@ const updateNotificationPreferenceDto = z.object({
   quietHoursEnd: quietTime,
 })
 
-/** @public Staged RPC entry point — consumed by the preferences settings UI (not yet wired). */
+/** @public Consumed by the notification preferences settings route. */
 export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
   .inputValidator(updateNotificationPreferenceDto)
   .handler(

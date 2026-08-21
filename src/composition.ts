@@ -97,6 +97,10 @@ import { sendInvitationEmail } from '#/shared/auth/emails'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { Env } from '#/shared/config/env'
+import {
+  assertDirectProviderEgressAllowed,
+  assertReviewProviderSubjectKeysConfigured,
+} from '#/shared/config/provider-config-guards'
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
@@ -498,6 +502,12 @@ export function createContainer(options?: {
   ) {
     throw new Error('config_invalid')
   }
+  // Fail CLOSED at boot, not once per job: a production worker without the
+  // subject keyring fails 100% of review syncs at acquireDeriver() with an
+  // opaque `config_invalid`, surfacing only after three retries in
+  // quarantine. This names the variable and refuses to build the container.
+  // No-op outside production and for non-job processes.
+  assertReviewProviderSubjectKeysConfigured(env, enableJobs)
   const reviewProviderSubjectKeyring = configureReviewProviderSubjectWriterKeys({
     writerEnabled: enableJobs,
     production: env.NODE_ENV === 'production',
@@ -1158,6 +1168,12 @@ export function createContainer(options?: {
     oauthStateHandles,
     oauthCallbackAbuseGate,
     refreshPolicyStoreRequired: identity.internal.refreshPolicyStoreRequired,
+    // Fail closed on ungoverned provider egress in production. The review
+    // adapter's direct-`fetch` fallback is reachable merely by leaving the
+    // GOOGLE_EGRESS_* values unset, and it bypasses admission, quota control,
+    // credential binding and mTLS. Outside production this is a no-op.
+    assertDirectProviderEgressAllowed: (operation) =>
+      assertDirectProviderEgressAllowed(env, operation),
   })
 
   setMembershipRemovalLifecycle({
@@ -1397,6 +1413,10 @@ export function createContainer(options?: {
       routingPolicy: ROUTING_POLICY_VERSION,
       sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
     },
+    // notification.missing_for_inbox_item: the query is the notification
+    // context's, the gauge is the shared health snapshot's — the root is the
+    // only place allowed to join them.
+    readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
   })
 
   return {
@@ -1486,17 +1506,22 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
+    // The notification-gap healing sweep (registered by bootstrap on the
+    // worker path). Undefined when no job queue exists.
+    reconcileMissingNotificationsHandler:
+      notification.internal.reconcileMissingNotificationsHandler,
     // BQC-2.2: version-gated strong read of persisted policy state.
     // Workers await this before starting; side-effect paths use it for
     // fresh reads (BQC-2.5). Owned by the identity build (readiness).
     refreshPolicyStore: identity.internal.refreshPolicyStore,
+    // `providerSubjectKeys` is always a service — the real keyring-backed one
+    // when the writer material is configured, otherwise the secret-free deny
+    // adapter whose acquireDeriver() throws `config_invalid`. So this IS the
+    // boot-time inventory-parity check: it verifies the decoded worker key set
+    // against the database's masked inventory before any job runs. The
+    // env-level precondition is enforced earlier, at container construction
+    // (assertReviewProviderSubjectKeysConfigured).
     refreshReviewProviderSubjectKeys: async () => {
-      if (!review.internal.providerSubjectKeys) {
-        if (enableJobs && env.NODE_ENV === 'production') {
-          throw new Error('review_provider_subject_key_inventory_unavailable')
-        }
-        return
-      }
       await review.internal.providerSubjectKeys.acquireDeriver()
     },
     // Worker-only durable consumer registration contributed by owning contexts.
@@ -1506,6 +1531,7 @@ export function createContainer(options?: {
       inbox.internal.registerOutboxConsumers()
       metricApi.internal.registerOutboxConsumers()
       ai.internal.registerOutboxConsumers()
+      notification.internal.registerOutboxConsumers()
     },
     providerEphemeralRedis,
   } as const

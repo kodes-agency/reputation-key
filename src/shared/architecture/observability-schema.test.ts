@@ -362,7 +362,7 @@ async function assembleSnapshot() {
       [{ cnt: 1, age_ms: 10 }], // outbox unpublished
       [{ claimed: 0, oldest_claimed_age_ms: null, stalled: 0 }],
       [{ total: 1, refresh_due: 0, expired: 0, oldest_due_age_seconds: null }],
-      [{ due: 0, failed: 0 }], // sync
+      [{ due: 2, failed: 0, oldest_due_age_ms: 900_000 }], // sync
       // reply publication aggregate (BQC-7.3)
       [
         {
@@ -376,6 +376,8 @@ async function assembleSnapshot() {
           oldest_ambiguous_age_ms: 60_000,
         },
       ],
+      // notification email queue aggregate (delivery health)
+      [{ overdue: 1, oldest_overdue_age_ms: 120_000, attempted: 0 }],
     ]),
     outboxRepo: {
       findExpiredLeases: vi.fn(async () => []),

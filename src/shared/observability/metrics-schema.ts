@@ -343,6 +343,16 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Properties past their next incremental sync time.',
   }),
   def({
+    name: 'sync.oldest_due_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['sync.oldestDueAgeMs'],
+    emitted: true,
+    description:
+      'Age of the OLDEST past-due next_incremental_at — discovery-sweep lag. A count of due properties cannot distinguish a sweep mid-run from a dead sweep; this can. Null/absent when nothing is overdue.',
+  }),
+  def({
     name: 'sync.failed',
     kind: 'gauge',
     unit: 'count',
@@ -350,6 +360,16 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['sync.failedSyncCount'],
     emitted: true,
     description: 'Syncs in error whose retry is due.',
+  }),
+  def({
+    name: 'sync.gbp_push_enabled',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['sync.gbpPushEnabled'],
+    emitted: true,
+    description:
+      '1 when GBP_PUBSUB_TOPIC is configured. 0 = Google push notifications are dark and new reviews only arrive on the discover-new-reviews sweep cadence.',
   }),
   def({
     name: 'sync.webhook.dedupe',
@@ -374,6 +394,58 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     labels: {},
     emitted: false,
     description: 'Provider connection re-establishments (7.4).',
+  }),
+
+  // ── notification.* — did the user actually get told? ──
+  def({
+    name: 'notification.email.delivery_enabled',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.emailDeliveryEnabled'],
+    emitted: true,
+    description:
+      '1 when notification.send_email is globally enabled. 0 = outbound email is capability-dark, so a pending email backlog is EXPECTED and notification.email-stalled deliberately stays silent. Read this before concluding email is broken. A per-org allowlist grant is not globally enumerable and does not flip this to 1.',
+  }),
+  def({
+    name: 'notification.email.pending_overdue',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.pendingOverdueCount'],
+    emitted: true,
+    description:
+      'Queued notification emails still `pending` past their due time (next_attempt_at → not_before → created_at).',
+  }),
+  def({
+    name: 'notification.email.oldest_pending_overdue_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.oldestPendingOverdueAgeMs'],
+    emitted: true,
+    description:
+      'How far past its due time the oldest pending notification email is. Null/absent when nothing is overdue.',
+  }),
+  def({
+    name: 'notification.email.attempted_stuck',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.attemptedStuckCount'],
+    emitted: true,
+    description:
+      'Overdue pending emails the delivery path ALREADY attempted (attempted_at set). Non-zero cannot be explained by a dark capability — the sweep reached the row, tried, and left it pending.',
+  }),
+  def({
+    name: 'notification.missing_for_inbox_item',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.missingForInboxItemCount'],
+    emitted: true,
+    description:
+      'Inbox items past the reconciliation grace edge with NO notification row for anybody — "a review arrived and nobody was told". Above zero means the in-process fan-out dropped it AND reconcile-missing-notifications has not healed it yet, or that sweep is not running. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
   }),
 
   // ── source.* — refresh-due / expiry / purge lifecycle ──

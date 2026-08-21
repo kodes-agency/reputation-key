@@ -91,6 +91,7 @@ export type SystemAction =
   | 'system:property.import_v2'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
+  | 'system:review.discovery_sweep'
   | 'system:review.purge'
   | 'system:review.reconcile'
   | 'system:reply.publish'
@@ -112,6 +113,8 @@ export type SystemAction =
   | 'system:notification.insert'
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
+  | 'system:notification.delivery_event'
+  | 'system:notification.reconcile'
   | 'system:inbox.update'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
@@ -1187,6 +1190,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
     ),
     sf(
+      'markNotificationUnreadFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.update',
+      'notification.in_app',
+      'organization',
+      { notes: 'inverse of markRead; no-op when the ADR 0046 r.2 unread key is taken' },
+    ),
+    sf(
       'markAllNotificationsReadFn',
       `${NOTIFICATION}/notifications.ts`,
       'notification.update',
@@ -1213,7 +1224,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.read',
       'notification.in_app',
       'organization',
-      { notes: 'staged RPC, UI not yet wired' },
+      { notes: 'notification preferences settings route' },
     ),
     sf(
       'updateNotificationPreferenceFn',
@@ -1221,7 +1232,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.update',
       'notification.in_app',
       'organization',
-      { notes: 'staged RPC, UI not yet wired' },
+      { notes: 'notification preferences settings route' },
     ),
     sf(
       'getNotificationUserSettingsFn',
@@ -1985,6 +1996,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'manager triage surface' },
     ),
+    ui(
+      '/notifications',
+      `${AUTHED}/notifications.tsx`,
+      'notification.read',
+      'notification.in_app',
+      'organization',
+      { notes: 'full in-app notification history; reads via notification server fns' },
+    ),
   ],
 
   // ── settings ──────────────────────────────────────────────────────
@@ -2305,6 +2324,19 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
         'Google Pub/Sub JWT verify (audience-bound); enqueues sync-property-reviews (stamps webhook:gbp initiator); capability not asserted in code — BQC-3.2 dispatch gate authorizes',
     },
   ),
+  api(
+    '/api/webhooks/resend/events',
+    `${ROUTES}/api/webhooks/resend/events.ts`,
+    'system:notification.delivery_event',
+    'notification.send_email',
+    'none',
+    {
+      principals: ['system'],
+      externalEffect: false,
+      notes:
+        'ADR 0046 r.6: Svix HMAC-SHA256 verify over the raw body (5-min replay window, constant-time compare); maps email.delivered/bounced/complained onto recordProviderState and suppresses a bounced recipient\u2019s remaining queued mail; 503 webhook_disabled when RESEND_WEBHOOK_SECRET is unset; scope none \u2014 the provider message id resolves the tenant',
+    },
+  ),
 ]
 
 const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
@@ -2382,6 +2414,28 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'BQC-1.5 bounded sweep (500×10, cursor in review_refresh_runs); enqueues gated sync jobs',
+    },
+  ),
+  job(
+    'reconcile-missing-notifications',
+    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    'system:notification.reconcile',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback with a 5m grace edge); enqueues the ordinary insert-notification job, so preferences and the unread-coalescing dedupe still apply. Capability none + a distinct tenant-cross action for the same reason as system:review.discovery_sweep: the sweep carries no propertyId, so the property-scoped system:notification.insert would missing_scope-deny it',
+    },
+  ),
+  job(
+    'discover-new-reviews',
+    'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
+    'system:review.discovery_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'new-review discovery sweep (200×10, keyset on property id, per-property due times in review_sync_state); enqueues gated sync jobs — never calls the provider itself, so no externalEffect. Distinct tenant-cross action with capability none for the same reason as system:review.reconcile: the strictest-scope merge on property-scoped system:review.sync would missing_scope-deny this sweep',
     },
   ),
   job(
@@ -2553,7 +2607,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'hourly fanout resolves and authorizes each property; daily batches run at property-local 08:00 and never combine properties',
+        'hourly fanout re-enqueues immediate orphans per authorized property; ADR 0046 r.4 digest batches are per USER in the user timezone, grouped by property inside one email',
     },
   ),
   job(
@@ -2577,6 +2631,18 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
+    },
+  ),
+  consumer(
+    'notification.outbox-consumers',
+    'src/contexts/notification/infrastructure/outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_item.created'],
+    {
+      notes:
+        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. Dispatch disabled today (OUTBOX_DISPATCHER_ENABLED=false) — reconcile-missing-notifications is the live repair path',
     },
   ),
   consumer(
@@ -2794,6 +2860,26 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'hourly (BQC-1.5 bounded sweep)' },
+  ),
+  schedule(
+    'discover-new-reviews-recurring',
+    'system:review.discovery_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 15 min; per-property due times fence duplicate polls and back off on a 15m/1h/6h ladder keyed on review + push recency (REVIEW_DISCOVERY_INTERVAL_MINUTES, default 15, is the hot rung); properties mid-import are excluded',
+    },
+  ),
+  schedule(
+    'reconcile-missing-notifications-recurring',
+    'system:notification.reconcile',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 10 min; the 5m grace edge keeps the sweep off items the happy path is still delivering, and the zero-notification candidate filter fences repeats',
+    },
   ),
   schedule(
     'purge-expired-reviews-recurring',
@@ -3015,6 +3101,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'ops:disconnect-connection — revoke Google connection credentials via disconnectGoogleAccount (revoke+redact+purge; reconnect rotates); destructive: typed --yes; key rotation stays runbook-manual (BQC-7.5)',
     },
   ),
+  ops('scripts/ops/gbp-subscribe.ts', 'scripts/ops/gbp-subscribe.ts', 'organization', {
+    notes:
+      "ops:gbp-subscribe — re-asserts each active/degraded Google connection's GBP notificationSetting at GBP_PUBSUB_TOPIC via manageNotifications.subscribe (idempotent PATCH); the backfill for tenants connected before the import path subscribed automatically, and the ONLY migration path when the topic changes (Google stores the topic on the GBP account); dry-run by default, per-connection outcome report, exits 1 on any candidate short of 'subscribed' (BQC-7.5)",
+  }),
   ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
     notes:
       'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',

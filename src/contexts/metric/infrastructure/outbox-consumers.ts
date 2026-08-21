@@ -100,6 +100,7 @@ export function registerPortalWorkflowMetricConsumers(
   registerConsumer({
     eventType: 'portal.content_review.completed',
     consumerName: 'metric.portal-workflow',
+    module: 'metric.portal-workflow',
     handler: async (event) => {
       const domainEvent = portalWorkflowDomainEvent(event)
       if (domainEvent._tag !== 'portal.content_review.completed') {
@@ -112,6 +113,7 @@ export function registerPortalWorkflowMetricConsumers(
   registerConsumer({
     eventType: 'portal.configuration_completeness.recorded',
     consumerName: 'metric.portal-workflow',
+    module: 'metric.portal-workflow',
     handler: async (event) => {
       const domainEvent = portalWorkflowDomainEvent(event)
       if (domainEvent._tag !== 'portal.configuration_completeness.recorded') {
@@ -124,6 +126,7 @@ export function registerPortalWorkflowMetricConsumers(
   registerConsumer({
     eventType: 'portal.approved_destination_ratio.recorded',
     consumerName: 'metric.portal-workflow',
+    module: 'metric.portal-workflow',
     handler: async (event) => {
       const domainEvent = portalWorkflowDomainEvent(event)
       if (domainEvent._tag !== 'portal.approved_destination_ratio.recorded') {

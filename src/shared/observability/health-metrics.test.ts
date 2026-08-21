@@ -24,7 +24,9 @@ function fakeDb(results: unknown[][]): Database {
 const REVIEW_ROW = [
   { total: 0, refresh_due: 0, expired: 0, oldest_due_age_seconds: null },
 ]
-const SYNC_ROW = [{ due: 0, failed: 0 }]
+const SYNC_ROW = [{ due: 0, failed: 0, oldest_due_age_ms: null }]
+/** Notification email queue aggregate (overdue count, age, attempted). */
+const NOTIFICATION_ROW = [{ overdue: 0, oldest_overdue_age_ms: null, attempted: 0 }]
 /** BQC-7.3: reply publication aggregate (one row, all states + age). */
 const PUBLICATION_ROW = [
   {
@@ -63,6 +65,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
+      NOTIFICATION_ROW,
     ])
     const repo = fakeOutboxRepo([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }])
 
@@ -85,6 +88,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
+      NOTIFICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([])).check()
@@ -96,7 +100,7 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
   })
 
   it('zeroes outbox metrics when no outbox repo is available', async () => {
-    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW])
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
     const snapshot = await createHealthChecker(db).check()
 
     expect(snapshot.outbox).toEqual({
@@ -114,6 +118,17 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
 describe('health checker quarantine metrics (BQC-3.7)', () => {
   it('counts waiting/delayed quarantined jobs and the oldest age', async () => {
     const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString()
+    // Both quarantine tests spell out their own fakeQuarantine + fakeDb
+    // queue. fakeDb hands back queued rows in db.select() CALL ORDER, so the
+    // queue is a positional transcript of the queries the health checker
+    // issues; writing it out per test is what keeps that order auditable
+    // next to the snapshot assertion.
+    // A shared queue helper would hide the ordering contract behind a name,
+    // so a reordering of the checker's reads would break silently instead of
+    // failing where the rows are visible.
+    // Revisit when the checker names its reads explicitly instead of
+    // consuming a positional queue.
+    // fallow-ignore-next-line code-duplication
     const quarantine = fakeQuarantine({ waiting: 2, delayed: 1 }, [
       { data: { quarantinedAt: oneHourAgo } },
       { data: { redacted: true }, timestamp: Date.now() },
@@ -124,6 +139,7 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
+      NOTIFICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
@@ -144,6 +160,7 @@ describe('health checker quarantine metrics (BQC-3.7)', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
+      NOTIFICATION_ROW,
     ])
 
     const snapshot = await createHealthChecker(db, fakeOutboxRepo([]), {
@@ -190,7 +207,14 @@ describe('health checker content safety (BQC-4.3)', () => {
           reviewerName: 'SECRET_REVIEWER_NAME',
         },
       ],
-      [{ due: 3, failed: 1, lastError: 'SECRET_REPLY_TEXT' }],
+      [
+        {
+          due: 3,
+          failed: 1,
+          oldest_due_age_ms: 900_000,
+          lastError: 'SECRET_REPLY_TEXT',
+        },
+      ],
       [
         {
           requested: 1,
@@ -202,6 +226,15 @@ describe('health checker content safety (BQC-4.3)', () => {
           cancelled: 0,
           oldest_ambiguous_age_ms: 120_000,
           text: 'SECRET_REPLY_TEXT',
+        },
+      ],
+      [
+        {
+          overdue: 4,
+          oldest_overdue_age_ms: 3_600_000,
+          attempted: 1,
+          subject: 'SECRET_REVIEW_TEXT',
+          recipient: 'SECRET_REVIEWER_NAME',
         },
       ],
     ])
@@ -242,7 +275,19 @@ describe('health checker content safety (BQC-4.3)', () => {
         expiredCount: 0,
         oldestDueAgeSeconds: 3600,
       },
-      sync: { dueForIncrementalCount: 3, failedSyncCount: 1 },
+      sync: {
+        dueForIncrementalCount: 3,
+        failedSyncCount: 1,
+        oldestDueAgeMs: 900_000,
+        gbpPushEnabled: false,
+      },
+      notifications: {
+        emailDeliveryEnabled: false,
+        pendingOverdueCount: 4,
+        oldestPendingOverdueAgeMs: 3_600_000,
+        attemptedStuckCount: 1,
+        missingForInboxItemCount: 0,
+      },
       replyPublication: {
         counts: {
           requested: 1,
@@ -261,5 +306,109 @@ describe('health checker content safety (BQC-4.3)', () => {
         domainEventsQueueName: 'domain-events',
       },
     })
+  })
+
+  it('surfaces the GBP push readiness fact from the composition root', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
+
+    const dark = await createHealthChecker(db).check()
+    expect(dark.sync.gbpPushEnabled).toBe(false)
+
+    const live = await createHealthChecker(db, undefined, {
+      gbpPushEnabled: true,
+    }).check()
+    expect(live.sync.gbpPushEnabled).toBe(true)
+  })
+})
+
+// The freshness/delivery signals this branch adds: a COUNT of due properties
+// or pending emails cannot distinguish a sweep mid-run from a dead one, so
+// each carries an oldest-overdue AGE alongside it.
+describe('health checker sync freshness', () => {
+  it('reports the oldest overdue age alongside the due count', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [{ due: 12, failed: 0, oldest_due_age_ms: 3_600_000.4 }],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.dueForIncrementalCount).toBe(12)
+    // Rounded — the epoch arithmetic yields a float.
+    expect(snapshot.sync.oldestDueAgeMs).toBe(3_600_000)
+  })
+
+  it('reports a null overdue age when nothing is due', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [{ due: 0, failed: 0, oldest_due_age_ms: null }],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.dueForIncrementalCount).toBe(0)
+    expect(snapshot.sync.oldestDueAgeMs).toBeNull()
+  })
+})
+
+describe('health checker notification delivery metrics', () => {
+  it('reports the overdue email backlog, its oldest age, and the attempted subset', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      SYNC_ROW,
+      PUBLICATION_ROW,
+      [{ overdue: 9, oldest_overdue_age_ms: 7_200_001.6, attempted: 2 }],
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.notifications.pendingOverdueCount).toBe(9)
+    expect(snapshot.notifications.oldestPendingOverdueAgeMs).toBe(7_200_002)
+    expect(snapshot.notifications.attemptedStuckCount).toBe(2)
+  })
+
+  it('defaults the email queue metrics to empty when the aggregate returns no row', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, []])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.notifications).toMatchObject({
+      emailDeliveryEnabled: false,
+      pendingOverdueCount: 0,
+      oldestPendingOverdueAgeMs: null,
+      attemptedStuckCount: 0,
+    })
+  })
+
+  it('surfaces the injected notification-gap count, defaulting to no known gap', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
+
+    // The query belongs to the notification context, so shared/** cannot run
+    // it — an unwired deployment must report "no known gap", never invent one.
+    const unwired = await createHealthChecker(db).check()
+    expect(unwired.notifications.missingForInboxItemCount).toBe(0)
+
+    const wired = await createHealthChecker(db, undefined, {
+      readMissingNotificationCount: async () => 7,
+    }).check()
+    expect(wired.notifications.missingForInboxItemCount).toBe(7)
+  })
+
+  it('surfaces the email-delivery readiness fact from the composition root', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
+
+    // Absent = dark, the honest default: outbound email is capability-gated
+    // and a pending backlog must not read as a fault.
+    const dark = await createHealthChecker(db).check()
+    expect(dark.notifications.emailDeliveryEnabled).toBe(false)
+
+    const live = await createHealthChecker(db, undefined, {
+      emailDeliveryEnabled: true,
+    }).check()
+    expect(live.notifications.emailDeliveryEnabled).toBe(true)
   })
 })

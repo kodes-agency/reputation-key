@@ -111,6 +111,40 @@ export const OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS = 15 * 60 * 1000
 export const QUARANTINE_REDRIVE_SLA_ALERT_MS = 24 * 60 * 60 * 1000
 
 /**
+ * A quarantined job is DROPPED WORK: the quarantine has no worker, and the
+ * daily TTL sweep deletes entries after QUARANTINE_TTL_DAYS. So a job that
+ * lands there is silently lost unless an operator redrives it — which is why
+ * this threshold is low and the severity is a page, while the 24h
+ * `queue.quarantine-growth` above is only the redrive-SLA nag. 15min (3× the
+ * 5-min evaluation cadence) is the sustainment proxy: it clears a transient
+ * entry an operator is actively redriving without waiting out a whole day.
+ */
+export const QUARANTINE_NONEMPTY_ALERT_MS = 15 * 60 * 1000
+
+/**
+ * The discover-new-reviews sweep FIRES every 15 minutes (worker/index.ts is
+ * the source of truth; shared cannot import a context module, so the cadence
+ * is mirrored here). Anything overdue is pure sweep lag — the per-property
+ * poll interval is already priced into next_incremental_at.
+ */
+const DISCOVERY_SWEEP_INTERVAL_MS = 15 * 60 * 1000
+
+/**
+ * Four consecutive sweeps failed to reach the oldest due property. One
+ * missed sweep is a queue hiccup; four is the sweep being dead, starving, or
+ * throwing — and with Google push dark, the sweep IS the only path a new
+ * review has into the app. Hence P1 on an hour of lag.
+ */
+export const SYNC_SWEEP_LAG_ALERT_MS = 4 * DISCOVERY_SWEEP_INTERVAL_MS
+
+/**
+ * A queued notification email overdue by more than 2h. The digest sweep runs
+ * hourly and the urgent path is immediate, so 2h is two missed digest ticks —
+ * past any legitimate cadence, batching, or retry backoff.
+ */
+export const NOTIFICATION_EMAIL_STALLED_ALERT_MS = 2 * 60 * 60 * 1000
+
+/**
  * Source freshness approaching the policy deadline: fire when the nearest
  * hard expiry among refresh-due rows is under 2 days away — the operator
  * still has room to act before content hard-expires (BQC-1.5 signal).
@@ -296,6 +330,29 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
     },
   }),
+  // The quarantine has NO consumer and the daily TTL sweep deletes entries:
+  // an unredriven job is silently dropped work, not a backlog. This fires on
+  // presence-with-sustainment (15min ≈ 3 evaluation cadences) so the loss is
+  // visible while it is still recoverable; `queue.quarantine-growth` above is
+  // the same condition aged past the 24h redrive SLA (§4).
+  define({
+    name: 'queue.quarantine-nonempty',
+    severity: 'P1',
+    runbook: 'runbooks.md §14',
+    windowMs: QUARANTINE_NONEMPTY_ALERT_MS,
+    threshold: QUARANTINE_NONEMPTY_ALERT_MS,
+    read: (snapshot) => {
+      const q = snapshot.quarantine
+      if (q == null || q.count <= 0) return null
+      if (q.oldestAgeMs == null || q.oldestAgeMs <= QUARANTINE_NONEMPTY_ALERT_MS) {
+        return null
+      }
+      return {
+        value: q.oldestAgeMs,
+        detail: `${q.count} job(s) sitting in the unconsumed quarantine, oldest ${q.oldestAgeMs}ms — dropped work: no worker drains it and the TTL sweep deletes it`,
+      }
+    },
+  }),
 
   // ── Google/source freshness approaching the policy deadline ──
   define({
@@ -314,6 +371,90 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestDueAgeSeconds,
         detail: `${refreshDueCount} refresh-due review(s); nearest hard expiry in ${oldestDueAgeSeconds}s — under the ${SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS}s action mark`,
+      }
+    },
+  }),
+
+  // ── new reviews not arriving: the discovery sweep has fallen behind ──
+  // The freshness alert above watches CONTENT expiry on reviews we already
+  // hold. This one watches whether we are still finding new ones. It reads
+  // the oldest-overdue AGE, not the due count: a count cannot tell a healthy
+  // sweep mid-run (many properties, all due seconds ago) from a dead one (one
+  // property, due since yesterday).
+  define({
+    name: 'sync.sweep-lag',
+    severity: 'P1',
+    runbook: 'runbooks.md §13',
+    windowMs: SYNC_SWEEP_LAG_ALERT_MS,
+    threshold: SYNC_SWEEP_LAG_ALERT_MS,
+    read: (snapshot) => {
+      const { dueForIncrementalCount, oldestDueAgeMs, gbpPushEnabled } = snapshot.sync
+      if (dueForIncrementalCount <= 0) return null
+      if (oldestDueAgeMs == null || oldestDueAgeMs <= SYNC_SWEEP_LAG_ALERT_MS) return null
+      // Push state is context, not a suppressor: the sweep is the only path
+      // when push is dark, and the safety net when it is live.
+      const pushState = gbpPushEnabled ? 'push live' : 'push DARK'
+      return {
+        value: oldestDueAgeMs,
+        detail: `${dueForIncrementalCount} property(ies) due for incremental sync; oldest overdue by ${oldestDueAgeMs}ms (> ${SYNC_SWEEP_LAG_ALERT_MS}ms = 4 missed sweeps, ${pushState}) — new reviews are not arriving`,
+      }
+    },
+  }),
+
+  // ── the user was never told ──
+  // A review landed, the inbox has it, and no notification exists for it.
+  // This is the exact silent failure the whole notification pipeline exists
+  // to prevent, so a single occurrence pages: there is no benign cause and
+  // no self-healing path (nothing re-derives a missed notification).
+  define({
+    name: 'notification.missing-for-inbox-item',
+    severity: 'P1',
+    runbook: 'runbooks.md §15',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const count = snapshot.notifications.missingForInboxItemCount
+      if (count <= 0) return null
+      return {
+        value: count,
+        detail: `${count} inbox item(s) with no notification — the user was never told a review arrived; nothing re-derives a missed notification`,
+      }
+    },
+  }),
+  // Queued email that is not going out. The cry-wolf guard is the point:
+  // outbound email is capability-dark today, so a pending backlog is the
+  // EXPECTED state and must stay silent. It fires only when email is
+  // globally enabled (so the backlog is a real fault) or when the delivery
+  // path already attempted the row and left it pending — which is a fault
+  // regardless of the global flag, and is how a per-org-allowlisted tenant's
+  // breakage still pages.
+  define({
+    name: 'notification.email-stalled',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    read: (snapshot) => {
+      const {
+        emailDeliveryEnabled,
+        pendingOverdueCount,
+        oldestPendingOverdueAgeMs,
+        attemptedStuckCount,
+      } = snapshot.notifications
+      if (pendingOverdueCount <= 0) return null
+      if (
+        oldestPendingOverdueAgeMs == null ||
+        oldestPendingOverdueAgeMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS
+      ) {
+        return null
+      }
+      if (!emailDeliveryEnabled && attemptedStuckCount <= 0) return null
+      const cause = emailDeliveryEnabled
+        ? 'email delivery is enabled'
+        : `email delivery is globally dark but ${attemptedStuckCount} row(s) were already attempted`
+      return {
+        value: oldestPendingOverdueAgeMs,
+        detail: `${pendingOverdueCount} queued notification email(s) overdue, oldest by ${oldestPendingOverdueAgeMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,
       }
     },
   }),

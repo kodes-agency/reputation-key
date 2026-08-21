@@ -14,12 +14,12 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
+import { isDisableable } from './notification-policy'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
   urgent_operational: true,
   workflow_collaboration: true,
-  digest_summary: true,
   recognition: true,
 }
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
@@ -62,7 +62,7 @@ export const createNotificationPreference = (
       notificationError('invalid_input', 'Quiet hours require a valid start and end'),
     )
   }
-  if (input.category === 'mandatory' && !input.enabled) {
+  if (!isDisableable(input.category) && !input.enabled) {
     return err(
       notificationError('invalid_input', 'Mandatory notifications cannot be disabled'),
     )

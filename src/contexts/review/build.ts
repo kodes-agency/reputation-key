@@ -36,6 +36,7 @@ import {
 } from './application/provider-subject-keyring'
 import { createReviewProviderSubjectKeyInventoryRepository } from './infrastructure/provider-subject-key-inventory.repository'
 import { createReviewProviderSnapshotRepository } from './infrastructure/repositories/review-provider-snapshot.repository'
+import { createReviewSyncActivityRecorder } from './infrastructure/repositories/review-sync-activity.repository'
 import { runReviewProviderSnapshot } from './application/use-cases/run-review-provider-snapshot'
 import {
   draftReply,
@@ -301,6 +302,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       propertyRouting: propertyRoutingLookup,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
+      // Discovery-ladder activity stamps (migration 0071): a page that
+      // persisted a review we had never seen marks the property live.
+      syncActivity: createReviewSyncActivityRecorder(input.db),
+      clock: input.clock,
     }),
     draftReply: draftReply(replyDeps),
     submitReply: submitReply(replyDeps),

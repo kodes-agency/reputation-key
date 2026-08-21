@@ -42,6 +42,13 @@ import {
   JOB_NAME as REFRESH_EXPIRING_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import {
+  createDiscoverNewReviewsHandler,
+  JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME,
+} from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
+import { createReviewDiscoveryRepository } from '#/contexts/review/infrastructure/repositories/review-discovery.repository'
+import { createReviewSyncActivityRecorder } from '#/contexts/review/infrastructure/repositories/review-sync-activity.repository'
+import { getEnv } from '#/shared/config/env'
+import {
   createPurgeExpiredReviewsHandler,
   JOB_NAME as PURGE_EXPIRED_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
@@ -203,12 +210,20 @@ export async function bootstrap(
   )
 
   // ── Review provider-snapshot jobs ────────────────────────────────
+  // Discovery-ladder activity stamps: written by the sync path (a push
+  // arrived / a page persisted a review we had never seen), read by the
+  // discovery sweep's per-property backoff.
+  const reviewSyncActivity = createReviewSyncActivityRecorder(container.db)
+  const discoveryBaseIntervalMs = getEnv().REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1000
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: container.useCases.runReviewProviderSnapshot,
     propertyRouting: container.propertyProcessingScopeApi,
     enqueueContinuation: async (data) => {
       await container.reviewQueue.addSyncJob(data)
     },
+    syncActivity: reviewSyncActivity,
+    clock: container.clock,
+    hotIntervalMs: discoveryBaseIntervalMs,
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
@@ -307,6 +322,25 @@ export async function bootstrap(
   logger.info(
     { job: REFRESH_EXPIRING_JOB_NAME },
     'registered refresh-expiring-reviews job handler',
+  )
+
+  // ── New-review discovery sweep ───────────────────────────────────
+  // The refresh sweep above only revisits reviews already stored, so it can
+  // never find a NEW one. This sweep polls connected properties on their own
+  // due schedule and is the only ingestion path when GBP push is unset. The
+  // configured interval is the ladder's HOT rung; quiet properties back off.
+  const discoverHandler = createDiscoverNewReviewsHandler({
+    discoveryRepo: createReviewDiscoveryRepository(container.db),
+    queue: container.reviewQueue,
+    clock: container.clock,
+    intervalMs: discoveryBaseIntervalMs,
+  })
+  container.jobRegistry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {
+    await discoverHandler(job)
+  })
+  logger.info(
+    { job: DISCOVER_NEW_REVIEWS_JOB_NAME },
+    'registered discover-new-reviews job handler',
   )
 
   // BQC-3.3: atomic reply/review state + outbox writes for the purge and
@@ -428,7 +462,6 @@ export async function bootstrap(
   // in practice; the guard keeps registration unconditional like neighbors.
   const { createQuarantineTtlSweepHandler, JOB_NAME: QUARANTINE_TTL_JOB_NAME } =
     await import('#/shared/jobs/quarantine-ttl-sweep.job')
-  const { getEnv } = await import('#/shared/config/env')
   const quarantineTtlHandler = container.opsQueues.quarantine
     ? createQuarantineTtlSweepHandler({
         queue: container.opsQueues.quarantine,
@@ -545,11 +578,43 @@ export async function bootstrap(
     container.db,
     createPropertyGrantHolderLookup(container.db),
   )
-  const notifEmailSender = createResendEmailAdapter()
+  // Outbound email transport is chosen ONCE, here, and logged loudly. Before
+  // this the real Resend adapter was constructed unconditionally, so a local
+  // boot with a real key in .env mailed real inboxes, and a boot with the
+  // .env.example placeholder failed deep inside a BullMQ job instead of at
+  // wiring time. Rules live in shared/email/transport-selection.ts.
+  const { decideEmailTransport } = await import('#/shared/email/transport-selection')
+  const { createCapturingEmailSender } =
+    await import('#/shared/testing/capturing-email-sender')
+  const emailTransport = decideEmailTransport(getEnv())
+  const notifEmailSender =
+    emailTransport.mode === 'capture'
+      ? createCapturingEmailSender({ clock: container.clock })
+      : createResendEmailAdapter()
+  if (emailTransport.mode === 'capture') {
+    logger.warn(
+      { transport: 'capture', reason: emailTransport.reason },
+      'NOTIFICATION EMAIL IS BEING CAPTURED, NOT SENT — no message will reach a recipient',
+    )
+  } else {
+    logger.info(
+      { transport: 'send', reason: emailTransport.reason },
+      'notification email will be delivered through Resend',
+    )
+  }
+  // Deep links in email are absolute; the base URL is injected, never read
+  // from env inside a job.
+  const notifBaseUrl = getEnv().BETTER_AUTH_URL
   const { getPool } = await import('#/shared/db/pool')
   const { createNotificationPropertyScopeResolver } =
     await import('#/contexts/notification/infrastructure/repositories/notification-property-scope.repository')
+  const { createNotificationOrganizationScopeResolver } =
+    await import('#/contexts/notification/infrastructure/repositories/notification-organization-scope.repository')
   const resolveNotificationProperty = createNotificationPropertyScopeResolver(getPool())
+  // ADR 0046 r.3: the organization fallback timezone plus property display
+  // names for digest grouping.
+  const resolveNotificationOrgScope =
+    createNotificationOrganizationScopeResolver(getPool())
   const authorizeUrgentNotification = createScheduledScopeAuthorizer(
     'system:notification.email_urgent',
   )
@@ -602,7 +667,39 @@ export async function bootstrap(
     'registered insert-notification job handler',
   )
 
-  // Outbound email is blocked (notification.send_email) for beta.
+  // ── Notification-gap healing sweep ───────────────────────────────
+  // `emitAfterCommit` catches and warns, so a throw in the inbox or
+  // notification handler used to leave a committed review with no notification
+  // and nothing retrying. This sweep finds those items and enqueues the
+  // notification they never got. It is the LIVE repair path: the durable
+  // consumer that would prevent the loss is registered but inert while
+  // OUTBOX_DISPATCHER_ENABLED is false.
+  const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
+    await import('#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job')
+  const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
+  if (reconcileMissingNotifications) {
+    container.jobRegistry.register(
+      RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
+      async (job) => {
+        await reconcileMissingNotifications(job)
+      },
+    )
+    logger.info(
+      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
+      'registered reconcile-missing-notifications job handler',
+    )
+  } else {
+    logger.warn(
+      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
+      'reconcile-missing-notifications not registered — no job queue, so notification gaps will not self-heal',
+    )
+  }
+
+  // Outbound email is blocked (notification.send_email) for beta —
+  // registerCapabilityGatedJob installs a logging no-op below when it is dark,
+  // so a queued urgent email stays `pending` rather than being delivered. The
+  // transport decision logged above is orthogonal: the gate decides whether the
+  // JOB runs at all, the transport decides where a running job's mail goes.
   const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
   const urgentEmailHandler = createUrgentEmailJobHandler({
@@ -614,7 +711,9 @@ export async function bootstrap(
     clock: container.clock,
     preferenceRepo: container.notificationPrefRepo,
     resolvePropertyScope: resolveNotificationProperty,
+    resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
+    baseUrl: notifBaseUrl,
   })
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
@@ -639,7 +738,9 @@ export async function bootstrap(
     logger: container.logger,
     clock: container.clock,
     preferenceRepo: container.notificationPrefRepo,
+    resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
+    baseUrl: notifBaseUrl,
     enqueueImmediate: async (data) => {
       if (!container.jobQueue) return
       await container.jobQueue.add(

@@ -4,19 +4,11 @@
 // review/reply/expired fact now commits atomically via the command stores.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 describe('BQR-2.3: atomic review outbox producer', () => {
   it('sync-reviews uses commandStore.upsertAndRecord for review events', () => {

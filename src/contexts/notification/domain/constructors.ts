@@ -1,5 +1,11 @@
 // Notification context — entity constructor: createNotification
 // Per architecture: "Domain Returns Result<T, DomainError>. Never throws."
+//
+// Callers pass FACTS (`payload`), never sentences. `title`/`body` are derived
+// here from `renderNotification(type, payload)` so the stored snapshot can
+// never disagree with what the in-app row, the email, and the digest render
+// (ADR 0046 r.8). There is exactly one place notification copy exists:
+// domain/notification-templates.ts.
 
 import { ok, err, type Result } from '#/shared/domain'
 import type {
@@ -17,10 +23,15 @@ import type {
 import { notificationError, type NotificationError } from './errors'
 import { isUrgent, NOTIFICATION_TYPES } from './types'
 import { classifyNotification } from './notification-delivery-policy'
+import {
+  parseNotificationPayload,
+  type NotificationPayload,
+} from './notification-payload'
+import { renderNotification } from './notification-templates'
 
 // ── Allowed values ──────────────────────────────────────────────────
 
-export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
+const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
 
 const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'inbox_item',
@@ -40,8 +51,13 @@ export type CreateNotificationInput = Readonly<{
   resourceType: NotificationResourceType
   resourceId: string
   eventId: string
-  title: string
-  body: string | null
+  /**
+   * Content-free render metadata (ADR 0046 r.8). Untrusted on the way in — it
+   * arrives over BullMQ — so it goes through `parseNotificationPayload`, which
+   * drops every unrecognised key. Omitted entirely for a bare notification;
+   * the templates degrade to the short sentence.
+   */
+  payload?: unknown
 }>
 
 export const createNotification = (
@@ -73,9 +89,10 @@ export const createNotification = (
     )
   }
 
-  if (!input.title.trim()) {
-    return err(notificationError('invalid_title', 'Title must not be empty'))
-  }
+  // The old `invalid_title` guard is gone: a title is no longer supplied, it is
+  // rendered, and every renderer returns a non-empty title for an EMPTY
+  // payload. What still needs guarding is the resource identity the deep link
+  // and the coalescing key are built from.
   if (!input.resourceId.trim()) {
     return err(notificationError('invalid_resource_id', 'ResourceId must not be empty'))
   }
@@ -85,6 +102,8 @@ export const createNotification = (
 
   const now = clock()
   const priority: NotificationPriority = isUrgent(input.type) ? 'urgent' : 'normal'
+  const payload: NotificationPayload = parseNotificationPayload(input.payload)
+  const rendered = renderNotification(input.type, payload)
 
   return ok({
     id: input.id,
@@ -98,8 +117,13 @@ export const createNotification = (
     resourceType: input.resourceType,
     resourceId: input.resourceId,
     eventId: input.eventId,
-    title: input.title,
-    body: input.body,
+    title: rendered.title,
+    // An empty supporting sentence is stored as NULL, not '' — the column is
+    // nullable and a blank string would render as an empty second line.
+    body: rendered.body === '' ? null : rendered.body,
+    payload,
+    coalescedCount: 1,
+    coalescedLatestAt: null,
     readAt: null,
     createdAt: now,
     updatedAt: now,

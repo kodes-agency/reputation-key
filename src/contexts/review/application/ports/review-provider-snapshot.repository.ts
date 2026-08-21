@@ -77,6 +77,13 @@ export type ReviewProviderPersistedObservation = Readonly<{
   sourceRevision: number
   review: GoogleReview
   subjects: ReviewProviderSubjectCandidates
+  /**
+   * True when this write CREATED the review locally — no row existed for the
+   * provider's external id in this organization. This is the only place the
+   * new-vs-seen decision is made, and it is what stamps
+   * review_sync_state.last_new_review_at for the discovery backoff ladder.
+   */
+  isNew: boolean
 }>
 
 export type ReviewProviderSnapshotPageCommit = Readonly<{
@@ -244,5 +251,5 @@ export type ReviewProviderObservationWriter = Readonly<{
       sourceEpoch: number
       review: GoogleReview
     }>,
-  ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number }>>
+  ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number; isNew: boolean }>>
 }>

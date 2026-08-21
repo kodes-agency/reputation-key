@@ -50,6 +50,12 @@ export type ConsumerRegistration = Readonly<{
   eventType: string
   /** Consumer name — must be unique per event type. Used in receipts. */
   consumerName: string
+  /**
+   * The catalogue consumer-module row this consumer is authorized under.
+   * Required — a default would silently authorize every context under one
+   * row, which is exactly the mis-attribution this field exists to prevent.
+   */
+  module: string
   /** Handler function. Must commit state + receipt atomically. */
   handler: ConsumerHandler
 }>
@@ -139,10 +145,12 @@ async function invokeConsumer(
     }
 
     // BQC-3.2: authorize against CURRENT policy before any protected
-    // read or side effect.
+    // read or side effect. The consumer's OWN catalogue module decides the
+    // policy action — a shared literal would authorize every context under
+    // one context's row.
     const gate = await gateDispatcherConsumer(
       consumer.consumerName,
-      'inbox.outbox-consumers',
+      consumer.module,
       event,
     )
     if (gate.kind === 'deny_terminal') {

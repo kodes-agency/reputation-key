@@ -1,33 +1,39 @@
+// Human copy for the notification categories, keyed by category so every
+// surface shares one source: the settings page iterates
+// NOTIFICATION_CATEGORIES, the feed's filter tabs iterate
+// GOVERNING_NOTIFICATION_CATEGORIES, and both look the label up here. The
+// category ORDER and the set of categories live in the domain
+// (notification-delivery-policy.ts); only the wording lives here.
 import type { NotificationCategory } from '#/contexts/notification/application/public-api'
 
-export const CATEGORY_ROWS: ReadonlyArray<{
-  category: NotificationCategory
+export type NotificationCategoryCopy = Readonly<{
   label: string
+  /** Compact form for filter tabs, where horizontal space is ~8 characters. */
+  shortLabel: string
   description: string
-}> = [
-  {
-    category: 'mandatory',
+}>
+
+export const CATEGORY_COPY: Readonly<
+  Record<NotificationCategory, NotificationCategoryCopy>
+> = {
+  mandatory: {
     label: 'Account and safety',
+    shortLabel: 'Account',
     description: 'Required account, security, and service notices.',
   },
-  {
-    category: 'urgent_operational',
+  urgent_operational: {
     label: 'Urgent operations',
+    shortLabel: 'Operations',
     description: 'Escalations and failures that may require immediate action.',
   },
-  {
-    category: 'workflow_collaboration',
+  workflow_collaboration: {
     label: 'Workflow and collaboration',
+    shortLabel: 'Workflow',
     description: 'Reviews, assignments, notes, and reply updates.',
   },
-  {
-    category: 'digest_summary',
-    label: 'Daily summaries',
-    description: 'A property-specific summary delivered at 08:00 property-local time.',
-  },
-  {
-    category: 'recognition',
+  recognition: {
     label: 'Recognition',
+    shortLabel: 'Recognition',
     description: 'Recognition updates for activated properties.',
   },
-]
+}

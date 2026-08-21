@@ -1,301 +1,228 @@
-// Notification panel — the bell trigger + popover. The panel consumes a
-// `NotificationServerFns` bundle (raw server-fn references) and wraps each via
-// useServerFn/useAction internally, so stories feed mock fns shaped exactly like
-// the route bundle — no RPC, no live server. The same pattern as the inbox
-// page stories (makeInboxFns): each mock is a plain async fn double-cast to the
-// server-fn type. `import type` keeps the boundary gate green.
+// The bell trigger + popover, mounted for real.
+//
+// The previous version of this file carried a comment claiming
+// `PopoverTrigger asChild` swallowed Radix's merged props so the bell could
+// never open — and, because of that claim, 4 of its 5 stories overrode `render:`
+// to mount NotificationPopoverContent directly. NotificationPanel itself was
+// therefore never exercised and its `args` were inert. It does open: the trigger
+// wraps `Button`, which forwards every prop. These stories click the real bell.
+//
+// The panel consumes a `NotificationServerFns` bundle of raw server-fn
+// references and wraps each one internally, so stories feed a mock bundle built
+// by `makeNotificationFns` — no RPC, no live server, and the only casts live in
+// that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { useState } from 'react'
-import { notificationId, organizationId, userId } from '#/shared/domain/ids'
-import type { Notification } from '#/contexts/notification/application/public-api'
-import type {
-  dismissAllNotificationsFn,
-  dismissNotificationFn,
-  getNotificationsFn,
-  getUnreadNotificationCountFn,
-  markAllNotificationsReadFn,
-  markNotificationReadFn,
-} from '#/contexts/notification/server/notifications'
-import type { NotificationServerFns } from './types'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import {
+  makeNotificationFns,
+  notificationFixtures,
+  notificationUserSettingsFixture,
+} from './notification-fixtures'
 import { NotificationPanel } from './notification-panel'
-import { NotificationPopoverContent } from './notification-popover-content'
+import type { NotificationServerFns } from './types'
+
+const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
+
+const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
+
+const loadedFns = makeNotificationFns({
+  getUnreadCount: (async () => ({
+    count: unreadCount,
+  })) as unknown as NotificationServerFns['getUnreadCount'],
+  getList: (async () =>
+    notificationFixtures) as unknown as NotificationServerFns['getList'],
+})
 
 const meta: Meta<typeof NotificationPanel> = {
   title: 'Notification/NotificationPanel',
   component: NotificationPanel,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  args: { notificationFns: loadedFns, organizationId: ORGANIZATION_ID },
 }
 export default meta
 type Story = StoryObj<typeof NotificationPanel>
 
-function makeNotification(
-  overrides: Partial<Notification> & { id: string },
-): Notification {
-  return {
-    userId: userId('user-1'),
-    organizationId: organizationId('org-1'),
-    type: 'review.created',
-    priority: 'normal',
-    status: 'unread',
-    resourceType: 'inbox_item',
-    resourceId: 'res-1',
-    eventId: 'evt-1',
-    title: 'New review',
-    body: 'A customer left a 5-star review.',
-    readAt: null,
-    createdAt: new Date(Date.now() - 5 * 60_000),
-    updatedAt: new Date(),
-    ...overrides,
-  } as Notification
-}
-
-const notifications: Notification[] = [
-  makeNotification({
-    id: notificationId('n-1'),
-    type: 'reply.pending_approval',
-    priority: 'urgent',
-    status: 'unread',
-    title: 'Reply needs approval',
-    body: 'A drafted reply is awaiting your approval.',
-  }),
-  makeNotification({
-    id: notificationId('n-2'),
-    type: 'goal.completed',
-    status: 'unread',
-    title: 'Monthly goal reached',
-    body: null,
-  }),
-  makeNotification({
-    id: notificationId('n-3'),
-    type: 'review.created',
-    status: 'read',
-    title: 'New review',
-    body: 'A customer left a 5-star review.',
-    readAt: new Date(Date.now() - 60 * 60_000),
-  }),
-  makeNotification({
-    id: notificationId('n-4'),
-    type: 'badge.awarded',
-    status: 'read',
-    title: 'Badge earned',
-    body: 'You earned the "Response Champ" badge.',
-    readAt: new Date(Date.now() - 3 * 60 * 60_000),
-  }),
-]
-
-// No-op mutation fns — never invoked unless the user interacts. Each is
-// double-cast to its specific server-fn type (the brands differ per fn).
-const noopMarkRead = (async () => undefined) as unknown as typeof markNotificationReadFn
-const noopMarkAll = (async () =>
-  undefined) as unknown as typeof markAllNotificationsReadFn
-const noopDismiss = (async () => undefined) as unknown as typeof dismissNotificationFn
-const noopDismissAll = (async () =>
-  undefined) as unknown as typeof dismissAllNotificationsFn
-
-// Loaded bundle: 2 unread, list resolves immediately.
-const loadedFns: NotificationServerFns = {
-  getUnreadCount: (async () => ({
-    count: 2,
-  })) as unknown as typeof getUnreadNotificationCountFn,
-  getList: (async () => notifications) as unknown as typeof getNotificationsFn,
-  markRead: noopMarkRead,
-  markAllRead: noopMarkAll,
-  dismiss: noopDismiss,
-  dismissAll: noopDismissAll,
-}
-
-// Never-settling reads → list stays on its loading skeleton, count stays 0.
-const loadingFns: NotificationServerFns = {
-  getUnreadCount: (() =>
-    Promise.withResolvers<{ count: number }>()
-      .promise) as unknown as typeof getUnreadNotificationCountFn,
-  getList: (() =>
-    Promise.withResolvers<Notification[]>()
-      .promise) as unknown as typeof getNotificationsFn,
-  markRead: noopMarkRead,
-  markAllRead: noopMarkAll,
-  dismiss: noopDismiss,
-  dismissAll: noopDismissAll,
-}
-
-// getList rejects → the list error state + Retry control render.
-const errorFns: NotificationServerFns = {
-  getUnreadCount: (async () => ({
-    count: 0,
-  })) as unknown as typeof getUnreadNotificationCountFn,
-  getList: (async () => {
-    throw new Error('Notifications service unavailable')
-  }) as unknown as typeof getNotificationsFn,
-  markRead: noopMarkRead,
-  markAllRead: noopMarkAll,
-  dismiss: noopDismiss,
-  dismissAll: noopDismissAll,
-}
-
-const emptyFns: NotificationServerFns = {
-  getUnreadCount: (async () => ({
-    count: 0,
-  })) as unknown as typeof getUnreadNotificationCountFn,
-  getList: (async () => []) as unknown as typeof getNotificationsFn,
-  markRead: noopMarkRead,
-  markAllRead: noopMarkAll,
-  dismiss: noopDismiss,
-  dismissAll: noopDismissAll,
-}
-
-// markAllRead never resolves → once clicked, the button holds its pending state.
-const markAllPendingFns: NotificationServerFns = {
-  ...loadedFns,
-  markAllRead: (() =>
-    Promise.withResolvers<void>()
-      .promise) as unknown as typeof markAllNotificationsReadFn,
-}
-
-// NotificationPanel's PopoverTrigger wraps a custom NotificationBell component
-// that only destructures { count }, so Radix Slot's merged event-handler props
-// (onClick, onPointerDown, aria-expanded) are never forwarded to the underlying
-// <button>. The bell renders with the correct count but clicking it never opens
-// the Radix Popover. Rather than edit the component, these stories render
-// NotificationPopoverContent directly — the same content NotificationPanel
-// mounts inside its PopoverContent — so every list state is exercised against
-// real mock data without the broken trigger.
-const noop = () => {}
-
-// Clicking "Mark all read" latches isMarkingAllRead to true (never resets),
-// simulating the never-resolving markAllRead mutation holding the button disabled.
-function MarkingAllReadHarness() {
-  const [pending, setPending] = useState(false)
-  return (
-    <div className="w-80 rounded-md border bg-popover text-popover-foreground shadow-md">
-      <NotificationPopoverContent
-        notifications={notifications}
-        isLoading={false}
-        isLoadingMore={false}
-        error={null}
-        hasMore={false}
-        unreadCount={2}
-        isMarkingAllRead={pending}
-        isClearingAll={false}
-        onRetry={noop}
-        onLoadMore={noop}
-        onMarkAllRead={() => setPending(true)}
-        onClearAll={noop}
-        onDismiss={noop}
-        onMarkRead={noop}
-        onNotificationClick={noop}
-      />
-    </div>
-  )
-}
-
+/** The badge reflects the unread count without the popover being opened. */
 export const Default: Story = {
-  args: { notificationFns: loadedFns },
-  render: () => (
-    <div className="w-80 rounded-md border bg-popover text-popover-foreground shadow-md">
-      <NotificationPopoverContent
-        notifications={notifications}
-        isLoading={false}
-        isLoadingMore={false}
-        error={null}
-        hasMore={false}
-        unreadCount={2}
-        isMarkingAllRead={false}
-        isClearingAll={false}
-        onRetry={noop}
-        onLoadMore={noop}
-        onMarkAllRead={noop}
-        onClearAll={noop}
-        onDismiss={noop}
-        onMarkRead={noop}
-        onNotificationClick={noop}
-      />
-    </div>
-  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/reply needs approval/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^New$/)).toBeInTheDocument()
-    expect(canvas.getByText(/^Earlier$/)).toBeInTheDocument()
+    expect(
+      await canvas.findByRole('button', { name: `Notifications, ${unreadCount} unread` }),
+    ).toBeInTheDocument()
   },
 }
 
-export const Loading: Story = {
-  args: { notificationFns: loadingFns },
-  // play removed to unblock storybook-test (flaky dialog timing / portaling in test env).
-  // Visual render is verified; axe stays enabled (BQC-6.8).
-}
-
-export const ErrorState: Story = {
-  args: { notificationFns: errorFns },
-  render: () => (
-    <div className="w-80 rounded-md border bg-popover text-popover-foreground shadow-md">
-      <NotificationPopoverContent
-        notifications={[]}
-        isLoading={false}
-        isLoadingMore={false}
-        error={new Error('Notifications service unavailable')}
-        hasMore={false}
-        unreadCount={0}
-        isMarkingAllRead={false}
-        isClearingAll={false}
-        onRetry={noop}
-        onLoadMore={noop}
-        onMarkAllRead={noop}
-        onClearAll={noop}
-        onDismiss={noop}
-        onMarkRead={noop}
-        onNotificationClick={noop}
-      />
-    </div>
-  ),
+/** Clicking the real bell opens the real popover. */
+export const OpensOnClick: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/couldn't load notifications/i)).toBeInTheDocument()
-    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    // Radix portals the popover outside the story canvas.
+    const portal = within(document.body)
+    expect(
+      await portal.findByRole('heading', { name: 'Notifications' }),
+    ).toBeInTheDocument()
+    expect(await portal.findByRole('heading', { name: 'New' })).toBeInTheDocument()
+    expect(
+      portal.getByRole('link', { name: 'View all notifications' }),
+    ).toBeInTheDocument()
+  },
+}
+
+/** Dismiss is optimistic: the row leaves before the server answers. */
+export const DismissRemovesRowOptimistically: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getUnreadCount: (async () => ({
+        count: unreadCount,
+      })) as unknown as NotificationServerFns['getUnreadCount'],
+      getList: (async () =>
+        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      // Never settles: anything the user sees change is purely optimistic.
+      dismiss: (() =>
+        Promise.withResolvers<void>()
+          .promise) as unknown as NotificationServerFns['dismiss'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    const before = (await portal.findAllByRole('listitem')).length
+    await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0])
+    await waitFor(() => {
+      expect(portal.getAllByRole('listitem')).toHaveLength(before - 1)
+    })
+  },
+}
+
+/** Mark-all-read is optimistic too: the "New" group empties immediately. */
+export const MarkAllReadIsOptimistic: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getUnreadCount: (async () => ({
+        count: unreadCount,
+      })) as unknown as NotificationServerFns['getUnreadCount'],
+      getList: (async () =>
+        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      markAllRead: (() =>
+        Promise.withResolvers<void>()
+          .promise) as unknown as NotificationServerFns['markAllRead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    await userEvent.click(await portal.findByRole('button', { name: /mark all read/i }))
+    await waitFor(() => {
+      expect(portal.queryByRole('heading', { name: 'New' })).toBeNull()
+    })
+    expect(portal.getByRole('heading', { name: 'Earlier' })).toBeInTheDocument()
+  },
+}
+
+/** Reads that never settle → the list holds its skeleton, the badge stays absent. */
+export const Loading: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getUnreadCount: (() =>
+        Promise.withResolvers<{ count: number }>()
+          .promise) as unknown as NotificationServerFns['getUnreadCount'],
+      getList: (() =>
+        Promise.withResolvers<typeof notificationFixtures>()
+          .promise) as unknown as NotificationServerFns['getList'],
+    }),
+  },
+}
+
+/** getList rejects → the error state and its Retry control render. */
+export const ErrorState: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getList: (async () => {
+        throw new Error('Notifications service unavailable')
+      }) as unknown as NotificationServerFns['getList'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    expect(await portal.findByRole('button', { name: /retry/i })).toBeInTheDocument()
   },
 }
 
 export const Empty: Story = {
-  args: { notificationFns: emptyFns },
-  render: () => (
-    <div className="w-80 rounded-md border bg-popover text-popover-foreground shadow-md">
-      <NotificationPopoverContent
-        notifications={[]}
-        isLoading={false}
-        isLoadingMore={false}
-        error={null}
-        hasMore={false}
-        unreadCount={0}
-        isMarkingAllRead={false}
-        isClearingAll={false}
-        onRetry={noop}
-        onLoadMore={noop}
-        onMarkAllRead={noop}
-        onClearAll={noop}
-        onDismiss={noop}
-        onMarkRead={noop}
-        onNotificationClick={noop}
-      />
-    </div>
-  ),
+  args: { notificationFns: makeNotificationFns() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    expect(await portal.findByText(/nothing here right now/i)).toBeInTheDocument()
   },
 }
 
-// Click "Mark all read" → the button latches into its disabled pending state.
-export const MarkingAllRead: Story = {
-  args: { notificationFns: markAllPendingFns },
-  render: () => <MarkingAllReadHarness />,
+/** Muting reads preferences lazily and writes the in-app channel off. */
+export const MuteCategory: Story = {
+  args: {
+    notificationFns: (() => {
+      const updatePreference = fn(async () => undefined)
+      return makeNotificationFns({
+        getUnreadCount: (async () => ({
+          count: unreadCount,
+        })) as unknown as NotificationServerFns['getUnreadCount'],
+        getList: (async () =>
+          notificationFixtures) as unknown as NotificationServerFns['getList'],
+        updatePreference:
+          updatePreference as unknown as NotificationServerFns['updatePreference'],
+      })
+    })(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    await userEvent.click(
+      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[0],
+    )
+    await userEvent.click(await portal.findByRole('menuitem', { name: /^Mute/ }))
+    await waitFor(() => {
+      expect(args.notificationFns.updatePreference).toHaveBeenCalledWith({
+        data: expect.objectContaining({ channel: 'in_app', enabled: false }),
+      })
+    })
+  },
+}
+
+/**
+ * Timestamps use the user's PERSISTED locale and IANA timezone. The old
+ * formatter hardcoded `'en-US'` even though the settings page advertises both
+ * values as "used for notification formatting".
+ */
+export const HonoursPersistedLocale: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getUnreadCount: (async () => ({
+        count: unreadCount,
+      })) as unknown as NotificationServerFns['getUnreadCount'],
+      getList: (async () =>
+        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      getUserSettings: (async () => ({
+        ...notificationUserSettingsFixture,
+        locale: 'de-DE',
+        timezone: 'Europe/Berlin',
+      })) as unknown as NotificationServerFns['getUserSettings'],
+    }),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const markAll = canvas.getByRole('button', { name: /mark all read/i })
-    await userEvent.click(markAll)
+    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+    const portal = within(document.body)
+    await portal.findAllByRole('listitem')
     await waitFor(() => {
-      expect(markAll).toBeDisabled()
+      expect(portal.getAllByText(/vor \d+ Minuten/).length).toBeGreaterThan(0)
     })
   },
 }

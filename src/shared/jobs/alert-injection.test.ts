@@ -24,6 +24,9 @@ import {
   evaluateAlerts,
   OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
+  QUARANTINE_NONEMPTY_ALERT_MS,
+  SYNC_SWEEP_LAG_ALERT_MS,
+  NOTIFICATION_EMAIL_STALLED_ALERT_MS,
   WORKER_HEARTBEAT_STALE_ALERT_MS,
   SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
   REPLY_AMBIGUOUS_ALERT_MS,
@@ -73,13 +76,36 @@ function healthySnapshot(): MutableSnapshot {
       stalledLeaseCount: 0,
     },
     quarantine: null,
+    // From here down this healthy OperationsSnapshot repeats the baseline in
+    // observability/alert-definitions.test.ts. An alert test's whole contract
+    // is WHICH snapshot values trip a threshold, so the baseline it perturbs
+    // has to be readable beside the assertion that reads it.
+    // One shared fixture would mean retuning the baseline for one alert
+    // silently changes the input of every other alert's test — and the two
+    // baselines already differ on purpose (quarantine, timestamps,
+    // migrationVersion, degraded).
+    // Revisit if a third consumer appears, or if the snapshot SHAPE (not its
+    // values) starts drifting from OperationsSnapshot.
+    // fallow-ignore-next-line code-duplication
     reviews: {
       totalActive: 10,
       refreshDueCount: 0,
       expiredCount: 0,
       oldestDueAgeSeconds: null,
     },
-    sync: { dueForIncrementalCount: 0, failedSyncCount: 0 },
+    sync: {
+      dueForIncrementalCount: 0,
+      failedSyncCount: 0,
+      oldestDueAgeMs: null,
+      gbpPushEnabled: false,
+    },
+    notifications: {
+      emailDeliveryEnabled: false,
+      pendingOverdueCount: 0,
+      oldestPendingOverdueAgeMs: null,
+      attemptedStuckCount: 0,
+      missingForInboxItemCount: 0,
+    },
     replyPublication: {
       counts: {
         requested: 0,
@@ -132,15 +158,19 @@ describe('alert registry contract (BQC-7.4)', () => {
     expect(ALERT_DEFINITIONS.map((d) => d.name).sort()).toEqual([
       'backup.pitr',
       'db.pool-exhaustion',
+      'notification.email-stalled',
+      'notification.missing-for-inbox-item',
       'policy.denial-drift',
       'queue.oldest-age',
       'queue.quarantine-growth',
+      'queue.quarantine-nonempty',
       'queue.stalled',
       'reply.ambiguous-aging',
       'retention.failure',
       'routing.region-attempts',
       'security.scan',
       'source.freshness-deadline',
+      'sync.sweep-lag',
       'web.availability',
       'worker.heartbeat.stale',
     ])
@@ -241,6 +271,61 @@ const BREACHES: readonly Breach[] = [
     value: 25 * 60 * 60 * 1000,
     apply: (s) => {
       s.quarantine = { count: 1, oldestAgeMs: 25 * 60 * 60 * 1000 }
+    },
+  },
+  {
+    name: 'queue.quarantine-nonempty',
+    severity: 'P1',
+    runbook: 'runbooks.md §14',
+    threshold: QUARANTINE_NONEMPTY_ALERT_MS,
+    windowMs: QUARANTINE_NONEMPTY_ALERT_MS,
+    value: 20 * 60 * 1000,
+    apply: (s) => {
+      // Deliberately under the 24h SLA so this injection does not also trip
+      // queue.quarantine-growth — the two alerts must be separable.
+      s.quarantine = { count: 2, oldestAgeMs: 20 * 60 * 1000 }
+    },
+  },
+  {
+    name: 'sync.sweep-lag',
+    severity: 'P1',
+    runbook: 'runbooks.md §13',
+    threshold: SYNC_SWEEP_LAG_ALERT_MS,
+    windowMs: SYNC_SWEEP_LAG_ALERT_MS,
+    value: 61 * 60 * 1000,
+    apply: (s) => {
+      s.sync = {
+        ...s.sync,
+        dueForIncrementalCount: 5,
+        oldestDueAgeMs: 61 * 60 * 1000,
+      }
+    },
+  },
+  {
+    name: 'notification.missing-for-inbox-item',
+    severity: 'P1',
+    runbook: 'runbooks.md §15',
+    threshold: 0,
+    windowMs: 5 * 60 * 1000,
+    value: 3,
+    apply: (s) => {
+      s.notifications = { ...s.notifications, missingForInboxItemCount: 3 }
+    },
+  },
+  {
+    name: 'notification.email-stalled',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    windowMs: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
+    value: 3 * 60 * 60 * 1000,
+    apply: (s) => {
+      s.notifications = {
+        ...s.notifications,
+        emailDeliveryEnabled: true,
+        pendingOverdueCount: 4,
+        oldestPendingOverdueAgeMs: 3 * 60 * 60 * 1000,
+      }
     },
   },
   {

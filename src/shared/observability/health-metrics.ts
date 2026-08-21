@@ -21,6 +21,7 @@ import { sql } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
+import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
 import { trace } from '#/shared/observability/trace'
 
 /**
@@ -48,6 +49,28 @@ export type HealthMetricsDeps = Readonly<{
    * outbox default lease.
    */
   leaseDurationMs?: number
+  /**
+   * GBP_PUBSUB_TOPIC is non-empty. Absent = treated as disabled, which is the
+   * honest default: without the topic there is no push subscription.
+   */
+  gbpPushEnabled?: boolean
+  /**
+   * `notification.send_email` is globally enabled. Absent = treated as
+   * disabled — outbound email is capability-dark, so a pending email backlog
+   * is EXPECTED and must not page. A readiness fact the database cannot
+   * answer, so the composition root supplies it (same shape as
+   * gbpPushEnabled).
+   */
+  emailDeliveryEnabled?: boolean
+  /**
+   * How many recent inbox items have NO notification row (the
+   * `notification.missing_for_inbox_item` gauge). The query belongs to the
+   * notification context, and `src/shared/**` must never import
+   * `src/contexts/**`, so the composition root injects the reader. Absent =
+   * 0: a deployment without the wiring reports "no known gap" rather than
+   * inventing one.
+   */
+  readMissingNotificationCount?: () => Promise<number>
 }>
 
 export type QuarantineMetrics = Readonly<{
@@ -78,6 +101,57 @@ export type HealthSnapshot = Readonly<{
   sync: Readonly<{
     dueForIncrementalCount: number
     failedSyncCount: number
+    /**
+     * Age (ms) of the OLDEST past-due next_incremental_at — how far behind
+     * the discovery sweep has fallen, not how many properties are waiting.
+     * A count alone is unreadable: 100 properties that came due a minute ago
+     * is a healthy sweep mid-run; one property due since yesterday means the
+     * sweep is dead. Null when nothing is overdue.
+     */
+    oldestDueAgeMs: number | null
+    /**
+     * True when GBP_PUBSUB_TOPIC is configured. When false, Google push
+     * notifications are DARK and a new review only reaches the app on the
+     * discover-new-reviews sweep's cadence — a readiness fact, not a metric
+     * the database can answer, so the composition root supplies it.
+     */
+    gbpPushEnabled: boolean
+  }>
+  /**
+   * Notification delivery health. The in-app notification is written in the
+   * same transaction as the review, but the EMAIL is a queue row a sweep has
+   * to pick up — and nothing measured whether it ever did.
+   */
+  notifications: Readonly<{
+    /**
+     * `notification.send_email` is globally enabled. When false, outbound
+     * email is intentionally dark and a pending backlog is the EXPECTED
+     * state, not a fault — the stalled alert stays silent on it (see
+     * attemptedStuckCount for the case that is a fault regardless).
+     */
+    emailDeliveryEnabled: boolean
+    /** `pending` email rows whose due time (next_attempt_at → not_before →
+     *  created_at) has already passed. */
+    pendingOverdueCount: number
+    /** Age of the oldest overdue pending row (null when none is overdue). */
+    oldestPendingOverdueAgeMs: number | null
+    /**
+     * Overdue pending rows the delivery path ALREADY TOUCHED (attempted_at
+     * set). Unlike the count above this cannot be explained by a dark
+     * capability — the sweep reached the row, tried, and left it pending. It
+     * is the honest break signal for a per-org-allowlisted tenant, whose
+     * grant the global emailDeliveryEnabled flag cannot see.
+     */
+    attemptedStuckCount: number
+    /**
+     * Inbox items created inside the reconciliation window (past the grace
+     * edge) with NO notification row for anybody — "a review arrived and
+     * nobody was told". Above zero means either the in-process fan-out
+     * dropped it and the reconcile-missing-notifications sweep has not caught
+     * up, or the sweep itself is not running. Saturates at the sweep's scan
+     * cap; the alert on it fires on "above zero", so the cap costs nothing.
+     */
+    missingForInboxItemCount: number
   }>
   /**
    * BQC-7.3 (reply.publication.*): durable publication-state counts (the
@@ -269,6 +343,167 @@ async function readReplyPublicationMetrics(
 }
 
 /**
+ * The EMAIL half of the notifications block. `missingForInboxItemCount` is
+ * deliberately excluded: it comes from the notification context through an
+ * injected reader, not from this file's `notification_email_queue` query, and
+ * the caller composes the two.
+ */
+type NotificationEmailMetrics = Omit<
+  HealthSnapshot['notifications'],
+  'missingForInboxItemCount'
+>
+
+/**
+ * Notification email queue health: how many queued emails are past their due
+ * time, how far past, and how many of those the delivery path already tried.
+ *
+ * Due time is `next_attempt_at` (a scheduled retry) → `not_before` (a cadence
+ * hold) → `created_at` (send as soon as the sweep gets to it). The threshold
+ * lives in the alert definition, not here: this read reports the age, the
+ * policy decides what age is too old.
+ */
+async function readNotificationEmailMetrics(
+  db: Database,
+  emailDeliveryEnabled: boolean,
+): Promise<NotificationEmailMetrics> {
+  const dueAt = sql`COALESCE(
+    ${notificationEmailQueue.nextAttemptAt},
+    ${notificationEmailQueue.notBefore},
+    ${notificationEmailQueue.createdAt}
+  )`
+  const overdue = sql`${notificationEmailQueue.status} = 'pending' AND ${dueAt} < NOW()`
+
+  const result = await db
+    .select({
+      overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
+      oldest_overdue_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
+      `,
+      attempted: sql<number>`
+        count(*) FILTER (
+          WHERE ${overdue} AND ${notificationEmailQueue.attemptedAt} IS NOT NULL
+        )::int
+      `,
+    })
+    .from(notificationEmailQueue)
+
+  const row = result[0]
+  return {
+    emailDeliveryEnabled,
+    pendingOverdueCount: row?.overdue ?? 0,
+    oldestPendingOverdueAgeMs:
+      row?.oldest_overdue_age_ms != null
+        ? Math.round(Number(row.oldest_overdue_age_ms))
+        : null,
+    attemptedStuckCount: row?.attempted ?? 0,
+  }
+}
+
+/**
+ * Review content lifecycle health: how many reviews carry a content expiry,
+ * how many are inside the refresh window, how many already expired, and how
+ * close the nearest hard expiry is (columns from migration 0006 / Drizzle).
+ */
+async function readReviewContentMetrics(
+  db: Database,
+): Promise<HealthSnapshot['reviews']> {
+  const result = await db
+    .select({
+      total: sql<number>`
+        count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
+      `,
+      refresh_due: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviews.contentExpiresAt} IS NOT NULL
+            AND ${reviews.lastFetchedAt} IS NOT NULL
+            AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+        )::int
+      `,
+      expired: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviews.contentExpiresAt} IS NOT NULL
+            AND ${reviews.contentExpiresAt} < NOW()
+        )::int
+      `,
+      // BQC-1.5: oldest refresh-due expiry age (seconds until the
+      // nearest hard expiry among refresh-due rows; alert input for
+      // "before the policy deadline"). NULL when nothing is due.
+      oldest_due_age_seconds: sql<number>`
+        extract(epoch from (
+          min(${reviews.contentExpiresAt}) FILTER (
+            WHERE ${reviews.contentExpiresAt} IS NOT NULL
+              AND ${reviews.lastFetchedAt} IS NOT NULL
+              AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+              AND ${reviews.contentExpiresAt} >= NOW()
+          ) - NOW()
+        ))::int
+      `,
+    })
+    .from(reviews)
+
+  const row = result[0]
+  return {
+    totalActive: row?.total ?? 0,
+    refreshDueCount: row?.refresh_due ?? 0,
+    expiredCount: row?.expired ?? 0,
+    /** BQC-1.5: seconds until the nearest hard expiry among
+     *  refresh-due rows (null when nothing is due). */
+    oldestDueAgeSeconds: row?.oldest_due_age_seconds ?? null,
+  }
+}
+
+/**
+ * Discovery sweep health: how many properties are past their poll time, how
+ * many are in error backoff, and how far behind the sweep has fallen
+ * (migration 0007 / Drizzle).
+ *
+ * `gbpPushEnabled` is a readiness fact the database cannot answer, so the
+ * composition root supplies it — threaded through here the same way
+ * `emailDeliveryEnabled` is threaded through the notification-email read.
+ */
+async function readSyncStateMetrics(
+  db: Database,
+  gbpPushEnabled: boolean,
+): Promise<HealthSnapshot['sync']> {
+  const result = await db
+    .select({
+      due: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
+            AND ${reviewSyncState.nextIncrementalAt} < NOW()
+        )::int
+      `,
+      failed: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviewSyncState.errorClass} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} < NOW()
+        )::int
+      `,
+      // How far behind the discovery sweep is: the age of the oldest
+      // past-due poll time. next_incremental_at is always written in
+      // the future by the sync/backoff path, so a positive age here is
+      // purely sweep lag (the poll interval is already priced in).
+      oldest_due_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${reviewSyncState.nextIncrementalAt}) FILTER (
+          WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
+            AND ${reviewSyncState.nextIncrementalAt} < NOW()
+        ))) * 1000
+      `,
+    })
+    .from(reviewSyncState)
+
+  const row = result[0]
+  return {
+    dueForIncrementalCount: row?.due ?? 0,
+    failedSyncCount: row?.failed ?? 0,
+    oldestDueAgeMs:
+      row?.oldest_due_age_ms != null ? Math.round(Number(row.oldest_due_age_ms)) : null,
+    gbpPushEnabled,
+  }
+}
+
+/**
  * Create a health checker that queries operational metrics from the database.
  */
 export function createHealthChecker(
@@ -302,82 +537,37 @@ export function createHealthChecker(
           : null
 
         // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
-        const reviewResult = await db
-          .select({
-            total: sql<number>`
-              count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
-            `,
-            refresh_due: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                  AND ${reviews.lastFetchedAt} IS NOT NULL
-                  AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
-              )::int
-            `,
-            expired: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                  AND ${reviews.contentExpiresAt} < NOW()
-              )::int
-            `,
-            // BQC-1.5: oldest refresh-due expiry age (seconds until the
-            // nearest hard expiry among refresh-due rows; alert input for
-            // "before the policy deadline"). NULL when nothing is due.
-            oldest_due_age_seconds: sql<number>`
-              extract(epoch from (
-                min(${reviews.contentExpiresAt}) FILTER (
-                  WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                    AND ${reviews.lastFetchedAt} IS NOT NULL
-                    AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
-                    AND ${reviews.contentExpiresAt} >= NOW()
-                ) - NOW()
-              ))::int
-            `,
-          })
-          .from(reviews)
-
-        const reviewRow = reviewResult[0]
+        const reviewMetrics = await readReviewContentMetrics(db)
 
         // Sync state metrics (migration 0007 / Drizzle)
-        const syncResult = await db
-          .select({
-            due: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
-                  AND ${reviewSyncState.nextIncrementalAt} < NOW()
-              )::int
-            `,
-            failed: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviewSyncState.errorClass} IS NOT NULL
-                  AND ${reviewSyncState.errorRetryAt} IS NOT NULL
-                  AND ${reviewSyncState.errorRetryAt} < NOW()
-              )::int
-            `,
-          })
-          .from(reviewSyncState)
-
-        const syncRow = syncResult[0]
+        const syncMetrics = await readSyncStateMetrics(db, deps?.gbpPushEnabled === true)
 
         // BQC-7.3: reply publication-state counts + ambiguity age (0015).
         const replyPublication = await readReplyPublicationMetrics(db)
+
+        // Notification delivery health: is the queued email actually going out?
+        const notificationEmail = await readNotificationEmailMetrics(
+          db,
+          deps?.emailDeliveryEnabled === true,
+        )
+        // Notification EXISTENCE health: did the in-app notification get
+        // written at all? Injected because the query lives in the
+        // notification context (see readMissingNotificationCount).
+        const missingForInboxItemCount = deps?.readMissingNotificationCount
+          ? await deps.readMissingNotificationCount()
+          : 0
+        const notifications = {
+          ...notificationEmail,
+          missingForInboxItemCount,
+        }
 
         return {
           timestamp: now.toISOString(),
           outbox: outboxMetrics,
           quarantine: quarantineMetrics,
-          reviews: {
-            totalActive: reviewRow?.total ?? 0,
-            refreshDueCount: reviewRow?.refresh_due ?? 0,
-            expiredCount: reviewRow?.expired ?? 0,
-            /** BQC-1.5: seconds until the nearest hard expiry among
-             *  refresh-due rows (null when nothing is due). */
-            oldestDueAgeSeconds: reviewRow?.oldest_due_age_seconds ?? null,
-          },
-          sync: {
-            dueForIncrementalCount: syncRow?.due ?? 0,
-            failedSyncCount: syncRow?.failed ?? 0,
-          },
+          reviews: reviewMetrics,
+          sync: syncMetrics,
+          notifications,
           replyPublication,
           workers: {
             defaultQueueName: 'default',
