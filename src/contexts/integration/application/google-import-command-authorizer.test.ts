@@ -361,4 +361,41 @@ describe('authorizeGoogleImportCommand', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
   })
+
+  // The per-property capability decision is the GATE, not the frozen
+  // expectations checked immediately above it, so it must not report
+  // `authorization_changed` — that code is reserved for drift, and reusing it
+  // here made a denied capability indistinguishable from a moved source epoch
+  // in everything downstream, including the persisted import outcome.
+  it('reports a per-property capability denial as a denial, not as drift', async () => {
+    let calls = 0
+    const denied = setup({
+      decide: async () => {
+        calls += 1
+        // Org-level import + connect decisions allow; only the third call,
+        // the property-scoped one, denies.
+        return calls < 3
+          ? allow()
+          : { ...allow(), allowed: false, reason: 'property_not_allowlisted' }
+      },
+    })
+
+    await expect(
+      denied.authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        properties: [
+          {
+            propertyId: destinationId,
+            sourceEpoch: 8,
+            profileVersion: 6,
+            action: 'property.update',
+          },
+        ],
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(denied.decide).toHaveBeenCalledTimes(3)
+  })
 })
