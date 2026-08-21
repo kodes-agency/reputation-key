@@ -9,6 +9,8 @@ overrides:
   hono: 4.12.30
   js-yaml: 4.3.1
   nanoid: 3.3.18
+  playwright: ^1.59.1
+  playwright-core: ^1.59.1
 
 importers:
 
@@ -3212,7 +3214,6 @@ packages:
   '@rolldown/binding-darwin-arm64@1.0.3':
     resolution: {integrity: sha512-PcAhP+ynjURNyy8SKGl5DQP94aGuB/7JrXJb/t7P+hanXvQVMWzUvRRhBAcg/lNRadBhoUPqSoP4xw5tR/KBEA==}
     engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
     os: [darwin]
 
   '@rolldown/binding-darwin-arm64@1.1.5':
@@ -4577,7 +4578,7 @@ packages:
   '@vitest/browser-playwright@4.1.10':
     resolution: {integrity: sha512-nMoXGEiRpT7m3W7NsbvrM2aKNwiNHZf+zEpUCvMteGjZFvfT96Q9fh7QyB98dvDWXiKvrLxA7bJ1mCOOv+JQPw==}
     peerDependencies:
-      playwright: '*'
+      playwright: ^1.59.1
       vitest: 4.1.10
 
   '@vitest/browser@4.1.10':
