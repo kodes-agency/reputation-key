@@ -16,6 +16,20 @@ updates:
         update-types:
           - minor
           - patch
+        # `vite` carries the rolldown bundler, so a "minor" vite bump can
+        # change SSR chunking for the whole app. vite 8.2.1 (rolldown 1.2.5)
+        # emits a CIRCULAR chunk graph for our server build: the route chunk
+        # reads `identityKeys` from a sibling chunk that imports `router_exports`
+        # (an `__exportAll` facade) back from it, so the binding is still an
+        # un-initialised hoisted `var` at module-eval time and SSR dies with
+        # "Cannot read properties of undefined (reading 'invitations')" —
+        # which takes down the `e2e` and `docker` jobs. Same bug class as
+        # rolldown/rolldown#8809 and #3650, unfixed in released rolldown 1.2.5.
+        # Keeping vite OUT of the group means one bundler bump can never hold
+        # 40 unrelated packages hostage: it gets its own PR where a red e2e is
+        # attributable to exactly one change (and reportable upstream).
+        exclude-patterns:
+          - vite
     # Security updates are always opened immediately regardless of schedule
     # Major version updates get individual PRs for review
     reviewers:
