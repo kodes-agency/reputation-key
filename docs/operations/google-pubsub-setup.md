@@ -117,20 +117,43 @@ only your subscription's. Set it.
 
 ## 6. Subscribe the accounts
 
-Newly connected properties subscribe automatically. Existing connections predate
-that wiring and need a one-off backfill:
+Newly connected properties subscribe automatically. Connections made before that
+wiring existed never told Google to publish, so they need a one-off backfill —
+**per organisation**, since the command is org-scoped:
 
 ```bash
-pnpm ops:gbp-subscribe                                  # dry run — prints what it would do
-pnpm ops:gbp-subscribe -- --apply --reason "enable GBP push"
+# dry run: lists the candidate connections and their statuses, calls Google zero times
+pnpm ops:gbp-subscribe --operator <your-user-id> --org <organization-id>
+
+# execute
+pnpm ops:gbp-subscribe --operator <your-user-id> --org <organization-id> \
+  --reason "enable GBP push" --apply
 ```
+
+`--apply` requires `--reason`; the reason lands in the operator audit trail with
+the actor and the decision. Run the dry form first — it is the cheapest way to
+confirm the org has the connections you expect before touching the provider.
 
 Re-runnable and idempotent: `accounts.updateNotificationSetting` is a PATCH of a
 single per-account resource, so re-asserting the same topic is a no-op.
 
-**If you ever change `GBP_PUBSUB_TOPIC`, run this again.** Existing subscriptions
-keep pointing at the old topic; nothing re-points them automatically, and the
-symptom is silence rather than an error.
+**Two scope limits worth knowing before you rely on it.**
+
+Notification settings are per **Google account**, not per location. One call
+covers every location under that account, so an org with one GBP account and 30
+properties subscribes once.
+
+And the subscribe path resolves the account by calling `listAccounts` and taking
+the **first** result. A connection whose token grants access to more than one GBP
+account will only have its first account subscribed; locations under the others
+keep arriving via the discovery sweep. If you have such a tenant, that is a
+genuine gap rather than a configuration mistake — check
+`review_sync_state.last_notification_at` per property to see which are actually
+receiving push.
+
+**If you ever change `GBP_PUBSUB_TOPIC`, run this again for every org.** Existing
+subscriptions keep pointing at the old topic; nothing re-points them
+automatically, and the symptom is silence rather than an error.
 
 ## 7. Verify
 
