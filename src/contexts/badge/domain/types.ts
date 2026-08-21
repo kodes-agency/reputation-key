@@ -106,11 +106,7 @@ export type BadgeEvaluationResult =
   | Readonly<{
       awarded: false
       reason:
-        | 'already_awarded'
-        | 'criteria_not_met'
-        | 'disabled'
-        | 'invalid_target'
-        | 'skipped'
+        'already_awarded' | 'criteria_not_met' | 'disabled' | 'invalid_target' | 'skipped'
       award?: undefined
       definition?: BadgeDefinition
     }>

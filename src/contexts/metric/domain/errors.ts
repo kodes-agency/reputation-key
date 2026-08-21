@@ -3,10 +3,7 @@
 // Error codes form a closed union so ts-pattern .exhaustive() works at the server boundary.
 
 export type MetricErrorCode =
-  | 'unknown_metric_key'
-  | 'invalid_value'
-  | 'repo_insert_failed'
-  | 'missing_required_field'
+  'unknown_metric_key' | 'invalid_value' | 'repo_insert_failed' | 'missing_required_field'
 export type MetricError = Readonly<{
   _tag: 'MetricError'
   code: MetricErrorCode

@@ -54,8 +54,7 @@ export type RecordedSend = Readonly<{
 }>
 
 export type FailureMode =
-  | Readonly<{ mode: 'success' }>
-  | Readonly<{ mode: 'always-fail'; status: number }>
+  Readonly<{ mode: 'success' }> | Readonly<{ mode: 'always-fail'; status: number }>
 
 export type MailStub = Readonly<{
   host: string

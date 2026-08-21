@@ -22,16 +22,17 @@
 ### S7-1 MINOR: 8 component files exceed 150-line limit
 
 **Files:**
-| Lines | File |
-|-------|------|
-| 199 | `src/components/inbox/inbox-filters.tsx` |
-| 167 | `src/components/features/portal/portal-analytics/portal-analytics-tab.tsx` |
-| 165 | `src/components/features/portal/portal-detail/portal-detail-page.tsx` |
-| 159 | `src/components/inbox/inbox-detail-content.tsx` |
-| 158 | `src/components/features/property/property-dashboard.tsx` |
-| 157 | `src/components/visually-hidden-input.tsx` |
-| 156 | `src/components/inbox/inbox-page.tsx` |
-| 155 | `src/components/features/portal/portal-analytics/portal-analytics-charts.tsx` |
+
+| Lines | File                                                                          |
+| ----- | ----------------------------------------------------------------------------- |
+| 199   | `src/components/inbox/inbox-filters.tsx`                                      |
+| 167   | `src/components/features/portal/portal-analytics/portal-analytics-tab.tsx`    |
+| 165   | `src/components/features/portal/portal-detail/portal-detail-page.tsx`         |
+| 159   | `src/components/inbox/inbox-detail-content.tsx`                               |
+| 158   | `src/components/features/property/property-dashboard.tsx`                     |
+| 157   | `src/components/visually-hidden-input.tsx`                                    |
+| 156   | `src/components/inbox/inbox-page.tsx`                                         |
+| 155   | `src/components/features/portal/portal-analytics/portal-analytics-charts.tsx` |
 
 **Category:** pattern-violation
 **Tag:** [code-fix] (deferred)

@@ -3,10 +3,7 @@
 import { createErrorFactory } from '#/shared/domain/errors'
 
 export type BadgeErrorCode =
-  | 'forbidden'
-  | 'not_found'
-  | 'invalid_input'
-  | 'repo_insert_failed'
+  'forbidden' | 'not_found' | 'invalid_input' | 'repo_insert_failed'
 
 export type BadgeError = Readonly<{
   _tag: 'BadgeError'

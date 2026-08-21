@@ -225,12 +225,7 @@ export type ActivityAction =
   | 'escalated'
 
 export type ResourceType =
-  | 'inbox_item'
-  | 'review'
-  | 'reply'
-  | 'note'
-  | 'property'
-  | 'member'
+  'inbox_item' | 'review' | 'reply' | 'note' | 'property' | 'member'
 
 export type ActivityLog = Readonly<{
   id: ActivityLogId

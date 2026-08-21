@@ -476,29 +476,26 @@ export async function buildPeopleReconcileReport(
     ...analysis.anomalies.map((row) => row.organizationId),
   ])
   const organizations = [...orgIds]
-    .map(
-      (organizationId): PeopleReconcileOrganization => ({
-        organizationId,
-        activeAssignments: analysis.assignments.filter(
-          (row) => row.organization_id === organizationId,
-        ).length,
-        participationCandidates: analysis.participations.filter(
-          (row) => row.organizationId === organizationId,
-        ).length,
-        membershipCandidates: analysis.memberships.filter(
-          (row) => row.participation.organizationId === organizationId,
-        ).length,
-        responsibilityCandidates: analysis.responsibilities.filter(
-          (row) => row.participation.organizationId === organizationId,
-        ).length,
-        groupMembershipCandidates: analysis.groupMemberships.filter(
-          (row) => row.organizationId === organizationId,
-        ).length,
-        anomalies: analysis.anomalies.filter(
-          (row) => row.organizationId === organizationId,
-        ).length,
-      }),
-    )
+    .map((organizationId): PeopleReconcileOrganization => ({
+      organizationId,
+      activeAssignments: analysis.assignments.filter(
+        (row) => row.organization_id === organizationId,
+      ).length,
+      participationCandidates: analysis.participations.filter(
+        (row) => row.organizationId === organizationId,
+      ).length,
+      membershipCandidates: analysis.memberships.filter(
+        (row) => row.participation.organizationId === organizationId,
+      ).length,
+      responsibilityCandidates: analysis.responsibilities.filter(
+        (row) => row.participation.organizationId === organizationId,
+      ).length,
+      groupMembershipCandidates: analysis.groupMemberships.filter(
+        (row) => row.organizationId === organizationId,
+      ).length,
+      anomalies: analysis.anomalies.filter((row) => row.organizationId === organizationId)
+        .length,
+    }))
     .sort((a, b) => a.organizationId.localeCompare(b.organizationId))
   return { generatedAt: new Date(), organizations, anomalyRows: analysis.anomalies }
 }
@@ -568,8 +565,7 @@ export async function applyPeopleReconciliation(
         LIMIT 1
       `)
       const current = active.rows[0] as
-        | { id: string; team_id: string; role: 'member' | 'lead' }
-        | undefined
+        { id: string; team_id: string; role: 'member' | 'lead' } | undefined
       if (!current) {
         const inserted = await tx.execute(sql`
           INSERT INTO team_memberships

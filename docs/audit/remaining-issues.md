@@ -163,16 +163,16 @@ These files have logic paths not covered by automated tests. Not bugs — just m
 
 These patterns were flagged during audit but confirmed as intentional architecture decisions.
 
-| Pattern                                          | Location                 | Rationale                                                                                   |
+| Pattern | Location | Rationale |
 | ------------------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------- |
-| `'' as BrandedId` sentinel in event constructors | `src/shared/events/`     | Events use empty string as "not yet set" marker. Event bus wraps all handlers in try/catch. |
-| `Promise.allSettled` + inner try/catch           | `src/contexts/review/`   | Defense-in-depth for parallel operations                                                    |
-| `UnreachableError` as class (not function)       | `src/shared/domain/`     | Explicitly allowed by AGENTS.md                                                             |
-| `                                                |                          | null` for empty-string coercion                                                             | Event handlers | Correct pattern for coercing empty-string sentinels to null |
-| 2-part event names (`context.verb`)              | All contexts             | §1.1 shorthand: when context === entity, omit entity segment                                |
-| Application layer throws                         | Use cases                | CONTEXT.md line 137: "Application: Throws tagged errors on Result.isErr()"                  |
-| Activity `resourceId`/`resourceType` as strings  | `src/contexts/activity/` | Polymorphic reference pattern — different entity types share same fields                    |
-| BullMQ payloads with raw strings                 | Job files                | Serialization boundary — branded IDs must be serialized to strings for Redis                |
+| `'' as BrandedId` sentinel in event constructors | `src/shared/events/` | Events use empty string as "not yet set" marker. Event bus wraps all handlers in try/catch. |
+| `Promise.allSettled` + inner try/catch | `src/contexts/review/` | Defense-in-depth for parallel operations |
+| `UnreachableError` as class (not function) | `src/shared/domain/` | Explicitly allowed by AGENTS.md |
+| `                                                |                          | null` for empty-string coercion | Event handlers | Correct pattern for coercing empty-string sentinels to null |
+| 2-part event names (`context.verb`) | All contexts | §1.1 shorthand: when context === entity, omit entity segment |
+| Application layer throws | Use cases | CONTEXT.md line 137: "Application: Throws tagged errors on Result.isErr()" |
+| Activity `resourceId`/`resourceType` as strings | `src/contexts/activity/` | Polymorphic reference pattern — different entity types share same fields |
+| BullMQ payloads with raw strings | Job files | Serialization boundary — branded IDs must be serialized to strings for Redis |
 
 ---
 

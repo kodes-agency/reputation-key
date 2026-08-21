@@ -22,12 +22,10 @@ type BulkResult = { success: true; updatedIds: string[] }
 // mockServerFn returns a plain callable; the prop type is `typeof serverFn`
 // (carries createServerFn metadata the component never reads). The cast bridges
 // that unexpressible server-fn brand.
-const bulkUpdateFn = mockServerFn(
-  async (input: BulkInput): Promise<BulkResult> => ({
-    success: true,
-    updatedIds: input.data.inboxItemIds,
-  }),
-) as unknown as typeof bulkUpdateInboxStatusFn
+const bulkUpdateFn = mockServerFn(async (input: BulkInput): Promise<BulkResult> => ({
+  success: true,
+  updatedIds: input.data.inboxItemIds,
+})) as unknown as typeof bulkUpdateInboxStatusFn
 
 const meta: Meta<typeof InboxBulkActions> = {
   title: 'Inbox/Bulk Actions',
@@ -97,12 +95,10 @@ export const Pending: Story = {
 }
 
 // Mark Closed invokes the bulk fn with status 'closed'.
-const closeSpy = fn(
-  async (input: BulkInput): Promise<BulkResult> => ({
-    success: true,
-    updatedIds: input.data.inboxItemIds,
-  }),
-)
+const closeSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
+  success: true,
+  updatedIds: input.data.inboxItemIds,
+}))
 const closeBulkFn = mockServerFn(closeSpy) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const MarkClosed: Story = {

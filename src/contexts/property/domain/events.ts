@@ -104,7 +104,4 @@ export const propertyGoogleBindingChanged = (
 }
 
 export type PropertyEvent =
-  | PropertyCreated
-  | PropertyUpdated
-  | PropertyDeleted
-  | PropertyGoogleBindingChanged
+  PropertyCreated | PropertyUpdated | PropertyDeleted | PropertyGoogleBindingChanged

@@ -51,8 +51,7 @@ export type GoogleReviewGetRequest = Readonly<{
 }>
 
 export type GoogleReviewGetResult =
-  | Readonly<{ status: 'found'; review: GoogleReview }>
-  | Readonly<{ status: 'not_found' }>
+  Readonly<{ status: 'found'; review: GoogleReview }> | Readonly<{ status: 'not_found' }>
 
 export type GoogleReviewApiPort = Readonly<{
   listReviewsPage(input: GoogleReviewPageRequest): Promise<GoogleReviewPage>

@@ -126,8 +126,7 @@ export function buildAiContext(input: AiContextBuildInput) {
     nowEpochMillis,
   }
   let replyLanguageDetector:
-    | Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>>
-    | undefined
+    Awaited<ReturnType<typeof createCld3ReplyLanguageDetector>> | undefined
   const resolveReplyLanguage =
     input.resolveReplyLanguage ??
     (async (

@@ -9,10 +9,7 @@ export type GoalMeasureKind = 'progress' | 'level' | 'ratio'
 export type GoalDefinitionStatus = 'active' | 'paused' | 'cancelled'
 export type GoalPeriodStatus = 'scheduled' | 'open' | 'closed' | 'cancelled'
 export type GoalEvaluationState =
-  | 'eligible'
-  | 'insufficient_data'
-  | 'unavailable'
-  | 'quarantined'
+  'eligible' | 'insufficient_data' | 'unavailable' | 'quarantined'
 
 export type GovernedMetricVersion = Readonly<{
   definitionId: string

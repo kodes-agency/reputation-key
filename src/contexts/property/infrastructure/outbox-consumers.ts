@@ -12,8 +12,7 @@ type RetentionReleasedPayload = Readonly<{
 
 function parsePayload(event: ConsumerEvent): RetentionReleasedPayload {
   const payload = validateEventPayload(EVENT_TYPE, event.eventVersion, event.payload) as
-    | RetentionReleasedPayload
-    | undefined
+    RetentionReleasedPayload | undefined
   if (!payload || payload.organizationId !== event.organizationId) {
     throw new Error('property import retention-release envelope attribution mismatch')
   }

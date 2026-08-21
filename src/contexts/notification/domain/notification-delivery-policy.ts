@@ -14,8 +14,7 @@ export type QuietHours = Readonly<{
 }>
 
 export type DeliveryTiming =
-  | Readonly<{ kind: 'send' }>
-  | Readonly<{ kind: 'defer'; until: Date }>
+  Readonly<{ kind: 'send' }> | Readonly<{ kind: 'defer'; until: Date }>
 
 const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>> = {
   'review.created': 'workflow_collaboration',
