@@ -1,13 +1,19 @@
 // Portal context — update portal use case tests
 
 import { describe, it, expect } from 'vitest'
-import { updatePortal } from './update-portal'
+import { updatePortal, resolvePortalContentFields } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import {
+  buildTestAuthContext,
+  buildTestPortal,
+  buildTestPortalLink,
+} from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
+import type { PortalLinkRepository } from '../ports/portal-link.repository'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -18,15 +24,34 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 })
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
+  const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
+  // Counted so a test can prove the publish precondition is consulted ONLY on a
+  // real transition into `published` — an unconditional lookup would also make
+  // every unrelated edit to a link-less portal fail.
+  let linkLookups = 0
+  const countingLinkRepo: PortalLinkRepository = {
+    ...portalLinkRepo,
+    listAllLinks: async (orgId, pid) => {
+      linkLookups += 1
+      return portalLinkRepo.listAllLinks(orgId, pid)
+    },
+  }
   const deps = {
     portalRepo,
+    portalLinkRepo: countingLinkRepo,
     staffPublicApi: staffApiMock(accessible),
     events,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
-  return { useCase, portalRepo, events }
+  return {
+    useCase,
+    portalRepo,
+    portalLinkRepo,
+    events,
+    linkLookups: () => linkLookups,
+  }
 }
 
 describe('updatePortal', () => {
@@ -89,6 +114,24 @@ describe('updatePortal', () => {
 
     await expect(useCase({ portalId: p2.id, slug: 'slug-a' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'slug_taken',
+    )
+  })
+
+  it('reports an invalid publication transition before a taken slug', async () => {
+    // The patch is assembled in a fixed order — content, publication, slug — so the
+    // error a user sees for a doubly-invalid edit does not depend on field ordering.
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const p1 = buildTestPortal({ id: 'p1', slug: 'slug-a' })
+    const p2 = buildTestPortal({ id: 'p2', slug: 'slug-b', publicationState: 'archived' })
+    portalRepo.seed([p1, p2])
+
+    await expect(
+      useCase({ portalId: p2.id, slug: 'slug-a', publicationState: 'published' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isPortalError(e) &&
+        (e as { code: string }).code === 'invalid_publication_transition',
     )
   })
 
@@ -166,5 +209,181 @@ describe('updatePortal', () => {
 
     const updated = await useCase({ portalId: portal.id, name: 'New' }, ctx)
     expect(updated.name).toBe('New')
+  })
+
+  it('clears the hero image when heroImageUrl is null', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/hero.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, heroImageUrl: null }, ctx)
+
+    expect(updated.heroImageUrl).toBeNull()
+    expect(portalRepo.all()[0].heroImageUrl).toBeNull()
+  })
+
+  it('replaces the hero image when heroImageUrl is a new url', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, heroImageUrl: 'https://cdn.example.com/new.jpg' },
+      ctx,
+    )
+
+    expect(updated.heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+  })
+
+  it('leaves the hero image untouched when heroImageUrl is absent', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/hero.jpg' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, name: 'Renamed' }, ctx)
+
+    expect(updated.heroImageUrl).toBe('https://cdn.example.com/hero.jpg')
+  })
+
+  it('rejects publishing a portal that has no links', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+    )
+    expect(portalRepo.all()[0].publicationState).toBe('draft')
+  })
+
+  it('publishes a portal that has at least one link', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+    portalLinkRepo.seedLinks([
+      buildTestPortalLink({
+        portalId: portal.id,
+        organizationId: portal.organizationId,
+      }),
+    ])
+
+    const updated = await useCase(
+      { portalId: portal.id, publicationState: 'published' },
+      ctx,
+    )
+
+    expect(updated.publicationState).toBe('published')
+  })
+
+  it('does not require links to transition out of published', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'published' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, publicationState: 'disabled' },
+      ctx,
+    )
+
+    expect(updated.publicationState).toBe('disabled')
+  })
+
+  // The shape the beta journey actually sends: publish bundled with a content
+  // edit. The precondition has to run BEFORE the write, or a refused publish
+  // still leaks the other fields.
+  it('refuses a publish bundled with other edits and persists none of them', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase(
+        { portalId: portal.id, description: 'After', publicationState: 'published' },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+    )
+    expect(portalRepo.all()[0].publicationState).toBe('draft')
+    expect(portalRepo.all()[0].description).toBe('Before')
+  })
+
+  it('never consults links when the update leaves publication state alone', async () => {
+    const { useCase, portalRepo, linkLookups } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, description: 'After' }, ctx)
+
+    expect(updated.description).toBe('After')
+    expect(updated.publicationState).toBe('draft')
+    expect(linkLookups()).toBe(0)
+  })
+
+  // A link-less portal that is ALREADY published (pre-precondition data) must
+  // stay editable: re-asserting the current state is not a transition.
+  it('never consults links when the requested state is the current state', async () => {
+    const { useCase, portalRepo, linkLookups } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'published' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, name: 'Renamed', publicationState: 'published' },
+      ctx,
+    )
+
+    expect(updated.name).toBe('Renamed')
+    expect(updated.publicationState).toBe('published')
+    expect(linkLookups()).toBe(0)
+  })
+})
+
+describe('resolvePortalContentFields', () => {
+  const existing = buildTestPortal({
+    name: 'Existing',
+    description: 'Existing description',
+    heroImageUrl: 'https://cdn.example.com/hero.png',
+    theme: { primaryColor: '#112233' },
+  })
+
+  it('keeps every existing value when the keys are absent', () => {
+    const fields = resolvePortalContentFields({ portalId: existing.id }, existing)
+
+    expect(fields).toEqual({
+      name: 'Existing',
+      description: 'Existing description',
+      heroImageUrl: 'https://cdn.example.com/hero.png',
+      theme: { primaryColor: '#112233' },
+    })
+  })
+
+  it('treats an explicit null as "clear this field", not "leave unchanged"', () => {
+    const fields = resolvePortalContentFields(
+      { portalId: existing.id, description: null, heroImageUrl: null },
+      existing,
+    )
+
+    expect(fields.description).toBeNull()
+    expect(fields.heroImageUrl).toBeNull()
+    // Untouched keys still fall back.
+    expect(fields.name).toBe('Existing')
+  })
+
+  it('validates values that are present', () => {
+    expect(() =>
+      resolvePortalContentFields({ portalId: existing.id, name: '   ' }, existing),
+    ).toThrow(expect.objectContaining({ code: 'invalid_name' }))
   })
 })

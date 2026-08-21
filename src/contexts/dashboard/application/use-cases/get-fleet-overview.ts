@@ -79,11 +79,15 @@ export const getFleetOverview =
       timeRange,
     } = input
     const now = deps.clock()
+    // priorPeriodDates returns null for 'all' (no prior window). The fleet
+    // projection port requires concrete bounds, so this path keeps the
+    // historical self-comparison until FleetOverviewQuery admits an absent
+    // prior period — same defect class as the portal-analytics fix.
     const { priorStartDate, priorEndDate } = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
-    )
+    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
       organizationId,
       scope,

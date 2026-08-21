@@ -1,5 +1,11 @@
 {
-  "include": ["src/**/*.ts", "src/**/*.tsx", "services/**/*.ts"],
+  // `e2e/**` is here so `pnpm typecheck` — and therefore CI's check job — gates
+  // the Playwright suite too. It was previously in no project at all, which is
+  // how a spec reading a seed-state key that the contract never declared
+  // (`seed.lockedManagerEmail` → undefined) shipped and survived.
+  // Playwright types must stay IMPORT-ONLY: never add "@playwright/test" to
+  // `types` below, or `test`/`expect` leak in as globals across src/ as well.
+  "include": ["src/**/*.ts", "src/**/*.tsx", "services/**/*.ts", "e2e/**/*.ts"],
   "exclude": ["node_modules", "dist", ".output", "dist-worker", "drizzle"],
   "compilerOptions": {
     "target": "ES2022",

@@ -1,9 +1,10 @@
-// Link tree drag-and-drop reorder handlers
+// Link tree drag-and-drop reorder handlers — wiring only. The ordering
+// decisions (which drops are inert, the new list, the sortKey chain) live in
+// link-tree-reorder-rules.ts, where they are unit-tested.
 
-import { generateKeyBetween } from 'fractional-indexing'
-import { arrayMove } from '@dnd-kit/sortable'
 import { type DragEndEvent } from '@dnd-kit/core'
 import type { Action } from '#/components/hooks/use-action'
+import { planCategoryReorder, planLinkReorder } from './link-tree-reorder-rules'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type ReorderCategoriesVariables = {
@@ -39,27 +40,16 @@ export function useLinkTreeReorder(
   portalId: string,
 ) {
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    // F115: Only process drag-end events where the active item is a category.
-    // Link reordering is handled by handleReorderLinks instead.
-    if (!over || active.id === over.id) return
-    const oldIndex = categories.findIndex((c) => c.id === active.id)
-    const newIndex = categories.findIndex((c) => c.id === over.id)
-    // Skip if neither active nor over is a category (e.g. link drag)
-    if (oldIndex === -1 && newIndex === -1) return
-    const reordered = arrayMove([...categories], oldIndex, newIndex)
-    setCategories(reordered)
-    const updates: { id: string; sortKey: string }[] = []
-    for (const cat of reordered) {
-      const prev = updates.length > 0 ? updates[updates.length - 1].sortKey : null
-      updates.push({ id: cat.id, sortKey: generateKeyBetween(prev, null) })
-    }
+    const plan = planCategoryReorder(categories, event.active.id, event.over?.id)
+    if (plan === null) return
+    setCategories(plan.nextCategories)
     try {
-      await reorderCategoriesMutation({ data: { portalId, items: updates } })
+      await reorderCategoriesMutation({ data: { portalId, items: plan.items } })
     } catch {
-      // F119: Rollback optimistic UI update on failure
+      // F119: Rollback optimistic UI update on failure. The rejection is also
+      // surfaced by the FormErrorBanner in LinkTree (via the mutation's .error);
+      // a console-only report left the list snapping back unexplained.
       setCategories(categories)
-      console.error('Failed to reorder categories')
     }
   }
 
@@ -67,24 +57,16 @@ export function useLinkTreeReorder(
     categoryId: string,
     reordered: readonly LinkTreeLink[],
   ) => {
-    const otherLinks = links.filter((l) => l.categoryId !== categoryId)
-    const updates: { id: string; sortKey: string }[] = []
-    for (const link of reordered) {
-      const prev = updates.length > 0 ? updates[updates.length - 1].sortKey : null
-      updates.push({ id: link.id, sortKey: generateKeyBetween(prev, null) })
-    }
-    setLinks([
-      ...otherLinks,
-      ...reordered.map((l, i) => ({ ...l, sortKey: updates[i].sortKey })),
-    ])
+    const plan = planLinkReorder(links, categoryId, reordered)
+    setLinks(plan.nextLinks)
     try {
       await reorderLinksMutation({
-        data: { portalId, categoryId, items: updates },
+        data: { portalId, categoryId, items: plan.items },
       })
     } catch {
-      // F119: Rollback optimistic UI update on failure
+      // F119: Rollback optimistic UI update on failure. See above — the error is
+      // rendered by LinkTree's FormErrorBanner rather than only logged.
       setLinks(links)
-      console.error('Failed to reorder links')
     }
   }
 

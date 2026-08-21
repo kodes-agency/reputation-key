@@ -16,7 +16,13 @@ export const normalizeSlug = (input: string): string =>
     .replace(/^-|-$/g, '')
     .slice(0, 64)
 
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
+/**
+ * The single source of truth for slug format: 2–64 chars, lowercase
+ * alphanumerics and inner hyphens. Exported so the create-portal form validates
+ * against the same rule `validateSlug` enforces server-side instead of a
+ * lookalike regex that drifts.
+ */
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/
 
 /**
  * Validate a slug, returning a Result with the provided error type on failure.

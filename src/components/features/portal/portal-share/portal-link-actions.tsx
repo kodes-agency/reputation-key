@@ -35,6 +35,28 @@ export function PortalLinkActions({
   onLinksRevoked,
 }: Props) {
   const [revokeReason, setRevokeReason] = useState('')
+  // The revoke dialog is controlled so the reason field can live in a real
+  // <form>: Enter must submit it (the field was previously unreachable by
+  // keyboard alone). The submit button is a plain Button rather than
+  // AlertDialogAction because AlertDialogAction closes the dialog from its own
+  // click handler, which can unmount the form before the browser dispatches
+  // `submit`; closing from submitRevoke instead keeps one deterministic path.
+  const [revokeOpen, setRevokeOpen] = useState(false)
+
+  const submitRevoke = () => {
+    const reason = revokeReason.trim()
+    if (!reason || revokeMutation.isPending) return
+    // Close on submit rather than on success, matching the previous behaviour:
+    // a failed revoke surfaces in the page-level error banner, which sits
+    // behind the dialog overlay.
+    setRevokeOpen(false)
+    void revokeMutation({ data: { portalId, reason } })
+      .then(() => {
+        onLinksRevoked()
+        setRevokeReason('')
+      })
+      .catch(() => undefined)
+  }
 
   return (
     <>
@@ -70,7 +92,7 @@ export function PortalLinkActions({
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog>
+        <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
           <AlertDialogTrigger asChild>
             <Button
               variant="outline"
@@ -88,37 +110,36 @@ export function PortalLinkActions({
                 period. This does not archive the portal.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <Field className="py-2">
-              <FieldLabel htmlFor="portal-revoke-reason">Reason</FieldLabel>
-              <Input
-                id="portal-revoke-reason"
-                value={revokeReason}
-                onChange={(event) => setRevokeReason(event.target.value)}
-                maxLength={500}
-                placeholder="Printed code was misplaced"
-                autoFocus
-                required
-              />
-            </Field>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={!revokeReason.trim() || revokeMutation.isPending}
-                onClick={() => {
-                  const reason = revokeReason.trim()
-                  if (!reason) return
-                  void revokeMutation({ data: { portalId, reason } })
-                    .then(() => {
-                      onLinksRevoked()
-                      setRevokeReason('')
-                    })
-                    .catch(() => undefined)
-                }}
-              >
-                {revokeMutation.isPending ? 'Revoking…' : 'Revoke links'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            <form
+              className="grid gap-4"
+              onSubmit={(event) => {
+                event.preventDefault()
+                submitRevoke()
+              }}
+            >
+              <Field className="py-2">
+                <FieldLabel htmlFor="portal-revoke-reason">Reason</FieldLabel>
+                <Input
+                  id="portal-revoke-reason"
+                  value={revokeReason}
+                  onChange={(event) => setRevokeReason(event.target.value)}
+                  maxLength={500}
+                  placeholder="Printed code was misplaced"
+                  autoFocus
+                  required
+                />
+              </Field>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <Button
+                  type="submit"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={!revokeReason.trim() || revokeMutation.isPending}
+                >
+                  {revokeMutation.isPending ? 'Revoking…' : 'Revoke links'}
+                </Button>
+              </AlertDialogFooter>
+            </form>
           </AlertDialogContent>
         </AlertDialog>
       </div>

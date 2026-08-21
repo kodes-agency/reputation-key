@@ -2,11 +2,13 @@
 // Link tree — full CRUD for categories and links with DnD support.
 // Extracted from portal-detail-page to separate the link-tree concern.
 
+import { useRef } from 'react'
 import { LinkAddInlineForm } from './link-add-inline-form'
 import { CategoryAddForm } from './category-add-form'
 import { LinkTreeEmptyState } from './link-tree-empty-state'
 import { LinkTreeCategoryList } from './link-tree-category-list'
 import { useLinkTreeState } from './use-link-tree-state'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
@@ -22,6 +24,7 @@ export function LinkTree({
   links: initialLinks,
 }: Props) {
   const { can } = usePermissions()
+  const categoryInputRef = useRef<HTMLInputElement>(null)
   const {
     categories,
     links,
@@ -33,10 +36,15 @@ export function LinkTree({
     setAddingToCategory,
     setEditingLink,
     setEditingCategory,
-    createCategoryMutation,
-    createLinkMutation,
-    updateCategoryMutation,
-    updateLinkMutation,
+    isCreateCategoryPending,
+    isCreateLinkPending,
+    isUpdateCategoryPending,
+    isUpdateLinkPending,
+    createCategoryError,
+    createLinkError,
+    updateCategoryError,
+    updateLinkError,
+    actionError,
     handleAddCategory,
     handleAddLink,
     handleDeleteCategory,
@@ -46,25 +54,37 @@ export function LinkTree({
     handleDragEnd,
     handleReorderLinks,
   } = useLinkTreeState(portalId, initialCategories, initialLinks)
+  const canEdit = can('portal.update')
 
   return (
     <section className="rounded-lg border p-4 space-y-4">
       <h2 className="text-lg font-semibold">Link Tree</h2>
 
-      {can('portal.update') && (
-        <CategoryAddForm
-          onSubmit={handleAddCategory}
-          isPending={createCategoryMutation.isPending}
-          error={createCategoryMutation.error}
+      {/* Deletes and drag-reorders have no inline form to report into; without
+          this banner a failure was indistinguishable from success. */}
+      <FormErrorBanner error={actionError} />
+
+      {categories.length === 0 && (
+        <LinkTreeEmptyState
+          onAddCategory={canEdit ? () => categoryInputRef.current?.focus() : undefined}
         />
       )}
 
-      {addingToCategory && can('portal.update') && (
+      {canEdit && (
+        <CategoryAddForm
+          onSubmit={handleAddCategory}
+          isPending={isCreateCategoryPending}
+          error={createCategoryError}
+          inputRef={categoryInputRef}
+        />
+      )}
+
+      {addingToCategory && canEdit && (
         <LinkAddInlineForm
           onSubmit={(label, url) => handleAddLink(addingToCategory, label, url)}
           onCancel={() => setAddingToCategory(null)}
-          isPending={createLinkMutation.isPending}
-          error={createLinkMutation.error}
+          isPending={isCreateLinkPending}
+          error={createLinkError}
         />
       )}
 
@@ -84,13 +104,11 @@ export function LinkTree({
         onAddLink={setAddingToCategory}
         onUpdateCategory={handleUpdateCategory}
         onUpdateLink={handleUpdateLink}
-        isUpdateCategoryPending={updateCategoryMutation.isPending}
-        isUpdateLinkPending={updateLinkMutation.isPending}
-        updateCategoryError={updateCategoryMutation.error}
-        updateLinkError={updateLinkMutation.error}
+        isUpdateCategoryPending={isUpdateCategoryPending}
+        isUpdateLinkPending={isUpdateLinkPending}
+        updateCategoryError={updateCategoryError}
+        updateLinkError={updateLinkError}
       />
-
-      {categories.length === 0 && <LinkTreeEmptyState />}
     </section>
   )
 }

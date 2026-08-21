@@ -25,7 +25,25 @@ export type PublicPortalData = {
   propertyId: string
 }
 
+/**
+ * Guest capability decisions resolved for the portal's org/property scope.
+ * The form needs them BEFORE rendering: without them it invited a response
+ * (and an image) the tenant could not accept, and the denial surfaced only
+ * afterwards as a generic save failure.
+ *
+ * `unavailable` is the transient tenant state (suspension / unresolvable
+ * policy) — retryable; `permission_denied` is the configuration answer.
+ */
+export type GuestResponseFormAvailability =
+  | 'available'
+  | 'permission_denied'
+  | 'unavailable'
+
 export type PublicPortalLoaderData = PublicPortalData & {
   guestSession: { csrfNonce: string }
   response: GuestResponseView | null
+  responseForm: {
+    availability: GuestResponseFormAvailability
+    mediaEnabled: boolean
+  }
 }

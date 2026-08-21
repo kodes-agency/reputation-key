@@ -1,18 +1,26 @@
 import { useState, type FormEvent } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { GuestResponseFormView } from './guest-response-form-view'
-
-type ResponsePayload = Readonly<{
-  token: string
-  csrfNonce: string
-  rating: number | null
-  text: string | null
-  responseConsent: boolean
-  textConsent: boolean
-  mediaConsent: boolean
-}>
-
-type Action<TInput, TResult> = (input: { data: TInput }) => Promise<TResult>
+import {
+  selectGuestMedia,
+  type ConfirmGuestMediaAction,
+  type IssueGuestMediaAction,
+  type SelectedMedia,
+} from './guest-media'
+import {
+  guestDraftBlockReason,
+  guestMediaSelectionMessage,
+  guestResponseDraft,
+  guestResponsePhase,
+  guestWithdrawErrorMessage,
+  guestWithdrawSuccessMessage,
+  type GuestResponseDraft,
+} from './guest-response-labels'
+import {
+  saveGuestResponse,
+  type GuestResponseAction,
+  type GuestResponsePayload,
+} from './guest-response-save'
 
 export type GuestResponseFormProps = Readonly<{
   token: string
@@ -21,32 +29,23 @@ export type GuestResponseFormProps = Readonly<{
   availability?: 'available' | 'loading' | 'permission_denied' | 'error'
   mediaEnabled?: boolean
   initialMessage?: string
-  submitResponse: Action<ResponsePayload, GuestResponseView>
-  correctResponse: Action<ResponsePayload, GuestResponseView>
-  withdrawResponse: Action<{ token: string; csrfNonce: string }, GuestResponseView>
-  issueMedia: Action<
-    {
-      token: string
-      csrfNonce: string
-      contentType: 'image/jpeg' | 'image/png' | 'image/webp'
-      sizeBytes: number
-    },
-    {
-      mediaId: string
-      objectKey: string
-      uploadUrl: string
-      contentType: string
-    }
+  submitResponse: GuestResponseAction<GuestResponsePayload, GuestResponseView>
+  correctResponse: GuestResponseAction<GuestResponsePayload, GuestResponseView>
+  withdrawResponse: GuestResponseAction<
+    { token: string; csrfNonce: string },
+    GuestResponseView
   >
-  confirmMedia: Action<
-    { token: string; csrfNonce: string; mediaId: string; objectKey: string },
-    { mediaId: string; status: 'ready' }
-  >
+  issueMedia: IssueGuestMediaAction
+  confirmMedia: ConfirmGuestMediaAction
 }>
 
-const allowedMediaTypes: ReadonlyArray<string> = ['image/jpeg', 'image/png', 'image/webp']
-const maxMediaBytes = 10 * 1024 * 1024
-
+/**
+ * State and effects for the guest response form; every decision it makes lives in
+ * `guest-response-labels` (what the guest is told, and whether the draft may go)
+ * or `guest-response-save` (the write, and the ordering the image upload needs).
+ * What is left here is the ten pieces of state and the three things a guest can
+ * do to them, so each handler reads as a straight sequence.
+ */
 export function GuestResponseForm({
   token,
   csrfNonce,
@@ -61,113 +60,68 @@ export function GuestResponseForm({
   confirmMedia,
 }: GuestResponseFormProps) {
   const [response, setResponse] = useState(initialResponse)
-  const [rating, setRating] = useState<number | null>(initialResponse?.rating ?? null)
-  const [text, setText] = useState(initialResponse?.text ?? '')
-  const [responseConsent, setResponseConsent] = useState(
-    initialResponse?.responseConsent ?? false,
-  )
-  const [textConsent, setTextConsent] = useState(initialResponse?.textConsent ?? false)
-  const [mediaConsent, setMediaConsent] = useState(initialResponse?.mediaConsent ?? false)
-  const [file, setFile] = useState<File | null>(null)
+  const [draft, setDraft] = useState(() => guestResponseDraft(initialResponse))
+  const [media, setMedia] = useState<SelectedMedia | null>(null)
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState(initialMessage)
+  const [honeypot, setHoneypot] = useState('')
 
-  const isCorrecting = response?.status === 'submitted'
-  const isTerminal = response?.status === 'corrected' || response?.status === 'deleted'
+  const { isCorrecting, isTerminal } = guestResponsePhase(response)
+
+  /** Every field edit is one of these, so they cannot drift out of step. */
+  const edit = (change: Partial<GuestResponseDraft>) =>
+    setDraft((current) => ({ ...current, ...change }))
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isTerminal) return
-    if (rating == null && text.trim().length === 0) {
-      setMessage('Choose a rating or enter feedback before submitting.')
-      return
-    }
-    if (rating != null && !responseConsent) {
-      setMessage('Choose whether to share the optional rating.')
-      return
-    }
-    if (text.trim() && !textConsent) {
-      setMessage('Choose whether to share the optional written feedback.')
-      return
-    }
-    if (file && !mediaConsent) {
-      setMessage('Choose whether to share the optional image.')
+
+    const blocked = guestDraftBlockReason(draft, media !== null)
+    if (blocked !== null) {
+      setMessage(blocked)
       return
     }
 
     setPending(true)
     setMessage('')
-    try {
-      const data: ResponsePayload = {
+    setMessage(
+      await saveGuestResponse({
+        draft,
+        media,
         token,
         csrfNonce,
-        rating,
-        text: text.trim() || null,
-        responseConsent,
-        textConsent,
-        mediaConsent,
-      }
-      const next = isCorrecting
-        ? await correctResponse({ data })
-        : await submitResponse({ data })
-      setResponse(next)
-
-      if (file) {
-        if (!allowedMediaTypes.includes(file.type) || file.size > maxMediaBytes) {
-          throw new Error('Choose a JPEG, PNG, or WebP image up to 10 MiB.')
-        }
-        const issuance = await issueMedia({
-          data: {
-            token,
-            csrfNonce,
-            contentType: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
-            sizeBytes: file.size,
-          },
-        })
-        const upload = await fetch(issuance.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': issuance.contentType },
-          body: file,
-        })
-        if (!upload.ok) throw new Error('The image upload did not complete.')
-        await confirmMedia({
-          data: {
-            token,
-            csrfNonce,
-            mediaId: issuance.mediaId,
-            objectKey: issuance.objectKey,
-          },
-        })
-      }
-      setMessage(
-        isCorrecting
-          ? 'Your response was corrected. You can still withdraw it.'
-          : 'Your optional response was submitted. You may correct it once for one hour.',
-      )
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : 'The response could not be saved.',
-      )
-    } finally {
-      setPending(false)
-    }
+        honeypot,
+        isCorrecting,
+        submitResponse,
+        correctResponse,
+        issueMedia,
+        confirmMedia,
+        onWritten: setResponse,
+      }),
+    )
+    setPending(false)
   }
 
   const onWithdraw = async () => {
     setPending(true)
     setMessage('')
     try {
-      const deleted = await withdrawResponse({ data: { token, csrfNonce } })
-      setResponse(deleted)
-      setRating(null)
-      setText('')
-      setFile(null)
-      setMessage('Your response was withdrawn and its content was removed.')
+      setResponse(await withdrawResponse({ data: { token, csrfNonce } }))
+      edit({ rating: null, text: '' })
+      setMedia(null)
+      setMessage(guestWithdrawSuccessMessage)
     } catch {
-      setMessage('The response could not be withdrawn. Please try again.')
-    } finally {
-      setPending(false)
+      setMessage(guestWithdrawErrorMessage)
     }
+    setPending(false)
+  }
+
+  /** Media is checked here, at selection — never after the response is written. See
+   *  `guest-media` for why that ordering mattered. */
+  const onFileChange = (next: File | null) => {
+    const selected = next === null ? null : selectGuestMedia(next)
+    setMedia(selected)
+    setMessage(guestMediaSelectionMessage(next !== null && selected === null, message))
   }
 
   return (
@@ -175,23 +129,25 @@ export function GuestResponseForm({
       availability={availability}
       mediaEnabled={mediaEnabled}
       response={response}
-      rating={rating}
-      text={text}
-      responseConsent={responseConsent}
-      textConsent={textConsent}
-      mediaConsent={mediaConsent}
+      rating={draft.rating}
+      text={draft.text}
+      responseConsent={draft.responseConsent}
+      textConsent={draft.textConsent}
+      mediaConsent={draft.mediaConsent}
       pending={pending}
       message={message}
+      honeypot={honeypot}
       isCorrecting={isCorrecting}
       isTerminal={isTerminal}
       onSubmit={onSubmit}
       onWithdraw={() => void onWithdraw()}
-      onRatingChange={setRating}
-      onTextChange={setText}
-      onResponseConsentChange={setResponseConsent}
-      onTextConsentChange={setTextConsent}
-      onMediaConsentChange={setMediaConsent}
-      onFileChange={setFile}
+      onRatingChange={(rating) => edit({ rating })}
+      onTextChange={(text) => edit({ text })}
+      onResponseConsentChange={(responseConsent) => edit({ responseConsent })}
+      onTextConsentChange={(textConsent) => edit({ textConsent })}
+      onMediaConsentChange={(mediaConsent) => edit({ mediaConsent })}
+      onHoneypotChange={setHoneypot}
+      onFileChange={onFileChange}
     />
   )
 }

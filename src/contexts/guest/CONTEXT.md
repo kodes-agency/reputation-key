@@ -36,8 +36,8 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 ## Events produced
 
 - **`guest.scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
-- **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt.
-- **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt.
+- **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share a rating.
+- **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share free text. Corrections and withdrawals produce nothing: superseding a prior metric reading needs a persisted source-event id (see the comment on `responseLifecycle.correct`), so emitting again would double-count.
 - **`guest.review_link.clicked`** — linkId, organizationId, portalId, propertyId, occurredAt.
 
 ## Events consumed
@@ -52,11 +52,10 @@ guest/
   application/
     ports/             guest-interaction.repository.ts, portal-context-resolver.port.ts,
                        public-portal-lookup.port.ts
-    dto/               rating.dto.ts, feedback.dto.ts, public-portal.dto.ts
-    use-cases/         record-scan.ts, submit-rating.ts,
-                       submit-feedback.ts, track-review-link-click.ts,
-                       resolve-link-and-track.ts, resolve-portal-context.ts,
-                       get-public-portal.ts
+    dto/               public-portal.dto.ts
+    use-cases/         record-scan.ts, guest-response-lifecycle.ts,
+                       track-review-link-click.ts, resolve-link-and-track.ts,
+                       resolve-portal-context.ts, get-public-portal.ts
     public-api.ts      re-exports domain types, event types/constructors
   infrastructure/
     repositories/      guest-interaction.repository.ts
@@ -69,8 +68,7 @@ guest/
 ## Use cases
 
 - **`recordScan`** — Record a scan event (no referral attribution).
-- **`submitRating`** — Submit a 1–5 star rating, emit `guest.rating.submitted`.
-- **`submitFeedback`** — Submit free-text feedback after rating, emit `guest.feedback.submitted`.
+- **`responseLifecycle`** — Submit/correct/withdraw/moderate the guest response aggregate and its media (ADR 0044); the submit path emits the rating and feedback facts.
 - **`trackReviewLinkClick`** — Track a review link click, emit `guest.review_link.clicked`.
 - **`resolveLinkAndTrack`** — Resolve a portal link URL and track the click in one operation.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.

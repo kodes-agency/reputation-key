@@ -1,15 +1,17 @@
-import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
 import {
   queryOptions,
   useMutation,
   useQueryClient,
   useSuspenseQuery,
+  type QueryClient,
 } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
+  completeContentReview,
   finalizeUpload,
   getPortal,
   listPortals,
@@ -36,12 +38,18 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
+import { EmptyState } from '#/components/ui/empty-state'
+import { Button } from '#/components/ui/button'
+import { AlertCircle } from 'lucide-react'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
-import type { Portal } from '#/contexts/portal/application/public-api'
+import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
-type PortalQueryResult = Readonly<{ portal: Portal | null }>
+type PortalQueryResult = Readonly<{
+  portal: Portal | null
+  tokenStatus: PortalTokenStatus
+}>
 
 const portalDetailSearchSchema = z.object({
   tab: z.enum(PORTAL_DETAIL_TABS).catch('settings').default('settings'),
@@ -85,6 +93,31 @@ const portalBadgesQuery = (propertyId: string, portalId: string) =>
     staleTime: 30_000,
   })
 
+/**
+ * Resolve the portal through the URL property's AUTHORIZED collection, so a
+ * portal in another property or organization is reported exactly like one that
+ * no longer exists — a direct URL never reveals that it exists elsewhere.
+ *
+ * The list is refetched ONCE before concluding the portal is gone. `invalidate`
+ * after a create only refetches ACTIVE queries, and this list has no observer
+ * while the user is on `../portals/new`, so the cache still held the
+ * pre-creation list: a portal created a second earlier was reported unavailable.
+ * The refetch costs nothing in the happy path — it runs only on a cache miss —
+ * and removes that whole class of false negative for any stale list.
+ */
+const findAuthorizedPortal = async (
+  queryClient: QueryClient,
+  propertyId: string,
+  portalId: string,
+): Promise<Portal | null> => {
+  const options = propertyPortalsQuery(propertyId)
+  const cached = await queryClient.ensureQueryData(options)
+  const hit = cached.portals.find((candidate) => String(candidate.id) === portalId)
+  if (hit) return hit
+  const fresh = await queryClient.fetchQuery({ ...options, staleTime: 0 })
+  return fresh.portals.find((candidate) => String(candidate.id) === portalId) ?? null
+}
+
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
@@ -102,19 +135,26 @@ export const Route = createFileRoute(
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
-    // Resolve the resource through the URL property's authorized collection
-    // before loading resource-scoped dependencies. A mismatched portal gets
-    // the same controlled 200 response as other unavailable direct paths,
-    // without exposing whether that portal exists in another property.
-    const { portals } = await context.queryClient.ensureQueryData(
-      propertyPortalsQuery(params.propertyId),
+    const portal = await findAuthorizedPortal(
+      context.queryClient,
+      params.propertyId,
+      params.portalId,
     )
-    const portal = portals.find((candidate) => String(candidate.id) === params.portalId)
-    if (!portal) {
-      throw redirect({ to: '/unavailable', search: { feature: 'Portals' } })
-    }
-    context.queryClient.setQueryData(portalKeys.detail(params.portalId), { portal })
-    const [{ categories, links }, badges] = await Promise.all([
+    // `notFound()`, not `/unavailable`: that page states the whole Portals
+    // feature is switched off, which is a lie while the sidebar still links to a
+    // working list. `notFoundComponent` renders an in-route "no longer
+    // available" state instead. `/unavailable` stays for the capability-denied
+    // and cross-tenant PROPERTY cases, which `gateControlledRoute` decides in
+    // beforeLoad. A portal id belonging to another property or organization is
+    // simply absent from this collection, so it lands here — identical to a
+    // removed portal, which is the point.
+    if (!portal) throw notFound()
+    const [, { categories, links }, badges] = await Promise.all([
+      // The detail entry is FETCHED, not seeded from the list row: `getPortal`
+      // also returns `tokenStatus` (C2), which no list row carries, so a
+      // hand-built `{ portal }` seed would leave the Share tab reading
+      // `tokenStatus` as undefined instead of triggering a fetch.
+      context.queryClient.ensureQueryData(portalQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
       context.queryClient.ensureQueryData(
         portalBadgesQuery(params.propertyId, params.portalId),
@@ -131,7 +171,40 @@ export const Route = createFileRoute(
   component: PortalDetailRoute,
   pendingComponent: PortalDetailLoading,
   errorComponent: PortalDetailError,
+  notFoundComponent: PortalNoLongerAvailable,
 })
+
+/**
+ * Rendered when the portal is absent from this property's authorized
+ * collection. Deliberately says nothing about WHY — deleted, moved, or owned by
+ * another property/organization all land here with identical copy, so the URL
+ * cannot be used to probe for portals the caller may not see.
+ */
+function PortalNoLongerAvailable() {
+  const { propertyId } = Route.useParams()
+  return (
+    <PageShell>
+      <PageHeader
+        title="Portal unavailable"
+        breadcrumbs={[
+          { label: 'Properties', to: '/properties' },
+          { label: 'Portals', to: `/properties/${propertyId}/portals` },
+          { label: 'Unavailable' },
+        ]}
+      />
+      <EmptyState icon={AlertCircle} title="This portal is no longer available">
+        <p className="text-sm text-muted-foreground">
+          It may have been removed, or it may belong to a different property.
+        </p>
+        <Button asChild variant="outline">
+          <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
+            Back to Portals
+          </Link>
+        </Button>
+      </EmptyState>
+    </PageShell>
+  )
+}
 
 function PortalDetailLoading() {
   return (
@@ -198,7 +271,7 @@ function PortalDetailRoute() {
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
   const { data: badges } = useSuspenseQuery(portalBadgesQuery(propertyId, portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { portal } = portalData
+  const { portal, tokenStatus } = portalData
   const { categories, links } = linksData
   const { property } = propData
   if (!portal) throw notFound()
@@ -213,6 +286,16 @@ function PortalDetailRoute() {
   })
   const revokeTokenMutation = useActionMutation(revokePortalTokens, {
     successMessage: 'Public links revoked',
+  })
+  // The only producer of the governed portal.content_review.completed /
+  // configuration_completeness / approved_destination_ratio facts, which badge
+  // and goal projections read — hence the badge invalidation.
+  const completeReviewMutation = useActionMutation(completeContentReview, {
+    successMessage: 'Content review recorded',
+    invalidateKeys: [
+      portalKeys.detail(portalId),
+      badgeKeys.target({ propertyId, targetType: 'portal', targetId: portalId }),
+    ],
   })
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
@@ -230,12 +313,16 @@ function PortalDetailRoute() {
       />
       <PortalDetailPage
         portal={portal}
+        tokenStatus={tokenStatus}
         propertyId={propertyId}
         categories={categories}
         links={links}
         activeTab={tab}
         onTabChange={(nextTab) => {
-          void navigate({ search: { tab: nextTab }, replace: true })
+          // No `replace: true`: replacing the entry made browser Back leave the
+          // portal entirely instead of returning to the previously viewed tab.
+          // Deep links via ?tab= are unaffected.
+          void navigate({ search: { tab: nextTab } })
         }}
         updateMutation={mutation}
         organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
@@ -245,6 +332,7 @@ function PortalDetailRoute() {
         requestUploadUrl={requestUploadUrlFn}
         finalizeUpload={finalizeUploadFn}
         getPortalAnalytics={getPortalAnalyticsFn}
+        completeReviewMutation={completeReviewMutation}
       />
       <PortalBadgeSection badges={badges as BadgeAwardWithTarget[]} />
     </PageShell>

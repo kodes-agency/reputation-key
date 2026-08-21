@@ -21,6 +21,12 @@ export type E2eSeedState = Readonly<{
   managerUserId: string
   organizationName: string
   lockedOrganizationId: string
+  // The Org B manager whose org is locked — the identity the promoted-route
+  // denial journey signs in as. Absent from the contract until now, so
+  // `seed.lockedManagerEmail` read as `undefined` and that spec signed in as
+  // nobody instead of failing on the missing precondition.
+  lockedManagerEmail: string
+  lockedManagerPassword: string
   propertyId: string
   onePropertyManagerEmail: string
   zeroPropertyManagerEmail: string
@@ -72,6 +78,8 @@ export function readE2eSeedState(): E2eSeedState | null {
       'managerUserId',
       'organizationName',
       'lockedOrganizationId',
+      'lockedManagerEmail',
+      'lockedManagerPassword',
       'propertyId',
       'propertyName',
       'propertySlug',

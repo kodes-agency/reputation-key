@@ -168,15 +168,20 @@ function parseFetchBehaviorCommand(
 ):
   | Readonly<{ accountName: string; locationName?: string; behavior: FetchBehavior }>
   | undefined {
-  let raw: unknown
+  let parsed: unknown
   try {
-    raw = JSON.parse(body)
+    parsed = JSON.parse(body)
   } catch {
     return undefined
   }
-  if (typeof raw !== 'object' || raw == null || Array.isArray(raw)) return undefined
-
-  const { accountName, locationName, behavior } = raw
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return undefined
+  }
+  // `typeof === 'object'` narrows to `object`, whose fields are unreadable; the
+  // per-field `typeof` checks below are what actually validate this payload.
+  const { accountName, locationName, behavior } = parsed as Readonly<
+    Record<string, unknown>
+  >
   if (
     typeof accountName !== 'string' ||
     (locationName !== undefined && typeof locationName !== 'string') ||
@@ -187,7 +192,9 @@ function parseFetchBehaviorCommand(
     return undefined
   }
 
-  const { mode, status, failures, retryAfterSeconds } = behavior
+  const { mode, status, failures, retryAfterSeconds } = behavior as Readonly<
+    Record<string, unknown>
+  >
   if (mode === 'success') {
     return {
       accountName,
@@ -197,11 +204,14 @@ function parseFetchBehaviorCommand(
   }
   if (
     (mode !== 'always-fail' && mode !== 'fail-then-success') ||
+    typeof status !== 'number' ||
     !Number.isInteger(status) ||
     status < 100 ||
     status > 599 ||
     (retryAfterSeconds !== undefined &&
-      (!Number.isInteger(retryAfterSeconds) || retryAfterSeconds < 0))
+      (typeof retryAfterSeconds !== 'number' ||
+        !Number.isInteger(retryAfterSeconds) ||
+        retryAfterSeconds < 0))
   ) {
     return undefined
   }
@@ -215,7 +225,9 @@ function parseFetchBehaviorCommand(
           : { mode, status, retryAfterSeconds },
     }
   }
-  if (!Number.isInteger(failures) || failures < 0) return undefined
+  if (typeof failures !== 'number' || !Number.isInteger(failures) || failures < 0) {
+    return undefined
+  }
   return {
     accountName,
     ...(locationName === undefined ? {} : { locationName }),
@@ -229,14 +241,16 @@ function parseFetchBehaviorCommand(
 function parsePerformanceBehaviorCommand(
   body: string,
 ): Readonly<{ locationName: string; behavior: PerformanceBehavior }> | undefined {
-  let raw: unknown
+  let parsed: unknown
   try {
-    raw = JSON.parse(body)
+    parsed = JSON.parse(body)
   } catch {
     return undefined
   }
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
-  const { locationName, behavior } = raw
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return undefined
+  }
+  const { locationName, behavior } = parsed as Readonly<Record<string, unknown>>
   if (
     typeof locationName !== 'string' ||
     locationName.length < 1 ||
@@ -248,7 +262,9 @@ function parsePerformanceBehaviorCommand(
     return undefined
   }
 
-  const { mode, delayMs, status, retryAfterSeconds, bytes } = behavior
+  const { mode, delayMs, status, retryAfterSeconds, bytes } = behavior as Readonly<
+    Record<string, unknown>
+  >
   if (mode === 'success' || mode === 'malformed') {
     return { locationName, behavior: { mode } }
   }

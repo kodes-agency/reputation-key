@@ -91,16 +91,6 @@ export const validateSmartRoutingThreshold = (n: number): Result<number, PortalE
 
 // ── URL validation ─────────────────────────────────────────────────
 
-/** Validate a URL for portal links. */
-export const validateUrl = (url: string): Result<string, PortalError> => {
-  try {
-    new URL(url)
-    return ok(url)
-  } catch {
-    return err(portalError('invalid_url', 'Must be a valid URL'))
-  }
-}
-
 /** Check whether a URL is a valid external HTTPS URL. */
 export const isValidExternalUrl = (url: string): boolean => {
   try {
@@ -110,6 +100,18 @@ export const isValidExternalUrl = (url: string): boolean => {
     return false
   }
 }
+
+/**
+ * Validate a URL for portal links.
+ *
+ * Delegates to isValidExternalUrl rather than merely parsing: `new URL()` happily
+ * accepts `javascript:` and `data:` payloads, and this is the constructor-time gate
+ * for link destinations that the public portal later renders as anchors.
+ */
+export const validateUrl = (url: string): Result<string, PortalError> =>
+  isValidExternalUrl(url)
+    ? ok(url)
+    : err(portalError('invalid_url', 'Must be a valid https:// URL'))
 
 // ── Link label validation ──────────────────────────────────────────
 

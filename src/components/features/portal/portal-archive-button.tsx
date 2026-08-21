@@ -1,5 +1,13 @@
-// Portal archive button with confirmation dialog.
-// The server transition is a soft deletion: content and authorized history are retained.
+// Portal delete button with confirmation dialog.
+//
+// This used to be called "Archive" and the dialog promised the configuration was
+// retained. It is not: `softDeletePortal` sets `deleted_at` and never touches
+// `publicationState`, and `listPortals` filters `deleted_at IS NULL`, so the
+// portal disappears with no archived view and no restore action anywhere in the
+// product. The row survives in the database for audit, but from the manager's
+// side the action is irreversible — and a portal's printed QR mapping dies with
+// it. The label and copy now say exactly that. Rename this back to "Archive"
+// only together with an archived filter and a restore action.
 
 import {
   AlertDialog,
@@ -13,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
-import { Archive } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 
 interface PortalArchiveButtonProps {
@@ -36,16 +44,17 @@ export function PortalArchiveButton({
           className="min-h-11 text-destructive hover:text-destructive sm:min-h-8"
           disabled={deleteMutation.isPending}
         >
-          <Archive className="size-3.5" />
-          Archive
+          <Trash2 className="size-3.5" />
+          Delete
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Archive {portalName}?</AlertDialogTitle>
+          <AlertDialogTitle>Delete {portalName}?</AlertDialogTitle>
           <AlertDialogDescription>
-            Guests will no longer be able to open this portal. Its configuration, links,
-            and authorized history are retained.
+            This cannot be undone from here. The portal, its links and its public address
+            are removed, so any printed QR code pointing at it stops working. To take a
+            portal offline temporarily, set its status to Disabled instead.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -57,7 +66,7 @@ export function PortalArchiveButton({
             disabled={deleteMutation.isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {deleteMutation.isPending ? 'Archiving…' : 'Archive portal'}
+            {deleteMutation.isPending ? 'Deleting…' : 'Delete portal'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

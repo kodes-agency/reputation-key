@@ -5,7 +5,7 @@
 import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData, PortalKPIs } from '../../domain/types'
-import type { PortalMetricsPort } from '../ports/portal-metrics.port'
+import type { PortalMetricsPort, PortalMetricSumRow } from '../ports/portal-metrics.port'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates } from '../utils'
 
@@ -34,12 +34,11 @@ export const getPortalAnalytics =
   async (input: GetPortalAnalyticsInput): Promise<PortalAnalyticsData> => {
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
 
-    // For 'all' time range, no meaningful prior period — skip trend comparison
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
-      timeRange,
-      startDate,
-      endDate,
-    )
+    // 'all' is unbounded, so there is no prior window: priorPeriodDates returns
+    // null and the second getPortalKpiSums call is skipped entirely. Passing the
+    // current window as its own prior (the old behaviour) both duplicated a
+    // scan-from-epoch on every page load and fabricated a 0% trend.
+    const priorPeriod = priorPeriodDates(timeRange, startDate, endDate)
 
     // Fetch current and prior KPI sums, rating distribution, rating trend, and engagement funnel in parallel
     const [currentSums, priorSums, ratingDistribution, ratingTrend, engagementFunnel] =
@@ -51,13 +50,15 @@ export const getPortalAnalytics =
           startDate,
           endDate,
         ),
-        deps.portalMetrics.getPortalKpiSums(
-          organizationId,
-          propertyId,
-          portalId,
-          priorStartDate,
-          priorEndDate,
-        ),
+        priorPeriod
+          ? deps.portalMetrics.getPortalKpiSums(
+              organizationId,
+              propertyId,
+              portalId,
+              priorPeriod.priorStartDate,
+              priorPeriod.priorEndDate,
+            )
+          : Promise.resolve<readonly PortalMetricSumRow[]>([]),
         deps.portalMetrics.getPortalRatingDistribution(
           organizationId,
           propertyId,
@@ -86,6 +87,9 @@ export const getPortalAnalytics =
     ) => new Map(rows.map((r) => [r.metricKey, r]))
 
     const cur = toMap(currentSums)
+    // For 'all' priorSums is empty, so every priorValue is 0 and computeTrend's
+    // `prior === 0` guard yields trend: null — the cards render an em dash
+    // instead of a made-up 0%.
     const prior = toMap(priorSums)
 
     const curScans = cur.get('portal.scan')

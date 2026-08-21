@@ -167,6 +167,53 @@ test.describe('error detection — collector injection proof', () => {
     collector.detach()
   })
 
+  test('a deliberate document 404 is not re-reported through the console', async ({
+    page,
+  }) => {
+    // A route that fails closed (portal detail's `notFound()`) answers the
+    // NAVIGATION with 404, and Chromium logs that as a network error. The
+    // status is the spec's to assert off page.goto(); the echo is noise.
+    await page.route('**/e2e-probe-denied-document', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'text/html',
+        body: '<html><body><p>denied</p></body></html>',
+      }),
+    )
+    const collector = attachErrorDetection(page)
+    const response = await page.goto('/e2e-probe-denied-document')
+    expect(response?.status()).toBe(404)
+    await page.waitForTimeout(500)
+    expect(collector.detections).toHaveLength(0)
+    await collector.assertEmpty()
+    collector.detach()
+  })
+
+  test('a 404 SUBRESOURCE still fails the gate on a 404 document', async ({ page }) => {
+    // The sharp edge of document-status correlation: same status, same page,
+    // different url. Only the document's echo may be suppressed — a broken
+    // subresource must survive, or the correlation would be a blanket 404
+    // amnesty for every page that legitimately 404s.
+    await page.route('**/e2e-probe-denied-document', (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: 'text/html',
+        body: '<html><body><p>denied</p></body></html>',
+      }),
+    )
+    await page.route('**/e2e-probe-missing-asset', (route) =>
+      route.fulfill({ status: 404, contentType: 'text/plain', body: 'gone' }),
+    )
+    const collector = attachErrorDetection(page)
+    await page.goto('/e2e-probe-denied-document')
+    await page.evaluate(() => fetch('/e2e-probe-missing-asset').catch(() => undefined))
+    await expect
+      .poll(() => collector.detections.filter((d) => d.kind === 'console-error').length)
+      .toBe(1)
+    expect(collector.detections[0].message).toContain('status of 404')
+    collector.detach()
+  })
+
   test('an expired allowlist entry does NOT suppress — detection fails', async ({
     page,
   }) => {

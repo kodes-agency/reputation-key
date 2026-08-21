@@ -93,6 +93,10 @@ describe('portalErrorStatus (imported from server module)', () => {
       'category_not_found',
       'link_not_found',
       'property_not_found',
+      'invalid_publication_transition',
+      'portal_has_no_links',
+      'portal_inactive',
+      'token_unavailable',
       'upload_failed',
     ]
     for (const code of codes) {

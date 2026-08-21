@@ -248,9 +248,29 @@ describe('validateSmartRoutingThreshold', () => {
 // ── validateUrl ────────────────────────────────────────────────────
 
 describe('validateUrl', () => {
-  it('accepts valid URLs', () => {
+  it('accepts https URLs', () => {
     expect(validateUrl('https://example.com').isOk()).toBe(true)
-    expect(validateUrl('http://localhost:3000/path').isOk()).toBe(true)
+    expect(validateUrl('https://example.com/path?q=1#hash').isOk()).toBe(true)
+  })
+
+  it('rejects non-https schemes', () => {
+    // validateUrl is the constructor-time gate for stored link destinations, so it
+    // must reject everything isValidExternalUrl rejects — including http and the
+    // script-bearing schemes `new URL()` parses happily.
+    for (const url of [
+      'http://localhost:3000/path',
+      'http://example.com',
+      'javascript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      'mailto:admin@example.com',
+      '//evil.com',
+    ]) {
+      const result = validateUrl(url)
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.code).toBe('invalid_url')
+      }
+    }
   })
 
   it('rejects non-URLs', () => {

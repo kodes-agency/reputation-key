@@ -3,7 +3,13 @@
 // `now`, so dashboards are fast-forward testable (ADR 0017).
 
 import { describe, it, expect } from 'vitest'
-import { timeRangeToDates, computeTrend, slaCutoff, MS_PER_DAY } from './utils'
+import {
+  timeRangeToDates,
+  computeTrend,
+  priorPeriodDates,
+  slaCutoff,
+  MS_PER_DAY,
+} from './utils'
 
 describe('timeRangeToDates', () => {
   const now = new Date('2026-06-19T12:00:00Z')
@@ -56,6 +62,41 @@ describe('computeTrend', () => {
   it('returns null when result is not finite', () => {
     expect(computeTrend(Infinity, 1)).toBeNull()
   })
+})
+
+describe('priorPeriodDates', () => {
+  const endDate = new Date('2026-06-19T12:00:00Z')
+
+  it('returns null for "all" — an unbounded window has no prior window', () => {
+    expect(priorPeriodDates('all', new Date(0), endDate)).toBeNull()
+  })
+
+  it('never lets "all" fabricate a 0% trend by comparing the period to itself', () => {
+    const prior = priorPeriodDates('all', new Date(0), endDate)
+    // The old contract returned the CURRENT window here, and computeTrend(x, x)
+    // is 0 — not null — because the `prior === 0` guard never binds.
+    expect(prior).toBeNull()
+    expect(computeTrend(100, 100)).toBe(0)
+  })
+
+  it.each(['7d', '30d', '60d', '90d'] as const)(
+    'gives %s a contiguous, non-overlapping prior window of equal duration',
+    (preset) => {
+      const days =
+        preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+      const startDate = new Date(endDate.getTime() - days * MS_PER_DAY)
+      const prior = priorPeriodDates(preset, startDate, endDate)
+
+      expect(prior).not.toBeNull()
+      // Equal duration immediately before, and 1ms before start so inclusive
+      // bounds on both windows cannot double-count the boundary instant.
+      expect(prior!.priorStartDate).toEqual(
+        new Date(startDate.getTime() - days * MS_PER_DAY),
+      )
+      expect(prior!.priorEndDate).toEqual(new Date(startDate.getTime() - 1))
+      expect(prior!.priorEndDate.getTime()).toBeLessThan(startDate.getTime())
+    },
+  )
 })
 
 describe('slaCutoff', () => {

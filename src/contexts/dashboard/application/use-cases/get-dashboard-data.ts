@@ -28,12 +28,15 @@ export const getDashboardData =
   async (input: GetDashboardDataInput): Promise<DashboardData> => {
     const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
 
-    // For 'all' time range, no meaningful prior period — skip trend comparison
+    // priorPeriodDates returns null for 'all' (no prior window). repo.getKPIs
+    // still requires concrete bounds, so this path keeps the historical
+    // self-comparison until DashboardKPIQuery admits an absent prior period —
+    // same defect class as the portal-analytics fix, tracked separately.
     const { priorStartDate, priorEndDate } = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
-    )
+    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
 
     const { repo } = deps
 

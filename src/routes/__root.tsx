@@ -56,8 +56,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* The CSP nonce only exists on the server, and browsers scrub the `nonce`
+            content attribute from the DOM once the document is parsed (HTML spec
+            nonce-hiding), so the client always reads it back as "". Hydration can
+            therefore never match here — suppress it on this one element rather than
+            let every page log "A tree hydrated but some attributes … didn't match".
+            `suppressHydrationWarning` on <html> does not cover descendants. */}
         <script
           nonce={cspNonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
         <HeadContent />
