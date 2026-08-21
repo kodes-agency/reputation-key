@@ -320,6 +320,56 @@ describe('guest response lifecycle', () => {
       publicUrl: null,
     })
   })
+
+  // The domain rejection short-circuits the repo compare-and-set, so a replayed
+  // confirmation reports WHY it was refused instead of the generic lost-race
+  // code — and must leave the already-published object alone rather than purge
+  // it down the failure path.
+  it('refuses a replayed confirmation with the domain code and keeps the ready object', async () => {
+    const { lifecycle, repo } = harness()
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    await lifecycle.submit(scope, sessionId, {
+      rating: 5,
+      responseConsent: true,
+      mediaConsent: true,
+    })
+    const issuance = await lifecycle.issueMedia(scope, sessionId, {
+      contentType: 'image/webp',
+      sizeBytes: 1024,
+    })
+    await expect(lifecycle.confirmMedia(scope, sessionId, issuance)).resolves.toEqual({
+      mediaId: issuance.mediaId,
+      status: 'ready',
+    })
+    const published = repo.media[0]?.publicUrl
+
+    await expect(
+      lifecycle.confirmMedia(scope, sessionId, issuance),
+    ).rejects.toMatchObject({ code: 'media_not_issued' })
+    expect(repo.media[0]).toMatchObject({ status: 'ready', publicUrl: published })
+  })
+
+  it('refuses a confirmation naming an object key its issuance never minted', async () => {
+    const { lifecycle, repo } = harness()
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    await lifecycle.submit(scope, sessionId, {
+      rating: 5,
+      responseConsent: true,
+      mediaConsent: true,
+    })
+    const issuance = await lifecycle.issueMedia(scope, sessionId, {
+      contentType: 'image/webp',
+      sizeBytes: 1024,
+    })
+
+    await expect(
+      lifecycle.confirmMedia(scope, sessionId, {
+        mediaId: issuance.mediaId,
+        objectKey: `${issuance.objectKey}x`,
+      }),
+    ).rejects.toMatchObject({ code: 'media_not_found' })
+    expect(repo.media[0]).toMatchObject({ status: 'issued', publicUrl: null })
+  })
 })
 
 // The submit path is the only producer of the guest rating/feedback facts the

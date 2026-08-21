@@ -35,6 +35,26 @@ const LIVE_TOKEN: PortalTokenStatus = {
 /** In-session URL: returned by issue/rotate, gone after a reload. */
 const PUBLIC_URL = 'https://portal.example.com/p/9f3c'
 
+type ShareViewInput = Parameters<typeof derivePortalShareView>[0]
+
+/**
+ * Every combination of the three sources of truth, built once at module scope so
+ * the exhaustive test below reads as the invariant it asserts rather than as four
+ * levels of loop. `publicUrl` and `tokenStatus` each contribute their only two
+ * meaningful values: present, and absent.
+ */
+const REACHABLE_INPUTS: readonly ShareViewInput[] = buildReachableInputs()
+
+function buildReachableInputs(): readonly ShareViewInput[] {
+  const inputs: ShareViewInput[] = []
+  for (const canManage of [true, false])
+    for (const revoked of [true, false])
+      for (const publicUrl of [PUBLIC_URL, null])
+        for (const tokenStatus of [LIVE_TOKEN, NO_TOKEN])
+          inputs.push({ canManage, revoked, publicUrl, tokenStatus })
+  return inputs
+}
+
 describe('derivePortalShareView — precedence between the three sources of truth', () => {
   it('offers rotate/revoke for a token only tokenStatus knows about (post-reload)', () => {
     // The mitigation path for a leaked link: no URL in memory, but the portal
@@ -123,31 +143,20 @@ describe('derivePortalShareView — precedence between the three sources of trut
     // Whatever the three sources say, the tab must never ask the user to issue a
     // link while also offering to rotate one, and neither may appear without the
     // capability. Exhaustive over the reachable input space.
-    for (const canManage of [true, false]) {
-      for (const revoked of [true, false]) {
-        for (const publicUrl of [PUBLIC_URL, null]) {
-          for (const tokenStatus of [LIVE_TOKEN, NO_TOKEN]) {
-            const view = derivePortalShareView({
-              canManage,
-              revoked,
-              publicUrl,
-              tokenStatus,
-            })
-            const where = JSON.stringify({
-              canManage,
-              revoked,
-              publicUrl,
-              hasActiveToken: tokenStatus.hasActiveToken,
-            })
+    for (const input of REACHABLE_INPUTS) {
+      const view = derivePortalShareView(input)
+      const where = JSON.stringify({
+        canManage: input.canManage,
+        revoked: input.revoked,
+        publicUrl: input.publicUrl,
+        hasActiveToken: input.tokenStatus.hasActiveToken,
+      })
 
-            expect(view.showIssueForm && view.showActions, where).toBe(false)
-            if (view.showIssueForm || view.showActions)
-              expect(canManage, where).toBe(true)
-            // The reveal already shows the URL when there is one.
-            if (view.showActiveLinkNotice) expect(publicUrl, where).toBeNull()
-          }
-        }
-      }
+      expect(view.showIssueForm && view.showActions, where).toBe(false)
+      if (view.showIssueForm || view.showActions)
+        expect(input.canManage, where).toBe(true)
+      // The reveal already shows the URL when there is one.
+      if (view.showActiveLinkNotice) expect(input.publicUrl, where).toBeNull()
     }
   })
 })

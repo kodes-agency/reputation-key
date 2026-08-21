@@ -172,6 +172,7 @@ import {
   resolveAiGatewayRuntimeKeyInventory,
 } from '#/shared/ai-gateway-key-inventory'
 import { AI_INTERNAL_RESPONSE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
+import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
 import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
 
 // ── Infrastructure ─────────────────────────────────────────────────
@@ -371,6 +372,11 @@ function createAiRuntimeProviders(
     throw new Error('AI subject HMAC authority is worker-only')
   }
 
+  // The gateway pins a client certificate route per caller, so the runtime
+  // flag becomes a peer identity exactly here: jobs-enabled is the worker,
+  // every other container is the web app.
+  const caller: AiGatewayCaller = input.enableJobs ? 'worker' : 'web'
+
   let inference = input.inferenceOverride
   if (!inference && configured.length > 0) {
     const [origin, serverName, ca, cert, key, publicKeysJson] = configured
@@ -396,7 +402,7 @@ function createAiRuntimeProviders(
         timeoutMs: 105_000,
         maxResponseBytes: AI_INTERNAL_RESPONSE_MAX_BYTES,
       }),
-      caller: input.enableJobs ? 'worker' : 'web',
+      caller,
       admissionSettlementPublicKeys: publicKeys,
     })
   }

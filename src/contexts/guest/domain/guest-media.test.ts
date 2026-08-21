@@ -5,6 +5,9 @@ import {
   completeMediaProcessing,
   issueGuestMedia,
   markMediaForPurge,
+  namesIssuedObject,
+  uploadMatchesIssuance,
+  type ObservedObjectMetadata,
 } from './guest-media'
 
 const now = new Date('2026-08-09T12:00:00Z')
@@ -120,5 +123,45 @@ describe('guest media lifecycle', () => {
     expect(markMediaForPurge(markMediaForPurge(media, now), now).status).toBe(
       'purge_pending',
     )
+  })
+})
+
+const issued = issueGuestMedia(
+  response,
+  {
+    id: '00000000-0000-4000-8000-000000000020',
+    contentType: 'image/png',
+    sizeBytes: 1024,
+  },
+  now,
+)
+
+if ('code' in issued) throw new Error(issued.code)
+
+// These two gate whether an uploaded guest object is ever published. Accepting
+// one object under another's issuance, or trusting metadata the store could not
+// report, publishes bytes nobody validated.
+describe('guest media object acceptance', () => {
+  it('acts only on the object key its own issuance minted', () => {
+    expect(namesIssuedObject(issued, issued.objectKey)).toBe(true)
+    expect(namesIssuedObject(issued, `${issued.objectKey}x`)).toBe(false)
+    expect(namesIssuedObject(null, issued.objectKey)).toBe(false)
+  })
+
+  it('accepts an upload whose observed metadata equals its issuance', () => {
+    expect(
+      uploadMatchesIssuance({ contentType: 'image/png', sizeBytes: 1024 }, issued),
+    ).toBe(true)
+  })
+
+  it.each<[string, ObservedObjectMetadata]>([
+    ['a substituted MIME', { contentType: 'image/jpeg', sizeBytes: 1024 }],
+    ['a size below issuance', { contentType: 'image/png', sizeBytes: 1023 }],
+    ['a size above issuance', { contentType: 'image/png', sizeBytes: 1025 }],
+    ['an unreported MIME', { contentType: null, sizeBytes: 1024 }],
+    ['an unreported size', { contentType: 'image/png', sizeBytes: null }],
+    ['nothing reported at all', { contentType: null, sizeBytes: null }],
+  ])('fails closed on %s', (_label, metadata) => {
+    expect(uploadMatchesIssuance(metadata, issued)).toBe(false)
   })
 })

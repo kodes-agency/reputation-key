@@ -1,4 +1,5 @@
-// Category list with DnD context and inline edit forms
+// Category list — owns the category drag context and the loop; each row (and
+// the inline forms that open in it) lives in link-tree-category-row.tsx.
 
 import {
   DndContext,
@@ -14,9 +15,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { SortableCategory } from './sortable-category'
-import { LinkEditInlineForm } from './link-edit-inline-form'
-import { CategoryEditInlineForm } from './category-edit-inline-form'
+import { LinkTreeCategoryRow, type CategoryRowSlices } from './link-tree-category-row'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
@@ -44,95 +43,79 @@ type Props = Readonly<{
   updateLinkError: unknown
 }>
 
-export function LinkTreeCategoryList({
-  categories,
-  links,
-  deletingCategoryId,
-  deletingLinkId,
-  editingCategory,
-  editingLink,
-  onDragEnd,
-  onReorderLinks,
-  onDeleteLink,
-  onDeleteCategory,
-  onEditCategory,
-  onEditLink,
-  onAddLink,
-  onUpdateCategory,
-  onUpdateLink,
-  isUpdateCategoryPending,
-  isUpdateLinkPending,
-  updateCategoryError,
-  updateLinkError,
-}: Props) {
-  const { can } = usePermissions()
-  const canEdit = can('portal.update')
+/**
+ * Regroups the flat public props into the row's cohesive slices.
+ *
+ * The public surface stays flat because LinkTree and the Storybook plays drive
+ * it; this is the single seam that adapts it, and it is hoisted out of the loop
+ * so the slot openers are built once per render rather than once per category.
+ */
+function rowSlices(props: Props, canEdit: boolean): CategoryRowSlices {
+  const { onAddLink, onEditLink, onEditCategory } = props
 
+  return {
+    links: props.links,
+    onReorderLinks: props.onReorderLinks,
+    slots: {
+      canEdit,
+      editingCategory: props.editingCategory,
+      editingLink: props.editingLink,
+      // Opening the add-link form closes the link editor and vice versa, so the
+      // two never sit open together. Opening the CATEGORY editor deliberately
+      // leaves the add-link form alone — long-standing behaviour, preserved
+      // verbatim here rather than quietly normalised.
+      onOpenAddLink: (catId) => {
+        onAddLink(catId)
+        onEditLink(null)
+        onEditCategory(null)
+      },
+      onOpenEditLink: (link) => {
+        onEditLink(link.id)
+        onAddLink(null)
+        onEditCategory(null)
+      },
+      onOpenEditCategory: (cat) => onEditCategory(cat.id),
+      onCloseCategory: () => onEditCategory(null),
+      onCloseLink: () => onEditLink(null),
+    },
+    saves: {
+      onUpdateCategory: props.onUpdateCategory,
+      onUpdateLink: props.onUpdateLink,
+      isUpdateCategoryPending: props.isUpdateCategoryPending,
+      isUpdateLinkPending: props.isUpdateLinkPending,
+      updateCategoryError: props.updateCategoryError,
+      updateLinkError: props.updateLinkError,
+    },
+    removals: {
+      deletingCategoryId: props.deletingCategoryId,
+      deletingLinkId: props.deletingLinkId,
+      onDeleteLink: props.onDeleteLink,
+      onDeleteCategory: props.onDeleteCategory,
+    },
+  }
+}
+
+export function LinkTreeCategoryList(props: Props) {
+  const { can } = usePermissions()
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
+  const slices = rowSlices(props, can('portal.update'))
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      onDragEnd={onDragEnd}
+      onDragEnd={props.onDragEnd}
     >
       <SortableContext
-        items={categories.map((c) => c.id)}
+        items={props.categories.map((c) => c.id)}
         strategy={verticalListSortingStrategy}
       >
         <div className="flex flex-col gap-4">
-          {categories.map((cat) => (
-            <div key={cat.id}>
-              {editingCategory === cat.id && canEdit ? (
-                <CategoryEditInlineForm
-                  initialTitle={cat.title}
-                  onSubmit={(title) => onUpdateCategory(cat.id, title)}
-                  onCancel={() => onEditCategory(null)}
-                  isPending={isUpdateCategoryPending}
-                  error={updateCategoryError}
-                />
-              ) : (
-                <SortableCategory
-                  category={cat}
-                  links={links.filter((l) => l.categoryId === cat.id)}
-                  isDeletingCategory={deletingCategoryId === cat.id}
-                  deletingLinkId={deletingLinkId ?? undefined}
-                  onAddLink={(catId) => {
-                    onAddLink(catId)
-                    onEditLink(null)
-                    onEditCategory(null)
-                  }}
-                  onDeleteLink={onDeleteLink}
-                  onDeleteCategory={onDeleteCategory}
-                  onEditCategory={(c) => onEditCategory(c.id)}
-                  onEditLink={(link) => {
-                    onEditLink(link.id)
-                    onAddLink(null)
-                    onEditCategory(null)
-                  }}
-                  onReorderLinks={onReorderLinks}
-                />
-              )}
-              {editingLink &&
-                links
-                  .filter((l) => l.categoryId === cat.id)
-                  .map((link) =>
-                    link.id === editingLink && canEdit ? (
-                      <LinkEditInlineForm
-                        key={link.id}
-                        initialLabel={link.label}
-                        initialUrl={link.url}
-                        onSubmit={(label, url) => onUpdateLink(link.id, label, url)}
-                        onCancel={() => onEditLink(null)}
-                        isPending={isUpdateLinkPending}
-                        error={updateLinkError}
-                      />
-                    ) : null,
-                  )}
-            </div>
+          {props.categories.map((cat) => (
+            <LinkTreeCategoryRow key={cat.id} category={cat} {...slices} />
           ))}
         </div>
       </SortableContext>
