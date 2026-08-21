@@ -15,16 +15,32 @@
 //   - request-failed    net-level failure (DNS / refused / aborted) on those
 //                       same mutation paths
 //
-// Navigation-abort correlation: TanStack Router passes an AbortSignal into
-// route-loader fetches, so ordinary client-side navigation (or a redirect such
-// as the property deep-dive's ?timeRange=all default) aborts in-flight GET
-// serverFn requests. In dev, React then logs the rejection as a console.error
-// ("TypeError: Failed to fetch ... <MatchInnerImpl>"). The aborted request
-// itself is unambiguous — requestfailed carries net::ERR_ABORTED — so the
-// harness suppresses that specific React echo ONLY when a GET abort was just
-// observed on the same page. A genuine fetch failure (server down) aborts
-// nothing, so it still fails the gate. Aborted MUTATIONS stay gated: a write
-// interrupted mid-flight is a real signal, not navigation noise.
+// Navigation-abort correlation: TanStack Start's client issues route-loader and
+// query fetches as GET /_serverFn/<hash>. A hard navigation tears the document
+// down while some are still in flight, and Chromium cancels them — the fetch
+// promises reject with `TypeError: Failed to fetch`, React's error boundary
+// catches, and react-dom's defaultOnCaughtError logs the error through
+// console.error.
+//
+// The ECHO TEXT IS BUILD-DEPENDENT and must never be the key: the development
+// build appends a component stack ("... <MatchInnerImpl>") while the production
+// build logs the bare TypeError with no frames at all (react-dom's
+// defaultOnCaughtError is `console.error(error)` — see
+// react-dom/cjs/react-dom-client.production.js). Keying on those frames is what
+// let this echo through beta-acceptance, which runs the production image.
+//
+// So the key is the EVIDENCE, not the wording: a `TypeError: Failed to fetch`
+// echo is suppressed only by spending one server-function GET abort that this
+// harness itself observed (requestfailed carries net::ERR_ABORTED) within
+// NAVIGATION_ABORT_WINDOW_MS. Three properties keep that from becoming an
+// amnesty for broken fetches:
+//   - only /_server* GETs count — an aborted image or prefetch excuses nothing;
+//   - each abort is SPENT by at most one echo, so N cancelled requests can
+//     explain at most N rejections and an extra echo still fails the gate;
+//   - a genuine failure aborts nothing (ERR_CONNECTION_REFUSED, ERR_FAILED,
+//     a 5xx), so it never records an excuse in the first place.
+// Aborted MUTATIONS stay gated: a write interrupted mid-flight is a real
+// signal, not navigation noise.
 //
 // Document-status correlation: a route may DELIBERATELY answer a navigation
 // with a 4xx — the portal detail loader throws `notFound()` for a portal that
@@ -144,10 +160,17 @@ function findAllowlistMatch(
   })
 }
 
+/**
+ * TanStack Start's server-function RPC prefix. Mutations POST to `/_server*`;
+ * route-loader and query reads are `GET /_serverFn/<hash>`. One prefix serves
+ * both the mutation gate and the navigation-abort correlation.
+ */
+const SERVER_FN_PATH_PREFIX = '/_server'
+
 /** Critical mutations the network gate watches (browser-issued traffic only —
  * page.request APIRequestContext calls never surface as page events). */
 function isCriticalMutation(method: string, url: URL): boolean {
-  if (method === 'POST' && url.pathname.startsWith('/_server')) return true
+  if (method === 'POST' && url.pathname.startsWith(SERVER_FN_PATH_PREFIX)) return true
   if (
     (method === 'POST' ||
       method === 'PUT' ||
@@ -166,6 +189,14 @@ function isCriticalMutation(method: string, url: URL): boolean {
  */
 const RESOURCE_STATUS_ECHO =
   /^Failed to load resource: the server responded with a status of (\d+)/
+
+/**
+ * A rejected `fetch()` reported through console.error. Anchored at the start so
+ * it cannot match prose that merely mentions the phrase, and deliberately blind
+ * to everything after it: the frames differ between the development and
+ * production builds (see "Navigation-abort correlation" in the file header).
+ */
+const FETCH_REJECTION_ECHO = /^TypeError: Failed to fetch\b/
 
 function parseUrl(raw: string): URL | undefined {
   try {
@@ -199,9 +230,10 @@ export function attachErrorDetection(
   const now = options.now ?? (() => Date.now())
   const detections: Detection[] = []
   const transcript: string[] = []
-  // Timestamps of recent GET request aborts (net::ERR_ABORTED) on this page —
-  // see "Navigation-abort correlation" in the file header.
-  const recentGetAborts: number[] = []
+  // Timestamps of server-function GET aborts (net::ERR_ABORTED) observed on
+  // this page and not yet spent on a console echo — see "Navigation-abort
+  // correlation" in the file header.
+  const unspentServerFnGetAborts: number[] = []
   const NAVIGATION_ABORT_WINDOW_MS = 3_000
   // `${status} ${url}` for every >=400 MAIN-FRAME DOCUMENT response seen on
   // this page, and the console echoes still waiting for one — see
@@ -222,6 +254,24 @@ export function attachErrorDetection(
         `[console.error:document-status] ${detection.message} (echo preceded its document response)`,
       )
     }
+  }
+
+  /**
+   * Spend one in-window server-function GET abort on a fetch-rejection echo.
+   * Records outside the window are dropped rather than kept: they can never
+   * legitimate anything again, and leaving them would let a stale cancellation
+   * excuse a much later failure. Returns false when nothing was available, in
+   * which case the echo is a real detection.
+   */
+  const spendServerFnGetAbort = (): boolean => {
+    const cutoff = now() - NAVIGATION_ABORT_WINDOW_MS
+    const fresh = unspentServerFnGetAborts.findIndex((at) => at >= cutoff)
+    if (fresh < 0) {
+      unspentServerFnGetAborts.length = 0
+      return false
+    }
+    unspentServerFnGetAborts.splice(0, fresh + 1)
+    return true
   }
 
   const onPageError = (error: Error) => {
@@ -259,16 +309,15 @@ export function attachErrorDetection(
     transcript.push(`[console.${type}] ${msg.text()} (${where}; page: ${page.url()})`)
     if (type !== 'error') return
     const text = msg.text()
-    // Navigation-abort echo: React dev logs the aborted route-loader fetch as
-    // a component error. Suppress only with a fresh GET abort on record.
-    if (text.includes('Failed to fetch') && text.includes('MatchInnerImpl')) {
-      const cutoff = now() - NAVIGATION_ABORT_WINDOW_MS
-      if (recentGetAborts.some((t) => t >= cutoff)) {
-        transcript.push(
-          `[console.error:navigation-abort] ${text.split('\n')[0]} (page: ${page.url()})`,
-        )
-        return
-      }
+    // Navigation-abort echo: React's error boundary logs the cancelled
+    // route-loader fetch through console.error. The wording is build-dependent,
+    // so the only key is a server-function GET abort this harness saw — and
+    // each one is spent here, so a second echo needs a second cancellation.
+    if (FETCH_REJECTION_ECHO.test(text) && spendServerFnGetAbort()) {
+      transcript.push(
+        `[console.error:navigation-abort] ${text.split('\n')[0]} (page: ${page.url()})`,
+      )
+      return
     }
     const consoleMatch = findAllowlistMatch(
       allowlist,
@@ -356,10 +405,16 @@ export function attachErrorDetection(
       })
       return
     }
-    // Non-mutation traffic is not gated, but GET aborts are remembered: they
-    // legitimate the React "Failed to fetch" navigation echo (header comment).
-    if (method === 'GET' && errorText.includes('ERR_ABORTED')) {
-      recentGetAborts.push(now())
+    // Non-mutation traffic is not gated, but a cancelled server-function GET is
+    // remembered: it is the one thing that legitimates a "Failed to fetch"
+    // console echo (header comment). Aborted images, prefetches and /api reads
+    // excuse nothing — they never reach a route loader's error boundary.
+    if (
+      method === 'GET' &&
+      url.pathname.startsWith(SERVER_FN_PATH_PREFIX) &&
+      errorText.includes('ERR_ABORTED')
+    ) {
+      unspentServerFnGetAborts.push(now())
       transcript.push(
         `[request-aborted] GET ${url.pathname} aborted during navigation (page: ${page.url()})`,
       )
