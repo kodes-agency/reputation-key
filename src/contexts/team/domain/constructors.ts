@@ -19,16 +19,14 @@ export type BuildTeamInput = Readonly<{
 export const buildTeam = (input: BuildTeamInput): Result<Team, TeamError> => {
   const nameResult = validateTeamName(input.name)
 
-  return nameResult.map(
-    (validName): Team => ({
-      id: input.id,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      name: validName,
-      description: input.description ?? null,
-      createdAt: input.now,
-      updatedAt: input.now,
-      deletedAt: null,
-    }),
-  )
+  return nameResult.map((validName): Team => ({
+    id: input.id,
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    name: validName,
+    description: input.description ?? null,
+    createdAt: input.now,
+    updatedAt: input.now,
+    deletedAt: null,
+  }))
 }

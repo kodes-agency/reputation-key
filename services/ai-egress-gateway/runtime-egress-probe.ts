@@ -4,22 +4,11 @@ import { fileURLToPath } from 'node:url'
 import { assertRuntimeEgressProbeEnvironmentIsIsolated } from './environment'
 
 export type RuntimeEgressDestinationId =
-  | 'openai-control'
-  | 'dns-sentinel'
-  | 'direct-ip-sentinel'
+  'openai-control' | 'dns-sentinel' | 'direct-ip-sentinel'
 export type RuntimeEgressProbeErrorClass =
-  | 'none'
-  | 'dns'
-  | 'tcp'
-  | 'tls'
-  | 'timeout'
-  | 'unknown'
+  'none' | 'dns' | 'tcp' | 'tls' | 'timeout' | 'unknown'
 export type RuntimeEgressElapsedBucket =
-  | 'under_100ms'
-  | '100_to_499ms'
-  | '500_to_999ms'
-  | '1s_to_4999ms'
-  | 'timeout'
+  'under_100ms' | '100_to_499ms' | '500_to_999ms' | '1s_to_4999ms' | 'timeout'
 
 export type RuntimeTlsAttempt = Readonly<{
   destinationId: RuntimeEgressDestinationId

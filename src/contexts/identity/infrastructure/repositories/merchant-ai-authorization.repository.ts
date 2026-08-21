@@ -548,8 +548,7 @@ export function createMerchantAiAuthorizationStore(
             ) AS runtime_profiles
           `)
           const mappedProfiles = runtimeResult.rows[0]?.runtime_profiles as
-            | Readonly<Record<MerchantAiCapability, string>>
-            | undefined
+            Readonly<Record<MerchantAiCapability, string>> | undefined
           if (!mappedProfiles) {
             throw new MerchantAiAuthorizationStoreError(
               'invalid_record',

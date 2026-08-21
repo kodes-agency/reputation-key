@@ -89,8 +89,7 @@ export type GoogleContentApprovalBinding = Readonly<{
   googleRedirectUriSha256: string
   providerOriginProfileSha256: string
   runtimeIsolationProfileVersion:
-    | typeof GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION
-    | null
+    typeof GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION | null
   runtimeIsolationProfileSha256: string | null
   railwayClosedBetaCohort: readonly string[] | null
   railwayClosedBetaCohortSha256: string | null
@@ -149,9 +148,7 @@ export type GoogleContentRuntimeIsolationProfile = Readonly<{
   enforcementPlane: 'infrastructure-control-plane'
   targetEnvironment: 'local_sandbox' | 'production'
   destinationEnforcement:
-    | 'namespace_firewall'
-    | 'cni_network_policy'
-    | 'cloud_egress_firewall'
+    'namespace_firewall' | 'cni_network_policy' | 'cloud_egress_firewall'
   imageDigests: Readonly<Record<GoogleRuntimeRole, string>>
   protectedReplicas: readonly Readonly<{
     replicaId: string

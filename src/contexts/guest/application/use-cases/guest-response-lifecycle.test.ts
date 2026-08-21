@@ -167,8 +167,7 @@ function harness() {
   let sequence = 10
   let confirm: (() => Promise<string>) | undefined
   let inspect:
-    | (() => Promise<{ contentType: string | null; sizeBytes: number | null }>)
-    | undefined
+    (() => Promise<{ contentType: string | null; sizeBytes: number | null }>) | undefined
   const storage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({
       uploadUrl: `https://upload.invalid/${key}`,

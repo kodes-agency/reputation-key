@@ -10,9 +10,7 @@
 export type BadgeDefinitionStatus = 'draft' | 'approved' | 'retired'
 export type BadgeActivationStatus = 'inactive' | 'active' | 'suspended'
 export type BadgeVisibility =
-  | 'recipient_only'
-  | 'recipient_and_managers'
-  | 'team_announcement'
+  'recipient_only' | 'recipient_and_managers' | 'team_announcement'
 
 export interface BadgeDefinition {
   readonly id: string

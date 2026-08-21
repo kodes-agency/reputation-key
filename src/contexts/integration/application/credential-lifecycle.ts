@@ -130,11 +130,7 @@ export type CredentialLifecycleStore = Readonly<{
 export type CredentialLifecycleSweepState = Readonly<{
   sourceState: CredentialSourceState
   revokeState:
-    | 'dormant'
-    | 'active'
-    | 'dispatching'
-    | 'consumed_no_revoke'
-    | CredentialCleanupOutcome
+    'dormant' | 'active' | 'dispatching' | 'consumed_no_revoke' | CredentialCleanupOutcome
   guardState:
     | 'open'
     | 'source_active'

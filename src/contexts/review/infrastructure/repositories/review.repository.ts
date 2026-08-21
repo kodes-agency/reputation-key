@@ -353,8 +353,7 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
           LIMIT 1
         `)
         const row = result.rows[0] as
-          | Readonly<{ current_source_epoch: unknown; head_sequence: unknown }>
-          | undefined
+          Readonly<{ current_source_epoch: unknown; head_sequence: unknown }> | undefined
         if (row == null) return { status: 'not_found' as const }
         const currentEpoch = parseSafeNonnegativeInteger(row.current_source_epoch)
         if (currentEpoch == null) return { status: 'policy_unavailable' as const }

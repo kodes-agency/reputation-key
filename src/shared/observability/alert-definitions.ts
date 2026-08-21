@@ -86,8 +86,7 @@ export type AlertDefinition = Readonly<{
   implemented: boolean
   /** Pure evaluation; null exactly when implemented is false. */
   evaluate:
-    | ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null)
-    | null
+    ((snapshot: OperationsSnapshot, aux: AlertAuxReads) => AlertEvent | null) | null
 }>
 
 // ── Thresholds (named, deliberate) ─────────────────────────────────

@@ -196,14 +196,12 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
   function discoveryWithRefresh(
     refreshPolicyStoreRequired: () => Promise<RequiredPolicyRefreshResult>,
   ) {
-    const decide = vi.fn(
-      async (): Promise<ExecutionDecision> => ({
-        allowed: true,
-        reason: 'allowed',
-        action: 'integration.manage',
-        policyVersion: 'beta-local-2',
-      }),
-    )
+    const decide = vi.fn(async (): Promise<ExecutionDecision> => ({
+      allowed: true,
+      reason: 'allowed',
+      action: 'integration.manage',
+      policyVersion: 'beta-local-2',
+    }))
     initExecutionPolicy({ decide, flushAudits: async () => {} })
     const ctx = buildIntegrationContext(
       buildDeps({

@@ -21,10 +21,7 @@ export type EmailTransportDecision = Readonly<{
   mode: EmailTransportMode
   /** Why, for the boot log. Safe to print — never contains the key. */
   reason:
-    | 'live_key'
-    | 'test_environment'
-    | 'placeholder_key'
-    | 'explicit_base_url_override'
+    'live_key' | 'test_environment' | 'placeholder_key' | 'explicit_base_url_override'
 }>
 
 /**

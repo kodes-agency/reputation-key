@@ -20,14 +20,10 @@ type PropertyProcessingProfile = Readonly<{
   propertyId: string
   countryCode: string
   countrySource:
-    | 'google_address'
-    | 'organization_default'
-    | 'authorized_manual_correction'
+    'google_address' | 'organization_default' | 'authorized_manual_correction'
   timeZone: string
   timeZoneSource:
-    | 'google_time_zone'
-    | 'organization_default'
-    | 'authorized_manual_correction'
+    'google_time_zone' | 'organization_default' | 'authorized_manual_correction'
   processingRegion: ProcessingRegion
   regionSource: 'country_default' | 'contract_override' | 'authorized_privacy_override'
   routingPolicyVersion: number

@@ -101,10 +101,7 @@ The application/domain symbol is `gbpLocationId`, not `gbpPlaceId`. A bare valid
 
 ```ts
 type GoogleBindingState =
-  | 'unbound'
-  | 'account_confirmation_required'
-  | 'active'
-  | 'disconnected'
+  'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 
 type GoogleLocationBinding = Readonly<{
   connectionId: GoogleConnectionId

@@ -12,11 +12,7 @@
 // ── Projection metadata ────────────────────────────────────────────
 
 export type ProjectionContext =
-  | 'inbox'
-  | 'activity'
-  | 'metric'
-  | 'dashboard'
-  | 'notification'
+  'inbox' | 'activity' | 'metric' | 'dashboard' | 'notification'
 
 /**
  * Declares a projection's source contract: what events feed it,

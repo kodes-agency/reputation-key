@@ -15,8 +15,7 @@ export type GooglePerformanceDependencyDescriptor = Readonly<{
 }>
 
 export type GooglePerformanceDependencyBoundaryResult =
-  | Readonly<{ ok: true }>
-  | Readonly<{ ok: false; violations: readonly string[] }>
+  Readonly<{ ok: true }> | Readonly<{ ok: false; violations: readonly string[] }>
 
 const ALLOWED_KIND_SET = new Set<string>(GOOGLE_PERFORMANCE_ALLOWED_DEPENDENCY_KINDS)
 /**
