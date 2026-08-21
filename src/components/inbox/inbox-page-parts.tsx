@@ -8,11 +8,34 @@ import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Panel, PanelResizeHandle } from 'react-resizable-panels'
+import { Panel, Separator } from 'react-resizable-panels'
 import { Inbox } from 'lucide-react'
 
+/**
+ * Stable Panel ids for the desktop inbox layout.
+ *
+ * `useDefaultLayout` persists a `{ [panelId]: size }` map, so these ids are
+ * part of the saved-layout contract: renaming one orphans stored layouts.
+ * Without them the panels fall back to `useId`, which is not stable across
+ * releases.
+ */
+export const INBOX_PANEL_IDS = {
+  sidebar: 'inbox-sidebar',
+  list: 'inbox-list',
+  detail: 'inbox-detail',
+} as const
+
+/**
+ * v4 renders a Panel as an outer flex box (`overflow: visible`) wrapping an
+ * inner content div that it hard-codes to `overflow: auto`. `className` lands
+ * on that inner div, so a Tailwind `overflow-hidden` class loses to the inline
+ * style. Passing overflow through `style` is the only way to keep the clipping
+ * v2 gave us (v2's single panel div had inline `overflow: hidden`).
+ */
+export const CLIP_PANEL_CONTENT = { overflow: 'hidden' } as const
+
 export const ResizeHandle = () => (
-  <PanelResizeHandle className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
+  <Separator className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
 )
 
 const FOLDER_LABELS: Record<string, string> = {
@@ -66,7 +89,12 @@ export function InboxDetailPane({
 }: InboxDetailPaneProps) {
   return (
     <>
-      <Panel defaultSize={50} minSize={30} className="overflow-hidden">
+      <Panel
+        id={INBOX_PANEL_IDS.detail}
+        defaultSize="50%"
+        minSize="30%"
+        style={CLIP_PANEL_CONTENT}
+      >
         {selectedItem ? (
           <InboxDetailPanel
             selectedItem={selectedItem}
