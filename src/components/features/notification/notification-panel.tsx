@@ -38,32 +38,6 @@ function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
   )
 }
 
-/**
- * The bell itself: icon, accessible name, and the unread count badge. The
- * badge caps at "9+" because the bubble is 16px wide — three digits would
- * overflow it.
- */
-function NotificationBellTrigger({ count }: Readonly<{ count: number }>) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      className="relative"
-      aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
-    >
-      <Bell aria-hidden="true" className="size-4" />
-      {count > 0 && (
-        <span
-          aria-hidden="true"
-          className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground"
-        >
-          {count > 9 ? '9+' : count}
-        </span>
-      )}
-    </Button>
-  )
-}
-
 type Props = Readonly<{
   notificationFns: NotificationServerFns
   organizationId: string
@@ -115,7 +89,22 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       }}
     >
       <PopoverTrigger asChild>
-        <NotificationBellTrigger count={count} />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="relative"
+          aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
+        >
+          <Bell aria-hidden="true" className="size-4" />
+          {count > 0 && (
+            <span
+              aria-hidden="true"
+              className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground"
+            >
+              {count > 9 ? '9+' : count}
+            </span>
+          )}
+        </Button>
       </PopoverTrigger>
       <NotificationAriaLive count={count} />
       <NotificationAnnouncer announcement={announcement} />
