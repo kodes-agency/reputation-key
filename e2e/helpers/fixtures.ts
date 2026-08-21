@@ -68,13 +68,33 @@ export function encryptToken(plaintext: string): string {
 
 export async function waitFor<T>(
   probe: () => Promise<T | null | undefined | false>,
-  options: { timeoutMs: number; intervalMs?: number; description: string },
+  options: {
+    timeoutMs: number
+    intervalMs?: number
+    description: string
+    /**
+     * Called ONCE, only on timeout, to say what the world actually looked like.
+     *
+     * A probe signals "not yet" by returning null, so on timeout the helper
+     * otherwise has nothing to report and the failure reads
+     * `waitFor timed out after 60000ms: <description>` — which cannot
+     * distinguish a slow-but-progressing background worker from a wedged one.
+     * That is the difference between a flake to re-run and a bug to fix, and
+     * every one of these call sites was throwing it away.
+     *
+     * Must not throw: if it does, the reason is reported instead of the value,
+     * because a diagnostic that masks the real timeout is worse than none.
+     */
+    diagnose?: () => Promise<unknown>
+  },
 ): Promise<T> {
   const deadline = Date.now() + options.timeoutMs
   const interval = options.intervalMs ?? 250
   let lastError: unknown
+  let attempts = 0
   while (Date.now() < deadline) {
     try {
+      attempts += 1
       const value = await probe()
       if (value) return value
     } catch (err) {
@@ -82,9 +102,18 @@ export async function waitFor<T>(
     }
     await new Promise((r) => setTimeout(r, interval))
   }
+  let observed = ''
+  if (options.diagnose) {
+    try {
+      observed = ` (last observed: ${JSON.stringify(await options.diagnose())})`
+    } catch (err) {
+      observed = ` (diagnose failed: ${String(err)})`
+    }
+  }
   throw new Error(
-    `waitFor timed out after ${options.timeoutMs}ms: ${options.description}` +
-      (lastError ? ` (last error: ${String(lastError)})` : ''),
+    `waitFor timed out after ${options.timeoutMs}ms across ${attempts} probe(s): ${options.description}` +
+      (lastError ? ` (last error: ${String(lastError)})` : '') +
+      observed,
   )
 }
 

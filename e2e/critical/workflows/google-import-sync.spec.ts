@@ -163,7 +163,11 @@ test.describe('Critical workflow: Google import + initial sync', () => {
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
     page,
   }) => {
-    test.setTimeout(120_000)
+    // 180s: the import wait below may legitimately consume 90s of it, and
+    // discovery, create, relink and replay all run before that. At 120s a slow
+    // worker blew the TEST budget instead of the wait's, which reported as a
+    // bare Playwright timeout with no import status at all.
+    test.setTimeout(180_000)
     await installPagedProviderScope()
 
     const admin = await getUserByEmail(seed.email)
@@ -320,12 +324,26 @@ test.describe('Critical workflow: Google import + initial sync', () => {
         })
         return current.status === 'completed' ? current : null
       },
-      // 60s, not 30s: this polls a background worker import to completion on a
-      // runner already hosting nine containers, and it timed out at ~34s in CI
-      // while passing locally. The assertion is eventual completion with the
-      // exact counts below — the deadline only bounds how long the worker may
-      // take, not what must be true when it finishes.
-      { timeoutMs: 60_000, description: 'v2 import to reach completed' },
+      {
+        // 90s, previously 60s and 30s before that. This polls a real background
+        // worker to completion on a runner already hosting nine containers; the
+        // assertion is eventual completion with the exact counts below, so the
+        // deadline only bounds how long the worker may take.
+        //
+        // The bump alone is not the fix — 30 -> 60 did not stop it recurring, and
+        // it has since flaked on five PRs that do not touch this path. `diagnose`
+        // is the fix: on timeout the failure now names the status and counts the
+        // import actually reached, so "worker was still importing" and "worker
+        // wedged at pending" stop looking identical in CI.
+        timeoutMs: 90_000,
+        description: 'v2 import to reach completed',
+        diagnose: async () =>
+          callServerFnGet<ImportProgressDto>(page, {
+            file: SERVER_FILE,
+            exportName: 'getPropertyImportV2Status',
+            data: { importJobId: started.importJobId },
+          }),
+      },
     )
     expect(progress.counts.imported).toBe(1)
     expect(progress.counts.relinked).toBe(1)
