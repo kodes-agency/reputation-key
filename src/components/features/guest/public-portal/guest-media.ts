@@ -8,9 +8,12 @@
 // form into correcting mode and silently consumed the guest's single one-hour
 // correction.
 
-export const allowedMediaTypes = ['image/jpeg', 'image/png', 'image/webp'] as const
+// Not exported: the values are the module's own selection rule. `selectGuestMedia`
+// is the boundary, and `AllowedMediaType` carries the narrowing outward, so no
+// caller needs the raw list or the byte cap.
+const allowedMediaTypes = ['image/jpeg', 'image/png', 'image/webp'] as const
 export type AllowedMediaType = (typeof allowedMediaTypes)[number]
-export const maxMediaBytes = 10 * 1024 * 1024
+const maxMediaBytes = 10 * 1024 * 1024
 export const mediaRejectionMessage = 'Choose a JPEG, PNG, or WebP image up to 10 MiB.'
 
 /**

@@ -72,11 +72,11 @@ export function CookieConsentBanner({
           replaces — it is fixed over the bottom of the portal's own content. */}
       <div className="max-w-lg mx-auto flex flex-col gap-3 sm:flex-row sm:items-center">
         <p className="text-sm text-gray-600">
-          If you accept, we count this visit and store a hashed version of your IP
-          address alongside a session cookie, so the property can see how often its
-          code is scanned and so the same rating is not counted twice. A hashed IP
-          address is pseudonymised personal data, not anonymous. The destinations on
-          this page work either way.
+          If you accept, we count this visit and store a hashed version of your IP address
+          alongside a session cookie, so the property can see how often its code is
+          scanned and so the same rating is not counted twice. A hashed IP address is
+          pseudonymised personal data, not anonymous. The destinations on this page work
+          either way.
         </p>
         <div className="flex shrink-0 justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => decide('denied')}>

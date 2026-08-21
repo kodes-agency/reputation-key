@@ -42,10 +42,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
-import type {
-  Portal,
-  PortalTokenStatus,
-} from '#/contexts/portal/application/public-api'
+import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 

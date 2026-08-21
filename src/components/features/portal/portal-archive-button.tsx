@@ -52,9 +52,9 @@ export function PortalArchiveButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {portalName}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This cannot be undone from here. The portal, its links and its public
-            address are removed, so any printed QR code pointing at it stops working.
-            To take a portal offline temporarily, set its status to Disabled instead.
+            This cannot be undone from here. The portal, its links and its public address
+            are removed, so any printed QR code pointing at it stops working. To take a
+            portal offline temporarily, set its status to Disabled instead.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

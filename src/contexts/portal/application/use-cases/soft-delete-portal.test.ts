@@ -17,10 +17,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   getAssignedPortals: async () => [],
   countAssignmentsByTeam: async () => 0,
 })
-const setup = (
-  accessible: ReadonlyArray<PropertyId> | null = null,
-  revokedCount = 1,
-) => {
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null, revokedCount = 1) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   const revokeForPortal = vi.fn(async () => revokedCount)

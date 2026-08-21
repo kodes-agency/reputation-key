@@ -132,8 +132,7 @@ export function PortalListPage({
               />
               <div className="flex items-center justify-between gap-4">
                 <p aria-live="polite" className="text-sm text-muted-foreground">
-                  Showing {pageStart + 1}–{pageStart + visible.length} of{' '}
-                  {matches.length}
+                  Showing {pageStart + 1}–{pageStart + visible.length} of {matches.length}
                 </p>
                 {lastPage > 0 && (
                   <div className="flex items-center gap-2">

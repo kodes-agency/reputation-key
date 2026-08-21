@@ -11,6 +11,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { copyToClipboard } from '#/lib/clipboard'
+import type { RefObject } from 'react'
 
 const COPIED_RESET_MS = 2000
 
@@ -24,8 +25,15 @@ function selectElementText(element: HTMLElement | null) {
   selection.addRange(range)
 }
 
-export function useCopyLink(publicUrl: string | null) {
-  // Attach to the element rendering the URL so a failed copy can select it.
+export type CopyLinkState = Readonly<{
+  /** Attach to the element rendering the URL so a failed copy can select it. */
+  linkRef: RefObject<HTMLElement | null>
+  copied: boolean
+  copyFailed: boolean
+  copyLink: () => Promise<void>
+}>
+
+export function useCopyLink(publicUrl: string | null): CopyLinkState {
   const linkRef = useRef<HTMLElement | null>(null)
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)

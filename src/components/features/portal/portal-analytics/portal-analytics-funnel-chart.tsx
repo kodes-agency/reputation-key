@@ -115,16 +115,15 @@ export function EngagementFunnelChart({
             />
             <span className="text-muted-foreground">{row.name}</span>
             <span className="ml-auto font-medium tabular-nums">
-              {row.actual.toLocaleString()}{' '}
-              {row.actual === 1 ? row.singular : row.plural}
+              {row.actual.toLocaleString()} {row.actual === 1 ? row.singular : row.plural}
             </span>
           </li>
         ))}
       </ol>
       {anyClamped && (
         <p className="text-xs text-muted-foreground">
-          Bar widths are capped to the step above — a later step can out-count an
-          earlier one when a step fails to record.
+          Bar widths are capped to the step above — a later step can out-count an earlier
+          one when a step fails to record.
         </p>
       )}
     </div>

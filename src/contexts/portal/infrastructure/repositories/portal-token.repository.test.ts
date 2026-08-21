@@ -244,9 +244,7 @@ describe('portal token repository', () => {
     // for the rest of its grace window.
     await repo.insert(rotation.oldToken)
 
-    await expect(
-      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
-    ).resolves.toEqual({
+    await expect(repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW)).resolves.toEqual({
       version: 1,
       issuedAt: NOW,
       gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
