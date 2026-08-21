@@ -1035,6 +1035,16 @@ export function createContainer(options?: {
   // by the property (hard delete) and integration (disconnect) builds.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
+  // BQC-2.7: every path that creates a property grants it the capability
+  // allowlist its organization already holds — without it a freshly created
+  // property denies every non-core capability (`property_not_allowlisted`)
+  // until an operator repairs it. Shared by the manual creation path
+  // (property context) and the Google import (integration context).
+  const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
+    db,
+    identity.internal.refreshPolicyStore,
+  )
+
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),
@@ -1042,6 +1052,9 @@ export function createContainer(options?: {
     clock,
     staffPublicApi: staff.publicApi,
     sourceContentPurge,
+    provisionPropertyCapabilities:
+      propertyCapabilityProvisioning.provisionCreatedProperty,
+    logger: getLogger(),
     // BQC-4.5: region move workflow. Approved cells stay {'us'} (ADR 0048) —
     // every real request denies typed + audited today. The audit sink is the
     // identity-owned policy_decision_audit (content-free, operator kind),
@@ -1125,14 +1138,6 @@ export function createContainer(options?: {
     hmacSecret: env.OAUTH_STATE_SECRET,
     projectIdentity: env.GOOGLE_CLIENT_ID,
   })
-
-  // BQC-2.7: the import grants every property it creates the capability
-  // allowlist its organization already holds — without it a freshly imported
-  // property denies every non-core capability until an operator repairs it.
-  const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
-    db,
-    identity.internal.refreshPolicyStore,
-  )
 
   const integration = buildIntegrationContext({
     db,
