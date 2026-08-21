@@ -19,7 +19,13 @@
 //   modified files are NOT gated here (the ratchet owns their coverage).
 //
 // EXEMPT register — a new file may ship without executable contract evidence
-// ONLY with owner + reason recorded here. Keep it narrow and stale-checked.
+// ONLY with owner + reason recorded here. The register is rot-checked in two
+// directions, because a dead entry is not harmless: it silently pre-authorises
+// the file to LOSE its evidence again without the gate noticing.
+//   stale     — the file no longer exists            → remove the entry
+//   redundant — the file is now test-owned (a test does a runtime import of
+//               it) or carries fresh per-file coverage at the enforced
+//               threshold, so the gate would pass it anyway → remove the entry
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -29,35 +35,23 @@ import ts from 'typescript'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** @type {ReadonlyArray<{ file: string, owner: string, reason: string }>} */
-const EXEMPT = [
-  // BQC-7.4 alert family — covered by the family injection suites (unit +
-  // integration) rather than per-file colocated tests:
-  {
-    file: 'src/shared/observability/alert-definitions.ts',
-    owner: 'engineering',
-    reason:
-      'covered by src/shared/jobs/alert-injection.test.ts (51 tests: per-alert fire/no-fire table, boundaries, registry shape)',
-  },
-  {
-    file: 'src/shared/observability/alert-dispatcher.ts',
-    owner: 'engineering',
-    reason:
-      'covered by src/shared/jobs/alert-injection.test.ts (dispatch contract, payload fields, webhook failure semantics, banned-key walk)',
-  },
-  {
-    file: 'src/shared/health/alert-state.ts',
-    owner: 'engineering',
-    reason:
-      'covered by src/shared/jobs/alert-injection.test.ts (hysteresis: edge, no-refire, refire-after-expiry, recovery-clears) + the integration injection suite',
-  },
-  {
-    file: 'src/shared/observability/alert-aux-reads.ts',
-    owner: 'engineering',
-    reason:
-      'SQL needs real PG — covered by src/shared/jobs/infrastructure/repositories/alert-injection.test.ts (integration project, real-schema assertions)',
-  },
-]
+/**
+ * @type {ReadonlyArray<{ file: string, owner: string, reason: string }>}
+ *
+ * EXEMPTIONS (owner + reason) — none registered.
+ *
+ * Emptied 2026-08-21: the four BQC-7.4 alert-family entries
+ * (observability/alert-definitions.ts, observability/alert-dispatcher.ts,
+ * health/alert-state.ts, observability/alert-aux-reads.ts) were all dead —
+ * every one is a DIRECT test owner via runtime imports in
+ * src/shared/jobs/alert-injection.test.ts, so the gate passed them on
+ * evidence, never on the exemption. The alert-aux-reads reason ("SQL needs
+ * real PG") was also factually wrong: its countRegionAttempts export is a pure
+ * reducer over quarantine entries and is unit-tested with plain in-memory
+ * fixtures at alert-injection.test.ts:636. The redundancy check below now
+ * catches this rot class instead of relying on review discipline.
+ */
+const EXEMPT = []
 
 const EXCLUDED = (file) =>
   !/\.(ts|tsx)$/.test(file) ||
@@ -292,6 +286,12 @@ const runtimeGated = gated.filter(hasRuntimeBehavior)
 const testOwners = twoHopTestOwners(directTestOwners())
 const coverageOwners = coveredRuntimeModules(runtimeGated)
 const exemptFiles = new Map(EXEMPT.map((e) => [e.file, e]))
+// Coverage lookup used only by the exemption-rot check below. Computed with its
+// own freshness window so that touching an exempt file cannot invalidate the
+// window used to judge the ADDED files.
+const exemptPresent = EXEMPT.map((e) => e.file).filter((f) => existsSync(join(ROOT, f)))
+const exemptCovered =
+  exemptPresent.length > 0 ? coveredRuntimeModules(exemptPresent) : new Set()
 
 const failures = []
 for (const file of runtimeGated) {
@@ -305,11 +305,32 @@ for (const file of runtimeGated) {
   )
 }
 
-// Stale exemptions fail too — the register must not rot.
+// Register rot fails the gate in BOTH directions (see the header): an entry for
+// a file that is gone, and an entry for a file the gate would now pass on its
+// own evidence. The redundancy arm uses exactly the same owner/coverage sets as
+// the pass loop above, so it can only fire on exemptions that are provably
+// doing no work.
 for (const e of EXEMPT) {
   if (!existsSync(join(ROOT, e.file))) {
     failures.push(
       `stale exemption: ${e.file} (owner ${e.owner}) no longer exists — remove the entry`,
+    )
+    continue
+  }
+  const owners = testOwners.get(e.file)
+  if (owners?.length) {
+    failures.push(
+      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) is test-owned by ` +
+        `${owners.join(', ')}, so the gate already passes it on evidence. A dead exemption ` +
+        'is not harmless: it pre-authorises the file to lose that evidence unnoticed.',
+    )
+    continue
+  }
+  if (exemptCovered.has(e.file)) {
+    failures.push(
+      `exemption no longer needed — remove: ${e.file} (owner ${e.owner}) already carries ` +
+        'fresh per-file coverage at or above the enforced 80% statements/functions ' +
+        'threshold, so the gate already passes it on evidence.',
     )
   }
 }

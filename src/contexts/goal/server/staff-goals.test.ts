@@ -1,7 +1,9 @@
 // Goal context — staff-goals server function tests
-// Verifies the permission gate and the full goal resolution pipeline.
+// Verifies the permission gate and the input schema. The goal resolution
+// pipeline lives in the listStaffGoals use case and is covered directly by
+// ../application/use-cases/list-staff-goals.test.ts.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { listStaffGoalsSchema } from './staff-goals'
@@ -20,71 +22,16 @@ vi.mock('#/shared/auth/middleware', () => ({
   ),
 }))
 
-// Mock container must be self-contained (hoisted above imports)
-vi.mock('#/composition', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mkContainer = (overrides?: Record<string, any>) => ({
-    useCases: {
-      getAssignedPortals: vi.fn(() => Promise.resolve(['portal-1', 'portal-2'])),
-      ...overrides?.useCases,
-    },
-    portalRepo: {
-      findGroupIdsByPortalIds: vi.fn(() => Promise.resolve(['group-1'])),
-      ...overrides?.portalRepo,
-    },
-    goalRepo: {
-      list: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 'goal-1',
-            status: 'active',
-            goalType: 'one_shot',
-            portalId: 'portal-1',
-            portalGroupId: null,
-            createdAt: new Date(),
-          },
-          {
-            id: 'goal-2',
-            status: 'active',
-            goalType: 'rolling',
-            portalId: null,
-            portalGroupId: 'group-1',
-            createdAt: new Date(),
-          },
-        ]),
-      ),
-      getProgressBatch: vi.fn((_ids, _orgId) => {
-        const map = new Map()
-        map.set('goal-1', { goalId: 'goal-1', currentValue: 25 })
-        map.set('goal-2', null)
-        return Promise.resolve(map)
-      }),
-      ...overrides?.goalRepo,
-    },
-  })
-  let container = mkContainer()
-  return {
-    getContainer: vi.fn(() => container),
-    __setContainer: (c: ReturnType<typeof mkContainer>) => {
-      container = c
-    },
-    __mkContainer: mkContainer,
-  }
-})
-
-const { getContainer } = vi.mocked(await import('#/composition'))
-
-// Helper — re-exported from mock for creating override containers
-const mkContainer = ((await import('#/composition')) as Record<string, unknown>)
-  .__mkContainer as (
-  overrides?: Record<string, unknown>,
-) => ReturnType<typeof getContainer>
+// Importing './staff-goals' pulls in the composition root. Stub it so the test
+// never builds the real container (DB clients, adapters, jobs). No test here
+// invokes the server fn, so the stub needs no behavior: a container mock with
+// scripted use cases would only let tests assert what they themselves
+// configured.
+vi.mock('#/composition', () => ({
+  getContainer: vi.fn(),
+}))
 
 describe('listStaffGoals — permission gate', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('allows AccountAdmin to read goals', () => {
     expect(can('AccountAdmin', 'goal.read')).toBe(true)
   })
@@ -136,93 +83,5 @@ describe('listStaffGoals schema', () => {
   it('rejects empty propertyId string', () => {
     const result = listStaffGoalsSchema.safeParse({ propertyId: '' })
     expect(result.success).toBe(false)
-  })
-})
-
-describe('listStaffGoals — goal resolution', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('calls getAssignedPortals with correct args', () => {
-    const container = getContainer()
-    expect(container.useCases.getAssignedPortals).toBeDefined()
-  })
-
-  it('returns empty array when no portals assigned', async () => {
-    const container = mkContainer({
-      useCases: {
-        getAssignedPortals: vi.fn(() => Promise.resolve([])),
-      },
-    })
-    const mod = await import('#/composition')
-    ;(mod as any).__setContainer(container) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-    const portals = await container.useCases.getAssignedPortals(
-      { userId: 'user-1' as any, propertyId: 'prop-1' as any }, // eslint-disable-line @typescript-eslint/no-explicit-any
-      { userId: 'user-1' as any, organizationId: 'org-1' as any, role: 'Staff' }, // eslint-disable-line @typescript-eslint/no-explicit-any
-    )
-    expect(portals).toEqual([])
-  })
-
-  it('resolves portal groups from portal IDs', async () => {
-    const container = getContainer()
-    const groupIds = await container.portalRepo.findGroupIdsByPortalIds(
-      'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      ['portal-1', 'portal-2'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    )
-    expect(groupIds).toEqual(['group-1'])
-    expect(container.portalRepo.findGroupIdsByPortalIds).toHaveBeenCalledWith('org-1', [
-      'portal-1',
-      'portal-2',
-    ])
-  })
-
-  it('queries goals by portal and group IDs', async () => {
-    const container = getContainer()
-    const goals = await container.goalRepo.list({
-      organizationId: 'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      propertyId: 'prop-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-    expect(goals).toHaveLength(2)
-    expect(container.goalRepo.list).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-    })
-  })
-
-  it('enriches goals with progress data', async () => {
-    const container = getContainer()
-    const progressMap = await container.goalRepo.getProgressBatch(
-      ['goal-1', 'goal-2'] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    )
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((progressMap as any).get('goal-1')).toEqual({
-      goalId: 'goal-1',
-      currentValue: 25,
-    })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect((progressMap as any).get('goal-2')).toBeNull()
-  })
-
-  it('returns empty goals when no goals match portals/groups', async () => {
-    const container = mkContainer({
-      goalRepo: {
-        list: vi.fn(() => Promise.resolve([])),
-        getProgressBatch: vi.fn(() => Promise.resolve(new Map())),
-      },
-      portalRepo: {
-        findGroupIdsByPortalIds: vi.fn(() => Promise.resolve([])),
-      },
-    })
-    const mod = await import('#/composition')
-    ;(mod as any).__setContainer(container) // eslint-disable-line @typescript-eslint/no-explicit-any
-
-    const goals = await container.goalRepo.list({
-      organizationId: 'org-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      propertyId: 'prop-1' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    })
-    expect(goals).toHaveLength(0)
   })
 })

@@ -103,12 +103,15 @@ orthogonal: the SLA asks operators to drain; the TTL is the last-resort bound.
 
 ## 3. Object lifecycle (S3)
 
-Portal image uploads are **dark for beta**: the S3 adapter is a no-op while
-the four `AWS_S3_*` vars are unconfigured, and `portal.upload` is a blocked
-capability. When uploads are enabled post-beta, bucket lifecycle rules are
-platform (S3) configuration — expected shape: expire portal image objects per
-the source-content policy horizon (raw content 30d, §5), documented here as
-the configuration expectation to be applied at enablement.
+Portal image uploads are gated by `portal.upload`, a **non-core** capability
+(ADR 0032) — off until an organization and its properties are allowlisted, not
+permanently blocked; only the three `gbp.*` prohibitions are. The S3 adapter is
+additionally a no-op while the four `AWS_S3_*` vars are unconfigured, so an
+allowlisted tenant still uploads nothing until the bucket is configured. Once
+both are in place, bucket lifecycle rules are platform (S3) configuration —
+expected shape: expire portal image objects per the source-content policy
+horizon (raw content 30d, §5), documented here as the configuration expectation
+to be applied at enablement.
 
 ## 4. Log / trace retention
 

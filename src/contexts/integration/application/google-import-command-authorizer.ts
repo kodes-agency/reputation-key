@@ -1,5 +1,6 @@
 import {
   googleAuthorizationPermissionDigest,
+  sameFrozenGoogleContentAuthorizationVector,
   sameGoogleContentAuthorizationVector,
 } from '#/shared/domain/google-content-authorization-vector'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -173,10 +174,22 @@ export function createGoogleImportCommandAuthorizer(
           expectedProperty.action,
           expectedProperty.propertyId,
         )
-        if (!propertyDecision.allowed) return deny('authorization_changed')
-        if (propertyDecision.policyVersion !== importDecision.policyVersion) {
-          return deny('authorization_changed')
-        }
+        // A per-property capability denial is the GATE saying no — not the
+        // frozen expectations above drifting — so it reports
+        // `authorization_denied`, the same code the org-level gate uses. It
+        // previously reported `authorization_changed`, which made a cancelled
+        // item indistinguishable from real expectation drift and is the line
+        // that cost an earlier investigation its bearings.
+        if (!propertyDecision.allowed) return deny('authorization_denied')
+        // Removed: `propertyDecision.policyVersion !== importDecision.policyVersion`.
+        // Unreachable, not merely unlikely — `ExecutionDecision.policyVersion`
+        // is only ever set by `finish()` in execution-policy.ts, always to the
+        // build constant `EXECUTION_POLICY_VERSION`, so two decisions from one
+        // process cannot differ. The invariant it appeared to enforce — that
+        // both decisions saw the same policy generation — is now actually
+        // enforced, by the mandatory policy refresh in front of every
+        // `decide` call failing loudly instead of deciding from a stale
+        // snapshot.
       }
     } catch {
       return deny('runtime_unavailable')
@@ -273,9 +286,16 @@ export function createGoogleImportCommandAuthorizer(
       authorizationVector: contentAuthorization.authorizationVector,
     } as const
     if (input.expected) {
+      // `input.expected` was frozen when the job was approved; everything above
+      // was recomputed just now. This is the only CROSS-TIME vector comparison
+      // in the codebase (the one at :270 builds both sides in this request), so
+      // it is the only one that must tolerate the global policy cache
+      // generation moving underneath it — see
+      // `sameFrozenGoogleContentAuthorizationVector`. Every authorization fact
+      // still has to match exactly, `emergencyKillVersion` included.
       if (
         input.expected.approvalBindingId !== authorization.approvalBindingId ||
-        !sameGoogleContentAuthorizationVector(
+        !sameFrozenGoogleContentAuthorizationVector(
           input.expected.authorizationVector,
           authorization.authorizationVector,
         )
