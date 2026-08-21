@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildReplyRejectedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
 
@@ -20,7 +21,7 @@ describe('onReplyRejected (notification)', () => {
     deps = createEventHandlerDeps()
   })
 
-  it('enqueues a notification job with reason in body', async () => {
+  it('enqueues a notification job carrying the moderation reason as a fact', async () => {
     await onReplyRejected(deps)(rejectedEvent)
 
     expect(deps.queue.add).toHaveBeenCalledTimes(1)
@@ -30,18 +31,20 @@ describe('onReplyRejected (notification)', () => {
         type: 'reply.rejected',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply rejected',
-        body: 'Rejected: Tone too aggressive',
+        payload: {
+          ...EXPECTED_INBOX_PAYLOAD,
+          moderationReason: 'Tone too aggressive',
+        },
       }),
     )
   })
 
-  it('enqueues a notification job with default body when no reason', async () => {
+  it('omits the reason key entirely when the moderator gave none', async () => {
     await onReplyRejected(deps)(rejectedNoReasonEvent)
 
     expect(deps.queue.add).toHaveBeenCalledTimes(1)
     expect(deps.jobs[0]!.data).toEqual(
-      expect.objectContaining({ body: 'Your reply has been rejected' }),
+      expect.objectContaining({ payload: EXPECTED_INBOX_PAYLOAD }),
     )
   })
 

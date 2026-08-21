@@ -25,6 +25,15 @@ export interface ActionMutationOptions<TInput, TOutput> {
   successMessage?: string
   /** Query keys to invalidate on success (targeted — never router.invalidate()). */
   invalidateKeys?: QueryKey[]
+  /**
+   * Optimistic cache write, run BEFORE the request. Return a thunk that undoes
+   * it; the thunk runs if the mutation rejects. Return `undefined` when there
+   * was nothing to roll back.
+   *
+   * Use this instead of awaiting the server and then invalidating: with
+   * `staleTime: 0` the round trip is visible as a lagging row.
+   */
+  optimistic?: (input: TInput) => (() => void) | undefined
   /** Runs AFTER invalidation + toast. Receives the output + the submitted input. */
   onSuccess?: (output: TOutput, input: TInput) => void | Promise<void>
   /** Navigate after success (create-and-redirect flows build params from output). */
@@ -34,16 +43,26 @@ export interface ActionMutationOptions<TInput, TOutput> {
   }
 }
 
+/** What `onMutate` hands to `onError` so a failed mutation can be undone. */
+type Rollback = Readonly<{ undo: (() => void) | undefined }>
+
 export function useActionMutation<TInput, TOutput>(
   fn: (input: TInput) => Promise<TOutput>,
   options?: ActionMutationOptions<TInput, TOutput>,
 ): Action<TInput, TOutput> {
   const qc = useQueryClient()
   const router = useRouter()
-  const { successMessage, invalidateKeys, onSuccess, navigateTo } = options ?? {}
+  const { successMessage, invalidateKeys, optimistic, onSuccess, navigateTo } =
+    options ?? {}
 
-  const mutation = useMutation({
+  const mutation = useMutation<TOutput, Error, TInput, Rollback>({
     mutationFn: (input: TInput) => fn(input),
+    onMutate: (input) => ({ undo: optimistic?.(input) }),
+    // The optimistic write is undone only on failure; on success the
+    // invalidation below reconciles it against the server.
+    onError: (_error, _input, context) => {
+      context?.undo?.()
+    },
     onSuccess: async (output, input) => {
       if (invalidateKeys && invalidateKeys.length > 0) {
         await Promise.all(

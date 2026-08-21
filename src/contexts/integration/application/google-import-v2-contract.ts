@@ -63,6 +63,34 @@ export const IMPORT_OUTCOME_CODES = [
 ] as const
 export type ImportOutcomeCode = (typeof IMPORT_OUTCOME_CODES)[number]
 
+/**
+ * The outcome codes a property-operation receipt can reconcile an import item
+ * to. Narrower than `ImportOutcomeCode`: the remaining codes describe failures
+ * the receipt path never produces.
+ */
+export type ReconciledOutcomeCode = Extract<
+  ImportOutcomeCode,
+  'imported' | 'relinked' | 'property_deleted'
+>
+
+/**
+ * How a receipt reports itself when reconciling an import item.
+ *
+ * A tombstoned receipt reconciles as `property_deleted` whatever outcome it
+ * recorded: the property it described is gone, and reporting `imported` would
+ * leave the item advertising a property the tenant cannot open. Shared because
+ * both the item processor and the lifecycle cancel path reconcile receipts, and
+ * a tombstone honoured in one but not the other is a visible lie in the import
+ * report.
+ */
+export function reconciledOutcomeCode(
+  receipt: Readonly<{ tombstone: boolean; outcome: ReconciledOutcomeCode }>,
+): ReconciledOutcomeCode {
+  return receipt.tombstone || receipt.outcome === 'property_deleted'
+    ? 'property_deleted'
+    : receipt.outcome
+}
+
 export const IMPORT_ITEM_USER_ACTIONS = [
   'none',
   'resolve_region',

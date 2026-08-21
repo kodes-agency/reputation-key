@@ -9,7 +9,30 @@ import type {
   NotificationCadence,
   NotificationEmail,
 } from '../../domain/types'
-import type { NotificationEmailId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type {
+  NotificationEmailId,
+  OrganizationId,
+  PropertyId,
+  UserId,
+} from '#/shared/domain/ids'
+
+/** An (organization, user) pair that has at least one due queue row. */
+export type NotificationEmailRecipient = Readonly<{
+  organizationId: OrganizationId
+  userId: UserId
+}>
+
+/**
+ * One queue row moved by a provider webhook event. Returned so the caller can
+ * cascade a terminal negative state (bounced/complained) onto the recipient's
+ * remaining queued mail without a second lookup.
+ */
+export type ProviderStateTransition = Readonly<{
+  emailId: NotificationEmailId
+  userId: UserId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+}>
 
 export type NotificationEmailRepositoryPort = Readonly<{
   insert(email: NotificationEmail): Promise<NotificationEmail>
@@ -53,9 +76,41 @@ export type NotificationEmailRepositoryPort = Readonly<{
     reason: string,
     updatedAt: Date,
   ): Promise<void>
+  /**
+   * ADR 0046 r.4: the digest is one email per USER, so the sweep must start
+   * from recipients rather than from properties.
+   */
+  findDueRecipients(
+    cadence: NotificationCadence,
+    now: Date,
+  ): Promise<readonly NotificationEmailRecipient[]>
+  /** Every due row for one recipient, across all of the org's properties. */
+  findDueByUser(
+    orgId: OrganizationId,
+    userId: UserId,
+    cadence: NotificationCadence,
+    now: Date,
+  ): Promise<readonly NotificationEmail[]>
+  /**
+   * ADR 0046 r.6: apply a provider delivery event. Returns the rows it moved —
+   * empty when the provider message id is unknown, or when the transition
+   * would go backwards (a late `delivered` must not overwrite a `bounced`).
+   */
   recordProviderState(
     providerMessageId: string,
     state: 'delivered' | 'bounced' | 'complained',
     occurredAt: Date,
-  ): Promise<void>
+  ): Promise<readonly ProviderStateTransition[]>
+  /**
+   * Stop mailing a dead address: suppress every still-sendable row the
+   * recipient has in this organization. Returns the number of rows suppressed.
+   */
+  suppressRecipient(
+    userId: UserId,
+    orgId: OrganizationId,
+    reason: string,
+    updatedAt: Date,
+  ): Promise<number>
+  /** True once the recipient has any bounced/complained row in this org. */
+  isRecipientSuppressed(userId: UserId, orgId: OrganizationId): Promise<boolean>
 }>

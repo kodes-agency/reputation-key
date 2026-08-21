@@ -132,6 +132,7 @@ describe('createAtomicReviewCommandStore', () => {
       reviewerProfilePhotoUrl: null,
       rating: 5,
       text: 'Great',
+      translatedText: null,
       languageCode: 'en',
       reviewedAt: NOW,
       expiresAt: NOW,
@@ -216,6 +217,19 @@ describe('createAtomicReviewCommandStore', () => {
     expect(transaction).toHaveBeenCalledTimes(1)
     expect(order).toEqual(['tx.start', 'tx.review', 'tx.outbox', 'tx.commit', 'emit'])
     expect(events.emit).toHaveBeenCalledTimes(1)
+    // Every provider-refreshed content column must be in the conflict update
+    // set. translatedText was missing, so a review whose Google translation
+    // appeared (or changed) after the first fetch kept the stale value.
+    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        set: expect.objectContaining({
+          text: 'Great',
+          translatedText: null,
+          languageCode: 'en',
+          rating: 5,
+        }),
+      }),
+    )
     expect(eventFactory).toHaveBeenCalledWith(
       expect.objectContaining({ analysisSequence: 1, sourceRevision: 1 }),
     )

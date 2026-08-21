@@ -22,7 +22,10 @@ describe('createMyBusinessNotificationsAdapter', () => {
     vi.unstubAllGlobals()
   })
 
-  it('subscribe PATCHes updateNotificationSetting with the topic, types, and bearer token', async () => {
+  // updateMask is a REQUIRED query parameter on updateNotificationSetting:
+  // without it Google answers 400 INVALID_ARGUMENT and no account is ever
+  // subscribed, however well the topic is configured.
+  it('subscribe PATCHes updateNotificationSetting with the required updateMask, topic, types, and bearer token', async () => {
     fetchMock.mockResolvedValueOnce(ok())
     const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
 
@@ -36,7 +39,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe(
-      'https://mybusinessnotifications.googleapis.com/v1/accounts/123/notificationSetting',
+      'https://mybusinessnotifications.googleapis.com/v1/accounts/123/notificationSetting?updateMask=pubsubTopic,notificationTypes',
     )
     expect(init.method).toBe('PATCH')
     expect(init.headers).toMatchObject({

@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildReplyApprovedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
 
@@ -29,8 +30,7 @@ describe('onReplyApproved (notification)', () => {
         type: 'reply.approved',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply approved',
-        body: 'Your reply has been approved',
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
   })

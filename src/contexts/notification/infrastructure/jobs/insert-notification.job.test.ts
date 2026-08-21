@@ -15,8 +15,7 @@ const data: InsertNotificationJobData = {
   resourceType: 'inbox_item',
   resourceId: 'item-1',
   eventId: 'event-1',
-  title: 'New review',
-  body: null,
+  payload: { propertyName: 'Riverside Hotel', rating: 2 },
 }
 
 describe('insert-notification job', () => {

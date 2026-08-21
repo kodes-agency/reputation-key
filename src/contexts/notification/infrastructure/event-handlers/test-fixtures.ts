@@ -6,7 +6,9 @@ import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import type { NotificationType } from '../../domain/types'
+import type { NotificationPayload } from '../../domain/notification-payload'
 import {
   organizationId,
   propertyId,
@@ -43,6 +45,8 @@ export type FakeEventHandlerDeps = Readonly<{
   jobs: FakeJob[]
   userLookup: MockedPort<UserLookupPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
+  recognitionLookup: MockedPort<RecognitionLookupPort>
+  clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
 
@@ -62,6 +66,7 @@ const createFakeUserLookup = (): MockedPort<UserLookupPort> =>
     findByRole: vi.fn(async () => []),
     getEmail: vi.fn(async () => null),
     getName: vi.fn(async () => null),
+    findActorRole: vi.fn(async () => 'property_manager'),
   }) as unknown as MockedPort<UserLookupPort>
 
 /** Fake LoggerPort. */
@@ -74,12 +79,33 @@ const createFakeLogger = (): MockedPort<LoggerPort> =>
     child: vi.fn().mockReturnThis(),
   }) as unknown as MockedPort<LoggerPort>
 
-/** Fake InboxItemLookupPort — default resolves the standard inbox item so
- *  existing reply-handler tests proceed; tests override to null for skip cases. */
+/** Fake InboxItemLookupPort — resolves the standard inbox item and a standard
+ *  set of render facts (2-star Google review at Riverside Hotel, 3h old
+ *  against NOTIF_TEST_IDS.now); tests override for skip/degrade cases. */
 const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
   ({
     findInboxItemByReviewId: vi.fn(async () => inboxItemId('item-1')),
+    findInboxItemFacts: vi.fn(async () => ({
+      propertyId: 'prop-1',
+      propertyName: 'Riverside Hotel',
+      rating: 2,
+      sourceType: 'review',
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+    })),
   }) as unknown as MockedPort<InboxItemLookupPort>
+
+/** Fake RecognitionLookupPort — named goal/badge facts by default. */
+const createFakeRecognitionLookup = (): MockedPort<RecognitionLookupPort> =>
+  ({
+    findGoalFacts: vi.fn(async () => ({
+      goalName: 'Weekend response time',
+      propertyName: 'Riverside Hotel',
+    })),
+    findBadgeFacts: vi.fn(async () => ({
+      badgeName: 'Fast Responder',
+      recipientName: 'Front desk',
+    })),
+  }) as unknown as MockedPort<RecognitionLookupPort>
 
 /** Build the full deps record used by notification event-handler tests. */
 export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
@@ -87,7 +113,22 @@ export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
   userLookup: createFakeUserLookup(),
   logger: createFakeLogger(),
   inboxItemLookup: createFakeInboxItemLookup(),
+  recognitionLookup: createFakeRecognitionLookup(),
+  // Fixed clock, 3 hours after the fake item's createdAt.
+  clock: () => new Date('2026-06-01T12:00:00.000Z'),
 })
+
+/**
+ * The payload every inbox-keyed handler derives from the fake facts above:
+ * property name, star rating, platform, and a 3h waiting age. Handlers that
+ * name an actor add `actorRole` on top (see `withActor`).
+ */
+export const EXPECTED_INBOX_PAYLOAD = {
+  propertyName: 'Riverside Hotel',
+  rating: 2,
+  platform: 'google',
+  waitingHours: 3,
+} as const
 
 // ── Shared id constants ──────────────────────────────────────────────
 // Every notification event-handler test uses the same org/property/review/etc.
@@ -248,14 +289,17 @@ export const buildReplyRejectedEvent = (
 // Builds the { name, data } object every event handler enqueues, filling in
 // the invariant fields (job name, org id, event id) so call sites only spell
 // out the values that are meaningful to each test.
+//
+// Handlers enqueue FACTS: `payload`, never `title`/`body`. Copy is rendered
+// from (type, payload) in domain/notification-templates.ts, and the tests that
+// pin sentences live there.
 
 type ExpectedNotificationJobData = {
   userId: UserId
   type: NotificationType
-  resourceType: 'inbox_item' | 'reply'
+  resourceType: 'inbox_item' | 'reply' | 'goal' | 'badge'
   resourceId: string
-  title: string
-  body: string
+  payload: NotificationPayload
 }
 
 export const buildExpectedJob = (data: ExpectedNotificationJobData) => ({

@@ -37,7 +37,7 @@ const preference = (
 const preferences: readonly NotificationPreference[] = [
   preference({ category: 'workflow_collaboration', channel: 'in_app', enabled: true }),
   preference({ category: 'workflow_collaboration', channel: 'email', enabled: false }),
-  preference({ category: 'digest_summary', channel: 'email', cadence: 'daily' }),
+  preference({ category: 'recognition', channel: 'email', cadence: 'daily' }),
 ]
 
 const userSettings = {
@@ -149,7 +149,7 @@ export const EmailUnavailableForProperty: Story = {
       canvas.getByLabelText('Email', { selector: '#workflow_collaboration-email' }),
     ).toBeDisabled()
     expect(
-      canvas.getByLabelText('Email', { selector: '#digest_summary-email' }),
+      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
     ).toBeDisabled()
     // In-app is a separate capability and stays operable.
     expect(

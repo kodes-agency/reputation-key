@@ -1,6 +1,7 @@
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleImportReferenceStore } from './ports/google-import-reference-store.port'
+import { reconciledOutcomeCode } from './google-import-v2-contract'
 import type {
   GoogleImportV2LifecycleScope,
   GoogleImportV2Store,
@@ -75,6 +76,19 @@ export function createGoogleImportV2Lifecycle(
     references?: LifecycleReferences
   }>,
 ) {
+  // Structurally similar to the item processor's `reconcileReceipt`, and
+  // deliberately not shared. The one rule that MUST NOT drift between them —
+  // how a tombstoned receipt reports its outcome — is factored into
+  // `reconciledOutcomeCode` in the contract module and called by both. What is
+  // left is the port call itself, and the two functions answer different
+  // questions with it: this one returns whether the reconcile COMPLETED, so the
+  // expiry sweep knows whether to keep the item; the processor's returns whether
+  // a receipt EXISTED at all, so the claim loop knows whether to fall through to
+  // a fresh import. Folding them together would need a parameter selecting
+  // between those two meanings, which is a worse artifact than either.
+  // Revisit if a THIRD receipt reconciler appears — at that point the port call
+  // plus null-check is a pattern rather than a coincidence.
+  // fallow-ignore-next-line code-duplication
   const reconcileReceipt = async (
     organizationIdValue: string,
     itemId: string,
@@ -90,10 +104,7 @@ export function createGoogleImportV2Lifecycle(
       organizationId: organizationIdValue,
       itemId,
       destinationPropertyId: receipt.destinationPropertyId,
-      outcomeCode:
-        receipt.tombstone || receipt.outcome === 'property_deleted'
-          ? 'property_deleted'
-          : receipt.outcome,
+      outcomeCode: reconciledOutcomeCode(receipt),
       now,
     })
     return reconciled === 'completed'

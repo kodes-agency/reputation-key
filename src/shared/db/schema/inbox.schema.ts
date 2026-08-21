@@ -73,6 +73,12 @@ export const inboxItems = pgTable(
     ),
     // Migration 0008: cross-org date-ordered scan for incremental rollups.
     index('inbox_items_source_date_idx').on(t.sourceDate),
+    // Cross-tenant keyset scan for the notification-gap reconciliation sweep
+    // (reconcile-missing-notifications): "items created in the last N hours"
+    // ordered by (created_at, id). source_date is the review's own date, so
+    // the existing source_date index cannot answer it — an imported backlog
+    // lands with old source dates and a brand-new created_at.
+    index('inbox_items_created_at_idx').on(t.createdAt, t.id),
   ],
 )
 

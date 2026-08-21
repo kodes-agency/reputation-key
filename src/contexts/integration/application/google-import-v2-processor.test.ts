@@ -121,6 +121,7 @@ function setup(
     createError?: unknown
     relinkError?: unknown
     enqueueReviewSyncError?: unknown
+    subscribeToNotificationsError?: unknown
     provisionPropertyCapabilitiesError?: unknown
   } = {},
 ) {
@@ -208,6 +209,9 @@ function setup(
   const enqueueReviewSync = over.enqueueReviewSyncError
     ? vi.fn().mockRejectedValue(over.enqueueReviewSyncError)
     : vi.fn().mockResolvedValue(undefined)
+  const subscribeToNotifications = over.subscribeToNotificationsError
+    ? vi.fn().mockRejectedValue(over.subscribeToNotificationsError)
+    : vi.fn().mockResolvedValue('subscribed')
   const provisionPropertyCapabilities = over.provisionPropertyCapabilitiesError
     ? vi.fn().mockRejectedValue(over.provisionPropertyCapabilitiesError)
     : vi.fn().mockResolvedValue(undefined)
@@ -226,6 +230,7 @@ function setup(
     clock: () => NOW,
     newClaimFence: () => CLAIM_FENCE,
     enqueueReviewSync,
+    subscribeToNotifications,
     provisionPropertyCapabilities,
     logger,
   })
@@ -245,6 +250,7 @@ function setup(
     authorize,
     resolveActor,
     enqueueReviewSync,
+    subscribeToNotifications,
     provisionPropertyCapabilities,
     logger,
   }
@@ -771,6 +777,15 @@ describe('GoogleImportV2Processor', () => {
       receipts: [null, null, importedReceipt()],
       provisionPropertyCapabilitiesError: Object.assign(
         new Error('policy_version row is locked'),
+        // The error stub plus the process(...) call and the "import still
+        // committed" assertions match the subscribe-failure test below, but the
+        // two prove different isolations: this one that a locked policy_version
+        // row cannot cost the import its committed Property effect, that one
+        // that a GBP outage cannot. Folding them together needs a parameter
+        // naming which dependency was broken, and a red test would no longer
+        // say which isolation regressed. Revisit if a third dependency joins —
+        // three cases are a table, two are a coincidence of shape.
+        // fallow-ignore-next-line code-duplication
         { code: 'lock_timeout', name: 'PolicyStateError' },
       ),
     })
@@ -800,6 +815,88 @@ describe('GoogleImportV2Processor', () => {
     )
     const logged = JSON.stringify(harness.logger.warn.mock.calls)
     expect(logged).not.toContain('policy_version row is locked')
+    expect(logged).not.toContain(ORG_ID)
+  })
+
+  // GBP push activation: the imported/relinked receipt branch is the moment the
+  // property is live, so it is where we ask Google to START publishing. Without
+  // this call nothing ever invoked `subscribe` and push was dark by
+  // construction, no matter how GBP_PUBSUB_TOPIC was configured.
+  it('subscribes the connection to GBP notifications when a property goes live', async () => {
+    const harness = setup({ receipts: [null, null, importedReceipt()] })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.subscribeToNotifications).toHaveBeenCalledWith(ORG_ID, CONNECTION_ID)
+    // After the backfill enqueue: a slow subscribe must not delay the sync that
+    // makes the property usable.
+    expect(harness.subscribeToNotifications.mock.invocationCallOrder[0]).toBeGreaterThan(
+      harness.enqueueReviewSync.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('does not subscribe when the receipt is not an imported/relinked live property', async () => {
+    const harness = setup({
+      receipt: {
+        organizationId: ORG_ID,
+        idempotencyKey: ITEM_ID,
+        destinationPropertyId: PROPERTY_ID,
+        outcome: 'property_deleted',
+        destinationSourceEpoch: 0,
+        destinationProfileVersion: 1,
+        tombstone: true,
+        expiresAt: new Date(NOW.getTime() + 60_000),
+        retentionReleasedAt: null,
+      } as Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>,
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.subscribeToNotifications).not.toHaveBeenCalled()
+  })
+
+  // Push is an optimization over the discovery sweep, never a correctness gate:
+  // a subscribe outage must not cost the import its committed Property effect.
+  it('imports the property even when the notification subscribe fails', async () => {
+    const harness = setup({
+      receipts: [null, null, importedReceipt()],
+      subscribeToNotificationsError: Object.assign(new Error('GBP 503 from Google'), {
+        code: 'upstream_error',
+        name: 'GbpApiError',
+      }),
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
+    expect(harness.releaseClaimForRetry).not.toHaveBeenCalled()
+    expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcomeCode: 'imported',
+        destinationPropertyId: PROPERTY_ID,
+      }),
+    )
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      { itemId: ITEM_ID, errorName: 'GbpApiError', errorCode: 'upstream_error' },
+      expect.stringContaining('GBP notification subscribe failed after import'),
+    )
+    const logged = JSON.stringify(harness.logger.warn.mock.calls)
+    expect(logged).not.toContain('GBP 503 from Google')
     expect(logged).not.toContain(ORG_ID)
   })
 })

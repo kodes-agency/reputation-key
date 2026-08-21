@@ -4,14 +4,53 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import {
   clearConsumers,
   listRegisteredConsumers,
   registerConsumer,
 } from '#/shared/outbox/dispatcher'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
+
+type DiscoveredRegistration = Readonly<{
+  file: string
+  consumerName: string
+  module: string | undefined
+}>
+
+/**
+ * Every registerConsumer({ ... }) call in production source, with the
+ * consumerName and the catalogue module it declares. Parsed from the head of
+ * each call object (everything up to `handler:`) so a multi-line handler body
+ * can never be mistaken for the next registration's fields.
+ */
+function discoverRegistrations(): ReadonlyArray<DiscoveredRegistration> {
+  const out: DiscoveredRegistration[] = []
+  const files = walk(join(ROOT, 'src')).filter(
+    (f) => f.endsWith('.ts') && !f.endsWith('.test.ts'),
+  )
+  for (const abs of files) {
+    const src = readFileSync(abs, 'utf-8')
+    const file = relative(ROOT, abs)
+    for (const m of src.matchAll(/registerConsumer\(\s*\{/g)) {
+      const from = m.index + m[0].length
+      const handlerAt = src.indexOf('handler:', from)
+      const head = src.slice(from, handlerAt === -1 ? src.length : handlerAt)
+      const consumerName = /consumerName:\s*'([^']+)'/.exec(head)?.[1]
+      if (consumerName === undefined) continue
+      out.push({ file, consumerName, module: /module:\s*'([^']+)'/.exec(head)?.[1] })
+    }
+  }
+  return out
+}
+
+/** Consumer-module rows the delayed-execution gate can resolve an action for. */
+const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
+  ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'consumer').map((r) => r.name),
+)
 
 describe('BQR-2.2: outbox consumer registration', () => {
   beforeEach(() => {
@@ -55,6 +94,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
     registerConsumer({
       eventType: 'x.y',
       consumerName: 'c',
+      module: 'inbox.outbox-consumers',
       handler: async () => ({ status: 'applied' }),
     })
     expect(listRegisteredConsumers()).toHaveLength(1)
@@ -79,5 +119,50 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).not.toContain('syncDenormalizedFields')
     expect(src).not.toMatch(/TODO: Implement inbox item update/)
     expect(src).not.toMatch(/for now, mark as applied/i)
+  })
+
+  // ── Consumer authorization attribution ────────────────────────────
+  //
+  // gateDispatcherConsumer resolves the policy action from the consumer's
+  // MODULE (CONSUMER_ROW_BY_NAME.get(module)), so a registration that names a
+  // module with no catalogue row silently falls back to the raw string as the
+  // action — and one that names ANOTHER context's row is authorized under that
+  // context's capability. Both are authorization defects, not lint nits.
+  describe('registration modules resolve to catalogue consumer rows', () => {
+    it('discovers every durable registration in production source', () => {
+      const registrations = discoverRegistrations()
+      expect(registrations.length).toBeGreaterThanOrEqual(15)
+      expect(CATALOGUE_CONSUMER_MODULES.size).toBeGreaterThan(0)
+    })
+
+    it('every registerConsumer call declares a module', () => {
+      const missing = discoverRegistrations()
+        .filter((r) => r.module === undefined)
+        .map((r) => `${r.file}: ${r.consumerName}`)
+      expect(missing).toEqual([])
+    })
+
+    it('every declared module is a real catalogue consumer row', () => {
+      const unresolved = discoverRegistrations()
+        .filter((r) => r.module !== undefined)
+        .filter((r) => !CATALOGUE_CONSUMER_MODULES.has(r.module as string))
+        .map((r) => `${r.file}: ${r.consumerName} → ${r.module as string}`)
+      expect(unresolved).toEqual([])
+    })
+
+    it('each context registers under a module whose catalogue row is its own file', () => {
+      const rowFileByModule: Record<string, string> = Object.fromEntries(
+        ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'consumer').map((r) => [
+          r.name,
+          r.file,
+        ]),
+      )
+      const misattributed = discoverRegistrations()
+        .filter((r) => r.file.startsWith('src/contexts/'))
+        .filter((r) => r.module !== undefined)
+        .filter((r) => rowFileByModule[r.module as string] !== r.file)
+        .map((r) => `${r.file}: ${r.consumerName} → ${r.module as string}`)
+      expect(misattributed).toEqual([])
+    })
   })
 })

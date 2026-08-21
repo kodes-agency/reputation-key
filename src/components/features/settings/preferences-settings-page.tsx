@@ -7,7 +7,6 @@ import {
 } from '#/components/ui/card'
 import { Label } from '#/components/ui/label'
 import { ThemeToggle } from '#/components/layout/theme-toggle'
-import { Bell } from 'lucide-react'
 
 export function PreferencesSettingsPage() {
   return (
@@ -23,18 +22,6 @@ export function PreferencesSettingsPage() {
             <ThemeToggle />
           </div>
         </CardContent>
-      </Card>
-
-      <Card className="opacity-60">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Bell className="size-4 text-muted-foreground" />
-            <CardTitle>Notifications</CardTitle>
-          </div>
-          <CardDescription>
-            Manage email and in-app notification preferences. Coming soon.
-          </CardDescription>
-        </CardHeader>
       </Card>
     </div>
   )

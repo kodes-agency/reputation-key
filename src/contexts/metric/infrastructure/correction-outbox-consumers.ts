@@ -29,6 +29,7 @@ export function registerMetricCorrectionConsumer(db: Database): void {
   registerConsumer({
     eventType: 'metric.corrected',
     consumerName: 'metric.correction-reconciliation',
+    module: 'metric.correction-reconciliation',
     handler: async (event) => {
       const payload = parseMetricCorrectedPayload(event.eventVersion, event.payload)
       if (

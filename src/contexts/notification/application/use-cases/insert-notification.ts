@@ -20,11 +20,17 @@ import type {
   NotificationCadence,
 } from '../../domain/types'
 import { classifyNotification } from '../../domain/notification-delivery-policy'
-import { getDefaultEnabled } from '../../domain/notification-policy'
+import { applyCoalescence, getDefaultEnabled } from '../../domain/notification-policy'
 import { isUrgent } from '../../domain/types'
 
 // ── Input ───────────────────────────────────────────────────────────
 
+/**
+ * What an event handler enqueues. Handlers pass FACTS in `payload`, never a
+ * title or a body: copy is rendered from (type, payload) inside
+ * `createNotification` so every channel and every already-stored row agree
+ * (ADR 0046 r.8).
+ */
 export type InsertNotificationInput = Omit<CreateNotificationInput, 'id'>
 
 // ── Deps ────────────────────────────────────────────────────────────
@@ -91,9 +97,19 @@ const enqueueImmediateEmailBestEffort = async (
       propertyId: unbrand(notification.propertyId),
     })
   } catch (enqueueErr) {
+    // `correlationId` is the same opaque string the urgent-email job envelope
+    // carries, so this failure and the digest sweep's later re-enqueue join on
+    // one field. No tenant/entity ids (BQC-7.3, see below). Recovery "depends
+    // on" the sweep rather than being guaranteed by it: the sweep is a no-op
+    // when outbound email is dark, when no queue is configured, and for
+    // non-active properties.
     deps.logger.error(
-      { err: enqueueErr },
-      'Failed to enqueue immediate email; durable queue entry remains pending',
+      {
+        err: enqueueErr,
+        correlationId: `notification-email:${unbrand(emailId)}`,
+        cadence: 'immediate',
+      },
+      'Immediate notification email enqueue failed — recovery depends on the digest sweep',
     )
   }
 }
@@ -159,9 +175,13 @@ export const insertNotification =
       return null
     }
 
-    // 2b. Dedup: at most one unread per (user, type, resource). If an unread row
-    // already exists, bump it (refresh title/body/updatedAt) instead of stacking
-    // a duplicate. No new email — the original entry stands. (in-app only.)
+    // 2b. ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A
+    // repeat event ABSORBS into that row — count bumped, latest arrival
+    // stamped, payload merged newest-wins, copy re-rendered from the merged
+    // facts (so the row can now read "…Updated 3 times", and a re-escalation
+    // that has waited longer says so). No second email: the original queue
+    // entry still stands for the same resource. In-app only — an email-only
+    // recipient has no unread row to absorb into.
     if (inAppEnabled) {
       const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
         input.userId,
@@ -171,16 +191,9 @@ export const insertNotification =
         input.resourceId,
       )
       if (existing) {
-        const now = deps.clock()
-        await deps.notificationRepo.refreshUnread(
-          existing.id,
-          input.userId,
-          input.organizationId,
-          input.title,
-          input.body,
-          now,
-        )
-        return { ...existing, title: input.title, body: input.body, updatedAt: now }
+        const coalesced = applyCoalescence(existing, result.value.payload, deps.clock())
+        await deps.notificationRepo.refreshUnread(coalesced)
+        return coalesced
       }
     }
 

@@ -7,7 +7,10 @@
 // are dropped (property_not_found) before any review sync is enqueued.
 
 import type { PropertyLookupPort } from '../ports/property-lookup.port'
-import type { ReviewQueuePort } from '#/contexts/review/application/public-api'
+import {
+  GBP_PUSH_SYNC_INITIATOR_ID,
+  type ReviewQueuePort,
+} from '#/contexts/review/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type HandleGbpNotificationInput = Readonly<{
@@ -52,7 +55,7 @@ export const handleGbpNotification =
         connectionId: property.googleConnectionId,
         locationName: input.locationName,
         // Webhook-initiated delayed work carries named, content-free attribution.
-        initiator: { kind: 'system', id: 'webhook:gbp' },
+        initiator: { kind: 'system', id: GBP_PUSH_SYNC_INITIATOR_ID },
         correlationId: `webhook:${input.messageId}`,
       },
       {

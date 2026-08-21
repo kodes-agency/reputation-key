@@ -1,6 +1,9 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
-import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type {
+  GoogleReviewApiPort,
+  GoogleReviewPage,
+} from '../ports/google-review-api.port'
 import type { PropertyRoutingPort } from '../ports/property-routing.port'
 import type { GoogleReview } from '../../domain/types'
 import type {
@@ -18,6 +21,7 @@ import {
   type ReviewProviderSnapshotRepository,
   type ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
+import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 
 export type RunReviewProviderSnapshotInput = Readonly<{
   organizationId: OrganizationId
@@ -44,6 +48,13 @@ export type RunReviewProviderSnapshotDeps = Readonly<{
   propertyRouting: PropertyRoutingPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  /**
+   * Durable discovery-activity stamps. A page that persisted a review nobody
+   * had seen before is the ONLY evidence that this property is live, and the
+   * discovery backoff ladder prices its polling on it.
+   */
+  syncActivity: ReviewSyncActivityRecorder
+  clock: () => Date
 }>
 
 const failureCodeForProviderError = (
@@ -68,6 +79,18 @@ const failureCodeForProviderError = (
   }
   return 'provider_failure'
 }
+
+/**
+ * Rate limiting and provider unavailability are TRANSIENT: the run's cursors
+ * are still valid, so the correct move is to checkpoint and let the queue
+ * retry the same page. Routing these through failAndDiscard threw away every
+ * published cursor and restarted a multi-page scan from zero on a single 429.
+ */
+const isRecoverableProviderError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error != null &&
+  'code' in error &&
+  (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
 
 const sameScope = async (
   deps: RunReviewProviderSnapshotDeps,
@@ -161,6 +184,18 @@ const persistPageObservations = async (
     })
     observations.push({ ...persisted, review, subjects })
   }
+  // ONE stamp per page, not per review: a 50-review page is one activity
+  // fact. Stamped here rather than after commitPage because the reviews are
+  // already durably written at this point — a page that later fails its
+  // snapshot bookkeeping is replayed, and on replay every review is already
+  // present, so `isNew` would be false and the fact would be lost forever.
+  //
+  // A failure here propagates: the caller maps it to `observation_failed`,
+  // which is loud. Silently dropping the stamp would silently degrade this
+  // property's polling instead.
+  if (observations.some((observation) => observation.isNew)) {
+    await deps.syncActivity.recordNewReviewObserved(input.propertyId, deps.clock())
+  }
   return observations
 }
 
@@ -191,6 +226,123 @@ const finishPhase = async (
   return { status: 'deleting', runId: run.id, applied: 0 }
 }
 
+/**
+ * Which page this continuation is about to work on. The three values are
+ * derived together and consumed together — the provider call, the commit's
+ * optimistic-concurrency check and the checkpoint state all need the same
+ * phase/index/cursor triple, and pairing a phase with another page's cursor is
+ * exactly the `binding_mismatch` failure the null-cursor guard below exists to
+ * prevent.
+ */
+type ScanPosition = Readonly<{
+  phase: 'main' | 'confirmation'
+  pageIndex: number
+  cursorRef: string | null
+}>
+
+/**
+ * Stop without losing progress: the queue retries this run and resumes from
+ * the cursors already published, in the phase it stopped in.
+ */
+const checkpointInPhase = (
+  runId: string,
+  phase: ScanPosition['phase'],
+): RunReviewProviderSnapshotResult => ({
+  status: 'checkpointed',
+  runId,
+  state: phase === 'main' ? 'scanning' : 'confirming',
+})
+
+/**
+ * Fetch one provider page. Returns the page, or the outcome the run must
+ * return instead when the provider call failed.
+ *
+ * A transient provider error must not discard the scan: the run's cursors are
+ * still valid, so checkpoint and let the queue retry this same page (the rule
+ * the targeted confirmation path already applies). Non-recoverable codes stay
+ * terminal.
+ */
+const fetchListPage = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  run: ReviewProviderSnapshotRun,
+  position: ScanPosition,
+): Promise<
+  | Readonly<{ ok: true; page: GoogleReviewPage }>
+  | Readonly<{ ok: false; outcome: RunReviewProviderSnapshotResult }>
+> => {
+  try {
+    return {
+      ok: true,
+      page: await deps.googleReviewApi.listReviewsPage({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        sourceEpoch: input.sourceEpoch,
+        locationName: input.locationName,
+        runId: run.id,
+        phase: position.phase,
+        pageIndex: position.pageIndex,
+        cursorRef: position.cursorRef,
+      }),
+    }
+  } catch (error) {
+    if (isRecoverableProviderError(error)) {
+      return { ok: false, outcome: checkpointInPhase(run.id, position.phase) }
+    }
+    return {
+      ok: false,
+      outcome: await failAndDiscard(
+        deps,
+        input,
+        run.id,
+        failureCodeForProviderError(error),
+      ),
+    }
+  }
+}
+
+/**
+ * Commit the page's observations and turn the store's answer into the run's
+ * outcome.
+ *
+ * `stale_page` means another worker already advanced this run, so the
+ * checkpoint follows the state the STORE reports rather than the phase this
+ * attempt believed it was in — resuming on a stale phase is what publishes a
+ * cursor against the wrong page.
+ */
+const commitPageOutcome = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  run: ReviewProviderSnapshotRun,
+  position: ScanPosition,
+  page: GoogleReviewPage,
+  observations: readonly ReviewProviderPersistedObservation[],
+): Promise<RunReviewProviderSnapshotResult> => {
+  const committed = await deps.repository.commitPage({
+    runId: run.id,
+    phase: position.phase,
+    expectedPageIndex: position.pageIndex,
+    expectedCursorRef: position.cursorRef,
+    totalReviewCount: page.totalReviewCount,
+    nextCursorRef: page.nextCursorRef,
+    observations,
+  })
+  if (committed.status === 'failed') {
+    return failAndDiscard(deps, input, run.id, committed.code)
+  }
+  if (committed.status === 'stale_page') {
+    return checkpointInPhase(
+      run.id,
+      committed.run.state === 'scanning' ? 'main' : 'confirmation',
+    )
+  }
+  if (!committed.finalPage) {
+    return checkpointInPhase(run.id, position.phase)
+  }
+  return finishPhase(deps, input, run, position.phase)
+}
+
 const runListPage = async (
   deps: RunReviewProviderSnapshotDeps,
   deriver: ReviewProviderSubjectDeriver,
@@ -201,8 +353,11 @@ const runListPage = async (
     return failAndDiscard(deps, input, run.id, 'source_changed')
   }
   const phase = run.state === 'scanning' ? 'main' : 'confirmation'
-  const pageIndex = phase === 'main' ? run.mainPageIndex : run.confirmationPageIndex
-  const cursorRef = phase === 'main' ? run.mainCursorRef : run.confirmationCursorRef
+  const position: ScanPosition = {
+    phase,
+    pageIndex: phase === 'main' ? run.mainPageIndex : run.confirmationPageIndex,
+    cursorRef: phase === 'main' ? run.mainCursorRef : run.confirmationCursorRef,
+  }
   // A null cursor anywhere but page 0 means the previous page was the final one
   // and this continuation raced the phase transition. Calling the provider now
   // would fetch WITHOUT a page token — silently re-reading page 1, adding no
@@ -212,25 +367,13 @@ const runListPage = async (
   // ended as `cursor_failure` with no watermark written. Finish the phase the
   // final page already reached instead; `finishMainScan` is idempotent and
   // returns `confirming` when another worker got there first.
-  if (pageIndex > 0 && cursorRef == null) {
+  if (position.pageIndex > 0 && position.cursorRef == null) {
     return finishPhase(deps, input, run, phase)
   }
-  let page
-  try {
-    page = await deps.googleReviewApi.listReviewsPage({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      connectionId: input.connectionId,
-      sourceEpoch: input.sourceEpoch,
-      locationName: input.locationName,
-      runId: run.id,
-      phase,
-      pageIndex,
-      cursorRef,
-    })
-  } catch (error) {
-    return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))
-  }
+
+  const fetched = await fetchListPage(deps, input, run, position)
+  if (!fetched.ok) return fetched.outcome
+  const page = fetched.page
 
   const invalid = validatePage(
     run,
@@ -253,34 +396,7 @@ const runListPage = async (
     return failAndDiscard(deps, input, run.id, 'source_changed')
   }
 
-  const committed = await deps.repository.commitPage({
-    runId: run.id,
-    phase,
-    expectedPageIndex: pageIndex,
-    expectedCursorRef: cursorRef,
-    totalReviewCount: page.totalReviewCount,
-    nextCursorRef: page.nextCursorRef,
-    observations,
-  })
-  if (committed.status === 'failed') {
-    return failAndDiscard(deps, input, run.id, committed.code)
-  }
-  if (committed.status === 'stale_page') {
-    return {
-      status: 'checkpointed',
-      runId: run.id,
-      state: committed.run.state === 'scanning' ? 'scanning' : 'confirming',
-    }
-  }
-  if (!committed.finalPage) {
-    return {
-      status: 'checkpointed',
-      runId: run.id,
-      state: phase === 'main' ? 'scanning' : 'confirming',
-    }
-  }
-
-  return finishPhase(deps, input, run, phase)
+  return commitPageOutcome(deps, input, run, position, page, observations)
 }
 
 const confirmTargetedCandidate = async (
@@ -306,12 +422,7 @@ const confirmTargetedCandidate = async (
       reviewName: candidate.reviewName,
     })
   } catch (error) {
-    if (
-      typeof error === 'object' &&
-      error != null &&
-      'code' in error &&
-      (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
-    ) {
+    if (isRecoverableProviderError(error)) {
       return { status: 'checkpointed', runId: run.id, state: 'confirming' }
     }
     return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))

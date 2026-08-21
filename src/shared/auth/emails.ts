@@ -1,9 +1,21 @@
-// Email sending via Resend
+// Transactional email transport (Resend).
+//
+// TRANSPORT ONLY. Markup lives in `#/shared/email/transactional`, which is
+// SDK-free so the templates can be previewed in Storybook and asserted in unit
+// tests. This module previously carried a second, byte-identical copy of the
+// `emailShell()` template literal; both copies are gone and there is exactly
+// one layout in the repo.
 import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
-import { escapeHtml } from '#/shared/email/template'
+import {
+  renderInvitationEmail,
+  renderPasswordResetEmail,
+  renderVerificationEmail,
+  warnOnceOnSenderMisalignment,
+  type RenderedEmail,
+} from '#/shared/email'
 
 let _resend: Resend | undefined
 
@@ -13,8 +25,7 @@ import { createErrorFactory } from '#/shared/domain/errors'
 
 const emailError = createErrorFactory('EmailError')
 
-// EmailError type is inferred from emailError — no explicit alias needed.
-// Consumers can use ReturnType<typeof emailError> if needed.
+// Thrown as a tagged EmailError; nothing outside this module catches it by type.
 
 // ── Resend client ────────────────────────────────────────────────────
 
@@ -37,21 +48,35 @@ export function resetEmailClient(): void {
   _resend = undefined
 }
 
-type SendEmailParams = Readonly<{
-  to: string
-  subject: string
-  html: string
-}>
-
-async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> {
+/**
+ * Send a rendered email.
+ *
+ * `text` is always sent alongside `html`: an HTML-only transactional message
+ * scores badly with spam filters and is unreadable in a text-only client.
+ *
+ * The sender-domain check runs here rather than at boot because there is no
+ * shared boot hook — the web process builds its container in composition.ts
+ * and the worker in bootstrap.ts. First send is the earliest point both reach,
+ * and the check latches once per process (see shared/email/sender-alignment).
+ */
+async function sendEmail(
+  to: string,
+  { subject, html, text }: RenderedEmail,
+): Promise<void> {
   const logger = getLogger()
   const resend = getResend()
+  const env = getEnv()
+
+  warnOnceOnSenderMisalignment(env.EMAIL_FROM, env.BETTER_AUTH_URL, (fields, message) =>
+    logger.warn(fields, message),
+  )
 
   const { error } = await resend.emails.send({
-    from: 'Reputation Key <info@kodes.agency>',
+    from: env.EMAIL_FROM,
     to,
     subject,
     html,
+    text,
   })
 
   if (error) {
@@ -70,72 +95,12 @@ async function sendEmail({ to, subject, html }: SendEmailParams): Promise<void> 
 
 /** Send password reset link */
 export async function sendResetPasswordEmail(to: string, url: string): Promise<void> {
-  await sendEmail({
-    to,
-    subject: 'Reset your password — Reputation Key',
-    html: resetPasswordEmailHtml(url),
-  })
+  await sendEmail(to, renderPasswordResetEmail(url))
 }
 
 /** Send email verification link */
 export async function sendVerificationEmail(to: string, url: string): Promise<void> {
-  await sendEmail({
-    to,
-    subject: 'Verify your email — Reputation Key',
-    html: verificationEmailHtml(url),
-  })
-}
-
-function verificationEmailHtml(verifyUrl: string): string {
-  return emailShell(
-    `
-      <p>Welcome to Reputation Key! Please verify your email address to activate your account.</p>
-      <a href="${escapeHtml(verifyUrl)}" class="button">Verify Email</a>
-      <p>If you didn't create an account, you can safely ignore this email.</p>`,
-    '<p>This link expires in 24 hours.</p>',
-  )
-}
-
-// ─── Email HTML templates ─────────────────────────────────────────────
-
-function emailShell(bodyHtml: string, footerHtml: string = ''): string {
-  return `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5; margin: 0; padding: 0; }
-    .container { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #4fb8b2, #2f6a4a); padding: 32px 24px; text-align: center; }
-    .header h1 { color: #fff; margin: 0; font-size: 20px; font-weight: 600; }
-    .body { padding: 32px 24px; }
-    .body p { color: #333; font-size: 15px; line-height: 1.6; margin: 0 0 16px; }
-    .button { display: inline-block; background: #4fb8b2; color: #fff; text-decoration: none; padding: 12px 32px; border-radius: 8px; font-weight: 600; font-size: 15px; margin: 8px 0 24px; }
-    .footer { padding: 16px 24px; text-align: center; color: #999; font-size: 13px; border-top: 1px solid #eee; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>Reputation Key</h1>
-    </div>
-    <div class="body">${bodyHtml}</div>
-    ${footerHtml ? `<div class="footer">${footerHtml}</div>` : ''}
-  </div>
-</body>
-</html>`
-}
-
-function resetPasswordEmailHtml(resetUrl: string): string {
-  return emailShell(
-    `
-      <p>We received a request to reset your password.</p>
-      <a href="${escapeHtml(resetUrl)}" class="button">Reset Password</a>
-      <p>If you didn't request this, you can safely ignore this email.</p>`,
-    '<p>This link expires in 1 hour.</p>',
-  )
+  await sendEmail(to, renderVerificationEmail(url))
 }
 
 // ─── Organization Invitation Email ────────────────────────────────────
@@ -149,20 +114,5 @@ export type InvitationEmailParams = Readonly<{
 
 /** Send organization invitation email */
 export async function sendInvitationEmail(params: InvitationEmailParams): Promise<void> {
-  await sendEmail({
-    to: params.email,
-    subject: `${params.invitedByUsername} invited you to join ${params.organizationName}`,
-    html: invitationEmailHtml(params),
-  })
-}
-
-function invitationEmailHtml(params: InvitationEmailParams): string {
-  return emailShell(
-    `
-      <p><strong>${escapeHtml(params.invitedByUsername)}</strong> has invited you to join <strong>${escapeHtml(params.organizationName)}</strong> on Reputation Key.</p>
-      <a href="${escapeHtml(params.inviteLink)}" class="button">Accept Invitation</a>
-      <p>If you don't have an account yet, you'll be guided to create one after clicking the button above.</p>
-      <p>If you weren't expecting this invitation, you can safely ignore this email.</p>`,
-    '<p>This invitation expires in 7 days.</p>',
-  )
+  await sendEmail(params.email, renderInvitationEmail(params))
 }

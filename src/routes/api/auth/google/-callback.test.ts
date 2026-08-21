@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleGoogleOAuthCallback } from './callback'
 
+// This hoisted mock bundle and the trace/logger/env/composition vi.mock chain
+// under it match the opening of src/routes/api/webhooks/resend/-events.test.ts.
+// They cannot be shared: the Vitest transform hoists vi.hoisted and vi.mock
+// above this file's imports and the module registry is per test file, so a
+// helper that called them would run too late to mock what the route imports.
+// Revisit if setupFiles ever carries the trace/logger/env trio for every route
+// test; the per-route composition mock would still have to live here.
+// fallow-ignore-next-line code-duplication
 const mocks = vi.hoisted(() => ({
   getSessionFromHeaders: vi.fn(),
   resolveTenantContext: vi.fn(),

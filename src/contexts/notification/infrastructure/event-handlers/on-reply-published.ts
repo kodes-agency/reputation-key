@@ -6,6 +6,4 @@ import { makeReplyNotificationHandler } from './reply-notification'
 
 export const onReplyPublished = makeReplyNotificationHandler<ReviewReplyPublished>({
   type: 'reply.published' as const,
-  title: 'Reply published',
-  body: 'Your reply has been published to Google',
 })

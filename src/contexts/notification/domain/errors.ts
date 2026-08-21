@@ -4,7 +4,6 @@ export type NotificationErrorCode =
   | 'invalid_input'
   | 'invalid_type'
   | 'invalid_resource_type'
-  | 'invalid_title'
   | 'invalid_resource_id'
   | 'invalid_event_id'
   | 'invalid_status'

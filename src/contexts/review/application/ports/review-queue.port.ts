@@ -29,6 +29,17 @@ export type AddSyncJobOptions = Readonly<{
   jobId?: string
 }>
 
+/**
+ * Attribution stamped by the GBP Pub/Sub webhook path on the sync job it
+ * enqueues. Review owns this payload contract, and the sync handler reads the
+ * marker to stamp the property's push liveness for the discovery backoff
+ * ladder — so the literal must have exactly one definition.
+ */
+export const GBP_PUSH_SYNC_INITIATOR_ID = 'webhook:gbp'
+
+/** Attribution stamped by the discover-new-reviews sweep. */
+export const DISCOVERY_SWEEP_SYNC_INITIATOR_ID = 'sweep:review-discovery'
+
 export type ReviewQueuePort = Readonly<{
   addSyncJob: (
     data: SyncPropertyReviewsJobData,

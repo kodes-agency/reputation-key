@@ -70,6 +70,9 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'providerEphemeralReadiness',
   'providerEphemeralRedis',
   'rateLimiter',
+  // Self-heals inbox items whose notification never got written, so a swallowed
+  // in-process bus failure stops being permanent data loss.
+  'reconcileMissingNotificationsHandler',
   'redis',
   'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
@@ -127,6 +130,9 @@ const EXPECTED_USE_CASE_KEYS = [
   'evaluateBadgeForTarget',
   'finalizeGoogleImportV2PropertyDeletion',
   'finalizeUpload',
+  // Backfills GBP Pub/Sub subscriptions for connections that predate the
+  // subscribe-on-import wiring; driven by scripts/ops/gbp-subscribe.ts.
+  'gbpSubscribeBackfill',
   'generatePropertyTrend',
   'generateReplySuggestion',
   'getAssignedPortals',

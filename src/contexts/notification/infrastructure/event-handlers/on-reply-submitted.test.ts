@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildReplySubmittedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   expectJobsEnqueued,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
@@ -35,8 +36,7 @@ describe('onReplySubmitted (notification)', () => {
         type: 'reply.pending_approval',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply pending approval',
-        body: 'A reply is awaiting your approval',
+        payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -45,8 +45,7 @@ describe('onReplySubmitted (notification)', () => {
         type: 'reply.pending_approval',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply pending approval',
-        body: 'A reply is awaiting your approval',
+        payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
       }),
     )
   })

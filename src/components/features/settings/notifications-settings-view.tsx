@@ -16,13 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type {
-  NotificationCategory,
-  NotificationChannel,
-  NotificationPreference,
+import {
+  NOTIFICATION_CATEGORIES,
+  type NotificationCategory,
+  type NotificationChannel,
+  type NotificationPreference,
 } from '#/contexts/notification/application/public-api'
 import { NotificationsCategoryRow } from './notifications-category-row'
-import { CATEGORY_ROWS } from './notifications-type-rows'
+import { CATEGORY_COPY } from './notifications-type-rows'
 
 export type NotificationPreferencePatch = Partial<
   Pick<
@@ -159,12 +160,12 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               are unavailable. In-app notifications are unaffected.
             </p>
           ) : null}
-          {CATEGORY_ROWS.map(({ category, label, description }) => (
+          {NOTIFICATION_CATEGORIES.map((category) => (
             <NotificationsCategoryRow
               key={category}
               category={category}
-              label={label}
-              description={description}
+              label={CATEGORY_COPY[category].label}
+              description={CATEGORY_COPY[category].description}
               inApp={props.preferenceFor(category, 'in_app')}
               email={props.preferenceFor(category, 'email')}
               emailAllowed={props.emailAllowed}

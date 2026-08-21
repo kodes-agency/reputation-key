@@ -40,7 +40,9 @@ import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.job'
 import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
+import { JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import { JOB_NAME as RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } from '#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job'
 import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
 import { JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME } from '#/shared/jobs/permit-start-deadline-sweep.job'
 import { JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
@@ -235,6 +237,53 @@ async function main() {
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
+      })
+
+    // New-review discovery sweep. The refresh sweep above only revisits
+    // reviews ALREADY stored and only inside their 5-day pre-expiry window,
+    // so it can never find a review that does not exist locally yet. 15
+    // minutes is the fixed firing cadence — the granularity at which a
+    // property's own poll interval (REVIEW_DISCOVERY_INTERVAL_MINUTES,
+    // default 15) can come due. Bounded at 200 properties × 10 batches per
+    // firing, so the cadence never becomes the scaling limit.
+    container.backgroundQueue
+      .add(
+        DISCOVER_NEW_REVIEWS_JOB_NAME,
+        {},
+        {
+          repeat: { every: 15 * 60 * 1000 },
+          jobId: 'discover-new-reviews-recurring',
+          ...jobEnqueueOptions(DISCOVER_NEW_REVIEWS_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Discover new reviews job scheduled (every 15 minutes)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule discover-new-reviews job')
+      })
+
+    // Notification-gap healing sweep. `emitAfterCommit` is best-effort, so a
+    // throw in the inbox or notification handler leaves a committed review
+    // with no notification and nothing retrying; this is what retries. 10
+    // minutes is the fixed firing cadence — comfortably wider than the job's
+    // 5-minute grace edge, so a firing never races the happy path it is
+    // checking up on. Bounded at 100 items x 5 batches per firing.
+    container.backgroundQueue
+      .add(
+        RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
+        {},
+        {
+          repeat: { every: 10 * 60 * 1000 },
+          jobId: 'reconcile-missing-notifications-recurring',
+          ...jobEnqueueOptions(RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('Reconcile missing notifications job scheduled (every 10 minutes)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule reconcile-missing-notifications job')
       })
 
     container.backgroundQueue

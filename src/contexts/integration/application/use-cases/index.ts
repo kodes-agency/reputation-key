@@ -47,7 +47,16 @@ export {
   manageNotifications,
   type ManageNotificationsDeps,
   type ManageNotificationsApi,
+  type GbpSubscribeOutcome,
 } from './manage-notifications'
+export {
+  createGbpSubscribeBackfill,
+  type GbpSubscribeBackfill,
+  type GbpSubscribeBackfillDeps,
+  type GbpSubscribeBackfillReport,
+  type GbpSubscribeConnectionOutcome,
+  type GbpSubscribeConnectionReport,
+} from './gbp-subscribe-backfill'
 export {
   getGoogleAuthUrl,
   type GetGoogleAuthUrlDeps,

@@ -8,7 +8,15 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { member, user } from '#/shared/db/schema/auth'
 import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import { userId, type UserId, type OrganizationId, unbrand } from '#/shared/domain/ids'
-import { toBetterAuthRole, type Role } from '#/shared/domain/roles'
+import { toBetterAuthRole, toDomainRole, type Role } from '#/shared/domain/roles'
+import type { NotificationActorRole } from '../../domain/notification-payload'
+
+/** Domain role -> the payload's actor role vocabulary (ADR 0046 r.8: role, never name). */
+const ACTOR_ROLE_BY_ROLE: Readonly<Record<Role, NotificationActorRole>> = {
+  AccountAdmin: 'account_admin',
+  PropertyManager: 'property_manager',
+  Staff: 'staff',
+}
 
 /** Identity-owned lookup: users holding active access to one property. */
 export type PropertyAccessHolderLookup = (
@@ -117,6 +125,29 @@ export const createDbUserLookupAdapter = (
         .where(eq(user.id, unbrand(uid)))
         .limit(1)
       return rows[0]?.name ?? null
+    },
+
+    /**
+     * The acting user's role, for `payload.actorRole`. Multi-role and custom
+     * better-auth roles map to null via `toDomainRole` rather than throwing —
+     * an unrecognised role must cost the sentence its "A property manager"
+     * clause, never the whole notification.
+     */
+    async findActorRole(
+      uid: UserId,
+      orgId: OrganizationId,
+    ): Promise<NotificationActorRole | null> {
+      const rows = await db
+        .select({ role: member.role })
+        .from(member)
+        .where(
+          and(eq(member.organizationId, unbrand(orgId)), eq(member.userId, unbrand(uid))),
+        )
+        .limit(1)
+      const raw = rows[0]?.role
+      if (raw === undefined) return null
+      const role = toDomainRole(raw)
+      return role === null ? null : ACTOR_ROLE_BY_ROLE[role]
     },
   }
 }

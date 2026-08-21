@@ -7,6 +7,7 @@ import {
   type FakeEventHandlerDeps,
   buildReplyPublishedEvent,
   buildExpectedJob,
+  EXPECTED_INBOX_PAYLOAD,
   NOTIF_TEST_IDS,
 } from './test-fixtures'
 
@@ -29,8 +30,7 @@ describe('onReplyPublished (notification)', () => {
         type: 'reply.published',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        title: 'Reply published',
-        body: 'Your reply has been published to Google',
+        payload: EXPECTED_INBOX_PAYLOAD,
       }),
     )
   })

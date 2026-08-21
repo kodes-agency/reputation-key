@@ -15,6 +15,7 @@ import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
+import { absoluteUrl } from '#/shared/email/urls'
 import {
   sendResetPasswordEmail,
   sendInvitationEmail,
@@ -159,7 +160,9 @@ export function createAuth() {
         schema: organizationSchema,
         // Send invitation emails via Resend
         async sendInvitationEmail(data) {
-          const inviteLink = `${env.BETTER_AUTH_URL}/accept-invitation?id=${data.id}`
+          const inviteLink = absoluteUrl(env.BETTER_AUTH_URL, '/accept-invitation', {
+            id: data.id,
+          })
           await sendInvitationEmail({
             email: data.email,
             invitedByUsername: data.inviter.user.name,
