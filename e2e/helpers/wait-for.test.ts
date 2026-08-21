@@ -8,6 +8,32 @@
 import { describe, it, expect, vi } from 'vitest'
 import { waitFor, bailWait, WaitBailedError } from './fixtures'
 
+/**
+ * Narrow a rejection to an Error, and fail loudly if it never rejected.
+ *
+ * The obvious `.catch((e: unknown) => e as Error)` is worse in two ways: the
+ * cast lies when the value is not an Error, and a promise that RESOLVES falls
+ * straight through to the assertions with the resolved value — so a `waitFor`
+ * that stopped failing would still pass a test named for its failure. It also
+ * does not typecheck once e2e/ is in the typecheck gate, since the union
+ * includes the probe's own null.
+ */
+async function rejection(promise: Promise<unknown>): Promise<Error> {
+  let thrown: unknown
+  let didThrow = false
+  try {
+    const resolved = await promise
+    thrown = resolved
+  } catch (error) {
+    didThrow = true
+    thrown = error
+  }
+  if (!didThrow) throw new Error(`expected a rejection, resolved with ${String(thrown)}`)
+  if (!(thrown instanceof Error))
+    throw new Error(`expected an Error, got ${String(thrown)}`)
+  return thrown
+}
+
 describe('waitFor', () => {
   it('returns the first truthy probe value without waiting for the deadline', async () => {
     const probe = vi.fn(async () => 'ready' as const)
@@ -48,11 +74,13 @@ describe('waitFor', () => {
   })
 
   it('counts the probes it made, distinguishing a stalled probe from a slow subject', async () => {
-    const err = await waitFor(async () => null, {
-      timeoutMs: 30,
-      intervalMs: 5,
-      description: 'never ready',
-    }).catch((e: unknown) => e as Error)
+    const err = await rejection(
+      waitFor(async () => null, {
+        timeoutMs: 30,
+        intervalMs: 5,
+        description: 'never ready',
+      }),
+    )
 
     // Without the count, one probe in 30ms and thirty probes in 30ms are the
     // same message — the first means the probe itself is blocking.
@@ -72,14 +100,16 @@ describe('waitFor', () => {
 
   it('keeps the real timeout visible when diagnose itself fails', async () => {
     // A diagnostic that throws must not replace the failure it was explaining.
-    const err = await waitFor(async () => null, {
-      timeoutMs: 20,
-      intervalMs: 5,
-      description: 'v2 import to reach completed',
-      diagnose: async () => {
-        throw new Error('status endpoint 503')
-      },
-    }).catch((e: unknown) => e as Error)
+    const err = await rejection(
+      waitFor(async () => null, {
+        timeoutMs: 20,
+        intervalMs: 5,
+        description: 'v2 import to reach completed',
+        diagnose: async () => {
+          throw new Error('status endpoint 503')
+        },
+      }),
+    )
 
     expect(err.message).toContain('v2 import to reach completed')
     expect(err.message).toContain('diagnose failed: Error: status endpoint 503')
@@ -93,16 +123,18 @@ describe('bailWait', () => {
     const started = Date.now()
     let probes = 0
 
-    const err = await waitFor(
-      async () => {
-        probes += 1
-        bailWait('v2 import', {
-          status: 'completed_with_issues',
-          counts: { cancelled: 1 },
-        })
-      },
-      { timeoutMs: 10_000, intervalMs: 5, description: 'v2 import to reach completed' },
-    ).catch((e: unknown) => e as Error)
+    const err = await rejection(
+      waitFor(
+        async () => {
+          probes += 1
+          bailWait('v2 import', {
+            status: 'completed_with_issues',
+            counts: { cancelled: 1 },
+          })
+        },
+        { timeoutMs: 10_000, intervalMs: 5, description: 'v2 import to reach completed' },
+      ),
+    )
 
     expect(err).toBeInstanceOf(WaitBailedError)
     expect(err.message).toContain('completed_with_issues')
