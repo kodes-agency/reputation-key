@@ -97,4 +97,33 @@ describe('createMyBusinessNotificationsAdapter', () => {
       adapter.unsubscribe({ accessToken: 'tok', gbpAccountId: '1' }),
     ).rejects.toMatchObject({ kind: 'rate_limited' })
   })
+
+  // Same hole as gbp-api.adapter had: an unreachable provider never yields a
+  // Response, fetch rejects with a raw TypeError, and without classification it
+  // escapes the taxonomy — `_tag` absent, and the logged diagnostic reduced by
+  // safeError() to an unattributable `TypeError`.
+  it.each(['subscribe', 'unsubscribe'] as const)(
+    'classifies an unreachable provider on %s as a governed upstream_error',
+    async (operation) => {
+      fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'))
+      const adapter = createMyBusinessNotificationsAdapter({ baseUrl: BASE_URL })
+
+      const call =
+        operation === 'subscribe'
+          ? adapter.subscribe({
+              accessToken: 'tok',
+              gbpAccountId: '1',
+              pubsubTopic: 't',
+              notificationTypes: [],
+            })
+          : adapter.unsubscribe({ accessToken: 'tok', gbpAccountId: '1' })
+
+      await expect(call).rejects.toMatchObject({
+        _tag: 'GbpApiError',
+        name: 'GbpApiError',
+        operation,
+        kind: 'upstream_error',
+      })
+    },
+  )
 })
