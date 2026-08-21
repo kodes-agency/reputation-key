@@ -326,24 +326,28 @@ export function registerInboxConsumers(deps: InboxConsumerDeps): void {
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'inbox.on-review-created',
+    module: 'inbox.outbox-consumers',
     handler: (event) => handleInboxReviewCreated(deps, event),
   })
 
   registerConsumer({
     eventType: 'review.expired',
     consumerName: 'inbox.on-review-expired',
+    module: 'inbox.outbox-consumers',
     handler: (event) => handleInboxReviewExpired(deps, event),
   })
 
   registerConsumer({
     eventType: 'review.updated',
     consumerName: 'inbox.on-review-updated',
+    module: 'inbox.outbox-consumers',
     handler: (event) => handleInboxReviewUpdated(deps, event),
   })
 
   registerConsumer({
     eventType: 'review.reply.published',
     consumerName: 'inbox.on-reply-published',
+    module: 'inbox.outbox-consumers',
     handler: (event) => handleInboxReplyPublished(deps, event),
   })
 

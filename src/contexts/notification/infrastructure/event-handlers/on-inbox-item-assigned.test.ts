@@ -2,7 +2,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
-import { createEventHandlerDeps, type FakeEventHandlerDeps } from './test-fixtures'
+import {
+  createEventHandlerDeps,
+  type FakeEventHandlerDeps,
+  EXPECTED_INBOX_PAYLOAD,
+} from './test-fixtures'
 import type { InboxItemAssigned } from '#/contexts/inbox/application/public-api'
 import { organizationId, propertyId, inboxItemId, userId } from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
@@ -33,7 +37,7 @@ describe('onInboxItemAssigned (notification)', () => {
     deps = createEventHandlerDeps()
   })
 
-  it('enqueues a notification job with correct data', async () => {
+  it('enqueues a notification job carrying the item facts and the assigner ROLE', async () => {
     await onInboxItemAssigned(deps)(mockEvent)
 
     expect(deps.queue.add).toHaveBeenCalledTimes(1)
@@ -47,9 +51,31 @@ describe('onInboxItemAssigned (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: INBOX_ITEM_ID,
         eventId: 'test-event-id',
-        title: 'Item assigned to you',
-        body: 'An inbox item has been assigned to you',
+        payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
       },
+    })
+  })
+
+  it('resolves the ROLE of the assigner, never their identity', async () => {
+    await onInboxItemAssigned(deps)(mockEvent)
+
+    expect(deps.userLookup.findActorRole).toHaveBeenCalledWith(
+      userId('assigner-1'),
+      ORG_ID,
+    )
+    // No name/email lookup happens at all — ADR 0046 r.8.
+    expect(deps.userLookup.getName).not.toHaveBeenCalled()
+    expect(deps.userLookup.getEmail).not.toHaveBeenCalled()
+  })
+
+  it('still enqueues when the facts lookup fails, with degraded copy', async () => {
+    deps.inboxItemLookup.findInboxItemFacts.mockRejectedValue(new Error('DB down'))
+
+    await onInboxItemAssigned(deps)(mockEvent)
+
+    expect(deps.jobs).toHaveLength(1)
+    expect((deps.jobs[0]!.data as { payload: unknown }).payload).toEqual({
+      actorRole: 'property_manager',
     })
   })
 

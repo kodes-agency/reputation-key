@@ -14,6 +14,7 @@ export function registerGoogleImportDispatchConsumer(
   registerConsumer({
     eventType: 'integration.property_import.requested',
     consumerName: 'integration.property-import-dispatch',
+    module: 'integration.property-import-dispatch',
     handler: createGoogleImportDispatchHandler(deps),
   })
 }

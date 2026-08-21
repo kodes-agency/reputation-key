@@ -6,6 +6,4 @@ import { makeReplyNotificationHandler } from './reply-notification'
 
 export const onReplyApproved = makeReplyNotificationHandler<ReviewReplyApproved>({
   type: 'reply.approved' as const,
-  title: 'Reply approved',
-  body: 'Your reply has been approved',
 })

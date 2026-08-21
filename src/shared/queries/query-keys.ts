@@ -22,20 +22,37 @@ export const inboxKeys = {
   activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
 }
 
+// Two deliberately DISJOINT subtrees under `all`:
+//
+//   notifications → feed     → count | list   (the bell + /notifications)
+//   notifications → settings → preferences | user-settings | email-capability
+//
+// They are siblings, not ancestor/descendant, because the feed is invalidated on
+// every read/dismiss while the settings queries are 60s-cached. When `count` and
+// `preferences` shared a `forOrganization(org)` parent, invalidating that parent
+// — which merely OPENING the bell used to do — evicted the settings page's
+// cache. Feed invalidation must never reach `settings`, so there is no key that
+// spans both; `all` exists only for tenant-switch teardown.
 export const notificationKeys = {
   all: ['notifications'] as const,
-  forOrganization: (organizationId: string) =>
-    [...notificationKeys.all, organizationId] as const,
+
+  // ── Feed (bell popover + /notifications page) ────────────────────────
+  feed: (organizationId: string) =>
+    [...notificationKeys.all, 'feed', organizationId] as const,
   count: (organizationId: string) =>
-    [...notificationKeys.forOrganization(organizationId), 'count'] as const,
+    [...notificationKeys.feed(organizationId), 'count'] as const,
   lists: (organizationId: string) =>
-    [...notificationKeys.forOrganization(organizationId), 'list'] as const,
+    [...notificationKeys.feed(organizationId), 'list'] as const,
   list: (organizationId: string, limit: number) =>
     [...notificationKeys.lists(organizationId), { limit }] as const,
+
+  // ── Settings (/settings/notifications) ──────────────────────────────
+  settings: (organizationId: string) =>
+    [...notificationKeys.all, 'settings', organizationId] as const,
   preferences: (organizationId: string) =>
-    [...notificationKeys.forOrganization(organizationId), 'preferences'] as const,
+    [...notificationKeys.settings(organizationId), 'preferences'] as const,
   userSettings: (organizationId: string) =>
-    [...notificationKeys.forOrganization(organizationId), 'user-settings'] as const,
+    [...notificationKeys.settings(organizationId), 'user-settings'] as const,
   /**
    * Per-property `notification.send_email` decision. Property-scoped because
    * the capability is allowlisted per property, so the answer changes with the
@@ -43,7 +60,7 @@ export const notificationKeys = {
    */
   emailCapability: (organizationId: string, propertyId: string) =>
     [
-      ...notificationKeys.forOrganization(organizationId),
+      ...notificationKeys.settings(organizationId),
       'email-capability',
       propertyId,
     ] as const,

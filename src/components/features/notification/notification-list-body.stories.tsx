@@ -1,155 +1,130 @@
-// Notification list body — the list-state machine: error → loading skeleton →
-// empty state → list (+ optional "load more" pagination). Pure presentational;
-// each story pins one branch via props.
+// The list-state machine: error → loading skeleton → empty → grouped list
+// (+ optional "load more"). Pure presentational; each story pins one branch.
+//
+// Fixtures come from the shared factory, so every row carries a real `payload`,
+// `category`, `propertyId` and coalescing fields — the previous fixtures cast an
+// incomplete object to `Notification` and omitted all four.
 import type { Meta, StoryObj } from '@storybook/react'
-import { notificationId, organizationId, userId } from '#/shared/domain/ids'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import { expect, fn, within } from 'storybook/test'
+import {
+  notificationFixtures,
+  notificationPropertyFixtures,
+} from './notification-fixtures'
+import { groupByProperty, groupByReadState } from './notification-filters'
 import { NotificationListBody } from './notification-list-body'
+import type { NotificationRowActions } from './types'
+
+const actions: NotificationRowActions = {
+  onActivate: fn(),
+  onMarkRead: fn(),
+  onMarkUnread: fn(),
+  onDismiss: fn(),
+  onMuteCategory: fn(),
+}
+
+const noop = () => {}
 
 const meta: Meta<typeof NotificationListBody> = {
   title: 'Notification/NotificationListBody',
   component: NotificationListBody,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
+  args: {
+    groups: groupByReadState(notificationFixtures),
+    isLoading: false,
+    isLoadingMore: false,
+    error: null,
+    hasMore: false,
+    onRetry: noop,
+    onLoadMore: noop,
+    actions,
+  },
+  decorators: [
+    (Story) => (
+      <div className="w-96 rounded-xl border bg-popover p-1 text-popover-foreground">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof NotificationListBody>
 
-const noop = () => {}
-
-function makeNotification(
-  overrides: Partial<Notification> & { id: string },
-): Notification {
-  return {
-    userId: userId('user-1'),
-    organizationId: organizationId('org-1'),
-    type: 'review.created',
-    priority: 'normal',
-    status: 'unread',
-    resourceType: 'inbox_item',
-    resourceId: 'res-1',
-    eventId: 'evt-1',
-    title: 'New review',
-    body: 'A customer left a 5-star review.',
-    readAt: null,
-    createdAt: new Date(Date.now() - 5 * 60_000),
-    updatedAt: new Date(),
-    ...overrides,
-  } as Notification
-}
-
-const notifications: Notification[] = [
-  makeNotification({
-    id: notificationId('n-1'),
-    type: 'reply.pending_approval',
-    priority: 'urgent',
-    title: 'Reply needs approval',
-    body: 'A drafted reply is awaiting your approval.',
-  }),
-  makeNotification({
-    id: notificationId('n-2'),
-    type: 'badge.awarded',
-    title: 'Badge unlocked!',
-    body: 'You earned the "Response Champ" badge.',
-    status: 'read',
-    readAt: new Date(),
-  }),
-  makeNotification({
-    id: notificationId('n-3'),
-    type: 'goal.completed',
-    title: 'Monthly goal reached',
-    body: null,
-  }),
-]
-
 export const ErrorState: Story = {
-  args: {
-    notifications: [],
-    isLoading: false,
-    isLoadingMore: false,
-    error: new Error('Notifications service unavailable'),
-    hasMore: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { error: new Error('Notifications service unavailable') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/couldn't load notifications/i)).toBeInTheDocument()
+    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
   },
 }
 
 export const Loading: Story = {
-  args: {
-    notifications: [],
-    isLoading: true,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { isLoading: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Assistive tech is told the region is busy, not left with silent skeletons.
+    expect(canvas.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+    expect(canvas.getByText('Loading notifications…')).toBeInTheDocument()
   },
 }
 
 export const Empty: Story = {
-  args: {
-    notifications: [],
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { groups: [] },
+  play: async ({ canvasElement }) => {
+    expect(within(canvasElement).getByText(/you're all caught up/i)).toBeInTheDocument()
   },
 }
 
-export const List: Story = {
-  args: {
-    notifications,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+/** Unread + read mix, grouped under real headings and real list semantics. */
+export const UnreadAndReadMix: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('heading', { name: 'New' })).toBeInTheDocument()
+    expect(canvas.getByRole('heading', { name: 'Earlier' })).toBeInTheDocument()
+    // Rows are <li> in a <ul>: two groups, one row per fixture.
+    expect(canvas.getAllByRole('list')).toHaveLength(2)
+    expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length)
   },
 }
 
-// More pages available — the "Load more" control renders.
+/** The /notifications page grouping — headings are names, never UUIDs. */
+export const GroupedByProperty: Story = {
+  args: {
+    groups: groupByProperty(
+      notificationFixtures,
+      Object.fromEntries(
+        notificationPropertyFixtures.map((property) => [property.id, property.name]),
+      ),
+    ),
+    headingLevel: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('heading', { level: 2, name: 'Riverside Hotel' }),
+    ).toBeInTheDocument()
+    expect(
+      canvas.getByRole('heading', { level: 2, name: 'Harbour View Suites' }),
+    ).toBeInTheDocument()
+    for (const notification of notificationFixtures) {
+      expect(canvasElement.textContent).not.toContain(notification.propertyId)
+    }
+  },
+}
+
 export const WithPagination: Story = {
-  args: {
-    notifications,
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: true,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { hasMore: true },
+  play: async ({ canvasElement }) => {
+    expect(
+      within(canvasElement).getByRole('button', { name: 'Load more' }),
+    ).toBeInTheDocument()
   },
 }
 
-// Mid-pagination — "Load more" shows its spinner + "Loading…" copy.
 export const LoadingMore: Story = {
-  args: {
-    notifications,
-    isLoading: false,
-    isLoadingMore: true,
-    error: null,
-    hasMore: true,
-    onRetry: noop,
-    onLoadMore: noop,
-    onDismiss: noop,
-    onMarkRead: noop,
-    onNotificationClick: noop,
+  args: { hasMore: true, isLoadingMore: true },
+  play: async ({ canvasElement }) => {
+    expect(within(canvasElement).getByRole('button', { name: /loading/i })).toBeDisabled()
   },
 }

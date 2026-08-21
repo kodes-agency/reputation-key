@@ -71,21 +71,29 @@ export const createNotificationRepository = (db: Database) => ({
         eventId: notification.eventId,
         title: notification.title,
         body: notification.body,
+        payload: notification.payload,
+        coalescedCount: notification.coalescedCount,
+        coalescedLatestAt: notification.coalescedLatestAt,
         readAt: notification.readAt,
         createdAt: notification.createdAt,
         updatedAt: notification.updatedAt,
       })
+      // ADR 0046 r.2: the conflict target is now the PARTIAL unique index, so
+      // drizzle needs its predicate (`targetWhere`) alongside the columns —
+      // without the predicate PostgreSQL cannot infer which index arbitrates.
+      // Reaching this branch means two events raced past the use case's unread
+      // lookup, so it coalesces exactly like the checked path: bump the count,
+      // stamp the latest arrival, re-store the freshly rendered copy.
       .onConflictDoUpdate({
-        target: [
-          notifications.userId,
-          notifications.type,
-          notifications.resourceId,
-          notifications.eventId,
-        ],
+        target: [notifications.userId, notifications.type, notifications.resourceId],
+        targetWhere: sql`status = 'unread'`,
         set: {
           title: notification.title,
           body: notification.body,
+          payload: notification.payload,
           priority: notification.priority,
+          coalescedCount: sql`${notifications.coalescedCount} + 1`,
+          coalescedLatestAt: notification.updatedAt,
           updatedAt: notification.updatedAt,
         },
       })
@@ -174,26 +182,60 @@ export const createNotificationRepository = (db: Database) => ({
     return rows[0] ? notificationFromRow(rows[0]) : null
   },
 
-  // Bump an existing unread notification (refresh title/body/updatedAt) instead
-  // of stacking a duplicate. Used by insertNotification's dedup path.
-  refreshUnread: async (
+  // ADR 0046 r.2 bump: persist the already-coalesced entity produced by
+  // `applyCoalescence` — the re-rendered copy, the merged payload, the count
+  // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
+  // the row matches exactly what the use case returned to the caller.
+  refreshUnread: async (notification: Notification): Promise<void> => {
+    await db
+      .update(notifications)
+      .set({
+        title: notification.title,
+        body: notification.body,
+        payload: notification.payload,
+        coalescedCount: notification.coalescedCount,
+        coalescedLatestAt: notification.coalescedLatestAt,
+        updatedAt: notification.updatedAt,
+      })
+      .where(
+        and(
+          eq(notifications.id, unbrand(notification.id)),
+          eq(notifications.userId, unbrand(notification.userId)),
+          eq(notifications.organizationId, unbrand(notification.organizationId)),
+        ),
+      )
+  },
+
+  // Read -> unread for the row menu. The partial unread-uniqueness index means
+  // this flip can collide with an unread row that already covers the same
+  // (user, type, resource), so the guard makes the collision a no-op (null)
+  // instead of a raw PG unique violation surfacing as a 500.
+  markUnread: async (
     id: string,
     userId: string,
     orgId: string,
-    title: string,
-    body: string | null,
     updatedAt: Date,
-  ): Promise<void> => {
-    await db
+  ): Promise<Notification | null> => {
+    const rows = await db
       .update(notifications)
-      .set({ title, body, updatedAt })
+      .set({ status: 'unread', readAt: null, updatedAt })
       .where(
         and(
           eq(notifications.id, id),
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
+          eq(notifications.status, 'read'),
+          sql`NOT EXISTS (
+            SELECT 1 FROM notifications AS unread_sibling
+             WHERE unread_sibling.user_id = ${userId}
+               AND unread_sibling.type = notifications.type
+               AND unread_sibling.resource_id = notifications.resource_id
+               AND unread_sibling.status = 'unread'
+          )`,
         ),
       )
+      .returning()
+    return rows[0] ? notificationFromRow(rows[0]) : null
   },
 
   // Clear-all: dismiss every non-dismissed notification for the user.

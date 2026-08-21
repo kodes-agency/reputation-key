@@ -2,17 +2,25 @@
 // Notifies property managers when a note is added to an inbox item.
 // The InboxNoteAdded event does not carry assigneeId (denormalized per Q7 decision).
 // MVP: notify all managers assigned to the property via userLookup.
+//
+// The note TEXT is never carried into the notification (ADR 0046 r.8): the row
+// says a note exists and who — by role — left it, and the deep link opens the
+// thread.
 
 import type { InboxNoteAdded } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { Queue } from 'bullmq'
+import { buildInboxItemPayload } from './payload-facts'
 
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  inboxItemLookup: InboxItemLookupPort
+  clock: () => Date
   logger: LoggerPort
 }>
 
@@ -43,6 +51,12 @@ export const onInboxNoteAdded =
       return
     }
 
+    const payload = await buildInboxItemPayload(deps, {
+      inboxItemId: event.inboxItemId,
+      orgId: event.organizationId,
+      actorId: event.userId,
+    })
+
     const jobs: InsertNotificationJobData[] = filtered.map((userId) => ({
       userId,
       organizationId: event.organizationId,
@@ -51,8 +65,7 @@ export const onInboxNoteAdded =
       resourceType: 'inbox_item' as const,
       resourceId: event.inboxItemId,
       eventId: event.eventId,
-      title: 'New note added',
-      body: 'A note was added to an inbox item',
+      payload,
     }))
 
     await Promise.all(

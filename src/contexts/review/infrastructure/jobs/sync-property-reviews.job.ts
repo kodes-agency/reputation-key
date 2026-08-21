@@ -1,6 +1,10 @@
 import type { Job } from 'bullmq'
-import type { SyncPropertyReviewsJobData } from '../../application/ports/review-queue.port'
+import {
+  GBP_PUSH_SYNC_INITIATOR_ID,
+  type SyncPropertyReviewsJobData,
+} from '../../application/ports/review-queue.port'
 import type { PropertyRoutingPort } from '../../application/ports/property-routing.port'
+import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { RunReviewProviderSnapshot } from '../../application/use-cases/run-review-provider-snapshot'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
@@ -11,6 +15,15 @@ type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
   propertyRouting: PropertyRoutingPort
   enqueueContinuation(data: SyncPropertyReviewsJobData): Promise<void>
+  /**
+   * Discovery-ladder liveness stamps. A GBP push proves Google is publishing
+   * for this location, so a push-initiated sync resets the property to the
+   * hot rung of the backoff ladder (domain/discovery-backoff.ts).
+   */
+  syncActivity: ReviewSyncActivityRecorder
+  clock: () => Date
+  /** Hot-rung interval — the push reset's next-poll clamp. */
+  hotIntervalMs: number
 }>
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
@@ -48,6 +61,19 @@ export const createSyncPropertyReviewsHandler =
         currentScope.sourceEpoch !== sourceEpoch
       ) {
         throw new Error('Review provider source changed')
+      }
+
+      // A push-initiated sync is proof the location is live: stamp it so the
+      // discovery ladder puts this property back on the hot rung and un-parks
+      // its next poll. Only on the FIRST step of a run — continuations carry
+      // the same initiator and would re-stamp the same fact once per page.
+      if (data.runId == null && data.initiator?.id === GBP_PUSH_SYNC_INITIATOR_ID) {
+        const now = deps.clock()
+        await deps.syncActivity.recordPushObserved(
+          data.propertyId,
+          now,
+          new Date(now.getTime() + deps.hotIntervalMs),
+        )
       }
 
       const result = await deps.runSnapshot({

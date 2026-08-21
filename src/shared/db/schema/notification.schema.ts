@@ -12,6 +12,7 @@ import {
   uuid,
   varchar,
   text,
+  jsonb,
   boolean,
   integer,
   timestamp,
@@ -49,18 +50,24 @@ export const notifications = pgTable(
     title: varchar('title', { length: 255 }).notNull(),
     body: text('body'),
 
+    // ADR 0046 r.8 — content-free render metadata; title/body above are a
+    // rendered snapshot of (type, payload). Nullable: legacy rows have none.
+    payload: jsonb('payload'),
+    // ADR 0046 r.2 — coalescing counters for the single unread row per
+    // (user, type, resource).
+    coalescedCount: integer('coalesced_count').notNull().default(1),
+    coalescedLatestAt: timestamp('coalesced_latest_at', { withTimezone: true }),
+
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    // Idempotency: one notification per user per event per type+resource
-    uniqueIndex('notifications_user_event_unique').on(
-      t.userId,
-      t.type,
-      t.resourceId,
-      t.eventId,
-    ),
+    // ADR 0046 r.2: at most one UNREAD row per (user, type, resource).
+    // Replaces the event-ID-keyed uniqueness, which made every event a new row.
+    uniqueIndex('notifications_unread_resource_unique')
+      .on(t.userId, t.type, t.resourceId)
+      .where(sql`status = 'unread'`),
     // Query: unread count + list by user
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)

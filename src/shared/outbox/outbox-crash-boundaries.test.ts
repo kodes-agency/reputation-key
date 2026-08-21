@@ -104,6 +104,7 @@ describe('outbox crash boundaries', () => {
         registerConsumer({
           eventType: TEST_EVENT_TYPE,
           consumerName: 'test-consumer',
+          module: 'inbox.outbox-consumers',
           handler,
         }),
       ).not.toThrow()
@@ -114,12 +115,14 @@ describe('outbox crash boundaries', () => {
       registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'dup',
+        module: 'inbox.outbox-consumers',
         handler,
       })
       expect(() =>
         registerConsumer({
           eventType: TEST_EVENT_TYPE,
           consumerName: 'dup',
+          module: 'inbox.outbox-consumers',
           handler,
         }),
       ).toThrow(/Duplicate consumer "dup"/)
@@ -135,12 +138,14 @@ describe('outbox crash boundaries', () => {
       registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'shared',
+        module: 'inbox.outbox-consumers',
         handler,
       })
       expect(() =>
         registerConsumer({
           eventType: 'other.event',
           consumerName: 'shared',
+          module: 'inbox.outbox-consumers',
           handler,
         }),
       ).not.toThrow()
@@ -199,6 +204,7 @@ describe('outbox crash boundaries', () => {
       registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'obsolete-check',
+        module: 'inbox.outbox-consumers',
         handler: async () => ({ status: 'obsolete' as const }),
       })
       // The handler signature supports returning 'obsolete'

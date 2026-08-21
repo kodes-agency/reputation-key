@@ -8,6 +8,7 @@ import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { InvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
+import { absoluteUrl } from '#/shared/email/urls'
 import { toBetterAuthRole } from '#/shared/domain/roles'
 import { canInviteWithRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
@@ -95,7 +96,9 @@ export const inviteMember =
       email: input.email,
       invitedByUsername: inviter?.name ?? 'Organization Admin',
       organizationName,
-      inviteLink: `${deps.baseUrl}/accept-invitation?id=${invitationId as string}`,
+      inviteLink: absoluteUrl(deps.baseUrl, '/accept-invitation', {
+        id: invitationId as string,
+      }),
     })
 
     return

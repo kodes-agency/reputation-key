@@ -1,5 +1,10 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  type GoogleConnectionId,
+} from '#/shared/domain/ids'
 import {
   buildGoogleImportedProperty,
   type PropertyGoogleBindingPublicApi,
@@ -10,8 +15,10 @@ import { jobRetryDelayUpperBoundMs } from '#/shared/jobs/job-policy'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import {
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
+  reconciledOutcomeCode,
   type ImportOutcomeCode,
 } from './google-import-v2-contract'
+import type { ManageNotificationsApi } from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
@@ -33,6 +40,18 @@ export type GoogleImportV2Processor = Readonly<{
 type PropertyReceipt = NonNullable<
   Awaited<ReturnType<PropertyGoogleBindingPublicApi['readReceipt']>>
 >
+
+/**
+ * The binding facts post-import follow-up needs, with the provider
+ * identifiers already proven non-null. Follow-up cannot address Google
+ * without all three, so resolving them is a single yes/no question rather
+ * than three checks spread across the call site.
+ */
+type ImportFollowUpTarget = Readonly<{
+  connectionId: GoogleConnectionId
+  accountId: string
+  locationId: string
+}>
 type CodedError = Readonly<{ code: string }>
 
 function errorCode(error: unknown): string | null {
@@ -68,7 +87,7 @@ const TRANSIENT_INFRASTRUCTURE_CODES: Readonly<Record<string, true>> = {
 const TRANSIENT_INFRASTRUCTURE_MESSAGE_RE =
   /timeout exceeded when trying to connect|connection terminated|too many clients|connection is closed/i
 
-export function isTransientInfrastructureError(error: unknown): boolean {
+function isTransientInfrastructureError(error: unknown): boolean {
   const code = errorCode(error)
   if (code !== null && TRANSIENT_INFRASTRUCTURE_CODES[code] === true) return true
   const message =
@@ -134,6 +153,20 @@ export function createGoogleImportV2Processor(
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     enqueueReviewSync?: ReviewQueuePort['addSyncJob']
     /**
+     * Tells Google to START publishing GBP notifications for this connection's
+     * account to our Pub/Sub topic — the counterpart of the unsubscribe the
+     * disconnect use case already performs. Called on the SAME receipt branch
+     * as `enqueueReviewSync`, because that branch is the definition of "this
+     * property is now live".
+     *
+     * Idempotent by construction: it resolves to a PATCH of the account's
+     * single `notificationSetting` resource, so re-importing, relinking, or
+     * re-running the ops backfill just re-asserts the same topic. Optional and
+     * best-effort — push is an optimization over the discovery sweep, never a
+     * correctness gate, so a failure is logged and the import proceeds.
+     */
+    subscribeToNotifications?: ManageNotificationsApi['subscribe']
+    /**
      * BQC-2.7: grants a property the capability allowlist of its organization
      * (identity-owned, idempotent). A created property starts with an EMPTY
      * property_capability set, and an empty set denies every non-core
@@ -159,35 +192,87 @@ export function createGoogleImportV2Processor(
     logger: LoggerPort
   }>,
 ): GoogleImportV2Processor {
+  /**
+   * Resolve the binding that post-import follow-up (review backfill + GBP
+   * push subscribe) should target, or null when there is nothing to follow up
+   * on: no follow-up dependency is wired, the receipt is not a live import,
+   * or the binding is not an active one matching the receipt's source epoch.
+   *
+   * The epoch match is what makes follow-up safe to run at all — a binding
+   * that moved on since the receipt was written belongs to a later operation.
+   */
+  const readFollowUpTarget = async (
+    organizationIdValue: string,
+    receipt: PropertyReceipt,
+  ): Promise<ImportFollowUpTarget | null> => {
+    if (!deps.enqueueReviewSync && !deps.subscribeToNotifications) return null
+    if (receipt.tombstone || receipt.destinationPropertyId === null) return null
+    if (receipt.outcome !== 'imported' && receipt.outcome !== 'relinked') return null
+
+    const binding = await deps.propertyBindingApi.readInternal(
+      organizationId(organizationIdValue),
+      receipt.destinationPropertyId,
+    )
+    if (
+      binding?.state !== 'active' ||
+      binding.connectionId === null ||
+      binding.accountId === null ||
+      binding.locationId === null ||
+      binding.sourceEpoch !== receipt.destinationSourceEpoch
+    ) {
+      return null
+    }
+    return {
+      connectionId: binding.connectionId,
+      accountId: binding.accountId,
+      locationId: binding.locationId,
+    }
+  }
+
+  /**
+   * Ask Google to push future reviews for this account. Swallows its own
+   * failure: the discovery sweep still finds new reviews, and
+   * `ops:gbp-subscribe` repairs the subscription out of band.
+   */
+  const subscribeToNotificationsBestEffort = async (
+    organizationIdValue: string,
+    itemId: string,
+    connectionId: GoogleConnectionId,
+  ): Promise<void> => {
+    if (!deps.subscribeToNotifications) return
+    try {
+      await deps.subscribeToNotifications(
+        organizationId(organizationIdValue),
+        connectionId,
+      )
+    } catch (error) {
+      // Content-free, matching the capability-provisioning warn below.
+      deps.logger.warn(
+        {
+          itemId,
+          errorName: error instanceof Error ? error.name : 'unknown',
+          errorCode: errorCode(error),
+        },
+        'GBP notification subscribe failed after import — push stays dark for this account until ops:gbp-subscribe runs; discovery sweep unaffected',
+      )
+    }
+  }
+
   const reconcileKnownReceipt = async (
     organizationIdValue: string,
     itemId: string,
     receipt: PropertyReceipt,
     now: Date,
   ): Promise<void> => {
-    if (
-      deps.enqueueReviewSync &&
-      !receipt.tombstone &&
-      receipt.destinationPropertyId !== null &&
-      (receipt.outcome === 'imported' || receipt.outcome === 'relinked')
-    ) {
-      const binding = await deps.propertyBindingApi.readInternal(
-        organizationId(organizationIdValue),
-        receipt.destinationPropertyId,
-      )
-      if (
-        binding?.state === 'active' &&
-        binding.connectionId !== null &&
-        binding.accountId !== null &&
-        binding.locationId !== null &&
-        binding.sourceEpoch === receipt.destinationSourceEpoch
-      ) {
+    const target = await readFollowUpTarget(organizationIdValue, receipt)
+    if (target && receipt.destinationPropertyId !== null) {
+      if (deps.enqueueReviewSync) {
         await deps.enqueueReviewSync(
           {
             organizationId: organizationIdValue,
             propertyId: receipt.destinationPropertyId,
-            connectionId: binding.connectionId,
-            locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
+            connectionId: target.connectionId,
+            locationName: `accounts/${target.accountId}/locations/${target.locationId}`,
             initiator: {
               kind: 'system',
               id: 'google-property-import',
@@ -199,15 +284,19 @@ export function createGoogleImportV2Processor(
           },
         )
       }
+      // Runs AFTER the sync enqueue so a subscribe outage cannot delay the
+      // backfill that makes the property usable.
+      await subscribeToNotificationsBestEffort(
+        organizationIdValue,
+        itemId,
+        target.connectionId,
+      )
     }
     await deps.store.reconcileFromReceipt({
       organizationId: organizationIdValue,
       itemId,
       destinationPropertyId: receipt.destinationPropertyId,
-      outcomeCode:
-        receipt.tombstone || receipt.outcome === 'property_deleted'
-          ? 'property_deleted'
-          : receipt.outcome,
+      outcomeCode: reconciledOutcomeCode(receipt),
       now,
     })
   }

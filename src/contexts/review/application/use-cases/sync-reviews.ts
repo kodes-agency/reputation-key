@@ -110,7 +110,13 @@ export const createReviewProviderObservationWriter = (
       input.review,
       now,
     )
-    return { reviewId: persisted.id, sourceRevision: persisted.sourceRevision }
+    return {
+      reviewId: persisted.id,
+      sourceRevision: persisted.sourceRevision,
+      // `existing == null` is the new-vs-seen decision; the snapshot
+      // orchestrator turns it into the discovery ladder's activity stamp.
+      isNew: existing == null,
+    }
   },
 })
 

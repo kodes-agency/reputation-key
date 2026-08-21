@@ -1,10 +1,16 @@
 // Notification context — on-badge-awarded event handler tests
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { onBadgeAwarded } from './on-badge-awarded'
+import { createEventHandlerDeps, type FakeEventHandlerDeps } from './test-fixtures'
 import type { BadgeAwarded } from '#/contexts/badge/application/public-api'
-import type { Queue } from 'bullmq'
-import { organizationId, propertyId, portalId, badgeId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalId,
+  portalGroupId,
+  badgeId,
+} from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 
 const ORG_ID = organizationId('org-1')
@@ -30,38 +36,15 @@ function makeEvent(overrides?: Partial<BadgeAwarded>): BadgeAwarded {
   }
 }
 
-type EnqueuedJob = { name: string; data: unknown; opts: unknown }
-
-function createFakeDeps(managerIds: string[] = ['manager-1', 'manager-2']) {
-  const jobs: EnqueuedJob[] = []
-  const addMock = vi.fn(async (name: string, data: unknown, opts?: unknown) => {
-    jobs.push({ name, data, opts })
-  })
-  const queue = { add: addMock } as unknown as Queue
-
-  const userLookup = {
-    findByRole: vi.fn(async () => []),
-    findAssignedManagers: vi.fn(async () => managerIds.map((id) => id as never)),
-    getEmail: vi.fn(async () => null),
-    getName: vi.fn(async () => null),
-  }
-
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    child: vi.fn(() => logger),
-  }
-
-  return { queue, addMock, jobs, userLookup, logger }
-}
+const payloadOf = (data: unknown): Record<string, unknown> =>
+  (data as { payload: Record<string, unknown> }).payload
 
 describe('onBadgeAwarded (notification)', () => {
-  let deps: ReturnType<typeof createFakeDeps>
+  let deps: FakeEventHandlerDeps
 
   beforeEach(() => {
-    deps = createFakeDeps()
+    deps = createEventHandlerDeps()
+    deps.userLookup.findAssignedManagers.mockResolvedValue(['manager-1', 'manager-2'])
   })
 
   it('enqueues one notification job per assigned manager', async () => {
@@ -76,8 +59,42 @@ describe('onBadgeAwarded (notification)', () => {
       expect(data.resourceId).toBe(BADGE_DEF_ID)
       expect(data.userId).toBeTruthy()
       expect(data.organizationId).toBe(ORG_ID)
-      expect(data.title).toBeTruthy()
     }
+  })
+
+  it('carries the badge and recipient NAMES, never the definition id', async () => {
+    await onBadgeAwarded(deps)(makeEvent())
+
+    // Was: body 'Badge definition: <uuid>'.
+    expect(payloadOf(deps.jobs[0]!.data)).toEqual({
+      targetKind: 'portal',
+      badgeName: 'Fast Responder',
+      recipientName: 'Front desk',
+    })
+    expect(JSON.stringify(payloadOf(deps.jobs[0]!.data))).not.toContain(BADGE_DEF_ID)
+  })
+
+  it('resolves the award target from the event targetType', async () => {
+    const groupId = portalGroupId('group-1')
+    await onBadgeAwarded(deps)(
+      makeEvent({ targetType: 'portal_group', targetId: groupId }),
+    )
+
+    expect(deps.recognitionLookup.findBadgeFacts).toHaveBeenCalledWith({
+      badgeDefinitionId: BADGE_DEF_ID,
+      target: { kind: 'portal_group', id: groupId },
+      orgId: ORG_ID,
+    })
+    expect(payloadOf(deps.jobs[0]!.data).targetKind).toBe('portal_group')
+  })
+
+  it('still notifies with the target kind when the lookup finds nothing', async () => {
+    deps.recognitionLookup.findBadgeFacts.mockResolvedValue(null)
+
+    await onBadgeAwarded(deps)(makeEvent())
+
+    expect(deps.jobs).toHaveLength(2)
+    expect(payloadOf(deps.jobs[0]!.data)).toEqual({ targetKind: 'portal' })
   })
 
   it('queries managers by org and property', async () => {
@@ -87,10 +104,11 @@ describe('onBadgeAwarded (notification)', () => {
   })
 
   it('skips silently when no managers found', async () => {
-    const emptyDeps = createFakeDeps([])
-    await onBadgeAwarded(emptyDeps)(makeEvent())
+    deps.userLookup.findAssignedManagers.mockResolvedValue([])
 
-    expect(emptyDeps.addMock).not.toHaveBeenCalled()
+    await onBadgeAwarded(deps)(makeEvent())
+
+    expect(deps.addMock).not.toHaveBeenCalled()
   })
 
   it('uses badge definition ID as resource ID', async () => {

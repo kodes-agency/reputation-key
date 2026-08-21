@@ -39,6 +39,7 @@ The commands:
 - `ops:suspend-property` / `ops:restore-property --org <id> --property <id> --ticket <ref>` — suspend/restore property processing. §10
 - `ops:inspect region|policy ...` — read-only routing/policy decision explanation. §12
 - `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
+- `ops:gbp-subscribe --org <id>` — re-assert the organization's GBP `notificationSetting` at `GBP_PUBSUB_TOPIC` (idempotent PATCH per connection). Dry-run by default; `--reason <text> --apply` executes. Run it (a) to backfill tenants that connected before the import path subscribed automatically, and (b) after ANY change to `GBP_PUBSUB_TOPIC` — Google stores the topic on the GBP account, so existing subscriptions keep publishing to the old topic until this re-runs. Exits 1 on any candidate short of `subscribed`. §2
 - `ops:restore-preflight` — guided runbook §8 restore preflight (isolated-target check, journal readability, backup-window checklist); NOT a PITR executor — restore is platform-owned. §8
 - `ops:restore-verify` — restore-drill purge-before-serving proof (requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process, asserts zero expired rows, prints retention_runs evidence); destructive, typed confirmation. §8
 - `ops:google-import-lifecycle inspect` — read the bounded global expiry/release backlog.
@@ -334,6 +335,78 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ---
 
+## 13. Discovery Sweep Lag (New Reviews Not Arriving)
+
+**Alert:** `sync.sweep-lag` (P1) — the oldest past-due `review_sync_state.next_incremental_at` is more than 60 minutes overdue (four consecutive 15-minute sweeps failed to reach it).
+
+**What it means:** a property that was scheduled for an incremental sync has not been polled. Every value written to `next_incremental_at` is already in the future by the poll interval, so overdue age is pure sweep lag — the alert is not measuring "properties are waiting", it is measuring "the sweep stopped working". With Google Pub/Sub push dark (`sync.gbp_push_enabled = 0`) the sweep is the ONLY path a new review has into the app: nobody gets notified, the inbox goes quiet, and there is no error anywhere.
+
+**First three things to check:**
+
+1. Is the sweep even firing? `ops:queue status background` and look for the `discover-new-reviews` repeatable job; check `worker.heartbeat.age_ms` / `worker.heartbeat.stale` on `/api/health/metrics`. A dead worker explains everything.
+2. Is it firing and failing? Search worker logs for the `discover-new-reviews` job name and its `errorClass` field. An enqueue failure defers the offending property and re-throws for a queue retry, so a single poison property shows up as a repeating failure with a stuck cursor.
+3. Is it firing, succeeding, and starving? Compare `sync.due_for_incremental` against the batch budget (200 per batch × 10 batches = 2000 properties per run). If the due count exceeds that, the sweep is healthy but under-provisioned and the oldest property never gets reached.
+
+**Remediate:** dead worker → §7. Poison property → read `review_sync_state.error_class` / `last_terminal_error_at` for the property at the cursor and clear or fix it, then `ops:refresh reviews` for one bounded catch-up run. Starving sweep → raise `REVIEW_DISCOVERY_INTERVAL_MINUTES` so fewer properties come due per tick, or raise the batch budget; the alert clears once the oldest overdue property is polled. Quota/throttle from Google → §3.
+
+**Verification:** `sync.oldest_due_age_ms` falls back under 60 minutes and keeps falling; `sync.due_for_incremental` drains.
+
+**Escalation:** Bozhidar Denev.
+
+---
+
+## 14. Quarantine Non-Empty (Dropped Work)
+
+**Alert:** `queue.quarantine-nonempty` (P1) — a job has been sitting in the `quarantine` queue for more than 15 minutes. `queue.quarantine-growth` (P2, §4) is the same condition aged past the 24-hour operator redrive SLA.
+
+**What it means:** the quarantine is a dead-letter queue with **no consumer** — nothing drains it, and the daily `quarantine-ttl-sweep` DELETES entries after `QUARANTINE_TTL_DAYS` (default 30d). A job that lands there is lost work that no retry will ever pick up. If it was a review sync, a notification fan-out, or a reply publication, that unit of work simply never happened and nobody was told. Fifteen minutes is three health-check evaluation cadences: long enough that an operator actively redriving right now does not trip it, short enough that the loss is still recoverable.
+
+**First three things to check:**
+
+1. `ops:quarantine list` — what is in there, and how many distinct job names? One entry is a poison payload; a growing pile of one job name is a systemic handler failure.
+2. The quarantine reason. Region/routing denials (`routing_blocked:*`, `wrong_cell`) are a policy problem, not a handler bug — see §12 and the `routing.region-attempts` alert. Anything else is a handler that threw past its retry budget.
+3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work.
+
+**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then `ops:quarantine redrive <id>` per entry — the redrive returns the job to its original queue. If the payload is genuinely undeliverable, record the identifiers in the incident before the TTL sweep removes it, because after that there is no record of what was lost.
+
+**Verification:** `queue.quarantine.depth` returns to 0 and the redriven jobs complete in their original queue.
+
+**Escalation:** Bozhidar Denev. Any quarantined entry that cannot be redriven is a data-loss event and needs written sign-off.
+
+---
+
+## 15. Notification Delivery Stalled
+
+**Alerts:** `notification.missing-for-inbox-item` (P1) and `notification.email-stalled` (P2).
+
+**What `notification.missing-for-inbox-item` means:** an inbox item exists with no notification attached — a review arrived, was projected into the inbox, and the user was never told. There is no benign cause and no self-healing path: nothing re-derives a missed notification, so the user will never learn about that review. A single occurrence pages. The usual cause is a handler that threw while the review commit had already succeeded: in-process delivery is best-effort (`emitAfterCommit` catches and warns), so a throw in the notification handler loses the notification silently while the review is safely committed.
+
+**First three things to check:**
+
+1. Worker logs for the notification handler around the affected window — look for the warn line from the after-commit emit (content-free: `correlationId`, counts, error class). That is where a lost notification leaves its only trace.
+2. Whether the durable path is carrying anything: `OUTBOX_DISPATCHER_ENABLED` and the notification family's cutover flag. While the family ships `record-only` the durable consumer is registered but inert, so the in-process bus is the only live delivery path and a single throw is a permanent loss.
+3. `outbox.unpublished` / `queue.oldest-age` — if the outbox is backed up, the gap may be delivery lag rather than a lost notification, and §7 is the right runbook.
+
+**Remediate:** fix the throwing handler, then backfill the missing notifications for the affected inbox items (bounded, report-first — `ops:rebuild-projection` repairs the inbox projection; the notification backfill is a scripted replay of the affected events). Flipping the notification outbox family off `record-only` converts this failure mode from silent loss into a retried delivery and is the durable fix.
+
+**What `notification.email-stalled` means:** queued notification emails are sitting `pending` more than two hours past their due time (`next_attempt_at` → `not_before` → `created_at`) — two missed hourly digest ticks, past any legitimate cadence, batching, or retry backoff.
+
+**Read `notification.email.delivery_enabled` FIRST.** While it reads `0`, outbound email is capability-dark (`notification.send_email` is not globally enabled), the email job handlers are effectively inert, and a pending backlog is the EXPECTED state — this alert deliberately stays silent on it, so if you are reading it, one of two things is true: email is globally enabled and genuinely not going out, or `notification.email.attempted_stuck` is non-zero, meaning the delivery path reached those rows, tried, and left them pending. The second case fires even while the global flag reads `0`, because a per-organization allowlist grant is not globally enumerable and would otherwise breakage-hide.
+
+**First three things to check:**
+
+1. `notification.email.delivery_enabled` and `notification.email.attempted_stuck` — these two tell you which of the two cases you are in, and therefore whether to look at policy or at the provider.
+2. If rows were attempted: `last_error_class` / `provider_state` on the overdue rows and the email transport logs. A provider outage, a suppression list, or an expired credential all land here.
+3. If nothing was attempted and email IS enabled: the digest and urgent job registrations. `ops:queue status default` / `background` for `notification-urgent-email` and the hourly digest job; a no-op registration log line (`registered no-op job handler (capability dark/blocked)`) means the gate closed at boot and a restart is needed after the policy change.
+
+**Remediate:** capability/policy cause → enable `notification.send_email` for the intended scope and restart the worker so the handler registers for real. Provider cause → fix the credential/suppression and let the retry schedule drain; rows keep their idempotency key, so replay cannot double-send. Never bulk-clear `pending` rows to silence the alert — that deletes the only record that a user was owed an email.
+
+**Verification:** `notification.email.pending_overdue` drains and `notification.email.oldest_pending_overdue_age_ms` falls under two hours; `notification.email.attempted_stuck` returns to 0.
+
+**Escalation:** Bozhidar Denev.
+
+---
+
 ## Alerts (BQC-7.4)
 
 Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, policy denials, quarantine region-attempts).
@@ -342,18 +415,22 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 
 **Hysteresis:** edge-trigger — an alert dispatches on the ok→firing transition, re-notifies at most every 24h while continuously firing (Redis state key TTL), and clears on recovery so the next breach fires immediately.
 
-| Alert                       | Sev | Threshold / window                                                                                                        | Runbook |
-| --------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `worker.heartbeat.stale`    | P1  | heartbeat missing or age > 10min                                                                                          | §7      |
-| `queue.oldest-age`          | P2  | oldest unpublished outbox event > 15min                                                                                   | §7      |
-| `queue.stalled`             | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                  | §7      |
-| `queue.quarantine-growth`   | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                | §4      |
-| `source.freshness-deadline` | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                   | §3      |
-| `retention.failure`         | P1  | latest retention run failed for any subject                                                                               | §8      |
-| `reply.ambiguous-aging`     | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                   | §6      |
-| `routing.region-attempts`   | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                    | §12     |
-| `policy.denial-drift`       | P2  | > 50 policy denials in the trailing hour (starting point — tune with real traffic; §11 for containment if drift confirms) | §9      |
-| `db.pool-exhaustion`        | P1  | any connection request queued behind a saturated pool                                                                     | §8      |
+| Alert                                 | Sev | Threshold / window                                                                                                              | Runbook |
+| ------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `worker.heartbeat.stale`              | P1  | heartbeat missing or age > 10min                                                                                                | §7      |
+| `queue.oldest-age`                    | P2  | oldest unpublished outbox event > 15min                                                                                         | §7      |
+| `queue.stalled`                       | P2  | any lease held > 2× its lease (single eval — stalled work IS the impact)                                                        | §7      |
+| `queue.quarantine-growth`             | P2  | oldest quarantined job > 24h (redrive SLA)                                                                                      | §4      |
+| `queue.quarantine-nonempty`           | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                 | §14     |
+| `source.freshness-deadline`           | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                         | §3      |
+| `sync.sweep-lag`                      | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                        | §13     |
+| `retention.failure`                   | P1  | latest retention run failed for any subject                                                                                     | §8      |
+| `reply.ambiguous-aging`               | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                         | §6      |
+| `routing.region-attempts`             | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |
+| `policy.denial-drift`                 | P2  | > 50 policy denials in the trailing hour (starting point — tune with real traffic; §11 for containment if drift confirms)       | §9      |
+| `db.pool-exhaustion`                  | P1  | any connection request queued behind a saturated pool                                                                           | §8      |
+| `notification.missing-for-inbox-item` | P1  | any inbox item with no notification (single eval — the user was never told and nothing re-derives it)                           | §15     |
+| `notification.email-stalled`          | P2  | oldest overdue queued email > 2h AND (email globally enabled OR rows already attempted) — silent while email is capability-dark | §15     |
 
 Defined but not yet implemented (registered with owner/severity/runbook; the signal source lands in a later slice — injection happens there, before BQC-8 acceptance):
 

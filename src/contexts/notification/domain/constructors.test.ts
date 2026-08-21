@@ -25,8 +25,6 @@ const base = {
   resourceType: 'reply' as const,
   resourceId: 'reply-1',
   eventId: 'event-1',
-  title: 'Reply publication failed',
-  body: null,
 }
 
 describe('notification constructors', () => {
@@ -41,6 +39,58 @@ describe('notification constructors', () => {
         priority: 'urgent',
       })
     }
+  })
+
+  it('renders title and body from the type and payload, not from the caller', () => {
+    const result = createNotification(
+      { ...base, payload: { propertyName: 'Riverside Hotel', rating: 2 } },
+      () => NOW,
+    )
+
+    if (result.isErr()) throw result.error
+    expect(result.value).toMatchObject({
+      title: 'Reply failed to publish at Riverside Hotel',
+      payload: { propertyName: 'Riverside Hotel', rating: 2 },
+      coalescedCount: 1,
+      coalescedLatestAt: null,
+    })
+    expect(result.value.body).toContain('Google rejected the reply to a 2-star review')
+  })
+
+  it('renders a usable title with no payload at all', () => {
+    // The old constructor rejected an empty title; a title is now impossible to
+    // omit, so the guard is gone and this is what replaced it: every template
+    // must read correctly from `{}`.
+    const result = createNotification(base, () => NOW)
+
+    if (result.isErr()) throw result.error
+    expect(result.value.title).toBe('Reply failed to publish')
+    expect(result.value.payload).toEqual({})
+  })
+
+  it('strips payload keys outside the ADR 0046 r.8 allowlist', () => {
+    const result = createNotification(
+      {
+        ...base,
+        payload: {
+          propertyName: 'Riverside Hotel',
+          reviewText: 'Filthy room',
+          reviewerName: 'Jane G.',
+          sentiment: -0.9,
+        },
+      },
+      () => NOW,
+    )
+
+    if (result.isErr()) throw result.error
+    expect(result.value.payload).toEqual({ propertyName: 'Riverside Hotel' })
+  })
+
+  it('rejects an empty resourceId — the deep link and coalescing key need it', () => {
+    const result = createNotification({ ...base, resourceId: '  ' }, () => NOW)
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) expect(result.error.code).toBe('invalid_resource_id')
   })
 
   it('rejects a notification without a property scope', () => {

@@ -21,6 +21,7 @@ import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedLeaderboardRouteImport } from './routes/_authenticated/leaderboard'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -45,6 +46,7 @@ import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authentic
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
+import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
@@ -122,6 +124,12 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
   path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedLeaderboardRoute =
   AuthenticatedLeaderboardRouteImport.update({
     id: '/leaderboard',
@@ -256,6 +264,11 @@ const AuthenticatedPropertiesPropertyIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const ApiWebhooksResendEventsRoute = ApiWebhooksResendEventsRouteImport.update({
+  id: '/api/webhooks/resend/events',
+  path: '/api/webhooks/resend/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksGbpNotificationsRoute =
   ApiWebhooksGbpNotificationsRouteImport.update({
     id: '/api/webhooks/gbp/notifications',
@@ -369,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/home': typeof AuthenticatedHomeRoute
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/team': typeof AuthenticatedTeamRoute
@@ -398,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
+  '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -423,6 +438,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/home': typeof AuthenticatedHomeRoute
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
@@ -449,6 +465,7 @@ export interface FileRoutesByTo {
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
+  '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/properties/import-google': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -475,6 +492,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/leaderboard': typeof AuthenticatedLeaderboardRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/_authenticated/team': typeof AuthenticatedTeamRoute
@@ -504,6 +522,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
+  '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
   '/_authenticated/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
@@ -531,6 +550,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/home'
     | '/leaderboard'
+    | '/notifications'
     | '/progress'
     | '/settings'
     | '/team'
@@ -560,6 +580,7 @@ export interface FileRouteTypes {
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
+    | '/api/webhooks/resend/events'
     | '/properties/$propertyId/'
     | '/properties/import-google/'
     | '/properties/$propertyId/goals/$goalId'
@@ -585,6 +606,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/home'
     | '/leaderboard'
+    | '/notifications'
     | '/progress'
     | '/team'
     | '/p/$token'
@@ -611,6 +633,7 @@ export interface FileRouteTypes {
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
+    | '/api/webhooks/resend/events'
     | '/properties/$propertyId'
     | '/properties/import-google'
     | '/properties/$propertyId/goals/$goalId'
@@ -636,6 +659,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/home'
     | '/_authenticated/leaderboard'
+    | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/_authenticated/team'
@@ -665,6 +689,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
+    | '/api/webhooks/resend/events'
     | '/_authenticated/properties/$propertyId/'
     | '/_authenticated/properties/import-google/'
     | '/_authenticated/properties/$propertyId/goals/$goalId'
@@ -698,6 +723,7 @@ export interface RootRouteChildren {
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
+  ApiWebhooksResendEventsRoute: typeof ApiWebhooksResendEventsRoute
   ApiPublicPTokenClickLinkIdRoute: typeof ApiPublicPTokenClickLinkIdRoute
 }
 
@@ -785,6 +811,13 @@ declare module '@tanstack/react-router' {
       path: '/progress'
       fullPath: '/progress'
       preLoaderRoute: typeof AuthenticatedProgressRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/leaderboard': {
@@ -954,6 +987,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/api/webhooks/resend/events': {
+      id: '/api/webhooks/resend/events'
+      path: '/api/webhooks/resend/events'
+      fullPath: '/api/webhooks/resend/events'
+      preLoaderRoute: typeof ApiWebhooksResendEventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/gbp/notifications': {
       id: '/api/webhooks/gbp/notifications'
@@ -1193,6 +1233,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedLeaderboardRoute: typeof AuthenticatedLeaderboardRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
@@ -1207,6 +1248,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedLeaderboardRoute: AuthenticatedLeaderboardRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
   AuthenticatedTeamRoute: AuthenticatedTeamRoute,
@@ -1242,6 +1284,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
+  ApiWebhooksResendEventsRoute: ApiWebhooksResendEventsRoute,
   ApiPublicPTokenClickLinkIdRoute: ApiPublicPTokenClickLinkIdRoute,
 }
 export const routeTree = rootRouteImport

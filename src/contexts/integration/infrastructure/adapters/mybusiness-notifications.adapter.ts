@@ -3,8 +3,11 @@
 // a domain error kind at the boundary (cc-errors §13 — raw status never crosses),
 // zod-validate at the boundary. Implements MyBusinessNotificationsPort.
 //
-// Google's documented delete path is PATCH with `updateMask=pubsubTopic` and an
-// empty `pubsubTopic` string, which clears the subscription.
+// `updateMask` is REQUIRED on this endpoint (accounts.updateNotificationSetting
+// reference, query parameters) — Google rejects the PATCH with 400
+// INVALID_ARGUMENT without it. Subscribe therefore masks the two fields it
+// writes; the documented delete path masks `pubsubTopic` and sends it empty,
+// which clears the subscription.
 
 import type { MyBusinessNotificationsPort } from '../../application/ports/mybusiness-notifications.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
@@ -25,7 +28,8 @@ export const createMyBusinessNotificationsAdapter = (config: {
 }): MyBusinessNotificationsPort => {
   const baseUrl = config.baseUrl
   const subscribe: MyBusinessNotificationsPort['subscribe'] = async (input) => {
-    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting`
+    // NotificationSetting's only writable fields, and the only two we set.
+    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic,notificationTypes`
     const response = await trace('mybusinessNotifications.subscribe', () =>
       fetch(url, {
         method: 'PATCH',

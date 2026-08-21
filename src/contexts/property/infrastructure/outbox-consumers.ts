@@ -44,6 +44,7 @@ export function registerPropertyRetentionConsumer(
   registerConsumer({
     eventType: 'integration.property_import.retention_released',
     consumerName: 'property.import-retention-release',
+    module: 'property.import-retention-release',
     handler: (event) => handlePropertyRetentionReleased(store, event),
   })
 }

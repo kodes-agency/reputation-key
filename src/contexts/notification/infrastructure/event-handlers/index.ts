@@ -6,6 +6,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
+import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
@@ -24,62 +25,70 @@ export type RegisterNotificationHandlersDeps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
   inboxItemLookup: InboxItemLookupPort
+  recognitionLookup: RecognitionLookupPort
+  /** Injected — handlers measure a waiting age, and this code never calls Date.now(). */
+  clock: () => Date
   logger: LoggerPort
 }>
 
 export const registerNotificationHandlers = (
   deps: RegisterNotificationHandlersDeps,
 ): void => {
-  const { events, queue, userLookup, inboxItemLookup, logger } = deps
+  const { events, queue, userLookup, inboxItemLookup, recognitionLookup, clock, logger } =
+    deps
+
+  // Every inbox-keyed handler assembles its payload from the same four things:
+  // the item facts, the acting user's role, a clock for the waiting age, and a
+  // logger for a degraded lookup.
+  const inboxFacts = { userLookup, inboxItemLookup, clock, logger }
+  const recognitionFacts = { userLookup, recognitionLookup, logger }
 
   // Inbox events (reviews + feedback both arrive via inbox.inbox_item.created)
-  events.on(
-    'inbox.inbox_item.created',
-    onInboxItemCreated({ queue, userLookup, logger }),
-    { consumer: 'notification.event-handlers' },
-  )
-  events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue }), {
+  events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, ...inboxFacts }), {
+    consumer: 'notification.event-handlers',
+  })
+  events.on('inbox.inbox_item.assigned', onInboxItemAssigned({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
   })
   events.on(
     'inbox.inbox_item.escalated',
-    onInboxItemEscalated({ queue, userLookup, logger }),
+    onInboxItemEscalated({ queue, ...inboxFacts }),
 
     { consumer: 'notification.event-handlers' },
   )
-  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, userLookup, logger }), {
+  events.on('inbox.inbox_note.added', onInboxNoteAdded({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
   })
 
   // Reply lifecycle
   events.on(
     'review.reply.submitted',
-    onReplySubmitted({ queue, userLookup, inboxItemLookup, logger }),
+    onReplySubmitted({ queue, ...inboxFacts }),
 
     { consumer: 'notification.event-handlers' },
   )
-  events.on('review.reply.approved', onReplyApproved({ queue, inboxItemLookup }), {
+  events.on('review.reply.approved', onReplyApproved({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
   })
-  events.on('review.reply.rejected', onReplyRejected({ queue, inboxItemLookup }), {
+  events.on('review.reply.rejected', onReplyRejected({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
   })
-  events.on('review.reply.published', onReplyPublished({ queue, inboxItemLookup }), {
+  events.on('review.reply.published', onReplyPublished({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
   })
   events.on(
     'review.reply.publish_failed',
-    onReplyPublishFailed({ queue, inboxItemLookup }),
+    onReplyPublishFailed({ queue, ...inboxFacts }),
 
     { consumer: 'notification.event-handlers' },
   )
   // Goal events
-  events.on('goal.completed', onGoalCompleted({ queue, userLookup, logger }), {
+  events.on('goal.completed', onGoalCompleted({ queue, ...recognitionFacts }), {
     consumer: 'notification.event-handlers',
   })
 
   // Badge events
-  events.on('badge.awarded', onBadgeAwarded({ queue, userLookup, logger }), {
+  events.on('badge.awarded', onBadgeAwarded({ queue, ...recognitionFacts }), {
     consumer: 'notification.event-handlers',
   })
 }

@@ -18,8 +18,7 @@ type GoalCompletedJobData = {
   resourceType: 'goal'
   resourceId: string
   eventId: string
-  title: string
-  body: string
+  payload: Record<string, unknown>
 }
 
 const ORG_ID = organizationId('org-1')
@@ -90,7 +89,7 @@ describe('onGoalCompleted (notification)', () => {
     expect(recipientIds).not.toContain(CREATOR_ID)
   })
 
-  it('each job carries the goal.completed payload', async () => {
+  it('each job carries the goal facts, not hand-written copy', async () => {
     await onGoalCompleted(deps)(mockEvent)
 
     expect(deps.jobs[0]!.data).toEqual({
@@ -101,9 +100,23 @@ describe('onGoalCompleted (notification)', () => {
       resourceType: 'goal',
       resourceId: GOAL_ID,
       eventId: 'evt-goal-completed-1',
-      title: 'Goal completed! 🎉',
-      body: 'A goal on your property has been completed',
+      payload: { goalName: 'Weekend response time', propertyName: 'Riverside Hotel' },
     })
+  })
+
+  it('resolves the goal name through the recognition lookup', async () => {
+    await onGoalCompleted(deps)(mockEvent)
+
+    expect(deps.recognitionLookup.findGoalFacts).toHaveBeenCalledWith(GOAL_ID, ORG_ID)
+  })
+
+  it('still notifies when the goal name cannot be resolved', async () => {
+    deps.recognitionLookup.findGoalFacts.mockResolvedValue(null)
+
+    await onGoalCompleted(deps)(mockEvent)
+
+    expect(deps.jobs).toHaveLength(3)
+    expect((deps.jobs[0]!.data as GoalCompletedJobData).payload).toEqual({})
   })
 
   it('propagates eventId from the domain event', async () => {

@@ -131,6 +131,8 @@ const config = defineConfig(({ mode }) => {
                     '**/build.ts',
                     '**/shared/db/**',
                     '**/shared/cache/**',
+                    // react-email .tsx templates — server-render only.
+                    '**/shared/email/**',
                     '**/shared/jobs/**',
                     '**/shared/observability/**',
                     '**/shared/auth/auth.ts',
