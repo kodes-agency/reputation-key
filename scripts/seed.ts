@@ -44,7 +44,25 @@ const orgArg = args.find((a) => a.startsWith('--org='))
 const runInv = args.includes('--invariants')
 
 async function resolveOrgId(container: Container): Promise<string> {
-  if (orgArg) return orgArg.replace('--org=', '')
+  if (orgArg) {
+    const orgId = orgArg.replace('--org=', '')
+    // An explicit --org is the CI path (`--org=sim-ci-org`) and runs against a
+    // freshly migrated, EMPTY database, so the row this id names may not exist
+    // yet. Everything downstream — the capability allowlist first, then the
+    // scenario — carries an FK to `organization`, so create it here rather
+    // than letting `organization_policy_organization_id_fkey` fail. Mirrors how
+    // the isolation org is created below. Idempotent for repeat local runs.
+    await container.db
+      .insert(organization)
+      .values({
+        id: orgId,
+        name: `Simulation org (${orgId})`,
+        slug: orgId,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing()
+    return orgId
+  }
   const { Pool } = await import('pg')
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
   try {
