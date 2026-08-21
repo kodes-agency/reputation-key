@@ -1,0 +1,26 @@
+# This file exists to stop pnpm walking UP the directory tree.
+#
+# pnpm resolves its workspace root by searching ancestors for a
+# pnpm-workspace.yaml. If one exists anywhere above this repo — and it now
+# commonly does, because agent/CLI installs put one in $HOME — pnpm treats THAT
+# directory as the root, finds this repo is not one of its members, and
+# installs the ancestor project instead. It exits 0 and prints "../../.." as
+# the project label, so nothing looks wrong.
+#
+# The consequence is silent and expensive: node_modules here is never updated,
+# so every local typecheck, lint, test and audit runs against whatever
+# dependencies happened to be installed last. Observed on 2026-08-21 — 15
+# phantom `error TS` from react-resizable-panels 2.1.9 while package.json and
+# the lockfile both said 4.12.3, a max-lines lint error from a stale
+# eslint-plugin, and local fallow reporting different findings than CI. CI is
+# unaffected (fresh checkout, no ancestor workspace), so the disagreement reads
+# as "CI is weird" rather than "the local tree is a lie".
+#
+# `--ignore-workspace` fixes it per-invocation, and `ignore-workspace=true` in
+# .npmrc is NOT honoured by pnpm 10.6.5 (verified). Declaring the root here is
+# the only durable fix.
+#
+# Resolution is unchanged: the lockfile is already workspace-shaped, and
+# `pnpm install --frozen-lockfile` stays valid with this file present.
+packages:
+  - .
