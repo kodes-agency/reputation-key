@@ -3,10 +3,7 @@
 import { createErrorFactory } from '#/shared/domain/errors'
 
 export type LeaderboardErrorCode =
-  | 'forbidden'
-  | 'not_found'
-  | 'invalid_input'
-  | 'repo_insert_failed'
+  'forbidden' | 'not_found' | 'invalid_input' | 'repo_insert_failed'
 
 export type LeaderboardError = Readonly<{
   _tag: 'LeaderboardError'

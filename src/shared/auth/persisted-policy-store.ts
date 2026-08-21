@@ -61,8 +61,7 @@ export type PolicyControlVersion = Readonly<{
 }>
 export type PolicyControlVersionLoader = () => Promise<PolicyControlVersion>
 export type RequiredPolicyRefreshResult =
-  | PolicyControlVersion
-  | Readonly<{ unavailable: true }>
+  PolicyControlVersion | Readonly<{ unavailable: true }>
 
 // ── Env seed (bootstrap parity for the web process) ──────────────────
 

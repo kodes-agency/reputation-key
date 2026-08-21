@@ -211,8 +211,7 @@ export const bqcStatusManifestSchema = z
 export type BqcStatusManifest = z.infer<typeof bqcStatusManifestSchema>
 
 export type BqcValidationResult =
-  | { ok: true; manifest: BqcStatusManifest }
-  | { ok: false; errors: ReadonlyArray<string> }
+  { ok: true; manifest: BqcStatusManifest } | { ok: false; errors: ReadonlyArray<string> }
 
 /** Parse and validate an unknown JSON value as a BQC status manifest. */
 export function validateBqcStatusManifest(input: unknown): BqcValidationResult {

@@ -59,10 +59,7 @@ function isProviderSuffix(value: string): boolean {
 const RECORD_KEY = /^[A-Za-z0-9_-]{43}$/
 
 type ReferenceAudience =
-  | 'account_selection'
-  | 'accounts_cursor'
-  | 'locations_cursor'
-  | 'import_candidate'
+  'account_selection' | 'accounts_cursor' | 'locations_cursor' | 'import_candidate'
 type IndexAudience =
   | 'organization_index'
   | 'user_index'

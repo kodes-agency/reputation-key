@@ -744,11 +744,9 @@ export function createContainer(options?: {
     ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
     : undefined
   let googleContentAuthority:
-    | ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>>
-    | undefined
+    ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>> | undefined
   let googleContentAuthorityStore:
-    | ReturnType<typeof createGoogleContentAuthorityRepository>
-    | undefined
+    ReturnType<typeof createGoogleContentAuthorityRepository> | undefined
   if (googleContentRuntimeBindings) {
     const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
     if (!rawPublicKeys) {

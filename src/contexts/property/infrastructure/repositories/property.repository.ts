@@ -25,10 +25,7 @@ export type PropertySetValues = {
   googleConnectionId?: string | null
   profileVersion?: number
   googleBindingState?:
-    | 'unbound'
-    | 'account_confirmation_required'
-    | 'active'
-    | 'disconnected'
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
   profileSource?: 'legacy' | 'tenant_confirmed'
   profileConfirmedAt?: Date | null
   profileConfirmedBy?: string | null

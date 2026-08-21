@@ -34,8 +34,7 @@ export type SystemCancelGoalInput = Readonly<{
 // ── Error types ──────────────────────────────────────────────────────
 
 export type SystemCancelGoalError =
-  | { tag: 'goal_not_found' }
-  | { tag: 'goal_not_active'; status: string }
+  { tag: 'goal_not_found' } | { tag: 'goal_not_active'; status: string }
 
 // ── Dependencies ─────────────────────────────────────────────────────
 

@@ -63,10 +63,7 @@ import type { ConsoleMessage, Page, Request, Response, TestInfo } from '@playwri
 import { ERROR_ALLOWLIST, type AllowlistEntry } from './error-allowlist'
 
 export type DetectionKind =
-  | 'pageerror'
-  | 'console-error'
-  | 'mutation-status'
-  | 'request-failed'
+  'pageerror' | 'console-error' | 'mutation-status' | 'request-failed'
 
 export type Detection = Readonly<{
   kind: DetectionKind

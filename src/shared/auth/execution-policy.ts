@@ -55,12 +55,7 @@ import { throwContextError } from './server-errors'
 export const EXECUTION_POLICY_VERSION = 'beta-local-2'
 
 export type ExecutionKind =
-  | 'interactive'
-  | 'worker'
-  | 'consumer'
-  | 'schedule'
-  | 'operator'
-  | 'public'
+  'interactive' | 'worker' | 'consumer' | 'schedule' | 'operator' | 'public'
 
 export type Principal =
   | Readonly<{ kind: 'user'; ctx: AuthContext }>

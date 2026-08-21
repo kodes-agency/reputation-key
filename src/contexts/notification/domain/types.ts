@@ -54,10 +54,7 @@ export type NotificationPriority = 'urgent' | 'normal'
  * every `goal.completed`. Migration 0070 remaps stored rows to `recognition`.
  */
 export type NotificationCategory =
-  | 'mandatory'
-  | 'urgent_operational'
-  | 'workflow_collaboration'
-  | 'recognition'
+  'mandatory' | 'urgent_operational' | 'workflow_collaboration' | 'recognition'
 export type NotificationChannel = 'in_app' | 'email'
 export type NotificationCadence = 'immediate' | 'daily'
 export type NotificationStatus = 'unread' | 'read' | 'dismissed'

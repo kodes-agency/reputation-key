@@ -7,10 +7,7 @@ import { createServer as createHttpsServer } from 'node:https'
 
 export const AI_PROVIDER_STUB_PORT = 4102
 export type AiProviderStubOperationKind =
-  | 'analysis'
-  | 'reply'
-  | 'trend'
-  | 'synthetic_canary'
+  'analysis' | 'reply' | 'trend' | 'synthetic_canary'
 
 type TokenUsage = Readonly<{
   inputTokens: number

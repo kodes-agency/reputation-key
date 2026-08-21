@@ -1,10 +1,7 @@
 import type { GoogleContentCapability } from './google-content-contract'
 
 export type AuthorizationExecutionPermitState =
-  | 'admitted'
-  | 'started'
-  | 'completed'
-  | 'fenced'
+  'admitted' | 'started' | 'completed' | 'fenced'
 
 export type AuthorizationCommitVectorMode = 'full' | 'core_credential_projection'
 
@@ -180,8 +177,7 @@ export function fenceExecutionPermit(
 }
 
 export type ExecutionPermitStartDeadlineRetentionReason =
-  | 'state_not_admitted'
-  | 'start_deadline_pending'
+  'state_not_admitted' | 'start_deadline_pending'
 
 export type ExecutionPermitStartDeadlineSweepResult =
   | Readonly<{

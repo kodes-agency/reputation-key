@@ -36,18 +36,18 @@ This phase does not reposition Reputation Key around guest feedback. The manager
 
 ## 3. Current-state findings to resolve
 
-| Finding                                                                          | Risk                                                                                                     |
+| Finding | Risk |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
-| Client JavaScript creates `guest_session` before the server                      | Guest can rotate identity and evade per-session controls; cookie is not trustworthy.                     |
-| Server accepts any cookie value and lacks full production attributes             | Session is unsigned/replaceable and may be sent insecurely.                                              |
-| Raw `X-Forwarded-For` is trusted                                                 | Attackers can spoof network identity unless proxy chain is configured.                                   |
-| Scan is recorded on page effect/mount                                            | Refresh, prefetch, bots, or link scanners inflate scan metrics.                                          |
+| Client JavaScript creates `guest_session` before the server | Guest can rotate identity and evade per-session controls; cookie is not trustworthy. |
+| Server accepts any cookie value and lacks full production attributes | Session is unsigned/replaceable and may be sent insecurely. |
+| Raw `X-Forwarded-For` is trusted | Attackers can spoof network identity unless proxy chain is configured. |
+| Scan is recorded on page effect/mount | Refresh, prefetch, bots, or link scanners inflate scan metrics. |
 | `source=qr                                                                       | nfc                                                                                                      | direct` comes from the URL/client | Source is a campaign hint, not verified physical behavior. |
-| Star rating and feedback submit independently                                    | A guest can create inconsistent partial records and cannot naturally correct one response.               |
-| Review links are shown alongside conditional feedback logic                      | UI evolution can drift into prohibited review gating.                                                    |
-| Cookie copy says no personal data is collected                                   | Session IDs, network-derived abuse signals, device metadata, free text, or uploads can be personal data. |
-| Upload presign/finalize/processing is weakly bound and objects can be public     | Arbitrary key finalization, resource bombs, public exposure, and orphaned objects are possible.          |
-| Portal/property and guest/property relations lack strong foreign-key consistency | Tenant/property ownership can be violated by a buggy command.                                            |
+| Star rating and feedback submit independently | A guest can create inconsistent partial records and cannot naturally correct one response. |
+| Review links are shown alongside conditional feedback logic | UI evolution can drift into prohibited review gating. |
+| Cookie copy says no personal data is collected | Session IDs, network-derived abuse signals, device metadata, free text, or uploads can be personal data. |
+| Upload presign/finalize/processing is weakly bound and objects can be public | Arbitrary key finalization, resource bombs, public exposure, and orphaned objects are possible. |
+| Portal/property and guest/property relations lack strong foreign-key consistency | Tenant/property ownership can be violated by a buggy command. |
 
 ## 4. Product contract
 

@@ -123,10 +123,7 @@ export type AiOperationProfile = Readonly<{
   capability: MerchantAiCapability | null
   purpose: 'ai.analyze' | 'ai.generate_reply' | 'ai.detect_trends' | 'ai.synthetic_canary'
   sourceRoute:
-    | 'review-analysis'
-    | 'reply-suggestion'
-    | 'property-trend'
-    | 'synthetic-canary'
+    'review-analysis' | 'reply-suggestion' | 'property-trend' | 'synthetic-canary'
   gatewayPath:
     | '/v1/review-analysis'
     | '/v1/reply-suggestion'

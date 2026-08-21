@@ -28,10 +28,7 @@ const COMPATIBILITY_MUTATIONS = [
 
 type CompatibilityMutationAction = (typeof COMPATIBILITY_MUTATIONS)[number]
 type Action =
-  | 'inspect'
-  | 'inspect-request'
-  | 'cancel-request'
-  | CompatibilityMutationAction
+  'inspect' | 'inspect-request' | 'cancel-request' | CompatibilityMutationAction
 
 function isCompatibilityMutation(value: string): value is CompatibilityMutationAction {
   return (COMPATIBILITY_MUTATIONS as readonly string[]).includes(value)

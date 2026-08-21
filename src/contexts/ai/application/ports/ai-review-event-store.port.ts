@@ -1,10 +1,7 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type AiReviewEventDisposition =
-  | 'pending'
-  | 'source_expired'
-  | 'provider_deleted'
-  | 'policy_disabled'
+  'pending' | 'source_expired' | 'provider_deleted' | 'policy_disabled'
 
 export type AiReviewEventConsumeResult =
   | Readonly<{

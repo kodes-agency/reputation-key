@@ -21,23 +21,15 @@ export type ProcessingRegion = (typeof ALL_PROCESSING_REGIONS)[number]
 
 /** How the processing region was determined. */
 export type RegionSource =
-  | 'country_default'
-  | 'organization_override'
-  | 'contract_override'
+  'country_default' | 'organization_override' | 'contract_override'
 
 /** How the country code was determined. */
 export type CountrySource =
-  | 'google_address'
-  | 'manual'
-  | 'organization_default'
-  | 'admin_correction'
+  'google_address' | 'manual' | 'organization_default' | 'admin_correction'
 
 /** How the timezone was determined. */
 export type TimezoneSource =
-  | 'google_time_zone_api'
-  | 'manual'
-  | 'organization_default'
-  | 'legacy'
+  'google_time_zone_api' | 'manual' | 'organization_default' | 'legacy'
 
 export type ProcessingProfile = Readonly<{
   propertyId: PropertyId

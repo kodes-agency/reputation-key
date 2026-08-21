@@ -33,10 +33,7 @@ export function isGooglePerformanceErrorCode(
 }
 
 export type PerformanceAvailability =
-  | 'ready'
-  | 'partial'
-  | 'not_applicable_or_not_returned'
-  | 'no_complete_days'
+  'ready' | 'partial' | 'not_applicable_or_not_returned' | 'no_complete_days'
 
 export type PerformanceMetricValue = Readonly<{
   label: string

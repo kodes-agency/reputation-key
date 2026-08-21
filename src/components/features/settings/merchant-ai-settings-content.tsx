@@ -29,10 +29,7 @@ export type MerchantAiPropertyOption = Readonly<{
   id: string
   name: string
   googleBindingState:
-    | 'unbound'
-    | 'account_confirmation_required'
-    | 'active'
-    | 'disconnected'
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 }>
 
 export function MerchantAiPropertySelector({

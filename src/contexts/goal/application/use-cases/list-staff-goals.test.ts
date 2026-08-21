@@ -117,13 +117,12 @@ const setup = (options?: SetupOptions) => {
   const goals = options?.goals ?? []
   const progress = options?.progress ?? {}
 
-  const list = vi.fn(
-    async (filter: GoalListFilter): Promise<ReadonlyArray<Goal>> =>
-      goals.filter(
-        (goal) =>
-          goal.organizationId === filter.organizationId &&
-          goal.propertyId === filter.propertyId,
-      ),
+  const list = vi.fn(async (filter: GoalListFilter): Promise<ReadonlyArray<Goal>> =>
+    goals.filter(
+      (goal) =>
+        goal.organizationId === filter.organizationId &&
+        goal.propertyId === filter.propertyId,
+    ),
   )
 
   const getProgressBatch = vi.fn(

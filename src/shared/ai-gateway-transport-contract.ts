@@ -437,14 +437,11 @@ export const aiGatewayRouteResponseSchema = z.union([
 
 export type AiGatewayRouteResponseV1 = z.infer<typeof aiGatewayRouteResponseSchema>
 export type AnalysisResult =
-  | z.infer<typeof analysisSuccessSchema>
-  | z.infer<typeof analysisErrorSchema>
+  z.infer<typeof analysisSuccessSchema> | z.infer<typeof analysisErrorSchema>
 export type ReplySuggestionResult =
-  | z.infer<typeof replySuccessSchema>
-  | z.infer<typeof replyErrorSchema>
+  z.infer<typeof replySuccessSchema> | z.infer<typeof replyErrorSchema>
 export type TrendResult =
-  | z.infer<typeof trendSuccessSchema>
-  | z.infer<typeof trendErrorSchema>
+  z.infer<typeof trendSuccessSchema> | z.infer<typeof trendErrorSchema>
 export type AiGatewayFailure =
   | z.infer<typeof analysisErrorSchema>
   | z.infer<typeof replyErrorSchema>
