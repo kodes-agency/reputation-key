@@ -9,7 +9,12 @@ import { InboxSidebar } from '#/components/layout/inbox-sidebar'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
-import { Panel, PanelGroup } from 'react-resizable-panels'
+import {
+  Group,
+  Panel,
+  useDefaultLayout,
+  type LayoutStorage,
+} from 'react-resizable-panels'
 import {
   Sheet,
   SheetContent,
@@ -23,10 +28,27 @@ import {
   folderLabelFor,
   InboxNoOrgState,
   InboxDetailPane,
+  INBOX_PANEL_IDS,
+  CLIP_PANEL_CONTENT,
 } from './inbox-page-parts'
 import { InboxDetailSheet } from './inbox-detail-sheet'
 
 export { inboxSearchSchema, type InboxSearchParams } from './inbox-search-schema'
+
+/**
+ * `useDefaultLayout` defaults its `storage` param to a bare `localStorage`
+ * reference, which is a ReferenceError under SSR. Guarding access makes the
+ * server render see "no saved layout" and fall back to the panels' own
+ * `defaultSize`; the persisted layout is then applied after mount, which is
+ * what the v2 `autoSaveId` prop did.
+ */
+const inboxLayoutStorage: LayoutStorage = {
+  getItem: (key) =>
+    typeof window === 'undefined' ? null : window.localStorage.getItem(key),
+  setItem: (key, value) => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, value)
+  },
+}
 
 export function InboxPageV2({
   ctx,
@@ -56,6 +78,12 @@ export function InboxPageV2({
   )
   const listRef = useRef<HTMLDivElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Replaces the v2 `autoSaveId` prop, which v4 dropped in favour of an
+  // explicit hook. Must run before the no-org early return below.
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: 'inbox-layout',
+    storage: inboxLayoutStorage,
+  })
 
   if (!ctx.activeOrganization?.id) return <InboxNoOrgState />
 
@@ -147,8 +175,19 @@ export function InboxPageV2({
   }
 
   return (
-    <PanelGroup direction="horizontal" autoSaveId="inbox-layout" className="h-full">
-      <Panel defaultSize={20} minSize={15} maxSize={30} className="overflow-hidden">
+    <Group
+      orientation="horizontal"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
+      className="h-full"
+    >
+      <Panel
+        id={INBOX_PANEL_IDS.sidebar}
+        defaultSize="20%"
+        minSize="15%"
+        maxSize="30%"
+        style={CLIP_PANEL_CONTENT}
+      >
         <InboxSidebar
           propertyId={effectivePropertyId}
           properties={properties}
@@ -157,7 +196,13 @@ export function InboxPageV2({
         />
       </Panel>
       <ResizeHandle />
-      <Panel defaultSize={30} minSize={20} maxSize={50} className="overflow-hidden">
+      <Panel
+        id={INBOX_PANEL_IDS.list}
+        defaultSize="30%"
+        minSize="20%"
+        maxSize="50%"
+        style={CLIP_PANEL_CONTENT}
+      >
         <InboxListPanel {...listPanelProps} />
       </Panel>
       <ResizeHandle />
@@ -168,6 +213,6 @@ export function InboxPageV2({
         onClose={s.closeDetail}
         detailFns={inboxFns}
       />
-    </PanelGroup>
+    </Group>
   )
 }
