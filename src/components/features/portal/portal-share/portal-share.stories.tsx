@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
 import type { Action } from '#/components/hooks/use-action'
+import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -13,6 +14,21 @@ type RevokeInput = { data: { portalId: string; reason: string } }
 type LinkResult = { publicUrl: string }
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
+
+const noActiveToken: PortalTokenStatus = {
+  hasActiveToken: false,
+  version: null,
+  issuedAt: null,
+  graceExpiresAt: null,
+}
+
+// What the Share tab sees after a reload: a live token whose URL is gone.
+const activeToken: PortalTokenStatus = {
+  hasActiveToken: true,
+  version: 3,
+  issuedAt: '2026-08-12T09:30:00.000Z',
+  graceExpiresAt: null,
+}
 
 const issueAction = (
   data: LinkResult | null = null,
@@ -56,6 +72,7 @@ const baseArgs = {
   portalId: 'portal-1',
   issuedLink: null,
   revoked: false,
+  tokenStatus: noActiveToken,
   onLinkIssued: fn(),
   onLinksRevoked: fn(),
   portalName: 'Guest services',
@@ -115,15 +132,21 @@ export const PermissionDenied: Story = {
   },
 }
 
+// `revoked` is in-session truth: the detail query has not refetched yet, so
+// tokenStatus still claims a live token and must not resurrect the affordances.
 export const Revoked: Story = {
   args: {
     ...baseArgs,
     revoked: true,
+    tokenStatus: activeToken,
   },
   play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/public links revoked/i)).toBeInTheDocument()
     await expect(
-      within(canvasElement).getByText(/public links revoked/i),
+      canvas.getByRole('button', { name: /generate public link/i }),
     ).toBeInTheDocument()
+    await expect(canvas.queryByRole('button', { name: /rotate link/i })).toBeNull()
   },
 }
 
@@ -160,5 +183,45 @@ export const RevokeRequiresReason: Story = {
     )
     await expect(dialog.getByRole('button', { name: /revoke links/i })).toBeDisabled()
     await expect(dialog.getByLabelText(/reason/i)).toHaveFocus()
+  },
+}
+
+// After a reload the raw URL is gone but the token is still live. Rotate and
+// revoke must stay reachable — revocation is the only mitigation for a leaked
+// opaque link — and the issue form must not be offered (issuePortalToken would
+// throw token_unavailable).
+export const ActiveLinkAfterReload: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: activeToken,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/a public link is active/i)).toBeInTheDocument()
+    await expect(canvas.getByText(/version 3, issued Aug 12, 2026/i)).toBeInTheDocument()
+    await expect(canvas.queryByText(publicUrl)).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /generate public link/i }),
+    ).toBeNull()
+    await expect(canvas.getByRole('button', { name: /rotate link/i })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: /revoke links/i }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const RotatedWithinGracePeriod: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: {
+      ...activeToken,
+      version: 4,
+      graceExpiresAt: '2026-08-19T09:30:00.000Z',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByText(/keeps working until Aug 19, 2026/i),
+    ).toBeInTheDocument()
   },
 }

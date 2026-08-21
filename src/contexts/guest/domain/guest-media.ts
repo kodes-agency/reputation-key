@@ -91,6 +91,38 @@ export function issueGuestMedia(
   }
 }
 
+/** Server-observed object metadata, which may be unknown in either member. */
+export type ObservedObjectMetadata = Readonly<{
+  contentType: string | null
+  sizeBytes: number | null
+}>
+
+/**
+ * A confirmation may only act on the object its own issuance minted: a missing
+ * row, or one holding a different key, is not the caller's upload.
+ */
+export function namesIssuedObject(
+  media: GuestMedia | null,
+  objectKey: string,
+): media is GuestMedia {
+  return media !== null && media.objectKey === objectKey
+}
+
+/**
+ * Fails closed on server-observed metadata: an unknown (`null`) content type or
+ * size is a mismatch, never a pass, so an object the store cannot vouch for is
+ * purged instead of published.
+ */
+export function uploadMatchesIssuance(
+  metadata: ObservedObjectMetadata,
+  media: GuestMedia,
+): boolean {
+  return (
+    metadata.contentType === media.contentType &&
+    metadata.sizeBytes === media.declaredSizeBytes
+  )
+}
+
 export function claimMediaForProcessing(
   media: GuestMedia,
   response: GuestResponse,

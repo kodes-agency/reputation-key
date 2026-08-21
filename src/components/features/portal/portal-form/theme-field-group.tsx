@@ -1,17 +1,20 @@
 import { ThemePresetSelector } from '../portal-settings/theme-preset-selector'
+import type { PortalThemeDraft } from '../shared/types'
 
 type Props = Readonly<{
-  primaryColor: string
-  onPrimaryColorChange: (color: string) => void
+  theme: PortalThemeDraft
+  onThemeChange: (theme: PortalThemeDraft) => void
+  disabled?: boolean
 }>
 
-export function ThemeFieldGroup({ primaryColor, onPrimaryColorChange }: Props) {
+export function ThemeFieldGroup({ theme, onThemeChange, disabled }: Props) {
   return (
     <div className="space-y-2">
       <h2 className="font-semibold">Theme</h2>
       <ThemePresetSelector
-        primaryColor={primaryColor}
-        onPrimaryColorChange={onPrimaryColorChange}
+        theme={theme}
+        onThemeChange={onThemeChange}
+        disabled={disabled}
       />
     </div>
   )

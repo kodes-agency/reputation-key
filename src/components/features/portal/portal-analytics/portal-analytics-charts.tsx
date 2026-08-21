@@ -1,16 +1,6 @@
-import {
-  Bar,
-  BarChart,
-  XAxis,
-  YAxis,
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Funnel,
-  FunnelChart,
-  LabelList,
-  Cell,
-} from 'recharts'
+import { useId } from 'react'
+import { Bar, BarChart, XAxis, YAxis, Area, AreaChart, CartesianGrid } from 'recharts'
+import { cn } from '#/lib/utils'
 import {
   ChartContainer,
   ChartTooltip,
@@ -24,63 +14,22 @@ export function ChartCard({
   className,
 }: {
   title: string
-  children: React.ReactNode
+  /** Render prop: receives the id of this card's heading. A chart is a graphics
+   * region with no text of its own, so a bare sibling <h3> leaves screen
+   * readers with an unnamed graphic — the chart must point `aria-labelledby` at
+   * the heading. Same association as google-performance-chart.tsx. */
+  children: (headingId: string) => React.ReactNode
   className?: string
 }) {
+  const headingId = useId()
+
   return (
-    <div className={`rounded-lg border bg-muted/30 p-4 ${className ?? ''}`}>
-      <h3 className="mb-3 text-sm font-semibold tracking-tight">{title}</h3>
-      {children}
+    <div className={cn('rounded-lg border bg-muted/30 p-4', className)}>
+      <h3 id={headingId} className="mb-3 text-sm font-semibold tracking-tight">
+        {title}
+      </h3>
+      {children(headingId)}
     </div>
-  )
-}
-
-const funnelConfig = {
-  scans: { label: 'Scans', color: 'var(--chart-1)' },
-  ratings: { label: 'Ratings', color: 'var(--chart-2)' },
-  reviewLinkClicks: { label: 'Review Clicks', color: 'var(--chart-3)' },
-} satisfies ChartConfig
-
-export function EngagementFunnelChart({
-  funnel,
-}: {
-  funnel: { scans: number; ratings: number; reviewLinkClicks: number }
-}) {
-  const data = [
-    { value: funnel.scans, name: 'Scans', fill: 'var(--color-scans)' },
-    { value: funnel.ratings, name: 'Ratings', fill: 'var(--color-ratings)' },
-    {
-      value: funnel.reviewLinkClicks,
-      name: 'Review Clicks',
-      fill: 'var(--color-reviewLinkClicks)',
-    },
-  ]
-
-  return (
-    <ChartContainer config={funnelConfig} className="min-h-[250px] w-full">
-      <FunnelChart>
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Funnel dataKey="value" data={data} isAnimationActive>
-          <LabelList
-            position="right"
-            dataKey="name"
-            fill="currentColor"
-            stroke="none"
-            className="fill-foreground text-xs"
-          />
-          <LabelList
-            position="center"
-            dataKey="value"
-            fill="#fff"
-            stroke="none"
-            className="text-xs font-medium"
-          />
-          {data.map((entry, index) => (
-            <Cell key={index} fill={entry.fill} />
-          ))}
-        </Funnel>
-      </FunnelChart>
-    </ChartContainer>
   )
 }
 
@@ -90,13 +39,33 @@ const distConfig = {
 
 export function PortalRatingDistributionChart({
   distribution,
+  labelledBy,
 }: {
   distribution: readonly { stars: number; count: number }[]
+  labelledBy: string
 }) {
+  // The distribution is a GROUP BY over portal.rating readings, so a period
+  // without ratings yields no buckets at all (and a filtered-to-zero period
+  // yields only zeroes). Either way a bar chart draws an axis-only skeleton
+  // that looks broken — say why it is empty instead.
+  const total = distribution.reduce((sum, bucket) => sum + bucket.count, 0)
+  if (total === 0) {
+    return (
+      <p className="py-12 text-center text-sm text-muted-foreground">
+        No ratings in this period.
+      </p>
+    )
+  }
+
   const data = distribution.map((b) => ({ stars: `${b.stars}★`, count: b.count }))
 
   return (
-    <ChartContainer config={distConfig} className="min-h-[200px] w-full">
+    <ChartContainer
+      config={distConfig}
+      role="img"
+      aria-labelledby={labelledBy}
+      className="min-h-[200px] w-full"
+    >
       <BarChart data={data} margin={{ left: 0, right: 0 }}>
         <XAxis dataKey="stars" tickLine={false} axisLine={false} />
         <YAxis hide />
@@ -111,10 +80,22 @@ const trendConfig = {
   avgRating: { label: 'Avg Rating', color: 'var(--chart-2)' },
 } satisfies ChartConfig
 
+/** Tick label for a `YYYY-MM-DD` bucket date. Parsed by parts, never through
+ * `new Date(v)`: a bare date string is parsed as UTC midnight while
+ * `getMonth()`/`getDate()` read LOCAL calendar fields, so every label west of
+ * UTC lands a day early and the chart contradicts the KPI cards. Mirrors
+ * google-performance-chart.tsx's shortDate. */
+function shortDate(bucketDate: string): string {
+  const [, month, day] = bucketDate.split('-')
+  return `${Number(month)}/${Number(day)}`
+}
+
 export function RatingTrendChart({
   trend,
+  labelledBy,
 }: {
   trend: readonly { date: string; avgRating: number }[]
+  labelledBy: string
 }) {
   const data = trend.map((p) => ({
     date: p.date,
@@ -122,17 +103,19 @@ export function RatingTrendChart({
   }))
 
   return (
-    <ChartContainer config={trendConfig} className="min-h-[250px] w-full">
+    <ChartContainer
+      config={trendConfig}
+      role="img"
+      aria-labelledby={labelledBy}
+      className="min-h-[250px] w-full"
+    >
       <AreaChart data={data} margin={{ left: 0, right: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="date"
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v: string) => {
-            const d = new Date(v)
-            return `${d.getMonth() + 1}/${d.getDate()}`
-          }}
+          tickFormatter={shortDate}
         />
         <YAxis
           domain={[0, 5]}

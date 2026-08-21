@@ -31,7 +31,23 @@ export const DASHBOARD_READ_BUDGET_MS = 5000
 
 // ── Scoped where-builders (one per table family) ──────────────────────
 
-/** metric_readings scope: tenant + property + occurredAt range. */
+/**
+ * metric_readings scope: tenant + property + EVENT-time range.
+ *
+ * TRAP: the drizzle field `metricReadings.occurredAt` maps to the DB column
+ * `recorded_at` (see metric.schema.ts) — it is the INGESTION timestamp, not
+ * the guest-action time; metric-command-store.ts performs the swap on write
+ * (`eventAt: reading.occurredAt, occurredAt: reading.recordedAt`). The true
+ * event time is `metricReadings.eventAt` (column `event_at`), which is what
+ * an analytics window must bound: filtering on ingestion means outbox lag,
+ * retries or a replay silently shift a day's numbers. The drizzle field is
+ * NOT renamed here because it is shared with badge/leaderboard/metric
+ * repositories; every reader in this facade must know the swap.
+ *
+ * Governed readings always carry event_at (metric_readings_governed_provenance_check),
+ * and metric.repository.ts / recognition.repository.ts / the fleet projection
+ * already bound their windows on event_at — this is the same convention.
+ */
 export function metricPeriodWhere(
   organizationId: OrganizationId,
   propertyId: PropertyId,
@@ -41,8 +57,8 @@ export function metricPeriodWhere(
   return and(
     eq(metricReadings.organizationId, organizationId),
     eq(metricReadings.propertyId, propertyId),
-    gte(metricReadings.occurredAt, startDate),
-    lte(metricReadings.occurredAt, endDate),
+    gte(metricReadings.eventAt, startDate),
+    lte(metricReadings.eventAt, endDate),
   )
 }
 

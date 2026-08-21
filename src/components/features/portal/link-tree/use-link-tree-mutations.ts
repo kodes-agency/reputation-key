@@ -22,10 +22,15 @@ export function useLinkTreeMutations(portalId: string) {
     successMessage: 'Link created',
     invalidateKeys: [portalKeys.links(portalId)],
   })
+  // Deletes were silent on BOTH paths: no toast on success, no rendered error on
+  // failure, so the user could not tell one from the other. A success message
+  // here plus the FormErrorBanner in LinkTree makes both outcomes observable.
   const deleteCategoryMutation = useActionMutation(deleteLinkCategory, {
+    successMessage: 'Category deleted',
     invalidateKeys: [portalKeys.links(portalId)],
   })
   const deleteLinkMutation = useActionMutation(deleteLink, {
+    successMessage: 'Link deleted',
     invalidateKeys: [portalKeys.links(portalId)],
   })
   const reorderCategoriesMutation = useActionMutation(reorderCategories, {

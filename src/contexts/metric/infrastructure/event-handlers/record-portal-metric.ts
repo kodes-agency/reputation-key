@@ -51,7 +51,13 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
       return trace(opts.span, async () => {
         try {
           let portalGroupId: PortalGroupId | null = null
-          let attributionQuality: AttributionQuality = 'exact'
+          // Portal facts carry portalId on the event itself, so tenant/portal
+          // attribution is exact; portal-group membership is a downstream
+          // ENRICHMENT, not the attribution. 'unresolved' stays reserved for
+          // producers whose attribution really is unknown — record-metric.ts
+          // quarantines that value (see 'unresolved_attribution') before the
+          // reading is ever constructed.
+          const attributionQuality: AttributionQuality = 'exact'
           if (event.portalId) {
             try {
               portalGroupId =
@@ -62,8 +68,21 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
                     event.occurredAt,
                   )
                 )?.portalGroupId ?? null
-            } catch {
-              attributionQuality = 'unresolved'
+            } catch (err) {
+              // The documented degradation (BQC-5.9 E8): a findGroupForPortal
+              // blip must not block metric recording. Marking the reading
+              // 'unresolved' here did the OPPOSITE — record-metric.ts
+              // quarantined it, so a transient DB failure silently under-counted
+              // analytics. The reading now lands with portalGroupId: null, and
+              // the warn makes the lost group enrichment observable.
+              // Content-free (BQC-7.3): the observability schema bans tenant
+              // identifiers in log objects, so this carries the event tag and
+              // the metric key only. Those are enough to find the affected
+              // handler; the reading itself still records the real portal.
+              getLogger().warn(
+                { err, event: event._tag, metricKey: opts.metricKey },
+                `metric: portal-group lookup failed — recording ${opts.metricKey} with a null group`,
+              )
             }
           }
           await deps.recordMetric({

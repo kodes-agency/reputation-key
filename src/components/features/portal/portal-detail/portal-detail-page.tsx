@@ -1,166 +1,108 @@
 // Portal detail page — tabbed layout controlled by typed route search state.
+// The shell owns the drafts that must outlive a tab switch (theme colours, the
+// once-shown public link) and nothing else: every branch behind what is on
+// screen lives in portal-detail-rules.ts, and every tab body in
+// portal-detail-tab-panel.tsx.
 
-import { useEffect, useRef, useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
-import { ArrowLeft, Eye } from 'lucide-react'
-import { PortalDetailTabs } from './portal-detail-tabs'
-import { PortalSettings } from '../portal-settings/portal-settings'
-import { LinkTree } from '../link-tree/link-tree'
-import { PortalShare, type IssuedPortalLink } from '../portal-share/portal-share'
-import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
-import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { PortalDetailHeader } from './portal-detail-header'
 import { PortalDetailPreview } from './portal-detail-preview'
-import type { Action } from '#/components/hooks/use-action'
-import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
-import type {
-  FormLike,
-  PortalPublicationState,
-  UpdatePortalVariables,
-} from '../shared/types'
-import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import { PortalDetailTabPanel } from './portal-detail-tab-panel'
+import { PortalDetailTabs } from './portal-detail-tabs'
+import { PortalUnsavedChangesPrompt } from './portal-unsaved-changes-prompt'
+import { derivePortalDetailView, isThemeDraftDirty } from './portal-detail-rules'
+import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
+import type { IssuedPortalLink } from '../portal-share/portal-share-types'
+import type { FormLike, PortalThemeDraft } from '../shared/types'
+import type { PortalDetailPageProps } from './portal-detail-types'
 
-export const PORTAL_DETAIL_TABS = ['settings', 'links', 'share', 'analytics'] as const
-export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]
-
-type Props = Readonly<{
-  portal: Readonly<{
-    id: string
-    name: string
-    slug: string
-    description: string | null
-    heroImageUrl: string | null
-    theme: { primaryColor: string }
-    propertyId: string
-    organizationId: string
-    publicationState: PortalPublicationState
-  }>
-  organizationName: string
-  propertyId: string
-  categories: readonly LinkTreeCategory[]
-  activeTab: PortalDetailTab
-  onTabChange: (tab: PortalDetailTab) => void
-  links: readonly LinkTreeLink[]
-  updateMutation: Action<UpdatePortalVariables>
-  issueTokenMutation: Action<
-    { data: { portalId: string; printBatch?: string } },
-    IssuedPortalLink
-  >
-  rotateTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
-  revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
-  requestUploadUrl: (input: {
-    data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
-  finalizeUpload: (input: {
-    data: { portalId: string; key: string }
-  }) => Promise<{ heroImageUrl: string }>
-  getPortalAnalytics: typeof getPortalAnalyticsFn
-}>
-
-export function PortalDetailPage({
-  portal,
-  organizationName,
-  propertyId,
-  categories,
-  links,
-  activeTab,
-  onTabChange,
-  updateMutation,
-  issueTokenMutation,
-  rotateTokenMutation,
-  revokeTokenMutation,
-  requestUploadUrl,
-  finalizeUpload,
-  getPortalAnalytics,
-}: Props) {
+export function PortalDetailPage(props: PortalDetailPageProps) {
+  const {
+    portal,
+    propertyId,
+    organizationName,
+    categories,
+    links,
+    activeTab,
+    onTabChange,
+  } = props
   const { previewOpen, setPreviewOpen } = usePreviewToggle(portal.id)
   const editFormRef = useRef<FormLike | null>(null)
   const [issuedPortalLink, setIssuedPortalLink] = useState<IssuedPortalLink | null>(null)
   const [linksRevoked, setLinksRevoked] = useState(false)
-  const [primaryColor, setPrimaryColor] = useState(portal.theme.primaryColor)
+  const [theme, setTheme] = useState<PortalThemeDraft>(portal.theme)
+  const { has } = useCapabilities()
 
+  // Keyed on the colour values, not on `portal.theme`'s identity: the detail
+  // query hands back a fresh theme object on every refetch, which would discard
+  // an in-progress edit (and silently clear the unsaved-changes guard below).
+  const { primaryColor, backgroundColor, textColor } = portal.theme
   useEffect(() => {
-    setPrimaryColor(portal.theme.primaryColor)
-  }, [portal.theme.primaryColor])
+    setTheme({ primaryColor, backgroundColor, textColor })
+  }, [primaryColor, backgroundColor, textColor])
 
   useEffect(() => {
     setIssuedPortalLink(null)
     setLinksRevoked(false)
   }, [portal.id])
-  const showPreview = activeTab === 'settings' || activeTab === 'links'
+
+  const view = derivePortalDetailView(activeTab, has('dashboard.use'))
+
+  const themeDirty = isThemeDraftDirty(theme, portal.theme)
+  // Mirrored into a ref so the navigation blocker gets a stable callback: a new
+  // shouldBlockFn re-subscribes the history blocker on every colour keystroke.
+  const themeDirtyRef = useRef(themeDirty)
+  themeDirtyRef.current = themeDirty
+  const hasUnsavedChanges = useCallback(
+    () => themeDirtyRef.current || editFormRef.current?.hasUnsavedChanges() === true,
+    [],
+  )
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" asChild>
-          <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-            <ArrowLeft /> Back
-          </Link>
-        </Button>
-        {showPreview && (
-          <Button
-            variant="outline"
-            className="min-h-11 sm:min-h-9"
-            onClick={() => setPreviewOpen(!previewOpen)}
-            aria-pressed={previewOpen}
-          >
-            <Eye /> {previewOpen ? 'Hide preview' : 'Preview'}
-          </Button>
-        )}
-      </div>
+      <PortalUnsavedChangesPrompt isDirty={hasUnsavedChanges} />
 
-      <PortalDetailTabs value={activeTab} onValueChange={onTabChange}>
-        {activeTab === 'settings' && (
-          <PortalSettings
-            portal={portal}
-            mutation={updateMutation}
-            primaryColor={primaryColor}
-            onPrimaryColorChange={setPrimaryColor}
-            requestUploadUrl={requestUploadUrl}
-            finalizeUpload={finalizeUpload}
-            formRef={editFormRef}
-          />
-        )}
+      <PortalDetailHeader
+        propertyId={propertyId}
+        showPreview={view.showPreview}
+        previewOpen={previewOpen}
+        onPreviewToggle={setPreviewOpen}
+      />
 
-        {activeTab === 'links' && (
-          <LinkTree portalId={portal.id} categories={categories} links={links} />
-        )}
-
-        {activeTab === 'share' && (
-          <PortalShare
-            portalId={portal.id}
-            portalName={portal.name}
-            issuedLink={issuedPortalLink}
-            revoked={linksRevoked}
-            onLinkIssued={(link) => {
-              setIssuedPortalLink({ publicUrl: link.publicUrl })
-              setLinksRevoked(false)
-            }}
-            onLinksRevoked={() => {
-              setIssuedPortalLink(null)
-              setLinksRevoked(true)
-            }}
-            issueMutation={issueTokenMutation}
-            rotateMutation={rotateTokenMutation}
-            revokeMutation={revokeTokenMutation}
-          />
-        )}
-
-        {activeTab === 'analytics' && (
-          <PortalAnalyticsTab
-            portalId={portal.id}
-            propertyId={propertyId}
-            getPortalAnalytics={getPortalAnalytics}
-          />
-        )}
+      <PortalDetailTabs
+        value={view.tab}
+        onValueChange={onTabChange}
+        hiddenTabs={view.hiddenTabs}
+      >
+        {/* The panel forwards the route-owned resources untouched; the shell's
+            own props (organizationName, activeTab, onTabChange) are unused there. */}
+        <PortalDetailTabPanel
+          {...props}
+          tab={view.tab}
+          theme={theme}
+          onThemeChange={setTheme}
+          formRef={editFormRef}
+          issuedLink={issuedPortalLink}
+          linksRevoked={linksRevoked}
+          onLinkIssued={(link) => {
+            setIssuedPortalLink({ publicUrl: link.publicUrl })
+            setLinksRevoked(false)
+          }}
+          onLinksRevoked={() => {
+            setIssuedPortalLink(null)
+            setLinksRevoked(true)
+          }}
+        />
       </PortalDetailTabs>
 
       <PortalDetailPreview
-        show={showPreview}
+        show={view.showPreview}
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         portal={portal}
         organizationName={organizationName}
-        primaryColor={primaryColor}
+        theme={theme}
         categories={categories}
         links={links}
       />

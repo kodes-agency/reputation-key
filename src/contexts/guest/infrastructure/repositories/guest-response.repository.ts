@@ -94,6 +94,35 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
       return row ? responseFromRow(row) : null
     },
 
+    // Org-scoped by design (see the port comment): an inbox item knows only its
+    // organization and the response id. Selects the two shared fields and
+    // nothing else — no session id, no IP hash, no media.
+    findSnippetForOrg: async (organizationId, responseId) => {
+      const [row] = await db
+        .select({
+          comment: guestResponses.responseText,
+          ratingValue: guestResponses.rating,
+          textConsent: guestResponses.textConsent,
+          responseConsent: guestResponses.responseConsent,
+        })
+        .from(guestResponses)
+        .where(
+          and(
+            eq(guestResponses.organizationId, organizationId),
+            eq(guestResponses.id, responseId),
+            isNull(guestResponses.deletedAt),
+          ),
+        )
+        .limit(1)
+      if (!row) return null
+      // Consent governs what staff may read, exactly as it governs what the
+      // metric handlers record: an unconsented field is withheld, not shown.
+      return {
+        comment: row.textConsent ? row.comment : null,
+        ratingValue: row.responseConsent ? row.ratingValue : null,
+      }
+    },
+
     insertSubmitted: async (response) => {
       const inserted = await db
         .insert(guestResponses)

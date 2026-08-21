@@ -13,6 +13,9 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { LinkTree } from './link-tree'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
+import { useQuery } from '@tanstack/react-query'
+import { listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { portalKeys } from '#/shared/queries/query-keys'
 
 // Scopes assertions to ONE category card, which is what makes the per-category
 // grouping (`links.filter(l => l.categoryId === cat.id)` in
@@ -30,11 +33,85 @@ function categoryCard(canvasElement: HTMLElement, title: string) {
   return within(card)
 }
 
+// Renders LinkTree the way the route does: its props ARE the
+// `portalKeys.links(portalId)` query data ($portalId.tsx portalLinksQuery).
+//
+// This wrapper is load-bearing, not ceremony. LinkTree does not append created
+// rows itself — `useLinkTreeState` mirrors its props and waits for
+// invalidate -> refetch -> new props. Feeding it the story's args directly (what
+// this file used to do) freezes the tree, so `AddCategory` could never see the
+// row it creates. Going through the query is what makes the create observable.
+type LinkTreeQueryData = Readonly<{
+  categories: readonly LinkTreeCategory[]
+  links: readonly LinkTreeLink[]
+}>
+
+// The fake backend behind the Storybook stub, reached through the global seam
+// the stub publishes (.storybook/stubs/portal-links.ts).
+//
+// Not imported: this file is a `components` element and eslint
+// `boundaries/dependencies` forbids components -> test-helpers, which is the
+// right rule — production components must not reach for test doubles. Throwing
+// when the seam is absent means a story run outside Storybook fails saying so,
+// rather than rendering an empty tree and blaming the component.
+type PortalLinksFake = Readonly<{
+  seed: (
+    categories?: readonly LinkTreeCategory[],
+    links?: readonly LinkTreeLink[],
+  ) => void
+  read: () => LinkTreeQueryData
+}>
+
+function portalLinksFake(): PortalLinksFake {
+  const { __portalLinksFake: fake } = globalThis as typeof globalThis & {
+    __portalLinksFake?: PortalLinksFake
+  }
+  if (!fake) {
+    throw new Error(
+      'portalLinksFake: .storybook/stubs/portal-links.ts has not published the ' +
+        'fake backend. These stories only run under the Storybook build, whose ' +
+        'viteFinal aliases that stub over #/contexts/portal/server/portal-links.',
+    )
+  }
+  return fake
+}
+
+function LinkTreeFromLinksQuery({ portalId }: { portalId: string }) {
+  const { data } = useQuery<LinkTreeQueryData>({
+    queryKey: portalKeys.links(portalId),
+    // Narrowed to the view shape the component consumes, so the story is not
+    // coupled to the repository row types behind the server fn.
+    queryFn: async () => {
+      const tree = await listPortalLinks({ data: { portalId } })
+      return { categories: tree.categories, links: tree.links }
+    },
+    // The first paint must ALREADY hold the seeded tree: `Default` asserts the
+    // heading list synchronously, so a loading tick would render nothing. This
+    // also means an unwired story never touches the fake backend, which is what
+    // makes the create throw instead of silently passing.
+    initialData: () => portalLinksFake().read(),
+  })
+
+  return <LinkTree portalId={portalId} categories={data.categories} links={data.links} />
+}
+
 const meta: Meta<typeof LinkTree> = {
   title: 'Portal/LinkTree',
   component: LinkTree,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  // The args are the SEED for the fake backend, not props handed straight to
+  // the component — the query below is the only path data reaches LinkTree by,
+  // so an unwired story goes red instead of quietly passing on static props.
+  // Reset on the way OUT too: the fake is module state shared by the whole
+  // preview, and the stories that merely COMPOSE LinkTree (portal-detail,
+  // portal-settings) expect an empty backend. Without this, whether they see an
+  // empty tree depends on story order.
+  beforeEach: ({ args }) => {
+    portalLinksFake().seed(args.categories, args.links)
+    return () => portalLinksFake().seed()
+  },
+  render: (args) => <LinkTreeFromLinksQuery portalId={args.portalId} />,
   decorators: [
     (Story) => (
       <div className="w-[480px] bg-background text-foreground">

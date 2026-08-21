@@ -7,8 +7,6 @@ import { createGuestResponseRepository } from './infrastructure/repositories/gue
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
 import { recordScan } from './application/use-cases/record-scan'
-import { submitRating } from './application/use-cases/submit-rating'
-import { submitFeedback } from './application/use-cases/submit-feedback'
 import { trackReviewLinkClick } from './application/use-cases/track-review-link-click'
 import { resolveLinkAndTrack } from './application/use-cases/resolve-link-and-track'
 import { resolvePortalContext } from './application/use-cases/resolve-portal-context'
@@ -16,7 +14,7 @@ import { getPublicPortal } from './application/use-cases/get-public-portal'
 import { guestResponseLifecycle } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
-import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
+import { scanEventId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 
 type GuestContextDeps = Readonly<{
@@ -30,10 +28,6 @@ type GuestContextDeps = Readonly<{
   sessionSecret?: string
   secureCookies?: boolean
 }>
-
-// Abuse-detection window: a single source IP may not rate the same portal more
-// than once within this window. Guards against cookie-rotation flooding.
-const GUEST_RATING_IP_DEDUP_WINDOW_SECONDS = 3600 // 1 hour
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
@@ -54,6 +48,8 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     storage: deps.storage,
     clock: deps.clock,
     idGen: randomUUID,
+    events: deps.events,
+    outboxRepo: deps.outboxRepo,
   })
   const portalContextResolver = createPortalContextResolver(deps.portalApi)
   const publicPortalLookup = createPublicPortalLookup(deps.portalApi)
@@ -65,21 +61,6 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       idGen: () => scanEventId(randomUUID()),
       clock: deps.clock,
       logger: deps.logger,
-    }),
-    submitRating: submitRating({
-      guestRepo,
-      events: deps.events,
-      idGen: () => ratingId(randomUUID()),
-      clock: deps.clock,
-      // 1h window: catches rapid cookie-rotation flooding without permanently
-      // blocking everyone on a shared NAT for the full 24h session lifetime.
-      ipDedupWindowSeconds: GUEST_RATING_IP_DEDUP_WINDOW_SECONDS,
-    }),
-    submitFeedback: submitFeedback({
-      guestRepo,
-      events: deps.events,
-      idGen: () => feedbackId(randomUUID()),
-      clock: deps.clock,
     }),
     trackReviewLinkClick: trackReviewLinkClick({
       events: deps.events,

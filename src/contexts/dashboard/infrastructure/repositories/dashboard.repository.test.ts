@@ -107,9 +107,12 @@ async function seedMetricReading(
   const propId = overrides.propId ?? PROP_A
   const occurredAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
 
+  // event_at is the guest-action time the dashboard window filters on;
+  // recorded_at is ingestion. Production writes both (metric-command-store.ts),
+  // and the fixture has no outbox lag, so they coincide here.
   await pool.query(
-    `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at, event_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
     [
       id,
       orgId,

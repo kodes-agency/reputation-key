@@ -187,6 +187,39 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.trend).toBe(13)
   })
 
+  it('skips the prior-period query for "all" and reports no trend', async () => {
+    const repo = createInMemoryDashboardRepository()
+    const metrics = createFakePortalMetrics()
+    const analytics = getPortalAnalytics({
+      repo,
+      portalMetrics: metrics,
+      clock: () => new Date(),
+    })
+
+    const result = await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(0),
+      endDate: new Date(),
+      timeRange: 'all',
+    })
+
+    // ONE kpi-sums query: 'all' scans from epoch, and the prior call used to
+    // receive byte-identical arguments — a duplicate full scan per page load.
+    expect(metrics.calls.filter((call) => call === 'getPortalKpiSums')).toHaveLength(1)
+
+    // Every trend is null (an em dash in the cards), never a fabricated 0%.
+    expect(result.kpis.scans.trend).toBeNull()
+    expect(result.kpis.avgRating.trend).toBeNull()
+    expect(result.kpis.feedback.trend).toBeNull()
+    expect(result.kpis.reviewLinkClicks.trend).toBeNull()
+
+    // Current-period values are unaffected by the skipped prior query.
+    expect(result.kpis.scans.value).toBe(100)
+    expect(result.kpis.scans.priorValue).toBe(0)
+  })
+
   it('includes engagement funnel from repo with default values', async () => {
     const repo = createInMemoryDashboardRepository()
     const metrics = createFakePortalMetrics()

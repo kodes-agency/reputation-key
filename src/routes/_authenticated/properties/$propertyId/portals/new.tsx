@@ -1,6 +1,6 @@
 // Create portal — route defines mutation, renders form component.
 import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createPortal } from '#/contexts/portal/server/portals'
 import { PortalCreationWithPreview } from '#/components/features/portal'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -62,11 +62,19 @@ function CreatePortalPage() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { property } = propData
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const mutation = useActionMutation(createPortal, {
     successMessage: 'Portal created',
     invalidateKeys: [portalKeys.all],
     onSuccess: async (output) => {
+      // `invalidateKeys` marks the list stale but `invalidateQueries` only
+      // REFETCHES active queries, and the portals list has no observer on this
+      // route. Awaiting it was therefore a no-op: the detail loader resolved the
+      // portal against the list fetched when the property had one portal fewer,
+      // found nothing and redirected to /unavailable — a portal that had in fact
+      // just been created. Refetch it here so the loader sees the new row.
+      await queryClient.refetchQueries({ queryKey: portalKeys.list(propertyId) })
       await navigate({
         to: '/properties/$propertyId/portals/$portalId',
         params: { propertyId, portalId: output.portal.id },

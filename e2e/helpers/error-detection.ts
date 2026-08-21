@@ -26,6 +26,25 @@
 // nothing, so it still fails the gate. Aborted MUTATIONS stay gated: a write
 // interrupted mid-flight is a real signal, not navigation noise.
 //
+// Document-status correlation: a route may DELIBERATELY answer a navigation
+// with a 4xx — the portal detail loader throws `notFound()` for a portal that
+// is absent from the URL property's authorized collection, TanStack turns that
+// notFound match into `statusCode` 404, and the SSR document is served with
+// that status. Chromium logs every >=400 resource load, document included, as
+// "Failed to load resource: the server responded with a status of NNN ()".
+// That line is a browser network-log entry, not application output: it cannot
+// be silenced at source without downgrading a correct 404 to a soft 200.
+//
+// So the harness suppresses that echo ONLY when it has itself observed a >=400
+// response to the MAIN-FRAME DOCUMENT request at exactly the URL the echo
+// points at, keyed on (status, url). A failed SUBRESOURCE — image, API call,
+// server-fn GET — echoes with its OWN url in ConsoleMessage.location(), which
+// is never a main-frame navigation response, so it still fails the gate. The
+// document's status is not hidden by this: it is the one thing a spec can read
+// straight off `page.goto()`, and the cross-property fail-closed journey
+// asserts it. Correlation is order-independent — an echo that arrives before
+// its response event is recorded and dropped when the response lands.
+//
 // Fail mode: detections are collected, and fixture teardown throws ONE error
 // listing all of them (with the page URL for each), attaching the full
 // transcript (detections + every console warning/error line) via
@@ -138,6 +157,13 @@ function isCriticalMutation(method: string, url: URL): boolean {
   return false
 }
 
+/**
+ * Chromium's network-log line for any resource that came back >=400. Group 1 is
+ * the status; the resource itself is in ConsoleMessage.location().url.
+ */
+const RESOURCE_STATUS_ECHO =
+  /^Failed to load resource: the server responded with a status of (\d+)/
+
 function parseUrl(raw: string): URL | undefined {
   try {
     return new URL(raw)
@@ -174,6 +200,26 @@ export function attachErrorDetection(
   // see "Navigation-abort correlation" in the file header.
   const recentGetAborts: number[] = []
   const NAVIGATION_ABORT_WINDOW_MS = 3_000
+  // `${status} ${url}` for every >=400 MAIN-FRAME DOCUMENT response seen on
+  // this page, and the console echoes still waiting for one — see
+  // "Document-status correlation" in the file header.
+  const documentStatusKeys = new Set<string>()
+  const unmatchedStatusEchoes = new Map<Detection, string>()
+
+  /** Record a deliberate document status and retire any echo that preceded it. */
+  const recordDocumentStatus = (key: string) => {
+    documentStatusKeys.add(key)
+    for (const [detection, echoKey] of unmatchedStatusEchoes) {
+      if (echoKey !== key) continue
+      unmatchedStatusEchoes.delete(detection)
+      const index = detections.indexOf(detection)
+      if (index < 0) continue
+      detections.splice(index, 1)
+      transcript.push(
+        `[console.error:document-status] ${detection.message} (echo preceded its document response)`,
+      )
+    }
+  }
 
   const onPageError = (error: Error) => {
     const pageUrl = page.url()
@@ -233,6 +279,25 @@ export function attachErrorDetection(
       transcript.push(`[console.error:allowlisted:${consoleMatch.id}] ${text}`)
       return
     }
+    // Browser network-log echo of a >=400 resource. Suppressed only when the
+    // SAME url answered the main-frame document request with the SAME status:
+    // a deliberate 404/410 navigation is the spec's business, not the gate's.
+    const statusEcho = RESOURCE_STATUS_ECHO.exec(text)
+    if (statusEcho && location?.url) {
+      const key = `${statusEcho[1]} ${location.url}`
+      if (documentStatusKeys.has(key)) {
+        transcript.push(`[console.error:document-status] ${text} (${where})`)
+        return
+      }
+      const pending: Detection = {
+        kind: 'console-error',
+        message: text,
+        pageUrl: page.url(),
+      }
+      detections.push(pending)
+      unmatchedStatusEchoes.set(pending, key)
+      return
+    }
     detections.push({ kind: 'console-error', message: text, pageUrl: page.url() })
   }
 
@@ -240,9 +305,18 @@ export function attachErrorDetection(
     const request = response.request()
     const url = parseUrl(response.url())
     if (!url) return
+    const status = response.status()
+    if (status >= 400 && request.isNavigationRequest()) {
+      let isMainFrame = false
+      try {
+        isMainFrame = request.frame() === page.mainFrame()
+      } catch {
+        // Service-worker-owned requests have no frame — never the document.
+      }
+      if (isMainFrame) recordDocumentStatus(`${status} ${response.url()}`)
+    }
     const method = request.method()
     if (!isCriticalMutation(method, url)) return
-    const status = response.status()
     if (status >= 200 && status < 300) return
     const fullUrl = response.url()
     const statusMatch = findAllowlistMatch(

@@ -11,8 +11,7 @@ import { match } from 'ts-pattern'
 import { guestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { ratingInputSchema } from '../application/dto/rating.dto'
-import { feedbackInputSchema } from '../application/dto/feedback.dto'
+import { readFileSync } from 'node:fs'
 
 // ── Error → HTTP status mapping (mirrors production code) ─────────
 
@@ -149,172 +148,56 @@ describe('throwContextError with GuestError', () => {
   })
 })
 
-// ── Rating input validation ───────────────────────────────────────
+// ── Server-fn gates (source-pinned) ───────────────────────────────
+//
+// public.ts imports the composition root, so it cannot be imported here; the
+// catalogue guard (entry-point-catalogue.test.ts) verifies the row ↔ code
+// capability match and these pin the invariants that guard alone cannot see.
 
-const validPortalId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+describe('guest response server-fn gates', () => {
+  const source = readFileSync(new URL('./public.ts', import.meta.url), 'utf8')
+  const slice = (fnName: string): string => {
+    const start = source.indexOf(`export const ${fnName} =`)
+    expect(start).toBeGreaterThan(-1)
+    const next = source.indexOf('\nexport const ', start + 1)
+    return source.slice(start, next === -1 ? source.length : next)
+  }
 
-describe('ratingInputSchema', () => {
-  it('accepts valid input with all fields', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 5,
-      source: 'qr',
-    })
-    expect(result.success).toBe(true)
+  it('declares the honeypot on the mutation schema, so the field is not stripped', () => {
+    // zod strips unknown keys silently: without this member the form's trap
+    // input never reaches the handler and the trap is inert.
+    expect(source).toContain('honeypot: z.string().max(256).optional()')
   })
 
-  it('accepts minimum valid input (source defaults to "direct")', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 3,
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.source).toBe('direct')
+  it('answers a filled honeypot before submit resolves a session or writes', () => {
+    const fn = slice('submitGuestResponseFn')
+    const trap = fn.indexOf('if (data.honeypot) return decoyView(data)')
+    expect(trap).toBeGreaterThan(-1)
+    expect(trap).toBeLessThan(fn.indexOf('resolveBoundSession'))
+    expect(trap).toBeLessThan(fn.indexOf('responseLifecycle.submit'))
+  })
+
+  it('answers a filled honeypot before correct resolves a session or writes', () => {
+    const fn = slice('correctGuestResponseFn')
+    const trap = fn.indexOf('if (data.honeypot) return decoyView(data)')
+    expect(trap).toBeGreaterThan(-1)
+    expect(trap).toBeLessThan(fn.indexOf('resolveBoundSession'))
+    expect(trap).toBeLessThan(fn.indexOf('responseLifecycle.correct'))
+  })
+
+  it('gates staff moderation on portal.write, not the guest collection capability', () => {
+    const fn = slice('moderateGuestResponseFn')
+    expect(fn).toContain("capability: 'portal.write'")
+    expect(fn).not.toContain("capability: 'portal.guest_response'")
+  })
+
+  it('keeps portal.guest_response on the public-facing paths', () => {
+    for (const fnName of [
+      'submitGuestResponseFn',
+      'correctGuestResponseFn',
+      'withdrawGuestResponseFn',
+    ]) {
+      expect(slice(fnName)).toContain("capability: 'portal.guest_response'")
     }
-  })
-
-  it('accepts value 1 (minimum)', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 1,
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts value 5 (maximum)', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 5,
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects missing portalId', () => {
-    const result = ratingInputSchema.safeParse({
-      value: 3,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects non-UUID portalId', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: 'not-a-uuid',
-      value: 3,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects value 0 (below minimum)', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 0,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects value 6 (above maximum)', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 6,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects missing value', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects invalid source', () => {
-    const result = ratingInputSchema.safeParse({
-      portalId: validPortalId,
-      value: 3,
-      source: 'email',
-    })
-    expect(result.success).toBe(false)
-  })
-})
-
-// ── Feedback input validation ─────────────────────────────────────
-
-describe('feedbackInputSchema', () => {
-  it('accepts valid input with all fields', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: 'Great service!',
-      ratingId: 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      source: 'qr',
-      honeypot: '',
-      submittedAt: Date.now(),
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts minimum valid input (optional fields omitted)', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: 'Nice experience',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('defaults source to "direct"', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: 'Good',
-    })
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.source).toBe('direct')
-    }
-  })
-
-  it('rejects missing portalId', () => {
-    const result = feedbackInputSchema.safeParse({
-      comment: 'Test',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects non-UUID portalId', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: 'not-a-uuid',
-      comment: 'Test',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects empty comment', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: '',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects missing comment', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects comment over 1000 characters', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: 'a'.repeat(1001),
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts comment at exactly 1000 characters', () => {
-    const result = feedbackInputSchema.safeParse({
-      portalId: validPortalId,
-      comment: 'a'.repeat(1000),
-    })
-    expect(result.success).toBe(true)
   })
 })

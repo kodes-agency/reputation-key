@@ -10,7 +10,7 @@ import {
 } from '#/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { copyToClipboard } from '#/lib/clipboard'
+import { COPY_FAILED_MESSAGE, useCopyLink } from './use-copy-link'
 
 type QRCodeModalProps = Readonly<{
   open: boolean
@@ -25,7 +25,7 @@ export function QRCodeModal({
   publicUrl,
   portalName,
 }: QRCodeModalProps) {
-  const [copied, setCopied] = useState(false)
+  const { linkRef, copied, copyFailed, copyLink } = useCopyLink(publicUrl)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [generationError, setGenerationError] = useState(false)
 
@@ -53,12 +53,6 @@ export function QRCodeModal({
     }
   }, [open, publicUrl])
 
-  const handleCopy = async () => {
-    if (!(await copyToClipboard(publicUrl))) return
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 2000)
-  }
-
   const handleDownload = () => {
     if (!qrDataUrl) return
     const safeName = portalName
@@ -68,7 +62,13 @@ export function QRCodeModal({
     const link = document.createElement('a')
     link.href = qrDataUrl
     link.download = `${safeName || 'portal'}-qr.png`
+    // Detached anchors still activate in current browsers, but the behaviour is
+    // not guaranteed and a no-op here loses the code permanently: the opaque
+    // link is shown once, so a failed download can only be recovered by
+    // rotating the token. Append before clicking.
+    document.body.appendChild(link)
     link.click()
+    link.remove()
   }
 
   return (
@@ -112,7 +112,10 @@ export function QRCodeModal({
             />
           )}
 
-          <code className="w-full break-all rounded-md bg-muted px-3 py-2 text-sm">
+          <code
+            ref={linkRef}
+            className="w-full break-all rounded-md bg-muted px-3 py-2 text-sm"
+          >
             {publicUrl}
           </code>
 
@@ -120,7 +123,7 @@ export function QRCodeModal({
             <Button
               type="button"
               variant="outline"
-              onClick={() => void handleCopy()}
+              onClick={() => void copyLink()}
               className="min-h-11 flex-1 sm:min-h-9"
             >
               <Copy /> {copied ? 'Copied' : 'Copy link'}
@@ -135,6 +138,11 @@ export function QRCodeModal({
               <Download /> Download PNG
             </Button>
           </div>
+          {copyFailed && (
+            <p className="w-full text-sm text-destructive" role="alert">
+              {COPY_FAILED_MESSAGE}
+            </p>
+          )}
           <p className="sr-only" role="status" aria-live="polite">
             {copied ? 'Portal link copied' : ''}
           </p>

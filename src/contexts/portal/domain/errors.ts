@@ -23,6 +23,7 @@ export type PortalErrorCode =
   | 'portal_not_in_group'
   | 'portal_inactive'
   | 'invalid_publication_transition'
+  | 'portal_has_no_links'
   | 'token_unavailable'
   | 'upload_failed'
 

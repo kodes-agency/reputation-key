@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { GuestResponseForm } from './guest-response-form'
 import type { GuestResponseFormProps } from './guest-response-form'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
@@ -92,3 +93,27 @@ export const PermissionDenied: Story = {
   args: { availability: 'permission_denied' },
 }
 export const MediaUnavailable: Story = { args: { mediaEnabled: false } }
+
+// An image the guest's device cannot legally upload is rejected at selection,
+// before any network call — the old post-submit check persisted the response first,
+// which flipped the form into correcting mode and burned the guest's single
+// one-hour correction. The file is an over-limit JPEG rather than a wrong type
+// because `userEvent.upload` honours the input's `accept` filter, so a rejected
+// MIME type never reaches the change handler in the first place.
+export const RejectsOversizeMediaBeforeSubmit: Story = {
+  args: { submitResponse: fn(actions.submitResponse) },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    const oversize = new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'holiday.jpg', {
+      type: 'image/jpeg',
+    })
+    await userEvent.upload(canvas.getByLabelText(/choose an optional image/i), oversize)
+
+    await waitFor(() => {
+      expect(
+        canvas.getByText('Choose a JPEG, PNG, or WebP image up to 10 MiB.'),
+      ).toBeInTheDocument()
+    })
+    expect(args.submitResponse).not.toHaveBeenCalled()
+  },
+}

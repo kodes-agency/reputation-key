@@ -34,6 +34,18 @@ export const recordScan =
   (deps: RecordScanDeps) =>
   async (input: RecordScanInput): Promise<void> => {
     try {
+      // Idempotent per signed guest session: the public portal records a scan
+      // once per session, but a refresh repeats the call and `scanEvents` has
+      // no per-session uniqueness — a second insert would inflate the
+      // portal.scan metric. The session is portal-scoped (guestSessions.verify
+      // binds it to org/property/portal), so the latest scan for this session
+      // is this portal's scan whenever one exists.
+      const previous = await deps.guestRepo.getLatestScanBySession(
+        input.organizationId,
+        input.sessionId,
+      )
+      if (previous?.portalId === input.portalId) return
+
       const scanId = deps.idGen()
       // Validate via domain constructor
       const scanResult = buildScanEvent({

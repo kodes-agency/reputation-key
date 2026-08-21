@@ -15,7 +15,7 @@ shared/
   observability/ logger (pino), traced-server-fn, request-context, trace (correlation IDs, timing)
   config/        env Zod schema
   testing/       in-memory port fakes, capturing-event-bus, fixtures, integration helpers
-  hooks/         usePermissions (client-side permission check hook)
+  hooks/         usePermissions (role check), useCapabilities (feature-gate check)
 ```
 
 ## What goes here
@@ -86,4 +86,4 @@ In-memory port fakes for unit testing use cases without a database:
 - **Exception:** `shared/events/events.ts` imports context event types to build the master `DomainEvent` union
 - **Exception:** `shared/testing/` may import types from `contexts/` to implement test doubles
 - Never put business logic in shared — only infrastructure and cross-cutting concerns
-- Never put React code in shared (except `shared/hooks/usePermissions`)
+- Never put React code in shared (except `shared/hooks/*` — the client-side permission and capability hooks)

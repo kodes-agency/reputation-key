@@ -17,6 +17,7 @@ type CreatePortalVariables = {
     slug?: string
     description?: string
     propertyId: string
+    theme?: { primaryColor: string; backgroundColor?: string; textColor?: string }
   }
 }
 
@@ -44,7 +45,9 @@ const idleMutation = Object.assign(
 // breaking the play fns. `render` runs at mount time (before the component's
 // useState initializer), so clearing the key here guarantees every variant
 // starts with the preview hidden.
-const PREVIEW_STORAGE_KEY = 'portal-creation-preview-open'
+// Key owned by usePreviewToggle('new'), which the component now shares with the
+// portal detail preview instead of reading localStorage inline.
+const PREVIEW_STORAGE_KEY = 'portal-preview-open-new'
 function renderFresh(args: ComponentProps<typeof PortalCreationWithPreview>) {
   try {
     localStorage.removeItem(PREVIEW_STORAGE_KEY)

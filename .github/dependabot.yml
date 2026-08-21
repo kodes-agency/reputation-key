@@ -69,3 +69,16 @@ updates:
     labels:
       - dependencies
       - ci
+    groups:
+      # Sub-actions of one action repo MUST move on the same SHA.
+      # codeql-action/init writes a config file stamped with its own version,
+      # and codeql-action/analyze refuses to read one written by a different
+      # version:
+      #   Loaded a configuration file for version '4.37.7',
+      #   but running version '4.37.6'
+      # Ungrouped, dependabot opens one PR per sub-action (#322 init, #323
+      # analyze), so EITHER merged alone breaks the required Analyze gate until
+      # its sibling lands. Grouping makes the pair atomic.
+      codeql-action:
+        patterns:
+          - github/codeql-action*

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
@@ -117,6 +117,40 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(grouped.group.id).toBeTruthy()
 
+    // A portal cannot be published until it has at least one link: the guest
+    // surface has nothing to lay out otherwise. `createPortal` has no
+    // publicationState field, so `updatePortal` is the only route to
+    // 'published' and owns the precondition (portal_has_no_links -> 409).
+    const emptyPublishDenial = await callServerFnExpectError(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'updatePortal',
+      data: { portalId: created.portal.id, publicationState: 'published' },
+    })
+    expect(emptyPublishDenial.message ?? '').toContain(
+      'add at least one link before publishing this portal',
+    )
+
+    // So the journey has to build the link tree first — a category, since a
+    // link belongs to one, then the link itself.
+    const category = await callServerFn<{ category: { id: string } }>(page, {
+      file: 'src/contexts/portal/server/portal-link-categories.ts',
+      exportName: 'createLinkCategory',
+      data: { portalId: created.portal.id, title: 'E2E Rotating Links' },
+    })
+    expect(category.category.id).toBeTruthy()
+
+    const link = await callServerFn<{ link: { id: string } }>(page, {
+      file: 'src/contexts/portal/server/portal-links.ts',
+      exportName: 'createLink',
+      data: {
+        categoryId: category.category.id,
+        portalId: created.portal.id,
+        label: 'Visit rotating review destination',
+        url: 'https://example.com/rotating-reviews',
+      },
+    })
+    expect(link.link.id).toBeTruthy()
+
     const published = await callServerFn<{
       portal: { id: string; publicationState: string }
     }>(page, {
@@ -154,6 +188,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: portalName })).toBeVisible()
     await page.goto(`/p/${rotated.rawToken}`)
     await expect(page.getByRole('heading', { name: portalName })).toBeVisible()
+    // The reason the precondition exists: a published portal renders a real
+    // destination for guests rather than a bare title.
+    await expect(
+      page.getByRole('link', { name: 'Visit rotating review destination' }),
+    ).toHaveAttribute(
+      'href',
+      `/api/public/p/${encodeURIComponent(rotated.rawToken)}/click/${link.link.id}`,
+    )
   })
 
   test('P2 and cross-tenant P3 deny promoted routes and public tokens', async ({
@@ -291,9 +333,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
-    await page.goto(
+    // P2's portal under P1's property in the URL. The loader resolves the
+    // portal through P1's AUTHORIZED collection, misses, and throws
+    // `notFound()` BEFORE any portal-scoped fetch — so the denial is an HTTP
+    // 404 on the document itself, carrying the same copy a deleted portal
+    // would. Both halves are asserted: the status (a soft 200 here would make
+    // the route indistinguishable from a successful render) and the copy (a
+    // blank page is not a clean denial). Neither portal name may appear.
+    const denial = await page.goto(
       `/properties/${seed.p1PropertyId}/portals/${seed.p2PortalId}?tab=settings`,
     )
+    expect(denial?.status()).toBe(404)
+    await expect(page.getByText('This portal is no longer available')).toBeVisible()
     await expect(page.getByText('E2E Guest Portal P1')).toHaveCount(0)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
 
@@ -924,11 +975,19 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const p1Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P1' })
     const p2Row = page.getByRole('link').filter({ hasText: 'E2E Beta Hotel P2' })
 
-    const extractReviewCount = async (row: {
-      innerText: () => Promise<string | null>
-    }) => {
+    // The row renders with the property name first and the aggregate review
+    // count arrives with its query, so a bare innerText() reads a row that is
+    // attached but not yet complete — observed on main as
+    // `Expected review count in row text: E2E Beta Hotel P1`, passing on
+    // re-run. toContainText retries until the count is actually there, which
+    // is the same web-first form this test already uses at the round-trip
+    // assertion below. Nothing is weakened: every value below is still
+    // asserted, and a count that never renders still fails here.
+    const REVIEW_COUNT = /(\d+)\s+reviews/i
+    const extractReviewCount = async (row: Locator) => {
+      await expect(row).toContainText(REVIEW_COUNT)
       const text = (await row.innerText()) ?? ''
-      const match = text.match(/(\d+)\s+reviews/i)
+      const match = text.match(REVIEW_COUNT)
       if (!match) {
         throw new Error(`Expected review count in row text: ${text}`)
       }

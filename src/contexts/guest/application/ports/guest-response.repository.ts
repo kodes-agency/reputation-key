@@ -13,6 +13,21 @@ export type GuestResponseRepository = Readonly<{
     sessionId: string,
   ): Promise<GuestResponse | null>
   findById(scope: GuestResponseScope, responseId: string): Promise<GuestResponse | null>
+  /**
+   * Org-scoped snippet read for cross-context lookups (inbox item rendering).
+   *
+   * Deliberately NOT scoped to a property or portal, unlike every other read
+   * here: an inbox item carries only its organization and the response id, and
+   * the organization is the tenant boundary that matters for it. Returns the
+   * shared fields only — never a session id, IP hash, or media reference.
+   *
+   * A withdrawn or deleted response returns null: its content is gone, so the
+   * inbox item must render as unavailable rather than as an empty comment.
+   */
+  findSnippetForOrg(
+    organizationId: string,
+    responseId: string,
+  ): Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
   insertSubmitted(response: GuestResponse): Promise<boolean>
   saveCorrection(response: GuestResponse): Promise<boolean>
   saveModeration(response: GuestResponse): Promise<boolean>

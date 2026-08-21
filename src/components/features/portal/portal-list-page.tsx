@@ -1,34 +1,26 @@
 // Portal list page — extracted from route for testability and separation of concerns
+import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
+import { Input } from '#/components/ui/input'
 import { EmptyState } from '#/components/ui/empty-state'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
-import { Plus, Globe, Eye } from 'lucide-react'
-import { PortalArchiveButton } from './portal-archive-button'
+import { Plus, Globe, Search } from 'lucide-react'
+import { PortalListTable } from './portal-list-table'
 import { PortalGroupManagement, type PortalGroupView } from './portal-group-management'
+import type { PortalListItem } from './portal-list-types'
 import type { Action } from '#/components/hooks/use-action'
 
-interface Portal {
-  id: string
-  name: string
-  publicationState: 'draft' | 'published' | 'disabled' | 'archived'
-  theme: Record<string, unknown>
-}
+// A QR code per room means a property can hold hundreds of portals, so the table
+// is paged. Client-side: `listPortals` returns the whole authorized collection
+// in one call and the group editor below needs every portal anyway.
+const PAGE_SIZE = 20
 
 export interface PortalListPageProps {
-  portals: readonly Portal[]
+  portals: readonly PortalListItem[]
   propertyId: string
   propertyName: string
   deleteMutation: Action<{ data: { portalId: string } }>
@@ -59,6 +51,30 @@ export function PortalListPage({
   removePortalFromGroupMutation,
 }: PortalListPageProps) {
   const { can } = usePermissions()
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+
+  const matches = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    if (!needle) return portals
+    return portals.filter((portal) => portal.name.toLowerCase().includes(needle))
+  }, [portals, search])
+
+  // Clamped rather than reset in an effect: deleting the last row of the last
+  // page must not leave the table blank.
+  const lastPage = Math.max(0, Math.ceil(matches.length / PAGE_SIZE) - 1)
+  const currentPage = Math.min(page, lastPage)
+  const pageStart = currentPage * PAGE_SIZE
+  const visible = matches.slice(pageStart, pageStart + PAGE_SIZE)
+
+  const addPortalButton = can('portal.create') ? (
+    <Button asChild className="min-h-11 sm:min-h-9">
+      <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
+        <Plus />
+        Add Portal
+      </Link>
+    </Button>
+  ) : undefined
 
   return (
     <PageShell>
@@ -70,16 +86,7 @@ export function PortalListPage({
           { label: propertyName, to: `/properties/${propertyId}` },
           { label: 'Portals' },
         ]}
-        actions={
-          can('portal.create') ? (
-            <Button asChild className="min-h-11 sm:min-h-9">
-              <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
-                <Plus />
-                Add Portal
-              </Link>
-            </Button>
-          ) : undefined
-        }
+        actions={addPortalButton}
       />
       <FormErrorBanner error={deleteMutation.error} />
 
@@ -88,85 +95,71 @@ export function PortalListPage({
           <p className="text-sm text-muted-foreground">
             Create a portal to set up a guest-facing page with links.
           </p>
-          {can('portal.create') && (
-            <Button asChild className="min-h-11 sm:min-h-9">
-              <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
-                <Plus />
-                Add Portal
-              </Link>
-            </Button>
-          )}
+          {addPortalButton}
         </EmptyState>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Theme</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {portals.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell>
-                  <Link
-                    to="/properties/$propertyId/portals/$portalId"
-                    params={{ propertyId, portalId: p.id }}
-                    search={{ tab: 'settings' }}
-                    className="font-medium hover:underline"
-                  >
-                    {p.name}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="size-5 rounded-full border"
-                    style={{
-                      backgroundColor:
-                        (p.theme as Record<string, string>)?.primaryColor ??
-                        'var(--accent)',
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={p.publicationState === 'published' ? 'default' : 'outline'}
-                  >
-                    {p.publicationState[0].toUpperCase() + p.publicationState.slice(1)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
+        <div className="space-y-4">
+          <div className="relative max-w-sm">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.currentTarget.value)
+                setPage(0)
+              }}
+              placeholder="Search portals by name"
+              aria-label="Search portals by name"
+              className="pl-9"
+            />
+          </div>
+
+          {matches.length === 0 ? (
+            <EmptyState icon={Search} title={`No portals match “${search.trim()}”`}>
+              <p className="text-sm text-muted-foreground">
+                Try a shorter search, or clear it to see all {portals.length} portals.
+              </p>
+            </EmptyState>
+          ) : (
+            <>
+              <PortalListTable
+                portals={visible}
+                propertyId={propertyId}
+                canDelete={can('portal.delete')}
+                deleteMutation={deleteMutation}
+              />
+              <div className="flex items-center justify-between gap-4">
+                <p aria-live="polite" className="text-sm text-muted-foreground">
+                  Showing {pageStart + 1}–{pageStart + visible.length} of {matches.length}
+                </p>
+                {lastPage > 0 && (
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="ghost"
+                      type="button"
+                      variant="outline"
                       size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      asChild
+                      disabled={currentPage === 0}
+                      onClick={() => setPage(currentPage - 1)}
                     >
-                      <Link
-                        to="/properties/$propertyId/portals/$portalId"
-                        params={{ propertyId, portalId: p.id }}
-                        aria-label={`View ${p.name}`}
-                        search={{ tab: 'settings' }}
-                      >
-                        <Eye className="size-3.5" />
-                      </Link>
+                      Previous
                     </Button>
-                    {can('portal.delete') && p.publicationState !== 'archived' && (
-                      <PortalArchiveButton
-                        portalId={p.id}
-                        portalName={p.name}
-                        deleteMutation={deleteMutation}
-                      />
-                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === lastPage}
+                      onClick={() => setPage(currentPage + 1)}
+                    >
+                      Next
+                    </Button>
                   </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
       <PortalGroupManagement
         propertyId={propertyId}

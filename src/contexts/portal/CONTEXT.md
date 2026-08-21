@@ -37,12 +37,17 @@ Portal page management — creation, configuration, theming, link management, im
 - Portal group names must be unique within a property.
 - One portal belongs to at most one portal group (enforced by unique index on `portal_group_members.portalId`).
 - A portal group belongs to exactly one property.
+- A portal cannot enter `published` without at least one link — a published portal with no destinations renders as an empty guest page.
+- Soft-deleting a portal revokes its active/rotating portal tokens; a deleted portal never has a live token.
 
 ## Events produced
 
 - **`portal.created`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.updated`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.deleted`** — portalId, organizationId, occurredAt.
+- **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, occurredAt.
+- **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, occurredAt.
+- **`portal.token.revoked`** — portalId, organizationId, propertyId, occurredAt. Identifier-only audit fact; no consumers.
 - **`portal_group.created`** — portalGroupId, organizationId, propertyId, name, occurredAt.
 - **`portal_group.updated`** — portalGroupId, organizationId, propertyId, name, occurredAt.
 - **`portal_group.deleted`** — portalGroupId, organizationId, propertyId, occurredAt.
@@ -71,6 +76,7 @@ portal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
     ports/             portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
+                       portal-token.repository.ts, portal-token-codec.port.ts,
                        storage.port.ts, link-resolver.port.ts
     dto/               create-portal.dto.ts, update-portal.dto.ts,
                        create-portal-group.dto.ts, update-portal-group.dto.ts,
@@ -79,55 +85,61 @@ portal/
                        soft-delete-portal.ts, create-link.ts, update-link.ts, delete-link.ts,
                        create-link-category.ts, update-link-category.ts, delete-link-category.ts,
                        reorder-links.ts, reorder-categories.ts, request-upload-url.ts,
-                       finalize-upload.ts, get-portal-qr-url.ts, list-portal-links.ts,
+                       finalize-upload.ts, list-portal-links.ts,
                        create-portal-group.ts, update-portal-group.ts, soft-delete-portal-group.ts,
                        list-portal-groups.ts, get-portal-group.ts,
-                       add-portal-to-group.ts, remove-portal-from-group.ts
+                       add-portal-to-group.ts, remove-portal-from-group.ts,
+                       issue-portal-token.ts, rotate-portal-token.ts, revoke-portal-tokens.ts,
+                       resolve-public-portal-token.ts, complete-content-review.ts
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
   infrastructure/
     repositories/      portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
+                       portal-token.repository.ts, portal-scope.repository.ts,
                        link-resolver.repository.ts (Drizzle)
     adapters/          s3-storage.adapter.ts
     mappers/           portal.mapper.ts, portal-group.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts
   server/              portals.ts, portal-groups.ts, portal-links.ts,
-                       portal-link-categories.ts
+                       portal-link-categories.ts, property-scope.ts
   build.ts             composition root
 ```
 
 ## Use cases
 
 - **`createPortal`** — Create a new portal for a property/entity. Validates property exists via PropertyPublicApi.
-- **`updatePortal`** — Update portal settings (name, theme, smart routing, etc.).
-- **`getPortal`** — Retrieve a single portal by ID.
+- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, publication state). `heroImageUrl: null` clears the hero image. Rejects a transition into `published` when the portal has no links (`portal_has_no_links`).
+- **`getPortal`** — Retrieve a single portal by ID, plus `tokenStatus` (C2): whether a public token still resolves (active, or rotating inside its grace window — same predicate as public token resolution), its version, issue time and grace end. Metadata only: the raw token and its digest are returned by issue/rotate alone.
 - **`listPortals`** — List portals for an org/property with filters.
-- **`softDeletePortal`** — Soft-delete a portal, emits `portal.deleted`.
+- **`softDeletePortal`** — Soft-delete a portal, revoke its portal tokens, emits `portal.deleted` (and `portal.token.revoked` when tokens were live).
 - **`createLink`** / **`updateLink`** / **`deleteLink`** — Manage portal links.
 - **`createLinkCategory`** / **`updateLinkCategory`** / **`deleteLinkCategory`** — Manage link categories.
 - **`reorderLinks`** / **`reorderCategories`** — Reorder items by sort key.
 - **`requestUploadUrl`** / **`finalizeUpload`** — S3 presigned URL flow for hero images.
-- **`getPortalQrUrl`** — Generate QR code URL for a portal.
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).
-- **`softDeletePortalGroup`** — Soft-delete a group, emits `portal_group.deleted`. Does not cascade-remove portal memberships. Note: a duplicate `deletePortalGroup` function exists in `delete-portal-group.ts` (same behavior); `softDeletePortalGroup` is the canonical version.
+- **`softDeletePortalGroup`** — Soft-delete a group, emits `portal_group.deleted`. Does not cascade-remove portal memberships.
 - **`listPortalGroups`** — List groups for an org/property.
 - **`getPortalGroup`** — Retrieve a single group by ID.
 - **`addPortalToGroup`** — Add a portal to a group. Validates portal not already in another group.
 - **`removePortalFromGroup`** — Remove a portal from its group. Validates portal was in the group.
+- **`issuePortalToken`** / **`rotatePortalToken`** / **`revokePortalTokens`** — Portal token lifecycle for public QR links.
+- **`resolvePublicPortalToken`** — Resolve a public token to its portal, honouring rotation grace periods.
+- **`completeContentReview`** — Record a completed portal content review and emit the derived workflow facts.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
 - Types: `StoragePort`, `LinkResolverPort`, `PortalContextResult`, `PublicPortalBySlugResult`, `PortalPublicApi`
-- Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`)
+- Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`), `PortalTokenStatus` (token existence/metadata for management surfaces — never token material)
+- Functions: `isValidExternalUrl` (https-only link-destination guard, used by the public redirect route)
 - Event types: `PortalDeleted`, `PortalEvent`, `PortalGroupDeleted`
 - Event constructors: `portalDeleted`, `portalGroupDeleted`
 
 ## Server functions
 
-- **`portals.ts`** — CRUD, read, and image-upload server functions for portals (create/update/list/get/delete portal, request/finalize upload, QR URL).
+- **`portals.ts`** — CRUD, read, image-upload, and portal-token server functions for portals (create/update/list/get/delete portal, request/finalize upload, issue/rotate/revoke token).
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
 - **`portal-link-categories.ts`** — Server functions for portal link category CRUD operations.

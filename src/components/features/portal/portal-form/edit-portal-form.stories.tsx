@@ -10,21 +10,21 @@ import { useRef, type ComponentProps } from 'react'
 import { EditPortalForm } from './edit-portal-form'
 import { Button } from '#/components/ui/button'
 import type { Action } from '#/components/hooks/use-action'
-import type { PortalData, UpdatePortalVariables } from '../shared/types'
+import type { FormLike, PortalData, UpdatePortalVariables } from '../shared/types'
 import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 
 // Owns the formRef so stories never pass a ref object as an arg: the form
-// assigns itself into the ref during render, and a ref in args becomes a
+// assigns itself into the ref from an effect, and a ref in args becomes a
 // circular structure Storybook cannot serialize ("cycle in arg" warnings).
 // Mirrors the real parent (PortalSettings), which drives submission from an
 // external Save button via the ref.
 function EditPortalFormWithSave(
   props: Omit<ComponentProps<typeof EditPortalForm>, 'formRef'>,
 ) {
-  const formRef = useRef<{ handleSubmit: () => void } | null>(null)
+  const formRef = useRef<FormLike | null>(null)
   return (
     <div className="flex w-full flex-col gap-4">
       <EditPortalForm {...props} formRef={formRef} />
@@ -79,7 +79,7 @@ export const Default: Story = {
   args: {
     portal,
     mutation: idleMutation,
-    primaryColor: portal.theme.primaryColor,
+    theme: portal.theme,
     requestUploadUrl,
     finalizeUpload,
   },
@@ -89,6 +89,23 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('Name')).toHaveValue('Guest Services')
     // Basic Info section heading renders.
     await expect(canvas.getByText('Basic Info')).toBeInTheDocument()
+  },
+}
+
+// The slug is read-only until the manager asks to change it; changing it warns
+// that spelled-out URLs break while token-based printed links keep resolving.
+export const SlugGuardedChange: Story = {
+  args: { ...Default.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Read-only by default: the value is rendered, but not as a text input.
+    await expect(canvas.getByText('guest-services')).toBeInTheDocument()
+    await expect(canvas.queryByRole('textbox', { name: /url slug/i })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: /change slug/i }))
+    const slug = canvas.getByRole('textbox', { name: /url slug/i })
+    await userEvent.clear(slug)
+    await userEvent.type(slug, 'front-desk')
+    await expect(await canvas.findByText(/resolve by token, not by slug/i)).toBeVisible()
   },
 }
 
