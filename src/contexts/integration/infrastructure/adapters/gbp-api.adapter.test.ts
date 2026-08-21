@@ -6,6 +6,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { createGbpApiAdapter } from './gbp-api.adapter'
 import { isGbpApiError } from '../../domain/gbp-api-error'
+// Provider resource literals must come from the generated catalogue;
+// check-google-provider-identifiers.mjs rejects them inline in this path.
+import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+
+// The adapter strips the 'accounts/' prefix (gbp-api.adapter.ts:39), so the
+// expected accountName is derived the same way rather than restated.
+const ACCOUNT_ID = GOOGLE_ACCOUNT_PRIMARY_RESOURCE.slice('accounts/'.length)
 
 const BASE_URL = 'https://mybusinessaccountmanagement.example.invalid/v1'
 
@@ -28,13 +35,22 @@ describe('createGbpApiAdapter.listAccounts', () => {
 
   it('returns the mapped accounts on a single page', async () => {
     fetchMock.mockResolvedValueOnce(
-      page({ accounts: [{ name: 'accounts/123', accountName: 'Biz', role: 'OWNER' }] }),
+      page({
+        accounts: [
+          { name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE, accountName: 'Biz', role: 'OWNER' },
+        ],
+      }),
     )
 
     await expect(
       createGbpApiAdapter({ baseUrl: BASE_URL }).listAccounts('tok'),
     ).resolves.toEqual([
-      { name: 'accounts/123', accountName: '123', type: 'UNKNOWN', role: 'OWNER' },
+      {
+        name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
+        accountName: ACCOUNT_ID,
+        type: 'UNKNOWN',
+        role: 'OWNER',
+      },
     ])
   })
 
@@ -67,7 +83,7 @@ describe('createGbpApiAdapter.listAccounts', () => {
     fetchMock
       .mockResolvedValueOnce(
         page({
-          accounts: [{ name: 'accounts/1', accountName: 'A' }],
+          accounts: [{ name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE, accountName: 'A' }],
           nextPageToken: 'p2',
         }),
       )
