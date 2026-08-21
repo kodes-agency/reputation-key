@@ -2,18 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useLinkTreeMutations } from './use-link-tree-mutations'
 import { useLinkTreeReorder } from './use-link-tree-reorder'
+import { scopedError, type ErrorScope } from './link-tree-state-rules'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
-
-/**
- * Which inline form produced the create/update error currently on screen.
- *
- * `useActionMutation` exposes no `reset()`, and one mutation object is shared by
- * every inline-form instance — so a failure while adding a link to category A
- * used to render under category B's empty inputs. Remembering the originating
- * form (and clearing it whenever a form opens, cancels or succeeds) scopes the
- * error to the instance that caused it.
- */
-type ErrorScope = 'create-category' | 'create-link' | 'update-category' | 'update-link'
 
 export function useLinkTreeState(
   portalId: string,
@@ -137,14 +127,26 @@ export function useLinkTreeState(
     isCreateLinkPending: mutations.createLinkMutation.isPending,
     isUpdateCategoryPending: mutations.updateCategoryMutation.isPending,
     isUpdateLinkPending: mutations.updateLinkMutation.isPending,
-    createCategoryError:
-      errorScope === 'create-category' ? mutations.createCategoryMutation.error : null,
-    createLinkError:
-      errorScope === 'create-link' ? mutations.createLinkMutation.error : null,
-    updateCategoryError:
-      errorScope === 'update-category' ? mutations.updateCategoryMutation.error : null,
-    updateLinkError:
-      errorScope === 'update-link' ? mutations.updateLinkMutation.error : null,
+    createCategoryError: scopedError(
+      errorScope,
+      'create-category',
+      mutations.createCategoryMutation.error,
+    ),
+    createLinkError: scopedError(
+      errorScope,
+      'create-link',
+      mutations.createLinkMutation.error,
+    ),
+    updateCategoryError: scopedError(
+      errorScope,
+      'update-category',
+      mutations.updateCategoryMutation.error,
+    ),
+    updateLinkError: scopedError(
+      errorScope,
+      'update-link',
+      mutations.updateLinkMutation.error,
+    ),
     actionError,
     handleAddCategory,
     handleAddLink,

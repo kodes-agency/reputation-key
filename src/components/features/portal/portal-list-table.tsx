@@ -1,30 +1,10 @@
 // Portal table rows — extracted from portal-list-page so that page can carry the
 // search + pagination controls without breaking the 200-line component limit.
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
-import { Eye } from 'lucide-react'
-import { PortalArchiveButton } from './portal-archive-button'
+// The row itself lives in portal-list-row so this stays a flat table shell.
+import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
+import { PortalListRow } from './portal-list-row'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalListItem } from './portal-list-types'
-
-// A Record, not a formatting expression: adding a state to the domain union now
-// fails to compile here instead of rendering the raw identifier. The previous
-// `state[0].toUpperCase() + state.slice(1)` accepted anything.
-const PUBLICATION_LABELS: Record<PortalListItem['publicationState'], string> = {
-  draft: 'Draft',
-  published: 'Published',
-  disabled: 'Disabled',
-  archived: 'Archived',
-}
 
 type Props = Readonly<{
   portals: readonly PortalListItem[]
@@ -50,51 +30,14 @@ export function PortalListTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {portals.map((p) => (
-          <TableRow key={p.id}>
-            <TableCell>
-              <Link
-                to="/properties/$propertyId/portals/$portalId"
-                params={{ propertyId, portalId: p.id }}
-                search={{ tab: 'settings' }}
-                className="font-medium hover:underline"
-              >
-                {p.name}
-              </Link>
-            </TableCell>
-            <TableCell>
-              <div
-                className="size-5 rounded-full border"
-                style={{ backgroundColor: p.theme.primaryColor }}
-              />
-            </TableCell>
-            <TableCell>
-              <Badge variant={p.publicationState === 'published' ? 'default' : 'outline'}>
-                {PUBLICATION_LABELS[p.publicationState]}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-right">
-              <div className="flex items-center justify-end gap-1">
-                <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" asChild>
-                  <Link
-                    to="/properties/$propertyId/portals/$portalId"
-                    params={{ propertyId, portalId: p.id }}
-                    aria-label={`View ${p.name}`}
-                    search={{ tab: 'settings' }}
-                  >
-                    <Eye className="size-3.5" />
-                  </Link>
-                </Button>
-                {canDelete && (
-                  <PortalArchiveButton
-                    portalId={p.id}
-                    portalName={p.name}
-                    deleteMutation={deleteMutation}
-                  />
-                )}
-              </div>
-            </TableCell>
-          </TableRow>
+        {portals.map((portal) => (
+          <PortalListRow
+            key={portal.id}
+            portal={portal}
+            propertyId={propertyId}
+            canDelete={canDelete}
+            deleteMutation={deleteMutation}
+          />
         ))}
       </TableBody>
     </Table>

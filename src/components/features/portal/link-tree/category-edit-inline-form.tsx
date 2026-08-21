@@ -1,10 +1,12 @@
 // Portal context — inline category title editing form
 
-import { useId, useState } from 'react'
+import { useId } from 'react'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import { useCategoryForm } from './use-category-form'
+import { CategoryFormError } from './category-form-error'
 
 type Props = Readonly<{
   initialTitle: string
@@ -21,21 +23,19 @@ export function CategoryEditInlineForm({
   isPending,
   error,
 }: Props) {
-  const [title, setTitle] = useState(initialTitle)
+  const { title, setTitle, handleSubmit, canSubmit } = useCategoryForm({
+    initialTitle,
+    onSubmit,
+    clearOnSuccess: false,
+    isPending,
+  })
   // useId keeps the label association unique per open form instance.
   const titleId = useId()
+  const submitIcon = isPending ? <Loader2 className="size-4 animate-spin" /> : null
 
   return (
     // A real <form> so Enter saves the rename (WCAG 3.3.2).
-    <form
-      className="flex flex-col gap-1"
-      onSubmit={(event) => {
-        event.preventDefault()
-        const trimmed = title.trim()
-        if (!trimmed) return
-        void Promise.resolve(onSubmit(trimmed)).catch(() => undefined)
-      }}
-    >
+    <form className="flex flex-col gap-1" onSubmit={handleSubmit}>
       <div className="flex items-center gap-2">
         <Label htmlFor={titleId} className="sr-only">
           Category name
@@ -48,8 +48,8 @@ export function CategoryEditInlineForm({
           className="max-w-xs"
           disabled={isPending}
         />
-        <Button size="sm" type="submit" disabled={!title.trim() || isPending}>
-          {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+        <Button size="sm" type="submit" disabled={!canSubmit}>
+          {submitIcon}
           Save
         </Button>
         <Button
@@ -62,11 +62,7 @@ export function CategoryEditInlineForm({
           Cancel
         </Button>
       </div>
-      {error != null ? (
-        <p className="text-sm text-destructive">
-          {error instanceof Error ? error.message : 'Failed to update category'}
-        </p>
-      ) : null}
+      <CategoryFormError error={error} fallback="Failed to update category" />
     </form>
   )
 }

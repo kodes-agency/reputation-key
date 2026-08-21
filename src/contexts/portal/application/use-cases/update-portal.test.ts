@@ -1,7 +1,7 @@
 // Portal context — update portal use case tests
 
 import { describe, it, expect } from 'vitest'
-import { updatePortal } from './update-portal'
+import { updatePortal, resolvePortalContentFields } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -96,6 +96,24 @@ describe('updatePortal', () => {
 
     await expect(useCase({ portalId: p2.id, slug: 'slug-a' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && (e as { code: string }).code === 'slug_taken',
+    )
+  })
+
+  it('reports an invalid publication transition before a taken slug', async () => {
+    // The patch is assembled in a fixed order — content, publication, slug — so the
+    // error a user sees for a doubly-invalid edit does not depend on field ordering.
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const p1 = buildTestPortal({ id: 'p1', slug: 'slug-a' })
+    const p2 = buildTestPortal({ id: 'p2', slug: 'slug-b', publicationState: 'archived' })
+    portalRepo.seed([p1, p2])
+
+    await expect(
+      useCase({ portalId: p2.id, slug: 'slug-a', publicationState: 'published' }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isPortalError(e) &&
+        (e as { code: string }).code === 'invalid_publication_transition',
     )
   })
 
@@ -259,5 +277,43 @@ describe('updatePortal', () => {
     )
 
     expect(updated.publicationState).toBe('disabled')
+  })
+})
+
+describe('resolvePortalContentFields', () => {
+  const existing = buildTestPortal({
+    name: 'Existing',
+    description: 'Existing description',
+    heroImageUrl: 'https://cdn.example.com/hero.png',
+    theme: { primaryColor: '#112233' },
+  })
+
+  it('keeps every existing value when the keys are absent', () => {
+    const fields = resolvePortalContentFields({ portalId: existing.id }, existing)
+
+    expect(fields).toEqual({
+      name: 'Existing',
+      description: 'Existing description',
+      heroImageUrl: 'https://cdn.example.com/hero.png',
+      theme: { primaryColor: '#112233' },
+    })
+  })
+
+  it('treats an explicit null as "clear this field", not "leave unchanged"', () => {
+    const fields = resolvePortalContentFields(
+      { portalId: existing.id, description: null, heroImageUrl: null },
+      existing,
+    )
+
+    expect(fields.description).toBeNull()
+    expect(fields.heroImageUrl).toBeNull()
+    // Untouched keys still fall back.
+    expect(fields.name).toBe('Existing')
+  })
+
+  it('validates values that are present', () => {
+    expect(() =>
+      resolvePortalContentFields({ portalId: existing.id, name: '   ' }, existing),
+    ).toThrow(expect.objectContaining({ code: 'invalid_name' }))
   })
 })

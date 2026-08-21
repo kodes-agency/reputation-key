@@ -47,16 +47,14 @@ function unwrap<T>(r: Result<T, PortalError>): T {
   return r.value
 }
 
-async function buildPortalPatch(
+/** Fields patchable without I/O. `undefined` leaves a field alone; `null` clears it. */
+export function resolvePortalContentFields(
   input: UpdatePortalInput,
   existing: Portal,
-  deps: UpdatePortalDeps,
-  orgId: OrganizationId,
-): Promise<PortalPatch> {
-  const patch: PortalPatch = {
+): Pick<PortalPatch, 'name' | 'description' | 'heroImageUrl' | 'theme'> {
+  return {
     name:
       input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
-    slug: existing.slug,
     description:
       input.description !== undefined
         ? unwrap(validateDescription(input.description))
@@ -68,53 +66,82 @@ async function buildPortalPatch(
       input.theme !== undefined
         ? unwrap(validatePortalTheme(input.theme))
         : existing.theme,
-    publicationState: existing.publicationState,
   }
-  if (
-    input.publicationState !== undefined &&
-    input.publicationState !== existing.publicationState
-  ) {
-    const transition = transitionPortalPublication(
-      existing.publicationState,
-      input.publicationState,
+}
+
+async function assertPortalHasLinks(
+  deps: UpdatePortalDeps,
+  orgId: OrganizationId,
+  existing: Portal,
+): Promise<void> {
+  // A portal with no destinations renders as a bare title for guests —
+  // public-portal-content.tsx has nothing to lay out. The publication state
+  // machine cannot see this, so the precondition lives here.
+  const links = await deps.portalLinkRepo.listAllLinks(orgId, existing.id)
+  if (links.length === 0) {
+    throw portalError(
+      'portal_has_no_links',
+      'add at least one link before publishing this portal',
     )
-    if (typeof transition !== 'string') {
-      throw portalError(
-        'invalid_publication_transition',
-        `cannot transition portal from ${transition.from} to ${transition.to}`,
-      )
-    }
-    patch.publicationState = transition
-
-    if (transition === 'published') {
-      // A portal with no destinations renders as a bare title for guests —
-      // public-portal-content.tsx has nothing to lay out. The publication state
-      // machine cannot see this, so the precondition lives here.
-      const links = await deps.portalLinkRepo.listAllLinks(orgId, existing.id)
-      if (links.length === 0) {
-        throw portalError(
-          'portal_has_no_links',
-          'add at least one link before publishing this portal',
-        )
-      }
-    }
   }
+}
 
-  if (input.slug !== undefined && input.slug !== existing.slug) {
-    patch.slug = unwrap(validateSlug(input.slug))
-    if (
-      await deps.portalRepo.slugExists(
-        orgId,
-        existing.propertyId as string,
-        patch.slug,
-        existing.id,
-      )
-    ) {
-      throw portalError('slug_taken', 'a portal with this slug already exists')
-    }
+async function resolvePublicationState(
+  input: UpdatePortalInput,
+  existing: Portal,
+  deps: UpdatePortalDeps,
+  orgId: OrganizationId,
+): Promise<Portal['publicationState']> {
+  const requested = input.publicationState
+  if (requested === undefined || requested === existing.publicationState) {
+    return existing.publicationState
   }
+  const transition = transitionPortalPublication(existing.publicationState, requested)
+  if (typeof transition !== 'string') {
+    throw portalError(
+      'invalid_publication_transition',
+      `cannot transition portal from ${transition.from} to ${transition.to}`,
+    )
+  }
+  if (transition === 'published') {
+    await assertPortalHasLinks(deps, orgId, existing)
+  }
+  return transition
+}
 
-  return patch
+async function resolveSlug(
+  input: UpdatePortalInput,
+  existing: Portal,
+  deps: UpdatePortalDeps,
+  orgId: OrganizationId,
+): Promise<string> {
+  // An unchanged slug is not re-validated and never hits the uniqueness probe.
+  if (input.slug === undefined || input.slug === existing.slug) return existing.slug
+  const slug = unwrap(validateSlug(input.slug))
+  const taken = await deps.portalRepo.slugExists(
+    orgId,
+    existing.propertyId as string,
+    slug,
+    existing.id,
+  )
+  if (taken) {
+    throw portalError('slug_taken', 'a portal with this slug already exists')
+  }
+  return slug
+}
+
+async function buildPortalPatch(
+  input: UpdatePortalInput,
+  existing: Portal,
+  deps: UpdatePortalDeps,
+  orgId: OrganizationId,
+): Promise<PortalPatch> {
+  // Order is load-bearing: content validation, then the publication precondition,
+  // then slug uniqueness — so which error surfaces first stays stable.
+  const content = resolvePortalContentFields(input, existing)
+  const publicationState = await resolvePublicationState(input, existing, deps, orgId)
+  const slug = await resolveSlug(input, existing, deps, orgId)
+  return { ...content, slug, publicationState }
 }
 
 function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
