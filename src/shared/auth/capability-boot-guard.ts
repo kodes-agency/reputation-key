@@ -20,15 +20,17 @@
 //      capabilities only, never tenant/org identifiers, plus whether the
 //      auth rate-limit hatch is in effect.
 //
-// The web server has no working app-level startup hook in this build: the
-// nitro/vite integration does not auto-discover server/plugins (the B0.7
-// security-headers plugin is likewise inert — flagged for BQC-6/7). Web and
-// every other process are therefore fail-closed at first capability
-// evaluation: the primitives live in beta-capabilities.ts so the lazy
-// getStore() fallback enforces the same rules (proven in dev and in the
-// built production server, which 500s on any request when the override
-// leaks without an identity). The rate-limit hatch is fail-closed the same
-// way — an unauthorized E2E claim leaves both limiters ON at the call sites.
+// This guard does not run in the web server. serverDir scanning is off under
+// TanStack Start, so vite.config.ts registers nitro plugins by explicit list —
+// and that list does not include this module (the B0.7 security-headers plugin,
+// once inert for the same reason, is now on it and proven by
+// scripts/check-security-headers.mjs). Web and every other unguarded process
+// are therefore fail-closed at first capability evaluation: the primitives live
+// in beta-capabilities.ts so the lazy getStore() fallback enforces the same
+// rules (proven in dev and in the built production server, which 500s on any
+// request when the override leaks without an identity). The rate-limit hatch is
+// fail-closed the same way — an unauthorized E2E claim leaves both limiters ON
+// at the call sites, so it costs 429s rather than a refused boot.
 //
 // Unit/component tests do not need the env backdoor: they inject policy
 // stores via initCapabilityPolicyStore (see beta-capabilities.ts).
