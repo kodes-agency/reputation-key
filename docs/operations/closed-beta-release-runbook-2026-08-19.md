@@ -132,8 +132,67 @@ revealed that the SDK was masking our own throw) and
 the first violated rule with its JSON path (it printed
 `validate:number_not_integer:$.top_p=0.98`).
 
-**Running a canary** (each release SHA gets three generations; heads are keyed by
-release SHA, so a burnt head needs a new SHA on both AI services):
+## 3. Deploying a release — corrected 2026-08-21 (ADR 0051)
+
+**Set `RELEASE_SHA` and `SOURCE_REVISION` together, on every service.** They are
+one fact with two names: `RELEASE_SHA` is a service variable, while
+`IMAGE_SOURCE_REVISION` is baked at build time from the `SOURCE_REVISION` build
+argument, and `assertReleaseIdentity` refuses a production boot when they differ.
+Setting only `RELEASE_SHA` — which is what the earlier procedure said — produced
+a `FAILED` web deploy and a crashed worker on 2026-08-21.
+
+```bash
+SHA=$(git rev-parse HEAD)   # a real revision, not random hex
+for svc in web worker google-egress-gateway google-execution-admission; do
+  railway variables --service "$svc" --environment google-closed-beta \
+    --set "RELEASE_SHA=$SHA" --set "SOURCE_REVISION=$SHA" --skip-deploys
+  railway up --service "$svc" --environment google-closed-beta --detach
+done
+```
+
+Deploy `web` first: its `preDeployCommand` runs the migrations.
+
+**The two AI services take `RELEASE_SHA` only.** Their environments are exact
+allowlists (`services/ai-execution-admission/environment.ts`,
+`services/ai-egress-gateway/environment.ts`) and refuse to start if any other
+variable is present, so `SOURCE_REVISION` MUST NOT be set on them. Their images
+do not bake `IMAGE_SOURCE_REVISION`, so the identity guard cannot fire there.
+
+**Verify before declaring the release done:**
+
+```bash
+# every service on one revision
+for svc in web worker google-egress-gateway google-execution-admission \
+           ai-egress-gateway ai-execution-admission; do
+  printf '%s ' "$svc"
+  railway variables --service "$svc" --environment google-closed-beta --kv \
+    | sed -n 's/^RELEASE_SHA=//p'
+done
+# heads still accepting, and one real operation settles
+psql "$DATABASE_URL" -c "select scope_key, execution_state, admission_state
+                         from ai_execution_control_heads order by 1;"
+```
+
+**A routine redeploy does NOT need a canary.** Capability heads are scope-keyed,
+not release-keyed, and runtime dispatch never compares the running `RELEASE_SHA`
+against them — only `restore` does. Verified 2026-08-21: all six services moved
+to a new revision, all three capability heads stayed `enabled/accepting`, and a
+real reply settled `success` with live token usage. Do not kill working
+capabilities to satisfy an activation gate; see §2 below for when the ceremony
+genuinely applies.
+
+**Running a canary** — for ACTIVATION only (each release SHA gets three
+generations; canary heads are keyed by release SHA, so a burnt head needs a new
+SHA on both AI services).
+
+**Precondition, discoverable nowhere else:** `issue_ai_canary_authorization_v1`
+refuses unless `review_analysis`, `reply_drafting` AND `property_trends` are all
+`killed`/`draining`. With any of them `enabled` the CLI answers only
+`AI canary authorization is not eligible for issue`, naming nothing. So the
+ceremony can only be run on a plane that is already stopped — which is exactly
+why a healthy redeploy must not attempt it (§3, ADR 0051). If you are here to
+activate capabilities that are currently killed, continue. If you are here after
+an ordinary deploy, stop.
 
 ```bash
 SHA=$(openssl rand -hex 20)
