@@ -10,8 +10,25 @@
 // DnD is a client lib and renders fine; this story asserts render + the
 // add-category flow only (no real drag).
 import type { Meta, StoryObj } from '@storybook/react'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { LinkTree } from './link-tree'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
+
+// Scopes assertions to ONE category card, which is what makes the per-category
+// grouping (`links.filter(l => l.categoryId === cat.id)` in
+// link-tree-category-list) assertable rather than just "the label is somewhere
+// on the page". SortableCategory's root is the nearest `rounded-lg` div ancestor
+// of the title: the wrappers in between are plain flex rows, link rows use
+// `rounded-md`, and LinkTree's own card is a <section>.
+function categoryCard(canvasElement: HTMLElement, title: string) {
+  const card = within(canvasElement)
+    .getByRole('heading', { name: title, level: 3 })
+    .closest('div.rounded-lg')
+  if (!(card instanceof HTMLElement)) {
+    throw new Error(`no category card wraps the "${title}" heading`)
+  }
+  return within(card)
+}
 
 const meta: Meta<typeof LinkTree> = {
   title: 'Portal/LinkTree',
@@ -61,8 +78,33 @@ const links: readonly LinkTreeLink[] = [
 // Seeded tree: two categories with links, the CategoryAddForm visible (owner).
 export const Default: Story = {
   args: { portalId: 'portal-1', categories, links },
-  // play removed temporarily to unblock storybook-test CI; visual + basic render verified in dev.
-  // axe stays enabled (BQC-6.8).
+  // Restores the play deleted in eef8c716 ("simplify … to pass vitest
+  // storybook"). Asserts the SEEDED TREE, not that something mounted: both
+  // categories in sortKey order, and each link under its own category. The
+  // negative checks are the discriminating half — a broken categoryId filter
+  // renders every link under every category, which a presence-only assertion
+  // cannot see. axe stays enabled (BQC-6.8).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    expect(
+      canvas.getAllByRole('heading', { level: 3 }).map((h) => h.textContent),
+    ).toEqual(['Review sites', 'Social media'])
+
+    const reviewSites = categoryCard(canvasElement, 'Review sites')
+    await expect(reviewSites.getByText('Google Reviews')).toBeVisible()
+    await expect(reviewSites.getByText('https://google.com')).toBeVisible()
+    await expect(reviewSites.getByText('Yelp')).toBeVisible()
+    expect(reviewSites.queryByText('Instagram')).toBeNull()
+
+    const social = categoryCard(canvasElement, 'Social media')
+    await expect(social.getByText('Instagram')).toBeVisible()
+    await expect(social.getByText('https://instagram.com')).toBeVisible()
+    expect(social.queryByText('Google Reviews')).toBeNull()
+
+    // The seeded tree rendered, so the empty-state affordance must not be.
+    expect(canvas.queryByText(/No categories yet/)).toBeNull()
+  },
 }
 
 // Empty tree renders the empty-state affordance.
@@ -74,6 +116,38 @@ export const Empty: Story = {
 // (The stubbed createLinkCategory echoes the input title.)
 export const AddCategory: Story = {
   args: { portalId: 'portal-1', categories, links },
-  // play removed temporarily to unblock storybook-test CI.
+  // Restores the play deleted in eef8c716. Drives the real flow through
+  // CategoryAddForm → useLinkTreeState.handleAddCategory →
+  // useActionMutation(createLinkCategory) → the stub, which echoes the title.
+  // The discriminating assertion is the heading LIST: the new category must be
+  // APPENDED, so a handler that replaces the tree, drops the result, or
+  // double-submits fails here where a lone `findByText('Feedback')` would pass.
   // axe stays enabled (BQC-6.8).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+
+    const input = canvas.getByPlaceholderText('New category name')
+    await userEvent.type(input, 'Feedback')
+
+    const submit = canvas.getByRole('button', { name: /add category/i })
+    await expect(submit).toBeEnabled()
+    await userEvent.click(submit)
+
+    await waitFor(() =>
+      expect(
+        canvas.getAllByRole('heading', { level: 3 }).map((h) => h.textContent),
+      ).toEqual(['Review sites', 'Social media', 'Feedback']),
+    )
+
+    // A category created through the form starts with no links — proves we
+    // asserted the NEW card, not a stray match on the seeded ones.
+    await expect(
+      categoryCard(canvasElement, 'Feedback').getByText(/No links yet/),
+    ).toBeVisible()
+
+    // The form clears only after the mutation resolves (CategoryAddForm awaits
+    // onSubmit before setTitle('')), so this witnesses a settled create rather
+    // than an optimistic paint.
+    await waitFor(() => expect(input).toHaveValue(''))
+  },
 }
