@@ -30,11 +30,7 @@ const oauthStateRecordSchema = z
 
 export type OAuthStateHandleRecord = z.infer<typeof oauthStateRecordSchema>
 export type OAuthStateHandleRejection =
-  | 'malformed'
-  | 'not_found'
-  | 'expired'
-  | 'binding_mismatch'
-  | 'replayed'
+  'malformed' | 'not_found' | 'expired' | 'binding_mismatch' | 'replayed'
 
 export type OAuthStateHandleService = Readonly<{
   issue: (

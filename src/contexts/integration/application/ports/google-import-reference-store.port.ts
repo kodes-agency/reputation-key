@@ -48,8 +48,7 @@ export type ImportReferenceFailureCode =
   | 'runtime_unavailable'
 
 export type ImportReferenceResult<T> =
-  | Readonly<{ ok: true } & T>
-  | Readonly<{ ok: false; code: ImportReferenceFailureCode }>
+  Readonly<{ ok: true } & T> | Readonly<{ ok: false; code: ImportReferenceFailureCode }>
 export type ResolvedImportCandidate = Omit<ImportDiscoveryCandidate, 'eligibility'> &
   Readonly<{
     candidateId: string

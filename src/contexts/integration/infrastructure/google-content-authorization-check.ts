@@ -78,8 +78,7 @@ export async function policyAuthorizes(
     LIMIT 1
   `)
   const row = result.rows[0] as
-    | { version: number | string; emergency_kill_version: number | string }
-    | undefined
+    { version: number | string; emergency_kill_version: number | string } | undefined
   return row
     ? {
         version: Number(row.version),

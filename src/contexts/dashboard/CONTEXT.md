@@ -85,13 +85,13 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-| Function | Method                    | Permission | Route            |
+| Function | Method | Permission | Route |
 | -------- | ------------------------- | ---------- | ---------------- | ----------------------------------------------------------------------------------------- |
-|          | `getDashboardDataFn`      | GET        | `dashboard.read` | Property-scoped dashboard data with time range                                            |
-|          | `getPortalAnalyticsFn`    | GET        | `dashboard.read` | Portal-scoped analytics data with time range                                              |
-|          | `getStaffDashboardDataFn` | GET        | `dashboard.read` | Staff dashboard data                                                                      |
-|          | `getAttentionSignalsFn`   | GET        | `dashboard.read` | Per-property attention-band signal counts                                                 |
-|          | `getFleetOverviewFn`      | GET        | `dashboard.read` | Cross-property fleet overview (2+ properties); resolves accessible properties server-side |
+| | `getDashboardDataFn` | GET | `dashboard.read` | Property-scoped dashboard data with time range |
+| | `getPortalAnalyticsFn` | GET | `dashboard.read` | Portal-scoped analytics data with time range |
+| | `getStaffDashboardDataFn` | GET | `dashboard.read` | Staff dashboard data |
+| | `getAttentionSignalsFn` | GET | `dashboard.read` | Per-property attention-band signal counts |
+| | `getFleetOverviewFn` | GET | `dashboard.read` | Cross-property fleet overview (2+ properties); resolves accessible properties server-side |
 
 ## Permissions
 

@@ -18,11 +18,7 @@ import type { Database } from '#/shared/db'
 import { resolveRegion } from '#/shared/domain/processing-profile'
 
 export type RegionClassification =
-  | 'resolved'
-  | 'resolvable'
-  | 'missing'
-  | 'conflict'
-  | 'ambiguous'
+  'resolved' | 'resolvable' | 'missing' | 'conflict' | 'ambiguous'
 
 export type RegionReconcileRow = Readonly<{
   propertyId: string

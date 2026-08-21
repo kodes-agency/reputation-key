@@ -1,13 +1,10 @@
 import { createHmac } from 'node:crypto'
 
 export type OAuthCallbackAbuseDenyCode =
-  | 'pre_state_quota_exhausted'
-  | 'tenant_quota_exhausted'
-  | 'quota_unavailable'
+  'pre_state_quota_exhausted' | 'tenant_quota_exhausted' | 'quota_unavailable'
 
 export type OAuthCallbackAbuseResult =
-  | Readonly<{ ok: true }>
-  | Readonly<{ ok: false; code: OAuthCallbackAbuseDenyCode }>
+  Readonly<{ ok: true }> | Readonly<{ ok: false; code: OAuthCallbackAbuseDenyCode }>
 
 export type OAuthCallbackAbuseGate = Readonly<{
   admitPreState(

@@ -96,18 +96,16 @@ export const buildPortalGroup = (
   input: BuildPortalGroupInput,
 ): Result<PortalGroup, PortalError> => {
   const nameResult = validateGroupName(input.name)
-  return nameResult.map(
-    (validName): PortalGroup => ({
-      id: input.id,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      name: validName,
-      sortKey: input.sortKey ?? null,
-      createdAt: input.now,
-      updatedAt: input.now,
-      deletedAt: null,
-    }),
-  )
+  return nameResult.map((validName): PortalGroup => ({
+    id: input.id,
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    name: validName,
+    sortKey: input.sortKey ?? null,
+    createdAt: input.now,
+    updatedAt: input.now,
+    deletedAt: null,
+  }))
 }
 
 // ── PortalLinkCategory constructor ─────────────────────────────────
@@ -125,17 +123,15 @@ export const buildPortalLinkCategory = (
   input: BuildCategoryInput,
 ): Result<PortalLinkCategory, PortalError> => {
   const title = validateCategoryTitle(input.title)
-  return title.map(
-    (validTitle): PortalLinkCategory => ({
-      id: input.id,
-      portalId: input.portalId,
-      organizationId: input.organizationId,
-      title: validTitle,
-      sortKey: input.sortKey,
-      createdAt: input.now,
-      updatedAt: input.now,
-    }),
-  )
+  return title.map((validTitle): PortalLinkCategory => ({
+    id: input.id,
+    portalId: input.portalId,
+    organizationId: input.organizationId,
+    title: validTitle,
+    sortKey: input.sortKey,
+    createdAt: input.now,
+    updatedAt: input.now,
+  }))
 }
 
 // ── PortalLink constructor ─────────────────────────────────────────
@@ -157,18 +153,16 @@ export const buildPortalLink = (
 ): Result<PortalLink, PortalError> => {
   const label = validateLinkLabel(input.label)
   const url = validateUrl(input.url)
-  return Result.combine([label, url]).map(
-    ([validLabel, validUrl]): PortalLink => ({
-      id: input.id,
-      categoryId: input.categoryId,
-      portalId: input.portalId,
-      organizationId: input.organizationId,
-      label: validLabel,
-      url: validUrl,
-      iconKey: input.iconKey ?? null,
-      sortKey: input.sortKey,
-      createdAt: input.now,
-      updatedAt: input.now,
-    }),
-  )
+  return Result.combine([label, url]).map(([validLabel, validUrl]): PortalLink => ({
+    id: input.id,
+    categoryId: input.categoryId,
+    portalId: input.portalId,
+    organizationId: input.organizationId,
+    label: validLabel,
+    url: validUrl,
+    iconKey: input.iconKey ?? null,
+    sortKey: input.sortKey,
+    createdAt: input.now,
+    updatedAt: input.now,
+  }))
 }

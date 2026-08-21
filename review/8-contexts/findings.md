@@ -48,20 +48,21 @@
 ### S8-2 MINOR: Context test coverage varies widely — dashboard has only 2 test files
 
 **Files:** Test coverage by context:
-| Context | Test files |
-|---------|-----------|
-| portal | 26 |
-| integration | 24 |
-| identity | 17 |
-| inbox | 17 |
-| goal | 16 |
-| property | 12 |
-| guest | 11 |
-| review | 11 |
-| staff | 11 |
-| team | 11 |
-| metric | 8 |
-| **dashboard** | **2** |
+
+| Context       | Test files |
+| ------------- | ---------- |
+| portal        | 26         |
+| integration   | 24         |
+| identity      | 17         |
+| inbox         | 17         |
+| goal          | 16         |
+| property      | 12         |
+| guest         | 11         |
+| review        | 11         |
+| staff         | 11         |
+| team          | 11         |
+| metric        | 8          |
+| **dashboard** | **2**      |
 
 **Category:** missing-coverage
 **Tag:** [code-fix] (deferred)

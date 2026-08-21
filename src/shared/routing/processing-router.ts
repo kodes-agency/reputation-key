@@ -63,9 +63,7 @@ export type ProviderEndpoints = Readonly<{
 }>
 
 export type RoutingBlockedReason =
-  | 'region_unresolved'
-  | 'region_denied'
-  | 'property_missing'
+  'region_unresolved' | 'region_denied' | 'property_missing'
 
 /** A fail-closed property routing decision. */
 export type RoutingBlocked = Readonly<{
@@ -75,9 +73,7 @@ export type RoutingBlocked = Readonly<{
 }>
 
 export type ImportRoutingBlockedReason =
-  | RoutingBlockedReason
-  | 'import_item_missing'
-  | 'subject_workload_mismatch'
+  RoutingBlockedReason | 'import_item_missing' | 'subject_workload_mismatch'
 
 export type ImportRoutingBlocked = Readonly<{
   kind: 'blocked'

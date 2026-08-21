@@ -14,15 +14,9 @@ export const REVIEW_PROVIDER_DELETION_BATCH_SIZE = 100
 
 export type ReviewProviderSnapshotPagePhase = 'main' | 'confirmation'
 export type ReviewProviderSnapshotPhase =
-  | ReviewProviderSnapshotPagePhase
-  | 'apply'
-  | 'terminal'
+  ReviewProviderSnapshotPagePhase | 'apply' | 'terminal'
 export type ReviewProviderSnapshotState =
-  | 'scanning'
-  | 'confirming'
-  | 'deleting'
-  | 'completed'
-  | 'failed'
+  'scanning' | 'confirming' | 'deleting' | 'completed' | 'failed'
 
 export type ReviewProviderSnapshotFailureCode =
   | 'source_changed'

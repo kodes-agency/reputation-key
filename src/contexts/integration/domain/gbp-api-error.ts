@@ -6,11 +6,7 @@
 // the boundary so the domain sees only a domain-level classification.
 
 export type GbpApiErrorKind =
-  | 'auth_failed'
-  | 'rate_limited'
-  | 'permission_denied'
-  | 'upstream_error'
-  | 'parse_error'
+  'auth_failed' | 'rate_limited' | 'permission_denied' | 'upstream_error' | 'parse_error'
 
 export type GbpApiError = Readonly<{
   _tag: 'GbpApiError'

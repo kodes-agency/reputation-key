@@ -34,10 +34,7 @@ type OrderedImportCandidate = Readonly<{
 }>
 
 export type GoogleImportTransactionErrorCode =
-  | 'unauthorized'
-  | 'invalid_reference'
-  | 'request_conflict'
-  | 'temporarily_unavailable'
+  'unauthorized' | 'invalid_reference' | 'request_conflict' | 'temporarily_unavailable'
 
 export class GoogleImportTransactionError extends Error {
   readonly code: GoogleImportTransactionErrorCode

@@ -65,10 +65,7 @@ export function subjectAuthorityStateAfterCleanup(
 }
 
 export type CredentialSourceOperationEvent =
-  | 'provider_start'
-  | 'commit_terminal'
-  | 'mark_ambiguous'
-  | 'confirm_provider_reset'
+  'provider_start' | 'commit_terminal' | 'mark_ambiguous' | 'confirm_provider_reset'
 
 export function transitionCredentialSourceOperation(
   state: GoogleCredentialSourceOperationState,

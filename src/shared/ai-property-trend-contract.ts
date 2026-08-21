@@ -118,9 +118,7 @@ export function encodeCanonicalAiPropertyTrendSource(
 
 export type PropertyTrendRender = Readonly<{
   headline:
-    | 'Review signals improved'
-    | 'Review signals need attention'
-    | 'Notable review changes'
+    'Review signals improved' | 'Review signals need attention' | 'Notable review changes'
   /**
    * Dominant polarity of the selected signals. `stable` means "no polarised
    * signal was selected" (neutral-sentiment/category shifts are material but

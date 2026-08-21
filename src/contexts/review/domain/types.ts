@@ -74,12 +74,7 @@ export type Review = Readonly<{
 }>
 
 export type ReplyStatus =
-  | 'draft'
-  | 'pending_approval'
-  | 'approved'
-  | 'published'
-  | 'rejected'
-  | 'publish_failed'
+  'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
 export type ReplySource = 'google_sync' | 'internal'
 
 export type Reply = Readonly<{

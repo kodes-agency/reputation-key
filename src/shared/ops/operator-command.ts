@@ -156,8 +156,7 @@ export function positionalArgs(argv: ReadonlyArray<string>): ReadonlyArray<strin
 }
 
 export type ParseResult =
-  | Readonly<{ ok: true; args: OperatorArgs }>
-  | Readonly<{ ok: false; error: string }>
+  Readonly<{ ok: true; args: OperatorArgs }> | Readonly<{ ok: false; error: string }>
 
 type ParsedToken =
   | Readonly<{ kind: 'boolean-flag'; name: string }>
@@ -213,7 +212,7 @@ export function parseOperatorArgs(
   const flags = new Set<string>()
   const positionals: string[] = []
 
-  for (let i = 0; i < argv.length; ) {
+  for (let i = 0; i < argv.length;) {
     const classified = classifyToken(argv, i, booleanFlags)
     if ('error' in classified) return { ok: false, error: classified.error }
     const { token, consumed } = classified
