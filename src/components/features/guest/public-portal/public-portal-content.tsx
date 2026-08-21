@@ -42,6 +42,9 @@ const DESTINATION_STYLE = {
 
 const HEADING_STYLE = { color: 'var(--portal-primary)' }
 
+/** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
+const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
+
 export function PublicPortalContent({
   token,
   portal,
@@ -68,6 +71,13 @@ export function PublicPortalContent({
     // hardcoded grays that used to make the Dark palette unreadable.
     '--portal-accent-soft': `color-mix(in srgb, ${primaryColor} 12%, transparent)`,
     '--portal-accent-border': `color-mix(in srgb, ${primaryColor} 40%, transparent)`,
+    // Secondary text is mixed toward the portal's OWN background rather than
+    // dimmed with `opacity-*`. Opacity composites against whatever happens to
+    // be painted behind the element, so a preview rendered on a dark surface
+    // produced dark-on-dark text (axe measured 1.08:1). Mixing on the
+    // text→background axis yields an opaque colour whose contrast is a property
+    // of the palette, not of the container.
+    '--portal-text-muted': `color-mix(in srgb, ${textColor} 72%, ${backgroundColor})`,
   }
 
   const uncategorizedLinks = links.filter((link) => link.categoryId === null)
@@ -97,11 +107,15 @@ export function PublicPortalContent({
             style={{ backgroundColor: 'var(--portal-primary)' }}
             aria-hidden
           />
-          <p className="text-sm opacity-70">{portal.organizationName}</p>
+          <p className="text-sm" style={MUTED_STYLE}>
+            {portal.organizationName}
+          </p>
         </div>
 
         {portal.description && (
-          <p className="text-center opacity-80">{portal.description}</p>
+          <p className="text-center" style={MUTED_STYLE}>
+            {portal.description}
+          </p>
         )}
 
         {links.length === 0 ? (
@@ -115,7 +129,7 @@ export function PublicPortalContent({
             style={{ borderColor: 'var(--portal-accent-border)' }}
           >
             <p className="font-medium">No review destinations yet</p>
-            <p className="mt-1 text-sm opacity-70">
+            <p className="mt-1 text-sm" style={MUTED_STYLE}>
               {portal.organizationName} has not added anywhere to leave a review on this
               page yet.
               {token && responseForm
@@ -126,7 +140,9 @@ export function PublicPortalContent({
         ) : (
           <nav aria-label="Review destinations" className="space-y-6">
             {categories.map((category) => {
-              const categoryLinks = links.filter((link) => link.categoryId === category.id)
+              const categoryLinks = links.filter(
+                (link) => link.categoryId === category.id,
+              )
               if (categoryLinks.length === 0) return null
               return (
                 <section key={category.id} className="space-y-2">

@@ -114,9 +114,12 @@ beforeAll(async () => {
      VALUES ($1, $2, 'Portal metrics property', 'portal-metrics-property', 'America/Los_Angeles')`,
     [PROP, ORG],
   )
+  // `property_id` is uuid and `entity_id` is varchar, so the reused $3 needs an
+  // explicit cast on each side — without them Postgres refuses the statement
+  // with "inconsistent types deduced for parameter $3".
   await pool.query(
     `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, publication_state)
-     VALUES ($1, $2, $3, 'property', $3, 'Portal metrics portal', 'portal-metrics-portal', 'published')`,
+     VALUES ($1, $2, $3::uuid, 'property', $3::text, 'Portal metrics portal', 'portal-metrics-portal', 'published')`,
     [PORTAL, ORG, PROP],
   )
 
