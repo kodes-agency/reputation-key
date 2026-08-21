@@ -151,30 +151,53 @@ silently lost.
 
 ### GitHub merge and production-environment controls
 
-Verified 2026-08-15 for `kodes-agency/reputation-key`:
+**Re-verified 2026-08-21 against the live API: `main` has NO branch protection.**
 
-- active repository ruleset `20890731`
-  (`main-required-pull-request-and-ci`) targets `refs/heads/main`;
-- direct updates require a pull request with one approval, stale-review
-  dismissal, Code Owner review where applicable, approval after the last push,
-  and resolved review threads;
-- merge method is squash only; branch deletion and non-fast-forward updates
-  are denied;
-- required checks are `check`, `docker`, `secrets`, `storybook`,
-  `storybook-test`, `e2e`, `audit`, and
-  `Analyze (javascript-typescript)`, with strict branch freshness; and
-- GitHub environment `production` (ID `19948405265`) targets protected
-  branches and requires a reviewer with self-review prevention.
-  The only eligible repository collaborator is currently `kodes-agency`, so
-  PR review and self-review prevention intentionally keep merges and production
-  deployment blocked until a second eligible reviewer is added. GitHub reports
-  `can_admins_bypass: true`; the repository owner must disable administrator
-  bypass in the environment UI before this becomes a hard release control.
+```
+GET /repos/kodes-agency/reputation-key/rulesets            -> []
+GET /repos/kodes-agency/reputation-key/branches/main/protection
+   -> 404 {"message":"Branch not protected"}
+```
 
-Ruleset/environment readback is candidate evidence, not a permanent fact:
-release validation must query GitHub again and compare the exact rule/check
-set. The GitHub environment does not by itself prove that a Railway deployment
-uses it; the controlled-deployment workflow/link remains a release gate.
+The ruleset described below (`20890731`, `main-required-pull-request-and-ci`)
+**does not exist**. Either it was never created, or it was deleted after the
+2026-08-15 readback. This section previously asserted it as verified fact, and
+`.github/workflows/ci.yml` contradicted it in a comment ("main carries no
+branch protection"). The workflow comment was the accurate one.
+
+**Consequence, stated plainly: every "hard gate" in this repository is
+advisory.** `check`, `docker`, `secrets`, `storybook`, `storybook-test`, `e2e`,
+`audit` and `Analyze (javascript-typescript)` all run, and all report, but
+nothing prevents a merge while they are red, and nothing prevents a direct push
+to `main`. Any reasoning elsewhere in this repo that treats a passing check as
+a _precondition_ for merge is reasoning about a control that is not enabled.
+
+The intended posture — recorded here as intent, NOT as fact — was:
+
+- pull request required, one approval, stale-review dismissal, Code Owner
+  review where applicable, approval after the last push, resolved threads;
+- squash-only merge; branch deletion and non-fast-forward updates denied;
+- required checks `check`, `docker`, `secrets`, `storybook`, `storybook-test`,
+  `e2e`, `audit`, `Analyze (javascript-typescript)`, with strict branch
+  freshness;
+- `simulate` is absent from that list and should be added — it is the only
+  check that caught the 126-orphan fixture defect, it is a 5-minute job with a
+  paths filter, and it currently gates nothing;
+- GitHub environment `production` (ID `19948405265`) targeting protected
+  branches with a reviewer and self-review prevention. Note this one depends on
+  "protected branches" existing, so it cannot be doing anything today either.
+  A previous readback reported `can_admins_bypass: true`, which would need
+  disabling before it is a hard release control.
+
+Enabling this is a repository-owner action and a workflow change, so it is left
+as an explicit decision rather than assumed.
+
+**Lesson for this section specifically:** a platform readback is evidence with
+an expiry date, not a permanent fact. Recording one as "Verified <date>" and
+then reading it later as a standing guarantee is how a repository ends up
+believing it has controls it does not have. Release validation must query
+GitHub again and compare the exact rule/check set; the same applies to the
+environment, which does not by itself prove a Railway deployment uses it.
 
 ### eslint-plugin-security triage (deliberate deviations)
 
