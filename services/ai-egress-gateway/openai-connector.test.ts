@@ -727,6 +727,8 @@ function providerResponse(
       reasoningTokens: number
       totalTokens: number
     }>
+    incomplete?: Readonly<{ reason: string }>
+    emptyOutput?: boolean
   }> = {},
 ): Response {
   const usage = input.usage ?? {
@@ -754,21 +756,23 @@ function providerResponse(
       id: 'must-not-escape',
       object: 'response',
       created_at: 1_780_000_000,
-      status: 'completed',
+      status: input.incomplete === undefined ? 'completed' : 'incomplete',
       error: null,
-      incomplete_details: null,
+      incomplete_details: input.incomplete ?? null,
       instructions: null,
       max_output_tokens: 4096,
       model: 'gpt-5.4-mini-2026-03-17',
-      output: [
-        {
-          id: 'provider-message-id',
-          type: 'message',
-          status: 'completed',
-          role: 'assistant',
-          content,
-        },
-      ],
+      output: input.emptyOutput
+        ? []
+        : [
+            {
+              id: 'provider-message-id',
+              type: 'message',
+              status: 'completed',
+              role: 'assistant',
+              content,
+            },
+          ],
       parallel_tool_calls: false,
       previous_response_id: null,
       reasoning: { effort: 'xhigh', summary: null },
@@ -851,6 +855,69 @@ describe('official OpenAI SDK connector integration', () => {
       expect(outcome.disposition).toBe(disposition)
       expect(outcome.result).toBeNull()
     }
+  })
+
+  it('names a truncated answer output_truncated, not output_invalid', async () => {
+    // The distinction is the whole point: a truncated response is a fully-billed
+    // provider call that returned nothing, and reporting it as `output_invalid`
+    // made it indistinguishable from a malformed answer. That is what hid a
+    // global reasoning-effort fault, where every route burned its output budget
+    // on reasoning and returned an empty body.
+    for (const reason of ['max_output_tokens', 'content_filter'] as const) {
+      const harness = createConnectorHarness(async () =>
+        providerResponse({ parsed: null, incomplete: { reason } }),
+      )
+      const outcome = await harness.connector.invoke(
+        harness.invocation,
+        harness.grant,
+        connectorOutputSchema,
+        new AbortController().signal,
+      )
+      expect(outcome.disposition).toBe('output_truncated')
+      expect(outcome.result).toBeNull()
+      // Still billed, still not worth retrying at the same ceiling.
+      expect(outcome.usageKnown).toBe(true)
+      expect(outcome.providerRetryable).toBe(false)
+    }
+  })
+
+  it('releases no content from a truncated response that carries valid output text', async () => {
+    // My first attempt asserted this returned `success`, on the assumption that a
+    // truncated answer which still satisfies the schema is a good answer. It is
+    // not reachable: the SDK parses only when `status === 'completed'`
+    // (openai/lib/ResponsesParser.js `shouldParse`), so `output_parsed` is null
+    // however complete the text looks. The real property is containment - a
+    // partial answer never escapes, even when it would have parsed.
+    const harness = createConnectorHarness(async () =>
+      providerResponse({ incomplete: { reason: 'max_output_tokens' } }),
+    )
+    const outcome = await harness.connector.invoke(
+      harness.invocation,
+      harness.grant,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(outcome.disposition).toBe('output_truncated')
+    expect(outcome.result).toBeNull()
+  })
+
+  it('still says output_invalid when a completed response yields no parse', async () => {
+    // The other arm of the same branch, and the reason it is a ternary rather
+    // than an unconditional `output_truncated`. A completed response with an
+    // empty output array parses to nothing without the SDK throwing, so it
+    // reaches the same code path as a truncated one and must NOT borrow its
+    // name: nothing was cut short, the provider simply said nothing.
+    const harness = createConnectorHarness(async () =>
+      providerResponse({ emptyOutput: true }),
+    )
+    const outcome = await harness.connector.invoke(
+      harness.invocation,
+      harness.grant,
+      connectorOutputSchema,
+      new AbortController().signal,
+    )
+    expect(outcome.disposition).toBe('output_invalid')
+    expect(outcome.result).toBeNull()
   })
 
   it('accepts the exact profile input-token ceiling and rejects one token above it', async () => {

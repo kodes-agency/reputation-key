@@ -12,6 +12,7 @@ import type { PropertyPerformancePreset } from '#/shared/google-performance-repo
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
+import { StatGrid } from './property-stat-grid'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
@@ -131,23 +132,14 @@ export function PropertyDashboard({
       />
 
       {engagementFunnel && (
-        <div>
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Engagement Funnel
-          </h2>
-          <div className="mt-3 grid grid-cols-3 gap-4">
-            {[
-              { value: engagementFunnel.scans, label: 'Scans' },
-              { value: engagementFunnel.ratings, label: 'Ratings' },
-              { value: engagementFunnel.reviewLinkClicks, label: 'Review Clicks' },
-            ].map((item) => (
-              <div key={item.label} className="rounded-lg border p-4 text-center">
-                <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <StatGrid
+          heading="Engagement Funnel"
+          items={[
+            { value: String(engagementFunnel.scans), label: 'Scans' },
+            { value: String(engagementFunnel.ratings), label: 'Ratings' },
+            { value: String(engagementFunnel.reviewLinkClicks), label: 'Review Clicks' },
+          ]}
+        />
       )}
 
       <div className="min-w-0">
@@ -164,28 +156,19 @@ export function PropertyDashboard({
 
       <RatingDistributionChart distribution={ratingDistribution} />
 
-      <div>
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-          Reply Performance
-        </h2>
-        <div className="mt-3 grid grid-cols-2 gap-4">
-          {[
-            { value: `${replyPerformance.replyRate}%`, label: 'Reply Rate' },
-            {
-              value:
-                replyPerformance.avgReplyHours === null
-                  ? '—'
-                  : `${Math.round(replyPerformance.avgReplyHours)}h`,
-              label: 'Avg Reply Time',
-            },
-          ].map((item) => (
-            <div key={item.label} className="rounded-lg border p-4 text-center">
-              <p className="text-2xl font-semibold tabular-nums">{item.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{item.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <StatGrid
+        heading="Reply Performance"
+        items={[
+          { value: `${replyPerformance.replyRate}%`, label: 'Reply Rate' },
+          {
+            value:
+              replyPerformance.avgReplyHours === null
+                ? '—'
+                : `${Math.round(replyPerformance.avgReplyHours)}h`,
+            label: 'Avg Reply Time',
+          },
+        ]}
+      />
 
       <div>
         <div className="flex items-center justify-between">

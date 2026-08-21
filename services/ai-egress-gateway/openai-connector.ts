@@ -1100,15 +1100,17 @@ export function createOpenAiConnector(
           })
         }
         // A truncated response is a successful, fully-billed provider call that
-        // returns an EMPTY body, so `outputSchema.safeParse` below fails and the
-        // whole route reports a bare `output_invalid`. That is indistinguishable
-        // from a malformed answer, and it is what hid a global reasoning-effort
-        // fault: every tenant route spent its entire output budget on reasoning
-        // and returned nothing, while the operator saw only four words.
+        // returns an EMPTY body, so `outputSchema.safeParse` below fails. It used
+        // to report a bare `output_invalid`, indistinguishable from a malformed
+        // answer, and that is what hid a global reasoning-effort fault: every
+        // tenant route spent its entire output budget on reasoning and returned
+        // nothing, while the operator saw only four words.
         //
         // Content-free by construction: a provider enum and three integers. No
         // tenant text, so unlike `usageRejected` this is safe on every route.
-        if (response.status === 'incomplete' || response.incomplete_details) {
+        const truncated =
+          response.status === 'incomplete' || Boolean(response.incomplete_details)
+        if (truncated) {
           process.stderr.write(
             `${JSON.stringify({
               event: 'openai_output_truncated',
@@ -1120,10 +1122,16 @@ export function createOpenAiConnector(
             })}\n`,
           )
         }
+        // The parse decides whether the answer is usable; truncation decides how
+        // an unusable one is NAMED. The two can never disagree in practice: the
+        // SDK parses only when `status === 'completed'`
+        // (openai/lib/ResponsesParser.js `shouldParse`), so an incomplete
+        // response always arrives with `output_parsed` null however much text it
+        // carries. That is also what keeps a partial answer from escaping.
         const parsedOutput = outputSchema.safeParse(response.output_parsed)
         if (!parsedOutput.success) {
           return connectorOutcome({
-            disposition: 'output_invalid',
+            disposition: truncated ? 'output_truncated' : 'output_invalid',
             reportedDisposition: 'success',
             result: null,
             usageKnown: true,

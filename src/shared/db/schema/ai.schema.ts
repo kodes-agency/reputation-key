@@ -1075,8 +1075,8 @@ export const aiExecutionPermitSettlements = pgTable(
       'ai_execution_permit_settlements_state_valid',
       sql`${t.terminalState} IN ('completed', 'failed', 'cancelled')
         AND ${t.settlementState} IN ('settled', 'released', 'ambiguous')
-        AND ${t.disposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')
-        AND ${t.reportedDisposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')`,
+        AND ${t.disposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')
+        AND ${t.reportedDisposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')`,
     ),
     check(
       'ai_execution_permit_settlements_usage_valid',

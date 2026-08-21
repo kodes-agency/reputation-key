@@ -53,6 +53,7 @@ const AI_ERROR_CODES: ReadonlySet<string> = new Set([
   'provider_unavailable',
   'provider_refused',
   'output_invalid',
+  'output_truncated',
   'policy_unavailable',
 ] satisfies readonly AiErrorCode[])
 
