@@ -398,4 +398,173 @@ describe('authorizeGoogleImportCommand', () => {
     ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
     expect(denied.decide).toHaveBeenCalledTimes(3)
   })
+
+  // One import job mixing a create with a relink. Both items freeze the SAME
+  // authorization at approval time, then run as separate delayed effects. The
+  // create item's `provisionPropertyCapabilities` grants the newly created
+  // property its organization's capabilities, and that INSERT carries
+  // BUMP_POLICY_VERSION_SQL — so the single global policy_version row moves
+  // while the relink item is still in flight. Nothing about the relink item's
+  // own authorization changed; only a sibling wrote to an unrelated property.
+  //
+  // Measured window in the diagnosis: 11.15 ms. These tests remove the window
+  // entirely by forcing the worst interleaving — the bump lands BEFORE the
+  // relink item authorizes — and asserting it is no longer fatal.
+  describe('a sibling item bumping the global policy generation', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    /** The eight-key vector persisted per item at approval time. */
+    const frozenAtApproval = (generation: number) => ({
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      connectionId,
+      connectionLifecycleVersion: 3,
+      connectionAccessVersion: 4,
+      credentialGeneration: 5,
+      approvalBindingId,
+      authorizationVector: {
+        executionPolicyVersion: 'beta-local-2',
+        googleContentPolicyVersion: generation,
+        emergencyKillVersion: 4,
+        role: 'AccountAdmin',
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 5,
+      },
+    })
+
+    /** What the content authority reports once the global row has moved. */
+    const atGeneration = (
+      generation: number,
+      overrides: Partial<{ emergencyKillVersion: number; role: string }> = {},
+    ) => {
+      const base = contentAuthorization()
+      return {
+        ...base,
+        policyVersion: generation,
+        emergencyKillVersion: overrides.emergencyKillVersion ?? base.emergencyKillVersion,
+        authorizationVector: {
+          ...base.authorizationVector,
+          googleContentPolicyVersion: generation,
+          ...overrides,
+        },
+      }
+    }
+
+    it('no longer cancels the relink item', async () => {
+      let globalPolicyGeneration = 11
+      const frozen = frozenAtApproval(globalPolicyGeneration)
+
+      // The create sibling commits its provisioning INSERT + version bump.
+      globalPolicyGeneration += 1
+
+      const { authorize, decide } = setup({
+        authorizeGoogleContent: async () => atGeneration(globalPolicyGeneration),
+      })
+
+      const result = await authorize({
+        actor,
+        connectionId,
+        phase: 'publish',
+        expected: frozen,
+        properties: relinkProperties,
+        requireAccessToken: false,
+      })
+
+      expect(result).toMatchObject({ ok: true, authorization: { approvalBindingId } })
+      // The relink item still had to re-prove its own authorization from
+      // scratch: org import, org connect, and the property-scoped decision.
+      expect(decide).toHaveBeenCalledTimes(3)
+    })
+
+    it('survives a generation that moved many times, not merely by one', async () => {
+      const frozen = frozenAtApproval(11)
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(4096),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozen,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({ ok: true })
+    })
+
+    it('still cancels when the emergency kill epoch moved in the same window', async () => {
+      const frozen = frozenAtApproval(11)
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(12, { emergencyKillVersion: 5 }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozen,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    })
+
+    it('still cancels when the actor lost authority in the same window', async () => {
+      const frozen = frozenAtApproval(11)
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(12, { role: 'Staff' }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozen,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    })
+
+    it('still denies when the bump REMOVED this property from the allowlist', async () => {
+      // The counter cannot tell an additive bump from a revoking one — which is
+      // exactly why tolerating it would be unsafe on its own. What makes it
+      // safe is that the property-scoped decision is re-proved freshly, so a
+      // revocation that rode along with the bump still denies.
+      let calls = 0
+      const { authorize } = setup({
+        authorizeGoogleContent: async () => atGeneration(12),
+        decide: async () => {
+          calls += 1
+          return calls < 3
+            ? allow()
+            : { ...allow(), allowed: false, reason: 'property_not_allowlisted' }
+        },
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtApproval(11),
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    })
+  })
 })

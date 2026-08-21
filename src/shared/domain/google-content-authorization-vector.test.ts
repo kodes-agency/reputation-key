@@ -5,6 +5,7 @@ import type { Permission } from './permissions'
 import type { AuthContext } from './auth-context'
 import {
   googleAuthorizationPermissionDigest,
+  sameFrozenGoogleContentAuthorizationVector,
   sameGoogleContentAuthorizationVector,
 } from './google-content-authorization-vector'
 
@@ -62,5 +63,77 @@ describe('sameGoogleContentAuthorizationVector', () => {
     [{ organizationId: 'organization-1' }, { propertyId: 'organization-1' }],
   ])('rejects vectors with different keys or values', (left, right) => {
     expect(sameGoogleContentAuthorizationVector(left, right)).toBe(false)
+  })
+})
+
+describe('sameFrozenGoogleContentAuthorizationVector', () => {
+  // The eight-key shape `authorizationFromRow` reconstitutes from
+  // google_import_v2_items (google-import-v2-store.ts:181-190).
+  const persisted = (
+    overrides: Partial<Record<string, string | number | boolean | null>> = {},
+  ) => ({
+    executionPolicyVersion: 'beta-local-2',
+    googleContentPolicyVersion: 11,
+    emergencyKillVersion: 4,
+    role: 'AccountAdmin',
+    permissionDigest: 'a'.repeat(64),
+    connectionLifecycleVersion: 3,
+    connectionAccessVersion: 4,
+    credentialGeneration: 5,
+    ...overrides,
+  })
+
+  it('ignores a moved global policy cache generation', () => {
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(
+        persisted({ googleContentPolicyVersion: 11 }),
+        persisted({ googleContentPolicyVersion: 12 }),
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    ['the emergency kill epoch', { emergencyKillVersion: 5 }],
+    ['the execution policy version', { executionPolicyVersion: 'beta-local-3' }],
+    ['the actor role', { role: 'Staff' }],
+    ['the permission digest', { permissionDigest: 'b'.repeat(64) }],
+    ['the connection lifecycle version', { connectionLifecycleVersion: 4 }],
+    ['the connection access version', { connectionAccessVersion: 5 }],
+    ['the credential generation', { credentialGeneration: 6 }],
+  ])('still rejects a vector whose %s moved', (_label, drift) => {
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(persisted(), persisted(drift)),
+    ).toBe(false)
+    // …and rejects it even when the cache generation moved in the same window,
+    // so the exclusion cannot mask a real change that rode along with a bump.
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(
+        persisted(),
+        persisted({ ...drift, googleContentPolicyVersion: 12 }),
+      ),
+    ).toBe(false)
+  })
+
+  it('still requires every other key to be present on both sides', () => {
+    const { emergencyKillVersion: _dropped, ...missingKillEpoch } = persisted()
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(persisted(), missingKillEpoch),
+    ).toBe(false)
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(missingKillEpoch, persisted()),
+    ).toBe(false)
+  })
+
+  it('compares vectors that never carried the generation key at all', () => {
+    const { googleContentPolicyVersion: _absent, ...withoutGeneration } = persisted()
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(withoutGeneration, persisted()),
+    ).toBe(true)
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(
+        withoutGeneration,
+        persisted({ role: 'Staff' }),
+      ),
+    ).toBe(false)
   })
 })
