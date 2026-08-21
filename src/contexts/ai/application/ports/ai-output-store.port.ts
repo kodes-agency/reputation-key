@@ -44,9 +44,7 @@ export type AiTrendReport = Readonly<{
   confidenceBasisPoints: number
   supportingReviewCount: number
   headline?:
-    | 'Review signals improved'
-    | 'Review signals need attention'
-    | 'Notable review changes'
+    'Review signals improved' | 'Review signals need attention' | 'Notable review changes'
   sentences?: readonly string[]
   summary?: string
 }>

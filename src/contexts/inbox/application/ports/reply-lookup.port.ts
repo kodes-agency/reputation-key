@@ -11,12 +11,7 @@ import type { OrganizationId, ReplyId, ReviewId, UserId } from '#/shared/domain/
 // structurally identical to review's Reply (= the client's ReplyData) without
 // importing it — decoupling is the ADR-0008-accepted cost of context isolation.
 export type ReplyStatus =
-  | 'draft'
-  | 'pending_approval'
-  | 'approved'
-  | 'published'
-  | 'rejected'
-  | 'publish_failed'
+  'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'publish_failed'
 
 export type ReplySource = 'google_sync' | 'internal'
 
@@ -33,9 +28,7 @@ export type ReplyPublicationState =
   | 'cancelled'
 
 export type ReplyPublicationFailureClass =
-  | 'terminal_rejection'
-  | 'retryable'
-  | 'ambiguous'
+  'terminal_rejection' | 'retryable' | 'ambiguous'
 
 /** Lightweight DTO — mirrors review's Reply shape without importing it.
  *  Structurally identical to `Awaited<ReturnType<typeof getReplyFn>>` so the

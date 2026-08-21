@@ -93,16 +93,14 @@ export const buildScanEvent = (
 ): Result<ScanEvent, GuestError> => {
   const sourceResult = validateSource(input.source)
 
-  return sourceResult.map(
-    (_validSource): ScanEvent => ({
-      id: input.id,
-      organizationId: input.organizationId,
-      portalId: input.portalId,
-      propertyId: input.propertyId,
-      source: input.source,
-      sessionId: input.sessionId,
-      ipHash: input.ipHash,
-      createdAt: input.now,
-    }),
-  )
+  return sourceResult.map((_validSource): ScanEvent => ({
+    id: input.id,
+    organizationId: input.organizationId,
+    portalId: input.portalId,
+    propertyId: input.propertyId,
+    source: input.source,
+    sessionId: input.sessionId,
+    ipHash: input.ipHash,
+    createdAt: input.now,
+  }))
 }

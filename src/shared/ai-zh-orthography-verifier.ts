@@ -54,7 +54,7 @@ export function evaluateZhOrthography(
   if (text.normalize('NFKC') !== text) return { status: 'policy_unavailable' }
   let simplifiedCount = 0
   let traditionalCount = 0
-  for (let index = 0; index < text.length; ) {
+  for (let index = 0; index < text.length;) {
     const codePoint = text.codePointAt(index)
     if (codePoint === undefined || invalidUnicodeScalar(codePoint)) {
       return { status: 'policy_unavailable' }

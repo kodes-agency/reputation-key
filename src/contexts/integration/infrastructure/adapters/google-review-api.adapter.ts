@@ -189,10 +189,7 @@ function withTimeout(ms: number): Readonly<{
 // and nothing else on record. Callers therefore report the raw store outcome
 // before the mapped error is thrown.
 type CursorRejectionOperation =
-  | 'redeem'
-  | 'publish_next'
-  | 'discard_run'
-  | 'discard_cursors'
+  'redeem' | 'publish_next' | 'discard_run' | 'discard_cursors'
 
 async function callCursorStore<T>(
   call: () => Promise<T>,

@@ -9,11 +9,7 @@
 
 export type GoalMeasureKind = 'progress' | 'level' | 'ratio'
 export type GoalDefinitionStatus =
-  | 'draft'
-  | 'scheduled'
-  | 'active'
-  | 'paused'
-  | 'archived'
+  'draft' | 'scheduled' | 'active' | 'paused' | 'archived'
 export type GoalDefinitionAudience = 'property' | 'portal_group'
 export type GoalPeriodStatus = 'scheduled' | 'active' | 'closed'
 export type GoalPeriodOutcome =

@@ -9,12 +9,7 @@
 // the guest's response — enforced by architectural test (anti-gating).
 
 export type GuestResponseStatus =
-  | 'pending'
-  | 'submitted'
-  | 'corrected'
-  | 'moderated'
-  | 'deleted'
-  | 'expired'
+  'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
 
 export interface GuestResponse {
   readonly id: string

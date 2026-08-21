@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 
 export type PerformanceClearReason =
-  | 'content_expired'
-  | 'authorization_lost'
-  | 'lifecycle'
+  'content_expired' | 'authorization_lost' | 'lifecycle'
 
 type ClearPerformance = (reason: PerformanceClearReason) => void
 

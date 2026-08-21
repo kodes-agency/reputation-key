@@ -258,35 +258,26 @@ export type IntegrationContextApi = Readonly<{
       > | null
       admitGoogleOAuthCallbackTenant: OAuthCallbackAbuseGate['admitResolvedTenant']
       sweepGoogleImportV2Lifecycle:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['sweep']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
       inspectGoogleImportV2Lifecycle:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectBacklog']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['inspectBacklog'] | null
       inspectGoogleImportV2LifecycleScope:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectScope']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['inspectScope'] | null
       cancelGoogleImportV2ForConnection:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelConnection']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['cancelConnection'] | null
       cancelGoogleImportV2ForUser:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelUser']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['cancelUser'] | null
       cancelGoogleImportV2ForOrganization:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelOrganization']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['cancelOrganization'] | null
       prepareGoogleImportV2PropertyDeletion:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['preparePropertyDeletion']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['preparePropertyDeletion'] | null
       finalizeGoogleImportV2PropertyDeletion:
         | ReturnType<typeof createGoogleImportV2Lifecycle>['finalizePropertyDeletion']
         | null
       cancelGoogleImportV2Request:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['cancelRequest']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['cancelRequest'] | null
       inspectGoogleImportV2Request:
-        | ReturnType<typeof createGoogleImportV2Lifecycle>['inspectRequest']
-        | null
+        ReturnType<typeof createGoogleImportV2Lifecycle>['inspectRequest'] | null
     }>
   }>
 }>
@@ -407,8 +398,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     refreshGoogleToken: refreshGoogleTokenUseCase,
   })
   let reauthorizeGoogleImportProviderCall:
-    | Parameters<typeof createSingle401RefreshExecutor>[0]['reauthorize']
-    | undefined
+    Parameters<typeof createSingle401RefreshExecutor>[0]['reauthorize'] | undefined
   const googleImportProviderExecutor = deps.googleAuthorizedProviderExecutor
     ? createSingle401RefreshExecutor({
         executor: deps.googleAuthorizedProviderExecutor,

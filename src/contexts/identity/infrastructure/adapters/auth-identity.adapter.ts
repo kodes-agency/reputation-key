@@ -190,18 +190,16 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         'org_setup_failed',
         'listInvitations response did not match expected schema',
       )
-      return invitations.map(
-        (inv): InvitationRecord => ({
-          id: inv.id,
-          email: inv.email,
-          role: toDomainRole(inv.role),
-          rawRole: inv.role,
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          createdAt: inv.createdAt,
-          propertyIds: parsePropertyIds(inv.propertyIds),
-        }),
-      )
+      return invitations.map((inv): InvitationRecord => ({
+        id: inv.id,
+        email: inv.email,
+        role: toDomainRole(inv.role),
+        rawRole: inv.role,
+        status: inv.status,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+        propertyIds: parsePropertyIds(inv.propertyIds),
+      }))
     },
 
     async listUserInvitations(
@@ -215,22 +213,20 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
         'org_setup_failed',
         'listUserInvitations response did not match expected schema',
       )
-      return invitations.map(
-        (inv): InvitationRecord => ({
-          id: inv.id,
-          email: inv.email,
-          role: toDomainRole(inv.role),
-          rawRole: inv.role,
-          status: inv.status,
-          expiresAt: inv.expiresAt,
-          createdAt: inv.createdAt,
-          organizationId: inv.organizationId
-            ? organizationId(inv.organizationId)
-            : undefined,
-          organizationName: inv.organization?.name,
-          propertyIds: parsePropertyIds(inv.propertyIds),
-        }),
-      )
+      return invitations.map((inv): InvitationRecord => ({
+        id: inv.id,
+        email: inv.email,
+        role: toDomainRole(inv.role),
+        rawRole: inv.role,
+        status: inv.status,
+        expiresAt: inv.expiresAt,
+        createdAt: inv.createdAt,
+        organizationId: inv.organizationId
+          ? organizationId(inv.organizationId)
+          : undefined,
+        organizationName: inv.organization?.name,
+        propertyIds: parsePropertyIds(inv.propertyIds),
+      }))
     },
 
     async getActiveOrg(headers: Headers): Promise<OrganizationRecord | null> {

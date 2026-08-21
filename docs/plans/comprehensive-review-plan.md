@@ -212,11 +212,12 @@ Each phase has an entry gate and exit gate. You cannot proceed without passing.
 5. Circular dependency detection
 
 **S19 — Security + Tenant Isolation (3 parallel agents):**
-| Agent | Focus |
-|-------|-------|
-| A | Repository layer: every SELECT/UPDATE/DELETE includes WHERE organization_id = ? |
-| B | Server functions: resolveTenantContext called, orgId from ctx not data, event handlers extract orgId |
-| C | Background jobs, webhooks, OAuth callbacks, presigned URLs, cross-context API security |
+
+| Agent | Focus                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------- |
+| A     | Repository layer: every SELECT/UPDATE/DELETE includes WHERE organization_id = ?                      |
+| B     | Server functions: resolveTenantContext called, orgId from ctx not data, event handlers extract orgId |
+| C     | Background jobs, webhooks, OAuth callbacks, presigned URLs, cross-context API security               |
 
 **Exit gate:** Zero tenant isolation findings. Zero security CRITICALs.
 

@@ -136,13 +136,11 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
   })
 
   it('enqueues WITHOUT the routing field when the decision is blocked (dispatch is the authority)', async () => {
-    const resolve = vi.fn(
-      async (): Promise<RoutingDecision> => ({
-        kind: 'blocked',
-        reason: 'region_unresolved',
-        region: 'unresolved',
-      }),
-    )
+    const resolve = vi.fn(async (): Promise<RoutingDecision> => ({
+      kind: 'blocked',
+      reason: 'region_unresolved',
+      region: 'unresolved',
+    }))
     const { api, jobQueue } = setup({ router: { resolve } })
 
     await api.internal.repos.queue.addSyncJob(SYNC_DATA)

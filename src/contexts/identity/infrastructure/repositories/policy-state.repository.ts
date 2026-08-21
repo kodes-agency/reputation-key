@@ -27,8 +27,7 @@ export async function getPolicyControlVersion(
     sql`SELECT version, emergency_kill_version FROM policy_version WHERE scope = 'global'`,
   )
   const row = rows.rows[0] as
-    | { version: number | string; emergency_kill_version: number | string }
-    | undefined
+    { version: number | string; emergency_kill_version: number | string } | undefined
   return {
     version: Number(row?.version ?? 0),
     emergencyKillVersion: Number(row?.emergency_kill_version ?? 0),
@@ -319,27 +318,21 @@ export async function loadPolicySnapshot(db: Database): Promise<PolicySnapshot> 
     version: control.version,
     emergencyKillVersion: control.emergencyKillVersion,
     killedCapabilities: killedCapabilities.rows.map((row) => row.capability as string),
-    orgPolicies: orgPolicies.rows.map(
-      (r): OrgPolicyRecord => ({
-        organizationId: r.organization_id as string,
-        cohort: r.cohort as string,
-        suspendedAt: toDate(r.suspended_at),
-        suspendedReason: (r.suspended_reason as string | null) ?? null,
-      }),
-    ),
-    orgCapabilities: orgCapabilities.rows.map(
-      (r): OrgCapabilityRecord => ({
-        organizationId: r.organization_id as string,
-        capability: r.capability as string,
-      }),
-    ),
-    propertyPolicies: propertyPolicies.rows.map(
-      (r): PropertyPolicyRecord => ({
-        propertyId: r.property_id as string,
-        suspendedAt: toDate(r.suspended_at),
-        suspendedReason: (r.suspended_reason as string | null) ?? null,
-      }),
-    ),
+    orgPolicies: orgPolicies.rows.map((r): OrgPolicyRecord => ({
+      organizationId: r.organization_id as string,
+      cohort: r.cohort as string,
+      suspendedAt: toDate(r.suspended_at),
+      suspendedReason: (r.suspended_reason as string | null) ?? null,
+    })),
+    orgCapabilities: orgCapabilities.rows.map((r): OrgCapabilityRecord => ({
+      organizationId: r.organization_id as string,
+      capability: r.capability as string,
+    })),
+    propertyPolicies: propertyPolicies.rows.map((r): PropertyPolicyRecord => ({
+      propertyId: r.property_id as string,
+      suspendedAt: toDate(r.suspended_at),
+      suspendedReason: (r.suspended_reason as string | null) ?? null,
+    })),
     propertyCapabilities: propertyCapabilities.rows.map(
       (r): PropertyCapabilityRecord => ({
         propertyId: r.property_id as string,
@@ -386,12 +379,10 @@ export async function loadOrgPolicyState(
         }
       : null,
     capabilities: capabilityRows.rows.map((r) => r.capability as string),
-    propertyPolicies: propertyPolicyRows.rows.map(
-      (r): PropertyPolicyRecord => ({
-        propertyId: r.property_id as string,
-        suspendedAt: toDate(r.suspended_at),
-        suspendedReason: (r.suspended_reason as string | null) ?? null,
-      }),
-    ),
+    propertyPolicies: propertyPolicyRows.rows.map((r): PropertyPolicyRecord => ({
+      propertyId: r.property_id as string,
+      suspendedAt: toDate(r.suspended_at),
+      suspendedReason: (r.suspended_reason as string | null) ?? null,
+    })),
   }
 }
