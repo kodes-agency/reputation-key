@@ -310,7 +310,11 @@ export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
 // closed-beta deployment silently. It is now a sibling of the capability
 // override above: an exact value, the same execution-identity authorization,
 // the same startup refusal, and fail-closed (limiters stay ON) wherever the
-// claim is unauthorized — including the web process, which has no startup hook.
+// claim is unauthorized — including the web process, whose nitro plugins are
+// registered explicitly (vite.config.ts) and do NOT include the capability
+// boot guard, so no startup assertion runs there. Web is guarded only by these
+// call-site primitives; an unauthorized claim therefore surfaces as a refused
+// hatch and 429s, never as a boot failure.
 
 /** The ONLY value of E2E that requests the auth rate-limit bypass. */
 const E2E_RATE_LIMIT_BYPASS_VALUE = '1'

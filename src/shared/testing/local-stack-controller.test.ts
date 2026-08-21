@@ -53,7 +53,7 @@ describe('local stack controller', () => {
       COMPOSE_PROJECT_NAME: 'repkey-beta',
       SOURCE_REVISION: 'a'.repeat(40),
       E2E_WEB_CAPABILITY_OVERRIDE: '',
-      E2E_WEB_EXECUTION_IDENTITY: '',
+      E2E_WEB_EXECUTION_IDENTITY: 'local-playwright-beta',
       STACK_ARTIFACT_DIR: '/tmp/repkey-artifacts',
       STACK_E2E_DIR: '/tmp/repkey-e2e',
     })

@@ -69,19 +69,55 @@ export const SEED_BETA_CAPABILITIES: ReadonlyArray<Capability> =
       !(SEED_WITHHELD_CAPABILITIES as ReadonlyArray<Capability>).includes(capability),
   )
 
+/**
+ * The test/CI execution identity that AUTHORIZES the auth rate-limit hatch
+ * (review §5.1) for a local stack's `web` service, per mode.
+ *
+ * compose.local.yml claims the hatch on `web` in every mode (`E2E: '1'`) and
+ * the app fail-closes unless an identity authorizes that claim
+ * (isE2ERateLimitBypassAuthorized, shared/auth/beta-capabilities.ts). This map
+ * is that authorization, and it is DELIBERATELY independent of the capability
+ * override below: the two answer different questions. The override asks "may
+ * this stack skip tenant policy?"; the identity asks "is this process a test
+ * runner that floods sign-in from one loopback address?".
+ *
+ * They were one coupled early-return until beta-acceptance 429'd on sign-in:
+ * `beta` was withheld the identity as a side effect of being withheld the
+ * override, so its web claimed a hatch it could not authorize and both auth
+ * brute-force limiters stayed on under a 19-sign-in serial suite.
+ *
+ * - `e2e` and `beta` both drive Playwright through `web` (every spec signs in
+ *   per test; better-auth allows 3 sign-ins per 10s per IP and the shared
+ *   catch-all limiter 60 POSTs per 60s per IP, and retries: 0 makes one 429
+ *   fatal), so both authorize the hatch — with distinct identities, so a boot
+ *   log names the suite that stood the limiters down.
+ * - `perf` drives no browser suite and gets NO identity: its claim stays
+ *   unauthorized, which is fail-closed (both limiters ON, refused-claim logged,
+ *   and boot refused wherever the capability boot guard runs). Add an identity
+ *   here only together with a suite that actually floods sign-in.
+ *
+ * An identity grants no capability by itself: the policy store reads
+ * BETA_E2E_GLOBAL_CAPABILITIES only (createEnvCapabilityPolicyStore), and
+ * assertE2EOverrideIdentity is inert while that variable is empty. Production
+ * carries neither variable — both exist only inside buildLocalStackEnv, which
+ * feeds compose.local.yml and nothing else.
+ */
+const LOCAL_STACK_EXECUTION_IDENTITY = {
+  beta: 'local-playwright-beta',
+  e2e: 'local-playwright-e2e',
+  perf: '',
+} as const satisfies Record<LocalStackMode, string>
+
 export function localStackEnvironment(mode: LocalStackMode): Readonly<{
   E2E_WEB_CAPABILITY_OVERRIDE: string
   E2E_WEB_EXECUTION_IDENTITY: string
 }> {
-  if (mode !== 'e2e') {
-    return {
-      E2E_WEB_CAPABILITY_OVERRIDE: '',
-      E2E_WEB_EXECUTION_IDENTITY: '',
-    }
-  }
-
   return {
-    E2E_WEB_CAPABILITY_OVERRIDE: LOCAL_E2E_BOOTSTRAP_CAPABILITIES.join(','),
-    E2E_WEB_EXECUTION_IDENTITY: 'local-playwright-e2e',
+    // e2e only. `beta` (and `perf`) must resolve every product capability
+    // through persisted tenant policy — proving that gating is what
+    // beta-acceptance is for.
+    E2E_WEB_CAPABILITY_OVERRIDE:
+      mode === 'e2e' ? LOCAL_E2E_BOOTSTRAP_CAPABILITIES.join(',') : '',
+    E2E_WEB_EXECUTION_IDENTITY: LOCAL_STACK_EXECUTION_IDENTITY[mode],
   }
 }
