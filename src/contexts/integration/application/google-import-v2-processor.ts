@@ -128,6 +128,29 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
   }
 }
 
+/**
+ * The two authorization denials are DIFFERENT tenant-visible facts and get
+ * different outcome codes.
+ *
+ * `authorization_denied` is the capability gate itself saying no — the org or
+ * property is not allowlisted for `property.import_gbp_v2`/`property.connect_gbp`,
+ * is suspended, or the capability is killed. Nothing the tenant captured has
+ * moved; the feature is simply not available to them. `policy_disabled`
+ * ("Import stopped because this feature is unavailable.") is that fact, and
+ * was until now an outcome code with no producer at all.
+ *
+ * `authorization_changed` is the narrow claim it names: something the item
+ * froze when it was enqueued — connection generations, the destination's
+ * source epoch or profile version, the approval binding, the authorization
+ * vector — no longer matches.
+ *
+ * Collapsing them cost real debugging time: a cancelled item reported
+ * `authorization_changed` whether the gate had denied it or its expectations
+ * had drifted, so the persisted `outcome_code` could not narrow which of the
+ * authorizer's eleven deny sites fired. Both codes still present as
+ * `cancelled`/`cancellation`, so parent rollup and progress totals are
+ * unchanged.
+ */
 function authorizationOutcome(
   code:
     | 'authorization_denied'
@@ -139,6 +162,7 @@ function authorizationOutcome(
     case 'connection_unavailable':
       return 'reconnect_required'
     case 'authorization_denied':
+      return 'policy_disabled'
     case 'authorization_changed':
       return 'authorization_changed'
     case 'runtime_unavailable':

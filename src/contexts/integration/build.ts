@@ -78,7 +78,8 @@ import {
   type PerformanceContentAuthorizer,
 } from './application/google-performance-authorizer'
 import { createGooglePerformanceAdapter } from './infrastructure/adapters/google-performance.adapter'
-import { getExecutionPolicy } from '#/shared/auth/execution-policy'
+import { getExecutionPolicy, type DecisionRequest } from '#/shared/auth/execution-policy'
+import type { RequiredPolicyRefreshResult } from '#/shared/auth/persisted-policy-store'
 import { createActiveMemberAuthResolver } from './infrastructure/active-member-auth.adapter'
 import { getEnv } from '#/shared/config/env'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
@@ -202,7 +203,15 @@ type IntegrationContextDeps = Readonly<{
   googleReviewCursorStore?: GoogleReviewCursorStore
   oauthStateHandles?: OAuthStateHandleService
   oauthCallbackAbuseGate?: OAuthCallbackAbuseGate
-  refreshPolicyStoreRequired?: () => Promise<unknown>
+  /**
+   * The identity policy store's MANDATORY refresh
+   * (`persisted-policy-store.ts`: "Mandatory provider/effect refresh. Failure
+   * is explicit and never authorizes from cache."). Typed as its real result
+   * rather than `unknown` so `{ unavailable: true }` is expressible — with
+   * `unknown` the failure signal could not be read at all, which is how this
+   * call site came to discard it.
+   */
+  refreshPolicyStoreRequired?: () => Promise<RequiredPolicyRefreshResult>
   /** Production fail-closed check for the review adapter's DIRECT `fetch`
    * fallback (bypasses admission, quota control, credential binding, mTLS).
    * Wired by the composition root, which owns env; absent = today's
@@ -466,10 +475,43 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const sweepGoogleImportV2Lifecycle = googleImportV2Lifecycle?.sweep ?? null
   if (deps.propertyBindingApi) {
     const propertyBindingApi = deps.propertyBindingApi
-    const decideGoogleImport = async (
-      request: Parameters<ReturnType<typeof getExecutionPolicy>['decide']>[0],
-    ) => {
-      await deps.refreshPolicyStoreRequired?.()
+    /**
+     * Mandatory policy refresh, HONOURED.
+     *
+     * `persisted-policy-store.ts` on `refreshRequired`: "Mandatory
+     * provider/effect refresh. Failure is explicit and never authorizes from
+     * cache." Awaiting it and discarding the result broke precisely that: a
+     * failed refresh keeps the PREVIOUS snapshot, so `decide` then ran on a
+     * cache already known to be invalid.
+     *
+     * Not hypothetical. One import item's capability provisioning bumps the
+     * GLOBAL policy_version; a sibling item authorizing concurrently straddles
+     * that bump between `refreshAuthoritative`'s control read and its snapshot
+     * load, which throws 'policy snapshot generation mismatch' and reports
+     * `{ unavailable: true }`. Deciding anyway denied the sibling
+     * `property_not_allowlisted` and terminalized it `authorization_changed`
+     * — cancelled, retryable: false, userAction 'none' — over a capability
+     * that had just been GRANTED.
+     *
+     * Throwing reaches the authorizer's own catch, which denies
+     * `runtime_unavailable`; the item processor maps that to no outcome code
+     * and rethrows, so the item RETRIES. Bounded, not a loop: retries stop at
+     * `GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS` or once the next backoff would cross
+     * the item's effect deadline, after which it settles
+     * `temporarily_unavailable` (retryable, userAction 'retry').
+     */
+    const refreshedPolicyControl = async (
+      refresh: () => Promise<RequiredPolicyRefreshResult>,
+    ): Promise<Exclude<RequiredPolicyRefreshResult, { unavailable: true }>> => {
+      const control = await refresh()
+      if ('unavailable' in control) {
+        throw new Error('Google import policy refresh is unavailable')
+      }
+      return control
+    }
+    const decideGoogleImport = async (request: DecisionRequest) => {
+      const refresh = deps.refreshPolicyStoreRequired
+      if (refresh) await refreshedPolicyControl(refresh)
       return getExecutionPolicy().decide(request)
     }
     const authorizeGoogleImportCommand = createGoogleImportCommandAuthorizer({
