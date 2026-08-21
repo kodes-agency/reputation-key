@@ -9,7 +9,12 @@ import { issueToken, rotateToken } from '../../domain/portal-token'
 const ORG = organizationId('org-portal-token-test')
 const OTHER_ORG = organizationId('org-portal-token-other')
 const PROPERTY = 'de000000-0000-4000-8000-000000000001'
+const PROPERTY_OTHER = 'de000000-0000-4000-8000-000000000002'
 const PORTAL = portalId('de000000-0000-4000-8000-000000000011')
+// The other tenant's own portal. A portal id arrives from the public URL
+// while the organization id comes from the session, so a read that drops the
+// organizationId conjunct is a straight IDOR on a printed guest token.
+const PORTAL_OTHER = portalId('de000000-0000-4000-8000-000000000012')
 const NOW = new Date('2026-08-08T12:00:00.000Z')
 let pool: Pool
 
@@ -23,15 +28,17 @@ beforeAll(async () => {
   }
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, 'Token Property', 'token-property', 'UTC', NOW(), NOW())
+     VALUES ($1, $3, 'Token Property', 'token-property', 'UTC', NOW(), NOW()),
+            ($2, $4, 'Token Property Other', 'token-property-other', 'UTC', NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
-    [PROPERTY, ORG],
+    [PROPERTY, PROPERTY_OTHER, ORG, OTHER_ORG],
   )
   await pool.query(
     `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, publication_state, created_at, updated_at)
-     VALUES ($1, $2, $3, 'property', $4, 'Token Portal', 'token-portal', 'published', NOW(), NOW())
+     VALUES ($1, $3, $5::uuid, 'property', $5::text, 'Token Portal', 'token-portal', 'published', NOW(), NOW()),
+            ($2, $4, $6::uuid, 'property', $6::text, 'Other Tenant Portal', 'token-portal-other', 'published', NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
-    [PORTAL, ORG, PROPERTY, PROPERTY],
+    [PORTAL, PORTAL_OTHER, ORG, OTHER_ORG, PROPERTY, PROPERTY_OTHER],
   )
 })
 
@@ -40,8 +47,14 @@ afterAll(async () => {
     ORG,
     OTHER_ORG,
   ])
-  await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM properties WHERE id = $1', [PROPERTY])
+  await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
+    ORG,
+    OTHER_ORG,
+  ])
+  await pool.query('DELETE FROM properties WHERE id IN ($1, $2)', [
+    PROPERTY,
+    PROPERTY_OTHER,
+  ])
   await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG, OTHER_ORG])
   await pool.end()
 })
@@ -61,6 +74,22 @@ function makeToken() {
     portalId: PORTAL,
     tokenIdentifier: 'lookup-key-one',
     tokenHash: 'a'.repeat(64),
+    tokenKeyVersion: 1,
+    version: 1,
+    now: NOW,
+  })
+}
+
+// The other tenant's own, legitimately-owned token. Distinct identifier and
+// hash because both are globally unique indexes.
+function makeOtherTenantToken() {
+  return issueToken({
+    id: 'de000000-0000-4000-8000-000000000031',
+    organizationId: OTHER_ORG,
+    propertyId: PROPERTY_OTHER,
+    portalId: PORTAL_OTHER,
+    tokenIdentifier: 'lookup-key-tenant-b',
+    tokenHash: 'c'.repeat(64),
     tokenKeyVersion: 1,
     version: 1,
     now: NOW,
@@ -177,5 +206,132 @@ describe('portal token repository', () => {
       (insertionError as { cause?: { constraint?: unknown } } | undefined)?.cause
         ?.constraint,
     ).toBe('portal_tokens_portal_tenant_fk')
+  })
+})
+
+// ── Tenant isolation ─────────────────────────────────────────────────
+// NON-NEGOTIABLE. Before this block the file passed with all three of the
+// repository's `organizationId` conjuncts removed, because no token was ever
+// seeded for a second tenant. `portal_tokens.portal_id` is unique per portal
+// and the composite FK ties (organization_id, portal_id) together, so the
+// conjunct is redundant for a caller that passes a COHERENT pair — its whole
+// job is to refuse an INCOHERENT one, i.e. a portal id lifted from a public
+// URL combined with the attacker's own session organization. That is what
+// these tests exercise.
+//
+// Note: findResolvableByDigest deliberately has no tenant conjunct. It is the
+// public guest resolution path where the token itself is the capability, so
+// there is nothing here to assert about it.
+describe('portal token repository — tenant isolation', () => {
+  // Plants a REAL active token owned by OTHER_ORG on OTHER_ORG's own portal.
+  async function seedOtherTenantToken() {
+    const repo = createPortalTokenRepository(getDb())
+    const other = makeOtherTenantToken()
+    await repo.insert(other)
+    const { rows } = await pool.query(
+      `SELECT organization_id, portal_id, status FROM portal_tokens WHERE id = $1`,
+      [other.id],
+    )
+    expect(rows).toEqual([
+      { organization_id: OTHER_ORG, portal_id: PORTAL_OTHER, status: 'active' },
+    ])
+    return { repo, other }
+  }
+
+  it('findLatestForPortal does not disclose another tenant token for a known portal id', async () => {
+    const { repo, other } = await seedOtherTenantToken()
+
+    // The caller knows the portal id but belongs to ORG. Leaking here would
+    // hand over tokenHash + tokenIdentifier, i.e. the portal's live secret.
+    await expect(repo.findLatestForPortal(ORG, PORTAL_OTHER)).resolves.toBeNull()
+    // The owning tenant still gets it, so this is scoping and not a dead read.
+    await expect(
+      repo.findLatestForPortal(OTHER_ORG, PORTAL_OTHER),
+    ).resolves.toMatchObject({ id: other.id, tokenHash: other.tokenHash })
+  })
+
+  it('revokeForPortal cannot revoke another tenant live token', async () => {
+    const { repo, other } = await seedOtherTenantToken()
+
+    await expect(
+      repo.revokeForPortal({
+        organizationId: ORG,
+        portalId: PORTAL_OTHER,
+        revokedBy: 'attacker',
+        reason: 'cross tenant revocation attempt',
+        at: NOW,
+      }),
+    ).resolves.toBe(0)
+
+    const { rows } = await pool.query(
+      `SELECT status, revoked_at, revoked_by FROM portal_tokens WHERE id = $1`,
+      [other.id],
+    )
+    expect(rows).toEqual([{ status: 'active', revoked_at: null, revoked_by: null }])
+
+    // The owning tenant can revoke it, so the refusal above was tenant scoping.
+    await expect(
+      repo.revokeForPortal({
+        organizationId: OTHER_ORG,
+        portalId: PORTAL_OTHER,
+        revokedBy: 'owner',
+        reason: 'printed code lost',
+        at: NOW,
+      }),
+    ).resolves.toBe(1)
+  })
+
+  it('saveRotation cannot rotate another tenant token', async () => {
+    const { repo, other } = await seedOtherTenantToken()
+
+    // A rotation aimed at the other tenant's row, presented under ORG.
+    const hijack = rotateToken(
+      { ...other, organizationId: ORG, propertyId: PROPERTY },
+      {
+        id: 'de000000-0000-4000-8000-000000000032',
+        tokenIdentifier: 'lookup-key-hijack',
+        tokenHash: 'd'.repeat(64),
+        tokenKeyVersion: 1,
+        version: 2,
+      },
+      60_000,
+      NOW,
+    )
+    if (!('oldToken' in hijack)) throw new Error('fixture: rotation not constructed')
+
+    await expect(repo.saveRotation(hijack)).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'token_unavailable',
+    })
+    const untouched = await pool.query(
+      `SELECT status, version, grace_period_ends FROM portal_tokens WHERE id = $1`,
+      [other.id],
+    )
+    expect(untouched.rows).toEqual([
+      { status: 'active', version: 1, grace_period_ends: null },
+    ])
+    const smuggled = await pool.query(
+      `SELECT id FROM portal_tokens WHERE token_identifier = 'lookup-key-hijack'`,
+    )
+    expect(smuggled.rows).toEqual([])
+
+    // The owning tenant rotates the same row successfully.
+    const legit = rotateToken(
+      other,
+      {
+        id: 'de000000-0000-4000-8000-000000000033',
+        tokenIdentifier: 'lookup-key-tenant-b2',
+        tokenHash: 'e'.repeat(64),
+        tokenKeyVersion: 1,
+        version: 2,
+      },
+      60_000,
+      NOW,
+    )
+    if (!('oldToken' in legit)) throw new Error('fixture: rotation not constructed')
+    await repo.saveRotation(legit)
+    await expect(
+      repo.findLatestForPortal(OTHER_ORG, PORTAL_OTHER),
+    ).resolves.toMatchObject({ version: 2, status: 'active' })
   })
 })

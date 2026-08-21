@@ -868,6 +868,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         (await mailStubControl.sends()).filter((send) => send.to === inviteEmail),
       )
       .toHaveLength(1)
+    // Classification, not just delivery: the invitation subject is
+    // '<inviter> invited you to join <org>' (shared/email/transactional.tsx:92).
+    // Carried here from the deleted e2e/member-invitation.spec.ts, which was
+    // otherwise a strict subset of this test — it was the one assertion that
+    // existed nowhere else, so without it a correctly-delivered but
+    // wrongly-classified email would pass.
+    const [invite] = (await mailStubControl.sends()).filter(
+      (send) => send.to === inviteEmail,
+    )
+    expect(invite.subject).toContain('invited you to join')
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.getByRole('button', { name: /cancel invitation/i }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)

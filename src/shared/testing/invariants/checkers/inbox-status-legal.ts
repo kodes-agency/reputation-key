@@ -48,6 +48,23 @@ export const inboxStatusLegal = (deps: InboxStatusLegalDeps): InvariantChecker =
       }
     }
 
+    // This checker is ERROR severity: a silent prefix scan would report
+    // "All invariant checks passed" while leaving reviews 501..N unexamined.
+    // Truncation is therefore itself an error — the gate must not claim a
+    // verdict it did not compute.
+    if (reviews.length > MAX_REVIEWS_TO_CHECK) {
+      violations.push({
+        checker: 'inbox-status-legal',
+        severity: 'error' as const,
+        message: `Checked only ${MAX_REVIEWS_TO_CHECK} of ${reviews.length} reviews (truncated) — the remaining ${reviews.length - MAX_REVIEWS_TO_CHECK} were never examined`,
+        evidence: {
+          reviewsChecked: MAX_REVIEWS_TO_CHECK,
+          reviewsTotal: reviews.length,
+          reviewsUnchecked: reviews.length - MAX_REVIEWS_TO_CHECK,
+        },
+      })
+    }
+
     return violations
   },
 })

@@ -49,9 +49,4 @@ test.describe('Authentication', () => {
     await signIn(page, uniqueEmail, password)
     await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)
   })
-
-  test('sign in with existing credentials', async ({ page }) => {
-    await signIn(page)
-    await expect(page).toHaveURL(/\/(dashboard|properties|home)/)
-  })
 })

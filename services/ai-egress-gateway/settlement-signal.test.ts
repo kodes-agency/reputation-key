@@ -35,7 +35,8 @@ describe('AI settlement deadline', () => {
   })
 
   it('rejects invalid remaining deadlines', () => {
-    expect(() => createAiSettlementSignal(-1)).toThrow()
-    expect(() => createAiSettlementSignal(Number.NaN)).toThrow()
+    const invalid = new TypeError('AI settlement remaining deadline is invalid')
+    expect(() => createAiSettlementSignal(-1)).toThrow(invalid)
+    expect(() => createAiSettlementSignal(Number.NaN)).toThrow(invalid)
   })
 })

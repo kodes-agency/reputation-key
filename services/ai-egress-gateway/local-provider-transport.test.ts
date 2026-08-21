@@ -118,7 +118,7 @@ describe('local AI provider transport', () => {
       headers: headers(),
       body: '{}',
     })
-    await expect(response.arrayBuffer()).rejects.toThrow()
+    await expect(response.arrayBuffer()).rejects.toThrow(new Error('stream failed'))
     expect(destroy).toHaveBeenCalledTimes(1)
   })
 })
