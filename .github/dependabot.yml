@@ -16,20 +16,42 @@ updates:
         update-types:
           - minor
           - patch
-        # `vite` carries the rolldown bundler, so a "minor" vite bump can
-        # change SSR chunking for the whole app. vite 8.2.1 (rolldown 1.2.5)
-        # emits a CIRCULAR chunk graph for our server build: the route chunk
-        # reads `identityKeys` from a sibling chunk that imports `router_exports`
-        # (an `__exportAll` facade) back from it, so the binding is still an
+        # Two packages are kept OUT of the group because they can each turn a
+        # "minor" bump into whole-app work, and inside a group they hold ~45
+        # unrelated packages hostage. Excluded (not ignored) so each still gets
+        # its OWN PR, where a red job is attributable to exactly one change.
+        #
+        # `vite` carries the rolldown bundler, so a minor bump can change SSR
+        # chunking for the whole app. vite 8.2.1/8.2.2 (rolldown 1.2.5) emit a
+        # CIRCULAR chunk graph for our server build: the route chunk reads
+        # `identityKeys` from a sibling chunk that imports `router_exports` (an
+        # `__exportAll` facade) back from it, so the binding is still an
         # un-initialised hoisted `var` at module-eval time and SSR dies with
-        # "Cannot read properties of undefined (reading 'invitations')" —
-        # which takes down the `e2e` and `docker` jobs. Same bug class as
-        # rolldown/rolldown#8809 and #3650, unfixed in released rolldown 1.2.5.
-        # Keeping vite OUT of the group means one bundler bump can never hold
-        # 40 unrelated packages hostage: it gets its own PR where a red e2e is
-        # attributable to exactly one change (and reportable upstream).
+        # "Cannot read properties of undefined (reading 'invitations')". That
+        # takes down `e2e` and `docker` (web container never healthy). Same bug
+        # class as rolldown/rolldown#8809 and #3650, unfixed in rolldown 1.2.5.
+        #
+        # `better-auth` OWNS the auth-table migrations (user/session/account/
+        # verification are deliberately absent from the drizzle migratable
+        # barrel — see src/shared/db/schema/migratable.ts), so its bumps can
+        # require real schema work. better-auth 1.7.0 adds `account.issuer` as
+        # `required: true` with NO default, so getMigrations() emits
+        # `ALTER TABLE "account" ADD COLUMN "issuer" text NOT NULL`. Verified
+        # against postgres 17: that succeeds on an empty table (so CI's fresh
+        # DB only trips `check:schema-drift`, the drizzle mirror lacking the
+        # column) but FAILS on any populated table with
+        # `column "issuer" of relation "account" contains null values` — i.e.
+        # it would break `db:migrate-deploy`, the Railway preDeployCommand.
+        # Landing that needs a deliberate forward migration (add nullable,
+        # backfill an issuer per provider, then set NOT NULL) plus the mirror
+        # column — a data decision, not a version bump.
+        #
+        # Neither pattern uses a wildcard, so `vite` matches only vite (vitest
+        # and @vitejs/* stay grouped) and `better-auth` only better-auth
+        # (@better-auth/* stay grouped).
         exclude-patterns:
           - vite
+          - better-auth
     # Security updates are always opened immediately regardless of schedule
     # Major version updates get individual PRs for review
     reviewers:
