@@ -80,7 +80,8 @@ export type ConcreteReplyLanguageResult =
   | Readonly<{ status: 'policy_unavailable' }>
 
 export type ReplyLanguageOutputResult =
-  Readonly<{ status: 'valid' }> | Readonly<{ status: 'output_invalid' }>
+  | Readonly<{ status: 'valid' }>
+  | Readonly<{ status: 'output_invalid' }>
 
 export type PreparedReplyLanguageDetectorInput = Readonly<{
   status: 'ready'
@@ -112,7 +113,7 @@ export function prepareReplyLanguageDetectorInput(
   let normalized = ''
   let pendingSpace = false
   let letterCount = 0
-  for (let index = 0; index < text.length;) {
+  for (let index = 0; index < text.length; ) {
     const placeholderLength = placeholderLengthAt(text, index)
     if (placeholderLength > 0) {
       pendingSpace = normalized.length > 0

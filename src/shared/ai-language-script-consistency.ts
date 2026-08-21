@@ -109,7 +109,7 @@ export function evaluateLanguageScriptConsistency(
   let letterCount = 0
   let expectedScriptLetterCount = 0
 
-  for (let index = 0; index < text.length;) {
+  for (let index = 0; index < text.length; ) {
     const placeholderLength = placeholderLengthAt(text, index)
     if (placeholderLength > 0) {
       index += placeholderLength

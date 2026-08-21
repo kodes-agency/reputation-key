@@ -11,6 +11,20 @@ src/routeTree.gen.ts
 docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/STATUS.md
 
 
+# Byte-attested AI language artifacts. The *-v1.manifest.json files pin a
+# sha256 over these files' exact bytes (src/shared/ai-language-generated-
+# artifacts.test.ts asserts it), so ANY reformat invalidates the attestation.
+# Re-attesting is not a free fix: generate-ai-language-script-table.ts and
+# generate-ai-zh-orthography-table.ts refuse to run off the pinned runtime
+# ("Unicode runtime mismatch"), so the digests can only be regenerated on
+# node 22.23.2 / ICU 78.2. Keeping the formatter out means a prettier bump can
+# never silently break a governance control. Editing these files still
+# requires regenerating their manifest on the pinned runtime.
+src/shared/ai-reply-language-verifier.ts
+src/shared/ai-language-script-consistency.ts
+src/shared/ai-zh-orthography-verifier.ts
+
+
 # Lock files
 pnpm-lock.yaml
 
