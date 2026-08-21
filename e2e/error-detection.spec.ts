@@ -14,7 +14,7 @@
 // test.fail(): the harness's own teardown failure becomes a pass, proving the
 // gate bites on a real spec.
 
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import {
   attachErrorDetection,
   isAllowlistEntryExpired,
@@ -124,46 +124,148 @@ test.describe('error detection — collector injection proof', () => {
     collector.detach()
   })
 
-  test('React "Failed to fetch" route-match echo is gated WITHOUT a GET abort', async ({
+  // ── Navigation-abort correlation ─────────────────────────────────
+  //
+  // The echo React logs for a cancelled route-loader fetch is worded
+  // differently per build: the dev build appends the component stack, the
+  // production build (what beta-acceptance runs) logs the bare TypeError. Both
+  // shapes appear below, and NEITHER is what the harness keys on — the key is
+  // an observed server-function GET abort, spent one per echo.
+  const FETCH_ECHO_PRODUCTION = 'TypeError: Failed to fetch'
+  const FETCH_ECHO_DEVELOPMENT =
+    'TypeError: Failed to fetch\nThe above error occurred in the <MatchInnerImpl> component'
+
+  /** Emit a console.error verbatim and let the CDP event land. */
+  async function emitConsoleError(page: Page, text: string) {
+    await page.evaluate((line) => console.error(line), text)
+    await page.evaluate(() => null)
+  }
+
+  /**
+   * Start `path` as a GET that never answers, then abort it — Chromium reports
+   * net::ERR_ABORTED, the same failure a torn-down document produces for an
+   * in-flight loader read. Resolves once the abort has been observed.
+   */
+  async function abortInflightGet(page: Page, path: string) {
+    await page.route(`**${path}`, async (route) => {
+      // Hold the request open long past the abort; the test never awaits this.
+      const { promise, resolve } = Promise.withResolvers<void>()
+      setTimeout(resolve, 5_000)
+      await promise
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+    })
+    await page.evaluate((target) => {
+      const controller = new AbortController()
+      void fetch(target, { signal: controller.signal }).catch(() => undefined)
+      setTimeout(() => controller.abort(), 50)
+    }, path)
+    await page.waitForTimeout(400)
+  }
+
+  test('a "Failed to fetch" echo is gated WITHOUT a server-fn GET abort — both build shapes', async ({
     page,
   }) => {
+    // The production shape is the exact signal that broke beta-acceptance on
+    // 98ad80c5. Without a cancellation on record it must still be a failure.
     const collector = attachErrorDetection(page)
-    await page.evaluate(() =>
-      console.error(
-        'TypeError: Failed to fetch\nThe above error occurred in the <MatchInnerImpl> component',
-      ),
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await emitConsoleError(page, FETCH_ECHO_DEVELOPMENT)
+    await expect
+      .poll(() => collector.detections.filter((d) => d.kind === 'console-error').length)
+      .toBe(2)
+    collector.detach()
+  })
+
+  test('a "Failed to fetch" echo after a server-fn GET abort is navigation noise', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    const collector = attachErrorDetection(page)
+    // Two cancellations, two echoes: N aborts explain N rejections.
+    await abortInflightGet(page, '/_serverFn/e2e-probe-abort-a')
+    await abortInflightGet(page, '/_serverFn/e2e-probe-abort-b')
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await emitConsoleError(page, FETCH_ECHO_DEVELOPMENT)
+    await page.waitForTimeout(250)
+    expect(collector.detections).toHaveLength(0)
+    await collector.assertEmpty()
+    collector.detach()
+  })
+
+  test('one server-fn GET abort excuses ONE echo — the second still fails', async ({
+    page,
+  }) => {
+    // The sharp edge of the correlation: an aborted request is SPENT. Without
+    // this, a single cancellation would launder every later fetch failure on
+    // the page for the whole 3s window.
+    await page.goto('/')
+    const collector = attachErrorDetection(page)
+    await abortInflightGet(page, '/_serverFn/e2e-probe-abort-once')
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await expect
+      .poll(() => collector.detections.filter((d) => d.kind === 'console-error').length)
+      .toBe(1)
+    expect(collector.detections[0].message).toBe(FETCH_ECHO_PRODUCTION)
+    collector.detach()
+  })
+
+  test('an ordinary FAILED server-fn fetch still fails the gate on a page that aborted one', async ({
+    page,
+  }) => {
+    // NEGATIVE CONTROL, end to end and with no synthesized console output: a
+    // real cancellation is excused, then a real connection failure on the same
+    // page — inside the same 3s window — is NOT. If this ever goes green the
+    // correlation has become a blanket "Failed to fetch" amnesty.
+    await page.goto('/')
+    const collector = attachErrorDetection(page)
+    await abortInflightGet(page, '/_serverFn/e2e-probe-abort-then-fail')
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await page.waitForTimeout(150)
+    expect(collector.detections).toHaveLength(0)
+
+    await page.route('**/_serverFn/e2e-probe-refused', (route) =>
+      route.abort('connectionrefused'),
     )
+    await page.evaluate(() =>
+      fetch('/_serverFn/e2e-probe-refused').catch((error) => console.error(error)),
+    )
+    await expect
+      .poll(
+        () =>
+          collector.detections.filter((d) => d.message.startsWith('TypeError:')).length,
+      )
+      .toBe(1)
+    collector.detach()
+  })
+
+  test('an aborted NON-server-fn GET excuses nothing', async ({ page }) => {
+    // Only route-loader reads reach a router error boundary. An aborted image
+    // or prefetch must not buy an application fetch failure a free pass.
+    await page.goto('/')
+    const collector = attachErrorDetection(page)
+    await abortInflightGet(page, '/e2e-probe-abort-image.png')
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
     await expect
       .poll(() => collector.detections.filter((d) => d.kind === 'console-error').length)
       .toBe(1)
     collector.detach()
   })
 
-  test('React "Failed to fetch" echo after a GET abort is navigation noise', async ({
+  test('a server-fn GET abort older than the window excuses nothing', async ({
     page,
   }) => {
+    // Pins NAVIGATION_ABORT_WINDOW_MS without spending it in wall time: the
+    // clock jumps past the window between the abort and the echo.
     await page.goto('/')
-    const collector = attachErrorDetection(page)
-    // Hold the GET in flight, then abort it client-side (net::ERR_ABORTED) —
-    // the same signature TanStack Router's navigation AbortSignal produces.
-    await page.route('**/slow-get-probe', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 5_000))
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
-    })
-    await page.evaluate(() => {
-      const controller = new AbortController()
-      void fetch('/slow-get-probe', { signal: controller.signal }).catch(() => undefined)
-      setTimeout(() => controller.abort(), 100)
-    })
-    await page.waitForTimeout(500)
-    await page.evaluate(() =>
-      console.error(
-        'TypeError: Failed to fetch\nThe above error occurred in the <MatchInnerImpl> component',
-      ),
-    )
-    await page.evaluate(() => null)
-    await page.waitForTimeout(250)
-    expect(collector.detections).toHaveLength(0)
+    let clock = Date.now()
+    const collector = attachErrorDetection(page, { now: () => clock })
+    await abortInflightGet(page, '/_serverFn/e2e-probe-abort-stale')
+    clock += 3_001
+    await emitConsoleError(page, FETCH_ECHO_PRODUCTION)
+    await expect
+      .poll(() => collector.detections.filter((d) => d.kind === 'console-error').length)
+      .toBe(1)
     collector.detach()
   })
 

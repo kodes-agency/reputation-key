@@ -18,6 +18,14 @@
 // the invite pageerror) were DELETED — the fake mail outbox
 // (e2e/fixtures/mail-stub.ts via RESEND_BASE_URL) removed the underlying
 // failures, so the tolerances would now only hide real regressions.
+//
+// 2026-08-21: `server-fn-fetch-aborted-on-navigation` was DELETED too. It
+// tolerated `TypeError: Failed to fetch ... createServerFn` unconditionally,
+// which (a) hid a genuinely broken server-fn read whose stack happened to show
+// that frame, and (b) described PERMANENT framework behaviour behind a 90-day
+// expiry, so it was always going to re-break this gate. The same event is now
+// suppressed by evidence in error-detection.ts: a `Failed to fetch` echo spends
+// one observed server-function GET abort (net::ERR_ABORTED) or it fails.
 
 export type AllowlistEntry = Readonly<{
   /** Stable identifier for reports and review (kebab-case). */
@@ -51,31 +59,4 @@ export type AllowlistEntry = Readonly<{
   expires: string
 }>
 
-export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = [
-  {
-    id: 'server-fn-fetch-aborted-on-navigation',
-    kind: 'console-error',
-    // Both halves are required: the bare TypeError would tolerate ANY failed
-    // fetch on the page, and the frame pins it to the framework's
-    // server-function client rather than to application code.
-    //
-    // Deliberately NOT page-scoped. This was first pinned to /home because that
-    // is where it was first observed, but the cause is a route change cancelling
-    // in-flight server-function loaders, which is route-independent — it
-    // resurfaced verbatim on /inbox. The frame in the pattern is what keeps this
-    // narrow; a page scope only made it brittle without excluding anything.
-    pattern: /TypeError: Failed to fetch[\s\S]*createServerFn/,
-    owner:
-      'closed-beta AI enablement — docs/operations/closed-beta-import-defects-2026-08-19.md',
-    reason:
-      'A route change cancels in-flight server-function loaders, and the browser ' +
-      'reports each cancelled request as "Failed to fetch" from inside TanStack ' +
-      "Start's createServerFn client bundle. The harness already classifies the " +
-      'underlying requests as [request-aborted] aborted during navigation, so this ' +
-      'is the same benign event counted a second time through the console channel. ' +
-      'It cannot be silenced at source because the log originates in framework ' +
-      'code. Removed when the promoted-home loaders become abort-aware, or when ' +
-      'TanStack stops logging aborts in its client.',
-    expires: '2026-11-18',
-  },
-]
+export const ERROR_ALLOWLIST: readonly AllowlistEntry[] = []
