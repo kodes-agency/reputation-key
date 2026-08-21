@@ -5,7 +5,10 @@
     "target": "ES2022",
     "jsx": "react-jsx",
     "module": "ESNext",
-    "baseUrl": ".",
+    // TS 6 deprecates `baseUrl` (TS5101; removed in TS 7). `paths` needs no
+    // `baseUrl` since TS 4.1 — the mappings below are resolved relative to
+    // this tsconfig, and nothing imports bare `src/...`-style specifiers that
+    // would have depended on baseUrl's non-relative-module fallback.
     "paths": {
       "#/*": ["./src/*"]
     },
