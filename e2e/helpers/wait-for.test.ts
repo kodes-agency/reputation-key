@@ -6,7 +6,7 @@
 // why the Google import spec was re-run rather than diagnosed five times.
 
 import { describe, it, expect, vi } from 'vitest'
-import { waitFor } from './fixtures'
+import { waitFor, bailWait, WaitBailedError } from './fixtures'
 
 describe('waitFor', () => {
   it('returns the first truthy probe value without waiting for the deadline', async () => {
@@ -83,5 +83,46 @@ describe('waitFor', () => {
 
     expect(err.message).toContain('v2 import to reach completed')
     expect(err.message).toContain('diagnose failed: Error: status endpoint 503')
+  })
+})
+
+describe('bailWait', () => {
+  it('aborts immediately instead of polling to the deadline', async () => {
+    // The Google import case: the subject settled at a terminal status the
+    // caller was not waiting for, so no amount of further polling can help.
+    const started = Date.now()
+    let probes = 0
+
+    const err = await waitFor(
+      async () => {
+        probes += 1
+        bailWait('v2 import', {
+          status: 'completed_with_issues',
+          counts: { cancelled: 1 },
+        })
+      },
+      { timeoutMs: 10_000, intervalMs: 5, description: 'v2 import to reach completed' },
+    ).catch((e: unknown) => e as Error)
+
+    expect(err).toBeInstanceOf(WaitBailedError)
+    expect(err.message).toContain('completed_with_issues')
+    // The whole point: one probe, not 10s of them.
+    expect(probes).toBe(1)
+    expect(Date.now() - started).toBeLessThan(1_000)
+  })
+
+  it('does not treat an ordinary probe error as a bail', async () => {
+    // A transient error must still be retried — otherwise every blip becomes fatal.
+    let probes = 0
+    await expect(
+      waitFor(
+        async () => {
+          probes += 1
+          throw new Error('ECONNRESET')
+        },
+        { timeoutMs: 30, intervalMs: 5, description: 'transient' },
+      ),
+    ).rejects.toThrow(/timed out/)
+    expect(probes).toBeGreaterThan(1)
   })
 })

@@ -66,6 +66,33 @@ export function encryptToken(plaintext: string): string {
 
 // ── Polling ───────────────────────────────────────────────────────────
 
+/**
+ * Thrown by a probe to say "the thing being waited for can no longer happen".
+ *
+ * A probe has three distinct things to communicate and only had two ways to say
+ * them: `null` for "not yet" and a throw for "transient error, keep trying".
+ * A subject that reached a TERMINAL state the caller was not waiting for is
+ * neither — it will never become true, so polling on is pure waste. The Google
+ * import wait burned its FULL budget three times (30s, then 60s, then 90s
+ * across 335 healthy probes) on an import that had already finished as
+ * `completed_with_issues`, and each failure was misread as a slow worker and
+ * "fixed" by raising the bound.
+ */
+export class WaitBailedError extends Error {
+  readonly bailed = true
+  constructor(description: string, observed: unknown) {
+    super(
+      `waitFor bailed: ${description} reached a terminal state: ${JSON.stringify(observed)}`,
+    )
+    this.name = 'WaitBailedError'
+  }
+}
+
+/** Abort a `waitFor` immediately — the awaited condition is now unreachable. */
+export function bailWait(description: string, observed: unknown): never {
+  throw new WaitBailedError(description, observed)
+}
+
 export async function waitFor<T>(
   probe: () => Promise<T | null | undefined | false>,
   options: {
@@ -98,6 +125,9 @@ export async function waitFor<T>(
       const value = await probe()
       if (value) return value
     } catch (err) {
+      // A bail is not a transient failure: the subject settled somewhere the
+      // caller was not waiting for, so retrying cannot change the answer.
+      if (err instanceof WaitBailedError) throw err
       lastError = err
     }
     await new Promise((r) => setTimeout(r, interval))

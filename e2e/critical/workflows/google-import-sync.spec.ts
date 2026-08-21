@@ -26,6 +26,7 @@ import {
   callServerFnGet,
   dbQuery,
   waitFor,
+  bailWait,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-imp-'
@@ -322,19 +323,27 @@ test.describe('Critical workflow: Google import + initial sync', () => {
           exportName: 'getPropertyImportV2Status',
           data: { importJobId: started.importJobId },
         })
-        return current.status === 'completed' ? current : null
+        if (current.status === 'completed') return current
+        // Only `queued` and `processing` can still become `completed`. Every
+        // other parent status is terminal, so waiting on is waste: report the
+        // mismatch now, with the item outcomes that explain it.
+        if (current.status !== 'queued' && current.status !== 'processing') {
+          bailWait('v2 import', current)
+        }
+        return null
       },
       {
-        // 90s, previously 60s and 30s before that. This polls a real background
-        // worker to completion on a runner already hosting nine containers; the
-        // assertion is eventual completion with the exact counts below, so the
-        // deadline only bounds how long the worker may take.
+        // 90s, previously 60s and 30s. This polls a real background worker on a
+        // runner already hosting nine containers, so the deadline only bounds
+        // how long the worker may take — the assertion is the counts below.
         //
-        // The bump alone is not the fix — 30 -> 60 did not stop it recurring, and
-        // it has since flaked on five PRs that do not touch this path. `diagnose`
-        // is the fix: on timeout the failure now names the status and counts the
-        // import actually reached, so "worker was still importing" and "worker
-        // wedged at pending" stop looking identical in CI.
+        // The bumps were never the fix, and neither is this one. Six CI
+        // failures blamed on a slow worker were actually the import SETTLING at
+        // `completed_with_issues` with the relink item cancelled
+        // (`authorization_changed`) — a status this wait could never match. The
+        // fixes are the two options below: `bailWait` above turns that into an
+        // instant, self-explaining failure, and `diagnose` names the state on a
+        // genuine timeout.
         timeoutMs: 90_000,
         description: 'v2 import to reach completed',
         diagnose: async () =>
