@@ -46,7 +46,7 @@ import {
   type InboxFanoutDeps,
 } from './inbox-notification-fanout'
 
-export const INBOX_ITEM_CREATED_EVENT = 'inbox.inbox_item.created' as const
+const INBOX_ITEM_CREATED_EVENT = 'inbox.inbox_item.created' as const
 export const ON_INBOX_ITEM_CREATED_CONSUMER =
   'notification.on-inbox-item-created' as const
 

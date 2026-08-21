@@ -28,7 +28,7 @@ export type RecipientTimezoneSources = Readonly<{
   propertyTimezone?: string | null
 }>
 
-export const UTC_FALLBACK = 'UTC'
+const UTC_FALLBACK = 'UTC'
 
 /**
  * True when `Intl` can actually resolve the zone. `Intl.supportedValuesOf` is

@@ -20,7 +20,7 @@ export type {
 } from '../domain/types'
 
 export { getDefaultEnabled } from '../domain/notification-policy'
-export { isUrgent, URGENT_TYPES, NOTIFICATION_TYPES } from '../domain/types'
+export { isUrgent, URGENT_TYPES } from '../domain/types'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────
 // The ONE source of user-facing notification copy. Every surface — the in-app
@@ -34,11 +34,6 @@ export type {
   NotificationRating,
   NotificationTargetKind,
 } from '../domain/notification-payload'
-export {
-  isEmptyNotificationPayload,
-  parseNotificationPayload,
-} from '../domain/notification-payload'
-
 export type {
   NotificationLink,
   RenderedNotification,

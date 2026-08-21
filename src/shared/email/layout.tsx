@@ -87,7 +87,7 @@ export const EMAIL_PALETTE = {
 } as const
 
 /** System stack: webfonts are unreliable in mail clients, so Satoshi is a hint. */
-export const EMAIL_FONT_STACK =
+const EMAIL_FONT_STACK =
   "'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 /** Brand footer line, rendered in the HTML footer and every plain-text twin. */

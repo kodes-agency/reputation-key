@@ -51,7 +51,6 @@ export {
 } from './manage-notifications'
 export {
   createGbpSubscribeBackfill,
-  createGbpSubscribeOperatorAction,
   type GbpSubscribeBackfill,
   type GbpSubscribeBackfillDeps,
   type GbpSubscribeBackfillReport,

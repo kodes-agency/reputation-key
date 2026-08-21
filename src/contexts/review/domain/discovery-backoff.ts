@@ -55,7 +55,7 @@ export type DiscoveryActivity = Readonly<{
  *   warm →  1h → 24 polls/property/day  (activity within the last 3 days)
  *   cold →  6h →  4 polls/property/day  (quiet for 3 days or more)
  */
-export const DISCOVERY_TIER_MULTIPLIER: Readonly<Record<DiscoveryBackoffTier, number>> =
+const DISCOVERY_TIER_MULTIPLIER: Readonly<Record<DiscoveryBackoffTier, number>> =
   Object.freeze({ hot: 1, warm: 4, cold: 24 })
 
 /** Quiet for at least this long → demoted out of `hot`. */

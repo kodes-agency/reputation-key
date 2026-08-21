@@ -45,17 +45,54 @@ export type ReviewProviderSubjectKeysEnv = Readonly<{
   REVIEW_PROVIDER_SUBJECT_HMAC_KEYS?: string
 }>
 
-/** Tagged configuration failure. Names FIELDS only — never values. */
-export class ProviderConfigError extends Error {
-  readonly _tag = 'ProviderConfigError' as const
-  readonly code = 'config_invalid' as const
-  readonly missing: readonly string[]
+/**
+ * Tagged configuration failure. Names FIELDS only — never values.
+ *
+ * ADR 0005 hybrid, per src/contexts/CONTEXT.md § Error pattern (BQR-1.2) and
+ * the `domainError` / `integrationError` precedent: a real Error — so
+ * `instanceof Error` holds, a stack is captured, and log serializers render it
+ * instead of `[object Object]` — carrying the tagged shape as enumerable
+ * properties. The convention is a factory plus an `isXxxError` guard, never a
+ * class: catch sites discriminate on `_tag`, and a class made `_tag`/`code`
+ * fields nothing actually read.
+ */
+export type ProviderConfigError = Readonly<{
+  _tag: 'ProviderConfigError'
+  code: 'config_invalid'
+  message: string
+  /** Env field names that are unset, in report order. */
+  missing: readonly string[]
+}>
 
-  constructor(message: string, missing: readonly string[]) {
-    super(message)
-    this.name = 'ProviderConfigError'
-    this.missing = missing
+const defineEnumerable = <T>(value: T): PropertyDescriptor => ({
+  value,
+  enumerable: true,
+  writable: false,
+  configurable: false,
+})
+
+const providerConfigError = (
+  message: string,
+  missing: readonly string[],
+): Error & ProviderConfigError => {
+  // TS can't see defineProperties add props, so the intersection is asserted once here.
+  const err = new Error(message) as Error & ProviderConfigError
+  Object.defineProperties(err, {
+    name: defineEnumerable('ProviderConfigError'),
+    _tag: defineEnumerable('ProviderConfigError'),
+    code: defineEnumerable('config_invalid'),
+    missing: defineEnumerable(missing),
+  })
+  // Hide this factory's frame from the stack the boot failure reports.
+  if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {
+    Error.captureStackTrace(err, providerConfigError)
   }
+  return err
+}
+
+export const isProviderConfigError = (e: unknown): e is ProviderConfigError => {
+  if (typeof e !== 'object' || e === null || !('_tag' in e)) return false
+  return e._tag === 'ProviderConfigError'
 }
 
 /**
@@ -70,7 +107,7 @@ export function assertReviewProviderSubjectKeysConfigured(
 ): void {
   if (env.NODE_ENV !== 'production' || !jobsEnabled) return
   if (env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS) return
-  throw new ProviderConfigError(
+  throw providerConfigError(
     '[CONFIG] Worker boot refused — REVIEW_PROVIDER_SUBJECT_HMAC_KEYS is unset. ' +
       'Every review provider snapshot would fail config_invalid at ' +
       'acquireDeriver() and quarantine after its retries. Set it to ' +
@@ -104,7 +141,7 @@ export function assertDirectProviderEgressAllowed(
   if (env.NODE_ENV !== 'production') return
   if (env.GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS === true) return
   const missing = missingGoogleEgressConfig(env)
-  throw new ProviderConfigError(
+  throw providerConfigError(
     `[CONFIG] Refused ungoverned direct Google provider call (${operation}) — ` +
       'the egress gateway is not configured, so this request would bypass ' +
       'admission, quota control, credential binding and mTLS. Missing: ' +

@@ -342,7 +342,7 @@ async function dispatch(
 }
 
 /** ADR 0046 r.4: one digest, one recipient, the recipient's timezone. */
-export async function sendUserDigest(
+async function sendUserDigest(
   deps: DigestDeps,
   recipientScope: NotificationEmailRecipient,
 ): Promise<void> {

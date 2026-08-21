@@ -29,7 +29,7 @@ export type UrgentNotificationEmailProps = Readonly<{
  * The reader learns this is urgent from the pill and from the subject line,
  * which is where urgency actually has to survive.
  */
-export const UrgentNotificationEmail = ({
+const UrgentNotificationEmail = ({
   rendered,
   actionUrl,
   preferencesUrl,

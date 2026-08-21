@@ -31,7 +31,7 @@ import { renderNotification } from './notification-templates'
 
 // ── Allowed values ──────────────────────────────────────────────────
 
-export const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
+const ALLOWED_TYPES: ReadonlySet<NotificationType> = new Set(NOTIFICATION_TYPES)
 
 const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'inbox_item',

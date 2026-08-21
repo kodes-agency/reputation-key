@@ -28,9 +28,9 @@ import type {
 import type { NotificationPayload } from '../../domain/notification-payload'
 import type { DigestItem } from './digest-assembly'
 
-export const NOW = new Date('2026-08-21T08:00:00.000Z')
-export const ORG = 'org-1'
-export const USER = 'user-1'
+const NOW = new Date('2026-08-21T08:00:00.000Z')
+const ORG = 'org-1'
+const USER = 'user-1'
 
 export type EmailOverrides = Partial<{
   id: string
@@ -157,9 +157,4 @@ export function createFakeJobLogger(): FakeJobLogger {
   }
   logger.child.mockReturnValue(logger)
   return logger as unknown as FakeJobLogger
-}
-
-/** Fixed-date clock for deterministic transition timestamps. */
-export function createFakeClock(now: Date = NOW): () => Date {
-  return () => now
 }

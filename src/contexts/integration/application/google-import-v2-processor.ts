@@ -69,7 +69,7 @@ const TRANSIENT_INFRASTRUCTURE_CODES: Readonly<Record<string, true>> = {
 const TRANSIENT_INFRASTRUCTURE_MESSAGE_RE =
   /timeout exceeded when trying to connect|connection terminated|too many clients|connection is closed/i
 
-export function isTransientInfrastructureError(error: unknown): boolean {
+function isTransientInfrastructureError(error: unknown): boolean {
   const code = errorCode(error)
   if (code !== null && TRANSIENT_INFRASTRUCTURE_CODES[code] === true) return true
   const message =

@@ -7,9 +7,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   GOOGLE_EGRESS_CONFIG_FIELDS,
-  ProviderConfigError,
+  type ProviderConfigError,
   assertDirectProviderEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
+  isProviderConfigError,
   missingGoogleEgressConfig,
 } from './provider-config-guards'
 
@@ -17,17 +18,30 @@ const CONFIGURED_EGRESS = Object.fromEntries(
   GOOGLE_EGRESS_CONFIG_FIELDS.map((field) => [field, `configured-${field}`]),
 ) as Record<(typeof GOOGLE_EGRESS_CONFIG_FIELDS)[number], string>
 
+/**
+ * Run `guard` and return the ProviderConfigError it threw. Asserts the tagged
+ * shape AND that it is a real Error — the ADR 0005 hybrid is what makes a boot
+ * refusal show up with a stack instead of `[object Object]` in the logs.
+ */
+function refusalFrom(guard: () => void): ProviderConfigError {
+  let thrown: unknown
+  try {
+    guard()
+  } catch (error) {
+    thrown = error
+  }
+
+  expect(thrown).toBeInstanceOf(Error)
+  expect(isProviderConfigError(thrown)).toBe(true)
+  return thrown as ProviderConfigError
+}
+
 describe('assertReviewProviderSubjectKeysConfigured', () => {
   it('refuses a production worker with the keyring unset, naming the variable', () => {
-    let thrown: unknown
-    try {
-      assertReviewProviderSubjectKeysConfigured({ NODE_ENV: 'production' }, true)
-    } catch (error) {
-      thrown = error
-    }
+    const error = refusalFrom(() =>
+      assertReviewProviderSubjectKeysConfigured({ NODE_ENV: 'production' }, true),
+    )
 
-    expect(thrown).toBeInstanceOf(ProviderConfigError)
-    const error = thrown as ProviderConfigError
     expect(error._tag).toBe('ProviderConfigError')
     expect(error.code).toBe('config_invalid')
     expect(error.missing).toEqual(['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS'])
@@ -36,12 +50,14 @@ describe('assertReviewProviderSubjectKeysConfigured', () => {
   })
 
   it('refuses an empty-string keyring the same way as an absent one', () => {
-    expect(() =>
+    const error = refusalFrom(() =>
       assertReviewProviderSubjectKeysConfigured(
         { NODE_ENV: 'production', REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: '' },
         true,
       ),
-    ).toThrow(ProviderConfigError)
+    )
+
+    expect(error.missing).toEqual(['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS'])
   })
 
   it('allows a production worker whose keyring is configured', () => {
@@ -93,15 +109,10 @@ describe('missingGoogleEgressConfig', () => {
 
 describe('assertDirectProviderEgressAllowed', () => {
   it('refuses an ungoverned production call and names the missing configuration', () => {
-    let thrown: unknown
-    try {
-      assertDirectProviderEgressAllowed({ NODE_ENV: 'production' }, 'reviews.list')
-    } catch (error) {
-      thrown = error
-    }
+    const error = refusalFrom(() =>
+      assertDirectProviderEgressAllowed({ NODE_ENV: 'production' }, 'reviews.list'),
+    )
 
-    expect(thrown).toBeInstanceOf(ProviderConfigError)
-    const error = thrown as ProviderConfigError
     expect(error.code).toBe('config_invalid')
     expect(error.missing).toEqual(GOOGLE_EGRESS_CONFIG_FIELDS)
     expect(error.message).toContain('reviews.list')
@@ -122,19 +133,15 @@ describe('assertDirectProviderEgressAllowed', () => {
     // All six set means the executor SHOULD have handled this call. Falling
     // through here means something else made it unavailable, and running the
     // ungoverned request anyway is exactly the silent degradation we refuse.
-    let thrown: unknown
-    try {
+    const error = refusalFrom(() =>
       assertDirectProviderEgressAllowed(
         { NODE_ENV: 'production', ...CONFIGURED_EGRESS },
         'reviews.reply',
-      )
-    } catch (error) {
-      thrown = error
-    }
+      ),
+    )
 
-    expect(thrown).toBeInstanceOf(ProviderConfigError)
-    expect((thrown as ProviderConfigError).missing).toEqual([])
-    expect((thrown as ProviderConfigError).message).toContain('executor unavailable')
+    expect(error.missing).toEqual([])
+    expect(error.message).toContain('executor unavailable')
   })
 
   it('stays quiet in development and test with nothing configured', () => {

@@ -97,7 +97,7 @@ const DigestGroup = ({ propertyName, items }: DigestEmailGroup) => (
   </Section>
 )
 
-export const DigestEmail = ({
+const DigestEmail = ({
   recipientName,
   dateLabel,
   headline,
