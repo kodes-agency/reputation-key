@@ -7,6 +7,7 @@ import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.por
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
+import { providerFetch } from './gbp-provider-fetch'
 
 const MAX_ACCOUNT_PAGES = 100
 const ACCOUNT_PAGE_SIZE = '20'
@@ -55,8 +56,11 @@ export const createGbpApiAdapter = (config: { baseUrl: string }): GbpApiPort => 
       const params = new URLSearchParams({ pageSize: ACCOUNT_PAGE_SIZE })
       if (nextPageToken) params.set('pageToken', nextPageToken)
       const url = `${config.baseUrl}/accounts?${params.toString()}`
+      // providerFetch classifies a transport rejection (unreachable provider)
+      // as upstream_error inside the span, so neither the caller nor the span's
+      // error record ever sees a raw TypeError.
       const response = await trace('gbpApi.listAccounts', () =>
-        fetch(url, {
+        providerFetch('listAccounts', url, {
           headers: { Authorization: `Bearer ${accessToken}` },
         }),
       )

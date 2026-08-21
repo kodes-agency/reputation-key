@@ -338,10 +338,18 @@ function discoverSchedules(): ReadonlyArray<string> {
 const OPERATOR_SCRIPT_PREFIX = /^(seed|simulate|db:|auth:|audit:|perf:|bqc:|ops:)/
 
 function discoverOperatorFiles(): ReadonlyArray<string> {
-  return walk(join(ROOT, 'scripts'))
-    .filter((f) => /\.(ts|mts|mjs|py|sql)$/.test(f))
-    .map(rel)
-    .sort()
+  return (
+    walk(join(ROOT, 'scripts'))
+      .filter((f) => /\.(ts|mts|mjs|py|sql)$/.test(f))
+      // A colocated test is not an operator command. Every other discovery
+      // function in this file already excludes tests (:149, :231, :280, :297);
+      // this one did not, purely because nothing had ever put a test under
+      // scripts/ — so the first one to do so would have been told to catalogue
+      // its own test file as an operator entry point.
+      .filter((f) => !/\.test\.(ts|mts|mjs)$/.test(f))
+      .map(rel)
+      .sort()
+  )
 }
 
 function operatorPackageScripts(): ReadonlyArray<{ name: string; file?: string }> {

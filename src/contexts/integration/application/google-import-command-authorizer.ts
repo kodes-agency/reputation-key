@@ -1,5 +1,6 @@
 import {
   googleAuthorizationPermissionDigest,
+  sameFrozenGoogleContentAuthorizationVector,
   sameGoogleContentAuthorizationVector,
 } from '#/shared/domain/google-content-authorization-vector'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -285,9 +286,16 @@ export function createGoogleImportCommandAuthorizer(
       authorizationVector: contentAuthorization.authorizationVector,
     } as const
     if (input.expected) {
+      // `input.expected` was frozen when the job was approved; everything above
+      // was recomputed just now. This is the only CROSS-TIME vector comparison
+      // in the codebase (the one at :270 builds both sides in this request), so
+      // it is the only one that must tolerate the global policy cache
+      // generation moving underneath it — see
+      // `sameFrozenGoogleContentAuthorizationVector`. Every authorization fact
+      // still has to match exactly, `emergencyKillVersion` included.
       if (
         input.expected.approvalBindingId !== authorization.approvalBindingId ||
-        !sameGoogleContentAuthorizationVector(
+        !sameFrozenGoogleContentAuthorizationVector(
           input.expected.authorizationVector,
           authorization.authorizationVector,
         )

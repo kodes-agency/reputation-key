@@ -1,7 +1,8 @@
 // Integration context — My Business Notifications HTTP adapter (step 2/3).
-// Mirrors gbp-api.adapter.ts: fetch with Bearer token, classify HTTP status into
-// a domain error kind at the boundary (cc-errors §13 — raw status never crosses),
-// zod-validate at the boundary. Implements MyBusinessNotificationsPort.
+// Mirrors gbp-api.adapter.ts: providerFetch with Bearer token (transport
+// failures classified there), classify HTTP status into a domain error kind at
+// the boundary (cc-errors §13 — raw status never crosses), zod-validate at the
+// boundary. Implements MyBusinessNotificationsPort.
 //
 // `updateMask` is REQUIRED on this endpoint (accounts.updateNotificationSetting
 // reference, query parameters) — Google rejects the PATCH with 400
@@ -13,6 +14,7 @@ import type { MyBusinessNotificationsPort } from '../../application/ports/mybusi
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
+import { providerFetch } from './gbp-provider-fetch'
 
 const classifyHttpStatus = (status: number): GbpApiErrorKind => {
   if (status === 401) return 'auth_failed'
@@ -31,7 +33,7 @@ export const createMyBusinessNotificationsAdapter = (config: {
     // NotificationSetting's only writable fields, and the only two we set.
     const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic,notificationTypes`
     const response = await trace('mybusinessNotifications.subscribe', () =>
-      fetch(url, {
+      providerFetch('subscribe', url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${input.accessToken}`,
@@ -55,7 +57,7 @@ export const createMyBusinessNotificationsAdapter = (config: {
   const unsubscribe: MyBusinessNotificationsPort['unsubscribe'] = async (input) => {
     const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic`
     const response = await trace('mybusinessNotifications.unsubscribe', () =>
-      fetch(url, {
+      providerFetch('unsubscribe', url, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${input.accessToken}`,

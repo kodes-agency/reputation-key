@@ -34,6 +34,7 @@ import {
 import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway-build-attestation'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
+import { selectProbeEvidence } from '#/shared/testing/probe-evidence'
 import {
   buildLocalStackEnv,
   createMigrationHeadProof,
@@ -1984,9 +1985,14 @@ function runAffectedOperation(
     ],
     { capture: true },
   )
-  const json = output.trim().split('\n').at(-1)
-  if (!json) throw new Error(`${dependency} ${phase} probe returned no evidence`)
-  return JSON.parse(json) as Record<string, unknown>
+  const evidence = selectProbeEvidence(output, dependency, phase)
+  if (!evidence) {
+    throw new Error(
+      `${dependency} ${phase} probe returned no evidence; last stdout line was ` +
+        `${JSON.stringify(output.trim().split('\n').at(-1) ?? '')}`,
+    )
+  }
+  return evidence
 }
 
 function enqueueReviewCreatedProbe(mode: LocalStackMode, state: StackPaths): string {
