@@ -11,6 +11,7 @@
 import 'dotenv/config'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import type { E2eSeedState } from '../e2e/helpers/seed-state'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { hashPassword } from 'better-auth/crypto'
 import { getAuth } from '../src/shared/auth/auth'
@@ -175,7 +176,9 @@ type PortalFixture = Readonly<{
   tokenByte: number
 }>
 
-function writeSeedState(state: Record<string, unknown>) {
+// Typed against the consumer's contract: a key the specs require but the seed
+// forgets to emit is a compile error here, not an `undefined` read at runtime.
+function writeSeedState(state: E2eSeedState) {
   mkdirSync(dirname(seedStatePath), { recursive: true })
   writeFileSync(seedStatePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
   console.log(`E2E seed state written: ${seedStatePath}`)
@@ -1447,6 +1450,8 @@ async function main(): Promise<void> {
     managerUserId,
     organizationName,
     lockedOrganizationId: LOCKED_ORG_ID,
+    lockedManagerEmail,
+    lockedManagerPassword,
     propertyId: p1Id,
     propertyName: 'E2E Beta Hotel P1',
     onePropertyManagerEmail,

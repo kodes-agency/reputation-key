@@ -22,16 +22,30 @@ export type GuestConsentDecision = 'accept' | 'reject'
 /**
  * Settle the analytics-consent notice. Resolves once the bar is gone.
  *
- * A no-op when the notice is absent — an unavailable portal never renders it,
- * and the decision persists for the browser context, so a second call after a
- * reload finds nothing to do.
+ * WAITS for the bar; it does not probe for it. The notice is deliberately
+ * client-only — it starts hidden and a mount effect reads the persisted decision
+ * out of `localStorage`, which the server cannot see — so it is absent from the
+ * SSR document and appears only once hydration has run the effect. `page.goto`
+ * resolves on `load`, which can be earlier than that. The previous
+ * `if ((await notice.count()) === 0) return` guard therefore read zero on a page
+ * that was about to show the bar and turned every call into a silent no-op: the
+ * bar stayed up and intercepted pointer events on the trailing form controls,
+ * and `accept` was never clicked, so `portal.scan` never got its producer.
+ *
+ * Consequently the notice is REQUIRED, not optional: call this once per guest,
+ * on a portal that renders it. A guest who has already decided never sees the
+ * bar again — that is the product rule, pinned by the `Already Denied` and
+ * `Already Granted` stories on `CookieConsentBanner` — so a second call for the
+ * same guest waits for a bar that will never come instead of quietly doing
+ * nothing. To get an undecided guest again, reset the browser's storage and not
+ * only its cookies: the decision lives in `localStorage`, not in a cookie.
  */
 export async function settleGuestConsent(
   page: Page,
   decision: GuestConsentDecision = 'reject',
 ): Promise<void> {
   const notice = page.getByRole('region', { name: 'Analytics consent' })
-  if ((await notice.count()) === 0) return
+  await notice.waitFor({ state: 'visible' })
   await notice
     .getByRole('button', { name: decision === 'accept' ? 'Accept' : 'Reject' })
     .click()

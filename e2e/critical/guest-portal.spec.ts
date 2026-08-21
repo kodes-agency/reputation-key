@@ -277,6 +277,18 @@ test.describe('Critical: public Portal basics', () => {
     // Accept records exactly one, and a reload does not add another: the guard
     // is storage-backed plus a use-case dedupe on the signed session, so it
     // survives a full document load rather than only a re-render.
+    //
+    // This second visit is a DIFFERENT guest, so the reset has to be a whole
+    // device and not just its cookies. The rejection above persisted
+    // `guest-analytics-consent=denied` in localStorage, and the notice
+    // deliberately never re-asks a guest who declined (the `Already Denied`
+    // story on CookieConsentBanner pins that). Clearing cookies alone therefore
+    // left a guest with no Accept button to click, so this half of the test
+    // asserted nothing and `countScans` stayed at the baseline.
+    await page.evaluate(() => {
+      localStorage.clear()
+      sessionStorage.clear()
+    })
     await context.clearCookies()
     await page.goto(`/p/${seed.portalToken}`)
     await settleGuestConsent(page, 'accept')

@@ -102,10 +102,13 @@ test.describe('Critical: health semantics (BQC-7.2)', () => {
       ).status(),
     ).toBe(404)
 
-    for (const headers of [
+    // Annotated: the two literals otherwise infer as a union with `?: undefined`
+    // members, which Playwright's `Record<string, string>` header type rejects.
+    const acceptedTokenHeaders: ReadonlyArray<Record<string, string>> = [
       { 'x-ops-token': OPS_TOKEN },
       { authorization: `Bearer ${OPS_TOKEN}` },
-    ]) {
+    ]
+    for (const headers of acceptedTokenHeaders) {
       const res = await request.get('/api/health/metrics', { headers })
       expect(res.status()).toBe(200)
       expect(res.headers()['cache-control']).toContain('no-store')

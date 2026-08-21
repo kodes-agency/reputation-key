@@ -13,6 +13,7 @@ import {
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
+import type { PortalLinkRepository } from '../ports/portal-link.repository'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -25,15 +26,32 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
+  // Counted so a test can prove the publish precondition is consulted ONLY on a
+  // real transition into `published` — an unconditional lookup would also make
+  // every unrelated edit to a link-less portal fail.
+  let linkLookups = 0
+  const countingLinkRepo: PortalLinkRepository = {
+    ...portalLinkRepo,
+    listAllLinks: async (orgId, pid) => {
+      linkLookups += 1
+      return portalLinkRepo.listAllLinks(orgId, pid)
+    },
+  }
   const deps = {
     portalRepo,
-    portalLinkRepo,
+    portalLinkRepo: countingLinkRepo,
     staffPublicApi: staffApiMock(accessible),
     events,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return {
+    useCase,
+    portalRepo,
+    portalLinkRepo,
+    events,
+    linkLookups: () => linkLookups,
+  }
 }
 
 describe('updatePortal', () => {
@@ -277,6 +295,58 @@ describe('updatePortal', () => {
     )
 
     expect(updated.publicationState).toBe('disabled')
+  })
+
+  // The shape the beta journey actually sends: publish bundled with a content
+  // edit. The precondition has to run BEFORE the write, or a refused publish
+  // still leaks the other fields.
+  it('refuses a publish bundled with other edits and persists none of them', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase(
+        { portalId: portal.id, description: 'After', publicationState: 'published' },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+    )
+    expect(portalRepo.all()[0].publicationState).toBe('draft')
+    expect(portalRepo.all()[0].description).toBe('Before')
+  })
+
+  it('never consults links when the update leaves publication state alone', async () => {
+    const { useCase, portalRepo, linkLookups } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase({ portalId: portal.id, description: 'After' }, ctx)
+
+    expect(updated.description).toBe('After')
+    expect(updated.publicationState).toBe('draft')
+    expect(linkLookups()).toBe(0)
+  })
+
+  // A link-less portal that is ALREADY published (pre-precondition data) must
+  // stay editable: re-asserting the current state is not a transition.
+  it('never consults links when the requested state is the current state', async () => {
+    const { useCase, portalRepo, linkLookups } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'published' })
+    portalRepo.seed([portal])
+
+    const updated = await useCase(
+      { portalId: portal.id, name: 'Renamed', publicationState: 'published' },
+      ctx,
+    )
+
+    expect(updated.name).toBe('Renamed')
+    expect(updated.publicationState).toBe('published')
+    expect(linkLookups()).toBe(0)
   })
 })
 
