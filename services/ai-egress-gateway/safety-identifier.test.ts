@@ -74,7 +74,7 @@ describe('OpenAI safety identifiers', () => {
         propertyId: 'property',
         key: Buffer.alloc(31),
       }),
-    ).toThrow()
+    ).toThrow(new TypeError('AI safety identifier key is too short'))
     expect(() =>
       derivePropertySafetyIdentifier({
         kind: 'interactive',
@@ -83,6 +83,6 @@ describe('OpenAI safety identifiers', () => {
         actorId: 'bad\u0000actor',
         key,
       }),
-    ).toThrow()
+    ).toThrow(new TypeError('Invalid actorId for AI safety identifier'))
   })
 })

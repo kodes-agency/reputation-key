@@ -10,11 +10,15 @@
 // (the worker — a plain Node process) and:
 //   1. Refuses startup when the override is non-empty outside an explicit
 //      test/CI execution identity (assertE2EOverrideIdentity).
-//   2. Asserts every blocked capability is not globally enabled (production
+//   2. Refuses startup when E2E — the sibling hatch that stands BOTH auth
+//      brute-force limiters down (review §5.1) — is set outside that same
+//      identity (assertE2ERateLimitBypassIdentity).
+//   3. Asserts every blocked capability is not globally enabled (production
 //      boot assertion — blocked capabilities must never boot enabled).
-//   3. Eagerly initializes the global policy store and records the
+//   4. Eagerly initializes the global policy store and records the
 //      capability-policy version + effective beta manifest at startup —
-//      capabilities only, never tenant/org identifiers.
+//      capabilities only, never tenant/org identifiers, plus whether the
+//      auth rate-limit hatch is in effect.
 //
 // The web server has no working app-level startup hook in this build: the
 // nitro/vite integration does not auto-discover server/plugins (the B0.7
@@ -23,7 +27,8 @@
 // evaluation: the primitives live in beta-capabilities.ts so the lazy
 // getStore() fallback enforces the same rules (proven in dev and in the
 // built production server, which 500s on any request when the override
-// leaks without an identity).
+// leaks without an identity). The rate-limit hatch is fail-closed the same
+// way — an unauthorized E2E claim leaves both limiters ON at the call sites.
 //
 // Unit/component tests do not need the env backdoor: they inject policy
 // stores via initCapabilityPolicyStore (see beta-capabilities.ts).
@@ -32,8 +37,10 @@ import {
   CAPABILITY_POLICY_VERSION,
   assertBlockedCapabilitiesContained,
   assertE2EOverrideIdentity,
+  assertE2ERateLimitBypassIdentity,
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
+  isE2ERateLimitBypassAuthorized,
   isKillSwitchAll,
   listBlockedCapabilities,
   listCoreCapabilities,
@@ -56,6 +63,11 @@ export type CapabilityBootManifest = Readonly<{
   coreCapabilities: ReadonlyArray<Capability>
   blockedCapabilities: ReadonlyArray<Capability>
   e2eGlobalOverrides: ReadonlyArray<Capability>
+  /**
+   * Review §5.1: whether the E2E hatch has stood the auth brute-force
+   * limiters down in this process — the health signal the hatch never had.
+   */
+  authRateLimitBypass: boolean
   e2eExecutionIdentity?: string
 }>
 
@@ -79,6 +91,7 @@ export function buildCapabilityBootManifest(
     coreCapabilities: listCoreCapabilities(),
     blockedCapabilities: listBlockedCapabilities(),
     e2eGlobalOverrides: parseE2EGlobalOverrides(env),
+    authRateLimitBypass: isE2ERateLimitBypassAuthorized(env),
     ...(identity ? { e2eExecutionIdentity: identity } : {}),
   }
 }
@@ -93,6 +106,7 @@ export function runCapabilityBootGuard(
   logger: CapabilityBootLogger,
 ): CapabilityBootManifest {
   assertE2EOverrideIdentity(env)
+  assertE2ERateLimitBypassIdentity(env)
   const store = createEnvCapabilityPolicyStore(env)
   assertBlockedCapabilitiesContained(store)
   initCapabilityPolicyStore(store)

@@ -104,21 +104,39 @@ describe('AI gateway startup isolation', () => {
   it('requires the exact release, deployment, runtime, and build evidence', () => {
     const environment = gatewayEnvironment()
     expect(() => assertAiGatewayRequiredEnvironment(environment)).not.toThrow()
-    for (const name of [
-      'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION',
-      'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
-      'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
-      'AI_GATEWAY_BUILD_ATTESTATION_DIGEST',
-      'AI_REQUEST_BINDING_KEYRING_GENERATION',
-      'AI_ADMISSION_KEYRING_GENERATION',
-      'RELEASE_SHA',
-    ]) {
+    for (const [name, message] of [
+      [
+        'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION',
+        'AI gateway AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION is stale: environment has 0, this build expects ',
+      ],
+      [
+        'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
+        'AI gateway AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST is stale: environment has 0, this build expects ',
+      ],
+      [
+        'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
+        'AI gateway AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST is stale: environment has 0, this build expects ',
+      ],
+      [
+        'AI_GATEWAY_BUILD_ATTESTATION_DIGEST',
+        'AI gateway AI_GATEWAY_BUILD_ATTESTATION_DIGEST is stale: environment has 0, this build expects ',
+      ],
+      [
+        'AI_REQUEST_BINDING_KEYRING_GENERATION',
+        'AI gateway request-binding keyring generation is invalid',
+      ],
+      [
+        'AI_ADMISSION_KEYRING_GENERATION',
+        'AI gateway admission keyring generation is invalid',
+      ],
+      ['RELEASE_SHA', 'AI gateway release SHA is invalid'],
+    ] as const) {
       expect(() =>
         assertAiGatewayRequiredEnvironment({
           ...environment,
           [name]: '0',
         }),
-      ).toThrow()
+      ).toThrow(message)
     }
   })
   it('defaults missing gateway host, port, and profile metadata', () => {
@@ -129,16 +147,24 @@ describe('AI gateway startup isolation', () => {
     expect(() => assertAiGatewayRequiredEnvironment(environment)).not.toThrow()
   })
   it.each([
-    ['HOST', '0.0.0.0'],
-    ['HOST', '::1'],
-    ['PORT', '8444'],
-    ['PORT', '443'],
-    ['AI_EXECUTION_ADMISSION_ORIGIN', 'https://ai-execution-admission:8443'],
-    ['AI_EXECUTION_ADMISSION_ORIGIN', 'https://other.railway.internal:8443'],
-  ])('rejects mutated private bind/admission route %s=%s', (name, value) => {
+    ['HOST', '0.0.0.0', 'AI gateway bind address is invalid'],
+    ['HOST', '::1', 'AI gateway bind address is invalid'],
+    ['PORT', '8444', 'AI gateway bind address is invalid'],
+    ['PORT', '443', 'AI gateway bind address is invalid'],
+    [
+      'AI_EXECUTION_ADMISSION_ORIGIN',
+      'https://ai-execution-admission:8443',
+      'AI gateway admission origin is invalid',
+    ],
+    [
+      'AI_EXECUTION_ADMISSION_ORIGIN',
+      'https://other.railway.internal:8443',
+      'AI gateway admission origin is invalid',
+    ],
+  ])('rejects mutated private bind/admission route %s=%s', (name, value, message) => {
     expect(() =>
       assertAiGatewayRequiredEnvironment({ ...gatewayEnvironment(), [name]: value }),
-    ).toThrow()
+    ).toThrow(message)
   })
 
   it('accepts the documented Node/Railway deployment metadata inventory only', () => {
@@ -209,17 +235,37 @@ describe('AI gateway startup isolation', () => {
   })
 
   it.each([
-    ['provenance malformed kid', { AI_PROVENANCE_ED25519_KID: 'BAD KID' }],
-    ['provenance unknown kid', { AI_PROVENANCE_ED25519_KID: 'provenance-v2' }],
-    ['provenance stale generation', { AI_PROVENANCE_KEYRING_GENERATION: '0' }],
-    ['safety stale generation', { AI_SAFETY_IDENTIFIER_KEYRING_GENERATION: '0' }],
-    ['request-binding stale generation', { AI_REQUEST_BINDING_KEYRING_GENERATION: '0' }],
+    [
+      'provenance malformed kid',
+      { AI_PROVENANCE_ED25519_KID: 'BAD KID' },
+      'AI gateway provenance active key ID is invalid',
+    ],
+    [
+      'provenance unknown kid',
+      { AI_PROVENANCE_ED25519_KID: 'provenance-v2' },
+      'AI gateway provenance active key ID is invalid',
+    ],
+    [
+      'provenance stale generation',
+      { AI_PROVENANCE_KEYRING_GENERATION: '0' },
+      'AI gateway provenance keyring generation is invalid',
+    ],
+    [
+      'safety stale generation',
+      { AI_SAFETY_IDENTIFIER_KEYRING_GENERATION: '0' },
+      'AI gateway safety identifier keyring generation is invalid',
+    ],
+    [
+      'request-binding stale generation',
+      { AI_REQUEST_BINDING_KEYRING_GENERATION: '0' },
+      'AI gateway request-binding keyring generation is invalid',
+    ],
   ])(
     'rejects an invalid active gateway key inventory at boot: %s',
-    (_caseName, mutation) => {
+    (_caseName, mutation, message) => {
       expect(() =>
         assertAiGatewayRequiredEnvironment({ ...gatewayEnvironment(), ...mutation }),
-      ).toThrow()
+      ).toThrow(message)
     },
   )
 

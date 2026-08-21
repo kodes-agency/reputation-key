@@ -23,6 +23,10 @@ import {
 } from './emails'
 import { organizationSchema } from './org-schema'
 import { ac, owner, admin, memberRole } from './permissions'
+import {
+  claimsE2ERateLimitBypass,
+  isE2ERateLimitBypassAuthorized,
+} from './beta-capabilities'
 
 // ── Post-acceptance staff assignment hook ──────────────────────────
 // The afterAcceptInvitation hook creates staff_assignments for the
@@ -78,6 +82,23 @@ export function createAuth() {
   const env = getEnv()
   const pool = getPool()
 
+  // Review §5.1: decided once per process (createAuth is a lazy singleton) so
+  // the posture is recorded, not silently assumed. An E2E claim without an
+  // authorized execution identity is refused, logged at error, and the
+  // limiter stays ON.
+  const rateLimitBypass = isE2ERateLimitBypassAuthorized(env)
+  if (rateLimitBypass) {
+    getLogger().warn(
+      { nodeEnv: env.NODE_ENV },
+      'auth.rate_limit_bypass_active: E2E=1 with a test/CI execution identity — better-auth rate limiting is DISABLED',
+    )
+  } else if (claimsE2ERateLimitBypass(env)) {
+    getLogger().error(
+      { nodeEnv: env.NODE_ENV },
+      'auth.rate_limit_bypass_refused: E2E is set without a test/CI execution identity — better-auth rate limiting stays ENABLED',
+    )
+  }
+
   return betterAuth({
     database: pool,
     secret: env.BETTER_AUTH_SECRET,
@@ -117,14 +138,18 @@ export function createAuth() {
       },
     },
     rateLimit: {
-      // BQC-6.8: disabled on Playwright-launched dev servers only (E2E=1 —
-      // the same discriminator vite.config.ts uses for the console pipe).
-      // better-auth's default /sign-in rule (3 per 10s per IP) 429'd the e2e
-      // suite once BQC-6.8's accessibility spec added its sign-ins: every
-      // spec signs in per test, and retries: 0 makes a single 429 fatal. No
-      // spec exercises rate-limit behavior. Production and local-dev
-      // limiting are unchanged.
-      enabled: !process.env.E2E,
+      // BQC-6.8 / review §5.1: better-auth's own limiter (default /sign-in:
+      // 3 per 10s per IP) 429'd the e2e suite once BQC-6.7's accessibility
+      // spec added its sign-ins — every spec signs in per test and retries: 0
+      // makes a single 429 fatal, and no spec exercises rate-limit behavior.
+      // It therefore stands down ONLY for the Playwright-launched stack:
+      // E2E=1 exactly, AND the same test/CI execution identity that
+      // authorizes the capability override (beta-capabilities.ts). This used
+      // to be `!process.env.E2E` — bare truthiness on a variable absent from
+      // the env schema — so one stray env var disabled both auth
+      // brute-force layers in a real deployment with no signal at all. An
+      // unauthorized claim now keeps the limiter ON and is logged.
+      enabled: !rateLimitBypass,
     },
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days
