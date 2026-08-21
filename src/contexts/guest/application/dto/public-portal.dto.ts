@@ -35,9 +35,7 @@ export type PublicPortalData = {
  * policy) — retryable; `permission_denied` is the configuration answer.
  */
 export type GuestResponseFormAvailability =
-  | 'available'
-  | 'permission_denied'
-  | 'unavailable'
+  'available' | 'permission_denied' | 'unavailable'
 
 export type PublicPortalLoaderData = PublicPortalData & {
   guestSession: { csrfNonce: string }

@@ -55,8 +55,7 @@ async function readWatermarkBoundary(
       (SELECT watermark FROM _rollup_watermarks WHERE name = ${opts.name}) AS watermark
   `)
   const watermarkRow = watermarkResult.rows[0] as
-    | { captured_at: Date; watermark: Date | null }
-    | undefined
+    { captured_at: Date; watermark: Date | null } | undefined
   if (!watermarkRow) throw new Error('rollup: could not read the database clock')
   const watermark = watermarkRow.watermark ?? new Date(0)
 

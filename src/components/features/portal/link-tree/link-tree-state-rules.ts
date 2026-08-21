@@ -12,10 +12,7 @@ import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
  * error to the instance that caused it.
  */
 export type ErrorScope =
-  | 'create-category'
-  | 'create-link'
-  | 'update-category'
-  | 'update-link'
+  'create-category' | 'create-link' | 'update-category' | 'update-link'
 
 /**
  * An error reaches an inline form only while that form is the one that fired the
