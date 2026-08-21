@@ -23,6 +23,7 @@ docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completi
 src/shared/ai-reply-language-verifier.ts
 src/shared/ai-language-script-consistency.ts
 src/shared/ai-zh-orthography-verifier.ts
+src/shared/ai-review-language-catalogue.ts
 
 
 # Lock files
