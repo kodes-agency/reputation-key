@@ -34,7 +34,7 @@ import {
 import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway-build-attestation'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
-import { selectProbeEvidence } from './probe-evidence'
+import { selectProbeEvidence } from '#/shared/testing/probe-evidence'
 import {
   buildLocalStackEnv,
   createMigrationHeadProof,

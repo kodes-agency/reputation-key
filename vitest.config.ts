@@ -95,10 +95,6 @@ export default defineConfig({
             // bugs in them present as product-spec failures in the slowest job
             // in CI. `e2e/fixtures/**` was already here for the same reason.
             'e2e/helpers/**/*.test.ts',
-            // Same reasoning for the local-stack harness: its pure helpers are
-            // ordinary Node modules, and a bug in one presents as a beta
-            // acceptance-gate failure two hours into the slowest job on main.
-            'scripts/local-stack/**/*.test.ts',
           ],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',
