@@ -282,6 +282,25 @@ export function attachErrorDetection(
       transcript.push(`[console.error:allowlisted:${consoleMatch.id}] ${text}`)
       return
     }
+    // Browser network-log echo of a >=400 resource. Suppressed only when the
+    // SAME url answered the main-frame document request with the SAME status:
+    // a deliberate 404/410 navigation is the spec's business, not the gate's.
+    const statusEcho = RESOURCE_STATUS_ECHO.exec(text)
+    if (statusEcho && location?.url) {
+      const key = `${statusEcho[1]} ${location.url}`
+      if (documentStatusKeys.has(key)) {
+        transcript.push(`[console.error:document-status] ${text} (${where})`)
+        return
+      }
+      const pending: Detection = {
+        kind: 'console-error',
+        message: text,
+        pageUrl: page.url(),
+      }
+      detections.push(pending)
+      unmatchedStatusEchoes.set(pending, key)
+      return
+    }
     detections.push({ kind: 'console-error', message: text, pageUrl: page.url() })
   }
 
@@ -289,9 +308,18 @@ export function attachErrorDetection(
     const request = response.request()
     const url = parseUrl(response.url())
     if (!url) return
+    const status = response.status()
+    if (status >= 400 && request.isNavigationRequest()) {
+      let isMainFrame = false
+      try {
+        isMainFrame = request.frame() === page.mainFrame()
+      } catch {
+        // Service-worker-owned requests have no frame — never the document.
+      }
+      if (isMainFrame) recordDocumentStatus(`${status} ${response.url()}`)
+    }
     const method = request.method()
     if (!isCriticalMutation(method, url)) return
-    const status = response.status()
     if (status >= 200 && status < 300) return
     const fullUrl = response.url()
     const statusMatch = findAllowlistMatch(

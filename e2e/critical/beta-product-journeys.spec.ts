@@ -333,9 +333,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
-    await page.goto(
+    // P2's portal under P1's property in the URL. The loader resolves the
+    // portal through P1's AUTHORIZED collection, misses, and throws
+    // `notFound()` BEFORE any portal-scoped fetch — so the denial is an HTTP
+    // 404 on the document itself, carrying the same copy a deleted portal
+    // would. Both halves are asserted: the status (a soft 200 here would make
+    // the route indistinguishable from a successful render) and the copy (a
+    // blank page is not a clean denial). Neither portal name may appear.
+    const denial = await page.goto(
       `/properties/${seed.p1PropertyId}/portals/${seed.p2PortalId}?tab=settings`,
     )
+    expect(denial?.status()).toBe(404)
+    await expect(page.getByText('This portal is no longer available')).toBeVisible()
     await expect(page.getByText('E2E Guest Portal P1')).toHaveCount(0)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
 
