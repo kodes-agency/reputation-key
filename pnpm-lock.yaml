@@ -229,8 +229,8 @@ importers:
         specifier: ^4.4.4
         version: 4.4.4(eslint@10.4.1(jiti@2.7.0))
       eslint-plugin-boundaries:
-        specifier: ^6.0.2
-        version: 6.0.2(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
+        specifier: ^7.2.0
+        version: 7.2.0(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
       eslint-plugin-security:
         specifier: 4.0.1
         version: 4.0.1
@@ -716,8 +716,8 @@ packages:
   '@blazediff/core@1.9.1':
     resolution: {integrity: sha512-ehg3jIkYKulZh+8om/O25vkvSsXXwC+skXmyA87FFx6A/45eqOkZsBltMw/TVteb0mloiGT8oGRTcjRAz66zaA==}
 
-  '@boundaries/elements@2.0.1':
-    resolution: {integrity: sha512-sAWO3D8PFP6pBXdxxW93SQi/KQqqhE2AAHo3AgWfdtJXwO6bfK6/wUN81XnOZk0qRC6vHzUEKhjwVD9dtDWvxg==}
+  '@boundaries/elements@3.1.1':
+    resolution: {integrity: sha512-ikqee8669yp2I+uLG67T5P5BSbe+y4NqW5Mk+7tYa+Ydzhpmh0pDyMaH9918J2Ll36ZqYKDb4g4QBeMpWg7VDg==}
     engines: {node: '>=18.18'}
 
   '@dnd-kit/accessibility@3.1.1':
@@ -5731,8 +5731,8 @@ packages:
       eslint-import-resolver-webpack:
         optional: true
 
-  eslint-plugin-boundaries@6.0.2:
-    resolution: {integrity: sha512-wSHgiYeMEbziP91lH0UQ9oslgF2djG1x+LV9z/qO19ggMKZaCB8pKIGePHAY91eLF4EAgpsxQk8MRSFGRPfPzw==}
+  eslint-plugin-boundaries@7.2.0:
+    resolution: {integrity: sha512-ywSaVhn9dBFPxEoUTXnu1106Er+NhSSxTuiz52H+SUgAhd0kmikHHhdavv2d+6Aw7f7w1RDT2cXQUJ/7D/V68A==}
     engines: {node: '>=18.18'}
     peerDependencies:
       eslint: '>=6.0.0'
@@ -9388,7 +9388,7 @@ snapshots:
 
   '@blazediff/core@1.9.1': {}
 
-  '@boundaries/elements@2.0.1(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))':
+  '@boundaries/elements@3.1.1(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))':
     dependencies:
       eslint-import-resolver-node: 0.3.9
       eslint-module-utils: 2.12.1(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
@@ -13846,9 +13846,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-boundaries@6.0.2(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0)):
+  eslint-plugin-boundaries@7.2.0(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0)):
     dependencies:
-      '@boundaries/elements': 2.0.1(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
+      '@boundaries/elements': 3.1.1(@typescript-eslint/parser@8.60.0(eslint@10.4.1(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-typescript@4.4.4(eslint@10.4.1(jiti@2.7.0)))(eslint@10.4.1(jiti@2.7.0))
       chalk: 4.1.2
       eslint: 10.4.1(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.9
@@ -14787,7 +14787,7 @@ snapshots:
       jest-regex-util: 30.4.0
       jest-util: 30.4.1
       jest-worker: 30.4.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       walker: 1.0.8
     optionalDependencies:
       fsevents: 2.3.3
@@ -14819,7 +14819,7 @@ snapshots:
       chalk: 4.1.2
       graceful-fs: 4.2.11
       jest-util: 30.4.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       pretty-format: 30.4.1
       slash: 3.0.0
       stack-utils: 2.0.6
@@ -14961,7 +14961,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.4
+      picomatch: 4.0.5
 
   jest-validate@30.4.1:
     dependencies:
@@ -16953,13 +16953,13 @@ snapshots:
     dependencies:
       '@jridgewell/remapping': 2.3.5
       acorn: 8.16.0
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       webpack-virtual-modules: 0.6.2
 
   unplugin@3.0.0:
     dependencies:
       '@jridgewell/remapping': 2.3.5
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       webpack-virtual-modules: 0.6.2
 
   unrs-resolver@1.12.2:
