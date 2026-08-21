@@ -18,6 +18,7 @@ import {
   type ReviewProviderSnapshotRepository,
   type ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
+import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 
 export type RunReviewProviderSnapshotInput = Readonly<{
   organizationId: OrganizationId
@@ -44,6 +45,13 @@ export type RunReviewProviderSnapshotDeps = Readonly<{
   propertyRouting: PropertyRoutingPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
+  /**
+   * Durable discovery-activity stamps. A page that persisted a review nobody
+   * had seen before is the ONLY evidence that this property is live, and the
+   * discovery backoff ladder prices its polling on it.
+   */
+  syncActivity: ReviewSyncActivityRecorder
+  clock: () => Date
 }>
 
 const failureCodeForProviderError = (
@@ -172,6 +180,18 @@ const persistPageObservations = async (
       review,
     })
     observations.push({ ...persisted, review, subjects })
+  }
+  // ONE stamp per page, not per review: a 50-review page is one activity
+  // fact. Stamped here rather than after commitPage because the reviews are
+  // already durably written at this point — a page that later fails its
+  // snapshot bookkeeping is replayed, and on replay every review is already
+  // present, so `isNew` would be false and the fact would be lost forever.
+  //
+  // A failure here propagates: the caller maps it to `observation_failed`,
+  // which is loud. Silently dropping the stamp would silently degrade this
+  // property's polling instead.
+  if (observations.some((observation) => observation.isNew)) {
+    await deps.syncActivity.recordNewReviewObserved(input.propertyId, deps.clock())
   }
   return observations
 }

@@ -20,6 +20,7 @@ import { Resend } from 'resend'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
+import { warnOnceOnSenderMisalignment } from '#/shared/email'
 import type {
   EmailSenderPort,
   EmailSendRequest,
@@ -71,9 +72,20 @@ export const createResendEmailAdapter = (
     async send(params: EmailSendRequest) {
       const logger = getLogger()
       const acceptedAt = new Date()
+      const env = getEnv()
+
+      // Notification mail is the high-volume path, and the worker has no boot
+      // hook shared with the web process, so the sender-alignment check is
+      // latched here too. It warns at most once per process, not per message.
+      warnOnceOnSenderMisalignment(
+        env.EMAIL_FROM,
+        env.BETTER_AUTH_URL,
+        (fields, message) => logger.warn(fields, message),
+      )
+
       const { data, error } = await getClient().emails.send(
         {
-          from: getEnv().EMAIL_FROM,
+          from: env.EMAIL_FROM,
           to: params.to,
           subject: params.subject,
           html: params.html,

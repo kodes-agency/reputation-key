@@ -31,6 +31,14 @@ export type FakeDiscoveryPropertyRow = {
   nextDueAt: Date | null
   errorClass: string | null
   lastSuccessAt: Date | null
+  /** review_sync_state.last_new_review_at (migration 0071). */
+  lastNewReviewAt: Date | null
+  /** review_sync_state.last_notification_at — a GBP push was received. */
+  lastNotificationAt: Date | null
+  /** properties.created_at — the ladder's activity floor. */
+  observedSince: Date | null
+  /** True while a queued/processing GBP import item targets this property. */
+  importInFlight: boolean
 }
 
 export type FakeReviewDiscoveryRepository = ReviewDiscoveryRepository &
@@ -44,7 +52,8 @@ const isConnectedAndActive = (row: FakeDiscoveryPropertyRow): boolean =>
   row.gbpAccountId !== null &&
   row.gbpLocationId !== null &&
   row.connectionStatus === 'active' &&
-  row.credentialUseState === 'active'
+  row.credentialUseState === 'active' &&
+  !row.importInFlight
 
 const isDue = (row: FakeDiscoveryPropertyRow, due: Date): boolean =>
   row.nextDueAt === null || row.nextDueAt.getTime() <= due.getTime()
@@ -54,6 +63,11 @@ const toCandidate = (row: FakeDiscoveryPropertyRow): ReviewDiscoveryCandidate =>
   organizationId: row.organizationId,
   connectionId: row.connectionId as string,
   locationName: `accounts/${row.gbpAccountId}/locations/${row.gbpLocationId}`,
+  activity: {
+    lastNewReviewAt: row.lastNewReviewAt,
+    lastNotificationAt: row.lastNotificationAt,
+    observedSince: row.observedSince,
+  },
 })
 
 export const createFakeReviewDiscoveryRepository = (
@@ -108,5 +122,9 @@ export const fakeDiscoveryProperty = (
   nextDueAt: null,
   errorClass: null,
   lastSuccessAt: null,
+  lastNewReviewAt: null,
+  lastNotificationAt: null,
+  observedSince: null,
+  importInFlight: false,
   ...overrides,
 })

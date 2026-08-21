@@ -12,6 +12,7 @@ import {
   GOOGLE_PROPERTY_IMPORT_ITEM_JOB,
   type ImportOutcomeCode,
 } from './google-import-v2-contract'
+import type { ManageNotificationsApi } from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
@@ -134,6 +135,20 @@ export function createGoogleImportV2Processor(
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     enqueueReviewSync?: ReviewQueuePort['addSyncJob']
     /**
+     * Tells Google to START publishing GBP notifications for this connection's
+     * account to our Pub/Sub topic — the counterpart of the unsubscribe the
+     * disconnect use case already performs. Called on the SAME receipt branch
+     * as `enqueueReviewSync`, because that branch is the definition of "this
+     * property is now live".
+     *
+     * Idempotent by construction: it resolves to a PATCH of the account's
+     * single `notificationSetting` resource, so re-importing, relinking, or
+     * re-running the ops backfill just re-asserts the same topic. Optional and
+     * best-effort — push is an optimization over the discovery sweep, never a
+     * correctness gate, so a failure is logged and the import proceeds.
+     */
+    subscribeToNotifications?: ManageNotificationsApi['subscribe']
+    /**
      * BQC-2.7: grants a property the capability allowlist of its organization
      * (identity-owned, idempotent). A created property starts with an EMPTY
      * property_capability set, and an empty set denies every non-core
@@ -166,7 +181,7 @@ export function createGoogleImportV2Processor(
     now: Date,
   ): Promise<void> => {
     if (
-      deps.enqueueReviewSync &&
+      (deps.enqueueReviewSync || deps.subscribeToNotifications) &&
       !receipt.tombstone &&
       receipt.destinationPropertyId !== null &&
       (receipt.outcome === 'imported' || receipt.outcome === 'relinked')
@@ -182,22 +197,47 @@ export function createGoogleImportV2Processor(
         binding.locationId !== null &&
         binding.sourceEpoch === receipt.destinationSourceEpoch
       ) {
-        await deps.enqueueReviewSync(
-          {
-            organizationId: organizationIdValue,
-            propertyId: receipt.destinationPropertyId,
-            connectionId: binding.connectionId,
-            locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
-            initiator: {
-              kind: 'system',
-              id: 'google-property-import',
+        if (deps.enqueueReviewSync) {
+          await deps.enqueueReviewSync(
+            {
+              organizationId: organizationIdValue,
+              propertyId: receipt.destinationPropertyId,
+              connectionId: binding.connectionId,
+              locationName: `accounts/${binding.accountId}/locations/${binding.locationId}`,
+              initiator: {
+                kind: 'system',
+                id: 'google-property-import',
+              },
+              correlationId: `google-import:${itemId}`,
             },
-            correlationId: `google-import:${itemId}`,
-          },
-          {
-            jobId: `review-sync-${receipt.destinationPropertyId}-source-epoch-${receipt.destinationSourceEpoch}`,
-          },
-        )
+            {
+              jobId: `review-sync-${receipt.destinationPropertyId}-source-epoch-${receipt.destinationSourceEpoch}`,
+            },
+          )
+        }
+        // Ask Google to push future reviews for this account. Runs AFTER the
+        // sync enqueue so a subscribe outage cannot delay the backfill that
+        // makes the property usable, and swallows its own failure: the
+        // discovery sweep still finds new reviews, and `ops:gbp-subscribe`
+        // repairs the subscription out of band.
+        if (deps.subscribeToNotifications) {
+          try {
+            await deps.subscribeToNotifications(
+              organizationId(organizationIdValue),
+              binding.connectionId,
+            )
+          } catch (error) {
+            // Content-free, matching the capability-provisioning warn below.
+            deps.logger.warn(
+              {
+                itemId,
+                errorName: error instanceof Error ? error.name : 'unknown',
+                errorCode: errorCode(error),
+              },
+              'GBP notification subscribe failed after import — push stays dark for this account until ops:gbp-subscribe runs; discovery sweep unaffected',
+            )
+          }
+        }
       }
     }
     await deps.store.reconcileFromReceipt({

@@ -89,7 +89,7 @@ describe('manageNotifications', () => {
     it('resolves the GBP account via listAccounts and subscribes', async () => {
       const { useCase, notifications } = setup()
 
-      await useCase.subscribe(ORG, CONN)
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
 
       expect(notifications.subscribeCalls).toHaveLength(1)
       expect(notifications.subscribeCalls[0]).toMatchObject({
@@ -97,6 +97,22 @@ describe('manageNotifications', () => {
         gbpAccountId: ACCOUNT_ID,
         pubsubTopic: 'projects/test/topics/gbp-reviews',
         notificationTypes: ['NEW_REVIEW'],
+      })
+    })
+
+    // The ops backfill re-runs this over every active connection; Google's
+    // updateNotificationSetting is a PATCH of one resource, so the second run
+    // must be a no-change re-assertion, not an error.
+    it('is idempotent — a second subscribe re-asserts the same topic', async () => {
+      const { useCase, notifications } = setup()
+
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
+
+      expect(notifications.subscribeCalls).toHaveLength(2)
+      expect(notifications.subscribeCalls[1]).toMatchObject({
+        gbpAccountId: ACCOUNT_ID,
+        pubsubTopic: 'projects/test/topics/gbp-reviews',
       })
     })
 
@@ -114,7 +130,7 @@ describe('manageNotifications', () => {
     it('warns loudly instead of silently no-opping when pubsubTopic is empty', async () => {
       const { useCase, notifications, warn } = setup({ pubsubTopic: '' })
 
-      await useCase.subscribe(ORG, CONN)
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('topic_unset')
 
       expect(notifications.subscribeCalls).toHaveLength(0)
       // A silent return left operators with no signal that GBP push was dark.
@@ -129,23 +145,33 @@ describe('manageNotifications', () => {
         connection: { status: 'disconnected' },
       })
 
-      await useCase.subscribe(ORG, CONN)
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('connection_inactive')
 
       expect(notifications.subscribeCalls).toHaveLength(0)
     })
 
     it('is a no-op when the connection cannot be found', async () => {
       const { useCase, notifications } = setup()
-      await useCase.subscribe(ORG, 'unknown-connection-id')
+      await expect(useCase.subscribe(ORG, 'unknown-connection-id')).resolves.toBe(
+        'connection_missing',
+      )
 
       expect(notifications.subscribeCalls).toHaveLength(0)
     })
 
-    it('swallows failures (best-effort) and never throws', async () => {
+    it('reports account_unresolved instead of throwing when listAccounts fails', async () => {
       const { useCase, notifications, gbpApi } = setup()
       gbpApi.setError('listAccounts', new Error('boom'))
 
-      await expect(useCase.subscribe(ORG, CONN)).resolves.toBeUndefined()
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('account_unresolved')
+      expect(notifications.subscribeCalls).toHaveLength(0)
+    })
+
+    it('reports provider_failed instead of throwing when the PATCH fails', async () => {
+      const { useCase, notifications } = setup()
+      notifications.setError('subscribe', new Error('boom'))
+
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('provider_failed')
       expect(notifications.subscribeCalls).toHaveLength(0)
     })
   })

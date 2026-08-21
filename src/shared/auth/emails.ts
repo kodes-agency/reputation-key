@@ -13,6 +13,7 @@ import {
   renderInvitationEmail,
   renderPasswordResetEmail,
   renderVerificationEmail,
+  warnOnceOnSenderMisalignment,
   type RenderedEmail,
 } from '#/shared/email'
 
@@ -52,6 +53,11 @@ export function resetEmailClient(): void {
  *
  * `text` is always sent alongside `html`: an HTML-only transactional message
  * scores badly with spam filters and is unreadable in a text-only client.
+ *
+ * The sender-domain check runs here rather than at boot because there is no
+ * shared boot hook — the web process builds its container in composition.ts
+ * and the worker in bootstrap.ts. First send is the earliest point both reach,
+ * and the check latches once per process (see shared/email/sender-alignment).
  */
 async function sendEmail(
   to: string,
@@ -59,9 +65,14 @@ async function sendEmail(
 ): Promise<void> {
   const logger = getLogger()
   const resend = getResend()
+  const env = getEnv()
+
+  warnOnceOnSenderMisalignment(env.EMAIL_FROM, env.BETTER_AUTH_URL, (fields, message) =>
+    logger.warn(fields, message),
+  )
 
   const { error } = await resend.emails.send({
-    from: getEnv().EMAIL_FROM,
+    from: env.EMAIL_FROM,
     to,
     subject,
     html,

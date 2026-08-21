@@ -36,6 +36,7 @@ import {
   getTenantCacheStats,
   type TenantCacheStats,
 } from '#/shared/auth/tenant-cache-stats'
+import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 
 /** Hard per-section read budget. A section slower than this degrades. */
@@ -72,6 +73,13 @@ export type OperationsSnapshotDeps = Readonly<{
     /** SourceContentPolicy.policyVersion. */
     sourceContentPolicy: number
   }>
+  /**
+   * Reader for the `notification.missing_for_inbox_item` gauge, forwarded to
+   * the health checker. Injected by the composition root because the query
+   * lives in the notification context and `src/shared/**` never imports
+   * `src/contexts/**`. Absent = the gauge reads 0.
+   */
+  readMissingNotificationCount?: () => Promise<number>
   /**
    * BQC-7.3 runtime-section readers. Optional — production defaults read the
    * real pool / migration table / env / cache stats; tests inject hermetic
@@ -173,7 +181,20 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
     sync: {
       dueForIncrementalCount: 0,
       failedSyncCount: 0,
+      oldestDueAgeMs: null,
       gbpPushEnabled: false,
+    },
+    // A degraded read must not invent a delivery problem: zero overdue rows
+    // and email reported dark keeps every notification alert quiet (the
+    // `degraded` marker is the signal that this section is unreadable).
+    notifications: {
+      emailDeliveryEnabled: false,
+      pendingOverdueCount: 0,
+      oldestPendingOverdueAgeMs: null,
+      attemptedStuckCount: 0,
+      // 0, not a guess: an unreadable section must not fabricate a
+      // notification gap either. `degraded` is what says "unknown".
+      missingForInboxItemCount: 0,
     },
     replyPublication: {
       counts: {
@@ -252,6 +273,16 @@ export function createOperationsSnapshot(
     // Readiness fact, not a DB metric: an empty GBP_PUBSUB_TOPIC means Google
     // push is dark and new reviews only arrive on the discovery sweep.
     gbpPushEnabled: getEnv().GBP_PUBSUB_TOPIC.length > 0,
+    // Same kind of readiness fact: while `notification.send_email` is not
+    // globally enabled, the email path is capability-dark by design and a
+    // pending backlog is expected — the alert must not cry wolf about it.
+    // A per-ORG allowlist grant is not globally enumerable, so this flag
+    // cannot see it; notifications.attemptedStuckCount is what covers that
+    // case (a row the delivery path actually touched and left pending).
+    emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
+    // Forwarded, not computed here: the notification-gap query is owned by the
+    // notification context.
+    readMissingNotificationCount: deps.readMissingNotificationCount,
   })
 
   return {

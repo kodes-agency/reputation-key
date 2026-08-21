@@ -39,6 +39,12 @@ export const reviewSyncState = pgTable(
     leaseOwner: text('lease_owner'),
     leaseUntil: timestamp('lease_until', { withTimezone: true }),
     lastNotificationAt: timestamp('last_notification_at', { withTimezone: true }),
+    // Migration 0071: the last time a snapshot page persisted at least one
+    // review we had never seen before. This is the only durable evidence of
+    // real provider ACTIVITY (last_success_at only says "we polled"), so it
+    // is what the discovery backoff ladder keys on: a property that produced
+    // a review recently keeps the hot interval, a quiet one backs off.
+    lastNewReviewAt: timestamp('last_new_review_at', { withTimezone: true }),
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
     lastTerminalErrorAt: timestamp('last_terminal_error_at', { withTimezone: true }),
     errorClass: text('error_class'),

@@ -71,7 +71,13 @@ application/      → use cases, ports, public-api barrel
 domain/           → types, constructors, constructors-email, constructors-transitions, constructors-preference, errors
 infrastructure/
   event-handlers/   subscribe to domain events, enqueue BullMQ jobs
-  jobs/             BullMQ workers (insert-notification, digest, urgent-email)
+  jobs/             BullMQ workers (insert-notification, digest, urgent-email,
+                    reconcile-missing-notifications)
+  outbox-consumers.ts        durable at-least-once consumer for
+                             `inbox.inbox_item.created`
+  inbox-notification-fanout.ts  the ONE inbox-item → insert-notification jobs
+                             path, shared by the bus handler, the durable
+                             consumer and the reconciliation sweep
   adapters/         cross-context lookups (db-user-lookup, resend-email)
   repositories/     Drizzle implementations of ports (+ row mapper)
 ```
@@ -126,6 +132,7 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - **insert-notification** — BullMQ worker that calls `insertNotification`.
 - **urgent-email** — sends urgent-priority email queue entries immediately (pending/failed → sent/failed).
 - **digest-notification** — daily batch that sends all `pending` normal-priority emails, keyed by property timezone (Q8); also sweeps orphaned urgent entries.
+- **reconcile-missing-notifications** — every 10 min, tenant-cross. Finds inbox items created in the last 24h (past a 5-minute grace edge) that have **no notification row for anybody** and enqueues the insert-notification jobs they never got. Bounded: keyset cursor on `inbox_items (created_at, id)`, 100 items × 5 batches per firing. Idempotent without a second dedupe mechanism — the candidate query only returns items with zero notifications, so a healed item leaves the candidate set, and because the sweep goes through the ordinary insert-notification job, preferences are honoured (a user who disabled the email channel is not backfilled mail). The gap it measures is the `notification.missing_for_inbox_item` gauge.
 
 ## Ports
 
@@ -136,6 +143,16 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 - `EmailSenderPort` — wraps Resend `sendEmail()`.
 - `InboxItemLookupPort` — `findInboxItemByReviewId()`, `findInboxItemFacts()` (property name, rating, source, age — the render facts the events do not carry).
 - `RecognitionLookupPort` — `findGoalFacts()`, `findBadgeFacts()` (goal / badge / portal display names).
+- `NotificationGapRepositoryPort` — `findItemsMissingNotifications()` (one keyset batch of inbox items with no notification row), `countItemsMissingNotifications()` (the same predicate as a capped count, for the gauge).
+
+## Durable delivery
+
+`emitAfterCommit` (`shared/outbox/commit.ts`) is best-effort: it catches and warns, so a throw in the inbox or notification handler left a committed review with **no** notification and nothing retrying. Two things now close that:
+
+1. **`infrastructure/outbox-consumers.ts`** registers `notification.on-inbox-item-created` with the outbox dispatcher — the at-least-once path. It is fenced three ways: the dispatcher's receipt pre-check, a deterministic per-recipient BullMQ job id (`<eventId>-<userId>`) that a redelivery collapses onto, and the notification insert's own convergence (the partial unique index `notifications_unread_resource_unique` plus `onConflictDoUpdate`). The bus handler derives the SAME job id from the same event id (the outbox row id **is** the domain event id — `insertOutboxRow` sets `id: event.eventId`), so once the dispatcher is enabled the dual path cannot double-notify.
+2. **`reconcile-missing-notifications`** heals what either path drops, and works regardless of the flags.
+
+To make the durable path actually deliver, an operator sets **`OUTBOX_DISPATCHER_ENABLED=true`** (with `REDIS_URL` set — `worker/index.ts` starts the relay + dispatcher only when both hold). The `DURABLE_CUTOVER_INBOX*` flags do **not** gate this consumer: they govern the four `review.*` inbox projection families, not `inbox.inbox_item.created`. Flipping the dispatcher is an ops decision with blast radius across every context's consumers, which is why nothing here changes its default.
 
 - **`goal.progress_updated` pruned (Q14)** — event removed entirely: no consumer, only `goal.completed` is notification-worthy.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).

@@ -114,6 +114,7 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
+  | 'system:notification.reconcile'
   | 'system:inbox.update'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
@@ -2416,6 +2417,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'reconcile-missing-notifications',
+    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    'system:notification.reconcile',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback with a 5m grace edge); enqueues the ordinary insert-notification job, so preferences and the unread-coalescing dedupe still apply. Capability none + a distinct tenant-cross action for the same reason as system:review.discovery_sweep: the sweep carries no propertyId, so the property-scoped system:notification.insert would missing_scope-deny it',
+    },
+  ),
+  job(
     'discover-new-reviews',
     'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
     'system:review.discovery_sweep',
@@ -2619,6 +2631,18 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
+    },
+  ),
+  consumer(
+    'notification.outbox-consumers',
+    'src/contexts/notification/infrastructure/outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_item.created'],
+    {
+      notes:
+        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. Dispatch disabled today (OUTBOX_DISPATCHER_ENABLED=false) — reconcile-missing-notifications is the live repair path',
     },
   ),
   consumer(
@@ -2844,7 +2868,17 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'every 15 min; per-property due times (REVIEW_DISCOVERY_INTERVAL_MINUTES, default 15) fence duplicate polls',
+        'every 15 min; per-property due times fence duplicate polls and back off on a 15m/1h/6h ladder keyed on review + push recency (REVIEW_DISCOVERY_INTERVAL_MINUTES, default 15, is the hot rung); properties mid-import are excluded',
+    },
+  ),
+  schedule(
+    'reconcile-missing-notifications-recurring',
+    'system:notification.reconcile',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 10 min; the 5m grace edge keeps the sweep off items the happy path is still delivering, and the zero-notification candidate filter fences repeats',
     },
   ),
   schedule(
@@ -3067,6 +3101,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'ops:disconnect-connection — revoke Google connection credentials via disconnectGoogleAccount (revoke+redact+purge; reconnect rotates); destructive: typed --yes; key rotation stays runbook-manual (BQC-7.5)',
     },
   ),
+  ops('scripts/ops/gbp-subscribe.ts', 'scripts/ops/gbp-subscribe.ts', 'organization', {
+    notes:
+      "ops:gbp-subscribe — re-asserts each active/degraded Google connection's GBP notificationSetting at GBP_PUBSUB_TOPIC via manageNotifications.subscribe (idempotent PATCH); the backfill for tenants connected before the import path subscribed automatically, and the ONLY migration path when the topic changes (Google stores the topic on the GBP account); dry-run by default, per-connection outcome report, exits 1 on any candidate short of 'subscribed' (BQC-7.5)",
+  }),
   ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
     notes:
       'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',

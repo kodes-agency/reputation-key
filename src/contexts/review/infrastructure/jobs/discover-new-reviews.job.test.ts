@@ -131,8 +131,10 @@ describe('discover-new-reviews sweep', () => {
     ])
   })
 
-  it('advances each enqueued property by the configured interval', async () => {
-    const { handler, rows } = makeDeps([prop(1)], { intervalMs: 30 * MINUTE })
+  it('advances a recently active property by the configured base interval', async () => {
+    const { handler, rows } = makeDeps([prop(1, { lastNewReviewAt: NOW })], {
+      intervalMs: 30 * MINUTE,
+    })
 
     await handler({} as never)
 
@@ -141,14 +143,61 @@ describe('discover-new-reviews sweep', () => {
     expect(rows[0].errorClass).toBeNull()
   })
 
-  it('defaults the per-property interval to 15 minutes', async () => {
-    const { handler, rows } = makeDeps([prop(1)])
+  it('defaults the hot per-property interval to 15 minutes', async () => {
+    const { handler, rows } = makeDeps([prop(1, { lastNewReviewAt: NOW })])
 
     await handler({} as never)
 
     expect(DEFAULT_DISCOVERY_INTERVAL_MS).toBe(15 * MINUTE)
     expect(rows[0].nextDueAt).toEqual(
       new Date(NOW.getTime() + DEFAULT_DISCOVERY_INTERVAL_MS),
+    )
+  })
+
+  it('prices each property on its own ladder rung in a single sweep', async () => {
+    const DAY = 24 * 60 * MINUTE
+    const { handler, rows } = makeDeps(
+      [
+        // Produced a review minutes ago → hot.
+        prop(1, { lastNewReviewAt: new Date(NOW.getTime() - 5 * MINUTE) }),
+        // Last review 12 hours ago → warm.
+        prop(2, { lastNewReviewAt: new Date(NOW.getTime() - 12 * 60 * MINUTE) }),
+        // Connected a month ago, never produced a review → cold.
+        prop(3, { observedSince: new Date(NOW.getTime() - 30 * DAY) }),
+        // Same month-long silence, but a push just arrived → hot again.
+        prop(4, {
+          observedSince: new Date(NOW.getTime() - 30 * DAY),
+          lastNotificationAt: NOW,
+        }),
+      ],
+      { batchSize: 10 },
+    )
+
+    await handler({} as never)
+
+    expect(rows.map((row) => row.nextDueAt)).toEqual([
+      new Date(NOW.getTime() + 15 * MINUTE),
+      new Date(NOW.getTime() + 60 * MINUTE),
+      new Date(NOW.getTime() + 6 * 60 * MINUTE),
+      new Date(NOW.getTime() + 15 * MINUTE),
+    ])
+  })
+
+  it('excludes a property with an in-flight GBP import and includes it once the import settles', async () => {
+    const importing = prop(1, { importInFlight: true })
+    const { handler, enqueued } = makeDeps([importing, prop(2)], { batchSize: 10 })
+
+    await handler({} as never)
+    expect(enqueued.map((d) => d.propertyId)).toEqual([
+      'aa000000-0000-4000-8000-000000000002',
+    ])
+
+    importing.importInFlight = false
+    importing.nextDueAt = null
+    enqueued.length = 0
+    await handler({} as never)
+    expect(enqueued.map((d) => d.propertyId)).toContain(
+      'aa000000-0000-4000-8000-000000000001',
     )
   })
 

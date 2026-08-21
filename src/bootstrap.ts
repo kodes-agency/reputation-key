@@ -46,6 +46,7 @@ import {
   JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
 import { createReviewDiscoveryRepository } from '#/contexts/review/infrastructure/repositories/review-discovery.repository'
+import { createReviewSyncActivityRecorder } from '#/contexts/review/infrastructure/repositories/review-sync-activity.repository'
 import { getEnv } from '#/shared/config/env'
 import {
   createPurgeExpiredReviewsHandler,
@@ -209,12 +210,20 @@ export async function bootstrap(
   )
 
   // ── Review provider-snapshot jobs ────────────────────────────────
+  // Discovery-ladder activity stamps: written by the sync path (a push
+  // arrived / a page persisted a review we had never seen), read by the
+  // discovery sweep's per-property backoff.
+  const reviewSyncActivity = createReviewSyncActivityRecorder(container.db)
+  const discoveryBaseIntervalMs = getEnv().REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1000
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: container.useCases.runReviewProviderSnapshot,
     propertyRouting: container.propertyProcessingScopeApi,
     enqueueContinuation: async (data) => {
       await container.reviewQueue.addSyncJob(data)
     },
+    syncActivity: reviewSyncActivity,
+    clock: container.clock,
+    hotIntervalMs: discoveryBaseIntervalMs,
   })
   container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
     await syncReviewsHandler(
@@ -318,12 +327,13 @@ export async function bootstrap(
   // ── New-review discovery sweep ───────────────────────────────────
   // The refresh sweep above only revisits reviews already stored, so it can
   // never find a NEW one. This sweep polls connected properties on their own
-  // due schedule and is the only ingestion path when GBP push is unset.
+  // due schedule and is the only ingestion path when GBP push is unset. The
+  // configured interval is the ladder's HOT rung; quiet properties back off.
   const discoverHandler = createDiscoverNewReviewsHandler({
     discoveryRepo: createReviewDiscoveryRepository(container.db),
     queue: container.reviewQueue,
     clock: container.clock,
-    intervalMs: getEnv().REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1000,
+    intervalMs: discoveryBaseIntervalMs,
   })
   container.jobRegistry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {
     await discoverHandler(job)
@@ -656,6 +666,34 @@ export async function bootstrap(
     { job: INSERT_NOTIFICATION_JOB_NAME },
     'registered insert-notification job handler',
   )
+
+  // ── Notification-gap healing sweep ───────────────────────────────
+  // `emitAfterCommit` catches and warns, so a throw in the inbox or
+  // notification handler used to leave a committed review with no notification
+  // and nothing retrying. This sweep finds those items and enqueues the
+  // notification they never got. It is the LIVE repair path: the durable
+  // consumer that would prevent the loss is registered but inert while
+  // OUTBOX_DISPATCHER_ENABLED is false.
+  const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
+    await import('#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job')
+  const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
+  if (reconcileMissingNotifications) {
+    container.jobRegistry.register(
+      RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
+      async (job) => {
+        await reconcileMissingNotifications(job)
+      },
+    )
+    logger.info(
+      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
+      'registered reconcile-missing-notifications job handler',
+    )
+  } else {
+    logger.warn(
+      { job: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME },
+      'reconcile-missing-notifications not registered — no job queue, so notification gaps will not self-heal',
+    )
+  }
 
   // Outbound email is blocked (notification.send_email) for beta —
   // registerCapabilityGatedJob installs a logging no-op below when it is dark,

@@ -97,6 +97,16 @@ type GoogleReviewApiAdapterDeps = Readonly<{
       authorization: GoogleProviderCallAuthorization
     }>
   >
+  /**
+   * Production fail-closed check for the DIRECT `fetch` fallback below. The
+   * fallback is reachable merely by leaving the six GOOGLE_EGRESS_* values
+   * unset, and it bypasses admission, quota control, credential binding and
+   * mTLS. The composition root wires
+   * `assertDirectProviderEgressAllowed` here; absent (simulations, tests,
+   * bare adapter construction) means the direct path stays available exactly
+   * as it is today.
+   */
+  assertDirectEgressAllowed?: (operation: string) => void
   nowMs?: () => number
 }>
 
@@ -473,6 +483,7 @@ export const createGoogleReviewApiAdapter = (
         throw reviewApiError('provider_unavailable', true)
       }
     }
+    deps.assertDirectEgressAllowed?.(operation)
     const timeout = withTimeout(30_000)
     let response: Response
     try {
@@ -739,6 +750,7 @@ export const createGoogleReviewApiAdapter = (
         timeout.clear()
       }
     } else {
+      deps.assertDirectEgressAllowed?.('reviews.get')
       const timeout = withTimeout(30_000)
       let response: Response
       try {
@@ -855,6 +867,7 @@ export const createGoogleReviewApiAdapter = (
       response.body.fill(0)
       return
     }
+    deps.assertDirectEgressAllowed?.('reviews.reply')
     const timeout = withTimeout(30_000)
     let response: Response
     try {

@@ -133,21 +133,25 @@ export function registerAiConsumers(dependencies: RegisterAiConsumersInput): voi
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'ai.analyze-review-event',
+    module: 'ai.outbox-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'review.updated',
     consumerName: 'ai.analyze-review-event',
+    module: 'ai.outbox-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'review.source_transitioned',
     consumerName: 'ai.analyze-review-event',
+    module: 'ai.outbox-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'ai.property_trend.generation_requested',
     consumerName: 'ai.generate-property-trend',
+    module: 'ai.outbox-consumers',
     handler: (event) => handleAiPropertyTrendGenerationRequested(dependencies, event),
   })
 }

@@ -52,6 +52,8 @@ vi.mock('#/shared/observability/trace', () => ({
 
 const TEST_EVENT_TYPE = 'test.dispatcher_gate'
 const TEST_EVENT_VERSION = 1
+/** The catalogue consumer row these fixtures are authorized under. */
+const TEST_MODULE = 'inbox.outbox-consumers'
 
 const decideMock = vi.fn<(r: DelayedDecisionRequest) => Promise<DelayedDecision>>()
 
@@ -119,7 +121,12 @@ describe('dispatcher gate (BQC-3.2)', () => {
   it('invokes the consumer when the gate allows', async () => {
     decideMock.mockResolvedValue(ALLOW)
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-allow', handler })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-allow',
+      module: TEST_MODULE,
+      handler,
+    })
     const repo = makeRepo()
 
     await createDispatcherHandler(repo)(fakeJob(makeEnvelope()))
@@ -137,7 +144,12 @@ describe('dispatcher gate (BQC-3.2)', () => {
   it('terminal deny skips the consumer and writes an obsolete receipt (BQC-3.6)', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-deny', handler })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-deny',
+      module: TEST_MODULE,
+      handler,
+    })
     const repo = makeRepo()
 
     await expect(
@@ -160,7 +172,12 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
   it('terminal-deny receipt short-circuits re-delivery (no re-evaluation)', async () => {
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-deny', handler })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-deny',
+      module: TEST_MODULE,
+      handler,
+    })
     // Receipt exists (written by the terminal-deny path on the first pass) —
     // the gate must NOT be consulted again.
     const repo = {
@@ -179,7 +196,12 @@ describe('dispatcher gate (BQC-3.2)', () => {
       decision({ reason: 'policy_unavailable', freshRead: true }),
     )
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-retry', handler })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-retry',
+      module: TEST_MODULE,
+      handler,
+    })
     const repo = makeRepo()
 
     await expect(createDispatcherHandler(repo)(fakeJob(makeEnvelope()))).rejects.toThrow(
@@ -191,7 +213,12 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
   it('receipt check still short-circuits before the gate', async () => {
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({ eventType: TEST_EVENT_TYPE, consumerName: 'c-dup', handler })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-dup',
+      module: TEST_MODULE,
+      handler,
+    })
     const repo = {
       hasReceipt: vi.fn(async () => true),
     } as unknown as OutboxRepository
@@ -200,6 +227,37 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
+  })
+
+  it('gates each consumer under ITS OWN catalogue module, not a shared one', async () => {
+    // Regression pin: the dispatcher used to pass a hardcoded
+    // 'inbox.outbox-consumers' for every consumer, so a notification
+    // consumer was authorized under inbox's policy action.
+    decideMock.mockResolvedValue(ALLOW)
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-inbox',
+      module: 'inbox.outbox-consumers',
+      handler: vi.fn(async () => ({ status: 'applied' as const })),
+    })
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-notification',
+      module: 'notification.outbox-consumers',
+      handler: vi.fn(async () => ({ status: 'applied' as const })),
+    })
+
+    await createDispatcherHandler(makeRepo())(fakeJob(makeEnvelope()))
+
+    expect(decideMock).toHaveBeenCalledTimes(2)
+    const actionByPrincipal: Record<string, string> = Object.fromEntries(
+      decideMock.mock.calls.map(([req]) => [req.principal.id, req.action]),
+    )
+    // Distinct modules ⇒ distinct catalogue actions.
+    expect(actionByPrincipal).toEqual({
+      'consumer:c-inbox': 'system:inbox.update',
+      'consumer:c-notification': 'system:notification.insert',
+    })
   })
 })
 
@@ -213,11 +271,13 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-fails',
+      module: TEST_MODULE,
       handler: failing,
     })
     registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-succeeds',
+      module: TEST_MODULE,
       handler: succeeding,
     })
     const repo = makeRepo()
@@ -288,6 +348,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-any',
+      module: TEST_MODULE,
       handler: vi.fn(async () => ({ status: 'applied' as const })),
     })
 

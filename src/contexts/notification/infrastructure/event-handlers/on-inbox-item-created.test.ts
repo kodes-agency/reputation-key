@@ -46,24 +46,28 @@ describe('onInboxItemCreated (notification)', () => {
       // 30 minutes old — under an hour, so the copy shows no age at all.
       waitingHours: 0,
     } as const
-    expect(deps.jobs[0]).toEqual(
-      buildExpectedJob({
+    // `opts.jobId` is derived from the event id: the durable consumer builds
+    // the same id from the same event, so dual delivery cannot double-notify.
+    expect(deps.jobs[0]).toEqual({
+      ...buildExpectedJob({
         userId: NOTIF_TEST_IDS.manager1,
         type: 'feedback.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: expectedPayload,
       }),
-    )
-    expect(deps.jobs[1]).toEqual(
-      buildExpectedJob({
+      opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-1` },
+    })
+    expect(deps.jobs[1]).toEqual({
+      ...buildExpectedJob({
         userId: NOTIF_TEST_IDS.manager2,
         type: 'feedback.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: expectedPayload,
       }),
-    )
+      opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-2` },
+    })
   })
 
   it('never carries guest or review content into the payload', async () => {
@@ -98,8 +102,8 @@ describe('onInboxItemCreated (notification)', () => {
     await onInboxItemCreated(deps)(reviewSourceEvent)
 
     expectJobsEnqueued(deps, 1)
-    expect(deps.jobs[0]).toEqual(
-      buildExpectedJob({
+    expect(deps.jobs[0]).toEqual({
+      ...buildExpectedJob({
         userId: NOTIF_TEST_IDS.manager1,
         type: 'review.created',
         resourceType: 'inbox_item',
@@ -108,7 +112,8 @@ describe('onInboxItemCreated (notification)', () => {
         // source content (ADR 0046 r.8). The review TEXT never is.
         payload: EXPECTED_INBOX_PAYLOAD,
       }),
-    )
+      opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-1` },
+    })
   })
 
   it('logs debug for unknown source types', async () => {
@@ -120,7 +125,7 @@ describe('onInboxItemCreated (notification)', () => {
     await onInboxItemCreated(deps)(unknownSourceEvent)
 
     expect(deps.logger.debug).toHaveBeenCalledWith(
-      'onInboxItemCreated: skipping unknown source',
+      'inbox notification fan-out: skipping unknown source',
       { sourceType: 'goal' },
     )
   })
@@ -139,17 +144,21 @@ describe('onInboxItemCreated (notification)', () => {
       'AccountAdmin',
     )
     expect(deps.queue.add).toHaveBeenCalledTimes(2)
+    // The job id is derived from the event id, so the durable consumer's
+    // enqueue for the same event collapses onto this one.
     expect(deps.queue.add).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ userId: NOTIF_TEST_IDS.admin1 }),
+      { jobId: `${NOTIF_TEST_IDS.eventId}-admin-1` },
     )
     expect(deps.queue.add).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ userId: NOTIF_TEST_IDS.admin2 }),
+      { jobId: `${NOTIF_TEST_IDS.eventId}-admin-2` },
     )
     expect(deps.logger.warn).not.toHaveBeenCalledWith(
       expect.anything(),
-      'onInboxItemCreated: no recipients found',
+      'inbox notification fan-out: no recipients found',
     )
   })
 
@@ -179,7 +188,7 @@ describe('onInboxItemCreated (notification)', () => {
 
     expect(deps.logger.warn).toHaveBeenCalledWith(
       { correlationId: undefined },
-      'onInboxItemCreated: no recipients found',
+      'inbox notification fan-out: no recipients found',
     )
   })
 

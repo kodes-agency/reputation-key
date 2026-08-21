@@ -58,6 +58,13 @@ export type {
   SyncPropertyReviewsJobData,
   AddSyncJobOptions,
 } from './ports/review-queue.port'
+// Sync-job attribution literals. Review owns the queue payload contract, so
+// the integration webhook path stamps the same constant the sync handler
+// matches on (push liveness → discovery backoff ladder).
+export {
+  GBP_PUSH_SYNC_INITIATOR_ID,
+  DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
+} from './ports/review-queue.port'
 export type {
   ReviewProviderObservationWriter,
   ReviewProviderSnapshotRepository,

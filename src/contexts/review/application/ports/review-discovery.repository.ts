@@ -9,18 +9,31 @@
 //
 // Content-free: identifiers, timestamps, and an error class only.
 
+import type { DiscoveryActivity } from '../../domain/discovery-backoff'
+
 export type ReviewDiscoveryCandidate = Readonly<{
   propertyId: string
   organizationId: string
   connectionId: string
   /** Canonical GBP resource name: `accounts/{account}/locations/{location}`. */
   locationName: string
+  /**
+   * Durable activity evidence for the backoff ladder. The sweep computes this
+   * property's own next-due time from it, so a quiet property backs off
+   * without the sweep needing a second round-trip per candidate.
+   */
+  activity: DiscoveryActivity
 }>
 
 export type ReviewDiscoveryRepository = Readonly<{
   /**
    * Keyset-paged batch of Google-connected, active, non-deleted properties
-   * whose discovery poll is due at `due` (never polled, or next-due elapsed).
+   * whose discovery poll is due at `due` (never polled, or next-due elapsed)
+   * and which have NO in-flight GBP import.
+   *
+   * Polling a property mid-import is pure waste: the import enqueues its own
+   * sync when it completes, and a concurrent sweep sync races the import's
+   * snapshot for the same source epoch.
    *
    * Ordered by property id ASC; `cursor` is the last id of the previous
    * batch (exclusive). The strict `id > cursor` predicate never skips or

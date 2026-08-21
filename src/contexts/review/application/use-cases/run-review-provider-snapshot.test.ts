@@ -28,6 +28,7 @@ const propertyId = '00000000-0000-4000-8000-000000000002' as PropertyId
 const connectionId = '00000000-0000-4000-8000-000000000003' as GoogleConnectionId
 const reviewId = '00000000-0000-4000-8000-000000000004' as ReviewId
 const runId = '00000000-0000-4000-8000-000000000005'
+const NOW = new Date('2026-08-21T12:00:00.000Z')
 
 const review: GoogleReview = {
   reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -76,6 +77,8 @@ function makeDeps(
       totalReviewCount: number
       nextCursorRef: string | null
     }>
+    /** Drives the observation writer's new-vs-seen answer. */
+    observationIsNew?: boolean
   }> = {},
 ): RunReviewProviderSnapshotDeps {
   const currentRun = input.currentRun ?? run()
@@ -126,7 +129,11 @@ function makeDeps(
     replyToReview: vi.fn(async () => undefined),
   }
   const observationWriter: ReviewProviderObservationWriter = {
-    persist: vi.fn(async () => ({ reviewId, sourceRevision: 1 })),
+    persist: vi.fn(async () => ({
+      reviewId,
+      sourceRevision: 1,
+      isNew: input.observationIsNew ?? true,
+    })),
   }
   const subjectKeyService: ReviewProviderSubjectKeyService = {
     acquireDeriver: vi.fn(async () => ({
@@ -158,6 +165,11 @@ function makeDeps(
         sourceEpoch: 1,
       })),
     },
+    syncActivity: {
+      recordNewReviewObserved: vi.fn(async () => undefined),
+      recordPushObserved: vi.fn(async () => undefined),
+    },
+    clock: () => NOW,
   }
 }
 
@@ -185,6 +197,58 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.commitPage).toHaveBeenCalledWith(
       expect.objectContaining({ expectedPageIndex: 0, observations: expect.any(Array) }),
     )
+  })
+
+  it('stamps discovery activity once for a page that persisted a new review', async () => {
+    const deps = makeDeps({
+      page: {
+        reviews: [
+          review,
+          {
+            ...review,
+            // Composed from the fixture catalogue (a hand-written
+            // `accounts/…/reviews/…` literal fails lint) — a page with two
+            // DISTINCT provider resources, since duplicates are rejected.
+            reviewName: `${GOOGLE_REVIEW_PRIMARY_RESOURCE}-2`,
+            externalId: `${GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId}-2`,
+          },
+        ],
+        totalReviewCount: 2,
+        nextCursorRef: null,
+      },
+      observationIsNew: true,
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    // Two new reviews on one page is ONE activity fact, not two writes.
+    expect(deps.syncActivity.recordNewReviewObserved).toHaveBeenCalledTimes(1)
+    expect(deps.syncActivity.recordNewReviewObserved).toHaveBeenCalledWith(
+      propertyId,
+      NOW,
+    )
+  })
+
+  it('does not stamp discovery activity for a page of already-seen reviews', async () => {
+    const deps = makeDeps({ observationIsNew: false })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledTimes(1)
+    expect(deps.syncActivity.recordNewReviewObserved).not.toHaveBeenCalled()
+  })
+
+  it('fails the page loudly when the activity stamp cannot be written', async () => {
+    const deps = makeDeps({ observationIsNew: true })
+    vi.mocked(deps.syncActivity.recordNewReviewObserved).mockRejectedValue(
+      new Error('sync state write failed'),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)(request)).resolves.toEqual({
+      status: 'failed',
+      runId,
+      code: 'observation_failed',
+    })
   })
 
   it('finishes the phase instead of refetching when a continuation lost its cursor', async () => {

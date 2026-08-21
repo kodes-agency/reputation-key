@@ -19,6 +19,13 @@ const LOCATION_ID =
 const mocks = vi.hoisted(() => ({
   verifyPubSubJwt: vi.fn(),
   handleGbpNotification: vi.fn(),
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  // Mutable so a test can flip the pinning posture; the route reads getEnv()
+  // per request.
+  env: {
+    GBP_PUBSUB_AUDIENCE: 'https://test.example/webhooks/gbp',
+    GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: undefined as string | undefined,
+  },
 }))
 
 vi.mock('#/shared/observability/trace', () => ({
@@ -26,15 +33,10 @@ vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
 vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
+  getLogger: () => mocks.logger,
 }))
 vi.mock('#/shared/config/env', () => ({
-  getEnv: () => ({ GBP_PUBSUB_AUDIENCE: 'https://test.example/webhooks/gbp' }),
+  getEnv: () => mocks.env,
 }))
 vi.mock('#/shared/auth/pubsub-jwt.verifier', () => ({
   verifyPubSubJwt: mocks.verifyPubSubJwt,
@@ -63,14 +65,17 @@ const VALID_PAYLOAD = {
 }
 
 const validBody = { message: { data: encodePayload(VALID_PAYLOAD), messageId: 'm-1' } }
+const PUSH_SERVICE_ACCOUNT = 'gbp-push@rk-project.iam.gserviceaccount.com'
 
 describe('POST /api/webhooks/gbp/notifications', () => {
   beforeEach(() => {
     mocks.verifyPubSubJwt.mockReset()
     mocks.handleGbpNotification.mockReset()
+    mocks.logger.warn.mockReset()
+    mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = undefined
     mocks.verifyPubSubJwt.mockResolvedValue({
       sub: 'svc',
-      email: '',
+      email: PUSH_SERVICE_ACCOUNT,
       aud: 'https://test.example/webhooks/gbp',
       iat: 0,
       exp: 0,
@@ -135,5 +140,74 @@ describe('POST /api/webhooks/gbp/notifications', () => {
     expect(res.status).toBe(500)
     const json = await res.json()
     expect(json.error).toBe('Internal Server Error')
+  })
+
+  // GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: audience alone accepts any Google-issued
+  // OIDC token minted for our audience, so the push identity is the gate that
+  // distinguishes OUR subscription from an unrelated project's.
+  describe('push identity pinning', () => {
+    it('returns 401 when the email claim does not match the pinned service account', async () => {
+      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
+      mocks.verifyPubSubJwt.mockResolvedValue({
+        sub: 'svc',
+        email: 'attacker@someone-elses-project.iam.gserviceaccount.com',
+        aud: 'https://test.example/webhooks/gbp',
+        iat: 0,
+        exp: 0,
+      })
+
+      const res = await handleGbpWebhookPost(mkRequest(validBody))
+
+      expect(res.status).toBe(401)
+      expect(await res.json()).toEqual({
+        error: 'Unauthorized',
+        message: 'Unrecognized Pub/Sub push identity',
+      })
+      expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
+      // BQC-1.6: the rejection log carries no identity material.
+      const logged = JSON.stringify(mocks.logger.warn.mock.calls)
+      expect(logged).not.toContain('someone-elses-project')
+      expect(logged).not.toContain(PUSH_SERVICE_ACCOUNT)
+    })
+
+    it('returns 401 when the pinned account is set and the token carries no email claim', async () => {
+      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
+      mocks.verifyPubSubJwt.mockResolvedValue({
+        sub: 'svc',
+        email: '',
+        aud: 'https://test.example/webhooks/gbp',
+        iat: 0,
+        exp: 0,
+      })
+
+      const res = await handleGbpWebhookPost(mkRequest(validBody))
+
+      expect(res.status).toBe(401)
+      expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
+    })
+
+    it('accepts a matching pinned service account', async () => {
+      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
+
+      const res = await handleGbpWebhookPost(mkRequest(validBody))
+
+      expect(res.status).toBe(200)
+      expect(mocks.handleGbpNotification).toHaveBeenCalledTimes(1)
+    })
+
+    it('still delivers when the var is unset, whatever identity signed the token', async () => {
+      mocks.verifyPubSubJwt.mockResolvedValue({
+        sub: 'svc',
+        email: 'some-other@project.iam.gserviceaccount.com',
+        aud: 'https://test.example/webhooks/gbp',
+        iat: 0,
+        exp: 0,
+      })
+
+      const res = await handleGbpWebhookPost(mkRequest(validBody))
+
+      expect(res.status).toBe(200)
+      expect(mocks.handleGbpNotification).toHaveBeenCalledTimes(1)
+    })
   })
 })

@@ -43,6 +43,10 @@ const envSchema = z.object({
   // the brand the reader sees, which costs deliverability and reads as a
   // phishing tell. Fix by verifying reputationkey.app in Resend and setting
   // this to `Reputation Key <notifications@reputationkey.app>`.
+  // While the two diverge, the first outbound message in each process logs one
+  // warn naming both domains (shared/email/sender-alignment.ts) — the drift is
+  // otherwise completely silent. A sending SUBDOMAIN of the app domain counts
+  // as aligned (DMARC relaxed alignment) and stays quiet.
   EMAIL_FROM: z.string().min(3).default('Reputation Key <info@kodes.agency>'),
 
   // Redis — Upstash / Railway Redis
@@ -163,6 +167,18 @@ const envSchema = z.object({
   GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
+  // Explicit operator opt-out for UNGOVERNED direct Google provider egress.
+  // The review adapter falls back to a direct `fetch` whenever the egress
+  // executor is absent — which happens merely by leaving the six values above
+  // unset — and that path bypasses admission, quota control, credential
+  // binding and mTLS. Absent (the default) means PRODUCTION REFUSES the
+  // fallback with a config error naming the missing fields; development and
+  // test are unaffected either way. Set to 'true' only for a production
+  // deployment that knowingly runs without the gateway.
+  GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: z
+    .string()
+    .optional()
+    .transform((v) => v?.toLowerCase() === 'true'),
 
   // Web/worker -> AI egress gateway. All transport and settlement-verification
   // values are configured together; composition rejects partial configuration.
@@ -185,6 +201,14 @@ const envSchema = z.object({
   GBP_PUBSUB_TOPIC: z.string().optional().default(''),
   // Comma-separated GBP notification types to subscribe to (default: NEW_REVIEW only).
   GBP_PUBSUB_NOTIFICATION_TYPES: z.string().default('NEW_REVIEW'),
+  // Service-account email Google Pub/Sub signs its push JWT with (the
+  // subscription's OIDC push identity). When SET, the webhook additionally
+  // requires the verified `email` claim to equal it, so a Google-issued token
+  // from any OTHER project/service account is rejected 401 instead of being
+  // accepted on audience alone. Leave UNSET and the pushing identity is
+  // unpinned: any Google-issued OIDC token carrying our audience is accepted
+  // (the webhook warns once per process about exactly this).
+  GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: z.string().optional(),
   // Per-property minimum interval (minutes) between new-review discovery
   // polls. The discover-new-reviews sweep FIRES every 15 minutes on the
   // background queue; this is how long an individual connected property

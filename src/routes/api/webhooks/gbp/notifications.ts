@@ -32,12 +32,20 @@ const gbpNotificationPayloadSchema = z.object({
 })
 
 /**
+ * Warn-once latch for the unpinned-identity posture. A per-request warn would
+ * be one line per Pub/Sub delivery; the posture is process-lifetime constant,
+ * so once is the whole signal.
+ */
+let warnedUnpinnedPusher = false
+
+/**
  * POST handler for GBP Pub/Sub push notifications. Extracted from the Route
  * definition so it is directly testable without spinning up the TanStack route
  * tree. The route delegates here.
  *
- * Flow: verify JWT → parse push payload → extract locationId → delegate to
- * handleGbpNotification. Failures are status-coded: forged/expired JWT → 401,
+ * Flow: verify JWT → pin the pushing service account → parse push payload →
+ * extract locationId → delegate to handleGbpNotification. Failures are
+ * status-coded: forged/expired JWT and a wrong pushing identity → 401,
  * malformed payload → 400, anything else → 500, so a transient DB failure is
  * distinguishable from a probing client in logs/metrics.
  */
@@ -61,7 +69,36 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
 
       const token = authHeader.slice(7)
       const audience = env.GBP_PUBSUB_AUDIENCE ?? 'https://reputationkey.app/webhooks/gbp'
-      await verifyPubSubJwt(token, audience)
+      const verified = await verifyPubSubJwt(token, audience)
+
+      // 1b. Pin the pushing identity. Audience verification alone accepts ANY
+      // Google-issued OIDC token minted for our audience — including one from
+      // an unrelated GCP project — because Google is the issuer for all of
+      // them. The subscription's push service account is the only thing that
+      // distinguishes our publisher, so when it is configured a mismatch is a
+      // forged/misrouted push and gets the same 401 as a bad signature.
+      const expectedPusher = env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT
+      if (expectedPusher) {
+        if (verified.email !== expectedPusher) {
+          // BQC-1.6: neither the presented nor the expected email is logged —
+          // both are identities. Booleans are enough to tell "wrong service
+          // account" from "no email claim at all".
+          logger.warn(
+            { hasEmailClaim: verified.email !== '' },
+            'Webhook rejected: Pub/Sub push identity does not match GBP_PUBSUB_PUSH_SERVICE_ACCOUNT',
+          )
+          return Response.json(
+            { error: 'Unauthorized', message: 'Unrecognized Pub/Sub push identity' },
+            { status: 401 },
+          )
+        }
+      } else if (!warnedUnpinnedPusher) {
+        warnedUnpinnedPusher = true
+        logger.warn(
+          { envVar: 'GBP_PUBSUB_PUSH_SERVICE_ACCOUNT' },
+          'GBP webhook pushing identity is unpinned; any Google-issued OIDC token for this audience is accepted',
+        )
+      }
 
       // 2. Parse Pub/Sub push message
       const body = pubSubBodySchema.parse(await request.json())

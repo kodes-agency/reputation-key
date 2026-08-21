@@ -41,6 +41,9 @@ const ALL_PROPS = [
   PROP_REAUTH_CONN,
 ]
 
+const IMPORT_REQUEST = 'e1000000-0000-4000-8000-000000000001'
+const IMPORT_ITEM = 'e1000000-0000-4000-8000-000000000002'
+
 const NOW = new Date('2026-08-21T12:00:00.000Z')
 
 let pool: Pool
@@ -90,10 +93,88 @@ async function seedProperty(p: SeedProperty): Promise<void> {
   )
 }
 
+/**
+ * Seed a GBP import whose single relink item targets `targetPropertyId`. The
+ * table's CHECK constraints pin the whole shape (deadline = created_at + 24h,
+ * routing retention on pending items, counts arithmetic, terminal-time
+ * pairing), so this is the minimum row pair Postgres accepts.
+ *
+ * A terminal parent status needs its terminal timestamps; that combination —
+ * a settled parent with a leftover `pending` item — is what proves the
+ * exclusion requires BOTH rows to be in flight.
+ */
+async function seedImport(
+  targetPropertyId: string,
+  statuses: Readonly<{ parent: string; item: string }>,
+): Promise<void> {
+  const parentInFlight = statuses.parent === 'queued' || statuses.parent === 'processing'
+  await pool.query(
+    `INSERT INTO gbp_import_requests
+       (id, organization_id, request_id, initiated_by, status, total_count,
+        processed_count, pending_count, processing_count,
+        first_terminal_at, purge_at, created_at, updated_at)
+     VALUES ($1, $2, $1, 'seed-user', $3, 1, 0, 1, 0,
+             CASE WHEN $4::boolean THEN NULL ELSE NOW() END,
+             CASE WHEN $4::boolean THEN NULL ELSE NOW() + INTERVAL '30 days' END,
+             NOW(), NOW())`,
+    [IMPORT_REQUEST, ORG, statuses.parent, parentInFlight],
+  )
+  await pool.query(
+    `INSERT INTO gbp_import_request_items
+       (id, organization_id, import_job_id, connection_id, existing_property_id,
+        destination_property_id, provider_account_suffix, provider_location_suffix,
+        expected_connection_lifecycle_version, expected_connection_access_version,
+        expected_credential_generation, expected_source_epoch, expected_profile_version,
+        action, update_existing_profile, property_name, timezone, processing_region,
+        routing_policy_version, status, effect_deadline_at, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 1, 1, 1, 0, 1,
+             'relink', false, 'Importing Property', 'UTC', 'global', 1, $8,
+             NOW() + INTERVAL '24 hours', NOW(), NOW())`,
+    [
+      IMPORT_ITEM,
+      ORG,
+      IMPORT_REQUEST,
+      CONN_ACTIVE,
+      targetPropertyId,
+      GBP_ACCOUNT_ID,
+      GBP_LOCATION_ID,
+      statuses.item,
+    ],
+  )
+}
+
+async function settleImport(): Promise<void> {
+  await pool.query(
+    `UPDATE gbp_import_request_items
+        SET status = 'relinked', outcome_code = 'relinked', first_terminal_at = NOW(),
+            existing_property_id = NULL, destination_property_id = NULL,
+            expected_connection_lifecycle_version = NULL,
+            expected_connection_access_version = NULL,
+            expected_credential_generation = NULL,
+            expected_source_epoch = NULL, expected_profile_version = NULL
+      WHERE id = $1`,
+    [IMPORT_ITEM],
+  )
+  await pool.query(
+    `UPDATE gbp_import_requests
+        SET status = 'completed', pending_count = 0, processed_count = 1,
+            relinked_count = 1, first_terminal_at = NOW(),
+            purge_at = NOW() + INTERVAL '30 days'
+      WHERE id = $1`,
+    [IMPORT_REQUEST],
+  )
+}
+
 async function clearSeed(): Promise<void> {
   await pool.query(`DELETE FROM review_sync_state WHERE property_id = ANY($1)`, [
     ALL_PROPS,
   ])
+  // Import items hold restrict-on-delete FKs to properties and connections,
+  // so they must go first.
+  await pool.query(`DELETE FROM gbp_import_request_items WHERE organization_id = $1`, [
+    ORG,
+  ])
+  await pool.query(`DELETE FROM gbp_import_requests WHERE organization_id = $1`, [ORG])
   await pool.query(`DELETE FROM properties WHERE organization_id = $1`, [ORG])
   await pool.query(`DELETE FROM google_connections WHERE organization_id = $1`, [ORG])
 }
@@ -172,6 +253,11 @@ describe('reviewDiscoveryRepository (integration)', () => {
       organizationId: ORG,
       connectionId: CONN_ACTIVE,
       locationName: `accounts/${GBP_ACCOUNT_ID}/locations/${GBP_LOCATION_ID}-01`,
+      activity: {
+        lastNewReviewAt: null,
+        lastNotificationAt: null,
+        observedSince: expect.any(Date),
+      },
     })
   })
 
@@ -243,5 +329,64 @@ describe('reviewDiscoveryRepository (integration)', () => {
     expect(scheduled.rows[0].error_retry_at).toBeNull()
     expect(scheduled.rows[0].next_incremental_at).toEqual(nextDueAt)
     expect(scheduled.rows[0].last_success_at).toEqual(NOW)
+  })
+
+  it('excludes a property with an in-flight import and includes it once the import completes', async () => {
+    const repo = createReviewDiscoveryRepository(db)
+    await seedImport(PROP_CONNECTED, { parent: 'processing', item: 'pending' })
+
+    const duringImport = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+    expect(mine(duringImport)).toEqual([PROP_CONNECTED_2])
+
+    await settleImport()
+
+    const afterImport = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+    expect(mine(afterImport)).toEqual([PROP_CONNECTED, PROP_CONNECTED_2])
+  })
+
+  it('excludes a property whose import item is only queued, not yet processing', async () => {
+    const repo = createReviewDiscoveryRepository(db)
+    await seedImport(PROP_CONNECTED_2, { parent: 'queued', item: 'pending' })
+
+    const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+
+    expect(mine(due)).toEqual([PROP_CONNECTED])
+  })
+
+  it('does not park a property behind a settled parent that left a pending item', async () => {
+    // A cancelled request can leave items in `pending`. Requiring BOTH rows to
+    // be in flight is what stops that stale pair from parking the property's
+    // discovery forever.
+    const repo = createReviewDiscoveryRepository(db)
+    await seedImport(PROP_CONNECTED, { parent: 'cancelled', item: 'pending' })
+
+    const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+
+    expect(mine(due)).toEqual([PROP_CONNECTED, PROP_CONNECTED_2])
+  })
+
+  it('carries the ladder activity evidence for each candidate', async () => {
+    const repo = createReviewDiscoveryRepository(db)
+    const lastNewReview = new Date('2026-08-21T09:00:00.000Z')
+    const lastNotification = new Date('2026-08-21T11:30:00.000Z')
+    await pool.query(
+      `INSERT INTO review_sync_state
+         (property_id, source, last_new_review_at, last_notification_at, updated_at)
+       VALUES ($1, 'google', $2, $3, NOW())`,
+      [PROP_CONNECTED, lastNewReview, lastNotification],
+    )
+
+    const due = await repo.findDuePropertiesBatch(NOW, null, PAGE)
+    const candidate = due.find((c) => c.propertyId === PROP_CONNECTED)
+
+    expect(candidate?.activity.lastNewReviewAt).toEqual(lastNewReview)
+    expect(candidate?.activity.lastNotificationAt).toEqual(lastNotification)
+    // properties.created_at — the never-active floor, always present.
+    expect(candidate?.activity.observedSince).toBeInstanceOf(Date)
+
+    // A property with no sync-state row at all reports nulls, not a crash.
+    const never = due.find((c) => c.propertyId === PROP_CONNECTED_2)
+    expect(never?.activity.lastNewReviewAt).toBeNull()
+    expect(never?.activity.lastNotificationAt).toBeNull()
   })
 })

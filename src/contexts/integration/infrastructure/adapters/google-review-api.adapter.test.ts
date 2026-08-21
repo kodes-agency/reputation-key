@@ -7,6 +7,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
+import { assertDirectProviderEgressAllowed } from '#/shared/config/provider-config-guards'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 const ORG_ID = organizationId('0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC')
@@ -605,5 +606,84 @@ describe('GoogleReviewApiAdapter', () => {
     expect(logged).not.toContain('provider-page-token')
     expect(logged).not.toContain('provider-next-page-token')
     expect(logged).not.toContain('Excellent stay')
+  })
+})
+
+/**
+ * The adapter falls back to a DIRECT `fetch` whenever the egress executor is
+ * absent, which is what leaving the six GOOGLE_EGRESS_* values unset produces.
+ * That path bypasses admission, quota control, credential binding and mTLS, so
+ * production must refuse it — while development keeps working exactly as it
+ * does today, since that is how the local stack talks to Google at all.
+ */
+describe('GoogleReviewApiAdapter direct-egress guard', () => {
+  const ungovernedAdapter = (
+    env: Parameters<typeof assertDirectProviderEgressAllowed>[0],
+  ) =>
+    createGoogleReviewApiAdapter({
+      connectionRepo: { findById: vi.fn().mockResolvedValue(connection) } as never,
+      // No executor: the direct fallback resolves credentials through the
+      // refresh path, exactly as an unconfigured deployment would.
+      encryption: { decrypt: vi.fn(() => 'access-token') } as never,
+      refreshToken: vi
+        .fn()
+        .mockResolvedValue({ ...connection, encryptedAccessToken: 'enc' }) as never,
+      logger: { warn: vi.fn() } as never,
+      baseUrl: 'https://direct-provider.invalid',
+      cursorStore: cursorStore(),
+      nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
+      assertDirectEgressAllowed: (operation) =>
+        assertDirectProviderEgressAllowed(env, operation),
+    })
+
+  it('refuses the ungoverned call in production and never reaches the network', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const api = ungovernedAdapter({ NODE_ENV: 'production' })
+
+    await expect(
+      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
+    ).rejects.toMatchObject({
+      _tag: 'ProviderConfigError',
+      code: 'config_invalid',
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+
+  it('names the missing egress configuration in the refusal', async () => {
+    const api = ungovernedAdapter({ NODE_ENV: 'production' })
+
+    await expect(
+      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
+    ).rejects.toThrow(/GOOGLE_EGRESS_GATEWAY_ORIGIN/u)
+  })
+
+  it('allows the direct call in development, unchanged', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    const api = ungovernedAdapter({ NODE_ENV: 'development' })
+
+    await expect(
+      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
+    ).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    fetchSpy.mockRestore()
+  })
+
+  it('allows the direct call in production once the operator opts out', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+    const api = ungovernedAdapter({
+      NODE_ENV: 'production',
+      GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true,
+    })
+
+    await expect(
+      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
+    ).resolves.toBeUndefined()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    fetchSpy.mockRestore()
   })
 })

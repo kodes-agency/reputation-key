@@ -108,6 +108,7 @@
     "ops:restore-property": "tsx scripts/ops/property-suspension.ts restore",
     "ops:inspect": "tsx scripts/ops/inspect-decision.ts",
     "ops:disconnect-connection": "tsx scripts/ops/disconnect-connection.ts",
+    "ops:gbp-subscribe": "tsx scripts/ops/gbp-subscribe.ts",
     "ops:restore-preflight": "tsx scripts/ops/restore-preflight.ts",
     "ops:restore-verify": "tsx scripts/ops/restore-verify.ts",
     "ops:google-content-approval": "tsx scripts/ops/google-content-approval.ts",

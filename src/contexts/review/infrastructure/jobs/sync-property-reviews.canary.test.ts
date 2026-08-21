@@ -49,6 +49,12 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
         getProcessingScope: vi.fn(async () => null),
       },
       enqueueContinuation: vi.fn(async () => undefined),
+      syncActivity: {
+        recordNewReviewObserved: vi.fn(async () => undefined),
+        recordPushObserved: vi.fn(async () => undefined),
+      },
+      clock: () => new Date('2026-08-21T12:00:00.000Z'),
+      hotIntervalMs: 15 * 60 * 1000,
     })
 
     // Invalid property/connection UUIDs → the identity error path that USED to log jobData.
@@ -84,6 +90,12 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
         })),
       },
       enqueueContinuation: vi.fn(async () => undefined),
+      syncActivity: {
+        recordNewReviewObserved: vi.fn(async () => undefined),
+        recordPushObserved: vi.fn(async () => undefined),
+      },
+      clock: () => new Date('2026-08-21T12:00:00.000Z'),
+      hotIntervalMs: 15 * 60 * 1000,
     })
 
     const VALID_UUID = '123e4567-e89b-42d3-a456-426614174000'

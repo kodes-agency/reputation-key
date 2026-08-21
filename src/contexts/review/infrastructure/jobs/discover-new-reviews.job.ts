@@ -14,7 +14,11 @@
 //     (sync upserts are idempotent, so replay is safe);
 //   - per-property due times live in review_sync_state.next_incremental_at,
 //     so progress is durable without a sweep-run table and a property is
-//     never polled more often than its interval.
+//     never polled more often than its interval;
+//   - that interval is not flat: each property's next due time is priced on
+//     the backoff ladder (domain/discovery-backoff.ts) from its own activity
+//     evidence, so the quiet majority costs a fraction of the provider quota
+//     a flat 15-minute interval used to spend on them.
 //
 // Content-free: identifiers, timestamps, counts, and an error class only.
 
@@ -23,21 +27,31 @@ import type { Logger } from 'pino'
 
 export const JOB_NAME = 'discover-new-reviews' as const
 
-import type { ReviewQueuePort } from '../../application/ports/review-queue.port'
+import {
+  DISCOVERY_SWEEP_SYNC_INITIATOR_ID,
+  type ReviewQueuePort,
+} from '../../application/ports/review-queue.port'
 import type {
   ReviewDiscoveryCandidate,
   ReviewDiscoveryRepository,
 } from '../../application/ports/review-discovery.repository'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import {
+  discoveryTierFor,
+  nextDiscoveryDueAt,
+  type DiscoveryBackoffTier,
+} from '../../domain/discovery-backoff'
 
 const DEFAULT_BATCH_SIZE = 200
 const DEFAULT_MAX_BATCHES = 10
 
 /**
- * Per-property minimum poll interval. The sweep FIRES every 15 minutes
- * (worker/index.ts); this is how long a property waits before it is polled
- * again, and it is what REVIEW_DISCOVERY_INTERVAL_MINUTES configures.
+ * BASE per-property poll interval — the hot rung of the backoff ladder. The
+ * sweep FIRES every 15 minutes (worker/index.ts, a literal cadence); this is
+ * the shortest a property ever waits before being polled again, and it is
+ * what REVIEW_DISCOVERY_INTERVAL_MINUTES configures. A property with no
+ * recent activity waits a MULTIPLE of it — see domain/discovery-backoff.ts.
  */
 export const DEFAULT_DISCOVERY_INTERVAL_MS = 15 * 60 * 1000
 
@@ -55,6 +69,8 @@ type SweepState = {
   batches: number
   seen: number
   enqueued: number
+  /** Content-free ladder telemetry: how many polls each rung cost this run. */
+  enqueuedByTier: Record<DiscoveryBackoffTier, number>
   enqueueFailedPropertyId: string | null
 }
 
@@ -65,17 +81,22 @@ type BatchOutcome =
 
 /**
  * Enqueue one bounded sync job per candidate, marking each property's next
- * due time as it goes. Stops at the first enqueue failure — the batch is
- * never acknowledged past it.
+ * due time as it goes. Each property's next due time is priced on the backoff
+ * ladder from its OWN activity evidence, so a burst-active property keeps the
+ * base interval while a property quiet for days backs off.
+ *
+ * Stops at the first enqueue failure — the batch is never acknowledged past
+ * it. A deferral after a failure uses the BASE interval, not the ladder: the
+ * failure says nothing about the property's liveness, and a broken enqueue
+ * should be retried promptly rather than parked for six hours.
  */
 async function enqueueCandidates(
   deps: DiscoverHandlerDeps,
   candidates: readonly ReviewDiscoveryCandidate[],
   state: SweepState,
-  now: Date,
-  nextDueAt: Date,
-  logger: Logger,
+  options: Readonly<{ now: Date; baseIntervalMs: number; logger: Logger }>,
 ): Promise<void> {
+  const { now, baseIntervalMs, logger } = options
   for (const candidate of candidates) {
     try {
       await deps.queue.addSyncJob({
@@ -83,7 +104,7 @@ async function enqueueCandidates(
         organizationId: candidate.organizationId,
         connectionId: candidate.connectionId,
         locationName: candidate.locationName,
-        initiator: { kind: 'system', id: 'sweep:review-discovery' },
+        initiator: { kind: 'system', id: DISCOVERY_SWEEP_SYNC_INITIATOR_ID },
         correlationId: `review-discovery:${candidate.propertyId}`,
       })
     } catch (err) {
@@ -92,12 +113,23 @@ async function enqueueCandidates(
       // Defer the failing property so it cannot re-consume the head of
       // every subsequent batch; best-effort, the throw is what matters.
       await deps.discoveryRepo
-        .markDiscoveryDeferred(candidate.propertyId, now, nextDueAt, 'enqueue_failed')
+        .markDiscoveryDeferred(
+          candidate.propertyId,
+          now,
+          new Date(now.getTime() + baseIntervalMs),
+          'enqueue_failed',
+        )
         .catch(() => {})
       return
     }
-    await deps.discoveryRepo.markDiscoveryScheduled(candidate.propertyId, now, nextDueAt)
+    const tier = discoveryTierFor(candidate.activity, now)
+    await deps.discoveryRepo.markDiscoveryScheduled(
+      candidate.propertyId,
+      now,
+      nextDiscoveryDueAt(candidate.activity, now, baseIntervalMs),
+    )
     state.enqueued++
+    state.enqueuedByTier[tier]++
   }
 }
 
@@ -108,7 +140,7 @@ async function processDiscoveryBatch(
   options: Readonly<{
     batchSize: number
     now: Date
-    nextDueAt: Date
+    baseIntervalMs: number
     logger: Logger
   }>,
 ): Promise<BatchOutcome> {
@@ -122,14 +154,11 @@ async function processDiscoveryBatch(
   state.batches++
   state.seen += batch.length
 
-  await enqueueCandidates(
-    deps,
-    batch,
-    state,
-    options.now,
-    options.nextDueAt,
-    options.logger,
-  )
+  await enqueueCandidates(deps, batch, state, {
+    now: options.now,
+    baseIntervalMs: options.baseIntervalMs,
+    logger: options.logger,
+  })
   if (state.enqueueFailedPropertyId !== null) return { kind: 'enqueue_failed' }
 
   const last = batch[batch.length - 1]
@@ -144,7 +173,7 @@ async function runDiscoveryLoop(
     batchSize: number
     maxBatches: number
     now: Date
-    nextDueAt: Date
+    baseIntervalMs: number
     logger: Logger
   }>,
 ): Promise<void> {
@@ -167,19 +196,19 @@ async function runDiscoveryLoop(
 export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
   const batchSize = deps.batchSize ?? DEFAULT_BATCH_SIZE
   const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES
-  const intervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
+  const baseIntervalMs = deps.intervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {
       const logger = getLogger()
       const now = deps.clock()
-      const nextDueAt = new Date(now.getTime() + intervalMs)
 
       const state: SweepState = {
         cursor: null,
         batches: 0,
         seen: 0,
         enqueued: 0,
+        enqueuedByTier: { hot: 0, warm: 0, cold: 0 },
         enqueueFailedPropertyId: null,
       }
 
@@ -188,7 +217,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
           batchSize,
           maxBatches,
           now,
-          nextDueAt,
+          baseIntervalMs,
           logger,
         })
       } finally {
@@ -198,7 +227,12 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
             enqueued: state.enqueued,
             batchesProcessed: state.batches,
             budgetExhausted: state.batches >= maxBatches,
-            intervalMs,
+            baseIntervalMs,
+            // Ladder shape for this run: rising cold/warm counts are the
+            // whole point — they are polls the flat interval used to spend.
+            enqueuedHot: state.enqueuedByTier.hot,
+            enqueuedWarm: state.enqueuedByTier.warm,
+            enqueuedCold: state.enqueuedByTier.cold,
           },
           'Discover new reviews sweep finished',
         )

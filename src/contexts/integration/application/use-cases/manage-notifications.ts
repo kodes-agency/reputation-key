@@ -34,9 +34,32 @@ export type ManageNotificationsDeps = Readonly<{
   logger: LoggerPort
 }>
 
+/**
+ * Why `subscribe` reports an outcome instead of returning void: it swallows
+ * every failure by design, so a void return left NO caller — the import path or
+ * the ops backfill — able to tell "Google is now publishing" from "we gave up
+ * six branches ago". The enum is content-free and safe to log.
+ */
+export type GbpSubscribeOutcome =
+  /** Google is publishing `notificationTypes` to `pubsubTopic` for this account. */
+  | 'subscribed'
+  /** GBP_PUBSUB_TOPIC is empty — push is disabled deployment-wide. */
+  | 'topic_unset'
+  | 'connection_missing'
+  | 'connection_inactive'
+  /** Decrypt/refresh failed; the connection needs reconnecting. */
+  | 'token_unavailable'
+  /** listAccounts returned nothing usable for the account suffix. */
+  | 'account_unresolved'
+  /** updateNotificationSetting itself failed (transient or permission). */
+  | 'provider_failed'
+
 /** Lifecycle API returned by the use case. Both methods are best-effort (never throw). */
 export type ManageNotificationsApi = Readonly<{
-  subscribe: (organizationId: OrganizationId, connectionId: string) => Promise<void>
+  subscribe: (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ) => Promise<GbpSubscribeOutcome>
   unsubscribe: (organizationId: OrganizationId, connectionId: string) => Promise<void>
 }>
 
@@ -97,24 +120,25 @@ export const manageNotifications = (
         { envVar: 'GBP_PUBSUB_TOPIC' },
         'GBP push notifications disabled (GBP_PUBSUB_TOPIC is empty); new reviews arrive only via the discovery sweep',
       )
-      return
+      return 'topic_unset'
     }
     try {
       const connection = await deps.connectionRepo.findById(
         organizationId,
         googleConnectionId(connectionId),
       )
-      if (!connection || connection.status !== 'active') return
+      if (!connection) return 'connection_missing'
+      if (connection.status !== 'active') return 'connection_inactive'
 
       const accessToken = await resolveAccessToken(
         organizationId,
         connectionId,
         connection,
       )
-      if (!accessToken) return
+      if (!accessToken) return 'token_unavailable'
 
       const gbpAccountId = await resolveGbpAccountId(accessToken)
-      if (!gbpAccountId) return
+      if (!gbpAccountId) return 'account_unresolved'
 
       await deps.notifications.subscribe({
         accessToken,
@@ -122,9 +146,15 @@ export const manageNotifications = (
         pubsubTopic: deps.pubsubTopic,
         notificationTypes: deps.notificationTypes,
       })
+      // `updateNotificationSetting` is a PATCH of the account's single
+      // notificationSetting resource, so this is idempotent: re-running it
+      // (re-import, relink, ops backfill, topic change) just re-asserts the
+      // topic rather than creating a second subscription or erroring.
       deps.logger.info('GBP notifications: subscribed')
+      return 'subscribed'
     } catch (err) {
       deps.logger.warn({ err }, 'GBP notifications subscribe failed — continuing')
+      return 'provider_failed'
     }
   }
 

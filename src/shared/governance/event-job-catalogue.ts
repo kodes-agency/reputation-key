@@ -281,6 +281,7 @@ const PROPERTY_RETENTION_OUTBOX =
   'src/contexts/property/infrastructure/outbox-consumers.ts'
 const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
+const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -557,12 +558,14 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-inbox-item-created', NOTIFICATION_OUTBOX),
       ],
       disposition: 'enabled',
     },
     {
       repairCommand: 'rebuildInboxProjection',
-      notes: 'atomic command-store outbox write (BQC-3.4 InboxCommandStore)',
+      notes:
+        'atomic command-store outbox write (BQC-3.4 InboxCommandStore); the durable notification consumer is the at-least-once path for "a review arrived" — the bus handler alone was best-effort, and reconcile-missing-notifications heals what either path drops',
     },
   ),
   ev(
@@ -1625,6 +1628,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'BQC-1.5 bounded sweep (500×10, cursor in review_refresh_runs); enqueues gated sync jobs; 5m bounds a stalled batch',
+    },
+  ),
+  job(
+    'reconcile-missing-notifications',
+    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:notification.reconcile',
+      schedule: 'every:600000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 120_000,
+      notes:
+        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback, 5m grace); the live at-least-once repair for "a review arrived but nobody was told" while OUTBOX_DISPATCHER_ENABLED is false. Only enqueues items with ZERO notification rows, so a re-run cannot coalesce a second arrival onto an existing unread row',
     },
   ),
   job(

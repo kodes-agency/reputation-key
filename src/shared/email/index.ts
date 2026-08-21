@@ -5,6 +5,7 @@ export type { RenderedEmail } from './render-document'
 export { composeText, textFacts } from './plain-text'
 export type { TextBlock } from './plain-text'
 export { absoluteUrl, originOf } from './urls'
+export { warnOnceOnSenderMisalignment } from './sender-alignment'
 export {
   renderInvitationEmail,
   renderPasswordResetEmail,
