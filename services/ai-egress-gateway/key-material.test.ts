@@ -66,7 +66,7 @@ describe('AI gateway key material', () => {
     expect(loaded.key.byteLength).toBe(32)
     expect(() =>
       loadSafetyIdentifierKey(`v1:${'ab'.repeat(32)},v0:${'cd'.repeat(32)}`),
-    ).toThrow()
+    ).toThrow(new Error('AI safety identifier key is invalid'))
     loaded.key.fill(0)
   })
 })

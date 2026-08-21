@@ -2,8 +2,6 @@ name: ${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is required}
 
 x-app-environment: &app-environment
   NODE_ENV: production
-  # Local acceptance reuses one loopback address across browser cases; auth rate limits have dedicated tests.
-  E2E: '1'
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   REDIS_URL: redis://redis:6379
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
@@ -676,6 +674,21 @@ services:
       NITRO_PORT: '3000'
       BETA_E2E_GLOBAL_CAPABILITIES: ${E2E_WEB_CAPABILITY_OVERRIDE}
       BETA_E2E_EXECUTION_IDENTITY: ${E2E_WEB_EXECUTION_IDENTITY}
+      # Review §5.1: the auth rate-limit hatch lives HERE and nowhere else —
+      # do NOT hoist it into x-app-environment. It disables BOTH auth
+      # brute-force layers, so it is only granted to the one service that
+      # needs it: this server takes the Playwright sign-in flood (every spec
+      # signs in per test, ~70 POSTs in ~70s, retries: 0 makes one 429 fatal)
+      # from a single loopback address, and it is the only service carrying an
+      # authorized BETA_E2E_EXECUTION_IDENTITY. worker serves no auth HTTP at
+      # all, and web-locked's entire auth traffic across the suite is ONE
+      # sign-in (e2e/critical/workflows/auth-invite-only.spec.ts) — far under
+      # both the shared 60-POST/60s window and better-auth's 3-sign-ins/10s.
+      # In the anchor this would also refuse worker boot: E2E without an
+      # execution identity is a startup violation (assertE2ERateLimitBypassIdentity,
+      # src/shared/auth/beta-capabilities.ts). Rate-limit behaviour itself has
+      # dedicated unit tests, no spec exercises it.
+      E2E: '1'
       GOOGLE_EGRESS_GATEWAY_ORIGIN: https://google-egress-gateway:8443
       GOOGLE_EGRESS_GATEWAY_SERVER_NAME: google-egress-gateway
       GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/provider-ca.crt

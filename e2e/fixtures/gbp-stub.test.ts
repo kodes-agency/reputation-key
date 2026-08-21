@@ -7,7 +7,7 @@
 // 5xx without touching reply-publication behavior.
 
 import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '../../test-fixtures/generated/google-provider-identifiers-v1'
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
 import {
   startGbpStub,
   type FetchBehavior,
@@ -110,6 +110,19 @@ async function setPerformanceBehavior(
 
 beforeAll(async () => {
   stub = await startGbpStub(PORT)
+})
+
+// One stub server serves the whole file and its scope holds mutable scripting
+// state: the per-account fetch behavior, the per-location overrides (which beat
+// the account default) and the per-location Performance behavior. Tests used to
+// unwind their own scripting at the end of the test body, so the residue
+// survived any early failure and any reordering — an exhausted
+// `fail-then-success` override on LOC_A, for instance, silently masks a later
+// account-level always-fail because the override wins and reports success.
+// Re-upserting the scope rebuilds fetchBehavior, fetchBehaviorByLocation,
+// reviews and Performance behavior from the fixture (see the /__control/scope
+// handler), so every test starts from the same known state.
+beforeEach(async () => {
   await fetch(`${BASE}/__control/reset`, { method: 'POST' })
   const res = await fetch(`${BASE}/__control/scope`, {
     method: 'POST',
@@ -173,9 +186,6 @@ describe('GBP stub fetch-behavior scripting (BQC-8.3)', () => {
     // batchGet over a mixed set fails when ANY requested location fails.
     expect((await batchGet([LOC_B, LOC_A])).status).toBe(500)
     expect((await batchGet([LOC_B])).status).toBe(200)
-
-    await setFetchBehavior(ACCOUNT, { mode: 'success' })
-    await setFetchBehavior(ACCOUNT, { mode: 'success' }, LOC_B)
   })
 
   it('fail-then-success consumes the scripted failures, then serves', async () => {
@@ -237,7 +247,6 @@ describe('GBP stub Performance scripting', () => {
 
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(15)
     expect(await response.json()).toEqual(PERFORMANCE_RESPONSE)
-    await setPerformanceBehavior(LOC_A, { mode: 'success' })
   })
 
   it('scripts typed status and Retry-After responses', async () => {
@@ -251,7 +260,6 @@ describe('GBP stub Performance scripting', () => {
 
     expect(response.status).toBe(429)
     expect(response.headers.get('retry-after')).toBe('17')
-    await setPerformanceBehavior(LOC_A, { mode: 'success' })
   })
 
   it('serves malformed and oversize response faults', async () => {
@@ -266,7 +274,6 @@ describe('GBP stub Performance scripting', () => {
     })
     const oversize = await fetchPerformance()
     expect((await oversize.arrayBuffer()).byteLength).toBeGreaterThan(5 * 1024 * 1024)
-    await setPerformanceBehavior(LOC_A, { mode: 'success' })
   })
 
   it('rejects malformed behavior and unknown location controls', async () => {
