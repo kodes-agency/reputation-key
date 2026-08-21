@@ -1,6 +1,14 @@
 // E2E: Navigation between authenticated manager surfaces.
 // The beta-local seed exposes the promoted People, Portal, Team, and Goal
 // surfaces only for P1 while preserving ordinary property navigation.
+//
+// The three-route hop this file used to open with was deleted: each of its
+// assertions is made — identically, and by name — in
+// critical/auth-and-shell.spec.ts ('properties list shows seeded property',
+// 'inbox triage surface loads for manager', 'settings members page loads').
+// It cost a fourth sign-in to re-assert three locators the critical project
+// already gates. What remains is the part nothing else covers: the promoted P1
+// People surface rendering all three management tabs together.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
@@ -10,17 +18,6 @@ import { requireE2eSeedState } from './helpers/seed-state'
 test.describe('Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page)
-  })
-
-  test('navigate properties, inbox, and members settings', async ({ page }) => {
-    await page.goto('/properties')
-    await expect(page.getByRole('heading', { name: /^properties$/i })).toBeVisible()
-
-    await page.goto('/inbox')
-    await expect(page).toHaveURL(/\/inbox/)
-
-    await page.goto('/settings/members')
-    await expect(page.getByRole('heading', { name: /^members$/i }).first()).toBeVisible()
   })
 
   test('property detail tabs navigate correctly', async ({ page }) => {

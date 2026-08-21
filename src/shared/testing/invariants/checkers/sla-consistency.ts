@@ -53,6 +53,18 @@ export const slaConsistency = (deps: SlaConsistencyDeps): InvariantChecker => ({
       }
     }
 
+    if (reviews.length > MAX_REVIEWS_TO_CHECK) {
+      violations.push({
+        checker: 'sla-consistency',
+        severity: 'warning' as const,
+        message: `Checked ${MAX_REVIEWS_TO_CHECK} of ${reviews.length} reviews (truncated)`,
+        evidence: {
+          reviewsChecked: MAX_REVIEWS_TO_CHECK,
+          reviewsTotal: reviews.length,
+        },
+      })
+    }
+
     return violations
   },
 })

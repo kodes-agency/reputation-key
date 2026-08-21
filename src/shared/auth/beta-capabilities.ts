@@ -224,6 +224,10 @@ export type CapabilityPolicyEnv = Readonly<{
   NODE_ENV?: string
   BETA_E2E_GLOBAL_CAPABILITIES?: string
   BETA_E2E_EXECUTION_IDENTITY?: string
+  // Review §5.1 / BQC-6.8: the auth rate-limit hatch. Sibling of the
+  // capability override above and authorized by the same execution identity;
+  // read by isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity.
+  E2E?: string
   BETA_CAPABILITIES_OFF?: string
   BETA_ALLOWLIST_ORGS?: string
   BETA_SUSPENDED_ORGS?: string
@@ -265,27 +269,82 @@ export function parseKilledCapabilities(env: CapabilityPolicyEnv): ReadonlyArray
 }
 
 /**
+ * The single authorization rule for every test-only override in this module:
+ * an explicit test/CI execution identity — NODE_ENV=test, or
+ * BETA_E2E_EXECUTION_IDENTITY naming the test runner (CI e2e runs a
+ * production-mode app, so the identity var is what authorizes overrides there).
+ */
+function hasE2EExecutionIdentity(env: CapabilityPolicyEnv): boolean {
+  return (
+    env.NODE_ENV === 'test' || (env.BETA_E2E_EXECUTION_IDENTITY ?? '').trim().length > 0
+  )
+}
+
+/**
  * Refuse when BETA_E2E_GLOBAL_CAPABILITIES is non-empty outside an explicit
- * test/CI execution identity (NODE_ENV=test, or BETA_E2E_EXECUTION_IDENTITY
- * naming the test runner — CI e2e runs `pnpm dev`, whose script pins
- * NODE_ENV=development, so the identity var authorizes the override there).
- * Throws on violation.
+ * test/CI execution identity (see hasE2EExecutionIdentity). Throws on
+ * violation.
  */
 export function assertE2EOverrideIdentity(env: CapabilityPolicyEnv): void {
   const hasOverride = (env.BETA_E2E_GLOBAL_CAPABILITIES ?? '')
     .split(',')
     .some((s) => s.trim().length > 0)
   if (!hasOverride) return
-
-  const isTestIdentity = env.NODE_ENV === 'test'
-  const hasExplicitIdentity = (env.BETA_E2E_EXECUTION_IDENTITY ?? '').trim().length > 0
-  if (isTestIdentity || hasExplicitIdentity) return
+  if (hasE2EExecutionIdentity(env)) return
 
   throw new Error(
     '[CAPABILITY POLICY] BETA_E2E_GLOBAL_CAPABILITIES is a test-only override and ' +
       `refuses to boot outside an explicit test/CI execution identity ` +
       `(NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set NODE_ENV=test or ` +
       'BETA_E2E_EXECUTION_IDENTITY for e2e runs).',
+  )
+}
+
+// ── Auth rate-limit hatch (review §5.1) ─────────────────────────────
+//
+// E2E stands both auth brute-force layers down for the Playwright-launched
+// stack: the shared Redis limiter on the /api/auth/* catch-all
+// (routes/api/auth/$.ts) and better-auth's own limiter (shared/auth/auth.ts).
+// It used to be read as bare truthiness with no schema entry, no boot guard
+// and no log line, so one stray env var opened credential stuffing against a
+// closed-beta deployment silently. It is now a sibling of the capability
+// override above: an exact value, the same execution-identity authorization,
+// the same startup refusal, and fail-closed (limiters stay ON) wherever the
+// claim is unauthorized — including the web process, which has no startup hook.
+
+/** The ONLY value of E2E that requests the auth rate-limit bypass. */
+const E2E_RATE_LIMIT_BYPASS_VALUE = '1'
+
+/** True when E2E carries any value at all — a bypass claim, authorized or not. */
+export function claimsE2ERateLimitBypass(env: CapabilityPolicyEnv): boolean {
+  return (env.E2E ?? '').trim().length > 0
+}
+
+/**
+ * True when the auth brute-force limiters may stand down: E2E is exactly '1'
+ * AND an explicit test/CI execution identity authorizes it. Every other
+ * state — absent, any other value, or no identity — keeps both limiters ON.
+ */
+export function isE2ERateLimitBypassAuthorized(env: CapabilityPolicyEnv): boolean {
+  return (
+    (env.E2E ?? '').trim() === E2E_RATE_LIMIT_BYPASS_VALUE && hasE2EExecutionIdentity(env)
+  )
+}
+
+/**
+ * Refuse startup when E2E is set outside an explicit test/CI execution
+ * identity (see hasE2EExecutionIdentity). The counterpart of
+ * assertE2EOverrideIdentity for the rate-limit hatch. Throws on violation.
+ */
+export function assertE2ERateLimitBypassIdentity(env: CapabilityPolicyEnv): void {
+  if (!claimsE2ERateLimitBypass(env)) return
+  if (hasE2EExecutionIdentity(env)) return
+
+  throw new Error(
+    '[AUTH RATE LIMIT] E2E is a test-only switch that disables BOTH auth ' +
+      'brute-force limiters and refuses to boot outside an explicit test/CI ' +
+      `execution identity (NODE_ENV=${env.NODE_ENV ?? '(unset)'}; set ` +
+      'NODE_ENV=test or BETA_E2E_EXECUTION_IDENTITY for e2e runs, or unset E2E).',
   )
 }
 

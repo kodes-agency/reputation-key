@@ -15,6 +15,7 @@ import type { AuthContext } from '../src/shared/domain/auth-context'
 import {
   buildScenario,
   type ScenarioSpec,
+  type ScenarioResult,
 } from '../src/shared/testing/scenario/builder.server'
 import { createInvariantCheckers, runInvariants } from '../src/shared/testing/invariants'
 import { organization } from '../src/shared/db/schema/auth'
@@ -26,17 +27,48 @@ const MS_PER_DAY = 86_400_000
 // Job names for time-travel triggering
 import { JOB_NAME as PURGE_JOB } from '../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as REFRESH_JOB } from '../src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-// Renamed to LEGACY_* when the governed Goal runtime stopped registering this job;
-// the string value is unchanged, so time-travel seeding behaves exactly as before.
-import { LEGACY_RECONCILE_GOAL_NAME as RECONCILE_JOB } from '../src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
-import { LEGACY_SPAWN_RECURRING_NAME as SPAWN_JOB } from '../src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
+// NOTE: `reconcile-goal-progress` and `spawn-recurring-instances` used to be
+// enqueued here too. They were removed because the Goal context is dark: the
+// governed Goal runtime registers neither handler, and neither job name exists
+// in JOB_FAMILY_ROWS — `assertJobReadiness` clause (b) would fail worker boot
+// if either were registered. Enqueuing them printed a "✓ Reconcile goal
+// progress" for work that provably never ran. Removing them deletes a FALSE
+// SIGNAL, not functionality: Goal still has scheduled work that no handler
+// serves. Whoever wires the Goal runtime must restore both enqueues here AND
+// add the two catalogue rows.
+import {
+  addOrganizationCapability,
+  listOrganizationCapabilities,
+  listProvisionablePropertyIds,
+  provisionPropertyCapabilitiesFromOrganization,
+  setOrganizationPolicy,
+} from '../src/contexts/identity/infrastructure/repositories/policy-state.repository'
+import { SEED_BETA_CAPABILITIES } from '../src/shared/config/local-stack-contract'
 
 const args = process.argv.slice(2)
 const orgArg = args.find((a) => a.startsWith('--org='))
 const runInv = args.includes('--invariants')
 
 async function resolveOrgId(container: Container): Promise<string> {
-  if (orgArg) return orgArg.replace('--org=', '')
+  if (orgArg) {
+    const orgId = orgArg.replace('--org=', '')
+    // An explicit --org is the CI path (`--org=sim-ci-org`) and runs against a
+    // freshly migrated, EMPTY database, so the row this id names may not exist
+    // yet. Everything downstream — the capability allowlist first, then the
+    // scenario — carries an FK to `organization`, so create it here rather
+    // than letting `organization_policy_organization_id_fkey` fail. Mirrors how
+    // the isolation org is created below. Idempotent for repeat local runs.
+    await container.db
+      .insert(organization)
+      .values({
+        id: orgId,
+        name: `Simulation org (${orgId})`,
+        slug: orgId,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing()
+    return orgId
+  }
   const { Pool } = await import('pg')
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
   try {
@@ -50,6 +82,76 @@ async function resolveOrgId(container: Container): Promise<string> {
   } finally {
     await pool.end()
   }
+}
+
+/**
+ * Grant an organization the beta capability set.
+ *
+ * Without this a seeded database looks complete but every non-core feature is
+ * dark: Portals, Teams, Goals and Recognition all deny with
+ * `org_not_allowlisted` / `property_not_allowlisted`, so a developer can see
+ * seeded portals in the database yet cannot create one through the product.
+ *
+ * Runs BEFORE the scenario so properties created through the real use case are
+ * provisioned from this allowlist on the way in. Idempotent: already-held
+ * capabilities are skipped, because the primary key rejects a duplicate.
+ */
+async function grantOrgBetaCapabilities(
+  container: Container,
+  orgId: string,
+): Promise<void> {
+  const db = container.db
+  await setOrganizationPolicy(db, {
+    organizationId: orgId,
+    cohort: 'beta-local',
+    suspendedAt: null,
+    suspendedReason: null,
+  })
+
+  const held = new Set(await listOrganizationCapabilities(db, orgId))
+  let added = 0
+  for (const capability of SEED_BETA_CAPABILITIES) {
+    if (held.has(capability)) continue
+    await addOrganizationCapability(db, orgId, capability, 'seed')
+    added += 1
+  }
+  console.log(
+    `✓ Capabilities: org ${orgId} holds ${SEED_BETA_CAPABILITIES.length} (${added} new)`,
+  )
+}
+
+/**
+ * Cascade an organization's allowlist onto every active property it owns.
+ *
+ * Runs LAST, after every scenario: the scenario builder inserts property rows
+ * directly (`builder.server.ts`) rather than through the createProperty use
+ * case, so those properties never pass the provisioning step and would stay
+ * dark. `ON CONFLICT DO NOTHING` makes this safe over already-provisioned
+ * properties, and each write bumps `policy_version` in the same statement, so
+ * a running dev server observes the change on its next refresh — no restart.
+ */
+async function cascadeCapabilitiesToProperties(
+  container: Container,
+  orgIds: readonly string[],
+): Promise<void> {
+  const db = container.db
+  let granted = 0
+  let total = 0
+  for (const orgId of orgIds) {
+    const propertyIds = await listProvisionablePropertyIds(db, orgId)
+    total += propertyIds.length
+    for (const propertyId of propertyIds) {
+      const added = await provisionPropertyCapabilitiesFromOrganization(db, {
+        organizationId: orgId,
+        propertyId,
+        createdBy: 'seed',
+      })
+      if (added.length > 0) granted += 1
+    }
+  }
+  console.log(
+    `\n✓ Capabilities cascaded: ${granted} of ${total} properties newly provisioned`,
+  )
 }
 
 function defaultScenario(orgId: string): ScenarioSpec {
@@ -111,9 +213,55 @@ function printReport(
   }
 }
 
+/**
+ * Every row the spec asked for must exist. `buildScenario` logs and continues
+ * past a failed insert, so a fixture regression used to show up only as a
+ * smaller printed number that nobody was comparing against anything. Compare
+ * it here and fail the run.
+ */
+function assertBuiltCounts(
+  label: string,
+  spec: ScenarioSpec,
+  result: ScenarioResult,
+): void {
+  const sum = (pick: (p: ScenarioSpec['properties'][number]) => number): number =>
+    spec.properties.reduce((total, p) => total + pick(p), 0)
+
+  const expected = {
+    propertiesCreated: spec.properties.length,
+    portalsCreated: spec.properties.length,
+    reviewsCreated: sum((p) => p.reviews?.length ?? 0),
+    repliesCreated: sum((p) => (p.reviews ?? []).filter((r) => r.reply).length),
+    goalsCreated: sum((p) => p.goals?.length ?? 0),
+    guestInteractions: sum(
+      (p) => (p.guest?.scans ?? 0) + (p.guest?.ratings ?? 0) + (p.guest?.feedback ?? 0),
+    ),
+  }
+
+  const mismatches = Object.entries(expected).filter(
+    ([key, want]) => result[key as keyof typeof expected] !== want,
+  )
+  if (mismatches.length === 0) return
+
+  console.error(`\n✗ ${label}: built counts do not match the requested ScenarioSpec`)
+  for (const [key, want] of mismatches) {
+    console.error(
+      `  ${key}: requested ${want}, built ${result[key as keyof typeof expected]}`,
+    )
+  }
+  console.error(
+    '  Rows were silently skipped — see the "Sim ... failed" warn lines above.',
+  )
+  process.exit(1)
+}
+
 async function main(): Promise<void> {
   const { container, queue, advanceClock } = await createSimulationContainer()
   const orgId = await resolveOrgId(container)
+
+  // Before the scenario: the org allowlist must exist so every property the
+  // scenario creates is provisioned from it on the way in.
+  await grantOrgBetaCapabilities(container, orgId)
 
   console.log(`Seeding scenario for org: ${orgId}`)
   const spec = defaultScenario(orgId)
@@ -128,6 +276,7 @@ async function main(): Promise<void> {
   console.log(`  Goals:      ${result.goalsCreated}`)
   console.log(`  Guest:      ${result.guestInteractions}`)
   console.log(`  Events:     ${result.eventsEmitted}`)
+  assertBuiltCounts('Round 1', spec, result)
 
   // ── Create second org for multi-tenant isolation testing ──
   const org2Id = `sim-org-2-${Date.now()}`
@@ -140,7 +289,11 @@ async function main(): Promise<void> {
       createdAt: new Date(),
     })
     .onConflictDoNothing()
-  const result2 = await buildScenario(container, {
+  // The isolation org gets the same posture on purpose: isolation is about
+  // data separation, not capability posture, and a second org that silently
+  // denies every feature reads as a bug rather than as a test fixture.
+  await grantOrgBetaCapabilities(container, org2Id)
+  const spec2: ScenarioSpec = {
     organizationId: org2Id,
     properties: [
       {
@@ -151,8 +304,14 @@ async function main(): Promise<void> {
         scanHistoryDays: 7,
       },
     ],
-  })
+  }
+  const result2 = await buildScenario(container, spec2)
+  assertBuiltCounts('Org 2', spec2, result2)
   console.log(`\n✓ Multi-tenant: org 2 created (${result2.reviewsCreated} reviews)`)
+
+  // After every scenario, before anything reads policy: the scenario builder
+  // inserts property rows directly, so those properties have no allowlist yet.
+  await cascadeCapabilitiesToProperties(container, [orgId, org2Id])
 
   // ── Badge awards pipeline ──
   console.log('\n── Badge Pipeline ──')
@@ -194,8 +353,8 @@ async function main(): Promise<void> {
   const timeDependentJobs = [
     { name: PURGE_JOB, label: 'Purge expired reviews' },
     { name: REFRESH_JOB, label: 'Refresh expiring reviews' },
-    { name: RECONCILE_JOB, label: 'Reconcile goal progress' },
-    { name: SPAWN_JOB, label: 'Spawn recurring instances' },
+    // Goal's reconcile/spawn jobs deliberately absent — see the note by the
+    // job-name imports at the top of this file.
   ]
 
   for (const job of timeDependentJobs) {

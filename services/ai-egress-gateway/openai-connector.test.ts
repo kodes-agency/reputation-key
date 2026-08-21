@@ -20,6 +20,7 @@ import {
 import {
   AmbiguousOpenAiTransportError,
   InvalidOpenAiOutputError,
+  InvalidOpenAiRequestError,
   createOneShotOpenAiFetch,
   hasOfficialOpenAiRefusal,
   isForbiddenOpenAiAddress,
@@ -119,7 +120,7 @@ describe('one-shot OpenAI fetch boundary', () => {
     expect(response.headers.get('x-request-id')).toBeNull()
     expect(await response.text()).toBe('{"output":[],"usage":{}}')
     expect(boundary.state.outboundFetchUsed).toBe(true)
-    await expect(sdkRequest(boundary.fetch)).rejects.toThrow()
+    await expect(sdkRequest(boundary.fetch)).rejects.toThrow(InvalidOpenAiRequestError)
     expect(outboundFetch).toHaveBeenCalledTimes(1)
   })
 
@@ -182,7 +183,7 @@ describe('one-shot OpenAI fetch boundary', () => {
     })
     await expect(
       pre.fetch('https://api.openai.com/v1/other', { method: 'POST', body: '{}' }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(InvalidOpenAiRequestError)
     expect(pre.state.outboundFetchUsed).toBe(false)
     const post = createOneShotOpenAiFetch({
       apiKey: 'test-key',
@@ -220,7 +221,7 @@ describe('one-shot OpenAI fetch boundary', () => {
         headers: pinnedSdkHeaders(),
         body: mutableBytes.toString('utf8'),
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(InvalidOpenAiRequestError)
     expect(boundary.state.outboundFetchUsed).toBe(false)
     expect(outboundFetch).not.toHaveBeenCalled()
     boundary.dispose()
@@ -242,11 +243,11 @@ describe('one-shot OpenAI fetch boundary', () => {
         headers: pinnedSdkHeaders(),
         body: JSON.stringify({ ...request, model: 'forbidden-alias' }),
       }),
-    ).rejects.toThrow()
+    ).rejects.toThrow(InvalidOpenAiRequestError)
     const retained = boundary.state.sdkRequestBytes
     if (retained === null) throw new Error('expected retained SDK request bytes')
     expect(retained.some((byte) => byte !== 0)).toBe(true)
-    await expect(sdkRequest(boundary.fetch)).rejects.toThrow()
+    await expect(sdkRequest(boundary.fetch)).rejects.toThrow(InvalidOpenAiRequestError)
     expect(retained.every((byte) => byte === 0)).toBe(true)
     expect(outboundFetch).not.toHaveBeenCalled()
   })
@@ -391,7 +392,9 @@ describe('one-shot OpenAI fetch boundary', () => {
       outboundFetch,
       signal: new AbortController().signal,
     })
-    await expect(sdkRequest(boundary.fetch, headers, url)).rejects.toThrow()
+    await expect(sdkRequest(boundary.fetch, headers, url)).rejects.toThrow(
+      InvalidOpenAiRequestError,
+    )
     expect(boundary.state.outboundFetchUsed).toBe(false)
     expect(outboundFetch).not.toHaveBeenCalled()
   })

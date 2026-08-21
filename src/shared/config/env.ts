@@ -254,6 +254,17 @@ const envSchema = z.object({
   // override above (e.g. 'playwright-e2e'). Meaningless in production — the
   // boot guard never requires it and production must never set it.
   BETA_E2E_EXECUTION_IDENTITY: z.string().optional(),
+  // Review §5.1 / BQC-6.8 — TEST-ONLY. Stands BOTH auth brute-force layers
+  // down: the shared Redis limiter on the /api/auth/* catch-all
+  // (routes/api/auth/$.ts) and better-auth's own limiter (shared/auth/auth.ts).
+  // '1' is the ONLY accepted value, so a near-miss ('0', 'true', 'yes') refuses
+  // boot here instead of silently disabling auth rate limiting; and the bypass
+  // additionally requires the same execution identity as the capability
+  // override above, with startup refused without one (see
+  // isE2ERateLimitBypassAuthorized / assertE2ERateLimitBypassIdentity in
+  // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
+  // (compose.local.yml); production must never set it.
+  E2E: z.literal('1').optional(),
   // BQR-0: Outbox relay/dispatcher containment. The outbox path has known
   // defects (non-atomic emit, relay/dispatcher envelope mismatch, empty
   // consumer registry). Must NOT process real work until BQR-2 fixes them.

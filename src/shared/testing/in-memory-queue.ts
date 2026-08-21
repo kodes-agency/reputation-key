@@ -9,11 +9,25 @@ import type { Queue, Job } from 'bullmq'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { Clock } from '#/shared/domain/clock'
 
+export type InMemoryQueueFailure = Readonly<{
+  name: string
+  data: unknown
+  /** The error the handler threw, as thrown — not a boolean. */
+  error: unknown
+}>
+
 export type InMemoryQueue = Queue & {
   /** All jobs enqueued since the last clear, as { name, data } pairs. */
   readonly enqueuedJobs: ReadonlyArray<Readonly<{ name: string; data: unknown }>>
-  /** Jobs that were processed inline (handler ran). */
+  /** Jobs that were processed inline (handler ran and returned). */
   readonly processedJobs: ReadonlyArray<Readonly<{ name: string; data: unknown }>>
+  /**
+   * Jobs whose handler ran and THREW. Recorded before the rethrow, so the
+   * error survives callers that swallow it — a queue that discarded handler
+   * failures made "handler threw" indistinguishable from "no handler
+   * registered" for every downstream observer.
+   */
+  readonly failedJobs: ReadonlyArray<InMemoryQueueFailure>
   /** Clear all recorded jobs. */
   clear: () => void
   /** Late-bind the job registry for inline processing (after container build). */
@@ -30,6 +44,7 @@ export type InMemoryQueueOptions = {
 export function createInMemoryQueue(options?: InMemoryQueueOptions): InMemoryQueue {
   const enqueued: Array<{ name: string; data: unknown }> = []
   const processed: Array<{ name: string; data: unknown }> = []
+  const failed: Array<InMemoryQueueFailure> = []
   const clock = options?.clock ?? (() => new Date())
   // Late-bindable registry — set after container construction via connectRegistry
   let registry = options?.registry
@@ -50,7 +65,12 @@ export function createInMemoryQueue(options?: InMemoryQueueOptions): InMemoryQue
             attemptsMade: 1,
             attemptsStarted: 1,
           } as unknown as Job
-          await handler(fakeJob)
+          try {
+            await handler(fakeJob)
+          } catch (error) {
+            failed.push({ name, data, error })
+            throw error
+          }
           processed.push({ name, data })
         }
       }
@@ -66,9 +86,14 @@ export function createInMemoryQueue(options?: InMemoryQueueOptions): InMemoryQue
       return [...processed]
     },
 
+    get failedJobs() {
+      return [...failed]
+    },
+
     clear() {
       enqueued.length = 0
       processed.length = 0
+      failed.length = 0
     },
 
     // BullMQ Queue stubs — not used in simulation but satisfy the type
