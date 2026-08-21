@@ -311,8 +311,15 @@ async function createGuestData(
       )
       interactions++
       events++
-    } catch {
-      /* skip */
+    } catch (err) {
+      // Was a bare `catch { /* skip */ }`. These aggregates are covered by NO
+      // invariant checker, so a swallowed insert/emit failure was invisible in
+      // both directions. Same shape as the review/reply paths above; message
+      // only, because id-shaped log keys are banned under BQC-7.3.
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim guest scan create/emit failed',
+      )
     }
   }
 
@@ -343,8 +350,11 @@ async function createGuestData(
       )
       interactions++
       events++
-    } catch {
-      /* skip */
+    } catch (err) {
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim guest rating create/emit failed',
+      )
     }
   }
 
@@ -382,8 +392,11 @@ async function createGuestData(
       )
       interactions++
       events++
-    } catch {
-      /* skip */
+    } catch (err) {
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim guest feedback create/emit failed',
+      )
     }
   }
 
@@ -415,8 +428,11 @@ async function createGoals(
         periodEnd: new Date(ctx.now.getTime() + 15 * MS_PER_DAY),
       })
       created++
-    } catch {
-      /* skip */
+    } catch (err) {
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim goal create failed',
+      )
     }
   }
   return created
@@ -450,8 +466,11 @@ async function createMetricHistory(
         value: scansPerDay,
         occurredAt: recordedAt,
       })
-    } catch {
-      /* skip */
+    } catch (err) {
+      ctx.container.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Sim metric reading create failed',
+      )
     }
   }
 }

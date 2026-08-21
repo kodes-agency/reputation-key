@@ -68,7 +68,7 @@ export class InvalidOpenAiOutputError extends Error {
   }
 }
 
-class InvalidOpenAiRequestError extends Error {
+export class InvalidOpenAiRequestError extends Error {
   constructor() {
     super('OpenAI request is invalid')
     this.name = 'InvalidOpenAiRequestError'

@@ -80,21 +80,30 @@ describe('AI admission startup isolation', () => {
   it('requires exact release, deployment, and runtime catalogue evidence', () => {
     const environment = admissionEnvironment()
     expect(() => assertAiAdmissionRequiredEnvironment(environment)).not.toThrow()
-    for (const name of [
-      'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION',
-      'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
-      'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
-      'AI_REQUEST_BINDING_KEYRING_GENERATION',
-      'AI_ADMISSION_KEYRING_GENERATION',
-      'AI_ADMISSION_ED25519_KID',
-      'RELEASE_SHA',
-    ]) {
+    for (const [name, message] of [
+      [
+        'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION',
+        'AI admission deployment profile version is invalid',
+      ],
+      [
+        'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
+        'AI admission deployment profile digest is invalid',
+      ],
+      [
+        'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
+        'AI admission runtime capability catalogue digest is invalid',
+      ],
+      ['AI_REQUEST_BINDING_KEYRING_GENERATION', 'AI admission key inventory is invalid'],
+      ['AI_ADMISSION_KEYRING_GENERATION', 'AI admission key inventory is invalid'],
+      ['AI_ADMISSION_ED25519_KID', 'AI admission key inventory is invalid'],
+      ['RELEASE_SHA', 'AI admission release SHA is invalid'],
+    ] as const) {
       expect(() =>
         assertAiAdmissionRequiredEnvironment({
           ...environment,
           [name]: '0',
         }),
-      ).toThrow()
+      ).toThrow(message)
     }
   })
   it('defaults missing admission host, port, and profile metadata', () => {

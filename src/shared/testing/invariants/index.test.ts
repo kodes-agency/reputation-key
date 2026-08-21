@@ -67,8 +67,9 @@ describe('runInvariants', () => {
 
 describe('noOrphanedJobs checker', () => {
   it('passes when the queue has no jobs', async () => {
-    const queue = createInMemoryQueue()
-    const checker = noOrphanedJobs({ queue })
+    const registry = createJobRegistry()
+    const queue = createInMemoryQueue({ registry })
+    const checker = noOrphanedJobs({ queue, registry })
     const violations = await checker.check(CTX)
     expect(violations).toHaveLength(0)
   })
@@ -79,27 +80,100 @@ describe('noOrphanedJobs checker', () => {
     const queue = createInMemoryQueue({ registry })
     await queue.add('test-job', { data: 1 })
 
-    const checker = noOrphanedJobs({ queue })
+    const checker = noOrphanedJobs({ queue, registry })
     const violations = await checker.check(CTX)
     expect(violations).toHaveLength(0)
   })
 
-  it('reports orphaned jobs (enqueued without a handler)', async () => {
-    const queue = createInMemoryQueue()
+  it('reports an unregistered job as an error naming the job', async () => {
+    const registry = createJobRegistry()
+    const queue = createInMemoryQueue({ registry })
     await queue.add('unknown-job', {})
 
-    const checker = noOrphanedJobs({ queue })
+    const checker = noOrphanedJobs({ queue, registry })
+    const violations = await checker.check(CTX)
+
+    expect(violations).toHaveLength(1)
+    expect(violations[0].severity).toBe('error')
+    expect(violations[0].message).toContain('no registered handler')
+    expect(violations[0].message).toContain('unknown-job')
+    expect(violations[0].evidence?.unregisteredByJobName).toEqual({ 'unknown-job': 1 })
+  })
+
+  it('reports a throwing handler as an error naming the error, NOT as a missing handler', async () => {
+    const registry = createJobRegistry()
+    registry.register('exploding-job', async () => {
+      throw new Error('column "coalesced_count" does not exist')
+    })
+    const queue = createInMemoryQueue({ registry })
+    await expect(queue.add('exploding-job', {})).rejects.toThrow(/coalesced_count/)
+
+    const checker = noOrphanedJobs({ queue, registry })
+    const violations = await checker.check(CTX)
+
+    expect(violations).toHaveLength(1)
+    expect(violations[0].severity).toBe('error')
+    expect(violations[0].message).toContain('THREW')
+    expect(violations[0].message).toContain('column "coalesced_count" does not exist')
+    // The misdiagnosis this replaced: it used to say the handler was missing.
+    expect(violations[0].message).not.toContain('no registered handler')
+    expect(violations[0].evidence?.failedByJobName).toEqual({ 'exploding-job': 1 })
+  })
+
+  it('reports a job enqueued before the registry was connected as a warning', async () => {
+    const registry = createJobRegistry()
+    registry.register('late-job', async () => {})
+    // No registry at enqueue time — the simulation container connects it only
+    // after bootstrap, so this job found no handler even though one exists now.
+    const queue = createInMemoryQueue()
+    await queue.add('late-job', {})
+    queue.connectRegistry(registry)
+
+    const checker = noOrphanedJobs({ queue, registry })
     const violations = await checker.check(CTX)
 
     expect(violations).toHaveLength(1)
     expect(violations[0].severity).toBe('warning')
-    expect(violations[0].evidence?.totalEnqueued).toBe(1)
-    expect(violations[0].evidence?.totalProcessed).toBe(0)
+    expect(violations[0].message).toContain('never invoked')
+    expect(violations[0].evidence?.undrainedByJobName).toEqual({ 'late-job': 1 })
   })
 
-  it('passes when no queue is provided', async () => {
-    const checker = noOrphanedJobs({})
+  it('separates a partially-failing job name into its own report', async () => {
+    const registry = createJobRegistry()
+    let calls = 0
+    registry.register('flaky-job', async () => {
+      calls += 1
+      if (calls === 1) throw new Error('first call failed')
+    })
+    const queue = createInMemoryQueue({ registry })
+    await expect(queue.add('flaky-job', {})).rejects.toThrow('first call failed')
+    await queue.add('flaky-job', {})
+
+    const checker = noOrphanedJobs({ queue, registry })
     const violations = await checker.check(CTX)
-    expect(violations).toHaveLength(0)
+
+    // 2 enqueued, 1 processed, 1 failed: the outstanding one is fully
+    // accounted for by the throw, so nothing is reported as unregistered.
+    expect(violations).toHaveLength(1)
+    expect(violations[0].message).toContain('THREW')
+    expect(violations[0].evidence?.failedByJobName).toEqual({ 'flaky-job': 1 })
+  })
+
+  it('reports a missing queue as an error instead of silently passing', async () => {
+    const checker = noOrphanedJobs({ registry: createJobRegistry() })
+    const violations = await checker.check(CTX)
+
+    expect(violations).toHaveLength(1)
+    expect(violations[0].severity).toBe('error')
+    expect(violations[0].message).toContain('No queue was injected')
+  })
+
+  it('reports a missing registry as an error instead of silently passing', async () => {
+    const checker = noOrphanedJobs({ queue: createInMemoryQueue() })
+    const violations = await checker.check(CTX)
+
+    expect(violations).toHaveLength(1)
+    expect(violations[0].severity).toBe('error')
+    expect(violations[0].message).toContain('No job registry was injected')
   })
 })

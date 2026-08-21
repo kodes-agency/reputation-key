@@ -1,4 +1,5 @@
 import { generateKeyPairSync } from 'node:crypto'
+import { z } from 'zod'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   signAiReplyProvenance,
@@ -117,9 +118,16 @@ describe('AI reply provenance', () => {
   it('rejects control scalars and every unpaired-surrogate position in bound IDs', () => {
     const keys = generateKeyPairSync('ed25519')
     for (const actorId of ['actor\u0000id', '\uD800', 'before\uD800after', '\uDC00']) {
-      expect(() =>
-        signAiReplyProvenance({ ...payload(), actorId }, keys.privateKey),
-      ).toThrow()
+      let thrown: unknown
+      try {
+        signAiReplyProvenance({ ...payload(), actorId }, keys.privateKey)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(z.ZodError)
+      expect((thrown as z.ZodError).issues.map((issue) => issue.path.join('.'))).toEqual([
+        'actorId',
+      ])
     }
   })
 })

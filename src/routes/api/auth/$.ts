@@ -1,5 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { getAuth } from '#/shared/auth/auth'
+import {
+  claimsE2ERateLimitBypass,
+  isE2ERateLimitBypassAuthorized,
+} from '#/shared/auth/beta-capabilities'
+import { getEnv } from '#/shared/config/env'
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
@@ -23,20 +28,50 @@ const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/leave',
 ] as const
 
+/** One refusal log per process — the hatch is a boot-time posture, not per-request news. */
+let bypassRefusalLogged = false
+
+/**
+ * Whether the E2E hatch stands the shared limiter down for this process
+ * (review §5.1). Requires E2E=1 exactly AND the same test/CI execution
+ * identity that authorizes the capability override; every other state keeps
+ * the limiter ON. `E2E` reaches here through the zod schema, so a near-miss
+ * value ('0', 'true') already refused boot rather than opening the endpoint.
+ */
+function authRateLimitBypassed(): boolean {
+  const env = getEnv()
+  if (isE2ERateLimitBypassAuthorized(env)) return true
+  if (claimsE2ERateLimitBypass(env) && !bypassRefusalLogged) {
+    bypassRefusalLogged = true
+    getLogger().error(
+      { nodeEnv: env.NODE_ENV },
+      'auth.rate_limit_bypass_refused: E2E is set without a test/CI execution identity — the auth catch-all limiter stays ENABLED',
+    )
+  }
+  return false
+}
+
 /**
  * Handle a raw better-auth HTTP request. Blocked write endpoints are refused with
  * 404 + a structured warn log (the alerting anchor). POST endpoints are rate-limited
  * to blunt brute-force / credential stuffing against better-auth native auth.
  *
- * BQC-6.8: the limiter is skipped on Playwright-launched dev servers (E2E=1 —
- * the same discriminator vite.config.ts uses). The 60-POSTs/60s fixed window
- * per IP was sized for interactive traffic; the e2e suite signs in per test
- * (~70 POSTs in ~70s once the accessibility spec joined), and retries: 0
- * makes a single 429 fatal. No spec exercises rate-limit behavior. Production
- * and local-dev limiting are unchanged (better-auth's own limiter inside the
- * handler is likewise e2e-disabled, see shared/auth/auth.ts).
+ * BQC-6.8 / review §5.1: the 60-POSTs/60s fixed window per IP was sized for
+ * interactive traffic; the e2e suite signs in per test (~70 POSTs in ~70s once
+ * the accessibility spec joined) and retries: 0 makes a single 429 fatal, so
+ * the Playwright-launched stack stands the limiter down. That hatch used to be
+ * `!process.env.E2E` — bare truthiness on a variable absent from the env
+ * schema — which let one stray env var disable both auth brute-force layers in
+ * a real deployment with no signal; it now requires an exact value plus an
+ * authorized execution identity (authRateLimitBypassed). Production and
+ * local-dev limiting are unchanged (better-auth's own limiter inside the
+ * handler is gated by the same rule, see shared/auth/auth.ts).
+ *
+ * Exported for the colocated test: src/routes/** is excluded from the
+ * changed-code test budget (scripts/check-changed-code.mjs), so this seam is
+ * the only thing that makes the limiter's posture provable.
  */
-async function handleAuthRequest(
+export async function handleAuthRequest(
   request: Request,
   opts: { rateLimit: boolean },
 ): Promise<Response> {
@@ -53,7 +88,7 @@ async function handleAuthRequest(
     })
   }
 
-  if (opts.rateLimit && !process.env.E2E) {
+  if (opts.rateLimit && !authRateLimitBypassed()) {
     const ip = clientIpFromHeaders(request.headers)
     const { rateLimiter } = getContainer()
     const rlResult = await rateLimiter.check(`auth:native:${ip}`)

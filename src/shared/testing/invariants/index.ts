@@ -39,7 +39,7 @@ export function createInvariantCheckers(
       replyRepo: container.replyRepo,
       inboxRepo: container.inboxRepo,
     }),
-    noOrphanedJobs({ queue }),
+    noOrphanedJobs({ queue, registry: container.jobRegistry }),
   ]
 }
 

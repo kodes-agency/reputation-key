@@ -458,6 +458,7 @@ describe('internal mTLS outbound request byte lifetime', () => {
 
   async function expectOwnedCopyCleared(
     transport: ReturnType<typeof createInternalMtlsJsonTransport>,
+    expectedError: Error,
     options?: Readonly<{ deadlineEpochMillis?: number }>,
   ) {
     const source = Uint8Array.from({ length: 37 }, (_, index) => index + 1)
@@ -465,7 +466,7 @@ describe('internal mTLS outbound request byte lifetime', () => {
     try {
       await expect(
         transport.postBytesRaw('/v1/authorize', source, options),
-      ).rejects.toThrow()
+      ).rejects.toThrow(expectedError)
       expect(source.some((byte) => byte !== 0)).toBe(true)
       expect(
         fill.mock.instances
@@ -490,6 +491,7 @@ describe('internal mTLS outbound request byte lifetime', () => {
           throw new Error('signal setup failed')
         },
       }),
+      new Error('signal setup failed'),
     )
   })
 
@@ -501,6 +503,7 @@ describe('internal mTLS outbound request byte lifetime', () => {
           throw new Error('request setup failed')
         }) as typeof httpsRequest,
       }),
+      new Error('internal mTLS request failed'),
     )
   })
 
@@ -511,7 +514,11 @@ describe('internal mTLS outbound request byte lifetime', () => {
       .mockReturnValueOnce(1_000)
       .mockReturnValueOnce(1_002)
     try {
-      await expectOwnedCopyCleared(transport, { deadlineEpochMillis: 1_001 })
+      await expectOwnedCopyCleared(
+        transport,
+        new Error('internal mTLS request deadline is invalid'),
+        { deadlineEpochMillis: 1_001 },
+      )
     } finally {
       now.mockRestore()
     }

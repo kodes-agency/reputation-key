@@ -156,7 +156,7 @@ describe('runtime egress capability probe', () => {
           AI_EGRESS_PROBE_REGION: 'eu-west',
           [name]: value,
         }),
-      ).toThrow()
+      ).toThrow(new Error(`AI probe environment contains forbidden variable ${name}`))
     }
   })
 
