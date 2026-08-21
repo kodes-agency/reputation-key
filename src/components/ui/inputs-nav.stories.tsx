@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from './button'
 import {
   Breadcrumb,
@@ -87,14 +87,18 @@ export const SelectControlled: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    // Select content is portaled to the document body by Radix.
+    const body = within(canvasElement.ownerDocument.body)
     const trigger = canvas.getByRole('combobox', { name: /select a fruit/i })
     await userEvent.click(trigger)
-    // Select content is portaled to the document body by Radix.
-    const option = await within(canvasElement.ownerDocument.body).findByRole('option', {
-      name: /^banana$/i,
-    })
+    const option = await body.findByRole('option', { name: /^banana$/i })
     await userEvent.click(option)
     await expect(await canvas.findByText(/selected: banana/i)).toBeInTheDocument()
+    // Radix unmounts the closed listbox — and clears the `aria-hidden` it puts on
+    // the rest of the page while the menu is open — a frame AFTER the value
+    // commits. Wait for that teardown, otherwise the a11y scan audits a
+    // closed-but-still-mounted listbox sitting inside an aria-hidden root.
+    await waitFor(() => expect(body.queryByRole('listbox')).not.toBeInTheDocument())
   },
 }
 
