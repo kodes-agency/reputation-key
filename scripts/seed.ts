@@ -15,6 +15,7 @@ import type { AuthContext } from '../src/shared/domain/auth-context'
 import {
   buildScenario,
   type ScenarioSpec,
+  type ScenarioResult,
 } from '../src/shared/testing/scenario/builder.server'
 import { createInvariantCheckers, runInvariants } from '../src/shared/testing/invariants'
 import { organization } from '../src/shared/db/schema/auth'
@@ -26,10 +27,15 @@ const MS_PER_DAY = 86_400_000
 // Job names for time-travel triggering
 import { JOB_NAME as PURGE_JOB } from '../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as REFRESH_JOB } from '../src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-// Renamed to LEGACY_* when the governed Goal runtime stopped registering this job;
-// the string value is unchanged, so time-travel seeding behaves exactly as before.
-import { LEGACY_RECONCILE_GOAL_NAME as RECONCILE_JOB } from '../src/contexts/goal/infrastructure/jobs/reconcile-goal-progress.job'
-import { LEGACY_SPAWN_RECURRING_NAME as SPAWN_JOB } from '../src/contexts/goal/infrastructure/jobs/spawn-recurring-instances.job'
+// NOTE: `reconcile-goal-progress` and `spawn-recurring-instances` used to be
+// enqueued here too. They were removed because the Goal context is dark: the
+// governed Goal runtime registers neither handler, and neither job name exists
+// in JOB_FAMILY_ROWS — `assertJobReadiness` clause (b) would fail worker boot
+// if either were registered. Enqueuing them printed a "✓ Reconcile goal
+// progress" for work that provably never ran. Removing them deletes a FALSE
+// SIGNAL, not functionality: Goal still has scheduled work that no handler
+// serves. Whoever wires the Goal runtime must restore both enqueues here AND
+// add the two catalogue rows.
 import {
   addOrganizationCapability,
   listOrganizationCapabilities,
@@ -207,6 +213,48 @@ function printReport(
   }
 }
 
+/**
+ * Every row the spec asked for must exist. `buildScenario` logs and continues
+ * past a failed insert, so a fixture regression used to show up only as a
+ * smaller printed number that nobody was comparing against anything. Compare
+ * it here and fail the run.
+ */
+function assertBuiltCounts(
+  label: string,
+  spec: ScenarioSpec,
+  result: ScenarioResult,
+): void {
+  const sum = (pick: (p: ScenarioSpec['properties'][number]) => number): number =>
+    spec.properties.reduce((total, p) => total + pick(p), 0)
+
+  const expected = {
+    propertiesCreated: spec.properties.length,
+    portalsCreated: spec.properties.length,
+    reviewsCreated: sum((p) => p.reviews?.length ?? 0),
+    repliesCreated: sum((p) => (p.reviews ?? []).filter((r) => r.reply).length),
+    goalsCreated: sum((p) => p.goals?.length ?? 0),
+    guestInteractions: sum(
+      (p) => (p.guest?.scans ?? 0) + (p.guest?.ratings ?? 0) + (p.guest?.feedback ?? 0),
+    ),
+  }
+
+  const mismatches = Object.entries(expected).filter(
+    ([key, want]) => result[key as keyof typeof expected] !== want,
+  )
+  if (mismatches.length === 0) return
+
+  console.error(`\n✗ ${label}: built counts do not match the requested ScenarioSpec`)
+  for (const [key, want] of mismatches) {
+    console.error(
+      `  ${key}: requested ${want}, built ${result[key as keyof typeof expected]}`,
+    )
+  }
+  console.error(
+    '  Rows were silently skipped — see the "Sim ... failed" warn lines above.',
+  )
+  process.exit(1)
+}
+
 async function main(): Promise<void> {
   const { container, queue, advanceClock } = await createSimulationContainer()
   const orgId = await resolveOrgId(container)
@@ -228,6 +276,7 @@ async function main(): Promise<void> {
   console.log(`  Goals:      ${result.goalsCreated}`)
   console.log(`  Guest:      ${result.guestInteractions}`)
   console.log(`  Events:     ${result.eventsEmitted}`)
+  assertBuiltCounts('Round 1', spec, result)
 
   // ── Create second org for multi-tenant isolation testing ──
   const org2Id = `sim-org-2-${Date.now()}`
@@ -244,7 +293,7 @@ async function main(): Promise<void> {
   // data separation, not capability posture, and a second org that silently
   // denies every feature reads as a bug rather than as a test fixture.
   await grantOrgBetaCapabilities(container, org2Id)
-  const result2 = await buildScenario(container, {
+  const spec2: ScenarioSpec = {
     organizationId: org2Id,
     properties: [
       {
@@ -255,7 +304,9 @@ async function main(): Promise<void> {
         scanHistoryDays: 7,
       },
     ],
-  })
+  }
+  const result2 = await buildScenario(container, spec2)
+  assertBuiltCounts('Org 2', spec2, result2)
   console.log(`\n✓ Multi-tenant: org 2 created (${result2.reviewsCreated} reviews)`)
 
   // After every scenario, before anything reads policy: the scenario builder
@@ -302,8 +353,8 @@ async function main(): Promise<void> {
   const timeDependentJobs = [
     { name: PURGE_JOB, label: 'Purge expired reviews' },
     { name: REFRESH_JOB, label: 'Refresh expiring reviews' },
-    { name: RECONCILE_JOB, label: 'Reconcile goal progress' },
-    { name: SPAWN_JOB, label: 'Spawn recurring instances' },
+    // Goal's reconcile/spawn jobs deliberately absent — see the note by the
+    // job-name imports at the top of this file.
   ]
 
   for (const job of timeDependentJobs) {

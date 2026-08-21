@@ -50,6 +50,10 @@
       "exports": ["SEED_BETA_CAPABILITIES"]
     },
     {
+      "file": "src/routes/api/auth/$.ts",
+      "exports": ["handleAuthRequest"]
+    },
+    {
       "file": "src/contexts/*/infrastructure/jobs/*.job.ts",
       "exports": ["JOB_NAME"]
     },

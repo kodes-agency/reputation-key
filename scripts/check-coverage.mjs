@@ -29,18 +29,66 @@
 //
 //   EXEMPTIONS (owner + reason + uncovered line-class) — none registered.
 //
-// ── Tier 2 — project baseline ratchet (fails on any DECREASE) ──
+// ── Tier 2 — project baseline ratchet (fails on DECREASE *and* on DRIFT) ──
 //
-// Floors measured 2026-07-29 on HEAD of feat/bqc-6-9-coverage-quality-gates
-// (v8 provider, unit project, all:true over src/**; 4318 tests):
+// Measured 2026-08-21 on chore/test-suite-hardening (v8 provider, unit project,
+// all:true over src/**; 666 test files, 7167 passed + 146 skipped = 7313 tests):
 //
 //   scope    lines   branches  functions  statements
-//   overall  47.20   42.61     39.93      46.77      (all of src/**)
-//   domain   96.04   89.79     97.92      95.80      (contexts/*/domain/** + shared/domain/**)
+//   overall  54.01   48.47     45.69      53.11      (all of src/**)
+//   domain   96.84   92.27     98.95      96.07      (contexts/*/domain/** + shared/domain/**)
 //
-// The ratchet only moves UP: a PR that lowers any metric below its floor
-// fails; a PR that raises a metric should update the floor deliberately in
-// this header (record the new date + numbers).
+// The FLOORS below sit PIN_MARGIN_PP under those measurements. Two consecutive
+// full runs on 2026-08-21 differed by 0.01pp on overall branches and statements
+// (source files enter and leave the all:true include set as work lands), so a
+// floor pinned at exactly-measured fails the floor arm on jitter alone. The
+// margin is baked into the ready-to-paste literal the gate emits, so the next
+// person to re-pin inherits it without having to know about this.
+//
+// PROVENANCE CAVEAT: measured MID-SESSION on 2026-08-21 while the
+// test-suite-hardening branch was still landing tests, so this is a snapshot of
+// that branch, not of a settled tree. The last green full run of that session
+// (671 files, 7195 passed + 146 skipped) already sat 0.14–0.22pp above the
+// overall floors and 0.05pp above the domain floors — inside both ceilings, but
+// re-pin once the branch closes.
+//
+// The previous pin was 2026-07-29 at 4318 tests (overall 47.20/42.61/39.93/
+// 46.77, domain 96.04/89.79/97.92/95.80). By 2026-08-21 the suite had grown
+// 69% and the floors sat 5.8pp — about 1,800 lines — below reality: a PR could
+// have stopped exercising 1,800 lines of src/** and this gate would still have
+// printed OK. A floor-only ratchet decays exactly like that, silently, because
+// nothing ever forces the re-pin. So the ratchet now has a ceiling too:
+//
+//   floor   — measured < floor                → coverage regressed; fix the tests
+//   ceiling — measured > floor + MAX_DRIFT_PP → floors are stale; re-pin them here
+//
+// (Because the floor already carries PIN_MARGIN_PP of slack, the real headroom
+// before the ceiling trips is MAX_DRIFT_PP + PIN_MARGIN_PP.)
+//
+// The two arms fail with different messages on purpose: they are read by
+// different authors who need different next actions. A floor breach says
+// "restore the coverage you removed". A ceiling breach prints a ready-to-paste
+// FLOORS literal, because the only correct response is to re-pin (and to
+// record the new date + test count in this header).
+//
+// MAX_DRIFT_PP is per-scope, because a percentage point means different things
+// in the two pools:
+//
+//   overall 2.50pp — the pool is 31,917 lines / 23,581 branches / 8,289
+//     functions / 34,629 statements, so 2.50pp is ~798 lines of slack. A 1.00pp
+//     band was tried and rejected: one ordinary session of test-writing moved
+//     overall lines from 53.03 to 54.01 (~0.98pp) on 2026-08-21 alone, so a
+//     1.00pp ceiling would fire on routine work and train authors to bump the
+//     number reflexively — the same decay as today's 5.8pp slack, just faster.
+//     2.50pp absorbs a session of honest test addition and still catches the
+//     5.83pp rot that accumulated here over three weeks, twice over.
+//
+//   domain 1.00pp — the pool is only 2,123 lines / 2,059 branches / 575
+//     functions / 2,317 statements and already sits at 96.84%, so 1.00pp is
+//     ~21 lines. Only 67 domain lines are uncovered at all: moving a full
+//     percentage point there is a deliberate, reviewable event, never churn.
+//     Undetectable regression is also far more expensive in domain code, so
+//     the band that would be too tight for src/** is the right one here.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
@@ -92,9 +140,40 @@ const TIER1_FILES = [...contextRulesFiles(), ...sharedDomainFiles()]
 // ── Tier 2 floors (ratchet — see header for measurement provenance) ──
 
 const FLOORS = {
-  overall: { lines: 47.2, branches: 42.61, functions: 39.93, statements: 46.77 },
-  domain: { lines: 96.04, branches: 89.79, functions: 97.92, statements: 95.8 },
+  overall: { lines: 53.96, branches: 48.42, functions: 45.64, statements: 53.06 },
+  domain: { lines: 96.79, branches: 92.22, functions: 98.9, statements: 96.02 },
 }
+
+/**
+ * Maximum permitted headroom between a measured metric and its pinned floor, in
+ * percentage points, per scope. See the header for why these are 2.50 / 1.00.
+ */
+const MAX_DRIFT_PP = { overall: 2.5, domain: 1.0 }
+
+/**
+ * Slack baked into a freshly pinned floor, in percentage points.
+ *
+ * DO NOT REMOVE THIS AND PIN FLOORS AT EXACTLY-MEASURED. It looks like
+ * redundant fudge and it is not. Measured 2026-08-21: two consecutive full runs
+ * of the same suite reported overall branches 48.48 then 48.47, and overall
+ * statements 53.12 then 53.11 — source files enter and leave the all:true
+ * include set as unrelated work lands, so the denominators move by a few units
+ * between runs. A floor pinned at exactly-measured therefore fails the FLOOR
+ * arm on that jitter alone, on a tree where nobody removed a single test, and
+ * the failure text accuses the author of a regression that did not happen. One
+ * such false failure is enough to get the whole ratchet disabled.
+ *
+ * 0.05pp is ~16 lines of the 31,917-line pool: five times the observed jitter,
+ * and negligible against the 2.50pp/1.00pp ceilings that force the re-pin.
+ */
+const PIN_MARGIN_PP = 0.05
+
+/**
+ * The value to pin as a floor for a given measurement. Used for the
+ * ready-to-paste literal the gate emits on a ceiling breach, so whoever re-pins
+ * inherits the margin without needing to know it exists.
+ */
+const pinValue = (measured) => Math.floor((measured - PIN_MARGIN_PP) * 100) / 100
 
 const METRICS = ['lines', 'branches', 'functions', 'statements']
 
@@ -178,6 +257,10 @@ const totals = {
   ),
 }
 
+/** Floors and measurements carry at most 2 decimals, so a rounded diff is exact. */
+const driftPp = (measured, floor) => Math.round((measured - floor) * 100) / 100
+
+let staleFloors = false
 for (const scope of ['overall', 'domain']) {
   for (const metric of METRICS) {
     const measured = totals[scope][metric]
@@ -186,6 +269,18 @@ for (const scope of ['overall', 'domain']) {
       failures.push(
         `tier-2 ${scope} ${metric}: ${measured}% < floor ${floor}% — coverage regressed; ` +
           'the ratchet only moves up (restore coverage, or justify a deliberate floor change in the script header)',
+      )
+      continue
+    }
+    const drift = driftPp(measured, floor)
+    const maxDrift = MAX_DRIFT_PP[scope]
+    if (drift > maxDrift) {
+      staleFloors = true
+      failures.push(
+        `tier-2 ${scope} ${metric}: ${measured}% exceeds floor ${floor}% by ${drift}pp ` +
+          `(max drift ${maxDrift}pp for ${scope}) — the floor is STALE, so the gate can no ` +
+          'longer detect a real regression of that size. Re-pin the floors to the measured ' +
+          'values and update the provenance header (date + test count) in this script.',
       )
     }
   }
@@ -197,15 +292,32 @@ console.log(`[coverage] tier-1: ${TIER1_FILES.length} pure-domain-rule files che
 for (const scope of ['overall', 'domain']) {
   console.log(
     `[coverage] tier-2 ${scope}: ` +
-      METRICS.map((k) => `${k} ${totals[scope][k]}% (floor ${FLOORS[scope][k]}%)`).join(
-        '  ',
-      ),
+      METRICS.map((k) => {
+        const drift = driftPp(totals[scope][k], FLOORS[scope][k])
+        return `${k} ${totals[scope][k]}% (floor ${FLOORS[scope][k]}%, ${drift >= 0 ? '+' : ''}${drift}pp)`
+      }).join('  '),
   )
 }
 
 if (failures.length > 0) {
   console.error(`[coverage] FAILED — ${failures.length} violation(s):`)
   for (const f of failures) console.error(`  ✗ ${f}`)
+  if (staleFloors) {
+    console.error('')
+    console.error(
+      `[coverage] re-pin the tier-2 floors (measured minus the ${PIN_MARGIN_PP}pp jitter margin) —` +
+        ' paste this over the FLOORS literal and update the provenance header:',
+    )
+    console.error('')
+    console.error('const FLOORS = {')
+    for (const scope of ['overall', 'domain']) {
+      console.error(
+        `  ${scope}: { ${METRICS.map((k) => `${k}: ${pinValue(totals[scope][k])}`).join(', ')} },`,
+      )
+    }
+    console.error('}')
+    console.error('')
+  }
   process.exit(1)
 }
 console.log('[coverage] OK — tier-1 pure domain rules at 100%; baselines held')

@@ -26,6 +26,7 @@ import {
   callServerFnGet,
   dbQuery,
   waitFor,
+  bailWait,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-imp-'
@@ -140,30 +141,45 @@ test.describe('Critical workflow: Google import + initial sync', () => {
   })
 
   // Symmetry with google-performance.spec.ts: whatever a spec grants, it
-  // revokes, and every capability mutation is paired with a policy_version
-  // bump. The property_capability row below needs no explicit delete — it
-  // cascades with the prefix-scoped property. Placed in afterEach so a failing
-  // test cannot leak the capability into the next spec.
+  // revokes, and every capability mutation commits its global policy_version
+  // bump in the SAME statement — the invariant every production writer honours
+  // via BUMP_POLICY_VERSION_SQL (policy-version-sql.ts) and the one that makes
+  // the snapshot store's version-gated refresh a correct cache-invalidation
+  // contract. Bumping separately lets a reader cache a snapshot labelled with
+  // the new version but missing the row, and the version gate then refuses to
+  // reload it until some later bump. The property_capability row below needs
+  // no explicit delete — it cascades with the prefix-scoped property. Placed
+  // in afterEach so a failing test cannot leak the capability into the next
+  // spec.
   test.afterEach(async () => {
     if (!insertedOrgImportCapability) return
     insertedOrgImportCapability = false
     await dbQuery(
-      `DELETE FROM organization_capability
-       WHERE organization_id = $1 AND capability = 'property.import_gbp_v2'`,
+      `WITH bump AS (
+         INSERT INTO policy_version (scope, version, updated_at)
+         VALUES ('global', 1, now())
+         ON CONFLICT (scope) DO UPDATE
+           SET version = policy_version.version + 1, updated_at = now()
+         RETURNING version
+       ),
+       del AS (
+         DELETE FROM organization_capability
+         WHERE organization_id = $1 AND capability = 'property.import_gbp_v2'
+         RETURNING capability
+       )
+       SELECT capability FROM del`,
       [seed.organizationId],
-    )
-    await dbQuery(
-      `UPDATE policy_version
-       SET version = version + 1,
-           updated_at = now()
-       WHERE scope = 'global'`,
     )
   })
 
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
     page,
   }) => {
-    test.setTimeout(120_000)
+    // 180s: the import wait below may legitimately consume 90s of it, and
+    // discovery, create, relink and replay all run before that. At 120s a slow
+    // worker blew the TEST budget instead of the wait's, which reported as a
+    // bare Playwright timeout with no import status at all.
+    test.setTimeout(180_000)
     await installPagedProviderScope()
 
     const admin = await getUserByEmail(seed.email)
@@ -185,24 +201,39 @@ test.describe('Critical workflow: Google import + initial sync', () => {
       },
     })
     const insertedOrgCapability = await dbQuery(
-      `INSERT INTO organization_capability (organization_id, capability, created_by)
-       VALUES ($1, 'property.import_gbp_v2', $2)
-       ON CONFLICT (organization_id, capability) DO NOTHING
-       RETURNING capability`,
+      `WITH bump AS (
+         INSERT INTO policy_version (scope, version, updated_at)
+         VALUES ('global', 1, now())
+         ON CONFLICT (scope) DO UPDATE
+           SET version = policy_version.version + 1, updated_at = now()
+         RETURNING version
+       ),
+       ins AS (
+         INSERT INTO organization_capability (organization_id, capability, created_by)
+         VALUES ($1, 'property.import_gbp_v2', $2)
+         ON CONFLICT (organization_id, capability) DO NOTHING
+         RETURNING capability
+       )
+       SELECT capability FROM ins`,
       [seed.organizationId, admin!.id],
     )
     insertedOrgImportCapability = insertedOrgCapability.length > 0
     await dbQuery(
-      `INSERT INTO property_capability (property_id, capability, created_by)
-       VALUES ($1, 'property.import_gbp_v2', $2)
-       ON CONFLICT (property_id, capability) DO NOTHING`,
+      `WITH bump AS (
+         INSERT INTO policy_version (scope, version, updated_at)
+         VALUES ('global', 1, now())
+         ON CONFLICT (scope) DO UPDATE
+           SET version = policy_version.version + 1, updated_at = now()
+         RETURNING version
+       ),
+       ins AS (
+         INSERT INTO property_capability (property_id, capability, created_by)
+         VALUES ($1, 'property.import_gbp_v2', $2)
+         ON CONFLICT (property_id, capability) DO NOTHING
+         RETURNING capability
+       )
+       SELECT capability FROM ins`,
       [existingPropertyId, admin!.id],
-    )
-    await dbQuery(
-      `UPDATE policy_version
-       SET version = version + 1,
-           updated_at = now()
-       WHERE scope = 'global'`,
     )
 
     await signIn(page)
@@ -318,14 +349,36 @@ test.describe('Critical workflow: Google import + initial sync', () => {
           exportName: 'getPropertyImportV2Status',
           data: { importJobId: started.importJobId },
         })
-        return current.status === 'completed' ? current : null
+        if (current.status === 'completed') return current
+        // Only `queued` and `processing` can still become `completed`. Every
+        // other parent status is terminal, so waiting on is waste: report the
+        // mismatch now, with the item outcomes that explain it.
+        if (current.status !== 'queued' && current.status !== 'processing') {
+          bailWait('v2 import', current)
+        }
+        return null
       },
-      // 60s, not 30s: this polls a background worker import to completion on a
-      // runner already hosting nine containers, and it timed out at ~34s in CI
-      // while passing locally. The assertion is eventual completion with the
-      // exact counts below — the deadline only bounds how long the worker may
-      // take, not what must be true when it finishes.
-      { timeoutMs: 60_000, description: 'v2 import to reach completed' },
+      {
+        // 90s, previously 60s and 30s. This polls a real background worker on a
+        // runner already hosting nine containers, so the deadline only bounds
+        // how long the worker may take — the assertion is the counts below.
+        //
+        // The bumps were never the fix, and neither is this one. Six CI
+        // failures blamed on a slow worker were actually the import SETTLING at
+        // `completed_with_issues` with the relink item cancelled
+        // (`authorization_changed`) — a status this wait could never match. The
+        // fixes are the two options below: `bailWait` above turns that into an
+        // instant, self-explaining failure, and `diagnose` names the state on a
+        // genuine timeout.
+        timeoutMs: 90_000,
+        description: 'v2 import to reach completed',
+        diagnose: async () =>
+          callServerFnGet<ImportProgressDto>(page, {
+            file: SERVER_FILE,
+            exportName: 'getPropertyImportV2Status',
+            data: { importJobId: started.importJobId },
+          }),
+      },
     )
     expect(progress.counts.imported).toBe(1)
     expect(progress.counts.relinked).toBe(1)

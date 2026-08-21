@@ -200,7 +200,7 @@ describe('prepared AI invocation', () => {
         createDescriptor: descriptor,
         requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
-    ).toThrow()
+    ).toThrow(new TypeError('Prepared AI value has an unsafe property: unsafe'))
     expect(() =>
       createPreparedAiInvocation({
         sourceBytes: Uint8Array.of(1),
@@ -209,7 +209,7 @@ describe('prepared AI invocation', () => {
         createDescriptor: descriptor,
         requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
-    ).toThrow()
+    ).toThrow(new TypeError('Prepared AI value has an unsupported property: unsafe'))
     expect(() =>
       createPreparedAiInvocation({
         sourceBytes: Uint8Array.of(1),
@@ -218,7 +218,9 @@ describe('prepared AI invocation', () => {
         createDescriptor: (facts) => descriptor({ ...facts, preparedDigest: SHA }),
         requestBindingKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
       }),
-    ).toThrow()
+    ).toThrow(
+      new TypeError('Prepared AI descriptor changed derived field: preparedDigest'),
+    )
     expect(() =>
       createPreparedAiInvocation({
         sourceBytes: Uint8Array.of(1),
