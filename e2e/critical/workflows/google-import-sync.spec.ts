@@ -26,6 +26,7 @@ import {
   callServerFnGet,
   dbQuery,
   waitFor,
+  bailWait,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-imp-'
@@ -163,7 +164,11 @@ test.describe('Critical workflow: Google import + initial sync', () => {
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
     page,
   }) => {
-    test.setTimeout(120_000)
+    // 180s: the import wait below may legitimately consume 90s of it, and
+    // discovery, create, relink and replay all run before that. At 120s a slow
+    // worker blew the TEST budget instead of the wait's, which reported as a
+    // bare Playwright timeout with no import status at all.
+    test.setTimeout(180_000)
     await installPagedProviderScope()
 
     const admin = await getUserByEmail(seed.email)
@@ -318,14 +323,36 @@ test.describe('Critical workflow: Google import + initial sync', () => {
           exportName: 'getPropertyImportV2Status',
           data: { importJobId: started.importJobId },
         })
-        return current.status === 'completed' ? current : null
+        if (current.status === 'completed') return current
+        // Only `queued` and `processing` can still become `completed`. Every
+        // other parent status is terminal, so waiting on is waste: report the
+        // mismatch now, with the item outcomes that explain it.
+        if (current.status !== 'queued' && current.status !== 'processing') {
+          bailWait('v2 import', current)
+        }
+        return null
       },
-      // 60s, not 30s: this polls a background worker import to completion on a
-      // runner already hosting nine containers, and it timed out at ~34s in CI
-      // while passing locally. The assertion is eventual completion with the
-      // exact counts below — the deadline only bounds how long the worker may
-      // take, not what must be true when it finishes.
-      { timeoutMs: 60_000, description: 'v2 import to reach completed' },
+      {
+        // 90s, previously 60s and 30s. This polls a real background worker on a
+        // runner already hosting nine containers, so the deadline only bounds
+        // how long the worker may take — the assertion is the counts below.
+        //
+        // The bumps were never the fix, and neither is this one. Six CI
+        // failures blamed on a slow worker were actually the import SETTLING at
+        // `completed_with_issues` with the relink item cancelled
+        // (`authorization_changed`) — a status this wait could never match. The
+        // fixes are the two options below: `bailWait` above turns that into an
+        // instant, self-explaining failure, and `diagnose` names the state on a
+        // genuine timeout.
+        timeoutMs: 90_000,
+        description: 'v2 import to reach completed',
+        diagnose: async () =>
+          callServerFnGet<ImportProgressDto>(page, {
+            file: SERVER_FILE,
+            exportName: 'getPropertyImportV2Status',
+            data: { importJobId: started.importJobId },
+          }),
+      },
     )
     expect(progress.counts.imported).toBe(1)
     expect(progress.counts.relinked).toBe(1)
