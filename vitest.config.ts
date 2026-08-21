@@ -90,6 +90,11 @@ export default defineConfig({
             'src/**/*.test.ts',
             'services/**/*.test.ts',
             'e2e/fixtures/**/*.test.ts',
+            // The e2e HELPERS are ordinary Node modules with no browser
+            // dependency (polling, allowlist bookkeeping, raw SQL builders), and
+            // bugs in them present as product-spec failures in the slowest job
+            // in CI. `e2e/fixtures/**` was already here for the same reason.
+            'e2e/helpers/**/*.test.ts',
           ],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',
