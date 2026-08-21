@@ -6,19 +6,11 @@
 // Sibling guards: atomic-review-outbox.test.ts (BQC-3.3), atomic-inbox-outbox.test.ts (BQC-3.4).
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 const FAMILIES = [
   {

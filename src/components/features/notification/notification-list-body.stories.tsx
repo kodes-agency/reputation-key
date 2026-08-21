@@ -102,6 +102,16 @@ export const GroupedByProperty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(
+      // Same property-heading sweep as notification-page.stories.tsx: the
+      // fixture property names ARE the assertion, and this story proves the
+      // list body renders them as level-2 headings while the page story
+      // proves the assembled page does — both need the literals in view.
+      // A shared sweep helper would put the expected names one indirection
+      // away from whichever story fails, and tie the body's contract to the
+      // page's, so a page-only change would start editing this story.
+      // Revisit if the property fixtures grow a canonical expected-headings
+      // export both stories can assert against.
+      // fallow-ignore-next-line code-duplication
       canvas.getByRole('heading', { level: 2, name: 'Riverside Hotel' }),
     ).toBeInTheDocument()
     expect(

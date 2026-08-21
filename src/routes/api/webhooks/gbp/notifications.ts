@@ -11,8 +11,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { JOSEError } from 'jose/errors'
 import { z, ZodError } from 'zod'
 import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
-import { getEnv } from '#/shared/config/env'
+import { getEnv, type Env } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import type pino from 'pino'
 import { trace } from '#/shared/observability/trace'
 // eslint-disable-next-line boundaries/dependencies -- webhook routes delegate directly to context handlers
 import { handleGbpNotification } from '#/contexts/integration/infrastructure/handlers/gbp-notification-handler'
@@ -38,6 +39,142 @@ const gbpNotificationPayloadSchema = z.object({
  */
 let warnedUnpinnedPusher = false
 
+/** The three facts the notification handler needs out of a push envelope. */
+type GbpPushNotification = Readonly<{
+  locationId: string
+  locationName: string
+  messageId: string
+}>
+
+/**
+ * Authenticate a Pub/Sub push. Returns the 401 Response to send, or null when
+ * the push is genuine.
+ *
+ * Audience verification alone accepts ANY Google-issued OIDC token minted for
+ * our audience — including one from an unrelated GCP project — because Google
+ * is the issuer for all of them. The subscription's push service account is
+ * the only thing that distinguishes our publisher, so when it is configured a
+ * mismatch is a forged/misrouted push and gets the same 401 as a bad signature.
+ */
+async function rejectInauthenticPush(
+  request: Request,
+  env: Env,
+  logger: pino.Logger,
+): Promise<Response | null> {
+  const authHeader = request.headers.get('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    return Response.json(
+      {
+        error: 'Unauthorized',
+        message: 'Missing or invalid Authorization header',
+      },
+      { status: 401 },
+    )
+  }
+
+  const token = authHeader.slice(7)
+  const audience = env.GBP_PUBSUB_AUDIENCE ?? 'https://reputationkey.app/webhooks/gbp'
+  const verified = await verifyPubSubJwt(token, audience)
+
+  const expectedPusher = env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT
+  if (!expectedPusher) {
+    if (!warnedUnpinnedPusher) {
+      warnedUnpinnedPusher = true
+      logger.warn(
+        { envVar: 'GBP_PUBSUB_PUSH_SERVICE_ACCOUNT' },
+        'GBP webhook pushing identity is unpinned; any Google-issued OIDC token for this audience is accepted',
+      )
+    }
+    return null
+  }
+
+  if (verified.email !== expectedPusher) {
+    // BQC-1.6: neither the presented nor the expected email is logged —
+    // both are identities. Booleans are enough to tell "wrong service
+    // account" from "no email claim at all".
+    logger.warn(
+      { hasEmailClaim: verified.email !== '' },
+      'Webhook rejected: Pub/Sub push identity does not match GBP_PUBSUB_PUSH_SERVICE_ACCOUNT',
+    )
+    return Response.json(
+      { error: 'Unauthorized', message: 'Unrecognized Pub/Sub push identity' },
+      { status: 401 },
+    )
+  }
+
+  return null
+}
+
+/**
+ * Decode the push envelope down to the notification facts. Returns the 400
+ * Response to send when the envelope is structurally present but unusable, or
+ * the decoded notification.
+ *
+ * A bad JSON body or base64 blob throws (SyntaxError/ZodError) rather than
+ * returning; the caller maps those to the same 400.
+ */
+async function readPushNotification(
+  request: Request,
+  logger: pino.Logger,
+): Promise<Response | GbpPushNotification> {
+  const body = pubSubBodySchema.parse(await request.json())
+
+  if (!body.message?.data) {
+    // BQC-1.6: no raw body in logs — the data blob carries GBP resource
+    // names (provider identifiers). Message ID only.
+    logger.warn(
+      { messageId: body.message?.messageId },
+      'Webhook received malformed message — missing message.data',
+    )
+    return Response.json(
+      {
+        error: 'Bad Request',
+        message: 'Missing message.data in Pub/Sub payload',
+      },
+      { status: 400 },
+    )
+  }
+
+  const payload = gbpNotificationPayloadSchema.parse(
+    JSON.parse(Buffer.from(body.message.data, 'base64').toString('utf-8')),
+  )
+
+  if (!payload.locationName || !payload.reviewName) {
+    // BQC-1.6: no decoded payload in logs — booleans only.
+    logger.warn(
+      {
+        hasLocationName: Boolean(payload.locationName),
+        hasReviewName: Boolean(payload.reviewName),
+      },
+      'Webhook received incomplete notification',
+    )
+    return Response.json(
+      {
+        error: 'Bad Request',
+        message: 'Missing locationName or reviewName in notification payload',
+      },
+      { status: 400 },
+    )
+  }
+
+  // Extract locationId from locationName
+  const locationId = payload.locationName.split('/').pop()
+  if (!locationId) {
+    // BQC-1.6: no GBP resource name in logs.
+    logger.warn('Could not extract location ID from notification')
+    return Response.json(
+      { error: 'Bad Request', message: 'Invalid locationName format' },
+      { status: 400 },
+    )
+  }
+
+  return {
+    locationId,
+    locationName: payload.locationName,
+    messageId: body.message.messageId ?? 'unknown',
+  }
+}
+
 /**
  * POST handler for GBP Pub/Sub push notifications. Extracted from the Route
  * definition so it is directly testable without spinning up the TanStack route
@@ -55,109 +192,16 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
     const env = getEnv()
 
     try {
-      // 1. Verify JWT from Google Pub/Sub push
-      const authHeader = request.headers.get('Authorization')
-      if (!authHeader?.startsWith('Bearer ')) {
-        return Response.json(
-          {
-            error: 'Unauthorized',
-            message: 'Missing or invalid Authorization header',
-          },
-          { status: 401 },
-        )
-      }
+      // 1. Verify the JWT and pin the pushing identity
+      const rejection = await rejectInauthenticPush(request, env, logger)
+      if (rejection) return rejection
 
-      const token = authHeader.slice(7)
-      const audience = env.GBP_PUBSUB_AUDIENCE ?? 'https://reputationkey.app/webhooks/gbp'
-      const verified = await verifyPubSubJwt(token, audience)
+      // 2. Parse the push message and extract locationId
+      const notification = await readPushNotification(request, logger)
+      if (notification instanceof Response) return notification
 
-      // 1b. Pin the pushing identity. Audience verification alone accepts ANY
-      // Google-issued OIDC token minted for our audience — including one from
-      // an unrelated GCP project — because Google is the issuer for all of
-      // them. The subscription's push service account is the only thing that
-      // distinguishes our publisher, so when it is configured a mismatch is a
-      // forged/misrouted push and gets the same 401 as a bad signature.
-      const expectedPusher = env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT
-      if (expectedPusher) {
-        if (verified.email !== expectedPusher) {
-          // BQC-1.6: neither the presented nor the expected email is logged —
-          // both are identities. Booleans are enough to tell "wrong service
-          // account" from "no email claim at all".
-          logger.warn(
-            { hasEmailClaim: verified.email !== '' },
-            'Webhook rejected: Pub/Sub push identity does not match GBP_PUBSUB_PUSH_SERVICE_ACCOUNT',
-          )
-          return Response.json(
-            { error: 'Unauthorized', message: 'Unrecognized Pub/Sub push identity' },
-            { status: 401 },
-          )
-        }
-      } else if (!warnedUnpinnedPusher) {
-        warnedUnpinnedPusher = true
-        logger.warn(
-          { envVar: 'GBP_PUBSUB_PUSH_SERVICE_ACCOUNT' },
-          'GBP webhook pushing identity is unpinned; any Google-issued OIDC token for this audience is accepted',
-        )
-      }
-
-      // 2. Parse Pub/Sub push message
-      const body = pubSubBodySchema.parse(await request.json())
-
-      if (!body.message?.data) {
-        // BQC-1.6: no raw body in logs — the data blob carries GBP resource
-        // names (provider identifiers). Message ID only.
-        logger.warn(
-          { messageId: body.message?.messageId },
-          'Webhook received malformed message — missing message.data',
-        )
-        return Response.json(
-          {
-            error: 'Bad Request',
-            message: 'Missing message.data in Pub/Sub payload',
-          },
-          { status: 400 },
-        )
-      }
-
-      const payload = gbpNotificationPayloadSchema.parse(
-        JSON.parse(Buffer.from(body.message!.data, 'base64').toString('utf-8')),
-      )
-
-      if (!payload.locationName || !payload.reviewName) {
-        // BQC-1.6: no decoded payload in logs — booleans only.
-        logger.warn(
-          {
-            hasLocationName: Boolean(payload.locationName),
-            hasReviewName: Boolean(payload.reviewName),
-          },
-          'Webhook received incomplete notification',
-        )
-        return Response.json(
-          {
-            error: 'Bad Request',
-            message: 'Missing locationName or reviewName in notification payload',
-          },
-          { status: 400 },
-        )
-      }
-
-      // 3. Extract locationId from locationName
-      const locationId = payload.locationName.split('/').pop()
-      if (!locationId) {
-        // BQC-1.6: no GBP resource name in logs.
-        logger.warn('Could not extract location ID from notification')
-        return Response.json(
-          { error: 'Bad Request', message: 'Invalid locationName format' },
-          { status: 400 },
-        )
-      }
-
-      // 4. Delegate business logic to server function
-      const result = await handleGbpNotification({
-        locationId,
-        locationName: payload.locationName,
-        messageId: body.message?.messageId ?? 'unknown',
-      })
+      // 3. Delegate business logic to server function
+      const result = await handleGbpNotification(notification)
 
       // 2xx acknowledges receipt — Pub/Sub will not retry this message.
       return Response.json({ ok: true, enqueued: result.enqueued }, { status: 200 })

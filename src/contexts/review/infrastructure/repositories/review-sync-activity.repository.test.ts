@@ -80,6 +80,15 @@ describe('reviewSyncActivityRecorder (integration)', () => {
     await pool.query(
       `INSERT INTO review_sync_state (property_id, source, next_incremental_at, updated_at)
        VALUES ($1, 'google', $2, NOW())`,
+      // The remainder of this test matches 'sets the next poll on a push for a
+      // property that had none': same recordPushObserved call, same two column
+      // assertions. Only the arrange differs, and the arrange is the subject —
+      // this one seeds a far-future parked poll to prove it is pulled forward,
+      // the other seeds no row at all to prove one is created. A shared
+      // assertion helper would separate the expected columns from the seeded
+      // precondition that explains them. Revisit if the push-stamp cases grow
+      // past a handful: then a table of seeded → expected next_incremental_at.
+      // fallow-ignore-next-line code-duplication
       [PROP, parkedAt],
     )
 

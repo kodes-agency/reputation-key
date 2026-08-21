@@ -79,6 +79,15 @@ describe('sync-property-reviews snapshot handler', () => {
     expect(runSnapshot).not.toHaveBeenCalled()
   })
 
+  // This arrange repeats verbatim in the two tests below. The handler deps are
+  // the fixture, not the subject: each test varies the job's initiator (push
+  // here, sweep and continuation below) and asserts a different
+  // recordPushObserved outcome from it. Lifting the builder into a beforeEach
+  // would share one syncActivity spy across tests whose whole subject is
+  // whether that spy was called, and would put the premise off screen when one
+  // of them fails. Revisit if a fourth initiator lands — then drive
+  // (initiator, expectation) as a table over a single builder.
+  // fallow-ignore-next-line code-duplication
   it('stamps push liveness and un-parks the next poll for a webhook-initiated sync', async () => {
     const syncActivity = makeSyncActivity()
     const handler = createSyncPropertyReviewsHandler({
@@ -106,6 +115,14 @@ describe('sync-property-reviews snapshot handler', () => {
     )
   })
 
+  // Same deliberate per-initiator builder as the webhook test above (see the
+  // reasoning there): three tests share the handler-construction shape and
+  // differ only in the initiator they feed it and the recordPushObserved
+  // outcome they expect. A second directive is needed because the group has
+  // three members — suppressing one instance still leaves the other two
+  // matching each other. Retire both when the fourth initiator turns these
+  // into an (initiator, expectation) table.
+  // fallow-ignore-next-line code-duplication
   it('does not stamp push liveness for a sweep-initiated sync', async () => {
     const syncActivity = makeSyncActivity()
     const handler = createSyncPropertyReviewsHandler({

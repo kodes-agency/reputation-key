@@ -24,6 +24,14 @@ const mocks = vi.hoisted(() => ({
   // per request.
   env: {
     GBP_PUBSUB_AUDIENCE: 'https://test.example/webhooks/gbp',
+    // This property and the trace/logger/env mocks below it match the tail of
+    // src/routes/api/webhooks/resend/-events.test.ts; the hoisted bundles hold
+    // different keys and only their closing lines coincide. The mocks cannot
+    // move into a helper — Vitest hoists vi.mock factories above the imports
+    // they replace, per test file — and the trace stub has to stay a
+    // pass-through here so the handler body runs inline under the assertions.
+    // Revisit if a shared setupFiles mock for trace and logger ever lands.
+    // fallow-ignore-next-line code-duplication
     GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: undefined as string | undefined,
   },
 }))

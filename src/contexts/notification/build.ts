@@ -41,10 +41,13 @@ import {
 import { createNotificationPreference } from './domain/constructors-preference'
 import { notificationError } from './domain/errors'
 import type {
+  Notification,
   NotificationCadence,
   NotificationCategory,
   NotificationChannel,
 } from './domain/types'
+import type { NotificationError } from './domain/errors'
+import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 type BuildInput = Readonly<{
@@ -70,6 +73,34 @@ export const buildNotificationContext = (input: BuildInput) => {
   const userLookup = createDbUserLookupAdapter(input.db, input.propertyAccessHolders)
   const inboxItemLookup = createInboxItemLookupAdapter(input.db)
   const recognitionLookup = createRecognitionLookupAdapter(input.db)
+
+  /**
+   * The guard every single-notification mutation shares: load the row, prove
+   * it belongs to the caller, then apply the domain transition. Returns the
+   * transition's timestamp, or null when the transition is a no-op so the
+   * caller skips its write. A wrong or foreign id throws `not_found`.
+   *
+   * Factored because these three paths MUST NOT drift: an ownership check
+   * present in two of them and missing from the third is a cross-tenant write,
+   * and that is exactly the kind of difference three near-identical inline
+   * copies hide.
+   */
+  const applyOwnedTransition = async (
+    id: string,
+    orgId: string,
+    userId: UserId,
+    transition: (
+      notification: Notification,
+      clock: () => Date,
+    ) => Result<Notification, NotificationError>,
+  ): Promise<Date | null> => {
+    const n = await notificationRepo.findById(id, orgId)
+    if (!n || n.userId !== userId) {
+      throw notificationError('not_found', 'Notification not found or access denied')
+    }
+    const now = input.clock()
+    return transition(n, () => now).isErr() ? null : now
+  }
 
   // Register event handlers that enqueue BullMQ jobs.
   // BQC-3.6: the queue is wrapped so every insert-notification enqueue
@@ -164,13 +195,8 @@ export const buildNotificationContext = (input: BuildInput) => {
     getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
       notificationRepo.findByUser(userId, orgId, limit, offset),
     markRead: async (id: string, orgId: string, userId: UserId) => {
-      const n = await notificationRepo.findById(id, orgId)
-      if (!n || n.userId !== userId) {
-        throw notificationError('not_found', 'Notification not found or access denied')
-      }
-      const now = input.clock()
-      const result = markNotificationRead(n, () => now)
-      if (result.isErr()) return // invalid transition, skip
+      const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
+      if (now === null) return // invalid transition, skip
       await notificationRepo.markRead(id, userId, orgId, now, now)
     },
     /**
@@ -182,13 +208,8 @@ export const buildNotificationContext = (input: BuildInput) => {
      * to do. A wrong or foreign id still throws `not_found`.
      */
     markUnread: async (id: string, orgId: string, userId: UserId) => {
-      const n = await notificationRepo.findById(id, orgId)
-      if (!n || n.userId !== userId) {
-        throw notificationError('not_found', 'Notification not found or access denied')
-      }
-      const now = input.clock()
-      const result = markNotificationUnread(n, () => now)
-      if (result.isErr()) return null // invalid transition, skip
+      const now = await applyOwnedTransition(id, orgId, userId, markNotificationUnread)
+      if (now === null) return null // invalid transition, skip
       return notificationRepo.markUnread(id, userId, orgId, now)
     },
     markAllRead: (userId: string, orgId: string) => {
@@ -200,13 +221,8 @@ export const buildNotificationContext = (input: BuildInput) => {
       return notificationRepo.markAllDismissed(userId, orgId, now)
     },
     dismiss: async (id: string, orgId: string, userId: UserId) => {
-      const n = await notificationRepo.findById(id, orgId)
-      if (!n || n.userId !== userId) {
-        throw notificationError('not_found', 'Notification not found or access denied')
-      }
-      const now = input.clock()
-      const result = dismissNotification(n, () => now)
-      if (result.isErr()) return // invalid transition, skip
+      const now = await applyOwnedTransition(id, orgId, userId, dismissNotification)
+      if (now === null) return // invalid transition, skip
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
     getPreferences: (userId: string, orgId: string) => prefRepo.findByUser(userId, orgId),

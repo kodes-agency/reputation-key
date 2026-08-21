@@ -9,19 +9,11 @@
 // exception; this scan covers job handler files only.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 describe('BQC-3.2 delayed policy delegation', () => {
   it('no *.job.ts handler file imports or calls the capability gate directly', () => {

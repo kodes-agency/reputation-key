@@ -678,6 +678,19 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
+  // Accepted residual: a provider-boundary reader that must not trust anything
+  // it is handed. The code paths are an exact-key check, six identifier/range
+  // validations, transport selection, and per-status provider error mapping —
+  // each one a distinct way Google or a caller can be wrong, and every one has
+  // to stay ahead of the parse. Already over both thresholds on main; this
+  // branch added a single line, the `assertDirectEgressAllowed?.('reviews.get')`
+  // fail-closed guard for the direct-fetch fallback. Collapsing the validation
+  // ladder into a helper would hide exactly which input was rejected, which is
+  // the one thing this function exists to report.
+  // Revisit if the validation ladder is ever shared with listReviewsPage and
+  // reviews.reply — three copies would justify a validated-input type that all
+  // three parse into once, and would drop all three functions at the same time.
+  // fallow-ignore-next-line complexity
   const getReview: GoogleReviewApiPort['getReview'] = async (input) => {
     if (
       !exactKeys(input, [

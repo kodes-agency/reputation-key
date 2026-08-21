@@ -28,6 +28,18 @@ type Props = Readonly<{
   actions: NotificationRowActions
 }>
 
+// Cognitive-only finding, and it measures JSX nesting rather than logic here:
+// cyclomatic is 3 against a threshold of 22. A dropdown is atomic — trigger
+// and items only ever exist together — so the only split on offer is "the
+// items", a component that could never be rendered anywhere else. The two
+// conditionals (read vs unread item, and mandatory categories not offering a
+// mute) ARE this menu's reason to exist; hiding them one level down would cost
+// a reader the whole picture. This shape is the norm rather than the exception
+// in this repo: 126 components exceed the cognitive threshold, none suppressed,
+// including notification-popover-content.tsx in this same directory.
+// Revisit when the CYCLOMATIC number climbs — real branching arriving here
+// means the menu grew logic worth extracting. A deeper markup tree does not.
+// fallow-ignore-next-line complexity
 export function NotificationRowMenu({
   notification,
   categoryLabel,

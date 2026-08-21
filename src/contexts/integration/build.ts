@@ -282,6 +282,20 @@ export type IntegrationContextApi = Readonly<{
   }>
 }>
 
+// Accepted residual: this is the integration context's composition root, and
+// its 47 code paths are 47 optional dependencies, not 47 decisions — the same
+// per-dependency override shape createContainer carries in src/composition.ts.
+// Already over both thresholds on main; this branch added only wiring
+// (`gbpSubscribeBackfill`, and `subscribeToNotifications` passed into the
+// import processor), no new branching. Extraction here does not reduce
+// complexity, it scatters it: the value of a composition root is that every
+// binding is legible in ONE place, and splitting it into per-area builders
+// would trade a high metric for real indirection while a reviewer's question
+// ("what is this port wired to?") gets harder to answer.
+// Revisit when this function starts making POLICY decisions rather than
+// choosing implementations — branching on tenant state or request shape is the
+// signal it has stopped being wiring.
+// fallow-ignore-next-line complexity
 export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   // ── Cross-context port implementations (wiring layer) ──────────
   // Delegated through PropertyPublicApi — no direct schema imports.

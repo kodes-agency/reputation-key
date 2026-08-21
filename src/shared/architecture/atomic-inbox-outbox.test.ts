@@ -5,19 +5,11 @@
 // or plain events.emit.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 describe('BQC-3.4: atomic inbox outbox producer', () => {
   it('no inbox-context source file uses emitAndRecord (all facts via the command store)', () => {

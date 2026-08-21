@@ -40,6 +40,14 @@ describe('renderNotification — invariants across every type', () => {
     const r = renderNotification(type, {})
 
     expect(r.title.trim()).not.toBe('')
+    // The per-field sweep below is a per-template invariant check: it.each runs
+    // it for every NotificationType, and it is written out again for the full
+    // payload because the two shapes do not share the same invariants — only an
+    // empty-payload render can be asserted to carry no dangling punctuation from
+    // a dropped optional clause. A shared helper would need a flag selecting
+    // which invariants apply and would report failures at the helper's line
+    // instead of the template shape under test. Revisit if the sets converge.
+    // fallow-ignore-next-line code-duplication
     expect(r.actionLabel.trim()).not.toBe('')
     // A missing-metadata render must not leak the template's seams.
     for (const field of [r.title, r.body, r.actionLabel, r.summary]) {

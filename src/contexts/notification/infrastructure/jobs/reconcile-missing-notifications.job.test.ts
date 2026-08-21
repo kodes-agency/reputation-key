@@ -346,6 +346,13 @@ describe('reconcile-missing-notifications sweep', () => {
     ).resolves.toBe(1)
   })
 
+  // Both channel-gate tests hand the sweep's own enqueued job data to
+  // insertNotification; they differ in which channels the preference disables and
+  // therefore in what they assert (in-app row still written vs nothing written at
+  // all). Sharing the arrange would need a helper parameterised by which channel
+  // is off plus the expected outcome, which is just both tests restated through
+  // indirection. Revisit if a third delivery channel joins the gate.
+  // fallow-ignore-next-line code-duplication
   it('does not backfill mail to a user who turned the email channel off', async () => {
     // The sweep enqueues; the insert-notification use case is what runs next.
     // Feeding it the sweep's own job data proves the backfill goes through the

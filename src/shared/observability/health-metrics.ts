@@ -400,6 +400,110 @@ async function readNotificationEmailMetrics(
 }
 
 /**
+ * Review content lifecycle health: how many reviews carry a content expiry,
+ * how many are inside the refresh window, how many already expired, and how
+ * close the nearest hard expiry is (columns from migration 0006 / Drizzle).
+ */
+async function readReviewContentMetrics(
+  db: Database,
+): Promise<HealthSnapshot['reviews']> {
+  const result = await db
+    .select({
+      total: sql<number>`
+        count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
+      `,
+      refresh_due: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviews.contentExpiresAt} IS NOT NULL
+            AND ${reviews.lastFetchedAt} IS NOT NULL
+            AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+        )::int
+      `,
+      expired: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviews.contentExpiresAt} IS NOT NULL
+            AND ${reviews.contentExpiresAt} < NOW()
+        )::int
+      `,
+      // BQC-1.5: oldest refresh-due expiry age (seconds until the
+      // nearest hard expiry among refresh-due rows; alert input for
+      // "before the policy deadline"). NULL when nothing is due.
+      oldest_due_age_seconds: sql<number>`
+        extract(epoch from (
+          min(${reviews.contentExpiresAt}) FILTER (
+            WHERE ${reviews.contentExpiresAt} IS NOT NULL
+              AND ${reviews.lastFetchedAt} IS NOT NULL
+              AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
+              AND ${reviews.contentExpiresAt} >= NOW()
+          ) - NOW()
+        ))::int
+      `,
+    })
+    .from(reviews)
+
+  const row = result[0]
+  return {
+    totalActive: row?.total ?? 0,
+    refreshDueCount: row?.refresh_due ?? 0,
+    expiredCount: row?.expired ?? 0,
+    /** BQC-1.5: seconds until the nearest hard expiry among
+     *  refresh-due rows (null when nothing is due). */
+    oldestDueAgeSeconds: row?.oldest_due_age_seconds ?? null,
+  }
+}
+
+/**
+ * Discovery sweep health: how many properties are past their poll time, how
+ * many are in error backoff, and how far behind the sweep has fallen
+ * (migration 0007 / Drizzle).
+ *
+ * `gbpPushEnabled` is a readiness fact the database cannot answer, so the
+ * composition root supplies it — threaded through here the same way
+ * `emailDeliveryEnabled` is threaded through the notification-email read.
+ */
+async function readSyncStateMetrics(
+  db: Database,
+  gbpPushEnabled: boolean,
+): Promise<HealthSnapshot['sync']> {
+  const result = await db
+    .select({
+      due: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
+            AND ${reviewSyncState.nextIncrementalAt} < NOW()
+        )::int
+      `,
+      failed: sql<number>`
+        count(*) FILTER (
+          WHERE ${reviewSyncState.errorClass} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} IS NOT NULL
+            AND ${reviewSyncState.errorRetryAt} < NOW()
+        )::int
+      `,
+      // How far behind the discovery sweep is: the age of the oldest
+      // past-due poll time. next_incremental_at is always written in
+      // the future by the sync/backoff path, so a positive age here is
+      // purely sweep lag (the poll interval is already priced in).
+      oldest_due_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${reviewSyncState.nextIncrementalAt}) FILTER (
+          WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
+            AND ${reviewSyncState.nextIncrementalAt} < NOW()
+        ))) * 1000
+      `,
+    })
+    .from(reviewSyncState)
+
+  const row = result[0]
+  return {
+    dueForIncrementalCount: row?.due ?? 0,
+    failedSyncCount: row?.failed ?? 0,
+    oldestDueAgeMs:
+      row?.oldest_due_age_ms != null ? Math.round(Number(row.oldest_due_age_ms)) : null,
+    gbpPushEnabled,
+  }
+}
+
+/**
  * Create a health checker that queries operational metrics from the database.
  */
 export function createHealthChecker(
@@ -433,72 +537,10 @@ export function createHealthChecker(
           : null
 
         // Review content lifecycle metrics (columns from migration 0006 / Drizzle)
-        const reviewResult = await db
-          .select({
-            total: sql<number>`
-              count(*) FILTER (WHERE ${reviews.contentExpiresAt} IS NOT NULL)::int
-            `,
-            refresh_due: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                  AND ${reviews.lastFetchedAt} IS NOT NULL
-                  AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
-              )::int
-            `,
-            expired: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                  AND ${reviews.contentExpiresAt} < NOW()
-              )::int
-            `,
-            // BQC-1.5: oldest refresh-due expiry age (seconds until the
-            // nearest hard expiry among refresh-due rows; alert input for
-            // "before the policy deadline"). NULL when nothing is due.
-            oldest_due_age_seconds: sql<number>`
-              extract(epoch from (
-                min(${reviews.contentExpiresAt}) FILTER (
-                  WHERE ${reviews.contentExpiresAt} IS NOT NULL
-                    AND ${reviews.lastFetchedAt} IS NOT NULL
-                    AND NOW() > (${reviews.lastFetchedAt} + INTERVAL '25 days')
-                    AND ${reviews.contentExpiresAt} >= NOW()
-                ) - NOW()
-              ))::int
-            `,
-          })
-          .from(reviews)
-
-        const reviewRow = reviewResult[0]
+        const reviewMetrics = await readReviewContentMetrics(db)
 
         // Sync state metrics (migration 0007 / Drizzle)
-        const syncResult = await db
-          .select({
-            due: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
-                  AND ${reviewSyncState.nextIncrementalAt} < NOW()
-              )::int
-            `,
-            failed: sql<number>`
-              count(*) FILTER (
-                WHERE ${reviewSyncState.errorClass} IS NOT NULL
-                  AND ${reviewSyncState.errorRetryAt} IS NOT NULL
-                  AND ${reviewSyncState.errorRetryAt} < NOW()
-              )::int
-            `,
-            // How far behind the discovery sweep is: the age of the oldest
-            // past-due poll time. next_incremental_at is always written in
-            // the future by the sync/backoff path, so a positive age here is
-            // purely sweep lag (the poll interval is already priced in).
-            oldest_due_age_ms: sql<number | null>`
-              EXTRACT(EPOCH FROM (NOW() - MIN(${reviewSyncState.nextIncrementalAt}) FILTER (
-                WHERE ${reviewSyncState.nextIncrementalAt} IS NOT NULL
-                  AND ${reviewSyncState.nextIncrementalAt} < NOW()
-              ))) * 1000
-            `,
-          })
-          .from(reviewSyncState)
-
-        const syncRow = syncResult[0]
+        const syncMetrics = await readSyncStateMetrics(db, deps?.gbpPushEnabled === true)
 
         // BQC-7.3: reply publication-state counts + ambiguity age (0015).
         const replyPublication = await readReplyPublicationMetrics(db)
@@ -523,23 +565,8 @@ export function createHealthChecker(
           timestamp: now.toISOString(),
           outbox: outboxMetrics,
           quarantine: quarantineMetrics,
-          reviews: {
-            totalActive: reviewRow?.total ?? 0,
-            refreshDueCount: reviewRow?.refresh_due ?? 0,
-            expiredCount: reviewRow?.expired ?? 0,
-            /** BQC-1.5: seconds until the nearest hard expiry among
-             *  refresh-due rows (null when nothing is due). */
-            oldestDueAgeSeconds: reviewRow?.oldest_due_age_seconds ?? null,
-          },
-          sync: {
-            dueForIncrementalCount: syncRow?.due ?? 0,
-            failedSyncCount: syncRow?.failed ?? 0,
-            oldestDueAgeMs:
-              syncRow?.oldest_due_age_ms != null
-                ? Math.round(Number(syncRow.oldest_due_age_ms))
-                : null,
-            gbpPushEnabled: deps?.gbpPushEnabled === true,
-          },
+          reviews: reviewMetrics,
+          sync: syncMetrics,
           notifications,
           replyPublication,
           workers: {

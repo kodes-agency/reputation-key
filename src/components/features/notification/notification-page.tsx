@@ -33,6 +33,57 @@ import type { NotificationRowActions, NotificationServerFns } from './types'
 
 const PAGE_SIZE = 50
 
+/**
+ * The header's bulk-action toolbar. Lifted out of the `actions=` prop so the
+ * PageHeader call reads as a header rather than as a nested toolbar, and so
+ * each button's disabled rule sits next to the others it must stay consistent
+ * with.
+ */
+function NotificationPageActions({
+  onMarkAllRead,
+  onClearAll,
+  isMarkingAllRead,
+  isClearingAll,
+  unreadCount,
+  totalCount,
+}: Readonly<{
+  onMarkAllRead: () => void
+  onClearAll: () => void
+  isMarkingAllRead: boolean
+  isClearingAll: boolean
+  unreadCount: number
+  totalCount: number
+}>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onMarkAllRead}
+        disabled={isMarkingAllRead || unreadCount === 0}
+      >
+        <CheckCheck aria-hidden="true" />
+        Mark all read
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onClearAll}
+        disabled={isClearingAll || totalCount === 0}
+      >
+        <Trash2 aria-hidden="true" />
+        Clear all
+      </Button>
+      <Button asChild variant="ghost" size="sm">
+        <Link to="/settings/notifications">
+          <Settings2 aria-hidden="true" />
+          Preferences
+        </Link>
+      </Button>
+    </div>
+  )
+}
+
 type Props = Readonly<{
   notificationFns: NotificationServerFns
   organizationId: string
@@ -91,32 +142,14 @@ export function NotificationPage({
         title="Notifications"
         description="Everything still addressed to you, newest first. Dismissed items and muted categories are not listed."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={mutations.markAllRead}
-              disabled={mutations.isMarkingAllRead || count === 0}
-            >
-              <CheckCheck aria-hidden="true" />
-              Mark all read
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={mutations.clearAll}
-              disabled={mutations.isClearingAll || list.notifications.length === 0}
-            >
-              <Trash2 aria-hidden="true" />
-              Clear all
-            </Button>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/settings/notifications">
-                <Settings2 aria-hidden="true" />
-                Preferences
-              </Link>
-            </Button>
-          </div>
+          <NotificationPageActions
+            onMarkAllRead={mutations.markAllRead}
+            onClearAll={mutations.clearAll}
+            isMarkingAllRead={mutations.isMarkingAllRead}
+            isClearingAll={mutations.isClearingAll}
+            unreadCount={count}
+            totalCount={list.notifications.length}
+          />
         }
       />
       <NotificationAnnouncer announcement={announcement} />

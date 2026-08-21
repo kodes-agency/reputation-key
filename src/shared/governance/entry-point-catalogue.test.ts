@@ -42,18 +42,10 @@ import {
 import { userId, organizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
 const rel = (abs: string): string => relative(ROOT, abs)
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 const read = (abs: string): string => readFileSync(abs, 'utf8')
 

@@ -25,13 +25,33 @@ const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
 
-const loadedFns = makeNotificationFns({
+/**
+ * The two reads that make the panel non-empty. Extracted so the four stories
+ * that override one OTHER server fn do not each restate — and risk diverging
+ * on — the reads that give them a populated list. Keeps this file's casts where
+ * the header promises they live.
+ */
+const loadedReads = {
   getUnreadCount: (async () => ({
     count: unreadCount,
   })) as unknown as NotificationServerFns['getUnreadCount'],
   getList: (async () =>
     notificationFixtures) as unknown as NotificationServerFns['getList'],
-})
+}
+
+const loadedFns = makeNotificationFns(loadedReads)
+
+/**
+ * Click the real bell, then hand back queries scoped to `document.body`: Radix
+ * portals the popover OUTSIDE the story canvas, so `within(canvasElement)`
+ * cannot see any of the panel's content. Every story that asserts on that
+ * content starts here.
+ */
+const openPanel = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement)
+  await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
+  return within(document.body)
+}
 
 const meta: Meta<typeof NotificationPanel> = {
   title: 'Notification/NotificationPanel',
@@ -56,10 +76,7 @@ export const Default: Story = {
 /** Clicking the real bell opens the real popover. */
 export const OpensOnClick: Story = {
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    // Radix portals the popover outside the story canvas.
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     expect(
       await portal.findByRole('heading', { name: 'Notifications' }),
     ).toBeInTheDocument()
@@ -74,11 +91,7 @@ export const OpensOnClick: Story = {
 export const DismissRemovesRowOptimistically: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      ...loadedReads,
       // Never settles: anything the user sees change is purely optimistic.
       dismiss: (() =>
         Promise.withResolvers<void>()
@@ -86,9 +99,7 @@ export const DismissRemovesRowOptimistically: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     const before = (await portal.findAllByRole('listitem')).length
     await userEvent.click(portal.getAllByRole('button', { name: /^Dismiss:/ })[0])
     await waitFor(() => {
@@ -101,20 +112,14 @@ export const DismissRemovesRowOptimistically: Story = {
 export const MarkAllReadIsOptimistic: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      ...loadedReads,
       markAllRead: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['markAllRead'],
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     await userEvent.click(await portal.findByRole('button', { name: /mark all read/i }))
     await waitFor(() => {
       expect(portal.queryByRole('heading', { name: 'New' })).toBeNull()
@@ -147,9 +152,7 @@ export const ErrorState: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     expect(await portal.findByRole('button', { name: /retry/i })).toBeInTheDocument()
   },
 }
@@ -157,9 +160,7 @@ export const ErrorState: Story = {
 export const Empty: Story = {
   args: { notificationFns: makeNotificationFns() },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     expect(await portal.findByText(/nothing here right now/i)).toBeInTheDocument()
   },
 }
@@ -170,20 +171,14 @@ export const MuteCategory: Story = {
     notificationFns: (() => {
       const updatePreference = fn(async () => undefined)
       return makeNotificationFns({
-        getUnreadCount: (async () => ({
-          count: unreadCount,
-        })) as unknown as NotificationServerFns['getUnreadCount'],
-        getList: (async () =>
-          notificationFixtures) as unknown as NotificationServerFns['getList'],
+        ...loadedReads,
         updatePreference:
           updatePreference as unknown as NotificationServerFns['updatePreference'],
       })
     })(),
   },
   play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     await userEvent.click(
       (await portal.findAllByRole('button', { name: /^More actions for:/ }))[0],
     )
@@ -204,11 +199,7 @@ export const MuteCategory: Story = {
 export const HonoursPersistedLocale: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      ...loadedReads,
       getUserSettings: (async () => ({
         ...notificationUserSettingsFixture,
         locale: 'de-DE',
@@ -217,9 +208,7 @@ export const HonoursPersistedLocale: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
-    const portal = within(document.body)
+    const portal = await openPanel(canvasElement)
     await portal.findAllByRole('listitem')
     await waitFor(() => {
       expect(portal.getAllByText(/vor \d+ Minuten/).length).toBeGreaterThan(0)

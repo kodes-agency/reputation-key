@@ -777,6 +777,15 @@ describe('GoogleImportV2Processor', () => {
       receipts: [null, null, importedReceipt()],
       provisionPropertyCapabilitiesError: Object.assign(
         new Error('policy_version row is locked'),
+        // The error stub plus the process(...) call and the "import still
+        // committed" assertions match the subscribe-failure test below, but the
+        // two prove different isolations: this one that a locked policy_version
+        // row cannot cost the import its committed Property effect, that one
+        // that a GBP outage cannot. Folding them together needs a parameter
+        // naming which dependency was broken, and a red test would no longer
+        // say which isolation regressed. Revisit if a third dependency joins —
+        // three cases are a table, two are a coincidence of shape.
+        // fallow-ignore-next-line code-duplication
         { code: 'lock_timeout', name: 'PolicyStateError' },
       ),
     })

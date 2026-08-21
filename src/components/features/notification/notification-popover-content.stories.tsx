@@ -119,6 +119,16 @@ export const ErrorState: Story = {
 
 export const Empty: Story = {
   args: { groups: [], unreadCount: 0 },
+  // Structurally identical to page-states.stories.tsx's ErrorDefault play,
+  // and about something else: this asserts the popover's empty copy and that
+  // bulk actions disappear when there is nothing to act on, that one asserts
+  // the generic layout error copy and the absence of a retry button. Only
+  // the shape — find text, assert one control is absent — coincides.
+  // A shared helper would take the surface, the copy and the button name as
+  // parameters: three knobs to express two unrelated claims.
+  // Revisit if the popover and the layout page-states ever render the same
+  // empty-state component.
+  // fallow-ignore-next-line code-duplication
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/nothing here right now/i)).toBeInTheDocument()

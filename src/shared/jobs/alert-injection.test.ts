@@ -76,6 +76,17 @@ function healthySnapshot(): MutableSnapshot {
       stalledLeaseCount: 0,
     },
     quarantine: null,
+    // From here down this healthy OperationsSnapshot repeats the baseline in
+    // observability/alert-definitions.test.ts. An alert test's whole contract
+    // is WHICH snapshot values trip a threshold, so the baseline it perturbs
+    // has to be readable beside the assertion that reads it.
+    // One shared fixture would mean retuning the baseline for one alert
+    // silently changes the input of every other alert's test — and the two
+    // baselines already differ on purpose (quarantine, timestamps,
+    // migrationVersion, degraded).
+    // Revisit if a third consumer appears, or if the snapshot SHAPE (not its
+    // values) starts drifting from OperationsSnapshot.
+    // fallow-ignore-next-line code-duplication
     reviews: {
       totalActive: 10,
       refreshDueCount: 0,

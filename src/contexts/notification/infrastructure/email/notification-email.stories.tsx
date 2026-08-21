@@ -14,6 +14,22 @@ import { renderDigestEmail, renderNotificationEmail } from './render'
 const ACTION_URL = 'https://app.reputationkey.app/inbox?itemId=itm-2f9c'
 const PREFERENCES_URL = 'https://app.reputationkey.app/settings/notifications'
 
+// The preview shell below — subject card, `srcDoc` iframe, plain-text
+// disclosure — is duplicated in src/shared/email/transactional-email.stories.tsx.
+// Both story sets need the same three panes, and the two copies are already
+// tuned apart (780px frame for digests, the tallest document we render, against
+// 680px for the short account emails).
+//
+// Sharing it would move Storybook-only JSX into src/shared/email, where the
+// changed-code and coverage gates treat every module as product code and demand
+// a colocated test — and a rendering shell can only be asserted through JSX,
+// which the unit project (node, *.test.ts only) cannot run. A hole in a shared
+// gate is a worse trade than duplicated preview chrome: this markup cannot
+// change a delivered email, only how two story pages look.
+//
+// Revisit if a third surface needs the same preview, or if the shell grows
+// behaviour rather than markup — then it earns a Storybook-only home.
+// fallow-ignore-next-line code-duplication
 type PreviewProps = Readonly<{ subject: string; html: string; text: string }>
 
 const EmailPreview = ({ subject, html, text }: PreviewProps) => (

@@ -118,6 +118,17 @@ describe('health checker outbox metrics (BQC-3.7)', () => {
 describe('health checker quarantine metrics (BQC-3.7)', () => {
   it('counts waiting/delayed quarantined jobs and the oldest age', async () => {
     const oneHourAgo = new Date(Date.now() - 3_600_000).toISOString()
+    // Both quarantine tests spell out their own fakeQuarantine + fakeDb
+    // queue. fakeDb hands back queued rows in db.select() CALL ORDER, so the
+    // queue is a positional transcript of the queries the health checker
+    // issues; writing it out per test is what keeps that order auditable
+    // next to the snapshot assertion.
+    // A shared queue helper would hide the ordering contract behind a name,
+    // so a reordering of the checker's reads would break silently instead of
+    // failing where the rows are visible.
+    // Revisit when the checker names its reads explicitly instead of
+    // consuming a positional queue.
+    // fallow-ignore-next-line code-duplication
     const quarantine = fakeQuarantine({ waiting: 2, delayed: 1 }, [
       { data: { quarantinedAt: oneHourAgo } },
       { data: { redacted: true }, timestamp: Date.now() },

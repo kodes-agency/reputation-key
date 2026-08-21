@@ -127,6 +127,62 @@ export type EmailLayoutProps = Readonly<{
 }>
 
 /**
+ * The disclosure footer: why this mail was sent, how to change that, and the
+ * signature. Its own component because the disclosure is a compliance
+ * obligation with its own rules — `preferencesUrl` is absent exactly when the
+ * mail is mandatory and there is nothing to opt out of.
+ */
+const EmailFooter = ({
+  whyReceived,
+  preferencesUrl,
+}: Readonly<{ whyReceived: string; preferencesUrl?: string }>) => (
+  <Section style={{ padding: '18px 4px 0' }}>
+    <Heading
+      as="h2"
+      className="rk-muted"
+      style={{
+        color: light.textSecondary,
+        fontSize: '12px',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        margin: '0 0 6px',
+        textTransform: 'uppercase',
+      }}
+    >
+      Why you received this
+    </Heading>
+    <Text
+      className="rk-muted"
+      style={{
+        color: light.textSecondary,
+        fontSize: '13px',
+        lineHeight: 1.5,
+        margin: 0,
+      }}
+    >
+      {whyReceived}
+    </Text>
+    {preferencesUrl !== undefined && (
+      <Text style={{ fontSize: '13px', lineHeight: 1.5, margin: '10px 0 0' }}>
+        <Link
+          className="rk-accent"
+          href={preferencesUrl}
+          style={{ color: light.accent, textDecoration: 'underline' }}
+        >
+          Manage notification preferences
+        </Link>
+      </Text>
+    )}
+    <Text
+      className="rk-muted"
+      style={{ color: light.textSecondary, fontSize: '12px', margin: '14px 0 0' }}
+    >
+      {EMAIL_SIGNATURE}
+    </Text>
+  </Section>
+)
+
+/**
  * The branded shell: preheader, wordmark, content slot, footer.
  *
  * Callers own everything between the wordmark and the footer and compose it
@@ -187,50 +243,7 @@ export const EmailLayout = ({
           {children}
         </Section>
 
-        <Section style={{ padding: '18px 4px 0' }}>
-          <Heading
-            as="h2"
-            className="rk-muted"
-            style={{
-              color: light.textSecondary,
-              fontSize: '12px',
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              margin: '0 0 6px',
-              textTransform: 'uppercase',
-            }}
-          >
-            Why you received this
-          </Heading>
-          <Text
-            className="rk-muted"
-            style={{
-              color: light.textSecondary,
-              fontSize: '13px',
-              lineHeight: 1.5,
-              margin: 0,
-            }}
-          >
-            {whyReceived}
-          </Text>
-          {preferencesUrl !== undefined && (
-            <Text style={{ fontSize: '13px', lineHeight: 1.5, margin: '10px 0 0' }}>
-              <Link
-                className="rk-accent"
-                href={preferencesUrl}
-                style={{ color: light.accent, textDecoration: 'underline' }}
-              >
-                Manage notification preferences
-              </Link>
-            </Text>
-          )}
-          <Text
-            className="rk-muted"
-            style={{ color: light.textSecondary, fontSize: '12px', margin: '14px 0 0' }}
-          >
-            {EMAIL_SIGNATURE}
-          </Text>
-        </Section>
+        <EmailFooter whyReceived={whyReceived} preferencesUrl={preferencesUrl} />
       </Container>
     </Body>
   </Html>

@@ -114,6 +114,14 @@ describe('createRecognitionLookupAdapter', () => {
     ).resolves.toBeNull()
   })
 
+  // Each integration test seeds exactly the rows its scenario needs
+  // (property / portals / badge definition) and then calls the adapter, so the
+  // database state under test is readable at the assertion. A shared beforeEach
+  // seeding everything would over-seed the cases that deliberately omit a table
+  // — the "badge definition is gone" test below depends on not seeding it —
+  // turning a precondition into an invisible global. Revisit if scenario setup
+  // grows past these few calls and warrants per-scenario fixture builders.
+  // fallow-ignore-next-line code-duplication
   it('resolves a portal award target by name', async () => {
     await seedProperty()
     await seedPortals()

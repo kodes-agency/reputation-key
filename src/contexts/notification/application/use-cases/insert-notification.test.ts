@@ -88,6 +88,14 @@ describe('insertNotification', () => {
     expect(JSON.stringify(result)).not.toContain('Jane')
   })
 
+  // The email-only preference arrange (findForDelivery answering per channel)
+  // repeats in three tests because each asserts a different subject: the durable
+  // email row plus immediate enqueue here, no second email on a coalesced repeat
+  // (below), and a still-pending row when queue dispatch fails (further below).
+  // Lifting it into a beforeEach would make "email is the only enabled channel"
+  // non-local, and that premise is exactly what each of these tests is about.
+  // Revisit if findForDelivery's signature changes and all three need one edit.
+  // fallow-ignore-next-line code-duplication
   it('creates a durable property-scoped email row when the email preference is enabled', async () => {
     ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
       async (_userId, _orgId, _propertyId, _category, channel) =>
@@ -144,6 +152,14 @@ describe('insertNotification', () => {
 
   // ── ADR 0046 r.2 ────────────────────────────────────────────────────
 
+  // Each coalescing test arranges its own "existing unread row" by running the
+  // use case against a second, independent deps set and feeding the result back
+  // through findUnreadByUserTypeResource. That the prior row was produced by the
+  // same code path is what makes the coalesce assertions meaningful, so a shared
+  // helper or beforeEach would hide the load-bearing part of the premise and
+  // couple these tests to whichever one is edited next. Revisit if building the
+  // existing row ever needs more than these three lines.
+  // fallow-ignore-next-line code-duplication
   it('bumps the existing unread row instead of inserting a second one', async () => {
     const existing = (await insertNotification(buildFakeInsertNotificationDeps())(
       input,
@@ -202,6 +218,13 @@ describe('insertNotification', () => {
     expect(result?.payload.propertyName).toBe('Riverside Hotel')
   })
 
+  // Shares the email-only preference arrange described above line 91; here it is
+  // combined with a pre-seeded unread row because the subject is "a coalesced
+  // repeat sends no second email". Both arranges have to stay visible next to the
+  // assertion: with either one hidden, a reader cannot tell whether emailRepo
+  // stayed untouched because email is disabled or because the row coalesced.
+  // Revisit only together with the group above line 91.
+  // fallow-ignore-next-line code-duplication
   it('bumps only the in-app row: a repeat sends no second email', async () => {
     ;(deps.preferenceRepo.findForDelivery as ReturnType<typeof vi.fn>).mockImplementation(
       async (_userId, _orgId, _propertyId, _category, channel) =>

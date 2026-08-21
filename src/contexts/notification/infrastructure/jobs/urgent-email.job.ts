@@ -45,7 +45,7 @@ import type { NotificationOrganizationScopeResolver } from '../repositories/noti
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
 import { getDefaultEnabled } from '../../domain/notification-policy'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
-import { renderNotificationEmail } from '../email/render'
+import { renderNotificationEmail, type RenderedEmail } from '../email/render'
 import { emailCorrelationId } from '../delivery-correlation'
 import {
   assertPreferencesLink,
@@ -98,6 +98,88 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       { correlationId: emailCorrelationId(ids.emailId), reason },
       'Urgent notification email suppressed',
     )
+  }
+
+  /**
+   * Attempt the provider call and record what it said.
+   *
+   * Throws to hand the job back to the queue for a transient rejection or an
+   * outright call failure. Returns normally for accepted mail AND for a
+   * permanent rejection — a hard bounce is terminal, and retrying one only
+   * damages our sending domain.
+   */
+  const sendAndRecord = async (
+    ids: Readonly<{ emailId: string; orgId: string; propId: string }>,
+    entry: Readonly<{ idempotencyKey: string; retryCount: number }>,
+    recipient: string,
+    email: RenderedEmail,
+    headers: Readonly<Record<string, string>>,
+  ): Promise<void> => {
+    const emailId = notificationEmailId(ids.emailId)
+    const orgId = organizationId(ids.orgId)
+    const propId = propertyId(ids.propId)
+    const attemptedAt = deps.clock()
+    try {
+      const outcome = await deps.emailSender.send({
+        to: recipient,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        idempotencyKey: entry.idempotencyKey,
+        headers,
+      })
+      if (outcome.kind === 'accepted') {
+        await deps.emailRepo.markAccepted(
+          emailId,
+          orgId,
+          propId,
+          outcome.providerMessageId,
+          outcome.acceptedAt,
+        )
+        return
+      }
+
+      await deps.emailRepo.markFailed(
+        emailId,
+        orgId,
+        propId,
+        outcome.classification,
+        outcome.classification === 'transient'
+          ? retryAt(attemptedAt, entry.retryCount)
+          : null,
+        attemptedAt,
+      )
+      deps.logger.warn(
+        {
+          correlationId: emailCorrelationId(ids.emailId),
+          toPrefix: maskEmail(recipient),
+          classification: outcome.classification,
+          providerCode: outcome.providerCode,
+          retryCount: entry.retryCount,
+        },
+        'Urgent notification email rejected by provider',
+      )
+      if (outcome.classification === 'transient') throw new Error(TRANSIENT_REJECTION)
+    } catch (error) {
+      if (error instanceof Error && error.message === TRANSIENT_REJECTION) throw error
+      await deps.emailRepo.markFailed(
+        emailId,
+        orgId,
+        propId,
+        'transient',
+        retryAt(attemptedAt, entry.retryCount),
+        attemptedAt,
+      )
+      deps.logger.error(
+        {
+          error,
+          correlationId: emailCorrelationId(ids.emailId),
+          retryCount: entry.retryCount,
+        },
+        'Immediate email provider call failed',
+      )
+      throw error
+    }
   }
 
   return async (job: Pick<Job<UrgentEmailJobData>, 'data'>): Promise<void> => {
@@ -209,67 +291,12 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       priority: entry.priority,
     })
 
-    const attemptedAt = deps.clock()
-    try {
-      const outcome = await deps.emailSender.send({
-        to: recipient,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-        idempotencyKey: entry.idempotencyKey,
-        headers: unsubscribeHeaders(mailClass, preferencesUrl),
-      })
-      if (outcome.kind === 'accepted') {
-        await deps.emailRepo.markAccepted(
-          emailId,
-          orgId,
-          propId,
-          outcome.providerMessageId,
-          outcome.acceptedAt,
-        )
-        return
-      }
-
-      await deps.emailRepo.markFailed(
-        emailId,
-        orgId,
-        propId,
-        outcome.classification,
-        outcome.classification === 'transient'
-          ? retryAt(attemptedAt, entry.retryCount)
-          : null,
-        attemptedAt,
-      )
-      deps.logger.warn(
-        {
-          correlationId: emailCorrelationId(ids.emailId),
-          toPrefix: maskEmail(recipient),
-          classification: outcome.classification,
-          providerCode: outcome.providerCode,
-          retryCount: entry.retryCount,
-        },
-        'Urgent notification email rejected by provider',
-      )
-      if (outcome.classification === 'transient') throw new Error(TRANSIENT_REJECTION)
-    } catch (error) {
-      if (error instanceof Error && error.message === TRANSIENT_REJECTION) throw error
-      await deps.emailRepo.markFailed(
-        emailId,
-        orgId,
-        propId,
-        'transient',
-        retryAt(attemptedAt, entry.retryCount),
-        attemptedAt,
-      )
-      deps.logger.error(
-        {
-          error,
-          correlationId: emailCorrelationId(ids.emailId),
-          retryCount: entry.retryCount,
-        },
-        'Immediate email provider call failed',
-      )
-      throw error
-    }
+    await sendAndRecord(
+      ids,
+      entry,
+      recipient,
+      email,
+      unsubscribeHeaders(mailClass, preferencesUrl),
+    )
   }
 }

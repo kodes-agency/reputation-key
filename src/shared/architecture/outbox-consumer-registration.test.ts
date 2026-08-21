@@ -3,7 +3,7 @@
 // Static-source checks only (no cross-zone imports into contexts/).
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import {
   clearConsumers,
@@ -11,17 +11,9 @@ import {
   registerConsumer,
 } from '#/shared/outbox/dispatcher'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
-
-function walk(dir: string, out: string[] = []): string[] {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, entry.name)
-    if (entry.isDirectory()) walk(p, out)
-    else out.push(p)
-  }
-  return out
-}
 
 type DiscoveredRegistration = Readonly<{
   file: string

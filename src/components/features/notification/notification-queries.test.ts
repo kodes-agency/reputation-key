@@ -56,6 +56,16 @@ function observeUnreadCount(queryFn: () => Promise<number>) {
 }
 
 describe('notification polling posture', () => {
+  // This test and 'stops polling while the tab is hidden' share the arrange
+  // block (fake queryFn, observe, drain at 0) and then diverge only in what
+  // they advance the fake timers past. Each states its own arrange so a
+  // failure reads off one screen: subscription, focus state, advance, count.
+  // A shared setup helper would move the polling premise out of the test
+  // that fails and make the call counts relative to whatever the helper
+  // already consumed.
+  // Revisit if this posture grows enough cases to deserve one table-driven
+  // test with focus state and advances as data.
+  // fallow-ignore-next-line code-duplication
   it('polls on the interval while the tab is visible', async () => {
     const queryFn = vi.fn(async () => 3)
     const { unsubscribe } = observeUnreadCount(queryFn)

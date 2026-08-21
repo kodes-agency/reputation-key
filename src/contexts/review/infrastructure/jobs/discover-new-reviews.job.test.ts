@@ -21,6 +21,14 @@ import {
   DEFAULT_DISCOVERY_INTERVAL_MS,
 } from './discover-new-reviews.job'
 
+// Identical to the logger mock in refresh-expiring-reviews.job.test.ts, and it
+// cannot be imported from a shared helper: Vitest hoists vi.mock factories
+// above the import block and keeps the module registry per test file, so a
+// factory invoked from a helper would run after this file's imports and mock
+// nothing. Framework constraint, not a preference.
+// Revisit if a third job test needs a silenced logger — at that point a
+// setupFiles entry is worth losing the per-file explicitness.
+// fallow-ignore-next-line code-duplication
 vi.mock('#/shared/observability/logger', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
   return {

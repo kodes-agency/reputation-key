@@ -182,6 +182,16 @@ describe('dispatcher gate (BQC-3.2)', () => {
     // the gate must NOT be consulted again.
     const repo = {
       hasReceipt: vi.fn(async () => true),
+      // Shape shared with 'receipt check still short-circuits before the
+      // gate' below: stub repo, one dispatch, then "handler and gate never
+      // ran". The two assert different things — here that an existing
+      // terminal-deny receipt is not re-evaluated, there that ordinary
+      // de-duplication precedes the gate at all.
+      // Merging them needs a parameter selecting which of the two meanings
+      // is under test, which reads worse than either test does alone.
+      // Revisit if a third short-circuit reason lands and all three want the
+      // same repo stub.
+      // fallow-ignore-next-line code-duplication
       insertReceipt: vi.fn(async () => undefined),
     } as unknown as OutboxRepository
 
