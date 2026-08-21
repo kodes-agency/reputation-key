@@ -14,9 +14,7 @@ import { propertyId } from '#/shared/domain/ids'
 const FIXED_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const setup = (
-  extra: Partial<Parameters<typeof createProperty>[0]> = {},
-) => {
+const setup = (extra: Partial<Parameters<typeof createProperty>[0]> = {}) => {
   const propertyRepo = createInMemoryPropertyRepo()
   const events = createCapturingEventBus()
   const deps = {

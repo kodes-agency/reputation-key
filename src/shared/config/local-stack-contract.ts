@@ -46,7 +46,7 @@ export const LOCAL_E2E_BOOTSTRAP_CAPABILITIES = [
  * acceptance tests drive registration, org creation and the guest media
  * lifecycle against stubbed providers.
  */
-export const SEED_WITHHELD_CAPABILITIES = [
+const SEED_WITHHELD_CAPABILITIES = [
   // Public self-service signup.
   'identity.register',
   // Self-serve organization creation.

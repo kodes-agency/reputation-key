@@ -38,6 +38,47 @@ export type CreatePropertyDeps = Readonly<{
   logger?: Readonly<{ warn: (obj: object, msg: string) => void }>
 }>
 
+/**
+ * Provision the new property's capability allowlist from its organization.
+ *
+ * Deliberately outside the atomic command store and non-fatal: the property
+ * exists and is usable, and provisioning is idempotent and repairable out of
+ * band (`pnpm ops:property-capabilities sync`). Failing the creation here
+ * would be a worse outcome than a dark new property.
+ *
+ * Extracted from `createProperty` so the use case stays under the complexity
+ * gate; the try/catch and the content-free error shaping live here.
+ */
+async function provisionCreatedPropertyCapabilities(
+  deps: CreatePropertyDeps,
+  property: Property,
+  createdBy: string,
+): Promise<void> {
+  if (!deps.provisionCapabilities) return
+  try {
+    await deps.provisionCapabilities({
+      organizationId: property.organizationId,
+      propertyId: property.id,
+      createdBy,
+    })
+  } catch (error) {
+    // Content-free: names and codes only, never a tenant identifier.
+    deps.logger?.warn(
+      { errorName: errorNameOf(error), errorCode: errorCodeOf(error) },
+      'property capability provisioning failed',
+    )
+  }
+}
+
+function errorNameOf(error: unknown): string {
+  return error instanceof Error ? error.name : 'unknown'
+}
+
+function errorCodeOf(error: unknown): string | undefined {
+  if (error === null || typeof error !== 'object' || !('code' in error)) return undefined
+  return String(error.code)
+}
+
 export const createProperty =
   (deps: CreatePropertyDeps) =>
   async (input: CreatePropertyInput, ctx: AuthContext): Promise<Property> => {
@@ -90,32 +131,8 @@ export const createProperty =
       }),
     })
 
-    // 6. Provision the property's capability allowlist from its organization.
-    // Deliberately outside the atomic command store and non-fatal: the
-    // property exists and is usable, and provisioning is idempotent and
-    // repairable out of band (`pnpm ops:property-capabilities sync`). Failing
-    // the creation here would be a worse outcome than a dark new property.
-    if (deps.provisionCapabilities) {
-      try {
-        await deps.provisionCapabilities({
-          organizationId: property.organizationId,
-          propertyId: property.id,
-          createdBy: ctx.userId,
-        })
-      } catch (error) {
-        // Content-free: names and codes only, never a tenant identifier.
-        deps.logger?.warn(
-          {
-            errorName: error instanceof Error ? error.name : 'unknown',
-            errorCode:
-              error !== null && typeof error === 'object' && 'code' in error
-                ? String(error.code)
-                : undefined,
-          },
-          'property capability provisioning failed',
-        )
-      }
-    }
+    // 6. Provision the property's capability allowlist (non-fatal; see helper).
+    await provisionCreatedPropertyCapabilities(deps, property, ctx.userId)
 
     // 7. Return
     return property
