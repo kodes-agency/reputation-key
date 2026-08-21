@@ -1,7 +1,6 @@
 // Portal context — sortable category with links
 
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
@@ -21,6 +20,7 @@ import { Plus, GripVertical, Pencil } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { SortableLink } from './sortable-link'
 import { DeleteCategoryDialog } from './delete-category-dialog'
+import { reorderById } from './link-tree-reorder-rules'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
@@ -69,14 +69,8 @@ export function SortableCategory({
   )
 
   const handleLinkDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = links.findIndex((l) => l.id === active.id)
-    const newIndex = links.findIndex((l) => l.id === over.id)
-    // Both ends must resolve: arrayMove splices at -1 and would reorder — then
-    // persist — the wrong link (same class of bug as use-link-tree-reorder).
-    if (oldIndex === -1 || newIndex === -1) return
-    const reordered = arrayMove([...links], oldIndex, newIndex)
+    const reordered = reorderById(links, event.active.id, event.over?.id)
+    if (reordered === null) return
     onReorderLinks(category.id, reordered)
   }
 
