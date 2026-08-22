@@ -257,6 +257,12 @@ jobs:
   # BQC-7.1: the production containers are the single deploy build path
   # (nixpacks removed) — prove both images build reproducibly on every PR
   # and run as the non-root node user.
+  #
+  # This job does NOT boot the Compose stack. It used to run `pnpm e2e:stack:up`
+  # + `:smoke` here, byte-identical to what the `e2e` job runs — which then
+  # proves the same stack with ~95 tests instead of a readiness probe. The
+  # duplicate cost 171s of the critical path and asserted a strict subset.
+  # Production-profile boot is therefore owned by the `e2e` job.
   docker:
     runs-on: ubuntu-latest
     steps:
@@ -339,24 +345,6 @@ jobs:
               echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
-      - name: Start production-profile Compose stack
-        run: pnpm e2e:stack:up
-      - name: Verify production-profile Compose stack readiness
-        run: pnpm e2e:stack:smoke
-      - name: Collect Docker stack diagnostics
-        if: always()
-        run: pnpm e2e:stack:logs
-      - name: Upload Docker stack evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: docker-local-stack-evidence
-          path: test-results/local-stack/**
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Tear down Docker stack
-        if: always()
-        run: pnpm e2e:stack:down
 
       # BQC-7.7: image SBOMs (SPDX JSON, 30d retention). The images contain
       # the build outputs (.output / dist-worker), so this is ALSO the
@@ -394,10 +382,17 @@ jobs:
       # owner/reason/expiry (wont-fix Debian triage + never-executed esbuild
       # CLI binaries — policy: docs/operations/security-ci-policy.md).
       # SARIF results upload to code scanning (security-events: write above).
+      #
+      # Scanned via `sbom:`, not `image:` — the three steps above just had syft
+      # catalogue exactly these images, and scanning the image re-ran that
+      # catalogue per scan. Same bytes, same grype version, same cutoff, and
+      # the SBOM being scanned is the artifact retained as evidence. `config`
+      # stays unset so .grype.yaml auto-detection (the exception register) is
+      # untouched.
       - name: Vulnerability scan web image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
-          image: repkey-web:ci
+          sbom: sbom-web.spdx.json
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
@@ -405,7 +400,7 @@ jobs:
       - name: Vulnerability scan worker image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
-          image: repkey-worker:ci
+          sbom: sbom-worker.spdx.json
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
@@ -413,7 +408,7 @@ jobs:
       - name: Vulnerability scan Google import compatibility image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
-          image: repkey-google-import-compatibility:ci
+          sbom: sbom-google-import-compatibility.spdx.json
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1

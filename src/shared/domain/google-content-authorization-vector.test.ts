@@ -4,6 +4,8 @@ import { organizationId, userId } from './ids'
 import type { Permission } from './permissions'
 import type { AuthContext } from './auth-context'
 import {
+  FROZEN_VECTOR_EXCLUDED_KEYS,
+  frozenVectorDrift,
   googleAuthorizationPermissionDigest,
   sameFrozenGoogleContentAuthorizationVector,
   sameGoogleContentAuthorizationVector,
@@ -92,6 +94,31 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
     ).toBe(true)
   })
 
+  // CONTRACT CHANGE (was: "still rejects … the credential generation").
+  // `updateTokens` bumps `credential_generation` — and only it — on a routine
+  // expired-access-token refresh, so requiring equality here reported
+  // revocation for a successful refresh and cancelled any import whose token
+  // aged between approval and effect. Monotonicity did NOT move to nowhere: it
+  // is enforced by `sameExpectedConnection` (`credentialGeneration >=`, a
+  // regression still denies) against the live connection row, which is a
+  // stronger check than comparing two copies of the same frozen number.
+  it('ignores a credential generation moved by a routine token refresh', () => {
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(
+        persisted({ credentialGeneration: 5 }),
+        persisted({ credentialGeneration: 6 }),
+      ),
+    ).toBe(true)
+    // Both excluded counters moving at once — a sibling item's policy write and
+    // a token refresh in the same window — is still not a revocation.
+    expect(
+      sameFrozenGoogleContentAuthorizationVector(
+        persisted(),
+        persisted({ credentialGeneration: 6, googleContentPolicyVersion: 12 }),
+      ),
+    ).toBe(true)
+  })
+
   it.each([
     ['the emergency kill epoch', { emergencyKillVersion: 5 }],
     ['the execution policy version', { executionPolicyVersion: 'beta-local-3' }],
@@ -99,7 +126,6 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
     ['the permission digest', { permissionDigest: 'b'.repeat(64) }],
     ['the connection lifecycle version', { connectionLifecycleVersion: 4 }],
     ['the connection access version', { connectionAccessVersion: 5 }],
-    ['the credential generation', { credentialGeneration: 6 }],
   ])('still rejects a vector whose %s moved', (_label, drift) => {
     expect(
       sameFrozenGoogleContentAuthorizationVector(persisted(), persisted(drift)),
@@ -135,5 +161,41 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
         persisted({ role: 'Staff' }),
       ),
     ).toBe(false)
+  })
+
+  // The deny log at the call site reports WHICH keys drifted. It must agree
+  // with the comparison above by construction: a log that blamed an excluded
+  // key would send the next investigation exactly where the last one already
+  // went, which is the failure this instrumentation exists to prevent.
+  describe('frozenVectorDrift', () => {
+    it('reports only keys that can actually cause a denial', () => {
+      expect(
+        frozenVectorDrift(
+          persisted(),
+          persisted({
+            googleContentPolicyVersion: 12,
+            credentialGeneration: 6,
+            role: 'Staff',
+          }),
+        ),
+      ).toEqual([{ key: 'role', frozen: 'AccountAdmin', recomputed: 'Staff' }])
+    })
+
+    it('is empty exactly when the comparison passes', () => {
+      const recomputed = persisted({
+        googleContentPolicyVersion: 99,
+        credentialGeneration: 7,
+      })
+      expect(sameFrozenGoogleContentAuthorizationVector(persisted(), recomputed)).toBe(
+        true,
+      )
+      expect(frozenVectorDrift(persisted(), recomputed)).toEqual([])
+    })
+
+    it('skips exactly the keys the comparison excludes', () => {
+      for (const key of FROZEN_VECTOR_EXCLUDED_KEYS) {
+        expect(frozenVectorDrift(persisted(), persisted({ [key]: 12345 }))).toEqual([])
+      }
+    })
   })
 })
