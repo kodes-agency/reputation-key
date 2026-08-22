@@ -312,18 +312,27 @@ const schedule = (
     { policyIntegration: 'integrated_bqc3', ...opts },
   )
 
-/** Operator command (operator principal; DIRECT-DB bypasses flagged in notes). */
+/**
+ * Operator command (operator principal; DIRECT-DB bypasses flagged in notes).
+ *
+ * `capability` defaults to 'none': containment and diagnostic commands
+ * deliberately declare none so they keep working while the capability they
+ * contain is killed or the org is suspended. A command that PERFORMS the gated
+ * work (rather than containing it) passes its capability so the ExecutionPolicy
+ * refuses it under the same kill switch the runtime honours.
+ */
 const ops = (
   name: string,
   file: string,
   resourceScope: ResourceScope,
   opts: RowOpts = {},
+  capability: Capability | 'none' = 'none',
 ): EntryPointRow =>
   row(
     'operator_command',
     name,
     file,
-    { action: 'system:ops', capability: 'none', resourceScope, principals: ['operator'] },
+    { action: 'system:ops', capability, resourceScope, principals: ['operator'] },
     opts,
   )
 
@@ -2682,6 +2691,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.created',
       'review.updated',
       'review.source_transitioned',
+      'ai.review_analysis.backfill_requested',
       'ai.property_trend.generation_requested',
     ],
     {
@@ -3441,6 +3451,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       notes:
         'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
     },
+  ),
+  ops(
+    'scripts/ops/ai-reanalyze-reviews.ts',
+    'scripts/ops/ai-reanalyze-reviews.ts',
+    'property',
+    {
+      notes:
+        'ops:ai-reanalyze — ticketed, typed-confirmation replay of already-authorized reviews through review analysis; bumps review_analysis_epoch and repositions analysis_start_sequence to the current head, then emits ai.review_analysis.backfill_requested on freshly allocated contiguous sequences. Refuses unless the merchant is already enabled for review_analysis on the property current source epoch — it can never grant consent',
+    },
+    'ai.analyze',
   ),
   ops(
     'scripts/ops/permit-start-deadline-backfill.ts',

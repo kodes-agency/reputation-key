@@ -273,6 +273,21 @@ const aiPropertyTrendGenerationRequestedSchema = z
     propertyId: z.uuid(),
   })
   .strict()
+// Operator review-analysis backfill (ops:ai-reanalyze). Identifier-only, and
+// the same field set the AI review consumer already validates — `analysisSequence`
+// is the FRESH sequence allocated for the replay, not the review's stored one.
+// Not `.strict()`, matching the review event schemas: the outbox re-attaches
+// `correlationId` after allowlist validation and the dispatcher re-runs this
+// same schema on delivery.
+const aiReviewAnalysisBackfillRequestedSchema = z.object({
+  reviewId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceEpoch: z.number().int().nonnegative(),
+  sourceRevision: z.number().int().positive(),
+  analysisSequence: z.number().int().positive(),
+  occurredAt: z.string().optional(),
+})
 const integrationPropertyImportRequestedSchema = z
   .object({
     _tag: z.literal('integration.property_import.requested').optional(),
@@ -674,6 +689,11 @@ export function registerAllEventSchemas(): void {
     type: 'ai.property_trend.generation_requested',
     version: EVENT_VERSION,
     schema: aiPropertyTrendGenerationRequestedSchema,
+  })
+  registerEventSchema({
+    type: 'ai.review_analysis.backfill_requested',
+    version: EVENT_VERSION,
+    schema: aiReviewAnalysisBackfillRequestedSchema,
   })
 
   // Guest events (consumed by metric)

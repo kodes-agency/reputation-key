@@ -117,6 +117,7 @@
     "release:google-import-drill": "tsx scripts/local-stack/google-import-release-drill.ts",
     "ops:ai-canary": "tsx scripts/ops/ai-canary-authorization.ts",
     "ops:ai-control": "tsx scripts/ops/ai-execution-control.ts",
+    "ops:ai-reanalyze": "tsx scripts/ops/ai-reanalyze-reviews.ts",
     "ops:permit-start-deadline-fence": "tsx scripts/ops/permit-start-deadline-backfill.ts",
     "ops:property-capabilities": "tsx scripts/ops/property-capabilities.ts",
     "ops:reparse-review-translations": "tsx scripts/ops/reparse-review-translations.ts"
