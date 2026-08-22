@@ -27,9 +27,7 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
   listRunningRuns: (
     limit: number,
   ) => Promise<
-    ReadonlyArray<
-      Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
-    >
+    ReadonlyArray<Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>>
   >
 }>
 
@@ -145,10 +143,7 @@ export type ReviewAnalysisWatermarkReposition = Readonly<{
 }>
 
 export type ReviewAnalysisBackfillRunState =
-  | 'running'
-  | 'completed'
-  | 'superseded'
-  | 'stalled'
+  'running' | 'completed' | 'superseded' | 'stalled'
 
 /**
  * A durable `ops:ai-reanalyze` run. It exists because a backfill may only ever

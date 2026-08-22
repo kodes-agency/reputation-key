@@ -391,7 +391,9 @@ function createSession(
             ? null
             : safeInteger(row.current_analysis_sequence, 'current_analysis_sequence'),
         currentReviewId:
-          row.current_review_id === null ? null : toReviewId(String(row.current_review_id)),
+          row.current_review_id === null
+            ? null
+            : toReviewId(String(row.current_review_id)),
         currentEmittedAtEpochMillis:
           emittedAt instanceof Date
             ? emittedAt.getTime()

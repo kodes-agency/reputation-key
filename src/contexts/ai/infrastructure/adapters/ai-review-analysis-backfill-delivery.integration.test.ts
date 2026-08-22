@@ -305,7 +305,6 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
     if (!activated) throw new Error('failed to activate review_analysis')
   }
 
-
   const clearCanary = async () => {
     await executeWithLastOwnerGuardDisabled(db, [
       sql`ALTER TABLE ai_canary_authorization_heads DISABLE TRIGGER USER`,
