@@ -70,6 +70,8 @@ export type AdvanceReviewAnalysisBackfillOutcome =
   | 'recovered'
   | 'completed'
   | 'superseded'
+  /** The in-flight item never reached the cursor, so the run cannot step past it. */
+  | 'stalled'
 
 /**
  * How long an emitted item may sit `pending` before it is treated as
@@ -112,6 +114,7 @@ export type AdvanceReviewAnalysisBackfillSweepResult = Readonly<{
   itemsRecovered: number
   runsCompleted: number
   runsSuperseded: number
+  runsStalled: number
   batchFull: boolean
 }>
 
@@ -272,6 +275,22 @@ export function createAdvanceReviewAnalysisBackfill(
             // point — the run must not run ahead of its own cursor.
             return { outcome: 'waiting' as const }
           }
+          if (outcomeState === null) {
+            // The event never reached `consume_ai_review_event_v1` at all — it
+            // was quarantined, or lost before the cursor saw it. The cursor
+            // still expects this sequence, so stepping past it would emit
+            // `S+1` into a permanent `gap`. Stop, loudly, naming the sequence:
+            // an operator can requeue the quarantined event and the run
+            // resumes, which is strictly better than a run that looks alive
+            // while every later item stalls behind a hole.
+            await session.closeRun({
+              runId: run.id,
+              state: 'stalled',
+              terminalReason: 'item_never_consumed',
+              occurredAt: new Date(dependencies.nowEpochMillis()),
+            })
+            return { outcome: 'stalled' as const }
+          }
           return {
             outcome: 'recover' as const,
             run,
@@ -312,9 +331,24 @@ export function createAdvanceReviewAnalysisBackfill(
     })
   }
 
-  async function advanceProperty(
+  /**
+   * Drive one property until it can go no further, reporting EVERY step it
+   * took. The terminal outcome alone would hide the interesting ones: a
+   * recovery is always followed by an emit, so a run that had to terminal-settle
+   * a stranded review would report `emitted` and the recovery — the one count an
+   * operator needs — would never be logged.
+   */
+  async function driveProperty(
     input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
-  ): Promise<AdvanceReviewAnalysisBackfillOutcome> {
+  ): Promise<
+    Readonly<{
+      outcome: AdvanceReviewAnalysisBackfillOutcome
+      recovered: number
+      skipped: number
+    }>
+  > {
+    let recovered = 0
+    let skipped = 0
     let last: AdvanceReviewAnalysisBackfillOutcome = 'idle'
     for (let taken = 0; taken < MAX_STEPS_PER_PROPERTY; taken++) {
       const result = await step(input)
@@ -324,7 +358,8 @@ export function createAdvanceReviewAnalysisBackfill(
         // A profile that cannot be read is not a licence to guess: leave the
         // item alone and let the next tick try again.
         const profile = await dependencies.processingProfiles.readForAi(input)
-        if (profile.status !== 'available') return 'waiting'
+        if (profile.status !== 'available')
+          return { outcome: 'waiting', recovered, skipped }
         await recoverUnreachableItem({
           ...input,
           run: result.run,
@@ -337,22 +372,24 @@ export function createAdvanceReviewAnalysisBackfill(
             occurredAt: new Date(dependencies.nowEpochMillis()),
           }),
         )
+        recovered += 1
         last = 'recovered'
         continue
       }
       // A skip is bookkeeping, so the run keeps stepping; anything else is
       // either progress that must now wait on the consumer, or terminal.
       if (result.outcome === 'skipped') {
+        skipped += 1
         last = 'skipped'
         continue
       }
-      return result.outcome
+      return { outcome: result.outcome, recovered, skipped }
     }
-    return last
+    return { outcome: last, recovered, skipped }
   }
 
   return Object.freeze({
-    advanceProperty,
+    advanceProperty: async (input) => (await driveProperty(input)).outcome,
     sweep: async () => {
       const runs = await dependencies.backfillStore.listRunningRuns(
         AI_BACKFILL_SWEEP_BATCH_SIZE,
@@ -362,13 +399,15 @@ export function createAdvanceReviewAnalysisBackfill(
       let itemsRecovered = 0
       let runsCompleted = 0
       let runsSuperseded = 0
+      let runsStalled = 0
       for (const run of runs) {
-        const outcome = await advanceProperty(run)
-        if (outcome === 'emitted') itemsEmitted += 1
-        if (outcome === 'skipped') itemsSkipped += 1
-        if (outcome === 'recovered') itemsRecovered += 1
-        if (outcome === 'completed') runsCompleted += 1
-        if (outcome === 'superseded') runsSuperseded += 1
+        const driven = await driveProperty(run)
+        itemsSkipped += driven.skipped
+        itemsRecovered += driven.recovered
+        if (driven.outcome === 'emitted') itemsEmitted += 1
+        if (driven.outcome === 'completed') runsCompleted += 1
+        if (driven.outcome === 'superseded') runsSuperseded += 1
+        if (driven.outcome === 'stalled') runsStalled += 1
       }
       return Object.freeze({
         runsVisited: runs.length,
@@ -377,6 +416,7 @@ export function createAdvanceReviewAnalysisBackfill(
         itemsRecovered,
         runsCompleted,
         runsSuperseded,
+        runsStalled,
         batchFull: runs.length >= AI_BACKFILL_SWEEP_BATCH_SIZE,
       })
     },

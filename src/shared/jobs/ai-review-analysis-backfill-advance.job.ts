@@ -44,6 +44,7 @@ type AiReviewAnalysisBackfillSweepOutcome = Readonly<{
   itemsRecovered: number
   runsCompleted: number
   runsSuperseded: number
+  runsStalled: number
   batchFull: boolean
 }>
 
@@ -67,6 +68,7 @@ export const createAiReviewAnalysisBackfillAdvanceHandler =
           itemsRecovered: outcome.itemsRecovered,
           runsCompleted: outcome.runsCompleted,
           runsSuperseded: outcome.runsSuperseded,
+          runsStalled: outcome.runsStalled,
           batchFull: outcome.batchFull,
         },
         'AI review-analysis backfill advance sweep completed',

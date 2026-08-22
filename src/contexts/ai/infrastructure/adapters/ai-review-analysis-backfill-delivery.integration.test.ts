@@ -35,6 +35,7 @@ import { getDb } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
   aiExecutionControlHeads,
+  aiReviewAnalysisBackfillRuns,
   aiOperations,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
@@ -68,7 +69,10 @@ import type { AiInferencePort } from '../../application/ports/ai-inference.port'
 import type { AiQuotaPort } from '../../application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from '../../application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from '../../application/use-cases/analyze-review-event'
-import { createAdvanceReviewAnalysisBackfill } from '../../application/use-cases/advance-review-analysis-backfill'
+import {
+  AI_BACKFILL_ITEM_RECOVERY_MILLIS,
+  createAdvanceReviewAnalysisBackfill,
+} from '../../application/use-cases/advance-review-analysis-backfill'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
 import { createAiControlAdapter } from './ai-control.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
@@ -537,9 +541,9 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
     await clearCanary()
   })
 
-  it('completes a batch of five delivered out of order inside one epoch', async () => {
+  const createAnalysis = () => {
     const reviewRepository = createReviewRepository(db)
-    const analyzeReviewEvent = createAnalyzeReviewEvent({
+    return createAnalyzeReviewEvent({
       authorization: createAiAuthorizationAdapter(db),
       control: createAiControlAdapter(db),
       inference,
@@ -560,10 +564,14 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       subjectHmac,
       nowEpochMillis: now,
     })
-    // The chain's fast path: the consumer hands the run its next review the
-    // moment this one settles. Nothing else drives it here — no sweep tick —
-    // so the test proves the hand-off, not the safety net.
-    const advance = createAdvanceReviewAnalysisBackfill({
+  }
+
+  /**
+   * The advance driver. `nowEpochMillis` is injected so a test can put the clock
+   * past the recovery horizon without sleeping half an hour.
+   */
+  const createAdvance = (clock: () => number = now) =>
+    createAdvanceReviewAnalysisBackfill({
       backfillStore: createReviewAnalysisBackfillAdapter(db),
       reviewEvents: createAiReviewEventStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
@@ -571,15 +579,47 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
         db,
         createAiRuntimeCatalogueAdapter(db),
       ),
-      nowEpochMillis: now,
+      nowEpochMillis: clock,
     })
-    const consumerDeps = {
-      analyzeReviewEvent,
-      receipts: createOutboxRepository(db),
-      enqueuePropertyTrend: async () => {},
-      advanceReviewAnalysisBackfill: advance.advanceProperty,
-    }
 
+  const outcomeStates = async () =>
+    (
+      await db
+        .select({
+          sequence: aiReviewAnalysisOutcomes.analysisSequence,
+          state: aiReviewAnalysisOutcomes.state,
+        })
+        .from(aiReviewAnalysisOutcomes)
+        .where(eq(aiReviewAnalysisOutcomes.propertyId, PROPERTY_ID as string))
+        .orderBy(asc(aiReviewAnalysisOutcomes.analysisSequence))
+    ).map((row) => ({ sequence: row.sequence, state: row.state }))
+
+  /**
+   * Consume an event and stop there, leaving its outcome row `pending` with no
+   * redelivery to come. That is precisely the state a `generation_changed`
+   * left behind in production: the dispatcher wrote an `obsolete` receipt, so
+   * the event was never offered again and the sequence could never settle.
+   */
+  const consumeOnly = async (
+    event: ConsumerEvent,
+    run: Readonly<{ reviewAnalysisEpoch: number; analysisStartSequence: number }>,
+  ) => {
+    const consumed = await createAiReviewEventStoreAdapter(db).consumeNext({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: run.reviewAnalysisEpoch,
+      analysisStartSequence: run.analysisStartSequence,
+      analysisSequence: analysisSequenceOf(event),
+      eventEnvelopeId: event.eventId,
+      disposition: 'pending',
+    })
+    if (consumed.status !== 'accepted') {
+      throw new Error(`expected the first item to consume, got ${consumed.status}`)
+    }
+  }
+
+  const applyBackfill = async () => {
     const applied = await backfill({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
@@ -594,7 +634,20 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
     if (applied.status !== 'applied') {
       throw new Error(`backfill refused: ${JSON.stringify(applied)}`)
     }
-    const runEpoch = applied.reviewAnalysisEpoch
+    return applied
+  }
+
+  it('completes a batch of five delivered out of order inside one epoch', async () => {
+    // The chain's fast path: the consumer hands the run its next review the
+    // moment this one settles. Nothing else drives it here — no sweep tick —
+    // so this proves the hand-off, not the safety net.
+    const consumerDeps = {
+      analyzeReviewEvent: createAnalysis(),
+      receipts: createOutboxRepository(db),
+      enqueuePropertyTrend: async () => {},
+      advanceReviewAnalysisBackfill: createAdvance().advanceProperty,
+    }
+    const runEpoch = (await applyBackfill()).reviewAnalysisEpoch
 
     // Drain the run the way the relay + dispatcher would. The outbox is
     // re-polled every round because the run emits as it goes, and each round
@@ -674,5 +727,155 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       // No sequence consumed twice: exactly one provider call per review.
       providerCalls: REVIEW_COUNT,
     })
+  })
+
+  it('recovers a stranded item past the horizon and finishes the run', async () => {
+    // The incident, reconstructed: the first item is consumed and its outcome
+    // row opens `pending`, then delivery dies before it can settle — which is
+    // exactly what an `obsolete` receipt on a `generation_changed` leaves
+    // behind, redelivery included. Nothing will ever settle sequence 257 again.
+    const consumerDeps = {
+      analyzeReviewEvent: createAnalysis(),
+      receipts: createOutboxRepository(db),
+      enqueuePropertyTrend: async () => {},
+      // No hand-off: this test drives the safety net, not the fast path.
+      advanceReviewAnalysisBackfill: async () => 'idle' as const,
+    }
+    const applied = await applyBackfill()
+    const runEpoch = applied.reviewAnalysisEpoch
+    const strandedSequence = applied.firstAnalysisSequence
+
+    const [first] = await emittedEnvelopes()
+    await consumeOnly(first!, applied)
+    expect(await outcomeStates()).toEqual([
+      { sequence: strandedSequence, state: 'pending' },
+    ])
+    const providerCallsBeforeRecovery = analysisCalls.length
+
+    // Before the horizon the sweep must WAIT. Recovering here would discard a
+    // review whose provider call is still in flight, and a rate-limited retry
+    // is the ordinary case that looks identical from the outside.
+    const early = createAdvance(() => now() + AI_BACKFILL_ITEM_RECOVERY_MILLIS - 1_000)
+    expect(await early.sweep()).toMatchObject({
+      runsVisited: 1,
+      itemsRecovered: 0,
+      itemsEmitted: 0,
+    })
+    expect(await emittedEnvelopes()).toHaveLength(1)
+
+    // Past it, the item is unreachable: the domain terminal-settles at its own
+    // 15-minute horizon on any redelivery, and the execution reaper fences an
+    // abandoned attempt on the same clock, so nothing legitimate is still
+    // working on this sequence.
+    const late = createAdvance(() => now() + AI_BACKFILL_ITEM_RECOVERY_MILLIS + 1_000)
+    const swept = await late.sweep()
+    expect(swept).toMatchObject({ runsVisited: 1, itemsRecovered: 1, itemsEmitted: 1 })
+
+    const [runRow] = await db
+      .select()
+      .from(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.propertyId, PROPERTY_ID as string))
+    expect(runRow).toMatchObject({
+      state: 'running',
+      recoveredReviewCount: 1,
+      emittedReviewCount: 2,
+    })
+    // Settled terminal, not retried: the provider may already have been charged
+    // for 257, and a second call would bill the merchant twice for one review.
+    expect(await outcomeStates()).toEqual([
+      { sequence: strandedSequence, state: 'terminal_no_result' },
+    ])
+    // The run moved on: the next item is out on the outbox, awaiting its
+    // consumer, rather than the run sitting on a sequence that can never answer.
+    expect((await emittedEnvelopes()).map(analysisSequenceOf)).toEqual([
+      strandedSequence,
+      strandedSequence + 1,
+    ])
+    expect(analysisCalls).toHaveLength(providerCallsBeforeRecovery)
+    const [recovered] = await db
+      .select({ dispositionCode: aiReviewAnalysisOutcomes.dispositionCode })
+      .from(aiReviewAnalysisOutcomes)
+      .where(
+        and(
+          eq(aiReviewAnalysisOutcomes.propertyId, PROPERTY_ID as string),
+          eq(aiReviewAnalysisOutcomes.analysisSequence, strandedSequence),
+        ),
+      )
+    expect(recovered?.dispositionCode).toBe('policy_disabled')
+
+    // And the run is not halted by it: the remaining four still complete, in
+    // the same epoch, with no operation left behind.
+    const chained = {
+      ...consumerDeps,
+      advanceReviewAnalysisBackfill: createAdvance().advanceProperty,
+    }
+    const settled = new Set<string>([first!.eventId])
+    for (let round = 0; round < REVIEW_COUNT * DISPATCH_ATTEMPTS; round++) {
+      const seen = await emittedEnvelopes()
+      const unsettled = seen.filter((event) => !settled.has(event.eventId)).reverse()
+      if (unsettled.length === 0) break
+      for (const event of unsettled) {
+        if ((await deliverOnce(chained, event)) === 'settled') settled.add(event.eventId)
+      }
+    }
+
+    const analyses = await db
+      .select({ reviewAnalysisEpoch: aiReviewAnalyses.reviewAnalysisEpoch })
+      .from(aiReviewAnalyses)
+      .where(eq(aiReviewAnalyses.propertyId, PROPERTY_ID as string))
+    const operations = await db
+      .select({ state: aiOperations.state })
+      .from(aiOperations)
+      .where(eq(aiOperations.organizationId, ORGANIZATION_ID as string))
+    const [closed] = await db
+      .select()
+      .from(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.propertyId, PROPERTY_ID as string))
+    expect({
+      runState: closed?.state,
+      recovered: closed?.recoveredReviewCount,
+      unsettled: (await outcomeStates()).filter((row) => row.state === 'pending'),
+      analyses: analyses.length,
+      analysisEpochs: [...new Set(analyses.map((row) => row.reviewAnalysisEpoch))],
+      unfinishedOperations: operations.filter((row) => row.state !== 'succeeded'),
+    }).toEqual({
+      runState: 'completed',
+      recovered: 1,
+      unsettled: [],
+      // Four of five: the recovered review is the one whose result was lost, and
+      // it is counted, not silently dropped.
+      analyses: REVIEW_COUNT - 1,
+      analysisEpochs: [runEpoch],
+      unfinishedOperations: [],
+    })
+  })
+
+  it('stalls at a sequence the cursor never consumed instead of stepping over it', async () => {
+    // The event was quarantined or lost before `consume_ai_review_event_v1` saw
+    // it, so no outcome row exists. The cursor still expects this sequence:
+    // emitting the next one would drop it into a permanent `gap` and stall
+    // every later item behind a hole. Stopping loudly is the only safe move.
+    const applied = await applyBackfill()
+    const late = createAdvance(() => now() + AI_BACKFILL_ITEM_RECOVERY_MILLIS + 1_000)
+
+    expect(await late.sweep()).toMatchObject({
+      runsVisited: 1,
+      runsStalled: 1,
+      itemsEmitted: 0,
+      itemsRecovered: 0,
+    })
+
+    const [runRow] = await db
+      .select()
+      .from(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.propertyId, PROPERTY_ID as string))
+    expect(runRow).toMatchObject({
+      state: 'stalled',
+      terminalReason: 'item_never_consumed',
+      emittedReviewCount: 1,
+    })
+    // Nothing emitted past the hole.
+    expect(await emittedEnvelopes()).toHaveLength(1)
+    expect(applied.firstAnalysisSequence).toBe(HEAD_SEQUENCE + 1)
   })
 })
