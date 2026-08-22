@@ -37,8 +37,16 @@ export type PropertyAccessHolderLookup = (
 
 /**
  * The member whose consent this backfill replays — the `actor_user_id` of the
- * evidence row at the enablement's CURRENT `state_version`, which the backfill
- * carries forward onto its own row.
+ * most recent MERCHANT CONSENT DECISION in the lineage ('enable', 'change',
+ * 'revoke' or 'restore_reset') at or below the enablement's current
+ * `state_version`, which the backfill carries forward onto its own row.
+ *
+ * Never an `analysis_backfill` row. That kind records that a replay HAPPENED,
+ * not that consent was given, so inheriting from one lets a single bad run
+ * poison every later run of an append-only lineage: the closed-beta property
+ * had an operator identity sitting at its head, unfixable by construction, and
+ * every subsequent backfill refused. Carrying the last real decision forward
+ * instead makes the lineage self-heal from the next run.
  *
  * That column is resolved as a `member."userId"`: `admit_ai_property_v1` falls
  * back to it for any operation with a NULL `actor_user_id` (every system-run
@@ -49,6 +57,12 @@ export type PropertyAccessHolderLookup = (
 export type ReviewAnalysisConsentActor = Readonly<{
   /** `merchant_ai_consent_evidence.actor_user_id`, i.e. a `member."userId"`. */
   userId: string
+  /**
+   * The `state_version` of the consent decision this actor came from — NOT the
+   * enablement head's, which may be an `analysis_backfill` row. Named in the
+   * refusal so an operator can read the decision being replayed.
+   */
+  stateVersion: number
   /**
    * That actor's `member.role` for this organization, verbatim (it is a
    * comma-separated token list), or null when they are not a member at all.
@@ -71,7 +85,7 @@ export type ReviewAnalysisBackfillEnablement = Readonly<{
   stateVersion: number
   /** Named in the refusal, so an operator can find the lineage without SQL. */
   authorizationLineageId: string
-  /** Null when no evidence row exists at `stateVersion` for the lineage. */
+  /** Null when the lineage holds no merchant consent decision at all. */
   consentActor: ReviewAnalysisConsentActor | null
 }>
 

@@ -96,6 +96,16 @@ function createSession(
       // consent it replays, plus that actor's `member.role` for this
       // organization (null when they are not a member at all).
       //
+      // The LATEST genuine merchant consent decision at or below the head, and
+      // never an `analysis_backfill` row. A backfill is not a consent decision,
+      // so it must not inherit from another backfill: on an append-only lineage
+      // that lets one bad run poison every later run, which is exactly what
+      // happened on the closed beta. This selection is the same one
+      // `reposition_merchant_ai_analysis_watermark_v1` makes inside the
+      // transaction, deliberately — the use case aborts the whole backfill if
+      // the two ever disagree, and predicting a different row from the one SQL
+      // writes would make that guard fire on every run.
+      //
       // Only the role, never the authority verdict. Owner is settled here, but
       // an admin also needs an active property grant, and identity owns the
       // grant table (ADR 0039) — the AI context must not read it. The use case
@@ -105,7 +115,8 @@ function createSession(
       const consentActorRow = enablementRow
         ? ((
             await tx.execute(sql`
-              SELECT evidence.actor_user_id, member.role AS member_role
+              SELECT evidence.state_version, evidence.actor_user_id,
+                     member.role AS member_role
               FROM merchant_ai_consent_evidence AS evidence
               LEFT JOIN member
                 ON member."organizationId" = ${organizationId}
@@ -113,7 +124,11 @@ function createSession(
               WHERE evidence.authorization_lineage_id
                       = ${String(enablementRow.authorization_lineage_id)}::uuid
                 AND evidence.state_version
-                      = ${safeInteger(enablementRow.state_version, 'state_version')}
+                      <= ${safeInteger(enablementRow.state_version, 'state_version')}
+                AND evidence.transition_kind
+                      IN ('enable', 'change', 'revoke', 'restore_reset')
+              ORDER BY evidence.state_version DESC
+              LIMIT 1
               FOR SHARE OF evidence
             `)
           ).rows[0] as Readonly<Record<string, unknown>> | undefined)
@@ -177,6 +192,10 @@ function createSession(
                 consentActorRow && consentActorRow.actor_user_id !== null
                   ? {
                       userId: String(consentActorRow.actor_user_id),
+                      stateVersion: safeInteger(
+                        consentActorRow.state_version,
+                        'consent decision state_version',
+                      ),
                       // NULL when the LEFT JOIN found no member row at all.
                       memberRole:
                         consentActorRow.member_role === null ||
