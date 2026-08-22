@@ -381,6 +381,23 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
+    'ai.review_analysis.backfill_requested',
+    'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts',
+    {
+      stateOwner: 'ai',
+      capability: 'ai.analyze',
+      action: 'system:ops',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('ai.analyze-review-event', AI_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only operator replay (ops:ai-reanalyze) carrying a FRESH contiguous analysis sequence; deliberately NOT a re-emitted review.created/updated, which the inbox also consumes',
+    },
+  ),
+  ev(
     'review.expired',
     REVIEW_EVENTS,
     {

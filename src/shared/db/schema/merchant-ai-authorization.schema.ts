@@ -114,7 +114,7 @@ export const merchantAiConsentEvidence = pgTable(
     ),
     check(
       'merchant_ai_consent_evidence_transition_valid',
-      sql`${t.transitionKind} IN ('enable', 'change', 'revoke', 'restore_reset')`,
+      sql`${t.transitionKind} IN ('enable', 'change', 'revoke', 'restore_reset', 'analysis_backfill')`,
     ),
     check(
       'merchant_ai_consent_evidence_state_valid',

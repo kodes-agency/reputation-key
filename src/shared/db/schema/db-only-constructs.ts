@@ -276,6 +276,13 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     reason: `${NO_TRIGGER_DSL}; atomically validates the source epoch and allocates a review analysis sequence.`,
   },
   {
+    name: 'reposition_merchant_ai_analysis_watermark_v1',
+    kind: 'function',
+    owner: 'identity',
+    source: 'drizzle/0072_ai-review-analysis-backfill.sql',
+    reason: `${NO_TRIGGER_DSL}; repositions the merchant review-analysis watermark and bumps the analysis epoch in one transaction, so an audited backfill cannot leave the watermark and the epoch disagreeing.`,
+  },
+  {
     name: 'initialize_review_provider_subject_hmac_key_v1',
     kind: 'function',
     owner: 'review',

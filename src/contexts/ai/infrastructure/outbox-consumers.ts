@@ -52,6 +52,10 @@ function dispositionFor(
   if (event.eventType === 'review.source_transitioned') {
     return change ?? 'source_expired'
   }
+  // A backfill is an explicit request to analyse retained content. It reuses
+  // this path so the analysis logic is not duplicated, and it may only ever be
+  // `pending`: a terminal disposition would consume the freshly allocated
+  // sequence without producing the analysis the operator asked for.
   return 'pending'
 }
 
@@ -144,6 +148,16 @@ export function registerAiConsumers(dependencies: RegisterAiConsumersInput): voi
   })
   registerConsumer({
     eventType: 'review.source_transitioned',
+    consumerName: 'ai.analyze-review-event',
+    module: 'ai.outbox-consumers',
+    handler: (event) => handleAiReviewEvent(dependencies, event),
+  })
+  // The audited operator backfill (`ops:ai-reanalyze`). Registered ONLY here:
+  // the inbox also consumes `review.created`/`review.updated`, so replaying
+  // either to reach review analysis would churn inbox items for reviews that
+  // never changed. Same handler — the analysis logic is not duplicated.
+  registerConsumer({
+    eventType: 'ai.review_analysis.backfill_requested',
     consumerName: 'ai.analyze-review-event',
     module: 'ai.outbox-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
