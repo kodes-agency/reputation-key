@@ -22,6 +22,12 @@ const LINEAGE = '26a69a51-ce4b-4d28-a61c-f1f5931e52ee'
 /** A real `member."userId"`, which is what the consent ledger's actor column is. */
 const CONSENT_ACTOR = 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD'
 
+/**
+ * The live closed-beta shape: the head at `stateVersion` 7 is an
+ * `analysis_backfill` row, and the consent it replays is the merchant decision
+ * at 5. The two differ on purpose — a rule that read the head would report 7,
+ * and the refusal assertions below pin 5.
+ */
 const ENABLED: ReviewAnalysisBackfillEnablement = {
   state: 'enabled',
   capabilities: ['review_analysis', 'reply_drafting'],
@@ -30,7 +36,7 @@ const ENABLED: ReviewAnalysisBackfillEnablement = {
   analysisStartSequence: 40,
   stateVersion: 7,
   authorizationLineageId: LINEAGE,
-  consentActor: { userId: CONSENT_ACTOR, memberRole: 'owner' },
+  consentActor: { userId: CONSENT_ACTOR, stateVersion: 5, memberRole: 'owner' },
 }
 
 /** `n` candidates whose STORED sequences are whatever the caller says. */
@@ -349,30 +355,37 @@ describe('backfillReviewAnalysis — refusals', () => {
       message: /property is not active/,
     },
     {
-      // The live shape of the ops:ai-reanalyze failure: the operator's email
-      // went into a column admission resolves as a member."userId", so every
-      // backfilled review was denied. Refusing needs the lineage and the state
-      // version in the message, because that is what an operator has to look up.
-      name: 'no consent-evidence row to carry the actor forward from',
+      // Refusing needs the lineage and the state version in the message,
+      // because that is what an operator has to look up. The bound is the
+      // head's version: the search runs at or below it.
+      name: 'no merchant consent decision to carry the actor forward from',
       context: { enablement: { ...ENABLED, consentActor: null } },
       refusal: 'consent_actor_absent',
       message:
-        /no consent-evidence row exists for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7/,
+        /no merchant consent-decision row \(enable, change, revoke, restore_reset\) exists for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at or below state_version 7/,
     },
     {
       // The live shape, verbatim: the ops operator's email in a
       // member."userId" column, so `member` yields no row at all.
+      //
+      // `state_version 5`, not the head's 7, is the assertion that pins the
+      // selection rule: the message must name the CONSENT DECISION being
+      // replayed, and 7 is an `analysis_backfill` row that decided nothing.
       name: 'the recorded actor is not a member of the organization',
       context: {
         enablement: {
           ...ENABLED,
-          consentActor: { userId: 'denev@kodes.agency', memberRole: null },
+          consentActor: {
+            userId: 'denev@kodes.agency',
+            stateVersion: 5,
+            memberRole: null,
+          },
         },
       },
       refusal: 'consent_actor_unauthorized',
       // Names the actor it tried, so the operator can act without reading SQL.
       message:
-        /consent-evidence actor 'denev@kodes.agency' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7 .*member\.role is absent — not a member/,
+        /consent-evidence actor 'denev@kodes.agency' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 5 .*member\.role is absent — not a member/,
     },
     {
       // An admin's authority rests on a grant, and the harness reports none.
@@ -380,13 +393,13 @@ describe('backfillReviewAnalysis — refusals', () => {
       context: {
         enablement: {
           ...ENABLED,
-          consentActor: { userId: CONSENT_ACTOR, memberRole: 'admin' },
+          consentActor: { userId: CONSENT_ACTOR, stateVersion: 5, memberRole: 'admin' },
         },
       },
       grantHolders: [],
       refusal: 'consent_actor_unauthorized',
       message:
-        /consent-evidence actor 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7 .*member\.role is 'admin'/,
+        /consent-evidence actor 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 5 .*member\.role is 'admin'/,
     },
   ] as const
 
@@ -477,7 +490,7 @@ describe('backfillReviewAnalysis — refusals', () => {
         eligibleReviewCount: 1,
         enablement: {
           ...ENABLED,
-          consentActor: { userId: CONSENT_ACTOR, memberRole: 'admin' },
+          consentActor: { userId: CONSENT_ACTOR, stateVersion: 5, memberRole: 'admin' },
         },
       },
       grantHolders: [CONSENT_ACTOR],

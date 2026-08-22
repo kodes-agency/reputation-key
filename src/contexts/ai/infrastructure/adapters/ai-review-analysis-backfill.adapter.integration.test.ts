@@ -585,4 +585,94 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       'merchant_ai_backfill_consent_actor_denied',
     )
   })
+
+  it('the SQL skips an analysis_backfill head and carries the last consent decision forward', async () => {
+    // The authoritative half of the selection rule, proven WITHOUT the use
+    // case: the pre-flight read cannot be credited for this result.
+    //
+    // A prior backfill's row is forged at the head carrying an operator email —
+    // the live closed-beta shape, and unfixable there because the ledger is
+    // append-only. An `analysis_backfill` row is not a consent decision, so the
+    // function must look past it to the merchant `change` at state_version 2 and
+    // carry THAT member forward, which is what makes the lineage self-heal.
+    await seed()
+    const [head] = await db
+      .select()
+      .from(merchantAiEnablement)
+      .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    if (!head) throw new Error('enablement head missing')
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
+      await tx.insert(merchantAiConsentEvidence).values({
+        organizationId: ORGANIZATION_ID as string,
+        propertyId: PROPERTY_ID as string,
+        authorizationLineageId: LINEAGE_ID,
+        stateVersion: head.stateVersion + 1,
+        transitionKind: 'analysis_backfill',
+        state: head.state,
+        capabilities: [...head.capabilities],
+        capabilityRuntimeProfileVersions: head.capabilityRuntimeProfileVersions,
+        reviewAnalysisEpoch: head.reviewAnalysisEpoch + 1,
+        replyDraftingEpoch: head.replyDraftingEpoch,
+        propertyTrendsEpoch: head.propertyTrendsEpoch,
+        authorizedSourceEpoch: head.authorizedSourceEpoch,
+        analysisStartSequence: HEAD_SEQUENCE,
+        noticeVersion: head.noticeVersion,
+        noticeDigest: head.noticeDigest,
+        sourcePolicyId: head.sourcePolicyId,
+        routingPolicyVersion: head.routingPolicyVersion,
+        processingRegion: head.processingRegion,
+        providerDeploymentProfileVersion: head.providerDeploymentProfileVersion,
+        redactionProfileFamily: head.redactionProfileFamily,
+        // Not a `member."userId"`, and now sitting at the head.
+        actorUserId: 'denev@kodes.agency',
+        reasonCode: 'operator_review_analysis_backfill',
+        idempotencyKey: 'ai-reanalyze-broken-pilot-v3',
+        requestHash: '4'.repeat(64),
+        occurredAt: NOW,
+      })
+      await tx
+        .update(merchantAiEnablement)
+        .set({
+          stateVersion: head.stateVersion + 1,
+          reviewAnalysisEpoch: head.reviewAnalysisEpoch + 1,
+          analysisStartSequence: HEAD_SEQUENCE,
+          updatedBy: 'denev@kodes.agency',
+          updatedAt: NOW,
+        })
+        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    })
+
+    const repositioned = await db.execute<{
+      state_version: number
+      consent_actor_user_id: string
+    }>(sql`
+      SELECT *
+      FROM reposition_merchant_ai_analysis_watermark_v1(
+        ${ORGANIZATION_ID}, ${PROPERTY_ID}::uuid,
+        'operator_review_analysis_backfill', 'ops-direct-lineage-1', ${'e'.repeat(64)},
+        ${NOW.toISOString()}::timestamptz
+      )
+    `)
+
+    expect(repositioned.rows[0]).toMatchObject({
+      state_version: 4,
+      consent_actor_user_id: ACTOR_USER_ID,
+    })
+    // And the row it wrote — the one `admit_ai_property_v1` will read at the new
+    // head — names that member, so the next admission resolves.
+    const [written] = await db
+      .select()
+      .from(merchantAiConsentEvidence)
+      .where(
+        and(
+          eq(merchantAiConsentEvidence.authorizationLineageId, LINEAGE_ID),
+          eq(merchantAiConsentEvidence.stateVersion, 4),
+        ),
+      )
+    expect(written).toMatchObject({
+      transitionKind: 'analysis_backfill',
+      actorUserId: ACTOR_USER_ID,
+    })
+  })
 })

@@ -214,18 +214,21 @@ async function refuseFor(
   // The evidence row this backfill writes carries `actor_user_id`, and
   // `admit_ai_property_v1` resolves that column as a `member."userId"` for every
   // system-run operation. A backfill grants no new consent, so the accountable
-  // actor is the member who consented — carried forward from the evidence row at
-  // the pre-backfill `state_version`. If that member cannot be resolved, refuse:
-  // substituting the operator (not a member) or picking an arbitrary owner would
-  // forge the consent record, and writing an unresolvable actor denies every
-  // replayed operation `authorization_changed` after burning an epoch.
+  // actor is the member who consented — carried forward from the most recent
+  // MERCHANT CONSENT DECISION in the lineage, never from an `analysis_backfill`
+  // row, which records only that a replay happened. If that member cannot be
+  // resolved, refuse: substituting the operator (not a member) or picking an
+  // arbitrary owner would forge the consent record, and writing an unresolvable
+  // actor denies every replayed operation `authorization_changed` after burning
+  // an epoch.
   const consentActor = enablement.consentActor
   if (consentActor === null) {
     return {
       refusal: 'consent_actor_absent',
       message:
-        `no consent-evidence row exists for authorization lineage ${enablement.authorizationLineageId} ` +
-        `at state_version ${enablement.stateVersion}, so the member who consented cannot be carried forward — ` +
+        `no merchant consent-decision row (enable, change, revoke, restore_reset) exists for ` +
+        `authorization lineage ${enablement.authorizationLineageId} at or below state_version ${enablement.stateVersion}, ` +
+        'so the member who consented cannot be carried forward — ' +
         'a backfill records their identity, never the operator who ran it',
     }
   }
@@ -234,7 +237,7 @@ async function refuseFor(
       refusal: 'consent_actor_unauthorized',
       message:
         `consent-evidence actor '${consentActor.userId}' for authorization lineage ${enablement.authorizationLineageId} ` +
-        `at state_version ${enablement.stateVersion} is not a member of this organization with authority over this property ` +
+        `at state_version ${consentActor.stateVersion} is not a member of this organization with authority over this property ` +
         `(owner, or admin with an active property access grant; member.role is ${consentActor.memberRole === null ? 'absent — not a member' : `'${consentActor.memberRole}'`}) — ` +
         'admission would deny every replayed review, so the merchant must re-consent under a member who still has authority',
     }

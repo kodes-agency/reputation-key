@@ -18,9 +18,19 @@
 //
 // So this file drives the real admission function end to end:
 //   backfill -> claim the emitted analysis sequence -> authorizeProperty
-// and asserts `admitted`. The companion test forges the pre-fix row (operator
+// and asserts `admitted`. One companion test forges the pre-fix row (operator
 // identity in the ledger) and pins the exact denial the closed-beta pilot hit,
 // so a regression by any route fails here rather than in production.
+//
+// The last test is the shape that actually bit the live property, and it is a
+// different defect from the one above: #342 fixed the WRITER but still read the
+// actor from the lineage HEAD, and on the live property that head IS the row
+// the first broken pilot wrote. The ledger is append-only and trigger-guarded,
+// so that row can never be corrected, and no operator can mint a replacement
+// because a real merchant transition demands an owner/admin member with a
+// password — the property was permanently un-backfillable. An
+// `analysis_backfill` row records that a REPLAY happened, not that consent was
+// given, so it must never be the source of the accountable actor.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, inArray, sql } from 'drizzle-orm'
@@ -573,6 +583,78 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
     return applied
   }
 
+  /**
+   * Append ONE evidence row onto the live head and move the head onto it — the
+   * only way to build lineage history against an append-only, trigger-guarded
+   * ledger, and the same shape `apply_merchant_ai_transition_v1` writes. Every
+   * consent-bearing column defaults to the head's, so a caller states only what
+   * its own transition changes.
+   */
+  const appendLineageRow = async (
+    row: Readonly<{
+      transitionKind: 'enable' | 'change' | 'revoke' | 'analysis_backfill'
+      actorUserId: string
+      reasonCode: string
+      idempotencyKey: string
+      /**
+       * `merchant_ai_*_capabilities_valid` ties capabilities to state: an
+       * enabled row must carry a valid non-empty set, a revoked one none.
+       */
+      state?: 'enabled' | 'revoked'
+      reviewAnalysisEpoch?: number
+      analysisStartSequence?: number
+    }>,
+  ) => {
+    const [head] = await db
+      .select()
+      .from(merchantAiEnablement)
+      .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    if (!head) throw new Error('enablement head missing')
+    const state = row.state ?? head.state
+    const enabled = state === 'enabled'
+    // `guard_merchant_ai_enablement_v1` compares the head against the evidence
+    // row at its state_version column by column, so both writes take exactly
+    // these values.
+    const moved = {
+      stateVersion: head.stateVersion + 1,
+      state,
+      capabilities: enabled ? ['review_analysis'] : [],
+      capabilityRuntimeProfileVersions: enabled ? RUNTIME_PROFILES : {},
+      reviewAnalysisEpoch: row.reviewAnalysisEpoch ?? head.reviewAnalysisEpoch,
+      analysisStartSequence: row.analysisStartSequence ?? head.analysisStartSequence,
+    }
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
+      await tx.insert(merchantAiConsentEvidence).values({
+        ...moved,
+        organizationId: ORGANIZATION_ID as string,
+        propertyId: PROPERTY_ID as string,
+        authorizationLineageId: LINEAGE_ID,
+        transitionKind: row.transitionKind,
+        replyDraftingEpoch: head.replyDraftingEpoch,
+        propertyTrendsEpoch: head.propertyTrendsEpoch,
+        authorizedSourceEpoch: head.authorizedSourceEpoch,
+        noticeVersion: head.noticeVersion,
+        noticeDigest: head.noticeDigest,
+        sourcePolicyId: head.sourcePolicyId,
+        routingPolicyVersion: head.routingPolicyVersion,
+        processingRegion: head.processingRegion,
+        providerDeploymentProfileVersion: head.providerDeploymentProfileVersion,
+        redactionProfileFamily: head.redactionProfileFamily,
+        actorUserId: row.actorUserId,
+        reasonCode: row.reasonCode,
+        idempotencyKey: row.idempotencyKey,
+        requestHash: 'c'.repeat(64),
+        occurredAt: NOW,
+      })
+      await tx
+        .update(merchantAiEnablement)
+        .set({ ...moved, updatedBy: row.actorUserId, updatedAt: NOW })
+        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    })
+    return moved
+  }
+
   it('admits a backfilled operation instead of denying it authorization_changed', async () => {
     const applied = await runBackfill()
     expect(applied.emittedAnalysisSequences).toEqual([HEAD_SEQUENCE + 1])
@@ -629,62 +711,102 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
     // This is the assertion whose absence let #341 ship green — the writer's
     // shape was tested, its consequence at admission was not.
     const applied = await runBackfill()
-    const [head] = await db
-      .select()
-      .from(merchantAiEnablement)
-      .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
-    if (!head) throw new Error('enablement head missing')
-    const nextStateVersion = head.stateVersion + 1
-    const nextEpoch = head.reviewAnalysisEpoch + 1
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT set_config('repkey.merchant_ai_transition', '1', true)`)
-      await tx.insert(merchantAiConsentEvidence).values({
-        organizationId: ORGANIZATION_ID as string,
-        propertyId: PROPERTY_ID as string,
-        authorizationLineageId: LINEAGE_ID,
-        stateVersion: nextStateVersion,
-        transitionKind: 'analysis_backfill',
-        state: head.state,
-        capabilities: [...head.capabilities],
-        capabilityRuntimeProfileVersions: head.capabilityRuntimeProfileVersions,
-        reviewAnalysisEpoch: nextEpoch,
-        replyDraftingEpoch: head.replyDraftingEpoch,
-        propertyTrendsEpoch: head.propertyTrendsEpoch,
-        authorizedSourceEpoch: head.authorizedSourceEpoch,
-        analysisStartSequence: HEAD_SEQUENCE,
-        noticeVersion: head.noticeVersion,
-        noticeDigest: head.noticeDigest,
-        sourcePolicyId: head.sourcePolicyId,
-        routingPolicyVersion: head.routingPolicyVersion,
-        processingRegion: head.processingRegion,
-        providerDeploymentProfileVersion: head.providerDeploymentProfileVersion,
-        redactionProfileFamily: head.redactionProfileFamily,
-        // The bug, verbatim: an operator email in a `member."userId"` column.
-        actorUserId: OPERATOR_EMAIL,
-        reasonCode: 'operator_review_analysis_backfill',
-        idempotencyKey: 'ops-ai-reanalyze:prefix-shape',
-        requestHash: 'c'.repeat(64),
-        occurredAt: NOW,
-      })
-      await tx
-        .update(merchantAiEnablement)
-        .set({
-          stateVersion: nextStateVersion,
-          reviewAnalysisEpoch: nextEpoch,
-          analysisStartSequence: HEAD_SEQUENCE,
-          updatedBy: OPERATOR_EMAIL,
-          updatedAt: NOW,
-        })
-        .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    const forged = await appendLineageRow({
+      transitionKind: 'analysis_backfill',
+      // The bug, verbatim: an operator email in a `member."userId"` column.
+      actorUserId: OPERATOR_EMAIL,
+      reasonCode: 'operator_review_analysis_backfill',
+      idempotencyKey: 'ops-ai-reanalyze:prefix-shape',
+      reviewAnalysisEpoch: applied.reviewAnalysisEpoch + 1,
+      analysisStartSequence: HEAD_SEQUENCE,
     })
 
     const denied = await admitBackfilledOperation({
-      reviewAnalysisEpoch: nextEpoch,
+      reviewAnalysisEpoch: forged.reviewAnalysisEpoch,
       analysisSequence: applied.emittedAnalysisSequences[0]!,
       idempotencyKey: 'prefix-shape-admission-key',
     })
 
     // Named the epoch in production only because the gateway remaps this code.
     expect(denied).toEqual({ status: 'denied', code: 'authorization_changed' })
+  })
+
+  it('admits a backfill run on a lineage whose head is a poisoned analysis_backfill row', async () => {
+    // The shape that bit the live closed-beta property, and the reason reading
+    // the actor from the HEAD is a design dead end rather than a data problem.
+    //
+    // The lineage below is the live one: five genuine merchant decisions by the
+    // owner, then the first broken pilot's `analysis_backfill` row carrying an
+    // operator email. That row is the head. It is append-only and
+    // trigger-guarded, so it cannot be corrected, and no operator can mint a
+    // replacement consent decision — `apply_merchant_ai_transition_v1` demands
+    // an owner/admin member with a password. Deriving the actor from the head
+    // therefore refuses this property forever.
+    //
+    //   1  enable             owner               merchant_enabled
+    //   2  change             owner               capabilities_changed
+    //   3  change             owner               capabilities_changed
+    //   4  revoke             owner               merchant_revoked
+    //   5  enable             owner               merchant_enabled   <- in force
+    //   6  analysis_backfill  denev@kodes.agency  operator_review_analysis_backfill
+    //
+    // The revoke at 4 is deliberate: it proves the rule picks the HIGHEST
+    // qualifying state_version (5) rather than any consent decision, so the
+    // consent actually in force is the one replayed.
+    await appendLineageRow({
+      transitionKind: 'change',
+      actorUserId: CONSENT_ACTOR_ID,
+      reasonCode: 'capabilities_changed',
+      idempotencyKey: 'ai-reanalyze-admission-change-v2',
+    })
+    await appendLineageRow({
+      transitionKind: 'change',
+      actorUserId: CONSENT_ACTOR_ID,
+      reasonCode: 'capabilities_changed',
+      idempotencyKey: 'ai-reanalyze-admission-change-v3',
+    })
+    await appendLineageRow({
+      transitionKind: 'revoke',
+      state: 'revoked',
+      actorUserId: CONSENT_ACTOR_ID,
+      reasonCode: 'merchant_revoked',
+      idempotencyKey: 'ai-reanalyze-admission-revoke-v4',
+    })
+    const reEnabled = await appendLineageRow({
+      transitionKind: 'enable',
+      state: 'enabled',
+      actorUserId: CONSENT_ACTOR_ID,
+      reasonCode: 'merchant_enabled',
+      idempotencyKey: 'ai-reanalyze-admission-enable-v5',
+    })
+    expect(reEnabled.stateVersion).toBe(5)
+    const poisonedHead = await appendLineageRow({
+      transitionKind: 'analysis_backfill',
+      // Not a `member."userId"`, and unfixable: this row is history.
+      actorUserId: OPERATOR_EMAIL,
+      reasonCode: 'operator_review_analysis_backfill',
+      idempotencyKey: 'ai-reanalyze-admission-broken-pilot-v6',
+      reviewAnalysisEpoch: reEnabled.reviewAnalysisEpoch + 1,
+      analysisStartSequence: HEAD_SEQUENCE,
+    })
+    expect(poisonedHead.stateVersion).toBe(6)
+
+    // Reading the head would refuse `consent_actor_unauthorized` here and no
+    // run could ever succeed. Reading the most recent consent decision resolves
+    // to state_version 5's owner — the consent this replay actually spends.
+    const applied = await runBackfill()
+    expect(applied.consentActorUserId).toBe(CONSENT_ACTOR_ID)
+    expect(applied.stateVersion).toBe(7)
+
+    // THE deliverable: admission resolves the evidence row at the NEW head
+    // (state_version 7), which now carries the owner, so the replayed review
+    // reaches the provider instead of being denied `authorization_changed`.
+    // The lineage self-heals from this run onward without touching history.
+    const admitted = await admitBackfilledOperation({
+      reviewAnalysisEpoch: applied.reviewAnalysisEpoch,
+      analysisSequence: applied.emittedAnalysisSequences[0]!,
+      idempotencyKey: 'poisoned-head-admission-key',
+    })
+    expect(admitted).toMatchObject({ status: 'admitted' })
   })
 })
