@@ -83,7 +83,7 @@ function createSession(
 
       const enablementResult = await tx.execute(sql`
         SELECT state, capabilities, authorized_source_epoch, review_analysis_epoch,
-               analysis_start_sequence, state_version
+               analysis_start_sequence, state_version, authorization_lineage_id
         FROM merchant_ai_enablement
         WHERE organization_id = ${organizationId}
           AND property_id = ${propertyId}::uuid
@@ -91,6 +91,54 @@ function createSession(
       `)
       const enablementRow = enablementResult.rows[0] as
         Readonly<Record<string, unknown>> | undefined
+
+      // The accountable member this backfill will record: the actor of the
+      // consent it replays, plus whether they still hold authority over the
+      // property. `hasPropertyAuthority` mirrors `admit_ai_property_v1` exactly
+      // — owner, or admin with a live grant — so the use case can refuse on the
+      // same grounds admission would deny, before anything is written.
+      const consentActorRow = enablementRow
+        ? ((
+            await tx.execute(sql`
+              SELECT evidence.actor_user_id,
+                     (
+                       'owner' = ANY (
+                         regexp_split_to_array(
+                           lower(member.role), '[[:space:]]*,[[:space:]]*'
+                         )
+                       )
+                       OR (
+                         'admin' = ANY (
+                           regexp_split_to_array(
+                             lower(member.role), '[[:space:]]*,[[:space:]]*'
+                           )
+                         )
+                         AND EXISTS (
+                           SELECT 1
+                           FROM property_access_grant AS grant_row
+                           WHERE grant_row.organization_id = ${organizationId}
+                             AND grant_row.property_id = ${propertyId}::uuid
+                             AND grant_row.user_id = evidence.actor_user_id
+                             AND grant_row.revoked_at IS NULL
+                             AND (
+                               grant_row.expires_at IS NULL
+                               OR grant_row.expires_at > transaction_timestamp()
+                             )
+                         )
+                       )
+                     ) AS has_property_authority
+              FROM merchant_ai_consent_evidence AS evidence
+              LEFT JOIN member
+                ON member."organizationId" = ${organizationId}
+                AND member."userId" = evidence.actor_user_id
+              WHERE evidence.authorization_lineage_id
+                      = ${String(enablementRow.authorization_lineage_id)}::uuid
+                AND evidence.state_version
+                      = ${safeInteger(enablementRow.state_version, 'state_version')}
+              FOR SHARE OF evidence
+            `)
+          ).rows[0] as Readonly<Record<string, unknown>> | undefined)
+        : undefined
 
       const headResult = await tx.execute(sql`
         SELECT head_sequence
@@ -145,6 +193,16 @@ function createSession(
                 'analysis_start_sequence',
               ),
               stateVersion: safeInteger(enablementRow.state_version, 'state_version'),
+              authorizationLineageId: String(enablementRow.authorization_lineage_id),
+              consentActor:
+                consentActorRow && consentActorRow.actor_user_id !== null
+                  ? {
+                      userId: String(consentActorRow.actor_user_id),
+                      // NULL when the LEFT JOIN found no member row at all.
+                      hasPropertyAuthority:
+                        consentActorRow.has_property_authority === true,
+                    }
+                  : null,
             }
           : null,
         analysisHeadSequence: headRow
@@ -188,7 +246,6 @@ function createSession(
         FROM reposition_merchant_ai_analysis_watermark_v1(
           ${organizationId},
           ${propertyId}::uuid,
-          ${input.operatorId},
           ${input.reasonCode},
           ${input.idempotencyKey},
           ${input.requestHash},
@@ -208,6 +265,7 @@ function createSession(
           'review_analysis_epoch',
         ),
         stateVersion: safeInteger(row.state_version, 'state_version'),
+        consentActorUserId: String(row.consent_actor_user_id),
       }
     },
 

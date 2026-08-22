@@ -16,6 +16,10 @@ const ORG = organizationId('org-hotel')
 const PROPERTY = propertyId('071b20fe-2598-4f63-a2a1-b9ac2f959575')
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 
+const LINEAGE = '26a69a51-ce4b-4d28-a61c-f1f5931e52ee'
+/** A real `member."userId"`, which is what the consent ledger's actor column is. */
+const CONSENT_ACTOR = 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD'
+
 const ENABLED: ReviewAnalysisBackfillEnablement = {
   state: 'enabled',
   capabilities: ['review_analysis', 'reply_drafting'],
@@ -23,6 +27,8 @@ const ENABLED: ReviewAnalysisBackfillEnablement = {
   reviewAnalysisEpoch: 2,
   analysisStartSequence: 40,
   stateVersion: 7,
+  authorizationLineageId: LINEAGE,
+  consentActor: { userId: CONSENT_ACTOR, hasPropertyAuthority: true },
 }
 
 /** `n` candidates whose STORED sequences are whatever the caller says. */
@@ -84,6 +90,8 @@ function harness(
         analysisStartSequence: context.analysisHeadSequence,
         reviewAnalysisEpoch: (context.enablement?.reviewAnalysisEpoch ?? 0) + 1,
         stateVersion: (context.enablement?.stateVersion ?? 0) + 1,
+        // The SQL derives this from the consent it replays.
+        consentActorUserId: context.enablement?.consentActor?.userId ?? '',
       }
     },
     allocateAnalysisSequence: async () => {
@@ -124,7 +132,6 @@ function input(
     propertyId: PROPERTY,
     limit: 500,
     dryRun: false,
-    operatorId: 'operator-bo',
     reasonCode: 'operator_review_analysis_backfill',
     idempotencyKey: 'ops-ai-reanalyze:abc',
     requestHash: 'a'.repeat(64),
@@ -209,6 +216,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
               analysisStartSequence: 4,
               reviewAnalysisEpoch: 3,
               stateVersion: 8,
+              consentActorUserId: CONSENT_ACTOR,
             }),
           }),
         ),
@@ -313,6 +321,30 @@ describe('backfillReviewAnalysis — refusals', () => {
       refusal: 'property_inactive',
       message: /property is not active/,
     },
+    {
+      // The live shape of the ops:ai-reanalyze failure: the operator's email
+      // went into a column admission resolves as a member."userId", so every
+      // backfilled review was denied. Refusing needs the lineage and the state
+      // version in the message, because that is what an operator has to look up.
+      name: 'no consent-evidence row to carry the actor forward from',
+      context: { enablement: { ...ENABLED, consentActor: null } },
+      refusal: 'consent_actor_absent',
+      message:
+        /no consent-evidence row exists for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7/,
+    },
+    {
+      name: 'the member who consented no longer has authority over the property',
+      context: {
+        enablement: {
+          ...ENABLED,
+          consentActor: { userId: CONSENT_ACTOR, hasPropertyAuthority: false },
+        },
+      },
+      refusal: 'consent_actor_unauthorized',
+      // Names the actor it tried, so the operator can act without reading SQL.
+      message:
+        /consent-evidence actor 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7/,
+    },
   ] as const
 
   for (const testCase of cases) {
@@ -346,5 +378,50 @@ describe('backfillReviewAnalysis — refusals', () => {
     expect(result.refusal).toBe('no_eligible_reviews')
     expect(h.recorded.repositions).toBe(0)
     expect(h.recorded.emitted).toEqual([])
+  })
+
+  it('aborts when the ledger recorded an actor other than the one it validated', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+    // The SQL derives the actor independently of the context read. If the two
+    // disagree the lineage head moved, so the ledger names someone whose
+    // authority was never checked — roll back rather than record it.
+    const store: ReviewAnalysisBackfillStorePort = {
+      runExclusive: (arg, run) =>
+        h.store.runExclusive(arg, (session) =>
+          run({
+            ...session,
+            repositionWatermark: async () => ({
+              sourceEpoch: 3,
+              analysisStartSequence: 10,
+              reviewAnalysisEpoch: 3,
+              stateVersion: 8,
+              consentActorUserId: 'someone-else',
+            }),
+          }),
+        ),
+    }
+
+    await expect(
+      createBackfillReviewAnalysis({ backfillStore: store })(input()),
+    ).rejects.toThrow(
+      /recorded consent actor 'someone-else', expected the validated 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD'/,
+    )
+    expect(h.recorded.emitted).toEqual([])
+  })
+
+  it('reports the member whose consent it replayed, never an operator', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+
+    const result = await createBackfillReviewAnalysis({ backfillStore: h.store })(input())
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.consentActorUserId).toBe(CONSENT_ACTOR)
   })
 })

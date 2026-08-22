@@ -86,10 +86,17 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       authorizedSourceEpoch?: number
       state?: string
       capabilities?: ReadonlyArray<string>
+      /**
+       * `actor_user_id` on the consent-evidence rows the backfill carries
+       * forward from. Defaults to the seeded owner; set it to something that is
+       * not a `member."userId"` to reproduce the live ops:ai-reanalyze failure.
+       */
+      priorActorUserId?: string
     }> = {},
   ) => {
     const propertySourceEpoch = overrides.propertySourceEpoch ?? SOURCE_EPOCH
     const authorizedSourceEpoch = overrides.authorizedSourceEpoch ?? SOURCE_EPOCH
+    const priorActorUserId = overrides.priorActorUserId ?? ACTOR_USER_ID
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${ORGANIZATION_ID}, 'AI reanalyze backfill test', ${ORGANIZATION_ID}, ${NOW})
@@ -208,7 +215,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
         capabilities: ['review_analysis', 'reply_drafting'],
         capabilityRuntimeProfileVersions: RUNTIME_PROFILES,
         reviewAnalysisEpoch: 1,
-        actorUserId: 'ai-reanalyze-test-actor',
+        actorUserId: priorActorUserId,
         reasonCode: 'merchant_enabled',
         idempotencyKey: 'ai-reanalyze-enable-v1',
         requestHash: '2'.repeat(64),
@@ -219,7 +226,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
         authorizationLineageId: LINEAGE_ID,
         stateVersion: 2,
         transitionKind: capabilities.length === 0 ? 'revoke' : 'change',
-        actorUserId: 'ai-reanalyze-test-actor',
+        actorUserId: priorActorUserId,
         reasonCode: 'merchant_changed',
         idempotencyKey: 'ai-reanalyze-change-v1',
         requestHash: '3'.repeat(64),
@@ -229,7 +236,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
         ...shared,
         authorizationLineageId: LINEAGE_ID,
         stateVersion: 2,
-        updatedBy: 'ai-reanalyze-test-actor',
+        updatedBy: priorActorUserId,
         updatedAt: NOW,
       })
     })
@@ -243,7 +250,6 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       propertyId: PROPERTY_ID,
       limit: overrides.limit ?? 100,
       dryRun: overrides.dryRun ?? false,
-      operatorId: 'ops-operator-1',
       reasonCode: 'operator_review_analysis_backfill',
       idempotencyKey: 'ops-ai-reanalyze:integration',
       requestHash: 'b'.repeat(64),
@@ -336,12 +342,40 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     // Recorded under its own kind, never disguised as a merchant 'change'.
     expect(evidence).toMatchObject({
       transitionKind: 'analysis_backfill',
-      actorUserId: 'ops-operator-1',
+      // The MEMBER who consented, carried forward from state_version 2 — not the
+      // operator who ran the replay. `admit_ai_property_v1` resolves this column
+      // as a `member."userId"` for every system-run operation, so an operator
+      // identity here denies every backfilled review `authorization_changed`.
+      actorUserId: ACTOR_USER_ID,
       reasonCode: 'operator_review_analysis_backfill',
       analysisStartSequence: HEAD_SEQUENCE,
       reviewAnalysisEpoch: 3,
       capabilities: ['review_analysis', 'reply_drafting'],
     })
+
+    // The property that was missing: the recorded actor is a real member of
+    // this organization. Asserting the string alone is what let the operator
+    // email ship green.
+    const priorEvidence = await db
+      .select({ actorUserId: merchantAiConsentEvidence.actorUserId })
+      .from(merchantAiConsentEvidence)
+      .where(
+        and(
+          eq(merchantAiConsentEvidence.authorizationLineageId, LINEAGE_ID),
+          eq(merchantAiConsentEvidence.stateVersion, 2),
+        ),
+      )
+    expect(evidence?.actorUserId).toBe(priorEvidence[0]?.actorUserId)
+    const members = await db.execute<{ role: string }>(sql`
+      SELECT role FROM member
+      WHERE "organizationId" = ${ORGANIZATION_ID}
+        AND "userId" = ${evidence?.actorUserId}
+    `)
+    expect(members.rows).toEqual([{ role: 'owner' }])
+
+    // The enablement's updated_by follows the same actor, so the head and the
+    // ledger cannot disagree about who is accountable.
+    expect(enablement).toMatchObject({ updatedBy: ACTOR_USER_ID })
   })
 
   it('moves each review analysis pointer and touches no other review column', async () => {
@@ -450,7 +484,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
         sql`
         SELECT *
         FROM reposition_merchant_ai_analysis_watermark_v1(
-          ${ORGANIZATION_ID}, ${PROPERTY_ID}::uuid, 'ops-operator-1',
+          ${ORGANIZATION_ID}, ${PROPERTY_ID}::uuid,
           'operator_review_analysis_backfill', 'ops-direct-1', ${'c'.repeat(64)},
           ${NOW.toISOString()}::timestamptz
         )
@@ -478,5 +512,73 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     expect(result.plan.capped).toBe(true)
     expect(result.emittedAnalysisSequences).toEqual([257, 258])
     expect(await emittedSequences()).toEqual([257, 258])
+  })
+
+  it('refuses before writing when the member who consented is not a member', async () => {
+    // The live ops:ai-reanalyze failure, exactly: the consent ledger's
+    // actor_user_id holds an operator email, which `admit_ai_property_v1`
+    // resolves as a `member."userId"` and can never find.
+    await seed({ priorActorUserId: 'denev@kodes.agency' })
+
+    const result = await run()
+
+    expect(result.status).toBe('refused')
+    if (result.status !== 'refused') return
+    expect(result.refusal).toBe('consent_actor_unauthorized')
+    // Lineage, state version and the actor it tried — everything an operator
+    // needs to act, without reading the admission SQL.
+    expect(result.message).toContain("consent-evidence actor 'denev@kodes.agency'")
+    expect(result.message).toContain(`authorization lineage ${LINEAGE_ID}`)
+    expect(result.message).toContain('at state_version 2')
+
+    // Nothing written: no epoch burnt, no sequence allocated, no event emitted.
+    expect(await emittedSequences()).toEqual([])
+    const [enablement] = await db
+      .select()
+      .from(merchantAiEnablement)
+      .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+    expect(enablement).toMatchObject({
+      reviewAnalysisEpoch: 2,
+      stateVersion: 2,
+      analysisStartSequence: 40,
+    })
+    const [head] = await db
+      .select({ headSequence: reviewAiAnalysisHeads.headSequence })
+      .from(reviewAiAnalysisHeads)
+      .where(
+        and(
+          eq(reviewAiAnalysisHeads.propertyId, PROPERTY_ID),
+          eq(reviewAiAnalysisHeads.sourceEpoch, SOURCE_EPOCH),
+        ),
+      )
+    expect(head?.headSequence).toBe(HEAD_SEQUENCE)
+  })
+
+  it('cannot be told who to record: the SQL derives the actor and refuses an unresolvable one', async () => {
+    await seed({ priorActorUserId: 'denev@kodes.agency' })
+
+    // Bypasses the use case's refusal. The function takes no actor parameter at
+    // all, so an operator identity is unrepresentable rather than merely
+    // discouraged — and it still refuses the unresolvable carried-forward one.
+    const raised = await db
+      .execute(
+        sql`
+        SELECT *
+        FROM reposition_merchant_ai_analysis_watermark_v1(
+          ${ORGANIZATION_ID}, ${PROPERTY_ID}::uuid,
+          'operator_review_analysis_backfill', 'ops-direct-actor-1', ${'d'.repeat(64)},
+          ${NOW.toISOString()}::timestamptz
+        )
+      `,
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    expect(raised).not.toBeNull()
+    const cause = raised instanceof Error ? raised.cause : null
+    expect(cause instanceof Error ? cause.message : String(cause)).toContain(
+      'merchant_ai_backfill_consent_actor_denied',
+    )
   })
 })

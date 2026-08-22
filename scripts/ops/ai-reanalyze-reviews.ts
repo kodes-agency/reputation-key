@@ -77,7 +77,6 @@ async function main(): Promise<void> {
         propertyId: propertyId(ctx.propertyId as string),
         limit,
         dryRun: ctx.dryRun,
-        operatorId: ctx.operatorId,
         reasonCode: REASON_CODE,
         idempotencyKey,
         requestHash,
@@ -146,6 +145,11 @@ async function main(): Promise<void> {
             reviewAnalysisEpoch: outcome.reviewAnalysisEpoch,
             analysisStartSequence: outcome.analysisStartSequence,
             stateVersion: outcome.stateVersion,
+            // The MEMBER whose consent this replayed. The operator who ran it is
+            // recorded by the harness (identity, ticket, correlation id) and by
+            // reason_code — the consent ledger's actor is a merchant concept,
+            // and admission resolves it as a member."userId".
+            consentActorUserId: outcome.consentActorUserId,
             emittedCount: outcome.emittedAnalysisSequences.length,
             sequenceRange: `${outcome.emittedAnalysisSequences[0]}..${outcome.emittedAnalysisSequences.at(-1)}`,
           },
