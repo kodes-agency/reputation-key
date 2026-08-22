@@ -35,19 +35,20 @@ pnpm dev
 
 ## Scripts
 
-| Command             | Description                                      |
-| ------------------- | ------------------------------------------------ |
-| `pnpm dev`          | Start dev server on :3000                        |
-| `pnpm build`        | Build web app                                    |
-| `pnpm build:worker` | Build worker                                     |
-| `pnpm start`        | Run built web server                             |
-| `pnpm start:worker` | Run built worker                                 |
-| `pnpm test`         | Run unit tests                                   |
-| `pnpm test:e2e`     | Run Playwright E2E tests                         |
-| `pnpm typecheck`    | TypeScript check                                 |
-| `pnpm lint`         | ESLint + filename/component-boundary checks      |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates |
-| `pnpm format`       | Prettier format                                  |
+| Command             | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| `pnpm dev`          | Start dev server on :3000                            |
+| `pnpm build`        | Build web app                                        |
+| `pnpm build:worker` | Build worker                                         |
+| `pnpm start`        | Run built web server                                 |
+| `pnpm start:worker` | Run built worker                                     |
+| `pnpm test`         | Run unit tests                                       |
+| `pnpm test:e2e`     | Run Playwright E2E tests                             |
+| `pnpm typecheck`    | TypeScript check                                     |
+| `pnpm lint`         | ESLint + filename/component-boundary checks          |
+| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates     |
+| `pnpm format`       | Prettier format                                      |
+| `pnpm release:beta` | Deploy + verify the closed beta (dry-run by default) |
 
 ### Git hooks
 
