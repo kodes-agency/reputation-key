@@ -17,6 +17,7 @@ import {
   properties,
   reviewAiAnalysisHeads,
   reviews,
+  aiReviewAnalysisBackfillRuns,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
@@ -290,16 +291,20 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
   beforeEach(clear)
   afterAll(clear)
 
-  it('allocates a contiguous H+1..H+N run whatever the stored sequences are', async () => {
+  it('opens a run pinning every candidate and emits only H+1', async () => {
     await seed()
 
     const result = await run()
 
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
-    const expected = [257, 258, 259, 260, 261]
-    expect(result.emittedAnalysisSequences).toEqual(expected)
-    expect(await emittedSequences()).toEqual(expected)
+    // ONE event, whatever the stored sequences are. Allocating H+1..H+N up
+    // front would move the head to H+N before the first event is consumed, and
+    // `storeAnalysis` refuses every sequence but the head — so H+1..H+N-1 could
+    // never be stored. The rest are allocated as each predecessor settles.
+    expect(result.firstAnalysisSequence).toBe(257)
+    expect(result.pinnedReviewCount).toBe(5)
+    expect(await emittedSequences()).toEqual([257])
 
     const [head] = await db
       .select({ headSequence: reviewAiAnalysisHeads.headSequence })
@@ -310,7 +315,40 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
           eq(reviewAiAnalysisHeads.sourceEpoch, SOURCE_EPOCH),
         ),
       )
-    expect(head?.headSequence).toBe(261)
+    // The head moves by exactly one, so it still equals the in-flight sequence.
+    expect(head?.headSequence).toBe(257)
+
+    const [runRow] = await db
+      .select()
+      .from(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.propertyId, PROPERTY_ID))
+    expect(runRow).toMatchObject({
+      state: 'running',
+      requestedReviewCount: 5,
+      emittedReviewCount: 1,
+      skippedReviewCount: 0,
+      recoveredReviewCount: 0,
+      currentAnalysisSequence: 257,
+      analysisStartSequence: HEAD_SEQUENCE,
+      reviewAnalysisEpoch: 3,
+    })
+    // Deterministic (reviewed_at, id) order, pinned once and never recomputed.
+    expect(runRow?.reviewIds).toEqual([...REVIEW_IDS])
+  })
+
+  it('refuses a second run while one is still open', async () => {
+    await seed()
+    const first = await run()
+    expect(first.status).toBe('applied')
+
+    const second = await run()
+
+    expect(second).toMatchObject({
+      status: 'refused',
+      refusal: 'backfill_already_running',
+    })
+    // Nothing written: still one emitted event and one epoch bump.
+    expect(await emittedSequences()).toEqual([257])
   })
 
   it('repositions the watermark to the head and bumps only the analysis epoch', async () => {
@@ -382,7 +420,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     expect(enablement).toMatchObject({ updatedBy: ACTOR_USER_ID })
   })
 
-  it('moves each review analysis pointer and touches no other review column', async () => {
+  it('moves the emitted review analysis pointer and touches no other column', async () => {
     await seed()
     const before = await db
       .select()
@@ -400,12 +438,15 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       .where(eq(reviews.propertyId, PROPERTY_ID))
     for (const row of after) {
       const previous = byId[row.id]!
+      // `analysis_sequence` is the only column the backfill may write.
       expect({ ...row, analysisSequence: previous.analysisSequence }).toEqual(previous)
-      expect(row.analysisSequence).toBeGreaterThan(HEAD_SEQUENCE)
     }
-    expect(after.map((row) => row.analysisSequence).sort((a, b) => a - b)).toEqual([
-      257, 258, 259, 260, 261,
-    ])
+    // Only the review the run actually emitted is repointed. The other four keep
+    // their stored sequences until their turn comes — repointing ahead would
+    // move the allocation head past them and make their analyses unstorable.
+    expect(after.map((row) => row.analysisSequence).sort((a, b) => a - b)).toEqual(
+      [...STORED_SEQUENCES.slice(1), 257].sort((x, y) => x - y),
+    )
   })
 
   it('writes nothing on a dry run', async () => {
@@ -506,7 +547,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     )
   })
 
-  it('caps a piloted run at the limit and still emits a contiguous prefix', async () => {
+  it('caps a piloted run at the limit and pins only that prefix', async () => {
     await seed()
 
     const result = await run({ limit: 2 })
@@ -514,8 +555,9 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
     expect(result.plan.capped).toBe(true)
-    expect(result.emittedAnalysisSequences).toEqual([257, 258])
-    expect(await emittedSequences()).toEqual([257, 258])
+    expect(result.pinnedReviewCount).toBe(2)
+    expect(result.firstAnalysisSequence).toBe(257)
+    expect(await emittedSequences()).toEqual([257])
   })
 
   it('refuses before writing when the member who consented is not a member', async () => {

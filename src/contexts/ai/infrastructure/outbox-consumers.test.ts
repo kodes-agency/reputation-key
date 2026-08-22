@@ -49,12 +49,20 @@ function harness(result: AnalyzeReviewEventResult) {
   const analyzeReviewEvent = vi.fn(async () => result)
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
+  const advanceReviewAnalysisBackfill = vi.fn(async () => 'idle' as const)
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
+    advanceReviewAnalysisBackfill,
     receipts: { insertReceipt } as unknown as OutboxRepository,
   } satisfies RegisterAiConsumersInput
-  return { dependencies, analyzeReviewEvent, enqueuePropertyTrend, insertReceipt }
+  return {
+    dependencies,
+    analyzeReviewEvent,
+    enqueuePropertyTrend,
+    advanceReviewAnalysisBackfill,
+    insertReceipt,
+  }
 }
 
 describe('AI review outbox consumer', () => {

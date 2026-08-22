@@ -31,6 +31,10 @@ import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
 } from '#/shared/jobs/ai-operation-execution-reaper.job'
+import {
+  createAiReviewAnalysisBackfillAdvanceHandler,
+  JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME,
+} from '#/shared/jobs/ai-review-analysis-backfill-advance.job'
 import { createAiOperationExecutionReaper } from '#/contexts/ai/application/ai-operation-execution-reaper'
 import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
 import {
@@ -534,6 +538,25 @@ export async function bootstrap(
   logger.info(
     { job: AI_EXECUTION_REAPER_JOB_NAME },
     'registered AI operation abandoned-execution reaper job handler',
+  )
+
+  // ── AI review-analysis backfill advance sweep ─────────────────────
+  // A backfill run may only ever have ONE review in flight, so each item is
+  // handed the next by the outbox consumer the moment it settles. This sweep
+  // covers the hand-off the consumer cannot: a worker that died between the
+  // settle and the hand-off, or a dispatch budget exhausted on one event.
+  // Registered unconditionally for the same reason as the reaper above — a run
+  // left open has already moved the property's analysis watermark, so the
+  // reviews it skipped are reachable through nothing else.
+  container.jobRegistry.register(
+    AI_BACKFILL_ADVANCE_JOB_NAME,
+    createAiReviewAnalysisBackfillAdvanceHandler({
+      sweep: container.useCases.advanceReviewAnalysisBackfill.sweep,
+    }),
+  )
+  logger.info(
+    { job: AI_BACKFILL_ADVANCE_JOB_NAME },
+    'registered AI review-analysis backfill advance job handler',
   )
 
   // ── Activity log insertion job ────────────────────────────────────

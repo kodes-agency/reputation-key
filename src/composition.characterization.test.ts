@@ -94,6 +94,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'admitGoogleOAuthCallbackPreState',
   'admitGoogleOAuthCallbackTenant',
   'advanceRegionMove',
+  'advanceReviewAnalysisBackfill',
   'approveReply',
   'archiveStaffParticipation',
   'assignInboxItem',

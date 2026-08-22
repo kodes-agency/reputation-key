@@ -47,6 +47,7 @@ import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarant
 import { JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME } from '#/shared/jobs/permit-start-deadline-sweep.job'
 import { JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
 import { JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME } from '#/shared/jobs/ai-operation-execution-reaper.job'
+import { JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME } from '#/shared/jobs/ai-review-analysis-backfill-advance.job'
 import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import { SCHEDULE_PROPERTY_TRENDS_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
@@ -416,8 +417,9 @@ async function main() {
     // An operation whose owner died between `claimExecution` and its terminal
     // write stays `executing` forever: nothing else writes that transition and
     // `claim` refuses expired rows, so the row is inert AND permanently counted
-    // as in-flight AI work. The reapable condition is the operation's own
-    // elapsed `expires_at`, so this cadence only bounds how long an
+    // as in-flight AI work. The reapable condition is the OPEN ATTEMPT's age
+    // against the domain's own operation horizon (an `expires_at`-only scan hid
+    // every abandonment for 24 hours), so this cadence only bounds how long an
     // already-dead row keeps claiming to be live. Bounded 100-row scan routed
     // through the store's `recordFailure` CAS; a no-op when nothing is
     // abandoned.
@@ -436,6 +438,29 @@ async function main() {
       })
       .catch((err: unknown) => {
         logger.warn({ err }, 'Failed to schedule ai-operation-execution-reaper job')
+      })
+
+    // ── AI review-analysis backfill advance sweep ──────────────────────
+    // A backfill run emits ONE review at a time — `storeAnalysis` refuses
+    // unless the allocation head still equals the sequence being stored — and
+    // the outbox consumer hands the run its next item as each one settles. This
+    // sweep only covers a hand-off that was lost, so the cadence bounds how long
+    // a BROKEN chain sits idle, not how fast a healthy run goes.
+    container.backgroundQueue
+      .add(
+        AI_BACKFILL_ADVANCE_JOB_NAME,
+        {},
+        {
+          repeat: { every: 5 * 60 * 1000 },
+          jobId: 'ai-review-analysis-backfill-advance-recurring',
+          ...jobEnqueueOptions(AI_BACKFILL_ADVANCE_JOB_NAME),
+        },
+      )
+      .then(() => {
+        logger.info('AI review-analysis backfill advance scheduled (every 5 minutes)')
+      })
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to schedule ai-review-analysis-backfill-advance job')
       })
 
     // ── Metric materialized view refresh jobs ──────────────────────────

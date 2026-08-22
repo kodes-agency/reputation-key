@@ -12,9 +12,17 @@
 // reviews sat `executing` indefinitely while their permits had long since
 // settled.
 //
-// Recovery is bounded by the operation's own horizon instead:
+// Recovery is bounded by the horizon the ATTEMPT runs under, not by the
+// operation's own `expires_at`. That distinction is the whole reason this
+// existed and still missed the closed beta's stranded operations: `expires_at`
+// is the idempotency lifetime — 24 hours for a review analysis — while an
+// attempt is bounded by the domain's 15-minute operation horizon. Four
+// operations sat `executing` with settled `success` permits while this reported
+// `abandonedVisited=0` on every run, because they were 24 hours from expiry and
+// the scan asked the wrong clock.
 //
-//   - selects rows still `executing` with an elapsed `expires_at`;
+//   - selects rows still `executing` whose OPEN ATTEMPT has outlived the
+//     execution horizon, or whose operation has outlived `expires_at`;
 //   - settles each through the existing `recordFailure`, with no retry, so the
 //     open attempt row is closed and the operation reaches `failed`.
 //
@@ -29,9 +37,17 @@
 // between the scan and the write loses the CAS and is counted as raced, never
 // overwritten.
 
+import { AI_ANALYSIS_OPERATION_HORIZON_MILLIS } from './use-cases/analyze-review-event'
 import type { AiOperationStorePort } from './ports/ai-operation-store.port'
 
 export const AI_EXECUTION_REAPER_BATCH_SIZE = 100
+
+/**
+ * How long an open attempt may run before it counts as abandoned. The domain's
+ * own bound, reused verbatim: `analyze-review-event` terminal-settles at this
+ * horizon, so an attempt still open past it has no owner left that could.
+ */
+export const AI_EXECUTION_ABANDONED_AFTER_MILLIS = AI_ANALYSIS_OPERATION_HORIZON_MILLIS
 
 type ExecutionReaperStore = Pick<
   AiOperationStorePort,
@@ -62,7 +78,11 @@ export function createAiOperationExecutionReaper(
 
   return async () => {
     const nowEpochMillis = deps.nowEpochMillis()
-    const abandoned = await deps.store.listExpiredExecutions({ nowEpochMillis, limit })
+    const abandoned = await deps.store.listExpiredExecutions({
+      nowEpochMillis,
+      executionHorizonMillis: AI_EXECUTION_ABANDONED_AFTER_MILLIS,
+      limit,
+    })
     let operationsFenced = 0
     let operationsRaced = 0
 

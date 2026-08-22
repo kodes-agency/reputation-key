@@ -64,12 +64,13 @@ import { createReviewRepository } from '#/contexts/review/infrastructure/reposit
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
-import type { AiControlPort } from '../../application/ports/ai-control.port'
 import type { AiInferencePort } from '../../application/ports/ai-inference.port'
 import type { AiQuotaPort } from '../../application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from '../../application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from '../../application/use-cases/analyze-review-event'
+import { createAdvanceReviewAnalysisBackfill } from '../../application/use-cases/advance-review-analysis-backfill'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
+import { createAiControlAdapter } from './ai-control.adapter'
 import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
@@ -91,12 +92,14 @@ const SOURCE_EPOCH = 3
 const HEAD_SEQUENCE = 256
 const START_SEQUENCE = 40
 const REVIEW_COUNT = 5
-/** A hostile but deterministic arrival order: nothing arrives before its turn. */
-const DELIVERY_ORDER = [4, 2, 0, 3, 1] as const
 /** BullMQ's dispatch budget for domain-events (relay.ts DISPATCH_JOB_OPTIONS). */
 const DISPATCH_ATTEMPTS = 8
 
 const RUNTIME_PROFILES = { review_analysis: 'review-analysis-runtime-v1' } as const
+const RELEASE_SHA = '6'.repeat(40)
+const DELIVERY_CANARY_AUTHORIZATION_ID = '7c000000-0000-4000-8000-000000000006'
+const DELIVERY_CANARY_OPERATION_ID = '7c000000-0000-4000-8000-000000000007'
+const DELIVERY_CANARY_HEAD_ID = '7c000000-0000-4000-8000-000000000008'
 
 const REVIEW_IDS = Array.from({ length: REVIEW_COUNT }, (_, index) =>
   reviewId(`7c000000-0000-4000-8000-1000000000${String(index).padStart(2, '0')}`),
@@ -144,10 +147,11 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
    * cursor, the allocation head, the outputs, the aggregates and the operation
    * state machine — and all of those are the production adapters.
    */
-  const analysisCalls: number[] = []
+  /** One entry per provider call, so a doubly-consumed sequence is visible. */
+  const analysisCalls: string[] = []
   const inference: AiInferencePort = {
     analyzeReview: async (input): Promise<AnalysisResult> => {
-      analysisCalls.push(input.binding.sourceRevision)
+      analysisCalls.push(input.internalSubjectId)
       return {
         route: 'review-analysis',
         status: 'success',
@@ -204,10 +208,15 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   }
 
   /**
-   * The seeded control heads, reported enabled. Their ids must be REAL:
-   * `ai_operations` carries FKs onto `ai_execution_control_transitions`.
+   * `capability:review_analysis` ships killed/draining in the scratch database,
+   * and `storeAnalysis` re-reads the REAL control heads before it commits — so
+   * a fake control port would only move the failure. This activates the
+   * capability through the real CAS adapter, exactly as the admission proof
+   * does, and the suite therefore owns the state it depends on instead of
+   * borrowing whatever an earlier file happened to leave enabled.
    */
-  const createSeededControl = async (): Promise<AiControlPort> => {
+  const controlsNow = new Date()
+  const activateControls = async () => {
     const rows = await db
       .select({
         scopeKey: aiExecutionControlHeads.scopeKey,
@@ -222,46 +231,91 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
           'capability:review_analysis',
         ]),
       )
-    const head = (scopeKey: string) => {
-      const found = rows.find((row) => row.scopeKey === scopeKey)
-      if (!found) throw new Error(`seeded AI control head ${scopeKey} is missing`)
-      return found
-    }
-    const global = head('global')
-    const provider = head('provider:private-beta-global-v1')
-    const capability = head('capability:review_analysis')
-    return {
-      readHeads: async () => [
-        {
-          scope: { kind: 'global' },
-          controlId: global.controlId,
-          generation: global.generation,
-          executionState: 'enabled',
-          admissionState: 'accepting',
-          updatedAtEpochMillis: Date.now(),
-        },
-        {
-          scope: {
-            kind: 'provider_deployment_profile',
-            providerDeploymentProfileVersion: 'private-beta-global-v1',
-          },
-          controlId: provider.controlId,
-          generation: provider.generation,
-          executionState: 'enabled',
-          admissionState: 'accepting',
-          updatedAtEpochMillis: Date.now(),
-        },
-        {
-          scope: { kind: 'capability', capability: 'review_analysis' },
-          controlId: capability.controlId,
-          generation: capability.generation,
-          executionState: 'enabled',
-          admissionState: 'accepting',
-          updatedAtEpochMillis: Date.now(),
-        },
-      ],
-      transition: async () => null,
-    }
+    const global = rows.find((row) => row.scopeKey === 'global')
+    const provider = rows.find(
+      (row) => row.scopeKey === 'provider:private-beta-global-v1',
+    )
+    const capability = rows.find((row) => row.scopeKey === 'capability:review_analysis')
+    if (!global || !provider || !capability) throw new Error('seeded AI controls missing')
+
+    await db.execute(sql`
+      INSERT INTO ai_canary_authorizations (
+        id, release_sha, canary_profile_version, authorization_generation,
+        predecessor_authorization_id, nonce, operator_user_id, state,
+        issued_at, expires_at, settled_at
+      ) VALUES (
+        ${DELIVERY_CANARY_AUTHORIZATION_ID}::uuid, ${RELEASE_SHA}, 'synthetic-canary-v1', 1,
+        NULL, ${'b'.repeat(64)}, 'ai-reanalyze-delivery-operator', 'passed',
+        ${new Date(controlsNow.getTime() - 1_000)}, ${new Date(controlsNow.getTime() + 60_000)}, ${controlsNow}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `)
+    await db.execute(sql`
+      INSERT INTO ai_operations (
+        id, idempotency_scope, idempotency_key, request_fingerprint,
+        command, capability, system_principal, release_sha,
+        canary_authorization_id, canary_authorization_generation,
+        canary_profile_version, provider_deployment_profile_version,
+        operation_profile_version, global_control_id, global_control_generation,
+        provider_control_id, provider_control_generation, capability_control_id,
+        capability_control_generation, capability_fences, state,
+        execution_attempt, created_at, updated_at, expires_at
+      ) VALUES (
+        ${DELIVERY_CANARY_OPERATION_ID}::uuid, 'release-canary:reanalyze-admission',
+        'passed-canary', ${'c'.repeat(64)}, 'synthetic_canary', NULL,
+        'release_canary', ${RELEASE_SHA}, ${DELIVERY_CANARY_AUTHORIZATION_ID}::uuid, 1,
+        'synthetic-canary-v1', 'private-beta-global-v1', 'synthetic-canary-v1',
+        ${global.controlId}::uuid, ${global.generation},
+        ${provider.controlId}::uuid, ${provider.generation}, NULL, NULL,
+        jsonb_build_array(
+          jsonb_build_object('capability', 'review_analysis'),
+          jsonb_build_object('capability', 'reply_drafting'),
+          jsonb_build_object('capability', 'property_trends')
+        ),
+        'succeeded', 1, ${new Date(controlsNow.getTime() - 1_000)}, ${controlsNow},
+        ${new Date(controlsNow.getTime() + 60_000)}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `)
+    await db.execute(sql`
+      INSERT INTO ai_canary_authorization_heads (
+        release_sha, canary_profile_version, head_id, transition_generation,
+        next_authorization_generation, current_authorization_id,
+        current_operation_id, current_permit_id, state, updated_at
+      ) VALUES (
+        ${RELEASE_SHA}, 'synthetic-canary-v1', ${DELIVERY_CANARY_HEAD_ID}::uuid, 3, 2,
+        ${DELIVERY_CANARY_AUTHORIZATION_ID}::uuid, ${DELIVERY_CANARY_OPERATION_ID}::uuid, NULL,
+        'passed', ${controlsNow}
+      )
+      ON CONFLICT (release_sha, canary_profile_version) DO NOTHING
+    `)
+
+    const activated = await createAiControlAdapter(db).transition({
+      scope: { kind: 'capability', capability: 'review_analysis' },
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      expectedControlId: capability.controlId,
+      expectedGeneration: capability.generation,
+      executionState: 'enabled',
+      admissionState: 'accepting',
+      reasonCode: 'test_canary_passed',
+      actorUserId: 'ai-reanalyze-delivery-operator',
+      ticketReference: 'test-activate-reanalyze-delivery',
+      candidateReleaseSha: RELEASE_SHA,
+    })
+    if (!activated) throw new Error('failed to activate review_analysis')
+  }
+
+
+  const clearCanary = async () => {
+    await executeWithLastOwnerGuardDisabled(db, [
+      sql`ALTER TABLE ai_canary_authorization_heads DISABLE TRIGGER USER`,
+      sql`ALTER TABLE ai_canary_authorizations DISABLE TRIGGER USER`,
+      sql`DELETE FROM ai_canary_authorization_heads WHERE release_sha = ${RELEASE_SHA}`,
+      sql`DELETE FROM ai_operations WHERE release_sha = ${RELEASE_SHA}`,
+      sql`DELETE FROM ai_canary_authorizations WHERE release_sha = ${RELEASE_SHA}`,
+      sql`ALTER TABLE ai_canary_authorizations ENABLE TRIGGER USER`,
+      sql`ALTER TABLE ai_canary_authorization_heads ENABLE TRIGGER USER`,
+    ])
   }
 
   const clear = async () => {
@@ -469,7 +523,9 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
       unicode: AI_REVIEW_LANGUAGE_UNICODE_VERSION.replace(/\.0$/u, ''),
     })
+    await clearCanary()
     await clear()
+    await activateControls()
   })
   beforeEach(async () => {
     analysisCalls.length = 0
@@ -479,13 +535,14 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   afterAll(async () => {
     stubProcessVersions(ACTUAL_PROCESS_VERSIONS as Readonly<Record<string, string>>)
     await clear()
+    await clearCanary()
   })
 
   it('completes a batch of five delivered out of order inside one epoch', async () => {
     const reviewRepository = createReviewRepository(db)
     const analyzeReviewEvent = createAnalyzeReviewEvent({
       authorization: createAiAuthorizationAdapter(db),
-      control: await createSeededControl(),
+      control: createAiControlAdapter(db),
       inference,
       operations: createAiOperationStoreAdapter(db),
       outputs: createAiOutputStoreAdapter(db),
@@ -504,10 +561,24 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       subjectHmac,
       nowEpochMillis: now,
     })
+    // The chain's fast path: the consumer hands the run its next review the
+    // moment this one settles. Nothing else drives it here — no sweep tick —
+    // so the test proves the hand-off, not the safety net.
+    const advance = createAdvanceReviewAnalysisBackfill({
+      backfillStore: createReviewAnalysisBackfillAdapter(db),
+      reviewEvents: createAiReviewEventStoreAdapter(db),
+      aggregates: createAiPropertyAggregateStoreAdapter(db),
+      processingProfiles: createPropertyProcessingProfileAdapter(
+        db,
+        createAiRuntimeCatalogueAdapter(db),
+      ),
+      nowEpochMillis: now,
+    })
     const consumerDeps = {
       analyzeReviewEvent,
       receipts: createOutboxRepository(db),
       enqueuePropertyTrend: async () => {},
+      advanceReviewAnalysisBackfill: advance.advanceProperty,
     }
 
     const applied = await backfill({
@@ -526,26 +597,27 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
     }
     const runEpoch = applied.reviewAnalysisEpoch
 
-    // Drain the run the way the dispatcher would: a hostile arrival order,
-    // bounded by the same attempt budget the relay configures. Every event that
-    // has not permanently settled is re-offered on the next round.
-    const pending = new Set<string>()
-    const events = await emittedEnvelopes()
-    expect(events).toHaveLength(REVIEW_COUNT)
-    for (const event of events) pending.add(event.eventId)
-
-    for (let attempt = 0; attempt < DISPATCH_ATTEMPTS && pending.size > 0; attempt++) {
-      for (const index of DELIVERY_ORDER) {
-        const event = events[index]!
-        if (!pending.has(event.eventId)) continue
+    // Drain the run the way the relay + dispatcher would. The outbox is
+    // re-polled every round because the run emits as it goes, and each round
+    // offers whatever is unsettled in a HOSTILE order — reversed, so a run that
+    // ever put more than one event in flight would deliver them out of sequence
+    // and gap. Bounded by the same attempt budget the relay configures.
+    const settled = new Set<string>()
+    let seen: ReadonlyArray<ConsumerEvent> = []
+    for (let round = 0; round < REVIEW_COUNT * DISPATCH_ATTEMPTS; round++) {
+      seen = await emittedEnvelopes()
+      const unsettled = seen.filter((event) => !settled.has(event.eventId)).reverse()
+      if (unsettled.length === 0) break
+      for (const event of unsettled) {
         if ((await deliverOnce(consumerDeps, event)) === 'settled') {
-          pending.delete(event.eventId)
+          settled.add(event.eventId)
         }
       }
     }
-    expect([...pending]).toEqual([])
+    expect(seen).toHaveLength(REVIEW_COUNT)
+    expect(settled.size).toBe(REVIEW_COUNT)
 
-    const expectedSequences = events.map(analysisSequenceOf).sort((a, b) => a - b)
+    const expectedSequences = seen.map(analysisSequenceOf).sort((a, b) => a - b)
     const outcomes = await db
       .select({
         analysisSequence: aiReviewAnalysisOutcomes.analysisSequence,

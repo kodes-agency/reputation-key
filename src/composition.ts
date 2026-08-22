@@ -1483,6 +1483,7 @@ export function createContainer(options?: {
       generateReplySuggestion: ai.publicApi.generateReplySuggestion,
       generatePropertyTrend: ai.internal.generatePropertyTrend,
       schedulePropertyTrends: ai.internal.schedulePropertyTrends,
+      advanceReviewAnalysisBackfill: ai.internal.advanceReviewAnalysisBackfill,
       readPropertyAiTrend: ai.publicApi.readPropertyTrend,
       readPropertyAiAggregates: ai.publicApi.readPropertyAggregates,
       ...inbox.internal.useCases,

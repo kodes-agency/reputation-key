@@ -5,6 +5,7 @@ import type {
   ReviewAnalysisBackfillStorePort,
   ReviewAnalysisConsentActor,
 } from '../ports/ai-review-analysis-backfill.port'
+import { emitRunItem } from './advance-review-analysis-backfill'
 
 /**
  * Audited operator re-analysis of reviews already stored for a property
@@ -82,6 +83,7 @@ export type BackfillRefusal =
   | 'consent_actor_absent'
   | 'consent_actor_unauthorized'
   | 'no_eligible_reviews'
+  | 'backfill_already_running'
 
 export type BackfillPlan = Readonly<{
   sourceEpoch: number
@@ -91,9 +93,13 @@ export type BackfillPlan = Readonly<{
   selectedReviewCount: number
   /** True when `--batch-size` capped the run below the eligible count. */
   capped: boolean
-  /** `H + 1`, or null when nothing is selected. */
+  /** `H + 1`, or null when nothing is selected — the run's FIRST sequence. */
   firstAnalysisSequence: number | null
-  /** `H + n`, or null when nothing is selected. */
+  /**
+   * `H + n`, or null when nothing is selected. The sequence the run will reach
+   * if every selected review stays eligible; later sequences are allocated one
+   * at a time, as each predecessor settles, so a skipped review lowers it.
+   */
   lastAnalysisSequence: number | null
   currentReviewAnalysisEpoch: number
   nextReviewAnalysisEpoch: number
@@ -114,7 +120,16 @@ export type BackfillReviewAnalysisResult =
   | Readonly<{
       status: 'applied'
       plan: BackfillPlan
-      emittedAnalysisSequences: ReadonlyArray<number>
+      /** The durable run this command opened; the sweep drives it to the end. */
+      runId: string
+      /**
+       * The ONE sequence this command emitted. The rest are allocated as each
+       * predecessor settles — see the run's own doc for why a batch may never
+       * allocate ahead of itself.
+       */
+      firstAnalysisSequence: number
+      /** Reviews pinned to the run, including the one already emitted. */
+      pinnedReviewCount: number
       reviewAnalysisEpoch: number
       analysisStartSequence: number
       stateVersion: number
@@ -253,6 +268,18 @@ export function createBackfillReviewAnalysis(
       const context = await session.readContext()
       const refusal = await refuseFor(context, input, dependencies.propertyAccessHolders)
       if (refusal) return { status: 'refused', ...refusal }
+      if ((await session.readActiveRun()) !== null) {
+        // Two open runs would each bump the epoch and each strand the other's
+        // analyses in a generation no read follows — the exact orphaning the
+        // one-epoch rule exists to prevent. The unique partial index enforces
+        // this too; refusing here names it instead of raising a constraint.
+        return {
+          status: 'refused',
+          refusal: 'backfill_already_running',
+          message:
+            'a review-analysis backfill is still running on this property — wait for it to finish, or read its terminal state, before starting another',
+        }
+      }
 
       // Non-null: refuseFor rejects a null enablement above.
       const enablement = context.enablement!
@@ -307,33 +334,45 @@ export function createBackfillReviewAnalysis(
         )
       }
 
-      const emittedAnalysisSequences: number[] = []
-      for (const candidate of candidates) {
-        const analysisSequence = await session.allocateAnalysisSequence()
-        const expected = headSequence + emittedAnalysisSequences.length + 1
-        if (analysisSequence !== expected) {
-          // Unreachable while the property lock holds — and if it ever becomes
-          // reachable, aborting rolls back the whole backfill. Emitting a
-          // non-contiguous sequence would stall the new cursor forever.
-          throw new Error(
-            `Review analysis backfill would create a hole: allocated ${analysisSequence}, expected ${expected}`,
-          )
-        }
-        await session.emitBackfillEvent({
-          reviewId: candidate.reviewId,
-          sourceEpoch: context.propertySourceEpoch,
-          sourceRevision: candidate.sourceRevision,
-          analysisSequence,
-          correlationId: input.correlationId,
-          occurredAt: input.occurredAt,
-        })
-        emittedAnalysisSequences.push(analysisSequence)
+      const runId = await session.openRun({
+        sourceEpoch: context.propertySourceEpoch,
+        reviewAnalysisEpoch: repositioned.reviewAnalysisEpoch,
+        analysisStartSequence: repositioned.analysisStartSequence,
+        reviewIds: candidates.map((candidate) => candidate.reviewId),
+        reasonCode: input.reasonCode,
+        correlationId: input.correlationId,
+        occurredAt: input.occurredAt,
+      })
+      // ONE event, never N. `storeAnalysis` refuses unless
+      // `review_ai_analysis_heads.head_sequence` still equals the sequence being
+      // stored, so allocating the whole run up front makes every sequence but
+      // the last permanently unstorable — five provider calls, one analysis, on
+      // the closed beta. `advance-review-analysis-backfill` allocates and emits
+      // the next item once this one has settled, inside the epoch just opened.
+      const firstAnalysisSequence = await emitRunItem(session, {
+        runId,
+        reviewId: candidates[0]!.reviewId,
+        sourceEpoch: context.propertySourceEpoch,
+        sourceRevision: candidates[0]!.sourceRevision,
+        correlationId: input.correlationId,
+        occurredAt: input.occurredAt,
+      })
+      if (firstAnalysisSequence !== headSequence + 1) {
+        // Unreachable while the property lock holds — and if it ever becomes
+        // reachable, aborting rolls the whole backfill back. The new cursor is
+        // created at `H` and accepts only `H+1`, so any other sequence stalls it
+        // permanently.
+        throw new Error(
+          `Review analysis backfill allocated ${firstAnalysisSequence}, expected the head successor ${headSequence + 1}`,
+        )
       }
 
       return {
         status: 'applied',
         plan,
-        emittedAnalysisSequences,
+        runId,
+        firstAnalysisSequence,
+        pinnedReviewCount: candidates.length,
         reviewAnalysisEpoch: repositioned.reviewAnalysisEpoch,
         analysisStartSequence: repositioned.analysisStartSequence,
         stateVersion: repositioned.stateVersion,

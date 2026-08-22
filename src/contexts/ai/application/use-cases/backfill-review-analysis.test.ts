@@ -5,6 +5,7 @@ import type {
   ReviewAnalysisBackfillCandidate,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillEnablement,
+  ReviewAnalysisBackfillRun,
   ReviewAnalysisBackfillSession,
   ReviewAnalysisBackfillStorePort,
 } from '../ports/ai-review-analysis-backfill.port'
@@ -17,6 +18,7 @@ import {
 const ORG = organizationId('org-hotel')
 const PROPERTY = propertyId('071b20fe-2598-4f63-a2a1-b9ac2f959575')
 const NOW = new Date('2026-08-22T09:00:00.000Z')
+const RUN_ID = '071b20fe-2598-4f63-a2a1-b9ac2f950001'
 
 const LINEAGE = '26a69a51-ce4b-4d28-a61c-f1f5931e52ee'
 /** A real `member."userId"`, which is what the consent ledger's actor column is. */
@@ -76,6 +78,8 @@ function harness(
      * owns `property_access_grant`; the AI context only consumes this.
      */
     grantHolders?: ReadonlyArray<string>
+    /** A run already open on this property — the second-run refusal. */
+    activeRun?: ReviewAnalysisBackfillRun
   }> = {},
 ): Harness {
   const context: ReviewAnalysisBackfillContext = {
@@ -88,7 +92,7 @@ function harness(
     ...overrides.context,
   }
   const pool = overrides.candidates ?? []
-  const state = { repositions: 0, allocations: 0, grantLookups: 0 }
+  const state = { repositions: 0, allocations: 0, grantLookups: 0, runsOpened: 0 }
   const emitted: Array<{
     reviewId: string
     analysisSequence: number
@@ -123,10 +127,27 @@ function harness(
         sourceRevision: input.sourceRevision,
       })
     },
+    // The run is the unit under test in advance-review-analysis-backfill.test.ts;
+    // here it only has to accept what the command writes.
+    readActiveRun: async () => overrides.activeRun ?? null,
+    openRun: async () => {
+      state.runsOpened += 1
+      return RUN_ID
+    },
+    readEligibleCandidate: async (reviewId) =>
+      pool.find((candidate) => candidate.reviewId === reviewId) ?? null,
+    readOutcomeState: async () => null,
+    advanceRun: async () => {},
+    skipRunCandidate: async () => {},
+    recordRunRecovery: async () => {},
+    closeRun: async () => {},
   }
 
   return {
-    store: { runExclusive: (_input, run) => run(session) },
+    store: {
+      runExclusive: (_input, run) => run(session),
+      listRunningRuns: async () => [],
+    },
     propertyAccessHolders: async () => {
       state.grantLookups += 1
       return overrides.grantHolders ?? []
@@ -194,20 +215,20 @@ describe('backfillReviewAnalysis — contiguity', () => {
 
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
-    expect(result.emittedAnalysisSequences).toEqual([257, 258, 259, 260, 261, 262])
+    // ONE event, not six: the rest are allocated as each predecessor settles,
+    // because `storeAnalysis` refuses any sequence but the allocation head.
+    expect(result.firstAnalysisSequence).toBe(257)
+    expect(result.pinnedReviewCount).toBe(6)
     expect(result.plan.firstAnalysisSequence).toBe(257)
     expect(result.plan.lastAnalysisSequence).toBe(262)
-    // The load-bearing property: no hole anywhere in the emitted run.
     const emitted = h.recorded.emitted.map((e) => e.analysisSequence)
-    expect(emitted).toEqual([257, 258, 259, 260, 261, 262])
-    for (let i = 1; i < emitted.length; i++) {
-      expect(emitted[i]! - emitted[i - 1]!).toBe(1)
-    }
-    // And no stored sequence leaked into an event.
+    expect(emitted).toEqual([257])
+    // No stored sequence leaked into an event: every one comes from the
+    // allocator, never from `reviews.analysis_sequence`.
     expect(emitted.some((sequence) => stored.includes(sequence))).toBe(false)
   })
 
-  it('emits one event per allocated sequence, in ascending order', async () => {
+  it('allocates exactly once however many reviews the run pins', async () => {
     const h = harness({
       candidates: candidates([9, 9, 9]),
       context: { analysisHeadSequence: 10, eligibleReviewCount: 3 },
@@ -215,25 +236,57 @@ describe('backfillReviewAnalysis — contiguity', () => {
 
     await useCase(h)(input())
 
-    expect(h.recorded.allocations).toBe(3)
-    expect(h.recorded.emitted).toHaveLength(3)
-    expect(h.recorded.emitted.map((e) => e.analysisSequence)).toEqual([11, 12, 13])
+    // One allocation, one event. Allocating all three here would move
+    // `review_ai_analysis_heads.head_sequence` to 13 before the first event is
+    // consumed, and `storeAnalysis` refuses any sequence but the head — so 11
+    // and 12 could never be stored. That is the five-calls-one-analysis bug.
+    expect(h.recorded.allocations).toBe(1)
+    expect(h.recorded.emitted.map((e) => e.analysisSequence)).toEqual([11])
   })
 
-  it('aborts without emitting when the allocator would skip a sequence', async () => {
+  it('aborts when the allocator does not hand back the head successor', async () => {
     const h = harness({
       candidates: candidates([1, 2, 3]),
       context: { analysisHeadSequence: 10, eligibleReviewCount: 3 },
-      // A hole: 11, then 13.
-      allocate: [11, 13, 14],
+      // A concurrent allocation slipped in: 12, not 11.
+      allocate: [12],
     })
 
     await expect(useCase(h)(input())).rejects.toThrow(
-      /would create a hole: allocated 13, expected 12/,
+      /allocated 12, expected the head successor 11/,
     )
-    // The first event is written inside the same transaction the throw rolls
-    // back; what matters is that the out-of-order one never reached the outbox.
-    expect(h.recorded.emitted.map((e) => e.analysisSequence)).toEqual([11])
+  })
+
+  it('refuses a second run while one is still open on the property', async () => {
+    const h = harness({
+      candidates: candidates([1, 2]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 2 },
+      activeRun: {
+        id: RUN_ID,
+        sourceEpoch: 3,
+        reviewAnalysisEpoch: 3,
+        analysisStartSequence: 10,
+        reviewIds: [],
+        emittedReviewCount: 1,
+        skippedReviewCount: 0,
+        recoveredReviewCount: 0,
+        currentAnalysisSequence: 11,
+        currentReviewId: null,
+        currentEmittedAtEpochMillis: NOW.getTime(),
+        correlationId: 'corr-1',
+      },
+    })
+
+    const result = await useCase(h)(input())
+
+    expect(result).toMatchObject({
+      status: 'refused',
+      refusal: 'backfill_already_running',
+    })
+    // Nothing written: no epoch bump, no allocation, no event.
+    expect(h.recorded.repositions).toBe(0)
+    expect(h.recorded.allocations).toBe(0)
+    expect(h.recorded.emitted).toEqual([])
   })
 
   it('aborts when the repositioned watermark is not the observed head', async () => {
@@ -244,6 +297,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
     // A replayed reposition returns the START RECORDED EARLIER, not the head
     // observed now — the retry guard that stops a second backfill on one ticket.
     const store: ReviewAnalysisBackfillStorePort = {
+      listRunningRuns: h.store.listRunningRuns,
       runExclusive: (arg, run) =>
         h.store.runExclusive(arg, (session) =>
           run({
@@ -275,7 +329,8 @@ describe('backfillReviewAnalysis — contiguity', () => {
 
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
-    expect(result.emittedAnalysisSequences).toEqual([101, 102])
+    expect(result.firstAnalysisSequence).toBe(101)
+    expect(result.pinnedReviewCount).toBe(2)
     expect(result.plan.capped).toBe(true)
     expect(result.plan.selectedReviewCount).toBe(2)
     expect(result.plan.eligibleReviewCount).toBe(5)
@@ -444,6 +499,7 @@ describe('backfillReviewAnalysis — refusals', () => {
     // disagree the lineage head moved, so the ledger names someone whose
     // authority was never checked — roll back rather than record it.
     const store: ReviewAnalysisBackfillStorePort = {
+      listRunningRuns: h.store.listRunningRuns,
       runExclusive: (arg, run) =>
         h.store.runExclusive(arg, (session) =>
           run({
