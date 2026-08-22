@@ -9,11 +9,19 @@ import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 
-// Raw better-auth organization write endpoints PERMANENTLY blocked at the HTTP
-// boundary — app-owned services are the only write path (ADR 0001, DAC Stage 1).
-// Paths verified against better-auth 1.6.12 organization plugin route files
-// (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs). The invitation
-// create path is "/organization/invite-member", not "/create-invitation".
+// Raw better-auth write endpoints PERMANENTLY blocked at the HTTP boundary.
+//
+// Organization writes: app-owned services are the only write path (ADR 0001,
+// DAC Stage 1). Paths verified against better-auth 1.6.12 organization plugin
+// route files (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs).
+// The invitation create path is "/organization/invite-member", not
+// "/create-invitation".
+//
+// Self-service sign-up: /sign-up/email is an unauthenticated user-row write on
+// a public, internet-reachable deployment, and the closed beta onboards by
+// invitation only. Refused here rather than by clearing better-auth's
+// emailAndPassword.enabled (src/shared/auth/auth.ts), which would also disable
+// sign-in and password reset for existing members.
 const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/create-role',
   '/organization/update-role',
@@ -26,6 +34,7 @@ const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/remove-member',
   '/organization/delete',
   '/organization/leave',
+  '/sign-up/email',
 ] as const
 
 /** One refusal log per process — the hatch is a boot-time posture, not per-request news. */
@@ -67,9 +76,8 @@ function authRateLimitBypassed(): boolean {
  * local-dev limiting are unchanged (better-auth's own limiter inside the
  * handler is gated by the same rule, see shared/auth/auth.ts).
  *
- * Exported for the colocated test: src/routes/** is excluded from the
- * changed-code test budget (scripts/check-changed-code.mjs), so this seam is
- * the only thing that makes the limiter's posture provable.
+ * Exported for the colocated test: this seam is what makes the blocked-endpoint
+ * refusals and the limiter's posture provable without booting the route tree.
  */
 export async function handleAuthRequest(
   request: Request,

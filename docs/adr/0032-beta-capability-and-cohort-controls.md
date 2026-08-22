@@ -8,7 +8,7 @@ A server-side `BetaCapabilities` policy decides whether a user, organization, pr
 
 ## Decision
 
-Capabilities are categorized into three sets (aligned with [BQR master plan §4](../product-readiness-program-2026-07/beta-quality-remediation-2026-07/master-plan.md) and BQR-0/BQR-4 code):
+Capabilities are categorized into three sets (aligned with [BQR master plan §4](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/master-plan.md) and BQR-0/BQR-4 code):
 
 1. **Core** — on by default for authenticated users (subject to global kill switch / suspension):
    - `identity.invite`
@@ -18,11 +18,12 @@ Capabilities are categorized into three sets (aligned with [BQR master plan §4]
 2. **Non-core** — off by default, allowlistable per organization:
    - `identity.register`, `organization.create`
    - `team.use`, `goal.use`, `badge.use`, `leaderboard.use`
-   - `portal.read` (**not** core — BQR-0 removed portal from core; portal/guest stay dark)
+   - `portal.read` (**not** core — BQR-0 removed portal from core; portal and guest are default-deny, promotable through persisted policy)
    - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
 3. **Blocked** — always off, cannot be allowlisted:
    - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
-   - `notification.send_email`, `portal.write`, `portal.upload`
+
+`notification.send_email`, `portal.write` and `portal.upload` appeared in this blocked list in an earlier draft. The code (`src/shared/auth/beta-capabilities.ts`) blocks exactly the three capabilities above; those three are non-core — off by default, allowlistable through persisted policy.
 
 The decision function consumes authenticated user, organization, property, environment cohort, and operator overrides. It returns a typed `CapabilityDecision` with a stable reason code.
 

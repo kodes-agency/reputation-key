@@ -257,8 +257,8 @@ auditRegister('skip/todo/skipIf/runIf', SKIP_REGISTER, skipHits)
 
 // Rule 5 — the fenced suites must actually be running where it counts.
 //
-// The hard-fail branch keys on GITHUB_ACTIONS, not the repo's usual
-// `CI === 'true'` (check-changed-code.mjs:260). The claim being enforced is
+// The hard-fail branch keys on GITHUB_ACTIONS, not a bare `CI === 'true'`.
+// The claim being enforced is
 // "the runtime ci.yml pinned is the runtime we got", which is only meaningful
 // inside a GitHub Actions job; a bare `CI=true` is exported by any number of
 // local wrappers and carries no runtime guarantee, so failing on it would be a

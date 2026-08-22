@@ -5,9 +5,11 @@
 // missing product behavior — a failing row returns to its owner and the
 // matrix reruns after the owner fix lands (the rerun rule).
 //
-// The 17 rows ("enabled/limited" = live behind bounded interfaces; "dark" =
-// beta-gated off, failing closed). Reused pins carry the full proof; this
-// file adds NEW pins only where no suite held the row.
+// The 17 rows ("enabled/limited" = live behind bounded interfaces;
+// "default-deny" = denied until promoted through persisted policy, failing
+// closed — every default-deny context below is enabled and exercised in the
+// closed beta). Reused pins carry the full proof; this file adds NEW pins only
+// where no suite held the row.
 //
 //   #  Context      Verdict          Criterion (phase §5.10)                              Pin
 //   1  Identity     enabled/limited  grant/public interface sole access source;           NEW grant sole-access scan (this file);
@@ -34,19 +36,19 @@
 //                                                                                         NEW sole-writer scans (this file)
 //   10 Staff        enabled/limited  participation interface contains no authorization    NEW no-authZ scan (this file)
 //                                     decision
-//   11 Team         dark             no enabled-context coupling; deterministic domain;   dark-context-matrix, dark-capability-enforcement
+//   11 Team         default-deny     no enabled-context coupling; deterministic domain;   dark-context-matrix, dark-capability-enforcement
 //                                     no registered active jobs/events
-//   12 Portal       dark             independent read/write/upload policy; no direct      portal-capability-taxonomy.test.ts,
+//   12 Portal       default-deny     independent read/write/upload policy; no direct      portal-capability-taxonomy.test.ts,
 //                                     BullMQ construction from application; public        dark-context-matrix
 //                                     edge denied
-//   13 Guest        dark             no Portal error dependency; public/session/media     dark-context-matrix; NEW no-portal-error
+//   13 Guest        default-deny     no Portal error dependency; public/session/media     dark-context-matrix; NEW no-portal-error
 //                                     adapters unregistered/denied                        scan (this file)
-//   14 Goal         dark             split build logic; injected clock; no active         dark-consumer-gating, dark-context-matrix
+//   14 Goal         default-deny     split build logic; injected clock; no active         dark-consumer-gating, dark-context-matrix
 //                                     schedules/events
-//   15 Badge        dark             deterministic evaluation; no active awards/          dark-consumer-gating, dark-context-matrix
+//   15 Badge        default-deny     deterministic evaluation; no active awards/          dark-consumer-gating, dark-context-matrix
 //                                     workers/events
-//   16 Leaderboard  dark             no active recompute/read/export; interface isolated  dark-consumer-gating, dark-context-matrix
-//   17 AI           dark             no implementation imports/providers/jobs; only       NEW absence pin (this file)
+//   16 Leaderboard  default-deny     no active recompute/read/export; interface isolated  dark-consumer-gating, dark-context-matrix
+//   17 AI           default-deny     no implementation imports/providers/jobs; only       NEW absence pin (this file)
 //                                     approved governance interfaces
 //
 // Registered gaps (findings, NOT blockers — owned, returned to owner, unfixed here):

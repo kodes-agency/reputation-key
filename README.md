@@ -35,25 +35,26 @@ pnpm dev
 
 ## Scripts
 
-| Command             | Description               |
-| ------------------- | ------------------------- |
-| `pnpm dev`          | Start dev server on :3000 |
-| `pnpm build`        | Build web app             |
-| `pnpm build:worker` | Build worker              |
-| `pnpm start`        | Run built web server      |
-| `pnpm start:worker` | Run built worker          |
-| `pnpm test`         | Run unit tests            |
-| `pnpm test:e2e`     | Run Playwright E2E tests  |
-| `pnpm typecheck`    | TypeScript check          |
-| `pnpm lint`         | ESLint                    |
-| `pnpm format`       | Prettier format           |
+| Command             | Description                                      |
+| ------------------- | ------------------------------------------------ |
+| `pnpm dev`          | Start dev server on :3000                        |
+| `pnpm build`        | Build web app                                    |
+| `pnpm build:worker` | Build worker                                     |
+| `pnpm start`        | Run built web server                             |
+| `pnpm start:worker` | Run built worker                                 |
+| `pnpm test`         | Run unit tests                                   |
+| `pnpm test:e2e`     | Run Playwright E2E tests                         |
+| `pnpm typecheck`    | TypeScript check                                 |
+| `pnpm lint`         | ESLint + filename/component-boundary checks      |
+| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates |
+| `pnpm format`       | Prettier format                                  |
 
 ### Git hooks
 
 Husky is configured with two gates:
 
 - **pre-commit** — runs `lint-staged` (eslint --fix + prettier --write on staged files)
-- **pre-push** — runs `pnpm typecheck && pnpm lint && pnpm test`
+- **pre-push** — runs `pnpm typecheck`
 
 Install hooks after cloning: `pnpm install` (the `prepare` script registers Husky automatically).
 

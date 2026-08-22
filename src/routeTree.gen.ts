@@ -9,85 +9,69 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as UnavailableRouteImport } from './routes/unavailable'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as JoinRouteImport } from './routes/join'
-import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PTokenRouteImport } from './routes/p/$token'
-import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
-import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
-import { Route as AuthenticatedLeaderboardRouteImport } from './routes/_authenticated/leaderboard'
-import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
+import { Route as JoinRouteImport } from './routes/join'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
-import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
-import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedLeaderboardRouteImport } from './routes/_authenticated/leaderboard'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
+import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
-import { Route as ApiHealthStartedRouteImport } from './routes/api/health/started'
-import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
-import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
-import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
-import { Route as AuthenticatedSettingsRecognitionRouteImport } from './routes/_authenticated/settings/recognition'
-import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
-import { Route as AuthenticatedSettingsPreferencesRouteImport } from './routes/_authenticated/settings/preferences'
-import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/settings/organization'
-import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
-import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
-import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
-import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authenticated/settings/ai'
+import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
-import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authenticated/settings/ai'
+import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
+import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
+import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
+import { Route as AuthenticatedSettingsOrganizationRouteImport } from './routes/_authenticated/settings/organization'
+import { Route as AuthenticatedSettingsPreferencesRouteImport } from './routes/_authenticated/settings/preferences'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings/profile'
+import { Route as AuthenticatedSettingsRecognitionRouteImport } from './routes/_authenticated/settings/recognition'
+import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings/security'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiHealthIndexRouteImport } from './routes/api/health/index'
+import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
+import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
+import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
+import { Route as ApiHealthStartedRouteImport } from './routes/api/health/started'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
-import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
-import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
-import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
-import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
-import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
-import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
+import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
+import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
+import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
+import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
+import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
+import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
+import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/goals/index'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
-import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
-import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from './routes/_authenticated/properties/$propertyId/goals/$goalId'
+import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
+import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
+import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
-import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
+import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 
-const UnavailableRoute = UnavailableRouteImport.update({
-  id: '/unavailable',
-  path: '/unavailable',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JoinRoute = JoinRouteImport.update({
-  id: '/join',
-  path: '/join',
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
@@ -95,23 +79,56 @@ const AcceptInvitationRoute = AcceptInvitationRouteImport.update({
   path: '/accept-invitation',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const JoinRoute = JoinRouteImport.update({
+  id: '/join',
+  path: '/join',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PTokenRoute = PTokenRouteImport.update({
-  id: '/p/$token',
-  path: '/p/$token',
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnavailableRoute = UnavailableRouteImport.update({
+  id: '/unavailable',
+  path: '/unavailable',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedLeaderboardRoute =
+  AuthenticatedLeaderboardRouteImport.update({
+    id: '/leaderboard',
+    path: '/leaderboard',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
+  id: '/progress',
+  path: '/progress',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -119,114 +136,48 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
-  id: '/progress',
-  path: '/progress',
+const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedNotificationsRoute =
-  AuthenticatedNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedLeaderboardRoute =
-  AuthenticatedLeaderboardRouteImport.update({
-    id: '/leaderboard',
-    path: '/leaderboard',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
-  id: '/api/health/',
-  path: '/api/health/',
+const PTokenRoute = PTokenRouteImport.update({
+  id: '/p/$token',
+  path: '/p/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedSettingsIndexRoute =
-  AuthenticatedSettingsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
+const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
+  id: '/inbox/',
+  path: '/inbox/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedPropertiesIndexRoute =
   AuthenticatedPropertiesIndexRouteImport.update({
     id: '/properties/',
     path: '/properties/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
-  id: '/inbox/',
-  path: '/inbox/',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const ApiHealthStartedRoute = ApiHealthStartedRouteImport.update({
-  id: '/api/health/started',
-  path: '/api/health/started',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
-  id: '/api/health/ready',
-  path: '/api/health/ready',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthMetricsRoute = ApiHealthMetricsRouteImport.update({
-  id: '/api/health/metrics',
-  path: '/api/health/metrics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
-  id: '/api/health/live',
-  path: '/api/health/live',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedSettingsSecurityRoute =
-  AuthenticatedSettingsSecurityRouteImport.update({
-    id: '/security',
-    path: '/security',
+const AuthenticatedPropertiesPropertyIdRoute =
+  AuthenticatedPropertiesPropertyIdRouteImport.update({
+    id: '/properties/$propertyId',
+    path: '/properties/$propertyId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsRecognitionRoute =
-  AuthenticatedSettingsRecognitionRouteImport.update({
-    id: '/recognition',
-    path: '/recognition',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsProfileRoute =
-  AuthenticatedSettingsProfileRouteImport.update({
-    id: '/profile',
-    path: '/profile',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsPreferencesRoute =
-  AuthenticatedSettingsPreferencesRouteImport.update({
-    id: '/preferences',
-    path: '/preferences',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsOrganizationRoute =
-  AuthenticatedSettingsOrganizationRouteImport.update({
-    id: '/organization',
-    path: '/organization',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
-const AuthenticatedSettingsNotificationsRoute =
-  AuthenticatedSettingsNotificationsRouteImport.update({
-    id: '/notifications',
-    path: '/notifications',
+const AuthenticatedSettingsAiRoute = AuthenticatedSettingsAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AuthenticatedSettingsRoute,
+} as any)
+const AuthenticatedSettingsIntegrationsRoute =
+  AuthenticatedSettingsIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
 const AuthenticatedSettingsMembersRoute =
@@ -235,67 +186,76 @@ const AuthenticatedSettingsMembersRoute =
     path: '/members',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsIntegrationsRoute =
-  AuthenticatedSettingsIntegrationsRouteImport.update({
-    id: '/integrations',
-    path: '/integrations',
+const AuthenticatedSettingsNotificationsRoute =
+  AuthenticatedSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
     getParentRoute: () => AuthenticatedSettingsRoute,
   } as any)
-const AuthenticatedSettingsAiRoute = AuthenticatedSettingsAiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
-  getParentRoute: () => AuthenticatedSettingsRoute,
+const AuthenticatedSettingsOrganizationRoute =
+  AuthenticatedSettingsOrganizationRouteImport.update({
+    id: '/organization',
+    path: '/organization',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsPreferencesRoute =
+  AuthenticatedSettingsPreferencesRouteImport.update({
+    id: '/preferences',
+    path: '/preferences',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/profile',
+    path: '/profile',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsRecognitionRoute =
+  AuthenticatedSettingsRecognitionRouteImport.update({
+    id: '/recognition',
+    path: '/recognition',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const AuthenticatedSettingsSecurityRoute =
+  AuthenticatedSettingsSecurityRouteImport.update({
+    id: '/security',
+    path: '/security',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedPropertiesPropertyIdRoute =
-  AuthenticatedPropertiesPropertyIdRouteImport.update({
-    id: '/properties/$propertyId',
-    path: '/properties/$propertyId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedPropertiesImportGoogleIndexRoute =
-  AuthenticatedPropertiesImportGoogleIndexRouteImport.update({
-    id: '/properties/import-google/',
-    path: '/properties/import-google/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
+const ApiHealthIndexRoute = ApiHealthIndexRouteImport.update({
+  id: '/api/health/',
+  path: '/api/health/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthLiveRoute = ApiHealthLiveRouteImport.update({
+  id: '/api/health/live',
+  path: '/api/health/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthMetricsRoute = ApiHealthMetricsRouteImport.update({
+  id: '/api/health/metrics',
+  path: '/api/health/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthReadyRoute = ApiHealthReadyRouteImport.update({
+  id: '/api/health/ready',
+  path: '/api/health/ready',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthStartedRoute = ApiHealthStartedRouteImport.update({
+  id: '/api/health/started',
+  path: '/api/health/started',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
   AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const ApiWebhooksResendEventsRoute = ApiWebhooksResendEventsRouteImport.update({
-  id: '/api/webhooks/resend/events',
-  path: '/api/webhooks/resend/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWebhooksGbpNotificationsRoute =
-  ApiWebhooksGbpNotificationsRouteImport.update({
-    id: '/api/webhooks/gbp/notifications',
-    path: '/api/webhooks/gbp/notifications',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
-  id: '/api/auth/google/callback',
-  path: '/api/auth/google/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedPropertiesImportGoogleImportIdRoute =
-  AuthenticatedPropertiesImportGoogleImportIdRouteImport.update({
-    id: '/properties/import-google/$importId',
-    path: '/properties/import-google/$importId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdReviewsRoute =
-  AuthenticatedPropertiesPropertyIdReviewsRouteImport.update({
-    id: '/reviews',
-    path: '/reviews',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdPeopleRoute =
-  AuthenticatedPropertiesPropertyIdPeopleRouteImport.update({
-    id: '/people',
-    path: '/people',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdGoalsRoute =
@@ -304,46 +264,50 @@ const AuthenticatedPropertiesPropertyIdGoalsRoute =
     path: '/goals',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const AuthenticatedPropertiesPropertyIdTeamsIndexRoute =
-  AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport.update({
-    id: '/teams/',
-    path: '/teams/',
+const AuthenticatedPropertiesPropertyIdPeopleRoute =
+  AuthenticatedPropertiesPropertyIdPeopleRouteImport.update({
+    id: '/people',
+    path: '/people',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const AuthenticatedPropertiesPropertyIdPortalsIndexRoute =
-  AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport.update({
-    id: '/portals/',
-    path: '/portals/',
+const AuthenticatedPropertiesPropertyIdReviewsRoute =
+  AuthenticatedPropertiesPropertyIdReviewsRouteImport.update({
+    id: '/reviews',
+    path: '/reviews',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesImportGoogleIndexRoute =
+  AuthenticatedPropertiesImportGoogleIndexRouteImport.update({
+    id: '/properties/import-google/',
+    path: '/properties/import-google/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedPropertiesImportGoogleImportIdRoute =
+  AuthenticatedPropertiesImportGoogleImportIdRouteImport.update({
+    id: '/properties/import-google/$importId',
+    path: '/properties/import-google/$importId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
+  id: '/api/auth/google/callback',
+  path: '/api/auth/google/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhooksGbpNotificationsRoute =
+  ApiWebhooksGbpNotificationsRouteImport.update({
+    id: '/api/webhooks/gbp/notifications',
+    path: '/api/webhooks/gbp/notifications',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWebhooksResendEventsRoute = ApiWebhooksResendEventsRouteImport.update({
+  id: '/api/webhooks/resend/events',
+  path: '/api/webhooks/resend/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPropertiesPropertyIdGoalsIndexRoute =
   AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport.update({
-    id: '/teams/$teamId',
-    path: '/teams/$teamId',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdPortalsNewRoute =
-  AuthenticatedPropertiesPropertyIdPortalsNewRouteImport.update({
-    id: '/portals/new',
-    path: '/portals/new',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute =
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport.update({
-    id: '/portals/$portalId',
-    path: '/portals/$portalId',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdGoalsNewRoute =
-  AuthenticatedPropertiesPropertyIdGoalsNewRouteImport.update({
-    id: '/new',
-    path: '/new',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
   } as any)
 const AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute =
@@ -352,10 +316,52 @@ const AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute =
     path: '/$goalId',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdGoalsNewRoute =
+  AuthenticatedPropertiesPropertyIdGoalsNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdGoalsRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdPortalsIndexRoute =
+  AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport.update({
+    id: '/portals/',
+    path: '/portals/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute =
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport.update({
+    id: '/portals/$portalId',
+    path: '/portals/$portalId',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdPortalsNewRoute =
+  AuthenticatedPropertiesPropertyIdPortalsNewRouteImport.update({
+    id: '/portals/new',
+    path: '/portals/new',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdTeamsIndexRoute =
+  AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport.update({
+    id: '/teams/',
+    path: '/teams/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute =
+  AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport.update({
+    id: '/teams/$teamId',
+    path: '/teams/$teamId',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute =
   AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute =
+  AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
   } as any)
 const ApiPublicPTokenClickLinkIdRoute =
@@ -363,12 +369,6 @@ const ApiPublicPTokenClickLinkIdRoute =
     id: '/api/public/p/$token/click/$linkId',
     path: '/api/public/p/$token/click/$linkId',
     getParentRoute: () => rootRouteImport,
-  } as any)
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport.update({
-    id: '/members',
-    path: '/members',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -729,46 +729,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/unavailable': {
-      id: '/unavailable'
-      path: '/unavailable'
-      fullPath: '/unavailable'
-      preLoaderRoute: typeof UnavailableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/join': {
-      id: '/join'
-      path: '/join'
-      fullPath: '/join'
-      preLoaderRoute: typeof JoinRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/accept-invitation': {
-      id: '/accept-invitation'
-      path: '/accept-invitation'
-      fullPath: '/accept-invitation'
-      preLoaderRoute: typeof AcceptInvitationRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -778,53 +743,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/accept-invitation': {
+      id: '/accept-invitation'
+      path: '/accept-invitation'
+      fullPath: '/accept-invitation'
+      preLoaderRoute: typeof AcceptInvitationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/p/$token': {
-      id: '/p/$token'
-      path: '/p/$token'
-      fullPath: '/p/$token'
-      preLoaderRoute: typeof PTokenRouteImport
+    '/join': {
+      id: '/join'
+      path: '/join'
+      fullPath: '/join'
+      preLoaderRoute: typeof JoinRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/team': {
-      id: '/_authenticated/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AuthenticatedTeamRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/progress': {
-      id: '/_authenticated/progress'
-      path: '/progress'
-      fullPath: '/progress'
-      preLoaderRoute: typeof AuthenticatedProgressRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/notifications': {
-      id: '/_authenticated/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/unavailable': {
+      id: '/unavailable'
+      path: '/unavailable'
+      fullPath: '/unavailable'
+      preLoaderRoute: typeof UnavailableRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/leaderboard': {
-      id: '/_authenticated/leaderboard'
-      path: '/leaderboard'
-      fullPath: '/leaderboard'
-      preLoaderRoute: typeof AuthenticatedLeaderboardRouteImport
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/home': {
@@ -834,33 +799,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+    '/_authenticated/leaderboard': {
+      id: '/_authenticated/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof AuthenticatedLeaderboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/health/': {
-      id: '/api/health/'
-      path: '/api/health'
-      fullPath: '/api/health/'
-      preLoaderRoute: typeof ApiHealthIndexRouteImport
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/progress': {
+      id: '/_authenticated/progress'
+      path: '/progress'
+      fullPath: '/progress'
+      preLoaderRoute: typeof AuthenticatedProgressRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/team': {
+      id: '/_authenticated/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof AuthenticatedTeamRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/p/$token': {
+      id: '/p/$token'
+      path: '/p/$token'
+      fullPath: '/p/$token'
+      preLoaderRoute: typeof PTokenRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/settings/': {
-      id: '/_authenticated/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/properties/': {
-      id: '/_authenticated/properties/'
-      path: '/properties'
-      fullPath: '/properties/'
-      preLoaderRoute: typeof AuthenticatedPropertiesIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/inbox/': {
       id: '/_authenticated/inbox/'
@@ -869,95 +848,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInboxIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/health/started': {
-      id: '/api/health/started'
-      path: '/api/health/started'
-      fullPath: '/api/health/started'
-      preLoaderRoute: typeof ApiHealthStartedRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/properties/': {
+      id: '/_authenticated/properties/'
+      path: '/properties'
+      fullPath: '/properties/'
+      preLoaderRoute: typeof AuthenticatedPropertiesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/api/health/ready': {
-      id: '/api/health/ready'
-      path: '/api/health/ready'
-      fullPath: '/api/health/ready'
-      preLoaderRoute: typeof ApiHealthReadyRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/properties/$propertyId': {
+      id: '/_authenticated/properties/$propertyId'
+      path: '/properties/$propertyId'
+      fullPath: '/properties/$propertyId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/api/health/metrics': {
-      id: '/api/health/metrics'
-      path: '/api/health/metrics'
-      fullPath: '/api/health/metrics'
-      preLoaderRoute: typeof ApiHealthMetricsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health/live': {
-      id: '/api/health/live'
-      path: '/api/health/live'
-      fullPath: '/api/health/live'
-      preLoaderRoute: typeof ApiHealthLiveRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/settings/security': {
-      id: '/_authenticated/settings/security'
-      path: '/security'
-      fullPath: '/settings/security'
-      preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/recognition': {
-      id: '/_authenticated/settings/recognition'
-      path: '/recognition'
-      fullPath: '/settings/recognition'
-      preLoaderRoute: typeof AuthenticatedSettingsRecognitionRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/profile': {
-      id: '/_authenticated/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/preferences': {
-      id: '/_authenticated/settings/preferences'
-      path: '/preferences'
-      fullPath: '/settings/preferences'
-      preLoaderRoute: typeof AuthenticatedSettingsPreferencesRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/organization': {
-      id: '/_authenticated/settings/organization'
-      path: '/organization'
-      fullPath: '/settings/organization'
-      preLoaderRoute: typeof AuthenticatedSettingsOrganizationRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/notifications': {
-      id: '/_authenticated/settings/notifications'
-      path: '/notifications'
-      fullPath: '/settings/notifications'
-      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/members': {
-      id: '/_authenticated/settings/members'
-      path: '/members'
-      fullPath: '/settings/members'
-      preLoaderRoute: typeof AuthenticatedSettingsMembersRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/integrations': {
-      id: '/_authenticated/settings/integrations'
-      path: '/integrations'
-      fullPath: '/settings/integrations'
-      preLoaderRoute: typeof AuthenticatedSettingsIntegrationsRouteImport
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/ai': {
@@ -967,67 +876,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsAiRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
-    '/_authenticated/properties/$propertyId': {
-      id: '/_authenticated/properties/$propertyId'
-      path: '/properties/$propertyId'
-      fullPath: '/properties/$propertyId'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/_authenticated/settings/integrations': {
+      id: '/_authenticated/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof AuthenticatedSettingsIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
     }
-    '/_authenticated/properties/import-google/': {
-      id: '/_authenticated/properties/import-google/'
-      path: '/properties/import-google'
-      fullPath: '/properties/import-google/'
-      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
+    '/_authenticated/settings/members': {
+      id: '/_authenticated/settings/members'
+      path: '/members'
+      fullPath: '/settings/members'
+      preLoaderRoute: typeof AuthenticatedSettingsMembersRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/notifications': {
+      id: '/_authenticated/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/organization': {
+      id: '/_authenticated/settings/organization'
+      path: '/organization'
+      fullPath: '/settings/organization'
+      preLoaderRoute: typeof AuthenticatedSettingsOrganizationRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/preferences': {
+      id: '/_authenticated/settings/preferences'
+      path: '/preferences'
+      fullPath: '/settings/preferences'
+      preLoaderRoute: typeof AuthenticatedSettingsPreferencesRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/profile': {
+      id: '/_authenticated/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/recognition': {
+      id: '/_authenticated/settings/recognition'
+      path: '/recognition'
+      fullPath: '/settings/recognition'
+      preLoaderRoute: typeof AuthenticatedSettingsRecognitionRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/security': {
+      id: '/_authenticated/settings/security'
+      path: '/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/': {
+      id: '/api/health/'
+      path: '/api/health'
+      fullPath: '/api/health/'
+      preLoaderRoute: typeof ApiHealthIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/live': {
+      id: '/api/health/live'
+      path: '/api/health/live'
+      fullPath: '/api/health/live'
+      preLoaderRoute: typeof ApiHealthLiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/metrics': {
+      id: '/api/health/metrics'
+      path: '/api/health/metrics'
+      fullPath: '/api/health/metrics'
+      preLoaderRoute: typeof ApiHealthMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/ready': {
+      id: '/api/health/ready'
+      path: '/api/health/ready'
+      fullPath: '/api/health/ready'
+      preLoaderRoute: typeof ApiHealthReadyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health/started': {
+      id: '/api/health/started'
+      path: '/api/health/started'
+      fullPath: '/api/health/started'
+      preLoaderRoute: typeof ApiHealthStartedRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/properties/$propertyId/': {
       id: '/_authenticated/properties/$propertyId/'
       path: '/'
       fullPath: '/properties/$propertyId/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdIndexRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/api/webhooks/resend/events': {
-      id: '/api/webhooks/resend/events'
-      path: '/api/webhooks/resend/events'
-      fullPath: '/api/webhooks/resend/events'
-      preLoaderRoute: typeof ApiWebhooksResendEventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/gbp/notifications': {
-      id: '/api/webhooks/gbp/notifications'
-      path: '/api/webhooks/gbp/notifications'
-      fullPath: '/api/webhooks/gbp/notifications'
-      preLoaderRoute: typeof ApiWebhooksGbpNotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/google/callback': {
-      id: '/api/auth/google/callback'
-      path: '/api/auth/google/callback'
-      fullPath: '/api/auth/google/callback'
-      preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/properties/import-google/$importId': {
-      id: '/_authenticated/properties/import-google/$importId'
-      path: '/properties/import-google/$importId'
-      fullPath: '/properties/import-google/$importId'
-      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleImportIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/properties/$propertyId/reviews': {
-      id: '/_authenticated/properties/$propertyId/reviews'
-      path: '/reviews'
-      fullPath: '/properties/$propertyId/reviews'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/people': {
-      id: '/_authenticated/properties/$propertyId/people'
-      path: '/people'
-      fullPath: '/properties/$propertyId/people'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
     '/_authenticated/properties/$propertyId/goals': {
@@ -1037,53 +988,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
-    '/_authenticated/properties/$propertyId/teams/': {
-      id: '/_authenticated/properties/$propertyId/teams/'
-      path: '/teams'
-      fullPath: '/properties/$propertyId/teams/'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport
+    '/_authenticated/properties/$propertyId/people': {
+      id: '/_authenticated/properties/$propertyId/people'
+      path: '/people'
+      fullPath: '/properties/$propertyId/people'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
-    '/_authenticated/properties/$propertyId/portals/': {
-      id: '/_authenticated/properties/$propertyId/portals/'
-      path: '/portals'
-      fullPath: '/properties/$propertyId/portals/'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport
+    '/_authenticated/properties/$propertyId/reviews': {
+      id: '/_authenticated/properties/$propertyId/reviews'
+      path: '/reviews'
+      fullPath: '/properties/$propertyId/reviews'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/import-google/': {
+      id: '/_authenticated/properties/import-google/'
+      path: '/properties/import-google'
+      fullPath: '/properties/import-google/'
+      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/properties/import-google/$importId': {
+      id: '/_authenticated/properties/import-google/$importId'
+      path: '/properties/import-google/$importId'
+      fullPath: '/properties/import-google/$importId'
+      preLoaderRoute: typeof AuthenticatedPropertiesImportGoogleImportIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/auth/google/callback': {
+      id: '/api/auth/google/callback'
+      path: '/api/auth/google/callback'
+      fullPath: '/api/auth/google/callback'
+      preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/gbp/notifications': {
+      id: '/api/webhooks/gbp/notifications'
+      path: '/api/webhooks/gbp/notifications'
+      fullPath: '/api/webhooks/gbp/notifications'
+      preLoaderRoute: typeof ApiWebhooksGbpNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhooks/resend/events': {
+      id: '/api/webhooks/resend/events'
+      path: '/api/webhooks/resend/events'
+      fullPath: '/api/webhooks/resend/events'
+      preLoaderRoute: typeof ApiWebhooksResendEventsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/properties/$propertyId/goals/': {
       id: '/_authenticated/properties/$propertyId/goals/'
       path: '/'
       fullPath: '/properties/$propertyId/goals/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
-    }
-    '/_authenticated/properties/$propertyId/teams/$teamId': {
-      id: '/_authenticated/properties/$propertyId/teams/$teamId'
-      path: '/teams/$teamId'
-      fullPath: '/properties/$propertyId/teams/$teamId'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/portals/new': {
-      id: '/_authenticated/properties/$propertyId/portals/new'
-      path: '/portals/new'
-      fullPath: '/properties/$propertyId/portals/new'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/portals/$portalId': {
-      id: '/_authenticated/properties/$propertyId/portals/$portalId'
-      path: '/portals/$portalId'
-      fullPath: '/properties/$propertyId/portals/$portalId'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/goals/new': {
-      id: '/_authenticated/properties/$propertyId/goals/new'
-      path: '/new'
-      fullPath: '/properties/$propertyId/goals/new'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsNewRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
     }
     '/_authenticated/properties/$propertyId/goals/$goalId': {
@@ -1093,11 +1051,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
     }
+    '/_authenticated/properties/$propertyId/goals/new': {
+      id: '/_authenticated/properties/$propertyId/goals/new'
+      path: '/new'
+      fullPath: '/properties/$propertyId/goals/new'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdGoalsNewRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRoute
+    }
+    '/_authenticated/properties/$propertyId/portals/': {
+      id: '/_authenticated/properties/$propertyId/portals/'
+      path: '/portals'
+      fullPath: '/properties/$propertyId/portals/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/portals/$portalId': {
+      id: '/_authenticated/properties/$propertyId/portals/$portalId'
+      path: '/portals/$portalId'
+      fullPath: '/properties/$propertyId/portals/$portalId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/portals/new': {
+      id: '/_authenticated/properties/$propertyId/portals/new'
+      path: '/portals/new'
+      fullPath: '/properties/$propertyId/portals/new'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/teams/': {
+      id: '/_authenticated/properties/$propertyId/teams/'
+      path: '/teams'
+      fullPath: '/properties/$propertyId/teams/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
+    '/_authenticated/properties/$propertyId/teams/$teamId': {
+      id: '/_authenticated/properties/$propertyId/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/properties/$propertyId/teams/$teamId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
     '/_authenticated/properties/$propertyId/teams/$teamId/': {
       id: '/_authenticated/properties/$propertyId/teams/$teamId/'
       path: '/'
       fullPath: '/properties/$propertyId/teams/$teamId/'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
+    }
+    '/_authenticated/properties/$propertyId/teams/$teamId/members': {
+      id: '/_authenticated/properties/$propertyId/teams/$teamId/members'
+      path: '/members'
+      fullPath: '/properties/$propertyId/teams/$teamId/members'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
     }
     '/api/public/p/$token/click/$linkId': {
@@ -1106,13 +1113,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/p/$token/click/$linkId'
       preLoaderRoute: typeof ApiPublicPTokenClickLinkIdRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/properties/$propertyId/teams/$teamId/members': {
-      id: '/_authenticated/properties/$propertyId/teams/$teamId/members'
-      path: '/members'
-      fullPath: '/properties/$propertyId/teams/$teamId/members'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
     }
   }
 }

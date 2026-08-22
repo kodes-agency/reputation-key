@@ -4,7 +4,7 @@
 **Date:** 2026-06-07
 **Context:** Notification Context, Event Delivery
 
-> **Amendment (2026-07-05, deep-review sweep):** The dedicated `notification-insert` queue specified in the original decision was never implemented — notification jobs enqueue to the shared `default` queue (see `src/composition.ts`, where `buildNotificationContext` receives `infra.jobQueue`). This amendment sanctions sharing `default` as the intended decision and adds the justification in the next subsection. The `notification-insert` references in `docs/plan/plan.md:597` are historical and superseded. This mirrors ADR 0010's identical call for activity jobs.
+> **Amendment (2026-07-05, deep-review sweep):** The dedicated `notification-insert` queue specified in the original decision was never implemented — notification jobs enqueue to the shared `default` queue (see `src/composition.ts`, where `buildNotificationContext` receives `infra.jobQueue`). This amendment sanctions sharing `default` as the intended decision and adds the justification in the next subsection. The `notification-insert` references in `docs/archive/plan/plan.md:597` are historical and superseded. This mirrors ADR 0010's identical call for activity jobs.
 
 ## Context
 

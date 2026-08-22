@@ -4,6 +4,9 @@
 **Targets (ADR 0038):** RPO ≤ 15 minutes · RTO ≤ 4 hours  
 **Related:** [runbooks § DB](runbooks.md), [backup-and-lifecycle](backup-and-lifecycle.md) (BQC-7.8 — the configuration + procedure this rehearsal times), [staging checklist](bqr6-staging-load-fault-checklist.md)
 
+> **Deferred (2026-08-22):** not a closed-beta release blocker. The timed drill
+> runs when the beta has external users (see the deferral note in ADR 0038).
+
 ## Goals
 
 Prove that a beta release candidate can be restored without exceeding RPO/RTO, and that outbox/queue state is consistent after restore.

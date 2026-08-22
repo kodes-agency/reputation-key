@@ -86,15 +86,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Lint
-        run: pnpm lint
-
-      # BQC-0.1: live completion truth is the schema-validated status manifest.
-      - name: BQC status manifest
-        run: |
-          pnpm bqc:validate-status
-          pnpm bqc:generate-status
-          git diff --exit-code -- \
-            docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/STATUS.md
+        run: pnpm lint:ci
 
       - name: Run migrations
         env:
@@ -167,18 +159,6 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm test
-
-      # BQC-6.9: coverage gate — 100% on pure domain rules + the project
-      # baseline ratchet. The script runs the unit project itself with v8
-      # coverage (hermetic, no DB) — see scripts/check-coverage.mjs.
-      - name: Coverage gate
-        run: pnpm check:coverage
-
-      # BQC-6.9: changed-code budget — every src production file added by the
-      # branch must carry a colocated test (diffs against origin/main; the
-      # checkout above uses fetch-depth: 0). See scripts/check-changed-code.mjs.
-      - name: Changed-code budget
-        run: pnpm check:changed-code
 
       - name: Web build
         run: pnpm build

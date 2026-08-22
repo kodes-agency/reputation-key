@@ -4,6 +4,15 @@ status: proposed
 
 # 0038 — Beta service objectives and recovery
 
+> **Deferred for the closed beta (2026-08-22).** This ADR is still
+> `status: proposed`, and it stays that way deliberately. The numeric SLO
+> targets, the signed-exception process, and the timed RPO/RTO drill and
+> staging load campaign are deferred until the beta has external users: the
+> `web.availability` and `backup.pitr` probes are unimplemented, and the drills
+> are blocked on a staging environment that does not exist. Treat the tables
+> below as intent, not as a gate. **The beta stop conditions in this ADR remain
+> active** — they are the part that is enforced today.
+
 Initial service-level objectives for the internal beta. These are operating objectives for the engineering team, not customer-facing SLAs. BETA-3 proves them against target-scale load and fault injection.
 
 ## Service objectives
