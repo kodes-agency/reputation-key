@@ -1,6 +1,6 @@
 # UI/UX MVP Plan — Reputation Key
 
-> The target end-state for the manager/admin experience, sequenced into reviewable phases. Forthcoming from a design grilling session (2026-06-16). See [ADR 0016](../adr/0016-active-property-url-query-param.md) for the active-property navigation decision.
+> The target end-state for the manager/admin experience, sequenced into reviewable phases. Forthcoming from a design grilling session (2026-06-16). See [ADR 0016](../../adr/0016-active-property-url-query-param.md) for the active-property navigation decision.
 
 ## Scope
 

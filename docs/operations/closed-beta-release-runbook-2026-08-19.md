@@ -135,18 +135,42 @@ the first violated rule with its JSON path (it printed
 ## 3. Deploying a release — `pnpm release:beta` (ADR 0051)
 
 ```bash
+# 0. The audited path needs the operator env + a reachable database (§1 recipe):
+#    the tunnel, DATABASE_URL pointed at it, OPS_OPERATOR_IDENTITIES, and the
+#    seven app secrets taken from the deployed service.
+railway connect Postgres16 --environment google-closed-beta --tunnel-only --port 55500
+
 pnpm release:beta                 # dry run: prints the ordered plan, calls no railway command
-pnpm release:beta --apply         # deploys all six services, then verifies
-pnpm release:beta --verify-only   # re-proves the running deployment without deploying
+pnpm release:beta --apply --operator denev@kodes.agency --reason "<why>"
+pnpm release:beta --verify-only   # re-prove the running deployment (expects origin/main)
 ```
 
 `scripts/release/deploy-beta.ts` owns the procedure — deploy order, both
-variable contracts, and the post-deploy proof. It refuses `--apply` against a
-dirty tree (HEAD must describe what ships), deploys `web` first and alone (its
-`preDeployCommand` in `railway.json` runs the migrations), then `worker`, the
-two Google services, and the two AI services. It then asserts:
+variable contracts, and the post-deploy proof. It deploys `web` first and alone
+(its `preDeployCommand` in `railway.json` runs the migrations), then `worker`,
+the two Google services, and the two AI services.
 
-- one `RELEASE_SHA` across all six services, read back from Railway;
+**`--apply` refuses unless all three hold:**
+
+| Refusal                                  | Why                                                                                                                                                                                                                                                   |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dirty working tree                       | `railway up` uploads the WORKING TREE, so HEAD must describe what ships                                                                                                                                                                               |
+| HEAD is not an ancestor of `origin/main` | a release must be reviewed, CI-exercised, merged code (`--force` overrides, loudly)                                                                                                                                                                   |
+| no `--operator` / `--reason`             | `--apply` runs through the operator harness: named operator from `OPS_OPERATOR_IDENTITIES`, one audited `policy_decision_audit` row, same contract as every `ops:*` mutation (`--skip-audit` for the incident case where the database is unreachable) |
+
+**Then it waits.** `railway up --detach` returns before the build exists, and
+the service variables are written _before_ it — so a read-back taken right
+after the upload proves nothing. The script parses each deployment id out of
+`railway up`'s build-log URL and polls it to a terminal state; anything but
+`SUCCESS` fails the release and skips the health assertions, because there is
+no point asserting health against a rollout that did not happen.
+`--deploy-timeout <seconds>` bounds the wait (default 900).
+
+**Then it asserts:**
+
+- one `RELEASE_SHA` across all six services, read back from Railway — equal to
+  the deployed revision on `--apply`, and to `origin/main` on `--verify-only`
+  (`--expect <sha>` names another; `--expect any` drops to "the six agree");
 - `/api/health` returning `status: ok` with `db`, `redis`, `migrations` and
   `policy` all true (needs `--app-url` or `BETA_APP_URL`);
 - every `ai_execution_control_heads` row `enabled`/`accepting` (needs

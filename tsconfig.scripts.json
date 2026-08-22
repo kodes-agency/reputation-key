@@ -1,0 +1,14 @@
+{
+  // `pnpm typecheck` covers src/, services/ and e2e/ only — scripts/ has never
+  // been in any project. That was survivable for seed scripts and fatal for the
+  // release tool: scripts/release/deploy-beta.ts can redeploy every service in
+  // the beta, and nothing checked its types. This project gates the release
+  // surface. scripts/ops/** is deliberately NOT here yet: it carries three
+  // pre-existing errors (scripts/ops/ai-canary-authorization.ts:99 tuple
+  // arity, scripts/ops/google-content-approval.ts:11 unused import,
+  // scripts/ops/quarantine-redrive.ts:40 reads `.attempts` where the type says
+  // `attemptsMade`) — each needs its own fix with its own verification.
+  "extends": "./tsconfig.json",
+  "include": ["scripts/release/**/*.ts"],
+  "compilerOptions": { "types": ["node"] }
+}

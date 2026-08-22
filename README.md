@@ -35,27 +35,28 @@ pnpm dev
 
 ## Scripts
 
-| Command             | Description                                          |
-| ------------------- | ---------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                            |
-| `pnpm build`        | Build web app                                        |
-| `pnpm build:worker` | Build worker                                         |
-| `pnpm start`        | Run built web server                                 |
-| `pnpm start:worker` | Run built worker                                     |
-| `pnpm test`         | Run unit tests                                       |
-| `pnpm test:e2e`     | Run Playwright E2E tests                             |
-| `pnpm typecheck`    | TypeScript check                                     |
-| `pnpm lint`         | ESLint + filename/component-boundary checks          |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates     |
-| `pnpm format`       | Prettier format                                      |
-| `pnpm release:beta` | Deploy + verify the closed beta (dry-run by default) |
+| Command             | Description                                                                     |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`          | Start dev server on :3000                                                       |
+| `pnpm build`        | Build web app                                                                   |
+| `pnpm build:worker` | Build worker                                                                    |
+| `pnpm start`        | Run built web server                                                            |
+| `pnpm start:worker` | Run built worker                                                                |
+| `pnpm test`         | Run unit tests                                                                  |
+| `pnpm test:e2e`     | Run Playwright E2E tests                                                        |
+| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)               |
+| `pnpm lint`         | ESLint + filename/component-boundary checks                                     |
+| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                                |
+| `pnpm format`       | Prettier format                                                                 |
+| `pnpm release:beta` | Deploy + verify the closed beta (dry run; `--apply` needs an operator + reason) |
 
 ### Git hooks
 
 Husky is configured with two gates:
 
 - **pre-commit** — runs `lint-staged` (eslint --fix + prettier --write on staged files)
-- **pre-push** — runs `pnpm typecheck`
+- **pre-push** — runs `pnpm typecheck`, plus the Google/AI artifact attestation
+  gates when the push touches their hash-pinned inputs
 
 Install hooks after cloning: `pnpm install` (the `prepare` script registers Husky automatically).
 

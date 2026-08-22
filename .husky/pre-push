@@ -1,1 +1,16 @@
 pnpm typecheck
+
+# The byte-attested Google/AI artifact gates live in `lint:ci`, not in the fast
+# `lint`, so a normal push does not pay for them. They ARE the gates most likely
+# to fail closed in CI though, because their inputs are hash-pinned — so run
+# them here exactly when this push touches those inputs. Everything else waits
+# for CI.
+changed="$(git diff --name-only origin/main...HEAD 2>/dev/null || true)"
+case "$changed" in
+*product-readiness-program-2026-07/ai-governance/* | *src/contexts/ai/domain/catalogues/* | *src/shared/ai-* | *scripts/generate-ai-governance-artifacts.ts* | *scripts/generate-google-provider-fixtures.ts* | *scripts/check-ai-contract-attestations.ts*)
+  echo "pre-push: artifact inputs touched — running the attestation gates"
+  pnpm check:ai-governance-artifacts &&
+    pnpm check:ai-contract-attestations &&
+    pnpm check:google-provider-fixtures
+  ;;
+esac
