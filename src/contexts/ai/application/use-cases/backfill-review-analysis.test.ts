@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
+  PropertyAccessHolderLookup,
   ReviewAnalysisBackfillCandidate,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillEnablement,
@@ -10,11 +11,16 @@ import type {
 import {
   createBackfillReviewAnalysis,
   type BackfillReviewAnalysisInput,
+  type BackfillReviewAnalysisResult,
 } from './backfill-review-analysis'
 
 const ORG = organizationId('org-hotel')
 const PROPERTY = propertyId('071b20fe-2598-4f63-a2a1-b9ac2f959575')
 const NOW = new Date('2026-08-22T09:00:00.000Z')
+
+const LINEAGE = '26a69a51-ce4b-4d28-a61c-f1f5931e52ee'
+/** A real `member."userId"`, which is what the consent ledger's actor column is. */
+const CONSENT_ACTOR = 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD'
 
 const ENABLED: ReviewAnalysisBackfillEnablement = {
   state: 'enabled',
@@ -23,6 +29,8 @@ const ENABLED: ReviewAnalysisBackfillEnablement = {
   reviewAnalysisEpoch: 2,
   analysisStartSequence: 40,
   stateVersion: 7,
+  authorizationLineageId: LINEAGE,
+  consentActor: { userId: CONSENT_ACTOR, memberRole: 'owner' },
 }
 
 /** `n` candidates whose STORED sequences are whatever the caller says. */
@@ -39,6 +47,7 @@ function candidates(
 type Recorded = Readonly<{
   repositions: number
   allocations: number
+  grantLookups: number
   emitted: ReadonlyArray<
     Readonly<{ reviewId: string; analysisSequence: number; sourceRevision: number }>
   >
@@ -46,6 +55,7 @@ type Recorded = Readonly<{
 
 type Harness = Readonly<{
   store: ReviewAnalysisBackfillStorePort
+  propertyAccessHolders: PropertyAccessHolderLookup
   recorded: Recorded
 }>
 
@@ -55,6 +65,11 @@ function harness(
     candidates?: ReadonlyArray<ReviewAnalysisBackfillCandidate>
     /** Sequences the allocator hands out, in order. Defaults to head + 1, +2, … */
     allocate?: ReadonlyArray<number>
+    /**
+     * Users the identity-owned grant lookup reports for this property. Identity
+     * owns `property_access_grant`; the AI context only consumes this.
+     */
+    grantHolders?: ReadonlyArray<string>
   }> = {},
 ): Harness {
   const context: ReviewAnalysisBackfillContext = {
@@ -67,7 +82,7 @@ function harness(
     ...overrides.context,
   }
   const pool = overrides.candidates ?? []
-  const state = { repositions: 0, allocations: 0 }
+  const state = { repositions: 0, allocations: 0, grantLookups: 0 }
   const emitted: Array<{
     reviewId: string
     analysisSequence: number
@@ -84,6 +99,8 @@ function harness(
         analysisStartSequence: context.analysisHeadSequence,
         reviewAnalysisEpoch: (context.enablement?.reviewAnalysisEpoch ?? 0) + 1,
         stateVersion: (context.enablement?.stateVersion ?? 0) + 1,
+        // The SQL derives this from the consent it replays.
+        consentActorUserId: context.enablement?.consentActor?.userId ?? '',
       }
     },
     allocateAnalysisSequence: async () => {
@@ -104,6 +121,10 @@ function harness(
 
   return {
     store: { runExclusive: (_input, run) => run(session) },
+    propertyAccessHolders: async () => {
+      state.grantLookups += 1
+      return overrides.grantHolders ?? []
+    },
     recorded: {
       get repositions() {
         return state.repositions
@@ -111,9 +132,27 @@ function harness(
       get allocations() {
         return state.allocations
       },
+      get grantLookups() {
+        return state.grantLookups
+      },
       emitted,
     },
   }
+}
+
+/**
+ * The use case under test, wired to one harness. Both dependencies must travel
+ * together — the grant lookup is what decides an admin actor's authority, and a
+ * call site that forgot it would silently refuse every admin.
+ */
+function useCase(
+  h: Harness,
+  store: ReviewAnalysisBackfillStorePort = h.store,
+): (input: BackfillReviewAnalysisInput) => Promise<BackfillReviewAnalysisResult> {
+  return createBackfillReviewAnalysis({
+    backfillStore: store,
+    propertyAccessHolders: h.propertyAccessHolders,
+  })
 }
 
 function input(
@@ -124,7 +163,6 @@ function input(
     propertyId: PROPERTY,
     limit: 500,
     dryRun: false,
-    operatorId: 'operator-bo',
     reasonCode: 'operator_review_analysis_backfill',
     idempotencyKey: 'ops-ai-reanalyze:abc',
     requestHash: 'a'.repeat(64),
@@ -144,7 +182,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
       candidates: candidates(stored),
       context: { analysisHeadSequence: 256, eligibleReviewCount: stored.length },
     })
-    const backfill = createBackfillReviewAnalysis({ backfillStore: h.store })
+    const backfill = useCase(h)
 
     const result = await backfill(input())
 
@@ -169,7 +207,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
       context: { analysisHeadSequence: 10, eligibleReviewCount: 3 },
     })
 
-    await createBackfillReviewAnalysis({ backfillStore: h.store })(input())
+    await useCase(h)(input())
 
     expect(h.recorded.allocations).toBe(3)
     expect(h.recorded.emitted).toHaveLength(3)
@@ -184,9 +222,9 @@ describe('backfillReviewAnalysis — contiguity', () => {
       allocate: [11, 13, 14],
     })
 
-    await expect(
-      createBackfillReviewAnalysis({ backfillStore: h.store })(input()),
-    ).rejects.toThrow(/would create a hole: allocated 13, expected 12/)
+    await expect(useCase(h)(input())).rejects.toThrow(
+      /would create a hole: allocated 13, expected 12/,
+    )
     // The first event is written inside the same transaction the throw rolls
     // back; what matters is that the out-of-order one never reached the outbox.
     expect(h.recorded.emitted.map((e) => e.analysisSequence)).toEqual([11])
@@ -209,14 +247,15 @@ describe('backfillReviewAnalysis — contiguity', () => {
               analysisStartSequence: 4,
               reviewAnalysisEpoch: 3,
               stateVersion: 8,
+              consentActorUserId: CONSENT_ACTOR,
             }),
           }),
         ),
     }
 
-    await expect(
-      createBackfillReviewAnalysis({ backfillStore: store })(input()),
-    ).rejects.toThrow(/watermark moved to 4, expected the observed head 10/)
+    await expect(useCase(h, store)(input())).rejects.toThrow(
+      /watermark moved to 4, expected the observed head 10/,
+    )
     expect(h.recorded.emitted).toEqual([])
   })
 
@@ -226,9 +265,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
       context: { analysisHeadSequence: 100, eligibleReviewCount: 5 },
     })
 
-    const result = await createBackfillReviewAnalysis({ backfillStore: h.store })(
-      input({ limit: 2 }),
-    )
+    const result = await useCase(h)(input({ limit: 2 }))
 
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
@@ -250,9 +287,7 @@ describe('backfillReviewAnalysis — dry run', () => {
       },
     })
 
-    const result = await createBackfillReviewAnalysis({ backfillStore: h.store })(
-      input({ dryRun: true }),
-    )
+    const result = await useCase(h)(input({ dryRun: true }))
 
     expect(result).toEqual({
       status: 'planned',
@@ -313,6 +348,46 @@ describe('backfillReviewAnalysis — refusals', () => {
       refusal: 'property_inactive',
       message: /property is not active/,
     },
+    {
+      // The live shape of the ops:ai-reanalyze failure: the operator's email
+      // went into a column admission resolves as a member."userId", so every
+      // backfilled review was denied. Refusing needs the lineage and the state
+      // version in the message, because that is what an operator has to look up.
+      name: 'no consent-evidence row to carry the actor forward from',
+      context: { enablement: { ...ENABLED, consentActor: null } },
+      refusal: 'consent_actor_absent',
+      message:
+        /no consent-evidence row exists for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7/,
+    },
+    {
+      // The live shape, verbatim: the ops operator's email in a
+      // member."userId" column, so `member` yields no row at all.
+      name: 'the recorded actor is not a member of the organization',
+      context: {
+        enablement: {
+          ...ENABLED,
+          consentActor: { userId: 'denev@kodes.agency', memberRole: null },
+        },
+      },
+      refusal: 'consent_actor_unauthorized',
+      // Names the actor it tried, so the operator can act without reading SQL.
+      message:
+        /consent-evidence actor 'denev@kodes.agency' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7 .*member\.role is absent — not a member/,
+    },
+    {
+      // An admin's authority rests on a grant, and the harness reports none.
+      name: 'the member who consented is an admin with no active property grant',
+      context: {
+        enablement: {
+          ...ENABLED,
+          consentActor: { userId: CONSENT_ACTOR, memberRole: 'admin' },
+        },
+      },
+      grantHolders: [],
+      refusal: 'consent_actor_unauthorized',
+      message:
+        /consent-evidence actor 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 7 .*member\.role is 'admin'/,
+    },
   ] as const
 
   for (const testCase of cases) {
@@ -320,11 +395,10 @@ describe('backfillReviewAnalysis — refusals', () => {
       const h = harness({
         candidates: candidates([1, 2, 3]),
         context: { eligibleReviewCount: 3, ...testCase.context },
+        grantHolders: 'grantHolders' in testCase ? testCase.grantHolders : undefined,
       })
 
-      const result = await createBackfillReviewAnalysis({ backfillStore: h.store })(
-        input(),
-      )
+      const result = await useCase(h)(input())
 
       expect(result.status).toBe('refused')
       if (result.status !== 'refused') return
@@ -339,12 +413,95 @@ describe('backfillReviewAnalysis — refusals', () => {
   it('refuses when nothing is eligible rather than burning an epoch', async () => {
     const h = harness({ candidates: [], context: { eligibleReviewCount: 0 } })
 
-    const result = await createBackfillReviewAnalysis({ backfillStore: h.store })(input())
+    const result = await useCase(h)(input())
 
     expect(result.status).toBe('refused')
     if (result.status !== 'refused') return
     expect(result.refusal).toBe('no_eligible_reviews')
     expect(h.recorded.repositions).toBe(0)
     expect(h.recorded.emitted).toEqual([])
+  })
+
+  it('aborts when the ledger recorded an actor other than the one it validated', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+    // The SQL derives the actor independently of the context read. If the two
+    // disagree the lineage head moved, so the ledger names someone whose
+    // authority was never checked — roll back rather than record it.
+    const store: ReviewAnalysisBackfillStorePort = {
+      runExclusive: (arg, run) =>
+        h.store.runExclusive(arg, (session) =>
+          run({
+            ...session,
+            repositionWatermark: async () => ({
+              sourceEpoch: 3,
+              analysisStartSequence: 10,
+              reviewAnalysisEpoch: 3,
+              stateVersion: 8,
+              consentActorUserId: 'someone-else',
+            }),
+          }),
+        ),
+    }
+
+    await expect(useCase(h, store)(input())).rejects.toThrow(
+      /recorded consent actor 'someone-else', expected the validated 'DfFoZQ7kFBrfeXHhph4DMwv3FgJPPauD'/,
+    )
+    expect(h.recorded.emitted).toEqual([])
+  })
+
+  it('reports the member whose consent it replayed, never an operator', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+
+    const result = await useCase(h)(input())
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.consentActorUserId).toBe(CONSENT_ACTOR)
+  })
+
+  it('accepts an admin consent actor holding an active grant on the property', async () => {
+    // The seam the architecture matrix insists on: identity owns the grant
+    // table, so an admin's authority is decided by its lookup, not by a join
+    // this context writes. Same actor as the refusing case above — only the
+    // lookup's answer differs.
+    const h = harness({
+      candidates: candidates([1]),
+      context: {
+        analysisHeadSequence: 10,
+        eligibleReviewCount: 1,
+        enablement: {
+          ...ENABLED,
+          consentActor: { userId: CONSENT_ACTOR, memberRole: 'admin' },
+        },
+      },
+      grantHolders: [CONSENT_ACTOR],
+    })
+
+    const result = await useCase(h)(input())
+
+    expect(result.status).toBe('applied')
+    if (result.status !== 'applied') return
+    expect(result.consentActorUserId).toBe(CONSENT_ACTOR)
+    expect(h.recorded.grantLookups).toBe(1)
+  })
+
+  it('settles an owner on the role alone, without consulting the grant table', async () => {
+    // Owner authority does not depend on a grant, so the cross-context call is
+    // not made at all — the common case costs identity nothing.
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+
+    const result = await useCase(h)(input())
+
+    expect(result.status).toBe('applied')
+    expect(h.recorded.grantLookups).toBe(0)
   })
 })

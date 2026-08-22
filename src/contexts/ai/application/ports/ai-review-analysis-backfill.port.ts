@@ -21,6 +21,46 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
   ) => Promise<T>
 }>
 
+/**
+ * Identity-owned lookup: users holding active access to one property.
+ *
+ * Identity owns the grant table (ADR 0039 — explicit grants are the sole
+ * authorization source for property scope), so this context never reads it.
+ * Structurally identical to identity's own `PropertyGrantHolderLookup`, declared
+ * here so the AI context depends on a shape rather than on identity's adapter,
+ * exactly as the notification context does.
+ */
+export type PropertyAccessHolderLookup = (
+  organizationId: string,
+  propertyId: string,
+) => Promise<ReadonlyArray<string>>
+
+/**
+ * The member whose consent this backfill replays — the `actor_user_id` of the
+ * evidence row at the enablement's CURRENT `state_version`, which the backfill
+ * carries forward onto its own row.
+ *
+ * That column is resolved as a `member."userId"`: `admit_ai_property_v1` falls
+ * back to it for any operation with a NULL `actor_user_id` (every system-run
+ * analysis) and denies `authorization_changed` unless it resolves to a member
+ * with authority over the property. So it must name a real accountable member,
+ * never the operator who triggered the replay.
+ */
+export type ReviewAnalysisConsentActor = Readonly<{
+  /** `merchant_ai_consent_evidence.actor_user_id`, i.e. a `member."userId"`. */
+  userId: string
+  /**
+   * That actor's `member.role` for this organization, verbatim (it is a
+   * comma-separated token list), or null when they are not a member at all.
+   *
+   * The authority VERDICT is not decided here: owner is settled by the role
+   * alone, but an admin also needs an active property grant, and the grant
+   * table belongs to identity. The use case combines this with
+   * `PropertyAccessHolderLookup`.
+   */
+  memberRole: string | null
+}>
+
 /** The live merchant enablement head, or null when AI was never enabled here. */
 export type ReviewAnalysisBackfillEnablement = Readonly<{
   state: string
@@ -29,6 +69,10 @@ export type ReviewAnalysisBackfillEnablement = Readonly<{
   reviewAnalysisEpoch: number
   analysisStartSequence: number
   stateVersion: number
+  /** Named in the refusal, so an operator can find the lineage without SQL. */
+  authorizationLineageId: string
+  /** Null when no evidence row exists at `stateVersion` for the lineage. */
+  consentActor: ReviewAnalysisConsentActor | null
 }>
 
 export type ReviewAnalysisBackfillContext = Readonly<{
@@ -66,6 +110,12 @@ export type ReviewAnalysisWatermarkReposition = Readonly<{
   analysisStartSequence: number
   reviewAnalysisEpoch: number
   stateVersion: number
+  /**
+   * The actor the ledger row actually recorded — derived by the SQL from the
+   * consent it replays, never supplied by the caller. Returned so the use case
+   * can assert the write matched the actor it validated.
+   */
+  consentActorUserId: string
 }>
 
 export type ReviewAnalysisBackfillSession = Readonly<{
@@ -80,10 +130,15 @@ export type ReviewAnalysisBackfillSession = Readonly<{
    * its own `analysis_backfill` kind. Refuses (throws) unless the merchant is
    * already enabled for `review_analysis` on the property's current source
    * epoch — it can never grant a capability.
+   *
+   * Takes NO actor. The ledger's `actor_user_id` is a `member."userId"`, and a
+   * backfill grants no new consent, so the SQL derives the accountable member
+   * from the consent it replays and refuses if that member no longer resolves.
+   * The operator behind the run is carried by `reasonCode` and the ops
+   * harness's own audit trail, which is where an operator belongs.
    */
   repositionWatermark: (
     input: Readonly<{
-      operatorId: string
       reasonCode: string
       idempotencyKey: string
       requestHash: string

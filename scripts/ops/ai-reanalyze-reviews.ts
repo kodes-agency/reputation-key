@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto'
 import { getDb } from '../../src/shared/db'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { createReviewAnalysisBackfillAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter'
+import { createPropertyGrantHolderLookup } from '../../src/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { createBackfillReviewAnalysis } from '../../src/contexts/ai/application/use-cases/backfill-review-analysis'
 import { runOperatorCommand } from './operator-command'
 
@@ -69,15 +70,18 @@ async function main(): Promise<void> {
       // the whole transaction loudly instead of double-backfilling.
       const idempotencyKey = `ops-ai-reanalyze:${requestHash.slice(0, 48)}`
 
+      const db = getDb()
       const backfill = createBackfillReviewAnalysis({
-        backfillStore: createReviewAnalysisBackfillAdapter(getDb()),
+        backfillStore: createReviewAnalysisBackfillAdapter(db),
+        // Identity owns `property_access_grant`, so an admin consent actor's
+        // authority is resolved through identity's adapter rather than read here.
+        propertyAccessHolders: createPropertyGrantHolderLookup(db),
       })
       const outcome = await backfill({
         organizationId: organizationId(ctx.organizationId as string),
         propertyId: propertyId(ctx.propertyId as string),
         limit,
         dryRun: ctx.dryRun,
-        operatorId: ctx.operatorId,
         reasonCode: REASON_CODE,
         idempotencyKey,
         requestHash,
@@ -146,6 +150,11 @@ async function main(): Promise<void> {
             reviewAnalysisEpoch: outcome.reviewAnalysisEpoch,
             analysisStartSequence: outcome.analysisStartSequence,
             stateVersion: outcome.stateVersion,
+            // The MEMBER whose consent this replayed. The operator who ran it is
+            // recorded by the harness (identity, ticket, correlation id) and by
+            // reason_code — the consent ledger's actor is a merchant concept,
+            // and admission resolves it as a member."userId".
+            consentActorUserId: outcome.consentActorUserId,
             emittedCount: outcome.emittedAnalysisSequences.length,
             sequenceRange: `${outcome.emittedAnalysisSequences[0]}..${outcome.emittedAnalysisSequences.at(-1)}`,
           },

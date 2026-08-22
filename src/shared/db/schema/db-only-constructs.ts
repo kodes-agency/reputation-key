@@ -279,8 +279,8 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'reposition_merchant_ai_analysis_watermark_v1',
     kind: 'function',
     owner: 'identity',
-    source: 'drizzle/0072_ai-review-analysis-backfill.sql',
-    reason: `${NO_TRIGGER_DSL}; repositions the merchant review-analysis watermark and bumps the analysis epoch in one transaction, so an audited backfill cannot leave the watermark and the epoch disagreeing.`,
+    source: 'drizzle/0073_ai-backfill-consent-actor.sql',
+    reason: `${NO_TRIGGER_DSL}; repositions the merchant review-analysis watermark and bumps the analysis epoch in one transaction, so an audited backfill cannot leave the watermark and the epoch disagreeing, and derives the consent-evidence actor from the consent it replays so the ledger names an accountable member rather than the operator.`,
   },
   {
     name: 'initialize_review_provider_subject_hmac_key_v1',

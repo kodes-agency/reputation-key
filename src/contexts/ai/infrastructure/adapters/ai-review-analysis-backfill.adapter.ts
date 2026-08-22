@@ -83,7 +83,7 @@ function createSession(
 
       const enablementResult = await tx.execute(sql`
         SELECT state, capabilities, authorized_source_epoch, review_analysis_epoch,
-               analysis_start_sequence, state_version
+               analysis_start_sequence, state_version, authorization_lineage_id
         FROM merchant_ai_enablement
         WHERE organization_id = ${organizationId}
           AND property_id = ${propertyId}::uuid
@@ -91,6 +91,33 @@ function createSession(
       `)
       const enablementRow = enablementResult.rows[0] as
         Readonly<Record<string, unknown>> | undefined
+
+      // The accountable member this backfill will record: the actor of the
+      // consent it replays, plus that actor's `member.role` for this
+      // organization (null when they are not a member at all).
+      //
+      // Only the role, never the authority verdict. Owner is settled here, but
+      // an admin also needs an active property grant, and identity owns the
+      // grant table (ADR 0039) — the AI context must not read it. The use case
+      // finishes the decision through the identity-owned
+      // `PropertyAccessHolderLookup`, and the authoritative check stays in
+      // `reposition_merchant_ai_analysis_watermark_v1` under this same lock.
+      const consentActorRow = enablementRow
+        ? ((
+            await tx.execute(sql`
+              SELECT evidence.actor_user_id, member.role AS member_role
+              FROM merchant_ai_consent_evidence AS evidence
+              LEFT JOIN member
+                ON member."organizationId" = ${organizationId}
+                AND member."userId" = evidence.actor_user_id
+              WHERE evidence.authorization_lineage_id
+                      = ${String(enablementRow.authorization_lineage_id)}::uuid
+                AND evidence.state_version
+                      = ${safeInteger(enablementRow.state_version, 'state_version')}
+              FOR SHARE OF evidence
+            `)
+          ).rows[0] as Readonly<Record<string, unknown>> | undefined)
+        : undefined
 
       const headResult = await tx.execute(sql`
         SELECT head_sequence
@@ -145,6 +172,19 @@ function createSession(
                 'analysis_start_sequence',
               ),
               stateVersion: safeInteger(enablementRow.state_version, 'state_version'),
+              authorizationLineageId: String(enablementRow.authorization_lineage_id),
+              consentActor:
+                consentActorRow && consentActorRow.actor_user_id !== null
+                  ? {
+                      userId: String(consentActorRow.actor_user_id),
+                      // NULL when the LEFT JOIN found no member row at all.
+                      memberRole:
+                        consentActorRow.member_role === null ||
+                        consentActorRow.member_role === undefined
+                          ? null
+                          : String(consentActorRow.member_role),
+                    }
+                  : null,
             }
           : null,
         analysisHeadSequence: headRow
@@ -188,7 +228,6 @@ function createSession(
         FROM reposition_merchant_ai_analysis_watermark_v1(
           ${organizationId},
           ${propertyId}::uuid,
-          ${input.operatorId},
           ${input.reasonCode},
           ${input.idempotencyKey},
           ${input.requestHash},
@@ -208,6 +247,7 @@ function createSession(
           'review_analysis_epoch',
         ),
         stateVersion: safeInteger(row.state_version, 'state_version'),
+        consentActorUserId: String(row.consent_actor_user_id),
       }
     },
 

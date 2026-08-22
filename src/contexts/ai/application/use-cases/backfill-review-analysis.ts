@@ -1,7 +1,9 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
+  PropertyAccessHolderLookup,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillStorePort,
+  ReviewAnalysisConsentActor,
 } from '../ports/ai-review-analysis-backfill.port'
 
 /**
@@ -63,7 +65,6 @@ export type BackfillReviewAnalysisInput = Readonly<{
   limit: number
   /** Report only. Nothing is written and no provider call is ever made. */
   dryRun: boolean
-  operatorId: string
   reasonCode: string
   /** Fences a retried operator invocation to one watermark reposition. */
   idempotencyKey: string
@@ -78,6 +79,8 @@ export type BackfillRefusal =
   | 'authorization_not_enabled'
   | 'review_analysis_not_authorized'
   | 'authorized_source_epoch_stale'
+  | 'consent_actor_absent'
+  | 'consent_actor_unauthorized'
   | 'no_eligible_reviews'
 
 export type BackfillPlan = Readonly<{
@@ -115,11 +118,52 @@ export type BackfillReviewAnalysisResult =
       reviewAnalysisEpoch: number
       analysisStartSequence: number
       stateVersion: number
+      /**
+       * The accountable member the consent ledger recorded — carried forward
+       * from the consent this run replays, never the operator who ran it.
+       */
+      consentActorUserId: string
     }>
 
 export type BackfillReviewAnalysisDependencies = Readonly<{
   backfillStore: ReviewAnalysisBackfillStorePort
+  /**
+   * Identity-owned grant-holder lookup. Required: an admin's authority over a
+   * property rests on an active grant, and identity owns that table — without
+   * this the pre-flight could not tell an admin-with-grant (a valid consent
+   * actor) from an admin-without (one admission will deny).
+   */
+  propertyAccessHolders: PropertyAccessHolderLookup
 }>
+
+/**
+ * Owner, or admin holding active access to this property — exactly the
+ * predicate `apply_merchant_ai_transition_v1` applies when consent is TAKEN and
+ * `admit_ai_property_v1` applies when it is SPENT. `member.role` is a
+ * comma-separated token list, so it is split rather than compared.
+ *
+ * Advisory only, and deliberately outside the property lock: it exists to name
+ * the problem for an operator BEFORE anything is written. The authoritative
+ * check is `reposition_merchant_ai_analysis_watermark_v1`, which re-derives the
+ * actor inside the transaction under the lock and raises
+ * `merchant_ai_backfill_consent_actor_denied`. If the two ever disagree — a
+ * grant revoked in the gap — the SQL wins and the transaction aborts.
+ */
+async function hasPropertyAuthority(
+  actor: ReviewAnalysisConsentActor,
+  input: BackfillReviewAnalysisInput,
+  propertyAccessHolders: PropertyAccessHolderLookup,
+): Promise<boolean> {
+  if (actor.memberRole === null) return false
+  const roles = actor.memberRole
+    .toLowerCase()
+    .split(',')
+    .map((role) => role.trim())
+  if (roles.includes('owner')) return true
+  if (!roles.includes('admin')) return false
+  const holders = await propertyAccessHolders(input.organizationId, input.propertyId)
+  return holders.includes(actor.userId)
+}
 
 /**
  * The precondition the context fails, if any. Named refusals, never a silent
@@ -128,9 +172,11 @@ export type BackfillReviewAnalysisDependencies = Readonly<{
  * taken on the AI data-use surface, with a password, and this must not become
  * a way around that.
  */
-function refuseFor(
+async function refuseFor(
   context: ReviewAnalysisBackfillContext,
-): Readonly<{ refusal: BackfillRefusal; message: string }> | null {
+  input: BackfillReviewAnalysisInput,
+  propertyAccessHolders: PropertyAccessHolderLookup,
+): Promise<Readonly<{ refusal: BackfillRefusal; message: string }> | null> {
   if (!context.propertyActive) {
     return {
       refusal: 'property_inactive',
@@ -165,6 +211,34 @@ function refuseFor(
         `properties.source_epoch ${context.propertySourceEpoch} — the merchant must re-consent for the current source`,
     }
   }
+  // The evidence row this backfill writes carries `actor_user_id`, and
+  // `admit_ai_property_v1` resolves that column as a `member."userId"` for every
+  // system-run operation. A backfill grants no new consent, so the accountable
+  // actor is the member who consented — carried forward from the evidence row at
+  // the pre-backfill `state_version`. If that member cannot be resolved, refuse:
+  // substituting the operator (not a member) or picking an arbitrary owner would
+  // forge the consent record, and writing an unresolvable actor denies every
+  // replayed operation `authorization_changed` after burning an epoch.
+  const consentActor = enablement.consentActor
+  if (consentActor === null) {
+    return {
+      refusal: 'consent_actor_absent',
+      message:
+        `no consent-evidence row exists for authorization lineage ${enablement.authorizationLineageId} ` +
+        `at state_version ${enablement.stateVersion}, so the member who consented cannot be carried forward — ` +
+        'a backfill records their identity, never the operator who ran it',
+    }
+  }
+  if (!(await hasPropertyAuthority(consentActor, input, propertyAccessHolders))) {
+    return {
+      refusal: 'consent_actor_unauthorized',
+      message:
+        `consent-evidence actor '${consentActor.userId}' for authorization lineage ${enablement.authorizationLineageId} ` +
+        `at state_version ${enablement.stateVersion} is not a member of this organization with authority over this property ` +
+        `(owner, or admin with an active property access grant; member.role is ${consentActor.memberRole === null ? 'absent — not a member' : `'${consentActor.memberRole}'`}) — ` +
+        'admission would deny every replayed review, so the merchant must re-consent under a member who still has authority',
+    }
+  }
   return null
 }
 
@@ -174,7 +248,7 @@ export function createBackfillReviewAnalysis(
   return async (input) =>
     dependencies.backfillStore.runExclusive(input, async (session) => {
       const context = await session.readContext()
-      const refusal = refuseFor(context)
+      const refusal = await refuseFor(context, input, dependencies.propertyAccessHolders)
       if (refusal) return { status: 'refused', ...refusal }
 
       // Non-null: refuseFor rejects a null enablement above.
@@ -207,8 +281,9 @@ export function createBackfillReviewAnalysis(
       }
       if (input.dryRun) return { status: 'planned', plan }
 
+      // Non-null: refuseFor rejects an unresolvable consent actor above.
+      const consentActorUserId = enablement.consentActor!.userId
       const repositioned = await session.repositionWatermark({
-        operatorId: input.operatorId,
         reasonCode: input.reasonCode,
         idempotencyKey: input.idempotencyKey,
         requestHash: input.requestHash,
@@ -217,6 +292,15 @@ export function createBackfillReviewAnalysis(
       if (repositioned.analysisStartSequence !== headSequence) {
         throw new Error(
           `Review analysis watermark moved to ${repositioned.analysisStartSequence}, expected the observed head ${headSequence}`,
+        )
+      }
+      if (repositioned.consentActorUserId !== consentActorUserId) {
+        // The SQL derives the actor independently of this read. A disagreement
+        // means the lineage head moved under the property lock, so the ledger
+        // row would name someone whose authority was never checked — roll the
+        // whole backfill back rather than leave an unaccountable consent record.
+        throw new Error(
+          `Review analysis backfill recorded consent actor '${repositioned.consentActorUserId}', expected the validated '${consentActorUserId}'`,
         )
       }
 
@@ -250,6 +334,7 @@ export function createBackfillReviewAnalysis(
         reviewAnalysisEpoch: repositioned.reviewAnalysisEpoch,
         analysisStartSequence: repositioned.analysisStartSequence,
         stateVersion: repositioned.stateVersion,
+        consentActorUserId: repositioned.consentActorUserId,
       }
     })
 }
