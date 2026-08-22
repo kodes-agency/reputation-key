@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // BQC-6.9 — changed-code budget gate. Wired as `pnpm check:changed-code` and
-// as a CI step in the check job (ci.yml, after the coverage gate).
+// as a CI step in the check job (ci.yml, after the test step).
 //
 // Master-plan changed-code budget: every NEW production source module with
 // runtime behavior under src/** must have executable contract evidence: a
@@ -28,7 +28,14 @@
 //               threshold, so the gate would pass it anyway → remove the entry
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  openSync,
+  readFileSync,
+  statSync,
+} from 'node:fs'
 import { join, dirname, basename, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -218,12 +225,28 @@ const twoHopTestOwners = (directOwners) => {
 
 const coveredRuntimeModules = (files) => {
   const report = join(ROOT, 'coverage/coverage-summary.json')
-  if (!existsSync(report)) return new Set()
+  // ONE handle for stat + read. exists → stat → read is a TOCTOU race
+  // (CodeQL js/file-system-race) and not academic here: a concurrent
+  // `pnpm check:coverage` in the same tree rewrites this very file, so the
+  // freshness decision must be made against the bytes actually read.
+  let raw
+  let reportMtimeMs
+  try {
+    const handle = openSync(report, 'r')
+    try {
+      reportMtimeMs = fstatSync(handle).mtimeMs
+      raw = readFileSync(handle, 'utf8')
+    } finally {
+      closeSync(handle)
+    }
+  } catch {
+    return new Set()
+  }
   const newestSource = Math.max(
     ...files.map((file) => statSync(join(ROOT, file)).mtimeMs),
   )
-  if (statSync(report).mtimeMs < newestSource) return new Set()
-  const summary = JSON.parse(readFileSync(report, 'utf8'))
+  if (reportMtimeMs < newestSource) return new Set()
+  const summary = JSON.parse(raw)
   const covered = new Set()
   for (const [absolutePath, metrics] of Object.entries(summary)) {
     if (absolutePath === 'total') continue
