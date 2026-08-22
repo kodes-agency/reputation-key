@@ -1,5 +1,6 @@
-# CODEOWNERS — mandatory reviewers for security-sensitive paths.
-# Enforced via branch protection ("Require review from Code Owners").
+# CODEOWNERS — suggested reviewers for security-sensitive paths.
+# Advisory ownership metadata only: `main` has no branch protection and no
+# rulesets, so nothing mechanically requires these reviewers.
 
 # Authentication & authorization
 /src/shared/auth/              @kodes-agency

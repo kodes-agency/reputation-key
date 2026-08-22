@@ -13,7 +13,7 @@ function validManifest(overrides: Partial<BqcStatusManifest> = {}): BqcStatusMan
     updatedAt: '2026-07-17T00:00:00.000Z',
     baseline: {
       validationReport:
-        'docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md',
+        'docs/archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md',
       validationBaselineSha: '29b021875c145a7f8827f0ee70fc20935fc5dc79',
     },
     entries: [

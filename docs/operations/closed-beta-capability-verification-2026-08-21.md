@@ -79,14 +79,25 @@ report "You don't have an active portal responsibility at this property". The
 org has one portal (Draft) and no portal groups, so there is no recognition scope
 to display. Capability resolved; data absent.
 
-## Signup
+## Signup — CLOSED 2026-08-22
 
-Left off, as requested. Worth recording as a finding: `POST
-/api/auth/sign-up/email` on the deployed service returns **200 and creates a
-`user` row**. Sign-in is then refused with `403 EMAIL_NOT_VERIFIED`, so no usable
-access is granted — but the endpoint is an unauthenticated write that accumulates
-unverified user rows and is not gated by `identity.register`. Recommend closing
-it at the route rather than relying on verification to make it harmless.
+The finding recorded here was that `POST /api/auth/sign-up/email` on the deployed
+service returned **200 and created a `user` row**: an unauthenticated write, not
+gated by `identity.register`, on a public deployment for an invite-only team.
+Sign-in was then refused with `403 EMAIL_NOT_VERIFIED`, so no usable access was
+granted, but the rows accumulated.
+
+Closed at the route, as recommended: `/sign-up/email` is now in
+`BLOCKED_RAW_WRITE_ENDPOINTS` (`src/routes/api/auth/$.ts`), so the request is
+refused at the HTTP boundary with 404 + an `auth.raw_write_endpoint_blocked`
+warn log, before the limiter and before better-auth. **Proof:** the probe now
+returns `404 {"message":"Not found"}` and writes no row; the invariant is pinned
+by `src/routes/api/auth/-$.test.ts`.
+
+`emailAndPassword` stays enabled in `src/shared/auth/auth.ts` — clearing it
+would have disabled sign-in and password reset too. Invitation onboarding is
+unaffected: it runs through the app-owned services (`registerUserAndOrg` →
+`auth.api.signUpEmail` server-side), not this route.
 
 ## Verification footprint
 

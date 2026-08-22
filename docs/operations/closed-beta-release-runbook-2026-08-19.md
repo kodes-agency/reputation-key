@@ -132,46 +132,46 @@ revealed that the SDK was masking our own throw) and
 the first violated rule with its JSON path (it printed
 `validate:number_not_integer:$.top_p=0.98`).
 
-## 3. Deploying a release — corrected 2026-08-21 (ADR 0051)
-
-**Set `RELEASE_SHA` and `SOURCE_REVISION` together, on every service.** They are
-one fact with two names: `RELEASE_SHA` is a service variable, while
-`IMAGE_SOURCE_REVISION` is baked at build time from the `SOURCE_REVISION` build
-argument, and `assertReleaseIdentity` refuses a production boot when they differ.
-Setting only `RELEASE_SHA` — which is what the earlier procedure said — produced
-a `FAILED` web deploy and a crashed worker on 2026-08-21.
+## 3. Deploying a release — `pnpm release:beta` (ADR 0051)
 
 ```bash
-SHA=$(git rev-parse HEAD)   # a real revision, not random hex
-for svc in web worker google-egress-gateway google-execution-admission; do
-  railway variables --service "$svc" --environment google-closed-beta \
-    --set "RELEASE_SHA=$SHA" --set "SOURCE_REVISION=$SHA" --skip-deploys
-  railway up --service "$svc" --environment google-closed-beta --detach
-done
+pnpm release:beta                 # dry run: prints the ordered plan, calls no railway command
+pnpm release:beta --apply         # deploys all six services, then verifies
+pnpm release:beta --verify-only   # re-proves the running deployment without deploying
 ```
 
-Deploy `web` first: its `preDeployCommand` runs the migrations.
+`scripts/release/deploy-beta.ts` owns the procedure — deploy order, both
+variable contracts, and the post-deploy proof. It refuses `--apply` against a
+dirty tree (HEAD must describe what ships), deploys `web` first and alone (its
+`preDeployCommand` in `railway.json` runs the migrations), then `worker`, the
+two Google services, and the two AI services. It then asserts:
+
+- one `RELEASE_SHA` across all six services, read back from Railway;
+- `/api/health` returning `status: ok` with `db`, `redis`, `migrations` and
+  `policy` all true (needs `--app-url` or `BETA_APP_URL`);
+- every `ai_execution_control_heads` row `enabled`/`accepting` (needs
+  `DATABASE_URL`; prints a `skipped` line otherwise).
+
+A failing assertion exits non-zero naming the service and the observed value.
+There is no per-release evidence document to hand-write: `--verify-only`
+reproduces the proof on demand.
+
+**Why the script has two service classes** — this is the part to preserve in any
+edit, because it is a property of the services, not of the script.
+
+`RELEASE_SHA` and `SOURCE_REVISION` are one fact with two names. `RELEASE_SHA`
+is a service variable, while `IMAGE_SOURCE_REVISION` is baked at build time from
+the `SOURCE_REVISION` build argument, and `assertReleaseIdentity` refuses a
+production boot when they differ. Setting only `RELEASE_SHA` — what this section
+used to say — produced a `FAILED` web deploy and a crashed worker on 2026-08-21.
+So `web`, `worker`, `google-egress-gateway` and `google-execution-admission`
+receive both.
 
 **The two AI services take `RELEASE_SHA` only.** Their environments are exact
 allowlists (`services/ai-execution-admission/environment.ts`,
 `services/ai-egress-gateway/environment.ts`) and refuse to start if any other
 variable is present, so `SOURCE_REVISION` MUST NOT be set on them. Their images
 do not bake `IMAGE_SOURCE_REVISION`, so the identity guard cannot fire there.
-
-**Verify before declaring the release done:**
-
-```bash
-# every service on one revision
-for svc in web worker google-egress-gateway google-execution-admission \
-           ai-egress-gateway ai-execution-admission; do
-  printf '%s ' "$svc"
-  railway variables --service "$svc" --environment google-closed-beta --kv \
-    | sed -n 's/^RELEASE_SHA=//p'
-done
-# heads still accepting, and one real operation settles
-psql "$DATABASE_URL" -c "select scope_key, execution_state, admission_state
-                         from ai_execution_control_heads order by 1;"
-```
 
 **A routine redeploy does NOT need a canary.** Capability heads are scope-keyed,
 not release-keyed, and runtime dispatch never compares the running `RELEASE_SHA`

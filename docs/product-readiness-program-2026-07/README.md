@@ -8,8 +8,8 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 2. [Google Business Profile policy response and disposition](google-business-profile-ai-policy-response-2026-07-14.md)
 3. [PRE17 AI-readiness master plan](phase-pre17-master-plan.md)
 4. [Beta-readiness master plan](beta-readiness-master-plan.md)
-5. [Beta quality remediation program](beta-quality-remediation-2026-07/README.md)
-6. [Beta Quality Completion Program](beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
+5. [Beta quality remediation program](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/README.md)
+6. [Beta Quality Completion Program](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
 7. [Post-beta product-completion master plan](post-beta-product-completion-master-plan.md)
 
 ## Google policy request and response
@@ -39,12 +39,12 @@ This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta
 
 ## Beta quality remediation
 
-- [Program index](beta-quality-remediation-2026-07/README.md)
-- [Master plan](beta-quality-remediation-2026-07/master-plan.md)
-- [Implementation validation](beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md)
-- [BQC completion program](beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
-- [BQR-0 phase + exit matrix](beta-quality-remediation-2026-07/phase-bqr0-containment-and-rebaseline.md)
-- [BQR-0 truthful baseline](beta-quality-remediation-2026-07/bqr0-truthful-baseline.md)
+- [Program index](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/README.md)
+- [Master plan](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/master-plan.md)
+- [Implementation validation](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr-implementation-validation-report-2026-07-16.md)
+- [BQC completion program](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/README.md)
+- [BQR-0 phase + exit matrix](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/phase-bqr0-containment-and-rebaseline.md)
+- [BQR-0 truthful baseline](../archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/bqr0-truthful-baseline.md)
 
 ## Post-beta product completion
 

@@ -4,6 +4,10 @@
 **Owner:** Engineering (ops)  
 **Related:** [PRE17C scale evidence](../performance/pre17c-scale-evidence.md), [load harness](../../scripts/perf/load-test.ts), [runbooks](runbooks.md), [ADR 0038](../adr/0038-beta-service-objectives-and-recovery.md)
 
+> **Deferred (2026-08-22):** not a closed-beta release blocker. This campaign
+> runs when a staging environment exists and the beta has external users (see
+> the deferral note in ADR 0038).
+
 ## Preconditions
 
 - [ ] Staging Postgres + Redis available (not production)

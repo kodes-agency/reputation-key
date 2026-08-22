@@ -200,24 +200,29 @@ type ContextApi<T> = Readonly<{
 
 Every `src/contexts/<name>/CONTEXT.md` SHALL contain:
 
-| #   | Section                 | Content                                                     |
-| --- | ----------------------- | ----------------------------------------------------------- |
-| 1   | **Bounded context**     | One sentence: what this context does                        |
-| 2   | **Glossary**            | Terms defined here, markdown table                          |
-| 3   | **Relationships**       | Entity relationships (within context + cross-context)       |
-| 4   | **Invariants**          | Rules that must always hold                                 |
-| 5   | **Events produced**     | Table: `_tag` → payload fields → when emitted               |
-| 6   | **Events consumed**     | Table: `_tag` → source context → handler action             |
-| 7   | **Architecture layers** | Directory tree (standard format from `contexts/CONTEXT.md`) |
-| 8   | **Use cases**           | Table: name → input → output → permission                   |
-| 9   | **Public API**          | Exported types, functions, port interfaces                  |
-| 10  | **Server functions**    | Table: name → method → permission → route                   |
-| 11  | **Permissions**         | Role × permission matrix                                    |
+| #   | Section             | Content                                       |
+| --- | ------------------- | --------------------------------------------- |
+| 1   | **Bounded context** | One sentence: what this context does          |
+| 2   | **Invariants**      | Rules that must always hold                   |
+| 3   | **Events produced** | Table: `_tag` → payload fields → when emitted |
+| 4   | **Public API**      | Exported types, functions, port interfaces    |
+
+Four sections, not eleven. These are the facts a reader cannot recover quickly
+from the code; the previous eleven-section mandate was met by 7 of 13 contexts,
+and nothing enforces §4.1 mechanically. Everything else is optional — write it
+when the context genuinely has it.
 
 ### 4.2 Optional sections
 
 Add only when the context genuinely has them:
 
+- **Glossary** — terms defined here, markdown table
+- **Relationships** — entity relationships (within context + cross-context)
+- **Events consumed** — table: `_tag` → source context → handler action
+- **Architecture layers** — directory tree (standard format from `contexts/CONTEXT.md`)
+- **Use cases** — table: name → input → output → permission
+- **Server functions** — table: name → method → permission → route
+- **Permissions** — role × permission matrix
 - **Background jobs** — BullMQ jobs specific to this context
 - **Ports** — lookup ports, queue ports defined by this context
 - **Testing** — deviation notes, coverage gaps
@@ -363,7 +368,7 @@ Co-located context files in the source tree:
 - Contexts: `src/contexts/CONTEXT.md` — layers, use cases, server functions, dependency rules
 - Shared: `src/shared/CONTEXT.md` — auth, cache, observability, testing
 - Routes: `src/routes/CONTEXT.md` — loaders, mutations, auth guards, staleTime
-- Plan: `docs/plan/plan.md` — remaining phases
+- Archive: `docs/archive/` — superseded plans and closed programmes (historical only)
 - ADRs: `docs/adr/`
 - Auth migrations: `docs/auth-migrations.md`
 

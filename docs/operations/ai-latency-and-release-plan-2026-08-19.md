@@ -107,7 +107,7 @@ psql postgresql://test:test@localhost:5432/effort_fresh \
 DATABASE_URL=postgresql://test:test@localhost:5432/effort_fresh pnpm db:migrate
 
 # 2. Gates
-pnpm typecheck && pnpm lint && pnpm test:unit
+pnpm typecheck && pnpm lint:ci && pnpm test:unit
 TEST_DATABASE_URL=postgresql://test:test@localhost:5432/test pnpm test:integration
 pnpm test:storybook
 pnpm check:schema-drift          # compares model vs migrated catalogue + ledger hashes

@@ -58,7 +58,7 @@ export type ProtectedFieldRule = Readonly<{
 /**
  * The registry. Every protected field/copy in the system has exactly one
  * entry. The inventory narrative lives in
- * docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/bqc1-field-copy-inventory.md
+ * docs/archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07/bqc1-field-copy-inventory.md
  */
 export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
   // ── reviews (canonical raw content — sole owner: Review context) ────

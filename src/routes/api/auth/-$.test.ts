@@ -1,11 +1,11 @@
 // Review §5.1 — the auth catch-all's brute-force limiter must be ON unless the
 // E2E hatch is BOTH exact and authorized.
 //
-// Why this file exists: `src/routes/**` is excluded from the changed-code test
-// budget (scripts/check-changed-code.mjs), so nothing in CI would have demanded
-// a test for this file. It was the only rate-limit decision in the codebase
-// with no colocated proof, and it was reached through bare truthiness on an env
-// var that was not in the zod schema.
+// Why this file exists: nothing in CI would otherwise demand a test for a
+// route file, and this seam carries two postures that must not regress — the
+// HTTP-boundary refusal list and the brute-force limiter. The limiter decision
+// was once reached through bare truthiness on an env var that was not in the
+// zod schema.
 //
 // Invariants proven here:
 //   1. E2E unset → every POST is checked against the shared limiter, and a
@@ -15,6 +15,9 @@
 //      down, and the refusal is logged once per process.
 //   4. E2E=1 WITH an execution identity does stand it down — the posture the
 //      Playwright stack depends on (compose.local.yml web service).
+//   5. Raw better-auth write endpoints on the refusal list — including
+//      self-service /sign-up/email, closed off because the beta onboards by
+//      invitation only — return 404 and never reach better-auth.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -125,5 +128,55 @@ describe('auth catch-all rate limiting (review §5.1)', () => {
     expect(mocks.check).not.toHaveBeenCalled()
     expect(mocks.error).not.toHaveBeenCalled()
     expect(response.status).toBe(200)
+  })
+})
+
+describe('auth catch-all blocked raw write endpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.check.mockResolvedValue({ allowed: true })
+    mocks.handler.mockResolvedValue(new Response('ok', { status: 200 }))
+    useEnv({})
+  })
+
+  it('refuses self-service sign-up with 404 and never reaches better-auth', async () => {
+    const { handleAuthRequest } = await loadRoute()
+
+    const response = await handleAuthRequest(
+      new Request('http://localhost:3000/api/auth/sign-up/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          email: 'probe@example.invalid',
+          password: 'probe-password-123',
+          name: 'Probe',
+        }),
+      }),
+      { rateLimit: true },
+    )
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ message: 'Not found' })
+    // Refused at the boundary: no user row can be written, and the refusal is
+    // decided before the limiter so it cannot be masked by a 429.
+    expect(mocks.handler).not.toHaveBeenCalled()
+    expect(mocks.check).not.toHaveBeenCalled()
+    expect(mocks.warn.mock.calls[0]?.[1]).toMatch(/auth\.raw_write_endpoint_blocked/)
+  })
+
+  it('refuses raw organization writes and leaves sign-in reachable', async () => {
+    const { handleAuthRequest } = await loadRoute()
+
+    const invite = await handleAuthRequest(
+      new Request('http://localhost:3000/api/auth/organization/invite-member', {
+        method: 'POST',
+      }),
+      { rateLimit: true },
+    )
+    const signIn = await handleAuthRequest(signInPost(), { rateLimit: true })
+
+    expect(invite.status).toBe(404)
+    expect(signIn.status).toBe(200)
+    expect(mocks.handler).toHaveBeenCalledTimes(1)
   })
 })

@@ -145,5 +145,5 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 
 - [ ] Confirm Pino redaction patterns are active in production (currently configured, needs deployment verification)
 - [ ] Verify TTL purge job runs against restored backup (content_expires_at enforcement after PITR)
-- [ ] Rate limiting on auth endpoints (login, registration)
+- [x] Rate limiting on auth endpoints (login, registration) — shared Redis limiter, fails closed in production; raw `/sign-up/email` refused at the boundary
 - [ ] Initialize Sentry SDK with PII-scrubbing `beforeSend` hook (BETA-3)

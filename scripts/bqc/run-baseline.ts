@@ -23,7 +23,7 @@ import { resolve } from 'node:path'
 
 const ROOT = resolve(
   process.cwd(),
-  'docs/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07',
+  'docs/archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07',
 )
 
 type Gate = Readonly<{
@@ -51,7 +51,9 @@ type GateResult = Readonly<{
 const GATES: ReadonlyArray<Gate> = [
   { id: 'format', command: 'pnpm format:check' },
   { id: 'types', command: 'pnpm typecheck' },
-  { id: 'lint', command: 'pnpm lint' },
+  // lint:ci, not lint: the pre-push/PR `lint` script is the fast trio, while the
+  // baseline must still run test-quality plus the Google/AI artifact attestations.
+  { id: 'lint', command: 'pnpm lint:ci' },
   {
     id: 'migrations',
     command: 'echo "y" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema',
