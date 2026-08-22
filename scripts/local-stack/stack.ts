@@ -1603,7 +1603,11 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
     'google-egress-gateway',
     'ai-execution-admission',
     'ai-egress-gateway',
-    'perf-runner',
+    // perf-runner is the BQC-8 target-cell shell (`command: [sleep, infinity]`,
+    // driven over Railway SSH by perf:cell). The e2e suite never execs into it,
+    // so building it there only lengthens the job's critical path; every other
+    // mode still gets it.
+    ...(mode === 'e2e' ? [] : ['perf-runner']),
   ])
 }
 

@@ -1,4 +1,5 @@
 import {
+  frozenVectorDrift,
   googleAuthorizationPermissionDigest,
   sameFrozenGoogleContentAuthorizationVector,
   sameGoogleContentAuthorizationVector,
@@ -52,6 +53,20 @@ function connectionIsUsable(
   )
 }
 
+/**
+ * The connection facts frozen at approval time, re-checked at effect time.
+ *
+ * `lifecycleVersion` and `accessVersion` are REVOCATION epochs — only
+ * disconnect, reconnect and status transitions move them — so they stay exact.
+ * `credentialGeneration` is the secret-material generation, which a routine
+ * expired-token refresh bumps on its own (`updateTokens`,
+ * `credential_generation + 1`); requiring equality reported revocation for a
+ * successful refresh and cancelled any import whose token aged between
+ * approval and effect. Forward motion is therefore allowed and a REGRESSION
+ * still denies. See `sameFrozenGoogleContentAuthorizationVector` for the same
+ * exclusion on the vector, and `get-property-google-performance.ts` for the
+ * lease fence that already made this call.
+ */
 function sameExpectedConnection(
   connection: GoogleConnection,
   expected: NonNullable<Parameters<GoogleImportCommandAuthorizer>[0]['expected']>,
@@ -61,8 +76,56 @@ function sameExpectedConnection(
     connection.id === expected.connectionId &&
     connection.lifecycleVersion === expected.connectionLifecycleVersion &&
     connection.accessVersion === expected.connectionAccessVersion &&
-    connection.credentialGeneration === expected.credentialGeneration
+    connection.credentialGeneration >= expected.credentialGeneration
   )
+}
+
+type ConnectionCounters = Readonly<{
+  lifecycleVersion: number
+  accessVersion: number
+  credentialGeneration: number
+}>
+
+/** The three connection counters as they are logged, from the live row. */
+function observedCounters(connection: GoogleConnection): ConnectionCounters {
+  return {
+    lifecycleVersion: connection.lifecycleVersion,
+    accessVersion: connection.accessVersion,
+    credentialGeneration: connection.credentialGeneration,
+  }
+}
+
+/** The same three counters as frozen at approval time. */
+function frozenCounters(
+  expected: NonNullable<Parameters<GoogleImportCommandAuthorizer>[0]['expected']>,
+): ConnectionCounters {
+  return {
+    lifecycleVersion: expected.connectionLifecycleVersion,
+    accessVersion: expected.connectionAccessVersion,
+    credentialGeneration: expected.credentialGeneration,
+  }
+}
+
+/** Why a relink target no longer matches the snapshot frozen for it. */
+function propertyDrift(
+  expectedProperty: GoogleImportAuthorizationPropertySnapshot,
+  property: PropertyAuthorizationView | null,
+): Readonly<Record<string, unknown>> {
+  return {
+    propertyId: expectedProperty.propertyId,
+    expected: {
+      sourceEpoch: expectedProperty.sourceEpoch,
+      profileVersion: expectedProperty.profileVersion,
+    },
+    observed: {
+      missing: !property,
+      idMismatch: property ? property.propertyId !== expectedProperty.propertyId : null,
+      deleted: property ? property.deletedAt !== null : null,
+      lifecycleState: property?.lifecycleState ?? null,
+      sourceEpoch: property?.sourceEpoch ?? null,
+      profileVersion: property?.profileVersion ?? null,
+    },
+  }
 }
 export type GoogleImportContentAuthorizationResult =
   | Readonly<{
@@ -99,13 +162,35 @@ export function createGoogleImportCommandAuthorizer(
       propertyId: PropertyId,
     ) => Promise<PropertyAuthorizationView | null>
     clock?: () => Date
+    /**
+     * Structured warn for a refused authorization. Optional: unset is a no-op,
+     * so tests and any caller that has no logger stay unchanged.
+     */
+    warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
   }>,
 ): GoogleImportCommandAuthorizer {
   const clock = deps.clock ?? (() => new Date())
+  const warn = deps.warn ?? (() => {})
 
   const deny = (
     code: Extract<GoogleImportCommandAuthorizationResult, { ok: false }>['code'],
   ): GoogleImportCommandAuthorizationResult => ({ ok: false, code })
+
+  /**
+   * `authorization_changed` is returned by six distinct checks, and the
+   * persisted outcome code cannot say which one fired — the note in the
+   * property loop below records an investigation that lost its bearings to
+   * exactly that ambiguity. Every site therefore names itself and logs the
+   * values that differed. Content-free by construction: identifiers, integer
+   * version counters, booleans, and `permissionDigest`, which is already a
+   * sha256.
+   */
+  const denyChanged = (
+    fields: Readonly<Record<string, unknown>>,
+  ): GoogleImportCommandAuthorizationResult => {
+    warn(fields, 'google_import.authorization_changed_detail')
+    return deny('authorization_changed')
+  }
 
   return async (input) => {
     const decideCapability = async (
@@ -150,7 +235,13 @@ export function createGoogleImportCommandAuthorizer(
       return deny('connection_unavailable')
     }
     if (input.expected && !sameExpectedConnection(connection, input.expected)) {
-      return deny('authorization_changed')
+      return denyChanged({
+        site: 'expected_connection_pre_token',
+        organizationId: input.actor.organizationId,
+        connectionId: input.connectionId,
+        expected: frozenCounters(input.expected),
+        observed: observedCounters(connection),
+      })
     }
 
     try {
@@ -167,7 +258,10 @@ export function createGoogleImportCommandAuthorizer(
           property.sourceEpoch !== expectedProperty.sourceEpoch ||
           property.profileVersion !== expectedProperty.profileVersion
         ) {
-          return deny('authorization_changed')
+          return denyChanged({
+            site: 'property_snapshot',
+            ...propertyDrift(expectedProperty, property),
+          })
         }
         const propertyDecision = await decideCapability(
           'property.import_gbp_v2',
@@ -230,14 +324,26 @@ export function createGoogleImportCommandAuthorizer(
         return deny('connection_unavailable')
       }
       if (input.expected && !sameExpectedConnection(connection, input.expected)) {
-        return deny('authorization_changed')
+        return denyChanged({
+          site: 'expected_connection_post_token',
+          organizationId: input.actor.organizationId,
+          connectionId: input.connectionId,
+          expected: frozenCounters(input.expected),
+          observed: observedCounters(connection),
+        })
       }
       if (
         connection.lifecycleVersion !== connectionBeforeTokenAccess.lifecycleVersion ||
         connection.accessVersion !== connectionBeforeTokenAccess.accessVersion ||
         connection.credentialGeneration < connectionBeforeTokenAccess.credentialGeneration
       ) {
-        return deny('authorization_changed')
+        return denyChanged({
+          site: 'connection_moved_during_token_access',
+          organizationId: input.actor.organizationId,
+          connectionId: input.connectionId,
+          before: observedCounters(connectionBeforeTokenAccess),
+          after: observedCounters(connection),
+        })
       }
       if (
         connection.credentialGeneration > connectionBeforeTokenAccess.credentialGeneration
@@ -273,7 +379,16 @@ export function createGoogleImportCommandAuthorizer(
         expectedAuthorizationVector,
       )
     ) {
-      return deny('authorization_changed')
+      // Both sides were built in THIS request, so exact equality is right here
+      // — a mismatch means the content authorizer disagreed with the facts it
+      // was just handed, not that time passed.
+      return denyChanged({
+        site: 'same_request_vector',
+        drift: frozenVectorDrift(
+          contentAuthorization.authorizationVector,
+          expectedAuthorizationVector,
+        ),
+      })
     }
     const authorization = {
       organizationId: input.actor.organizationId,
@@ -288,11 +403,12 @@ export function createGoogleImportCommandAuthorizer(
     if (input.expected) {
       // `input.expected` was frozen when the job was approved; everything above
       // was recomputed just now. This is the only CROSS-TIME vector comparison
-      // in the codebase (the one at :270 builds both sides in this request), so
-      // it is the only one that must tolerate the global policy cache
-      // generation moving underneath it — see
-      // `sameFrozenGoogleContentAuthorizationVector`. Every authorization fact
-      // still has to match exactly, `emergencyKillVersion` included.
+      // in the codebase (the one above builds both sides in this request), so
+      // it is the only one that must tolerate the two counters that move
+      // without revoking anything — the global policy cache generation and a
+      // routine token refresh. See `FROZEN_VECTOR_EXCLUDED_KEYS`. Every other
+      // authorization fact still has to match exactly, `emergencyKillVersion`
+      // included.
       if (
         input.expected.approvalBindingId !== authorization.approvalBindingId ||
         !sameFrozenGoogleContentAuthorizationVector(
@@ -300,7 +416,19 @@ export function createGoogleImportCommandAuthorizer(
           authorization.authorizationVector,
         )
       ) {
-        return deny('authorization_changed')
+        return denyChanged({
+          site: 'frozen_vector',
+          approvalBindingDrift:
+            input.expected.approvalBindingId !== authorization.approvalBindingId,
+          credentialGeneration: {
+            frozen: input.expected.credentialGeneration,
+            observed: connection.credentialGeneration,
+          },
+          drift: frozenVectorDrift(
+            input.expected.authorizationVector,
+            authorization.authorizationVector,
+          ),
+        })
       }
     }
     return { ok: true, authorization, accessToken }

@@ -104,6 +104,12 @@ function setup(
         >
       >
     >
+    /**
+     * Only the cases that assert on the refusal log pass this; every other
+     * case leaves it unset, which is what proves the dep is optional and
+     * defaults to a no-op.
+     */
+    warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
   }>,
 ) {
   const findById = vi.fn(async () => input?.current ?? connection())
@@ -137,6 +143,7 @@ function setup(
     decide,
     readProperty,
     authorizeGoogleContent,
+    ...(input?.warn ? { warn: input.warn } : {}),
   })
   return {
     authorize,
@@ -565,6 +572,157 @@ describe('authorizeGoogleImportCommand', () => {
           requireAccessToken: false,
         }),
       ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    })
+  })
+
+  // A routine expired-access-token refresh bumps `credential_generation` and
+  // NOTHING else (`updateTokens`). Requiring equality against the value frozen
+  // at approval therefore reported revocation for a successful refresh and
+  // cancelled any import whose token aged between approval and effect — the
+  // same class of bug as the sibling-generation cancellation above, on a
+  // different counter. The performance lease fence already excluded it.
+  describe('a routine credential refresh between approval and effect', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    /** Frozen at approval while the connection sat at generation 5. */
+    const frozenAtGeneration5 = {
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      connectionId,
+      connectionLifecycleVersion: 3,
+      connectionAccessVersion: 4,
+      credentialGeneration: 5,
+      approvalBindingId,
+      authorizationVector: {
+        executionPolicyVersion: 'beta-local-2',
+        googleContentPolicyVersion: 11,
+        emergencyKillVersion: 4,
+        role: 'AccountAdmin',
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 3,
+        connectionAccessVersion: 4,
+        credentialGeneration: 5,
+      },
+    }
+
+    it('no longer cancels the item when the generation moved forward', async () => {
+      // The refresh landed: the connection is at 6, the revocation epochs did
+      // not move, and the content authority reports the fresh generation.
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 6 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 6 }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        authorization: { credentialGeneration: 6 },
+      })
+    })
+
+    it('still denies a generation REGRESSION, naming the site and the values', async () => {
+      const warn = vi.fn()
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 4 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 4 }),
+        warn,
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0]?.[1]).toBe('google_import.authorization_changed_detail')
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        site: 'expected_connection_pre_token',
+        expected: { credentialGeneration: 5 },
+        observed: { credentialGeneration: 4 },
+      })
+    })
+
+    it('still denies when a revocation epoch moved alongside the generation', async () => {
+      const { authorize } = setup({
+        current: connection({ lifecycleVersion: 4, credentialGeneration: 6 }),
+        authorizeGoogleContent: async () =>
+          contentAuthorization({ credentialGeneration: 6 }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+    })
+
+    it('names the property_snapshot site when the relink target drifted', async () => {
+      const warn = vi.fn()
+      const fixture = setup({ warn })
+      fixture.readProperty.mockResolvedValueOnce({
+        organizationId: actor.organizationId,
+        propertyId: destinationId,
+        state: 'disconnected' as const,
+        connectionId,
+        accountId: 'account-1',
+        locationId: 'location-1',
+        sourceEpoch: 9,
+        profileVersion: 7,
+        profileSource: 'tenant_confirmed' as const,
+        profileConfirmedAt: new Date('2026-08-01T10:00:00.000Z'),
+        deletedAt: null,
+        name: 'Property',
+        address: null,
+        countryCode: 'US',
+        timezone: 'America/New_York',
+        processingRegion: 'us',
+        lifecycleState: 'active',
+      })
+
+      await expect(
+        fixture.authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          expected: frozenAtGeneration5,
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        site: 'property_snapshot',
+        expected: { sourceEpoch: 8, profileVersion: 6 },
+        observed: { sourceEpoch: 9, profileVersion: 7, missing: false, deleted: false },
+      })
     })
   })
 })

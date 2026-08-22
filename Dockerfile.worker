@@ -36,6 +36,7 @@ ENV PNPM_HOME=/pnpm \
     HUSKY=0
 RUN corepack enable
 WORKDIR /app
+RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./

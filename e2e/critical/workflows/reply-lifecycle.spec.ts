@@ -286,7 +286,17 @@ test.describe('Critical workflow: reply lifecycle', () => {
           ? reply
           : null
       },
-      { timeoutMs: 30_000, description: 'reply terminally publish_failed' },
+      {
+        // 90s + diagnose, matching google-import-sync.spec.ts: this polls a
+        // real background worker on a runner already hosting nine containers,
+        // so the deadline only bounds how long the worker may take — the
+        // assertions below are what prove the behaviour. At the old 30s this
+        // timed out on a loaded runner (119 probes, no terminal state) and
+        // passed on a rerun of the same commit.
+        timeoutMs: 90_000,
+        description: 'reply terminally publish_failed',
+        diagnose: async () => await getReplyForReview(s.reviewId),
+      },
     )
     const putsAfterTerminal = await gbpStubControl.calls({
       method: 'PUT',
