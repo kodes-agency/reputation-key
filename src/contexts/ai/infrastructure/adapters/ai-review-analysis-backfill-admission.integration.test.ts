@@ -657,14 +657,14 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
 
   it('admits a backfilled operation instead of denying it authorization_changed', async () => {
     const applied = await runBackfill()
-    expect(applied.emittedAnalysisSequences).toEqual([HEAD_SEQUENCE + 1])
+    expect(applied.firstAnalysisSequence).toBe(HEAD_SEQUENCE + 1)
 
     // THE deliverable. Asserted before anything else so a regression fails on
     // the consequence — the replayed review never reaching the provider —
     // rather than on the ledger shape that merely causes it.
     const admitted = await admitBackfilledOperation({
       reviewAnalysisEpoch: applied.reviewAnalysisEpoch,
-      analysisSequence: applied.emittedAnalysisSequences[0]!,
+      analysisSequence: applied.firstAnalysisSequence,
       idempotencyKey: 'backfilled-admission-key',
     })
     expect(admitted).toMatchObject({ status: 'admitted' })
@@ -723,7 +723,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
 
     const denied = await admitBackfilledOperation({
       reviewAnalysisEpoch: forged.reviewAnalysisEpoch,
-      analysisSequence: applied.emittedAnalysisSequences[0]!,
+      analysisSequence: applied.firstAnalysisSequence,
       idempotencyKey: 'prefix-shape-admission-key',
     })
 
@@ -804,7 +804,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
     // The lineage self-heals from this run onward without touching history.
     const admitted = await admitBackfilledOperation({
       reviewAnalysisEpoch: applied.reviewAnalysisEpoch,
-      analysisSequence: applied.emittedAnalysisSequences[0]!,
+      analysisSequence: applied.firstAnalysisSequence,
       idempotencyKey: 'poisoned-head-admission-key',
     })
     expect(admitted).toMatchObject({ status: 'admitted' })

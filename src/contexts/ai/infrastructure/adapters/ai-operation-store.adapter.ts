@@ -663,16 +663,40 @@ export function createAiOperationStoreAdapter(db: Database): AiOperationStorePor
       // by `recordFailure`, whose CAS matches on `state = 'executing'` AND the
       // exact attempt. A row that settled between this scan and the write loses
       // the CAS and is counted, never overwritten.
+      //
+      // The predicate is the OPEN ATTEMPT's age, not the operation's
+      // `expires_at`. `expires_at` is the idempotency lifetime — 24 hours for a
+      // review analysis — while an attempt is bounded by the domain's 15-minute
+      // operation horizon, so an `expires_at`-only scan cannot see an
+      // abandonment for a whole day. It did not: four closed-beta operations sat
+      // `executing` with settled `success` permits while this reported
+      // `abandonedVisited=0` on every run. `expires_at` remains a second,
+      // independent trigger for anything with no open attempt row to age.
+      const now = new Date(input.nowEpochMillis)
+      const attemptDeadline = new Date(
+        input.nowEpochMillis - input.executionHorizonMillis,
+      )
       const rows = await db
         .select({
           operationId: aiOperations.id,
           attempt: aiOperations.executionAttempt,
         })
         .from(aiOperations)
+        .leftJoin(
+          aiOperationAttempts,
+          and(
+            eq(aiOperationAttempts.operationId, aiOperations.id),
+            eq(aiOperationAttempts.attempt, aiOperations.executionAttempt),
+            eq(aiOperationAttempts.state, 'executing'),
+          ),
+        )
         .where(
           and(
             eq(aiOperations.state, 'executing'),
-            lte(aiOperations.expiresAt, new Date(input.nowEpochMillis)),
+            or(
+              lte(aiOperations.expiresAt, now),
+              lte(aiOperationAttempts.startedAt, attemptDeadline),
+            ),
           ),
         )
         .orderBy(aiOperations.expiresAt)

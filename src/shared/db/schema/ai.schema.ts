@@ -1893,3 +1893,102 @@ export const aiPropertyTrendOutcomes = pgTable(
       .where(sql`${t.expiresAt} IS NOT NULL`),
   ],
 )
+
+/**
+ * One `ops:ai-reanalyze` run. The run exists because a backfill may only ever
+ * have ONE review in flight: `storeAnalysis` requires
+ * `review_ai_analysis_heads.head_sequence` to still equal the sequence being
+ * stored, so allocating `H+1 … H+N` up front makes every sequence but the last
+ * unstorable. The run drives the batch one review at a time instead — and
+ * because it is a row rather than a fan-out, the whole batch lands inside the
+ * ONE `review_analysis_epoch` it opened, which is what the epoch-keyed
+ * aggregates and the epoch-pinned read path require.
+ */
+export const aiReviewAnalysisBackfillRuns = pgTable(
+  'ai_review_analysis_backfill_runs',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
+    analysisStartSequence: bigint('analysis_start_sequence', {
+      mode: 'number',
+    }).notNull(),
+    /**
+     * The run's candidate set, PINNED and ordered at open. No predicate over
+     * `reviews.analysis_sequence` can name it: a stored sequence is only the
+     * sequence of a review's LAST analysis event, never a membership marker.
+     */
+    reviewIds: uuid('review_ids').array().notNull(),
+    requestedReviewCount: integer('requested_review_count').notNull(),
+    emittedReviewCount: integer('emitted_review_count').default(0).notNull(),
+    /** Pinned reviews no longer eligible when their turn came; no sequence spent. */
+    skippedReviewCount: integer('skipped_review_count').default(0).notNull(),
+    /** Emitted items the sweep had to terminal-settle so the run could proceed. */
+    recoveredReviewCount: integer('recovered_review_count').default(0).notNull(),
+    currentAnalysisSequence: bigint('current_analysis_sequence', { mode: 'number' }),
+    currentReviewId: uuid('current_review_id'),
+    currentEmittedAt: timestamptz('current_emitted_at'),
+    state: varchar('state', { length: 16 }).notNull(),
+    terminalReason: varchar('terminal_reason', { length: 64 }),
+    terminalAt: timestamptz('terminal_at'),
+    reasonCode: varchar('reason_code', { length: 64 }).notNull(),
+    correlationId: uuid('correlation_id').notNull(),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+    updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_review_analysis_backfill_runs_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'ai_review_analysis_backfill_runs_state_valid',
+      sql`${t.state} IN ('running', 'completed', 'superseded', 'stalled')`,
+    ),
+    check(
+      'ai_review_analysis_backfill_runs_terminal_valid',
+      sql`(
+        (${t.state} = 'running' AND ${t.terminalAt} IS NULL AND ${t.terminalReason} IS NULL)
+        OR (${t.state} <> 'running' AND ${t.terminalAt} IS NOT NULL)
+      )`,
+    ),
+    check(
+      'ai_review_analysis_backfill_runs_cursor_valid',
+      sql`(
+        (${t.currentAnalysisSequence} IS NULL) = (${t.currentReviewId} IS NULL)
+        AND (${t.currentAnalysisSequence} IS NULL) = (${t.currentEmittedAt} IS NULL)
+      )`,
+    ),
+    check(
+      'ai_review_analysis_backfill_runs_counts_valid',
+      sql`${t.requestedReviewCount} BETWEEN 1 AND 10000
+        AND cardinality(${t.reviewIds}) = ${t.requestedReviewCount}
+        AND ${t.emittedReviewCount} >= 0
+        AND ${t.skippedReviewCount} >= 0
+        AND ${t.emittedReviewCount} + ${t.skippedReviewCount} <= ${t.requestedReviewCount}
+        AND ${t.recoveredReviewCount} BETWEEN 0 AND ${t.emittedReviewCount}`,
+    ),
+    check(
+      'ai_review_analysis_backfill_runs_sequences_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.reviewAnalysisEpoch} BETWEEN 1 AND 2147483647
+        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint
+        AND (
+          ${t.currentAnalysisSequence} IS NULL
+          OR (
+            ${t.currentAnalysisSequence} >= ${t.analysisStartSequence} + 1
+            AND ${t.currentAnalysisSequence} <= '9007199254740991'::bigint
+          )
+        )`,
+    ),
+    uniqueIndex('ai_review_analysis_backfill_runs_one_active_idx')
+      .on(t.organizationId, t.propertyId)
+      .where(sql`${t.state} = 'running'`),
+    index('ai_review_analysis_backfill_runs_running_idx')
+      .on(t.createdAt)
+      .where(sql`${t.state} = 'running'`),
+  ],
+)

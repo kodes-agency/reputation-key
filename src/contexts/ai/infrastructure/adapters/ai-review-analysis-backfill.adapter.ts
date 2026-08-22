@@ -3,7 +3,11 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { reviewId as toReviewId } from '#/shared/domain/ids'
+import {
+  organizationId as toOrganizationId,
+  propertyId as toPropertyId,
+  reviewId as toReviewId,
+} from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
@@ -348,6 +352,159 @@ function createSession(
         createdAt: input.occurredAt,
       })
     },
+
+    async readActiveRun() {
+      const result = await tx.execute(sql`
+        SELECT id, source_epoch, review_analysis_epoch, analysis_start_sequence,
+               review_ids, emitted_review_count, skipped_review_count,
+               recovered_review_count, current_analysis_sequence,
+               current_review_id, current_emitted_at, correlation_id
+        FROM ai_review_analysis_backfill_runs
+        WHERE organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state = 'running'
+        FOR UPDATE
+      `)
+      const row = result.rows[0] as Readonly<Record<string, unknown>> | undefined
+      if (!row) return null
+      const emittedAt = row.current_emitted_at
+      return {
+        id: String(row.id),
+        sourceEpoch: safeInteger(row.source_epoch, 'run source_epoch'),
+        reviewAnalysisEpoch: safeInteger(
+          row.review_analysis_epoch,
+          'run review_analysis_epoch',
+        ),
+        analysisStartSequence: safeInteger(
+          row.analysis_start_sequence,
+          'run analysis_start_sequence',
+        ),
+        reviewIds: (row.review_ids as ReadonlyArray<string>).map(toReviewId),
+        emittedReviewCount: safeInteger(row.emitted_review_count, 'emitted_review_count'),
+        skippedReviewCount: safeInteger(row.skipped_review_count, 'skipped_review_count'),
+        recoveredReviewCount: safeInteger(
+          row.recovered_review_count,
+          'recovered_review_count',
+        ),
+        currentAnalysisSequence:
+          row.current_analysis_sequence === null
+            ? null
+            : safeInteger(row.current_analysis_sequence, 'current_analysis_sequence'),
+        currentReviewId:
+          row.current_review_id === null
+            ? null
+            : toReviewId(String(row.current_review_id)),
+        currentEmittedAtEpochMillis:
+          emittedAt instanceof Date
+            ? emittedAt.getTime()
+            : emittedAt === null || emittedAt === undefined
+              ? null
+              : Date.parse(String(emittedAt)),
+        correlationId: String(row.correlation_id),
+      }
+    },
+
+    async openRun(input) {
+      const runId = randomUUID()
+      await tx.execute(sql`
+        INSERT INTO ai_review_analysis_backfill_runs (
+          id, organization_id, property_id, source_epoch, review_analysis_epoch,
+          analysis_start_sequence, review_ids, requested_review_count,
+          state, reason_code, correlation_id, created_at, updated_at
+        ) VALUES (
+          ${runId}::uuid, ${organizationId}, ${propertyId}::uuid,
+          ${input.sourceEpoch}, ${input.reviewAnalysisEpoch},
+          ${input.analysisStartSequence},
+          ${sql.param(input.reviewIds.map(String))}::uuid[],
+          ${input.reviewIds.length}, 'running', ${input.reasonCode},
+          ${input.correlationId}::uuid, ${input.occurredAt}, ${input.occurredAt}
+        )
+      `)
+      return runId
+    },
+
+    async readEligibleCandidate(reviewId) {
+      if (sourceEpoch === null) throw new Error(UNFENCED)
+      const result = await tx.execute(sql`
+        SELECT review.id, review.source_revision, review.analysis_sequence
+        ${eligibleReviewsSql(organizationId, propertyId, sourceEpoch)}
+          AND review.id = ${String(reviewId)}::uuid
+      `)
+      const row = result.rows[0] as Readonly<Record<string, unknown>> | undefined
+      if (!row) return null
+      return {
+        reviewId: toReviewId(String(row.id)),
+        sourceRevision: safeInteger(row.source_revision, 'reviews.source_revision'),
+        storedAnalysisSequence: safeInteger(
+          row.analysis_sequence,
+          'reviews.analysis_sequence',
+        ),
+      }
+    },
+
+    async readOutcomeState(input) {
+      if (sourceEpoch === null) throw new Error(UNFENCED)
+      const result = await tx.execute(sql`
+        SELECT state
+        FROM ai_review_analysis_outcomes
+        WHERE organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND source_epoch = ${sourceEpoch}
+          AND review_analysis_epoch = ${input.reviewAnalysisEpoch}
+          AND analysis_sequence = ${input.analysisSequence}
+      `)
+      const row = result.rows[0] as Readonly<Record<string, unknown>> | undefined
+      if (!row) return null
+      const state = String(row.state)
+      if (state !== 'pending' && state !== 'ready' && state !== 'terminal_no_result') {
+        throw new Error(`Review analysis outcome carries an unknown state '${state}'`)
+      }
+      return state
+    },
+
+    async advanceRun(input) {
+      await tx.execute(sql`
+        UPDATE ai_review_analysis_backfill_runs
+        SET emitted_review_count = emitted_review_count + 1,
+            current_analysis_sequence = ${input.analysisSequence},
+            current_review_id = ${String(input.reviewId)}::uuid,
+            current_emitted_at = ${input.occurredAt},
+            updated_at = ${input.occurredAt}
+        WHERE id = ${input.runId}::uuid AND state = 'running'
+      `)
+    },
+
+    async skipRunCandidate(input) {
+      await tx.execute(sql`
+        UPDATE ai_review_analysis_backfill_runs
+        SET skipped_review_count = skipped_review_count + 1,
+            updated_at = ${input.occurredAt}
+        WHERE id = ${input.runId}::uuid AND state = 'running'
+      `)
+    },
+
+    async recordRunRecovery(input) {
+      await tx.execute(sql`
+        UPDATE ai_review_analysis_backfill_runs
+        SET recovered_review_count = recovered_review_count + 1,
+            updated_at = ${input.occurredAt}
+        WHERE id = ${input.runId}::uuid AND state = 'running'
+      `)
+    },
+
+    async closeRun(input) {
+      await tx.execute(sql`
+        UPDATE ai_review_analysis_backfill_runs
+        SET state = ${input.state},
+            terminal_reason = ${input.terminalReason},
+            terminal_at = ${input.occurredAt},
+            current_analysis_sequence = NULL,
+            current_review_id = NULL,
+            current_emitted_at = NULL,
+            updated_at = ${input.occurredAt}
+        WHERE id = ${input.runId}::uuid AND state = 'running'
+      `)
+    },
   }
 }
 
@@ -359,5 +516,24 @@ export function createReviewAnalysisBackfillAdapter(
       db.transaction((tx) =>
         run(createSession(tx, input.organizationId, input.propertyId)),
       ),
+    // Lock-free on purpose: every property this returns is re-read inside its
+    // own exclusive session before anything is written, so a stale row costs a
+    // no-op advance and never a wrong one.
+    async listRunningRuns(limit) {
+      const result = await db.execute(sql`
+        SELECT organization_id, property_id
+        FROM ai_review_analysis_backfill_runs
+        WHERE state = 'running'
+        ORDER BY created_at ASC
+        LIMIT ${limit}
+      `)
+      return result.rows.map((raw) => {
+        const row = raw as Readonly<Record<string, unknown>>
+        return {
+          organizationId: toOrganizationId(String(row.organization_id)),
+          propertyId: toPropertyId(String(row.property_id)),
+        }
+      })
+    },
   }
 }

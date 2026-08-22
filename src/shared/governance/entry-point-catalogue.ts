@@ -100,6 +100,7 @@ export type SystemAction =
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
+  | 'system:ai.review_analysis_backfill_advance'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
@@ -2561,6 +2562,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'ai-review-analysis-backfill-advance',
+    'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
+    'system:ai.review_analysis_backfill_advance',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Drives an open ops:ai-reanalyze run one review further: allocates and emits the next item only once its predecessor settled, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved',
+    },
+  ),
+  job(
     'permit-start-deadline-sweep',
     'src/shared/jobs/permit-start-deadline-sweep.job.ts',
     'system:permit.start_deadline_fence',
@@ -2930,6 +2942,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'every 5 min; reapable condition is the operation expires_at, not this cadence',
+    },
+  ),
+  schedule(
+    'ai-review-analysis-backfill-advance-recurring',
+    'system:ai.review_analysis_backfill_advance',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; the normal hand-off is the outbox consumer, so this cadence only bounds how long a BROKEN backfill chain sits idle',
     },
   ),
   schedule(

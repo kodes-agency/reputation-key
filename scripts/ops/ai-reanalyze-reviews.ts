@@ -155,8 +155,15 @@ async function main(): Promise<void> {
             // reason_code — the consent ledger's actor is a merchant concept,
             // and admission resolves it as a member."userId".
             consentActorUserId: outcome.consentActorUserId,
-            emittedCount: outcome.emittedAnalysisSequences.length,
-            sequenceRange: `${outcome.emittedAnalysisSequences[0]}..${outcome.emittedAnalysisSequences.at(-1)}`,
+            // A run emits ONE review at a time: `storeAnalysis` refuses any
+            // sequence but the allocation head, so allocating the whole batch up
+            // front would make every sequence but the last unstorable. The run
+            // row drives the rest, inside the epoch just opened — watch it with
+            // `SELECT state, emitted_review_count, skipped_review_count,
+            // recovered_review_count FROM ai_review_analysis_backfill_runs`.
+            runId: outcome.runId,
+            pinnedReviewCount: outcome.pinnedReviewCount,
+            firstAnalysisSequence: outcome.firstAnalysisSequence,
           },
           null,
           2,

@@ -9,6 +9,7 @@ import type { AiInferencePort } from './application/ports/ai-inference.port'
 import type { AiQuotaPort } from './application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
+import { createAdvanceReviewAnalysisBackfill } from './application/use-cases/advance-review-analysis-backfill'
 import type { AiOutputStorePort } from './application/ports/ai-output-store.port'
 import { createGenerateReplySuggestion } from './application/use-cases/generate-reply-suggestion'
 import type { GenerateReplySuggestionDependencies } from './application/use-cases/generate-reply-suggestion'
@@ -29,6 +30,7 @@ import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createAiRuntimeCatalogueAdapter } from './infrastructure/adapters/ai-runtime-catalogue.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
+import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/ai-review-analysis-backfill.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -119,6 +121,13 @@ export function buildAiContext(input: AiContextBuildInput) {
     subjectHmac: input.subjectHmac ?? unavailableSubjectHmac,
     nowEpochMillis,
   })
+  const advanceReviewAnalysisBackfill = createAdvanceReviewAnalysisBackfill({
+    backfillStore: createReviewAnalysisBackfillAdapter(input.db),
+    reviewEvents,
+    aggregates,
+    processingProfiles,
+    nowEpochMillis,
+  })
   const readDependencies = {
     authorization,
     outputs,
@@ -183,6 +192,7 @@ export function buildAiContext(input: AiContextBuildInput) {
     }),
     internal: Object.freeze({
       analyzeReviewEvent,
+      advanceReviewAnalysisBackfill,
       registerOutboxConsumers: () => {
         if (!input.enqueuePropertyTrend) {
           throw new Error('AI property trend queue is unavailable')
@@ -190,6 +200,7 @@ export function buildAiContext(input: AiContextBuildInput) {
         registerAiConsumers({
           enqueuePropertyTrend: input.enqueuePropertyTrend,
           analyzeReviewEvent,
+          advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,
           receipts: createOutboxRepository(input.db),
         })
       },

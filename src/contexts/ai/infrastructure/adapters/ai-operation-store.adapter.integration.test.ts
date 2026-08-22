@@ -884,12 +884,20 @@ describe('AI operation store (real PostgreSQL)', () => {
     // Before the horizon nothing is reapable: this is the ordinary in-flight
     // case and fencing it would abort live work.
     await expect(
-      store.listExpiredExecutions({ nowEpochMillis: NOW + 30_000, limit: 100 }),
+      store.listExpiredExecutions({
+        nowEpochMillis: NOW + 30_000,
+        executionHorizonMillis: 60_000,
+        limit: 100,
+      }),
     ).resolves.toEqual([])
 
     const afterHorizon = NOW + 60_001
     await expect(
-      store.listExpiredExecutions({ nowEpochMillis: afterHorizon, limit: 100 }),
+      store.listExpiredExecutions({
+        nowEpochMillis: afterHorizon,
+        executionHorizonMillis: 60_000,
+        limit: 100,
+      }),
     ).resolves.toEqual([{ operationId: abandonedId, attempt: 1 }])
 
     const reap = createAiOperationExecutionReaper({

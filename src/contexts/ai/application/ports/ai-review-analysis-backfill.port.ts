@@ -19,6 +19,16 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
     input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
     run: (session: ReviewAnalysisBackfillSession) => Promise<T>,
   ) => Promise<T>
+  /**
+   * Every property with a run still owed work, oldest first. Lock-free and
+   * allowed to be stale: each property is re-read under its own exclusive
+   * session before anything is written.
+   */
+  listRunningRuns: (
+    limit: number,
+  ) => Promise<
+    ReadonlyArray<Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>>
+  >
 }>
 
 /**
@@ -132,6 +142,39 @@ export type ReviewAnalysisWatermarkReposition = Readonly<{
   consentActorUserId: string
 }>
 
+export type ReviewAnalysisBackfillRunState =
+  'running' | 'completed' | 'superseded' | 'stalled'
+
+/**
+ * A durable `ops:ai-reanalyze` run. It exists because a backfill may only ever
+ * have ONE review in flight: `storeAnalysis` refuses unless
+ * `review_ai_analysis_heads.head_sequence` still equals the sequence being
+ * stored, so a batch that allocates `H+1 … H+N` up front makes every sequence
+ * but the last permanently unstorable. Each item is therefore allocated only
+ * once its predecessor has settled, and the run row is what carries the batch
+ * across those steps — inside the single epoch it opened.
+ */
+export type ReviewAnalysisBackfillRun = Readonly<{
+  id: string
+  sourceEpoch: number
+  reviewAnalysisEpoch: number
+  /** `H` — the watermark this run repositioned to when it opened. */
+  analysisStartSequence: number
+  /** The pinned, ordered candidate set. Never recomputed. */
+  reviewIds: ReadonlyArray<ReviewId>
+  emittedReviewCount: number
+  skippedReviewCount: number
+  recoveredReviewCount: number
+  /** The item in flight, or null before the first emission. */
+  currentAnalysisSequence: number | null
+  currentReviewId: ReviewId | null
+  currentEmittedAtEpochMillis: number | null
+  correlationId: string
+}>
+
+/** The consume-side state of one emitted item, or null when never consumed. */
+export type ReviewAnalysisOutcomeState = 'pending' | 'ready' | 'terminal_no_result'
+
 export type ReviewAnalysisBackfillSession = Readonly<{
   readContext: () => Promise<ReviewAnalysisBackfillContext>
   /** Deterministic order (reviewed_at, id) so a capped run is reproducible. */
@@ -177,6 +220,59 @@ export type ReviewAnalysisBackfillSession = Readonly<{
       sourceRevision: number
       analysisSequence: number
       correlationId: string
+      occurredAt: Date
+    }>,
+  ) => Promise<void>
+  /** The run still owed work on this property, or null. */
+  readActiveRun: () => Promise<ReviewAnalysisBackfillRun | null>
+  /** Open the run this backfill drives. Returns its id. */
+  openRun: (
+    input: Readonly<{
+      sourceEpoch: number
+      reviewAnalysisEpoch: number
+      analysisStartSequence: number
+      reviewIds: ReadonlyArray<ReviewId>
+      reasonCode: string
+      correlationId: string
+      occurredAt: Date
+    }>,
+  ) => Promise<string>
+  /**
+   * One pinned candidate re-read at the moment its turn comes, under the
+   * property lock, or null when it is no longer eligible. Eligibility is
+   * re-checked because a run spans minutes: content can expire and a review can
+   * be repointed while the run is in flight, and emitting on a stale revision
+   * would spend a sequence on an analysis that can never be stored.
+   */
+  readEligibleCandidate: (
+    reviewId: ReviewId,
+  ) => Promise<ReviewAnalysisBackfillCandidate | null>
+  /** The consume-side state of one emitted item, or null when never consumed. */
+  readOutcomeState: (
+    input: Readonly<{ reviewAnalysisEpoch: number; analysisSequence: number }>,
+  ) => Promise<ReviewAnalysisOutcomeState | null>
+  /** Record the item just emitted as the run's in-flight cursor. */
+  advanceRun: (
+    input: Readonly<{
+      runId: string
+      reviewId: ReviewId
+      analysisSequence: number
+      occurredAt: Date
+    }>,
+  ) => Promise<void>
+  /** Step past a pinned review that is no longer eligible. Spends no sequence. */
+  skipRunCandidate: (
+    input: Readonly<{ runId: string; occurredAt: Date }>,
+  ) => Promise<void>
+  /** Count an emitted item the sweep had to terminal-settle itself. */
+  recordRunRecovery: (
+    input: Readonly<{ runId: string; occurredAt: Date }>,
+  ) => Promise<void>
+  closeRun: (
+    input: Readonly<{
+      runId: string
+      state: Exclude<ReviewAnalysisBackfillRunState, 'running'>
+      terminalReason: string
       occurredAt: Date
     }>,
   ) => Promise<void>

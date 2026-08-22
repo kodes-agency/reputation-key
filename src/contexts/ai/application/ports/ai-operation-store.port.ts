@@ -75,8 +75,20 @@ export type AiOperationStorePort = Readonly<{
   ): Promise<boolean>
 
   /**
-   * Operations still `executing` past their own horizon, oldest first, at most
-   * `limit` rows.
+   * Abandoned executions, oldest first, at most `limit` rows.
+   *
+   * An abandoned execution is one whose OPEN ATTEMPT has outlived
+   * `executionHorizonMillis` — not one whose operation has outlived its own
+   * `expires_at`. The distinction is the whole point. `expires_at` is the
+   * operation's idempotency lifetime (24h for review analysis), while the
+   * attempt is bounded by the domain's 15-minute operation horizon, so keying
+   * recovery on `expires_at` hid every abandoned execution for a day. That is
+   * exactly what the closed beta saw: four operations sat `executing` with
+   * settled `success` permits while the reaper reported `abandonedVisited=0`
+   * on every run, because their `expires_at` was 24 hours away.
+   *
+   * `expires_at` still selects on its own, for the operations whose horizon
+   * cannot be read from an attempt row at all.
    *
    * Candidate selection only: nothing here decides the outcome. An attempt that
    * dies between `claimExecution` and its terminal write — a crashed process, a
@@ -87,7 +99,12 @@ export type AiOperationStorePort = Readonly<{
    * wrong.
    */
   listExpiredExecutions(
-    input: Readonly<{ nowEpochMillis: number; limit: number }>,
+    input: Readonly<{
+      nowEpochMillis: number
+      /** How long an open attempt may run before it is abandoned. */
+      executionHorizonMillis: number
+      limit: number
+    }>,
   ): Promise<ReadonlyArray<Readonly<{ operationId: AiOperationId; attempt: number }>>>
 
   markDelivered(
