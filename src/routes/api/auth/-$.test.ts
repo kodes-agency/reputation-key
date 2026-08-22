@@ -19,7 +19,12 @@
 //      self-service /sign-up/email, closed off because the beta onboards by
 //      invitation only — return 404 and never reach better-auth.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** The better-auth release BLOCKED_RAW_WRITE_ENDPOINTS was verified against. */
+const VERIFIED_BETTER_AUTH_VERSION = '1.6.23'
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
@@ -178,5 +183,27 @@ describe('auth catch-all blocked raw write endpoints', () => {
     expect(invite.status).toBe(404)
     expect(signIn.status).toBe(200)
     expect(mocks.handler).toHaveBeenCalledTimes(1)
+  })
+
+  // Tripwire, not plumbing: the refusal list above is a list of better-auth's
+  // OWN route paths. A version bump can rename a route, and this suite would
+  // still pass while the refusal silently covered nothing — the strings are
+  // asserted against our handler, never against better-auth's route table.
+  // The dependency is therefore pinned exactly, and this fails on any move so
+  // the paths get re-verified deliberately. All 12 paths were confirmed present
+  // in 1.6.23; when this fails, re-check the org plugin route files
+  // (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs) plus
+  // /sign-up/email, then move VERIFIED_BETTER_AUTH_VERSION.
+  it('pins the better-auth version the refusal paths were verified against', () => {
+    const root = resolve(import.meta.dirname, '../../../..')
+    const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>
+    }
+    const installed = JSON.parse(
+      readFileSync(resolve(root, 'node_modules/better-auth/package.json'), 'utf8'),
+    ) as { version: string }
+
+    expect(manifest.dependencies['better-auth']).toBe(VERIFIED_BETTER_AUTH_VERSION)
+    expect(installed.version).toBe(VERIFIED_BETTER_AUTH_VERSION)
   })
 })

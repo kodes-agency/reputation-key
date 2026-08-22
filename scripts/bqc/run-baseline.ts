@@ -21,10 +21,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const ROOT = resolve(
-  process.cwd(),
-  'docs/archive/product-readiness-program-2026-07/beta-quality-remediation-2026-07/completion-program-2026-07',
-)
+const ROOT = resolve(process.cwd(), 'docs/release-evidence/baseline')
 
 type Gate = Readonly<{
   id: string

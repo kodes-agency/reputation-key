@@ -11,10 +11,17 @@ import { clientIpFromHeaders } from '#/shared/security/client-ip'
 
 // Raw better-auth write endpoints PERMANENTLY blocked at the HTTP boundary.
 //
+// This list is PATH-PINNED against better-auth's own route table, so it is only
+// as correct as the version it was verified against: every path below was
+// re-verified present in better-auth 1.6.23 (the exact pin in package.json).
+// A bump can rename a route and silently narrow this refusal to nothing, so
+// the colocated test asserts the installed version and fails on drift —
+// re-verify the org plugin route files, then move the pin.
+//
 // Organization writes: app-owned services are the only write path (ADR 0001,
-// DAC Stage 1). Paths verified against better-auth 1.6.12 organization plugin
-// route files (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs).
-// The invitation create path is "/organization/invite-member", not
+// DAC Stage 1). Paths verified against the organization plugin route files
+// (crud-access-control.mjs / crud-invites.mjs / crud-members.mjs). The
+// invitation create path is "/organization/invite-member", not
 // "/create-invitation".
 //
 // Self-service sign-up: /sign-up/email is an unauthenticated user-row write on

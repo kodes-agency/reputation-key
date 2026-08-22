@@ -3313,6 +3313,14 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'deterministically generates the canonical synthetic Google provider-resource fixture catalogue and test targets',
     },
   ),
+  ops('scripts/check-changed-code.mjs', 'scripts/check-changed-code.mjs', 'none', {
+    notes:
+      'check:changed-code — CI gate (BQC-6.9): every added src production file must carry a colocated test (or a registered exemption)',
+  }),
+  ops('scripts/check-coverage.mjs', 'scripts/check-coverage.mjs', 'none', {
+    notes:
+      'check:coverage — CI gate (BQC-6.9), MAIN ONLY: runs the unit suite with v8 coverage; enforces 100% on pure domain rules + the two-sided baseline ratchet',
+  }),
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
   }),
@@ -3710,10 +3718,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'Promotes a digest-bound beta-local manifest only after all five role approvals validate',
     },
   ),
-  ops('scripts/release/deploy-beta.ts', 'scripts/release/deploy-beta.ts', 'none', {
-    notes:
-      'release:beta — deploys one revision to every google-closed-beta service (release identity per service class, ADR 0051) and verifies it',
-  }),
+  ops(
+    'scripts/release/deploy-beta.ts',
+    'scripts/release/deploy-beta.ts',
+    'tenant_cross',
+    {
+      notes:
+        'release:beta — deploys one revision to every google-closed-beta service (release identity per service class, ADR 0051), waits for every deployment to settle, then verifies it; --apply runs through the operator harness (named operator + reason + audited decision)',
+    },
+  ),
   // ── package.json-only commands (CLI tools, no repo script file) ───
   ops('db:generate', 'package.json', 'none', {
     notes: 'drizzle-kit generate — writes migration SQL (broken meta chain: STD-P2-02)',

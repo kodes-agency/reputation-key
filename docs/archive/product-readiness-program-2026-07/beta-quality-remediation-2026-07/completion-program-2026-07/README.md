@@ -77,8 +77,8 @@ Every phase and slice uses exactly one of these states:
 
 - [Implementation validation report](../bqr-implementation-validation-report-2026-07-16.md)
 - [BQR validation primary sources](../bqr-validation-primary-sources-2026-07-16.md)
-- [Google response and disposition](../../google-business-profile-ai-policy-response-2026-07-14.md)
-- [ADR 0030 — identifier-only events](../../../adr/0030-identifier-only-domain-events-and-outbox.md)
-- [ADR 0031 — Google source content and AI boundary](../../../adr/0031-google-source-content-and-ai-processing-boundary.md)
-- [ADR 0032 — beta capabilities](../../../adr/0032-beta-capability-and-cohort-controls.md)
-- [ADR 0033 — authorization policy](../../../adr/0033-authorization-policy.md)
+- [Google response and disposition](../../../../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md)
+- [ADR 0030 — identifier-only events](../../../../adr/0030-identifier-only-domain-events-and-outbox.md)
+- [ADR 0031 — Google source content and AI boundary](../../../../adr/0031-google-source-content-and-ai-processing-boundary.md)
+- [ADR 0032 — beta capabilities](../../../../adr/0032-beta-capability-and-cohort-controls.md)
+- [ADR 0033 — authorization policy](../../../../adr/0033-authorization-policy.md)
