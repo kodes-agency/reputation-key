@@ -128,6 +128,23 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
     ])
   }
 
+  /**
+   * The release-canary rows that let `activateControls` flip
+   * `capability:review_analysis` on. Separate from the org fixture: they are
+   * seeded once and outlive the per-test reseed.
+   */
+  const clearCanary = async () => {
+    await executeWithLastOwnerGuardDisabled(db, [
+      sql`ALTER TABLE ai_canary_authorization_heads DISABLE TRIGGER USER`,
+      sql`ALTER TABLE ai_canary_authorizations DISABLE TRIGGER USER`,
+      sql`DELETE FROM ai_canary_authorization_heads WHERE release_sha = ${RELEASE_SHA}`,
+      sql`DELETE FROM ai_operations WHERE release_sha = ${RELEASE_SHA}`,
+      sql`DELETE FROM ai_canary_authorizations WHERE release_sha = ${RELEASE_SHA}`,
+      sql`ALTER TABLE ai_canary_authorizations ENABLE TRIGGER USER`,
+      sql`ALTER TABLE ai_canary_authorization_heads ENABLE TRIGGER USER`,
+    ])
+  }
+
   /** Everything `admit_ai_property_v1` reads, plus the backfill's own inputs. */
   const seed = async () => {
     await db.execute(sql`
@@ -519,17 +536,24 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
 
   beforeAll(async () => {
     await clear()
-    await seed()
+    await clearCanary()
+    // Control activation is global and needs no org fixture, so it happens once.
     await activateControls()
   })
+  // Every test runs its OWN backfill against a virgin lineage: the reposition is
+  // idempotency-keyed, so a second run on the same fixture would replay rather
+  // than backfill.
   beforeEach(async () => {
-    await db.execute(
-      sql`DELETE FROM ai_operations WHERE organization_id = ${ORGANIZATION_ID}`,
-    )
+    await clear()
+    await seed()
   })
-  afterAll(clear)
+  afterAll(async () => {
+    await clear()
+    await clearCanary()
+  })
 
-  it('admits a backfilled operation instead of denying it authorization_changed', async () => {
+  /** The backfill run every test in this file admits against. */
+  const runBackfill = async () => {
     const applied = await backfill({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
@@ -541,13 +565,32 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       correlationId: '7b000000-0000-4000-8000-000000000099',
       occurredAt: NOW,
     })
-    expect(applied.status).toBe('applied')
-    if (applied.status !== 'applied') return
-    // Carried forward from state_version 1, NOT the operator who ran this.
-    expect(applied.consentActorUserId).toBe(CONSENT_ACTOR_ID)
+    if (applied.status !== 'applied') {
+      throw new Error(`backfill did not apply: ${JSON.stringify(applied)}`)
+    }
+    return applied
+  }
+
+  it('admits a backfilled operation instead of denying it authorization_changed', async () => {
+    const applied = await runBackfill()
     expect(applied.emittedAnalysisSequences).toEqual([HEAD_SEQUENCE + 1])
 
-    // The ledger row admission will read: its actor resolves to a real member.
+    // THE deliverable. Asserted before anything else so a regression fails on
+    // the consequence — the replayed review never reaching the provider —
+    // rather than on the ledger shape that merely causes it.
+    const admitted = await admitBackfilledOperation({
+      reviewAnalysisEpoch: applied.reviewAnalysisEpoch,
+      analysisSequence: applied.emittedAnalysisSequences[0]!,
+      idempotencyKey: 'backfilled-admission-key',
+    })
+    expect(admitted).toMatchObject({ status: 'admitted' })
+  })
+
+  it('records an accountable member on the evidence row admission reads', async () => {
+    const applied = await runBackfill()
+    // Carried forward from state_version 1, NOT the operator who ran this.
+    expect(applied.consentActorUserId).toBe(CONSENT_ACTOR_ID)
+
     const [evidence] = await db
       .select()
       .from(merchantAiConsentEvidence)
@@ -561,29 +604,29 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       transitionKind: 'analysis_backfill',
       actorUserId: CONSENT_ACTOR_ID,
     })
+    // The assertion whose absence let #341 ship: not just the string, but that
+    // it RESOLVES — `actor_user_id` is a `member."userId"`.
     const members = await db.execute<{ role: string }>(sql`
       SELECT role FROM member
       WHERE "organizationId" = ${ORGANIZATION_ID} AND "userId" = ${evidence?.actorUserId}
     `)
     expect(members.rows).toEqual([{ role: 'owner' }])
-
-    // The deliverable: the REAL admission function admits the replayed review.
-    const admitted = await admitBackfilledOperation({
-      reviewAnalysisEpoch: applied.reviewAnalysisEpoch,
-      analysisSequence: applied.emittedAnalysisSequences[0]!,
-      idempotencyKey: 'backfilled-admission-key',
-    })
-    expect(admitted).toMatchObject({ status: 'admitted' })
   })
 
   it('denies authorization_changed when the ledger actor is an operator, not a member', async () => {
-    // Reproduces the closed-beta pilot by writing the PRE-FIX row directly:
-    // `analysis_backfill` evidence carrying the ops operator's email, with the
-    // enablement head advanced onto it. Nothing else differs — same lineage,
-    // same epochs, same source epoch, same profiles, same control fences.
+    // The negative control for the test above, and the pilot's failure exactly.
     //
-    // This is the assertion whose absence let #341 ship: the writer's shape was
-    // tested, the consequence at admission was not.
+    // A real backfill runs first, so the review pointer, the analysis head and
+    // the emitted sequence are all correct — nothing upstream of the actor check
+    // can explain a denial. Then ONE more `analysis_backfill` evidence row is
+    // forged in the shape #341 wrote (the ops operator's email in a
+    // `member."userId"` column) with the enablement head advanced onto it. Same
+    // lineage, same source epoch, same profiles, same control fences: the actor
+    // is the only difference, and admission refuses.
+    //
+    // This is the assertion whose absence let #341 ship green — the writer's
+    // shape was tested, its consequence at admission was not.
+    const applied = await runBackfill()
     const [head] = await db
       .select()
       .from(merchantAiEnablement)
@@ -635,7 +678,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
 
     const denied = await admitBackfilledOperation({
       reviewAnalysisEpoch: nextEpoch,
-      analysisSequence: HEAD_SEQUENCE + 1,
+      analysisSequence: applied.emittedAnalysisSequences[0]!,
       idempotencyKey: 'prefix-shape-admission-key',
     })
 
