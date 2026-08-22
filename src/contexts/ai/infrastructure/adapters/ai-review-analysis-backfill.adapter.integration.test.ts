@@ -29,6 +29,7 @@ import {
   type BackfillReviewAnalysisResult,
 } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
+import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 const CONTENT_EXPIRES_AT = new Date('2027-08-22T09:00:00.000Z')
@@ -61,6 +62,9 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
   const db = getDb()
   const backfill = createBackfillReviewAnalysis({
     backfillStore: createReviewAnalysisBackfillAdapter(db),
+    // The real identity-owned adapter: this is the sanctioned route to the
+    // grant table, and wiring the real one keeps the seam honest here.
+    propertyAccessHolders: createPropertyGrantHolderLookup(db),
   })
 
   const clear = async () => {

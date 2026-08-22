@@ -22,6 +22,20 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
 }>
 
 /**
+ * Identity-owned lookup: users holding active access to one property.
+ *
+ * Identity owns the grant table (ADR 0039 — explicit grants are the sole
+ * authorization source for property scope), so this context never reads it.
+ * Structurally identical to identity's own `PropertyGrantHolderLookup`, declared
+ * here so the AI context depends on a shape rather than on identity's adapter,
+ * exactly as the notification context does.
+ */
+export type PropertyAccessHolderLookup = (
+  organizationId: string,
+  propertyId: string,
+) => Promise<ReadonlyArray<string>>
+
+/**
  * The member whose consent this backfill replays — the `actor_user_id` of the
  * evidence row at the enablement's CURRENT `state_version`, which the backfill
  * carries forward onto its own row.
@@ -36,12 +50,15 @@ export type ReviewAnalysisConsentActor = Readonly<{
   /** `merchant_ai_consent_evidence.actor_user_id`, i.e. a `member."userId"`. */
   userId: string
   /**
-   * Whether that member still holds authority over this property: owner, or
-   * admin with an unrevoked, unexpired `property_access_grant`. Exactly the
-   * predicate admission applies, so a false here is a guaranteed
-   * `authorization_changed` on every replayed operation.
+   * That actor's `member.role` for this organization, verbatim (it is a
+   * comma-separated token list), or null when they are not a member at all.
+   *
+   * The authority VERDICT is not decided here: owner is settled by the role
+   * alone, but an admin also needs an active property grant, and the grant
+   * table belongs to identity. The use case combines this with
+   * `PropertyAccessHolderLookup`.
    */
-  hasPropertyAuthority: boolean
+  memberRole: string | null
 }>
 
 /** The live merchant enablement head, or null when AI was never enabled here. */

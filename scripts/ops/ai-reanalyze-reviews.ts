@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto'
 import { getDb } from '../../src/shared/db'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { createReviewAnalysisBackfillAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter'
+import { createPropertyGrantHolderLookup } from '../../src/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { createBackfillReviewAnalysis } from '../../src/contexts/ai/application/use-cases/backfill-review-analysis'
 import { runOperatorCommand } from './operator-command'
 
@@ -69,8 +70,12 @@ async function main(): Promise<void> {
       // the whole transaction loudly instead of double-backfilling.
       const idempotencyKey = `ops-ai-reanalyze:${requestHash.slice(0, 48)}`
 
+      const db = getDb()
       const backfill = createBackfillReviewAnalysis({
-        backfillStore: createReviewAnalysisBackfillAdapter(getDb()),
+        backfillStore: createReviewAnalysisBackfillAdapter(db),
+        // Identity owns `property_access_grant`, so an admin consent actor's
+        // authority is resolved through identity's adapter rather than read here.
+        propertyAccessHolders: createPropertyGrantHolderLookup(db),
       })
       const outcome = await backfill({
         organizationId: organizationId(ctx.organizationId as string),

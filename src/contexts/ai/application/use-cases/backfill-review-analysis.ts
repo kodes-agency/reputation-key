@@ -1,7 +1,9 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
+  PropertyAccessHolderLookup,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillStorePort,
+  ReviewAnalysisConsentActor,
 } from '../ports/ai-review-analysis-backfill.port'
 
 /**
@@ -125,7 +127,43 @@ export type BackfillReviewAnalysisResult =
 
 export type BackfillReviewAnalysisDependencies = Readonly<{
   backfillStore: ReviewAnalysisBackfillStorePort
+  /**
+   * Identity-owned grant-holder lookup. Required: an admin's authority over a
+   * property rests on an active grant, and identity owns that table — without
+   * this the pre-flight could not tell an admin-with-grant (a valid consent
+   * actor) from an admin-without (one admission will deny).
+   */
+  propertyAccessHolders: PropertyAccessHolderLookup
 }>
+
+/**
+ * Owner, or admin holding active access to this property — exactly the
+ * predicate `apply_merchant_ai_transition_v1` applies when consent is TAKEN and
+ * `admit_ai_property_v1` applies when it is SPENT. `member.role` is a
+ * comma-separated token list, so it is split rather than compared.
+ *
+ * Advisory only, and deliberately outside the property lock: it exists to name
+ * the problem for an operator BEFORE anything is written. The authoritative
+ * check is `reposition_merchant_ai_analysis_watermark_v1`, which re-derives the
+ * actor inside the transaction under the lock and raises
+ * `merchant_ai_backfill_consent_actor_denied`. If the two ever disagree — a
+ * grant revoked in the gap — the SQL wins and the transaction aborts.
+ */
+async function hasPropertyAuthority(
+  actor: ReviewAnalysisConsentActor,
+  input: BackfillReviewAnalysisInput,
+  propertyAccessHolders: PropertyAccessHolderLookup,
+): Promise<boolean> {
+  if (actor.memberRole === null) return false
+  const roles = actor.memberRole
+    .toLowerCase()
+    .split(',')
+    .map((role) => role.trim())
+  if (roles.includes('owner')) return true
+  if (!roles.includes('admin')) return false
+  const holders = await propertyAccessHolders(input.organizationId, input.propertyId)
+  return holders.includes(actor.userId)
+}
 
 /**
  * The precondition the context fails, if any. Named refusals, never a silent
@@ -134,9 +172,11 @@ export type BackfillReviewAnalysisDependencies = Readonly<{
  * taken on the AI data-use surface, with a password, and this must not become
  * a way around that.
  */
-function refuseFor(
+async function refuseFor(
   context: ReviewAnalysisBackfillContext,
-): Readonly<{ refusal: BackfillRefusal; message: string }> | null {
+  input: BackfillReviewAnalysisInput,
+  propertyAccessHolders: PropertyAccessHolderLookup,
+): Promise<Readonly<{ refusal: BackfillRefusal; message: string }> | null> {
   if (!context.propertyActive) {
     return {
       refusal: 'property_inactive',
@@ -189,14 +229,14 @@ function refuseFor(
         'a backfill records their identity, never the operator who ran it',
     }
   }
-  if (!consentActor.hasPropertyAuthority) {
+  if (!(await hasPropertyAuthority(consentActor, input, propertyAccessHolders))) {
     return {
       refusal: 'consent_actor_unauthorized',
       message:
         `consent-evidence actor '${consentActor.userId}' for authorization lineage ${enablement.authorizationLineageId} ` +
         `at state_version ${enablement.stateVersion} is not a member of this organization with authority over this property ` +
-        '(owner, or admin with an active property access grant) — admission would deny every replayed review, ' +
-        'so the merchant must re-consent under a member who still has authority',
+        `(owner, or admin with an active property access grant; member.role is ${consentActor.memberRole === null ? 'absent — not a member' : `'${consentActor.memberRole}'`}) — ` +
+        'admission would deny every replayed review, so the merchant must re-consent under a member who still has authority',
     }
   }
   return null
@@ -208,7 +248,7 @@ export function createBackfillReviewAnalysis(
   return async (input) =>
     dependencies.backfillStore.runExclusive(input, async (session) => {
       const context = await session.readContext()
-      const refusal = refuseFor(context)
+      const refusal = await refuseFor(context, input, dependencies.propertyAccessHolders)
       if (refusal) return { status: 'refused', ...refusal }
 
       // Non-null: refuseFor rejects a null enablement above.

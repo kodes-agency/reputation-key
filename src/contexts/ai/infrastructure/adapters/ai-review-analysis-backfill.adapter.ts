@@ -93,40 +93,19 @@ function createSession(
         Readonly<Record<string, unknown>> | undefined
 
       // The accountable member this backfill will record: the actor of the
-      // consent it replays, plus whether they still hold authority over the
-      // property. `hasPropertyAuthority` mirrors `admit_ai_property_v1` exactly
-      // — owner, or admin with a live grant — so the use case can refuse on the
-      // same grounds admission would deny, before anything is written.
+      // consent it replays, plus that actor's `member.role` for this
+      // organization (null when they are not a member at all).
+      //
+      // Only the role, never the authority verdict. Owner is settled here, but
+      // an admin also needs an active property grant, and identity owns the
+      // grant table (ADR 0039) — the AI context must not read it. The use case
+      // finishes the decision through the identity-owned
+      // `PropertyAccessHolderLookup`, and the authoritative check stays in
+      // `reposition_merchant_ai_analysis_watermark_v1` under this same lock.
       const consentActorRow = enablementRow
         ? ((
             await tx.execute(sql`
-              SELECT evidence.actor_user_id,
-                     (
-                       'owner' = ANY (
-                         regexp_split_to_array(
-                           lower(member.role), '[[:space:]]*,[[:space:]]*'
-                         )
-                       )
-                       OR (
-                         'admin' = ANY (
-                           regexp_split_to_array(
-                             lower(member.role), '[[:space:]]*,[[:space:]]*'
-                           )
-                         )
-                         AND EXISTS (
-                           SELECT 1
-                           FROM property_access_grant AS grant_row
-                           WHERE grant_row.organization_id = ${organizationId}
-                             AND grant_row.property_id = ${propertyId}::uuid
-                             AND grant_row.user_id = evidence.actor_user_id
-                             AND grant_row.revoked_at IS NULL
-                             AND (
-                               grant_row.expires_at IS NULL
-                               OR grant_row.expires_at > transaction_timestamp()
-                             )
-                         )
-                       )
-                     ) AS has_property_authority
+              SELECT evidence.actor_user_id, member.role AS member_role
               FROM merchant_ai_consent_evidence AS evidence
               LEFT JOIN member
                 ON member."organizationId" = ${organizationId}
@@ -199,8 +178,11 @@ function createSession(
                   ? {
                       userId: String(consentActorRow.actor_user_id),
                       // NULL when the LEFT JOIN found no member row at all.
-                      hasPropertyAuthority:
-                        consentActorRow.has_property_authority === true,
+                      memberRole:
+                        consentActorRow.member_role === null ||
+                        consentActorRow.member_role === undefined
+                          ? null
+                          : String(consentActorRow.member_role),
                     }
                   : null,
             }
