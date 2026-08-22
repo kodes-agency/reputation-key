@@ -79,6 +79,54 @@ function sameExpectedConnection(
     connection.credentialGeneration >= expected.credentialGeneration
   )
 }
+
+type ConnectionCounters = Readonly<{
+  lifecycleVersion: number
+  accessVersion: number
+  credentialGeneration: number
+}>
+
+/** The three connection counters as they are logged, from the live row. */
+function observedCounters(connection: GoogleConnection): ConnectionCounters {
+  return {
+    lifecycleVersion: connection.lifecycleVersion,
+    accessVersion: connection.accessVersion,
+    credentialGeneration: connection.credentialGeneration,
+  }
+}
+
+/** The same three counters as frozen at approval time. */
+function frozenCounters(
+  expected: NonNullable<Parameters<GoogleImportCommandAuthorizer>[0]['expected']>,
+): ConnectionCounters {
+  return {
+    lifecycleVersion: expected.connectionLifecycleVersion,
+    accessVersion: expected.connectionAccessVersion,
+    credentialGeneration: expected.credentialGeneration,
+  }
+}
+
+/** Why a relink target no longer matches the snapshot frozen for it. */
+function propertyDrift(
+  expectedProperty: GoogleImportAuthorizationPropertySnapshot,
+  property: PropertyAuthorizationView | null,
+): Readonly<Record<string, unknown>> {
+  return {
+    propertyId: expectedProperty.propertyId,
+    expected: {
+      sourceEpoch: expectedProperty.sourceEpoch,
+      profileVersion: expectedProperty.profileVersion,
+    },
+    observed: {
+      missing: !property,
+      idMismatch: property ? property.propertyId !== expectedProperty.propertyId : null,
+      deleted: property ? property.deletedAt !== null : null,
+      lifecycleState: property?.lifecycleState ?? null,
+      sourceEpoch: property?.sourceEpoch ?? null,
+      profileVersion: property?.profileVersion ?? null,
+    },
+  }
+}
 export type GoogleImportContentAuthorizationResult =
   | Readonly<{
       ok: true
@@ -191,16 +239,8 @@ export function createGoogleImportCommandAuthorizer(
         site: 'expected_connection_pre_token',
         organizationId: input.actor.organizationId,
         connectionId: input.connectionId,
-        expected: {
-          lifecycleVersion: input.expected.connectionLifecycleVersion,
-          accessVersion: input.expected.connectionAccessVersion,
-          credentialGeneration: input.expected.credentialGeneration,
-        },
-        observed: {
-          lifecycleVersion: connection.lifecycleVersion,
-          accessVersion: connection.accessVersion,
-          credentialGeneration: connection.credentialGeneration,
-        },
+        expected: frozenCounters(input.expected),
+        observed: observedCounters(connection),
       })
     }
 
@@ -220,21 +260,7 @@ export function createGoogleImportCommandAuthorizer(
         ) {
           return denyChanged({
             site: 'property_snapshot',
-            propertyId: expectedProperty.propertyId,
-            expected: {
-              sourceEpoch: expectedProperty.sourceEpoch,
-              profileVersion: expectedProperty.profileVersion,
-            },
-            observed: {
-              missing: !property,
-              idMismatch: property
-                ? property.propertyId !== expectedProperty.propertyId
-                : null,
-              deleted: property ? property.deletedAt !== null : null,
-              lifecycleState: property?.lifecycleState ?? null,
-              sourceEpoch: property?.sourceEpoch ?? null,
-              profileVersion: property?.profileVersion ?? null,
-            },
+            ...propertyDrift(expectedProperty, property),
           })
         }
         const propertyDecision = await decideCapability(
@@ -302,16 +328,8 @@ export function createGoogleImportCommandAuthorizer(
           site: 'expected_connection_post_token',
           organizationId: input.actor.organizationId,
           connectionId: input.connectionId,
-          expected: {
-            lifecycleVersion: input.expected.connectionLifecycleVersion,
-            accessVersion: input.expected.connectionAccessVersion,
-            credentialGeneration: input.expected.credentialGeneration,
-          },
-          observed: {
-            lifecycleVersion: connection.lifecycleVersion,
-            accessVersion: connection.accessVersion,
-            credentialGeneration: connection.credentialGeneration,
-          },
+          expected: frozenCounters(input.expected),
+          observed: observedCounters(connection),
         })
       }
       if (
@@ -323,16 +341,8 @@ export function createGoogleImportCommandAuthorizer(
           site: 'connection_moved_during_token_access',
           organizationId: input.actor.organizationId,
           connectionId: input.connectionId,
-          before: {
-            lifecycleVersion: connectionBeforeTokenAccess.lifecycleVersion,
-            accessVersion: connectionBeforeTokenAccess.accessVersion,
-            credentialGeneration: connectionBeforeTokenAccess.credentialGeneration,
-          },
-          after: {
-            lifecycleVersion: connection.lifecycleVersion,
-            accessVersion: connection.accessVersion,
-            credentialGeneration: connection.credentialGeneration,
-          },
+          before: observedCounters(connectionBeforeTokenAccess),
+          after: observedCounters(connection),
         })
       }
       if (
