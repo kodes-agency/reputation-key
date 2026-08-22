@@ -23,6 +23,7 @@ import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
 import { notificationEmailQueue } from '#/shared/db/schema/notification.schema'
 import { trace } from '#/shared/observability/trace'
+import type { JobType } from 'bullmq'
 
 /**
  * Minimal structural surface of the BullMQ quarantine queue used by the
@@ -30,11 +31,9 @@ import { trace } from '#/shared/observability/trace'
  * Signatures mirror BullMQ's own so a Queue assigns without a cast.
  */
 export type QuarantineMetricsPort = Readonly<{
-  getJobCounts: (
-    ...types: import('bullmq').JobType[]
-  ) => Promise<Partial<Record<string, number>>>
+  getJobCounts: (...types: JobType[]) => Promise<Partial<Record<string, number>>>
   getJobs: (
-    types?: import('bullmq').JobType | import('bullmq').JobType[],
+    types?: JobType | JobType[],
     start?: number,
     end?: number,
   ) => Promise<ReadonlyArray<{ data: unknown; timestamp?: number }>>

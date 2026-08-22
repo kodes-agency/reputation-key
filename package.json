@@ -134,7 +134,7 @@
     "@tanstack/react-router-ssr-query": "^1.167.1",
     "@tanstack/react-start": "1.168.47",
     "better-auth": "^1.6.13",
-    "bullmq": "^5.75.2",
+    "bullmq": "^6.1.2",
     "class-variance-authority": "^0.7.1",
     "cld3-asm": "4.0.0",
     "clsx": "^2.1.1",

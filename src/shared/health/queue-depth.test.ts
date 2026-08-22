@@ -14,7 +14,6 @@ describe('readQueueDepth', () => {
         active: 1,
         delayed: 2,
         failed: 4,
-        paused: 0,
       }),
     }
     await expect(readQueueDepth('default', queue)).resolves.toEqual({
@@ -25,13 +24,23 @@ describe('readQueueDepth', () => {
       failed: 4,
       paused: 0,
     })
+    // 'paused' is NOT requested: bullmq 6 removed it from JobType, so asking
+    // for it is both untypable and pointless (the list no longer exists).
     expect(queue.getJobCounts).toHaveBeenCalledWith(
       'waiting',
       'active',
       'delayed',
       'failed',
-      'paused',
     )
+  })
+
+  it('still reports a paused bucket when the backend supplies one', async () => {
+    const queue = {
+      getJobCounts: vi.fn().mockResolvedValue({ waiting: 1, paused: 7 }),
+    }
+    await expect(readQueueDepth('default', queue)).resolves.toMatchObject({
+      paused: 7,
+    })
   })
 
   it('defaults missing count keys to 0', async () => {
