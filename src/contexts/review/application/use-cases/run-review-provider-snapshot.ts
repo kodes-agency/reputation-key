@@ -52,6 +52,16 @@ export type RunReviewProviderSnapshotResult =
       code: ReviewProviderSnapshotFailureCode
     }>
 
+/**
+ * The results that leave a run unfinished, so the caller must enqueue another
+ * bounded step. Named here because the sync job branches on exactly this
+ * subset, including the `retryAfterMs` backoff hint.
+ */
+export type ContinuableSnapshotResult = Extract<
+  RunReviewProviderSnapshotResult,
+  { status: 'checkpointed' | 'deleting' }
+>
+
 export type RunReviewProviderSnapshotDeps = Readonly<{
   repository: ReviewProviderSnapshotRepository
   googleReviewApi: GoogleReviewApiPort

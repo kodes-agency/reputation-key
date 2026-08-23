@@ -163,6 +163,28 @@ function reviewApiError(
   return error
 }
 
+/**
+ * Maps an authorized-executor rejection onto the review API's error vocabulary,
+ * preserving the backoff hint the executor already computed
+ * (`googleRetryFloorMs` over Retry-After or the admission denial). Dropping it
+ * turned a rate-limited provider into a queue-speed retry loop.
+ */
+function executorErrorToReviewApiError(error: unknown): Error {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('kind' in error) ||
+    error.kind !== 'rate_limited'
+  ) {
+    return reviewApiError('provider_unavailable', true)
+  }
+  const hint =
+    'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
+      ? error.retryAfterMs
+      : undefined
+  return reviewApiError('provider_rate_limited', true, hint)
+}
+
 function isGoogleReviewApiError(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -485,21 +507,7 @@ export const createGoogleReviewApiAdapter = (
           }),
         )
       } catch (error) {
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'kind' in error &&
-          error.kind === 'rate_limited'
-        ) {
-          // The executor already computed a floored backoff (googleRetryFloorMs)
-          // from the provider's Retry-After or the admission denial. Forward it.
-          const hint =
-            'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
-              ? error.retryAfterMs
-              : undefined
-          throw reviewApiError('provider_rate_limited', true, hint)
-        }
-        throw reviewApiError('provider_unavailable', true)
+        throw executorErrorToReviewApiError(error)
       }
     }
     deps.assertDirectEgressAllowed?.(operation)
