@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
+import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
 import type { AiOperationId } from '../../domain/types'
 import type { GenerateReplySuggestionDependencies } from './generate-reply-suggestion'
 vi.mock('#/shared/ai-review-language-catalogue', async (importOriginal) => {
@@ -33,6 +34,7 @@ const INPUT = Object.freeze({
   reviewId: REVIEW_ID,
   actorUserId: ACTOR_USER_ID,
   tone: 'professional' as const,
+  targetLanguage: { kind: 'review_language' as const },
   idempotencyKey: 'reply-suggestion-test-key',
   expectedSourceEpoch: 2,
   expectedSourceRevision: 5,
@@ -43,7 +45,12 @@ function createHarness(
   options: Readonly<{
     currentReplyStateRevision?: number
     reviewText?: string | null
-    replyLanguage?: Readonly<{ status: string; language?: string; reason?: string }>
+    replyLanguage?: Readonly<{
+      status: string
+      language?: ReturnType<typeof parseCanonicalReplyLanguageTag>
+      reason?: string
+    }>
+    propertyReplyLanguage?: string | null
   }> = {},
 ) {
   const currentReplyStateRevision = options.currentReplyStateRevision ?? 3
@@ -247,8 +254,15 @@ function createHarness(
       })),
       refreshForAi: vi.fn(),
     },
+    propertyReplyLanguages: {
+      readDefaultReplyLanguage: vi.fn(async () => options.propertyReplyLanguage ?? null),
+    },
     resolveReplyLanguage: vi.fn(
-      async () => options.replyLanguage ?? { status: 'resolved', language: 'en-Latn' },
+      async () =>
+        options.replyLanguage ?? {
+          status: 'resolved',
+          language: parseCanonicalReplyLanguageTag('en-Latn'),
+        },
     ),
     nowEpochMillis: () => NOW,
   } as unknown as GenerateReplySuggestionDependencies
@@ -262,6 +276,8 @@ function createHarness(
       markDelivered,
       release,
       readReplyStateRevision,
+      readDefaultReplyLanguage:
+        dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
     },
   }
 }
@@ -329,6 +345,7 @@ describe('generate reply suggestion', () => {
       provenanceToken: 'signed-provenance-token',
       expiresAtEpochMillis: NOW + 5 * 60_000,
       baseReplyStateRevision: 3,
+      concreteLanguageTag: 'en-Latn',
     })
     expect(harness.mocks.readReplyStateRevision).toHaveBeenCalledTimes(2)
     expect(harness.mocks.settleEphemeralReply).toHaveBeenCalledWith(
@@ -344,5 +361,82 @@ describe('generate reply suggestion', () => {
       deliveredAtEpochMillis: NOW,
     })
     expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+  })
+
+  it('resolves a property-default target from tenant-scoped server data', async () => {
+    const harness = createHarness({ propertyReplyLanguage: 'bg-Cyrl-BG' })
+
+    await expect(
+      harness.generate({
+        ...INPUT,
+        targetLanguage: { kind: 'property_default' },
+      }),
+    ).resolves.toMatchObject({
+      status: 'ready',
+      concreteLanguageTag: 'bg-Cyrl-BG',
+    })
+    expect(harness.mocks.readDefaultReplyLanguage).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+    })
+    expect(harness.mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          concreteReplyLanguage: {
+            tag: 'bg-Cyrl-BG',
+            templateGroup: 'bg-Cyrl',
+          },
+        }),
+      }),
+    )
+    expect(harness.mocks.generateReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          concreteReplyLanguage: {
+            tag: 'bg-Cyrl-BG',
+            templateGroup: 'bg-Cyrl',
+          },
+        }),
+      }),
+      expect.any(AbortSignal),
+    )
+  })
+
+  it.each([null, 'bg', 'en-Latn-INVALID'])(
+    'fails closed when the property default target is unavailable (%s)',
+    async (propertyReplyLanguage) => {
+      const harness = createHarness({ propertyReplyLanguage })
+
+      await expect(
+        harness.generate({
+          ...INPUT,
+          targetLanguage: { kind: 'property_default' },
+        }),
+      ).resolves.toEqual({
+        status: 'unavailable',
+        code: 'target_language_unavailable',
+        retryAfterEpochMillis: null,
+      })
+      expect(harness.mocks.claim).not.toHaveBeenCalled()
+      expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+    },
+  )
+
+  it('does not consult the property default for a review-language target', async () => {
+    const harness = createHarness({ propertyReplyLanguage: 'bg-Cyrl-BG' })
+
+    await harness.generate(INPUT)
+
+    expect(harness.mocks.readDefaultReplyLanguage).not.toHaveBeenCalled()
+    expect(harness.mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          concreteReplyLanguage: {
+            tag: 'en-Latn',
+            templateGroup: 'en-Latn',
+          },
+        }),
+      }),
+    )
   })
 })

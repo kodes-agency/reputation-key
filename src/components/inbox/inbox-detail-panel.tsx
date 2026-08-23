@@ -1,9 +1,7 @@
-import { MessageSquare, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { InboxDetailContent } from '#/components/inbox/inbox-detail-content'
-import { InboxStatusBadge } from '#/components/inbox/inbox-status-badge'
-import { getStatusActions } from '#/components/inbox/inbox-detail-helpers'
+import { InboxDetailHeader } from '#/components/inbox/inbox-detail-header'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import type { InboxDetailFns } from './types'
@@ -24,41 +22,16 @@ export function InboxDetailPanel({
   detailFns,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
-  const statusActions = currentItem ? getStatusActions(currentItem.status) : []
-
   return (
     <div className="hidden md:flex h-full min-w-0 flex-col border-l overflow-hidden">
-      <div className="flex items-center justify-between border-b px-5 py-3.5">
-        <div className="flex items-center gap-3 min-w-0">
-          <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-semibold truncate">
-              {currentItem?.propertyName ?? '<PropertyName>'}
-            </span>
-            {currentItem?.platform && (
-              <span className="text-xs text-muted-foreground shrink-0">
-                · {currentItem.platform}
-              </span>
-            )}
-          </div>
-          {currentItem && (
-            <InboxStatusBadge
-              status={currentItem.status}
-              isEscalated={currentItem.isEscalated}
-              escalationResolvedAt={currentItem.escalationResolvedAt}
-            />
-          )}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Close detail"
-          className="size-8 shrink-0"
-          onClick={onClose}
-        >
-          <X className="size-4" />
-        </Button>
-      </div>
+      {currentItem && (
+        <InboxDetailHeader
+          item={currentItem}
+          detail={detailState.detail}
+          detailState={detailState}
+          onClose={onClose}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {detailState.error ? (
@@ -78,10 +51,6 @@ export function InboxDetailPanel({
           <InboxDetailContent
             currentItem={currentItem}
             detail={detailState.detail}
-            statusActions={statusActions}
-            updateStatus={detailState.updateStatus}
-            escalate={detailState.escalate}
-            resolveEscalation={detailState.resolveEscalation}
             notes={detailState.notes}
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}

@@ -42,6 +42,8 @@ export const ThreeSelected: Story = {
     selectedIds: ['rev-1', 'rev-2', 'fb-1'],
     items,
     onDone: () => {},
+    onSelectAll: fn(),
+    onClearSelection: fn(),
     bulkUpdateFn,
   },
 }
@@ -53,13 +55,14 @@ export const OnlyReviewsSelected: Story = {
   },
 }
 
-// All selected items are feedback → "Mark Addressed" (feedback-only transition)
-// is enabled, unlike OnlyReviewsSelected where it's disabled.
+// All selected items are feedback; the same open → closed transition applies.
 export const AllFeedback: Story = {
   args: {
     selectedIds: ['fb-1', 'fb-2'],
     items: feedbackItems,
     onDone: () => {},
+    onSelectAll: fn(),
+    onClearSelection: fn(),
     bulkUpdateFn,
   },
 }
@@ -69,6 +72,8 @@ export const Empty: Story = {
     selectedIds: [],
     items,
     onDone: () => {},
+    onSelectAll: fn(),
+    onClearSelection: fn(),
     bulkUpdateFn,
   },
 }
@@ -87,14 +92,14 @@ export const Pending: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Bulk toolbar is open ⇄ closed only (ADR 0023); no bulk escalate.
-    await userEvent.click(canvas.getByRole('button', { name: /mark closed/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
     await waitFor(() => {
-      expect(canvas.getByRole('button', { name: /mark closed/i })).toBeDisabled()
+      expect(canvas.getByRole('button', { name: /^close$/i })).toBeDisabled()
     })
   },
 }
 
-// Mark Closed invokes the bulk fn with status 'closed'.
+// Close invokes the bulk fn with status 'closed'.
 const closeSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
   success: true,
   updatedIds: input.data.inboxItemIds,
@@ -108,7 +113,7 @@ export const MarkClosed: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /mark closed/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
     await waitFor(() => {
       expect(closeSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -116,5 +121,24 @@ export const MarkClosed: Story = {
         }),
       )
     })
+  },
+}
+
+const overLimitItems = Array.from({ length: 101 }, (_, index) =>
+  makeInboxItem({ id: `review-${index}`, sourceType: 'review', status: 'open' }),
+)
+
+export const BulkLimit: Story = {
+  args: {
+    ...ThreeSelected.args,
+    items: overLimitItems,
+    selectedIds: ['review-0'],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('100 maximum')).toBeVisible()
+    expect(
+      canvas.getByRole('checkbox', { name: 'Select first 100 loaded reviews' }),
+    ).toBeVisible()
   },
 }

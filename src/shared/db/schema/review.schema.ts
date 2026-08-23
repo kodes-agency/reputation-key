@@ -22,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { googleConnections } from './google-connection.schema'
+import { REPLY_LANGUAGE_TAG_SQL_PATTERN } from '../../reply-language-catalogue'
 const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType: () => 'bytea',
 })
@@ -450,6 +451,9 @@ export const replies = pgTable(
       .references(() => reviews.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     text: text('text').notNull(),
+    // Canonical language selected for this reply's public text. Nullable for
+    // legacy/provider-mirrored replies that predate language selection.
+    replyLanguageTag: varchar('reply_language_tag', { length: 35 }),
     status: replyStatusEnum('status').notNull(),
     source: replySourceEnum('source').notNull(),
     createdBy: varchar('created_by', { length: 255 }),
@@ -512,6 +516,10 @@ export const replies = pgTable(
     check(
       'replies_state_revision_safe',
       sql`${t.stateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'replies_reply_language_tag_valid',
+      sql`${t.replyLanguageTag} IS NULL OR ${t.replyLanguageTag} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
     ),
     uniqueIndex('replies_origin_operation_unique')
       .on(t.originOperationId)

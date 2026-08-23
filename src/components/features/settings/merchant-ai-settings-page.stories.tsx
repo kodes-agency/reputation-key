@@ -3,12 +3,14 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
 import { MerchantAiSettingsPage } from './merchant-ai-settings-page'
+import type { PropertyReplyLanguageUpdateAction } from './property-reply-language-card'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 const properties = [
   {
     id: PROPERTY_ID,
     name: 'Harbor & Pine — A very long property name for narrow screens',
+    defaultReplyLanguage: null,
     googleBindingState: 'active' as const,
   },
 ]
@@ -86,6 +88,20 @@ const revokeAction = fn(async () => ({
   },
   stateVersion: enabled.stateVersion + 1,
 }))
+const updateProperty = Object.assign(
+  fn(async (input: Parameters<PropertyReplyLanguageUpdateAction>[0]) => ({
+    property: {
+      id: input.data.propertyId,
+      defaultReplyLanguage: input.data.defaultReplyLanguage,
+    },
+  })),
+  {
+    isPending: false,
+    error: null,
+    isSuccess: false,
+    data: null,
+  },
+) satisfies PropertyReplyLanguageUpdateAction
 
 const meta = {
   title: 'Settings/MerchantAiSettingsPage',
@@ -107,6 +123,7 @@ const meta = {
     enable: enableAction,
     change: changeAction,
     revoke: revokeAction,
+    updateProperty,
   },
 } satisfies Meta<typeof MerchantAiSettingsPage>
 

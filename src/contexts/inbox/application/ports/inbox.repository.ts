@@ -15,6 +15,8 @@ export type Cursor = Readonly<{
   id: InboxItemId
 }>
 
+export type InboxSort = 'newest' | 'oldest'
+
 export type InboxFilters = Readonly<{
   propertyId?: PropertyId
   propertyIds?: ReadonlyArray<PropertyId>
@@ -29,11 +31,14 @@ export type InboxFilters = Readonly<{
   attention?: ReadonlyArray<ReviewAttention>
   category?: ReadonlyArray<ReviewCategory>
   q?: string
+  sort?: InboxSort
 }>
 
 export type PaginatedResult = Readonly<{
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
+  /** Total rows matching the filters, before cursor pagination. */
+  totalCount: number
 }>
 
 export type InboxRepository = Readonly<{

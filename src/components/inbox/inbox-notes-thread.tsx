@@ -14,6 +14,7 @@ type Props = Readonly<{
   currentUserId?: string
   onNoteAdded: () => void
   addInboxNote: typeof addInboxNoteFn
+  canAdd?: boolean
 }>
 
 function formatRelativeTime(date: Date): string {
@@ -42,6 +43,7 @@ export function InboxNotesThread({
   currentUserId,
   onNoteAdded,
   addInboxNote,
+  canAdd = true,
 }: Props) {
   const [noteText, setNoteText] = useState('')
 
@@ -106,26 +108,28 @@ export function InboxNotesThread({
       )}
 
       {/* Add note form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-        <Textarea
-          placeholder="Add a note…"
-          value={noteText}
-          onChange={(e) => setNoteText(e.target.value)}
-          rows={3}
-          className="resize-none text-sm"
-          disabled={addNote.isPending}
-        />
-        <div className="flex justify-end">
-          <Button
-            type="submit"
-            size="sm"
-            disabled={addNote.isPending || !noteText.trim()}
-          >
-            <Send className="size-3.5" />
-            Add Note
-          </Button>
-        </div>
-      </form>
+      {canAdd && (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+          <Textarea
+            placeholder="Add a note…"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            rows={3}
+            className="resize-none text-sm"
+            disabled={addNote.isPending}
+          />
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              size="sm"
+              disabled={addNote.isPending || !noteText.trim()}
+            >
+              <Send className="size-3.5" />
+              Add Note
+            </Button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

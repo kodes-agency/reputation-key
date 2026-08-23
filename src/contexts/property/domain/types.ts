@@ -13,6 +13,8 @@ export type Property = Readonly<{
   name: string
   slug: string
   timezone: string
+  /** Tenant-confirmed canonical concrete reply language tag. */
+  defaultReplyLanguage?: string | null
   address: string | null
   gbpLocationId: string | null
   gbpAccountId: string | null

@@ -1,46 +1,21 @@
-// Inbox detail content — extracted for max-lines compliance
-//
-// NOTE: updateInboxStatusFn imported below for type-only use (typeof in props).
-// The actual mutation is wrapped by the use-inbox-detail hook, not called here.
-
-import { Button } from '#/components/ui/button'
-import { InboxNotesThread } from './inbox-notes-thread'
-import { ReplyEditor } from './reply-editor'
-import { formatDateTime } from './utils'
-import { getStatusActions, getEscalationActions } from './inbox-detail-helpers'
-import { InboxDetailSourceContent } from './inbox-detail-source-content'
-import { InboxActivityTimeline } from './inbox-activity-timeline'
-import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
-import type {
-  updateInboxStatusFn,
-  escalateInboxItemFn,
-  resolveEscalationFn,
-} from '#/contexts/inbox/server/inbox'
-import type { InboxDetailFns } from './types'
+import { Lock, MessageSquare } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { InboxActivityTimeline } from './inbox-activity-timeline'
+import { InboxDetailSourceContent } from './inbox-detail-source-content'
+import { InboxNotesThread } from './inbox-notes-thread'
+import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
+import { ReplyEditor } from './reply-editor'
+import type { InboxDetailFns } from './types'
 import type {
   InboxItem,
   InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
-import type { Action } from '#/components/hooks/use-action'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
   detail: InboxItemDetailResult | null
-  statusActions: ReturnType<typeof getStatusActions>
-  updateStatus: Action<
-    Parameters<typeof updateInboxStatusFn>[0],
-    Awaited<ReturnType<typeof updateInboxStatusFn>>
-  >
-  escalate: Action<
-    Parameters<typeof escalateInboxItemFn>[0],
-    Awaited<ReturnType<typeof escalateInboxItemFn>>
-  >
-  resolveEscalation: Action<
-    Parameters<typeof resolveEscalationFn>[0],
-    Awaited<ReturnType<typeof resolveEscalationFn>>
-  >
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
   onReplyMutated: (reply: InboxItemDetailResult['reply']) => void
@@ -50,10 +25,6 @@ export type DetailContentProps = Readonly<{
 export function InboxDetailContent({
   currentItem,
   detail,
-  statusActions,
-  updateStatus,
-  escalate,
-  resolveEscalation,
   notes,
   onNoteAdded,
   onReplyMutated,
@@ -61,101 +32,63 @@ export function InboxDetailContent({
 }: DetailContentProps) {
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
+  const canAddNotes = can('inbox.write')
+  const notesThread = (
+    <InboxNotesThread
+      notes={notes}
+      inboxItemId={currentItem.id}
+      onNoteAdded={onNoteAdded}
+      addInboxNote={detailFns.addInboxNote}
+      canAdd={canAddNotes}
+    />
+  )
+
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <InboxDetailSourceContent currentItem={currentItem} detail={detail} />
+    <div className="flex min-w-0 flex-col gap-6 p-5 lg:p-6">
+      <InboxDetailSourceContent
+        currentItem={currentItem}
+        detail={detail}
+        reviewReplyLanguage={detail?.reviewReplyLanguage}
+      />
       {currentItem.sourceType === 'review' && (
         <InboxReviewAnalysisPanel analysis={detail?.analysis ?? null} />
       )}
 
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>
-          {currentItem.sourceType === 'review' ? 'Reviewed' : 'Submitted'}:{' '}
-          {formatDateTime(currentItem.sourceDate)}
-        </span>
-        {currentItem.closedAt && (
-          <span>Closed: {formatDateTime(currentItem.closedAt)}</span>
-        )}
-        {currentItem.escalatedAt && (
-          <span>Escalated: {formatDateTime(currentItem.escalatedAt)}</span>
-        )}
-      </div>
-
-      {(statusActions.length > 0 ||
-        getEscalationActions(currentItem.isEscalated, currentItem.escalationResolvedAt)
-          .length > 0) && (
-        <div className="flex flex-wrap gap-2 border-t pt-4">
-          {statusActions.map((action) => (
-            <Button
-              key={action.targetStatus}
-              variant={action.variant}
-              size="sm"
-              disabled={updateStatus.isPending}
-              onClick={() => {
-                updateStatus({
-                  data: {
-                    inboxItemId: currentItem.id,
-                    status: action.targetStatus,
-                  },
-                })
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </Button>
-          ))}
-          {getEscalationActions(
-            currentItem.isEscalated,
-            currentItem.escalationResolvedAt,
-          ).map((action) => (
-            <Button
-              key={action.action}
-              variant={action.variant}
-              size="sm"
-              disabled={
-                updateStatus.isPending ||
-                escalate.isPending ||
-                resolveEscalation.isPending
-              }
-              onClick={() => {
-                if (action.action === 'escalate') {
-                  escalate({ data: { inboxItemId: currentItem.id } })
-                } else {
-                  resolveEscalation({ data: { inboxItemId: currentItem.id } })
-                }
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </Button>
-          ))}
-        </div>
-      )}
-
-      {currentItem.sourceType === 'review' && canManageReplies && (
-        <ReplyEditor
-          key={currentItem.id}
-          reviewId={currentItem.sourceId}
-          initialReply={detail?.reply ?? null}
-          loading={!detail}
-          onReplyChanged={onReplyMutated}
-          generateReplySuggestion={detailFns.generateReplySuggestion}
-        />
+      {currentItem.sourceType === 'review' && canManageReplies ? (
+        <Tabs
+          defaultValue="reply"
+          className="relative border-t pt-5 lg:[&_[data-slot=reply-language]]:absolute lg:[&_[data-slot=reply-language]]:right-0 lg:[&_[data-slot=reply-language]]:top-5 lg:[&_[data-slot=reply-language]]:max-w-[55%]"
+        >
+          <TabsList variant="line" className="mb-4 lg:mr-[22rem] lg:mb-10">
+            <TabsTrigger value="reply">
+              <MessageSquare /> Public reply
+            </TabsTrigger>
+            <TabsTrigger value="note">
+              <Lock /> Internal note
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="reply">
+            <ReplyEditor
+              key={currentItem.id}
+              reviewId={currentItem.sourceId}
+              initialReply={detail?.reply ?? null}
+              loading={!detail}
+              propertyDefaultReplyLanguage={detail?.propertyDefaultReplyLanguage ?? null}
+              reviewReplyLanguage={detail?.reviewReplyLanguage ?? null}
+              onReplyChanged={onReplyMutated}
+              generateReplySuggestion={detailFns.generateReplySuggestion}
+            />
+          </TabsContent>
+          <TabsContent value="note">{notesThread}</TabsContent>
+        </Tabs>
+      ) : (
+        <div className="border-t pt-4">{notesThread}</div>
       )}
 
       <InboxActivityTimeline
         inboxItemId={currentItem.id}
         getActivityTimeline={detailFns.getActivityTimeline}
       />
-
-      <div className="border-t pt-4">
-        <InboxNotesThread
-          notes={notes}
-          inboxItemId={currentItem.id}
-          onNoteAdded={onNoteAdded}
-          addInboxNote={detailFns.addInboxNote}
-        />
-      </div>
     </div>
   )
 }

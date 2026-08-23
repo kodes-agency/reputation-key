@@ -10,6 +10,9 @@ export const createPropertyLookupAdapter = (
 ): PropertyLookupPort => ({
   getPropertyNameById: (pid, orgId) => deps.getPropertyName(orgId, pid),
 
+  getPropertyReplyLanguageById: (pid, orgId) =>
+    deps.getPropertyReplyLanguage?.(orgId, pid) ?? Promise.resolve(null),
+
   getPropertyNamesByIds: async (propertyIds, orgId) => {
     const map = new Map<string, string | null>()
     if (propertyIds.length === 0) return map

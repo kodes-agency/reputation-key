@@ -474,6 +474,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       reply: {
         text: SUGGESTION,
         aiGenerated: true,
+        replyLanguageTag: 'en-Latn-US',
         stateRevision: 1,
       },
     })
@@ -485,6 +486,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         originTemplateId: replies.originReplyTemplateId,
         originConcreteLanguageTag: replies.originConcreteLanguageTag,
         originTemplateGroup: replies.originTemplateGroup,
+        replyLanguageTag: replies.replyLanguageTag,
         replyStateRevision: reviews.replyStateRevision,
       })
       .from(replies)
@@ -498,6 +500,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       originTemplateId: 'appreciation_positive',
       originConcreteLanguageTag: 'en-Latn-US',
       originTemplateGroup: 'en-Latn',
+      replyLanguageTag: 'en-Latn-US',
       replyStateRevision: 1,
     })
     await expect(

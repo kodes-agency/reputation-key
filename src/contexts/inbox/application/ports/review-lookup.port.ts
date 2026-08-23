@@ -16,6 +16,7 @@ export type ReviewSnippet = Readonly<{
   translatedText: string | null
   reviewerProfilePhotoUrl: string | null
   rating: number | null
+  languageCode: string | null
 }>
 
 /**

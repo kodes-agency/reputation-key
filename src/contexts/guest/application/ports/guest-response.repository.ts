@@ -7,6 +7,18 @@ export type GuestResponseScope = Readonly<{
   portalId: string
 }>
 
+export type GuestResponseSnippet = Readonly<{
+  id: string
+  comment: string | null
+  ratingValue: number | null
+}>
+
+export type GuestResponseContentFilter = Readonly<{
+  ratingMin?: number
+  ratingMax?: number
+  textQuery?: string
+}>
+
 export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
@@ -28,6 +40,19 @@ export type GuestResponseRepository = Readonly<{
     organizationId: string,
     responseId: string,
   ): Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
+  /** Batched equivalent used by inbox list enrichment. */
+  findSnippetsForOrg(
+    organizationId: string,
+    responseIds: ReadonlyArray<string>,
+  ): Promise<ReadonlyArray<GuestResponseSnippet>>
+  /**
+   * Tenant- and consent-scoped ids matching inbox content filters. Text and
+   * rating predicates may only inspect fields the guest consented to share.
+   */
+  findEligibleSnippetIdsForOrg(
+    organizationId: string,
+    filter: GuestResponseContentFilter,
+  ): Promise<ReadonlyArray<string>>
   insertSubmitted(response: GuestResponse): Promise<boolean>
   saveCorrection(response: GuestResponse): Promise<boolean>
   saveModeration(response: GuestResponse): Promise<boolean>

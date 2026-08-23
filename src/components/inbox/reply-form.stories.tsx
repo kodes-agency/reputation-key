@@ -62,6 +62,8 @@ const meta: Meta<typeof ReplyEditorInner> = {
   args: {
     reviewId: REVIEW_ID,
     loading: false,
+    propertyDefaultReplyLanguage: 'en-Latn',
+    reviewReplyLanguage: null,
     onReplyChanged,
   },
 }
@@ -132,5 +134,14 @@ export const Rejected: Story = {
       rejectionReason: 'Too generic — please personalise the response.',
       rejectedBy: userId('55555555-5555-4555-8555-555555555555'),
     }),
+  },
+  play: async ({ canvasElement }) => {
+    onReplyChanged.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /edit & resubmit/i }))
+    await waitFor(() => expect(onReplyChanged).toHaveBeenCalled())
+    await expect(
+      canvas.findByRole('textbox', { name: /public reply/i }),
+    ).resolves.toBeVisible()
   },
 }

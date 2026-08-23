@@ -15,16 +15,40 @@ export const createFeedbackLookupAdapter = (
   deps: FeedbackLookupSource,
 ): FeedbackLookupPort => ({
   getFeedbackSnippetById: async (id, orgId) => {
-    const response = await deps.findResponseSnippetById(id, orgId)
-    if (response) return response
-
-    const fb = await deps.findFeedbackById(id, orgId)
-    if (!fb) return null
-    let ratingValue: number | null = null
-    if (fb.ratingId) {
-      const ratingRow = await deps.findRatingById(fb.ratingId, orgId)
-      ratingValue = ratingRow?.value ?? null
-    }
-    return { comment: fb.comment, ratingValue }
+    const snippets = await getFeedbackSnippetsByIds(deps, [id], orgId)
+    return snippets.get(id) ?? null
+  },
+  getFeedbackSnippetsByIds: (ids, orgId) => getFeedbackSnippetsByIds(deps, ids, orgId),
+  findEligibleFeedbackIds: async (orgId, filter) => {
+    const [responseIds, legacyIds] = await Promise.all([
+      deps.findEligibleResponseIds(orgId, filter),
+      deps.findEligibleLegacyFeedbackIds(orgId, filter),
+    ])
+    return [...new Set([...responseIds, ...legacyIds])]
   },
 })
+
+async function getFeedbackSnippetsByIds(
+  deps: FeedbackLookupSource,
+  ids: Parameters<FeedbackLookupPort['getFeedbackSnippetsByIds']>[0],
+  orgId: Parameters<FeedbackLookupPort['getFeedbackSnippetsByIds']>[1],
+): ReturnType<FeedbackLookupPort['getFeedbackSnippetsByIds']> {
+  const snippets = new Map<
+    string,
+    { comment: string | null; ratingValue: number | null }
+  >()
+  if (ids.length === 0) return snippets
+
+  const current = await deps.findResponseSnippetsByIds(ids, orgId)
+  for (const row of current) {
+    snippets.set(row.id, { comment: row.comment, ratingValue: row.ratingValue })
+  }
+
+  const unresolved = ids.filter((id) => !snippets.has(id))
+  if (unresolved.length === 0) return snippets
+  const legacy = await deps.findLegacyFeedbackSnippetsByIds(unresolved, orgId)
+  for (const row of legacy) {
+    snippets.set(row.id, { comment: row.comment, ratingValue: row.ratingValue })
+  }
+  return snippets
+}

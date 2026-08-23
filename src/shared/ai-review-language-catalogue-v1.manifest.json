@@ -31,7 +31,7 @@
   ],
   "wrapper": {
     "path": "src/shared/ai-review-language-catalogue.ts",
-    "sha256": "e82018df628b4a0058fb905e8cb89b272f308e1951b72b31c3c03d744e707c04"
+    "sha256": "4a69058918ef07fdba44be8280d2fae189e51dc1add18568459176ed2fc3abd7"
   },
   "vectors": {
     "path": "src/shared/ai-review-language-v1.vectors.json",
@@ -55,5 +55,5 @@
       "sha256": "5dfcf15ae19579ec5b07a2db15bd7b0765cea01c37152871891f93e321ccad77"
     }
   },
-  "attestationDigest": "2229287cf869db0a5dbf64efc4f823e5a0f23f6da34a24b581585b06462bf1a5"
+  "attestationDigest": "d117b9f16e90bec59f007861e86cd73ebe84b20497f004ecfc3b0ef86f12501a"
 }

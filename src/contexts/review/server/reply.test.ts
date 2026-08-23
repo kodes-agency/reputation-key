@@ -65,6 +65,20 @@ describe('draftReplyDto', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts only canonical supported reply-language tags', () => {
+    expect(
+      draftReplyDto.safeParse({
+        ...validInput,
+        replyLanguageTag: 'bg-Cyrl-BG',
+      }).success,
+    ).toBe(true)
+    for (const replyLanguageTag of ['bg', 'en-latn', 'sr-Cyrl-RS', 'en-Latn-000']) {
+      expect(draftReplyDto.safeParse({ ...validInput, replyLanguageTag }).success).toBe(
+        false,
+      )
+    }
+  })
+
   it('rejects missing reviewId', () => {
     const result = draftReplyDto.safeParse({ text: 'Hello' })
     expect(result.success).toBe(false)

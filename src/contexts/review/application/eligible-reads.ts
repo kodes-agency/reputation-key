@@ -22,6 +22,7 @@ export type EligibleReviewSnippet = Readonly<{
   translatedText: string | null
   reviewerProfilePhotoUrl: string | null
   rating: number | null
+  languageCode: string | null
 }>
 
 /** Typed eligibility outcome — UI distinguishes without stale content. */
@@ -75,6 +76,7 @@ export const createEligibleReads = (deps: {
         translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
         rating: r.rating,
+        languageCode: r.languageCode,
       },
     } satisfies EligibleReviewSnippetResult
   },
@@ -92,6 +94,7 @@ export const createEligibleReads = (deps: {
         translatedText: r.translatedText,
         reviewerProfilePhotoUrl: r.reviewerProfilePhotoUrl,
         rating: r.rating,
+        languageCode: r.languageCode,
       })
     }
     return map

@@ -112,6 +112,14 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<string | null>
 }>
 
+/** Optional product preference kept separate from the widely mocked core API. */
+export type PropertyReplyLanguagePublicApi = Readonly<{
+  getPropertyReplyLanguage: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
+}>
+
 export {
   GOOGLE_BINDING_STATES,
   PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,

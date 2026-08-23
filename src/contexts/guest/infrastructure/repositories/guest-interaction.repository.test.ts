@@ -198,6 +198,57 @@ describe('guestInteractionRepository (integration)', () => {
     })
   })
 
+  describe('legacy feedback list reads', () => {
+    it('batches rating/comment and filters within the owning tenant', async () => {
+      const db = getDb()
+      const repo = createGuestInteractionRepository(db)
+      const rid = ratingId(crypto.randomUUID())
+      const fid = feedbackId(crypto.randomUUID())
+      await repo.insertRating(
+        buildTestRating({
+          id: rid,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          value: 4,
+        }),
+      )
+      await repo.insertFeedback(
+        buildTestFeedback({
+          id: fid,
+          organizationId: ORG_A,
+          portalId: PORTAL_A,
+          propertyId: PROP_A,
+          sessionId: crypto.randomUUID(),
+          comment: 'Quiet rooms and generous breakfast',
+          ratingId: rid,
+        }),
+      )
+
+      await expect(repo.findFeedbackSnippetsByIds([fid], ORG_A)).resolves.toEqual([
+        {
+          id: fid,
+          comment: 'Quiet rooms and generous breakfast',
+          ratingValue: 4,
+        },
+      ])
+      await expect(repo.findFeedbackSnippetsByIds([fid], ORG_B)).resolves.toEqual([])
+      await expect(
+        repo.findEligibleFeedbackIds(ORG_A, {
+          ratingMin: 4,
+          textQuery: 'breakfast',
+        }),
+      ).resolves.toEqual([fid])
+      await expect(
+        repo.findEligibleFeedbackIds(ORG_B, {
+          ratingMin: 4,
+          textQuery: 'breakfast',
+        }),
+      ).resolves.toEqual([])
+    })
+  })
+
   describe('getLatestScanBySession', () => {
     it('returns the scan for the owning org and null for a different org (tenant isolation)', async () => {
       const db = getDb()

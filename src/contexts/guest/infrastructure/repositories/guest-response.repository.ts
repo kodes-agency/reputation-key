@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { guestResponseMedia, guestResponses } from '#/shared/db/schema/guest.schema'
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
@@ -121,6 +121,63 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         comment: row.textConsent ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
       }
+    },
+
+    findSnippetsForOrg: async (organizationId, responseIds) => {
+      if (responseIds.length === 0) return []
+      const rows = await db
+        .select({
+          id: guestResponses.id,
+          comment: guestResponses.responseText,
+          ratingValue: guestResponses.rating,
+          textConsent: guestResponses.textConsent,
+          responseConsent: guestResponses.responseConsent,
+        })
+        .from(guestResponses)
+        .where(
+          and(
+            eq(guestResponses.organizationId, organizationId),
+            inArray(guestResponses.id, [...responseIds]),
+            isNull(guestResponses.deletedAt),
+          ),
+        )
+      return rows.map((row) => ({
+        id: row.id,
+        comment: row.textConsent ? row.comment : null,
+        ratingValue: row.responseConsent ? row.ratingValue : null,
+      }))
+    },
+
+    findEligibleSnippetIdsForOrg: async (organizationId, filter) => {
+      const conditions = [
+        eq(guestResponses.organizationId, organizationId),
+        isNull(guestResponses.deletedAt),
+      ]
+      if (filter.ratingMin !== undefined) {
+        conditions.push(
+          eq(guestResponses.responseConsent, true),
+          gte(guestResponses.rating, filter.ratingMin),
+        )
+      }
+      if (filter.ratingMax !== undefined) {
+        conditions.push(
+          eq(guestResponses.responseConsent, true),
+          lte(guestResponses.rating, filter.ratingMax),
+        )
+      }
+      if (filter.textQuery) {
+        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        conditions.push(
+          eq(guestResponses.textConsent, true),
+          sql`${guestResponses.responseText} ilike ${'%' + escaped + '%'}`,
+        )
+      }
+      const rows = await db
+        .select({ id: guestResponses.id })
+        .from(guestResponses)
+        .where(and(...conditions))
+        .limit(1000)
+      return rows.map((row) => row.id)
     },
 
     insertSubmitted: async (response) => {

@@ -1,15 +1,13 @@
-// Inbox activity timeline — displays chronological activity log for an inbox item.
-//
-// Reads via TanStack Query. Refreshed by invalidating inboxKeys.activity(id) —
-// a descendant of inboxKeys.detail(id), so any detail invalidation refreshes it.
-// The async BullMQ activity row (inserted ~2s after a status change) is caught by
-// the delayed re-invalidate scheduled in useInboxDetail — no hand-rolled timers.
-
 import { useQuery } from '@tanstack/react-query'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import { ChevronDown } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
-import { Skeleton } from '#/components/ui/skeleton'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
 import { inboxKeys } from '#/shared/queries/query-keys'
+import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import {
   actionIcon,
   actionLabel,
@@ -17,21 +15,62 @@ import {
   formatActorAndTime,
 } from './inbox-timeline-helpers'
 
-type InboxActivityTimelineProps = Readonly<{
+type Props = Readonly<{
   inboxItemId: string
-  /** Raw server fn — called directly in the queryFn (TanStack Start RPC-stubs it). */
   getActivityTimeline: typeof getActivityTimelineFn
 }>
 
-export function InboxActivityTimeline({
-  inboxItemId,
-  getActivityTimeline,
-}: InboxActivityTimelineProps) {
-  const {
-    data: entries,
-    isLoading,
-    error,
-  } = useQuery({
+type Entries = Awaited<ReturnType<typeof getActivityTimelineFn>>
+
+function TimelineEntries({ entries }: Readonly<{ entries: Entries }>) {
+  let lastDate = ''
+  return (
+    <div className="relative ml-1.5 mt-4">
+      <div className="absolute bottom-1.5 left-[11px] top-1.5 w-px bg-border" />
+      <div className="space-y-4">
+        {entries.map((entry) => {
+          const date = formatDate(entry.createdAt)
+          const showDate = date !== lastDate
+          lastDate = date
+          return (
+            <div key={entry.id}>
+              {showDate && (
+                <div className="mb-3 flex items-center gap-3">
+                  <div className="size-2 shrink-0 rounded-full bg-border" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {date}
+                  </span>
+                </div>
+              )}
+              <div className="ml-0.5 flex items-start gap-3">
+                <div className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border bg-background">
+                  {actionIcon(entry.action)}
+                </div>
+                <div className="min-w-0 flex-1 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm">{actionLabel(entry)}</span>
+                    <Badge variant="outline" className="h-4 px-1.5 py-0 text-[10px]">
+                      {entry.action}
+                    </Badge>
+                  </div>
+                  {formatActorAndTime(entry.actorName, entry.createdAt)}
+                  {entry.action === 'added' && entry.payload.detail && (
+                    <p className="mt-1 line-clamp-2 text-xs italic text-muted-foreground">
+                      &ldquo;{entry.payload.detail}&rdquo;
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function InboxActivityTimeline({ inboxItemId, getActivityTimeline }: Props) {
+  const { data, isLoading, error } = useQuery({
     queryKey: inboxKeys.activity(inboxItemId),
     queryFn: () =>
       getActivityTimeline({
@@ -39,87 +78,27 @@ export function InboxActivityTimeline({
       }),
     staleTime: 0,
   })
-
-  if (isLoading) return <TimelineSkeleton />
-  if (error) return <TimelineError message="Failed to load activity" />
-  if (!entries || entries.length === 0) return <TimelineEmpty />
-
-  let lastDate = ''
-
+  const entries = data ?? []
   return (
-    <div className="border-t pt-4">
-      {/* BQC-6.8: h2 — page outline is h1 → h2 (see inbox-notes-thread). */}
-      <h2 className="text-sm font-semibold text-muted-foreground mb-3">Activity</h2>
-      <div className="relative ml-1.5">
-        <div className="absolute left-[11px] top-1.5 bottom-1.5 w-px bg-border" />
-        <div className="space-y-4">
-          {entries.map((entry) => {
-            const date = formatDate(entry.createdAt)
-            const showDate = date !== lastDate
-            lastDate = date
-
-            return (
-              <div key={entry.id}>
-                {showDate && (
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="size-2 rounded-full bg-border shrink-0" />
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {date}
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-start gap-3 ml-0.5">
-                  <div className="relative z-10 flex items-center justify-center size-6 rounded-full bg-background border shrink-0">
-                    {actionIcon(entry.action)}
-                  </div>
-                  <div className="flex-1 min-w-0 pb-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm">{actionLabel(entry)}</span>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                        {entry.action}
-                      </Badge>
-                    </div>
-                    {formatActorAndTime(entry.actorName, entry.createdAt)}
-                    {entry.action === 'added' && entry.payload.detail && (
-                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2 italic">
-                        &ldquo;{entry.payload.detail}&rdquo;
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TimelineSkeleton() {
-  return (
-    <div className="border-t pt-4 space-y-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="size-8 rounded-full shrink-0" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-3 w-1/4" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TimelineError({ message }: { message: string }) {
-  return <div className="border-t pt-4 text-sm text-muted-foreground">{message}</div>
-}
-
-function TimelineEmpty() {
-  return (
-    <div className="border-t pt-4 text-sm text-muted-foreground">
-      No activity recorded yet.
-    </div>
+    <Collapsible className="group border-t pt-1">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 py-3 text-left text-sm font-medium">
+        Activity
+        <span className="text-xs font-normal text-muted-foreground">
+          {isLoading
+            ? 'Loading…'
+            : `${entries.length} ${entries.length === 1 ? 'event' : 'events'}`}
+        </span>
+        <ChevronDown className="ml-auto size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pb-4">
+        {error ? (
+          <p className="text-sm text-muted-foreground">Failed to load activity.</p>
+        ) : entries.length ? (
+          <TimelineEntries entries={entries} />
+        ) : (
+          <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

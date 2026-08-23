@@ -28,6 +28,7 @@ import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 export type MerchantAiPropertyOption = Readonly<{
   id: string
   name: string
+  defaultReplyLanguage?: string | null
   googleBindingState:
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 }>
@@ -46,7 +47,7 @@ export function MerchantAiPropertySelector({
       <CardHeader className="border-b">
         <CardTitle>Property</CardTitle>
         <CardDescription>
-          AI data-use authorization is independent for every property.
+          Reply defaults and AI data-use authorization are independent for every property.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -100,6 +100,7 @@ describe('getInboxItems', () => {
     const result = await useCase({ filters: {} }, adminCtx)
 
     expect(result.items).toHaveLength(2)
+    expect(result.totalCount).toBe(2)
     expect(result.nextCursor).toBeDefined()
   })
 
@@ -125,6 +126,20 @@ describe('getInboxItems', () => {
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].sourceType).toBe('feedback')
+  })
+
+  it('filters the in-memory repository by its seeded AI category', async () => {
+    const { useCase, repo } = setup()
+    const service = seedItem({ id: 'ii-service' })
+    const waitTime = seedItem({ id: 'ii-wait-time' })
+    repo.items.push(service, waitTime)
+    repo.categories.set(service.id, 'service')
+    repo.categories.set(waitTime.id, 'wait_time')
+
+    const result = await useCase({ filters: { category: ['wait_time'] } }, adminCtx)
+
+    expect(result.items.map((item) => item.id)).toEqual([waitTime.id])
+    expect(result.totalCount).toBe(1)
   })
 
   it('filters by propertyId', async () => {
@@ -158,7 +173,33 @@ describe('getInboxItems', () => {
     const result = await useCase({ filters: {}, limit: 2 }, adminCtx)
 
     expect(result.items).toHaveLength(2)
+    expect(result.totalCount).toBe(3)
     expect(result.nextCursor).toBeDefined()
+  })
+
+  it('sorts oldest first and keeps the filtered total across pages', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem({ id: 'ii-1', sourceDate: new Date('2026-04-12') }))
+    repo.items.push(seedItem({ id: 'ii-2', sourceDate: new Date('2026-04-10') }))
+    repo.items.push(seedItem({ id: 'ii-3', sourceDate: new Date('2026-04-11') }))
+
+    const page1 = await useCase({ filters: { sort: 'oldest' }, limit: 2 }, adminCtx)
+    const page2 = await useCase(
+      {
+        filters: { sort: 'oldest' },
+        cursor: page1.nextCursor!,
+        limit: 2,
+      },
+      adminCtx,
+    )
+
+    expect(page1.items.map((item) => item.id)).toEqual([
+      inboxItemId('ii-2'),
+      inboxItemId('ii-3'),
+    ])
+    expect(page2.items.map((item) => item.id)).toEqual([inboxItemId('ii-1')])
+    expect(page1.totalCount).toBe(3)
+    expect(page2.totalCount).toBe(3)
   })
 
   it('uses cursor for pagination', async () => {

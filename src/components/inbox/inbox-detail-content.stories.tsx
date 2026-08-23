@@ -6,11 +6,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { InboxDetailContent } from './inbox-detail-content'
-import { getStatusActions } from './inbox-detail-helpers'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import type { Action } from '#/components/hooks/use-action'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type {
@@ -88,42 +86,6 @@ const detailFns = {
   })) as unknown as typeof addInboxNoteFn,
 }
 
-// Mirrors the server fn's { data } payload + status enum (no 'new' — nothing
-// transitions TO new). Output is InboxItem, matching the use-case return.
-type StatusInput = {
-  data: { inboxItemId: string; status: 'open' | 'closed' }
-}
-type IdInput = {
-  data: { inboxItemId: string }
-}
-
-// Controllable Action mock — same shape the component's useMutationAction
-// produces (Action<StatusInput, InboxItem>), so it's directly assignable to the
-// updateStatus prop with no casts.
-function makeStatusAction(
-  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
-): Action<StatusInput, InboxItem> {
-  const impl = async (_input: StatusInput): Promise<InboxItem> => reviewItem
-  return Object.assign(impl, {
-    isPending: overrides.isPending ?? false,
-    error: overrides.error ?? null,
-    isSuccess: overrides.isSuccess ?? false,
-    data: null,
-  })
-}
-
-function makeIdAction(
-  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
-): Action<IdInput, InboxItem> {
-  const impl = async (_input: IdInput): Promise<InboxItem> => reviewItem
-  return Object.assign(impl, {
-    isPending: overrides.isPending ?? false,
-    error: overrides.error ?? null,
-    isSuccess: overrides.isSuccess ?? false,
-    data: null,
-  })
-}
-
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content',
   component: InboxDetailContent,
@@ -138,10 +100,6 @@ export const ReviewAsPropertyManager: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -167,8 +125,8 @@ export const ReviewWithAnalysis: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('region', { name: 'AI review analysis' })).toBeVisible()
-    await expect(canvas.getByText('high attention')).toBeVisible()
-    await expect(canvas.getByText('positive sentiment')).toBeVisible()
+    await expect(canvas.getByText('High attention')).toBeVisible()
+    await expect(canvas.getByText('Positive sentiment')).toBeVisible()
     await expect(canvas.getByText('Service')).toBeVisible()
   },
 }
@@ -180,10 +138,6 @@ export const ReviewAsPropertyManagerLight: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -197,10 +151,6 @@ export const ReviewAsStaff: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -214,10 +164,6 @@ export const FeedbackDetail: Story = {
   args: {
     currentItem: feedbackItem,
     detail: feedbackDetail,
-    statusActions: getStatusActions(feedbackItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes: [],
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -249,10 +195,6 @@ export const LongReviewText: Story = {
         'handwritten note ✍️ in the room. Ten out of ten 💯 — we will be ' +
         'back every year. '.repeat(3),
     },
-    statusActions: getStatusActions(longTextItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes: [],
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -276,10 +218,6 @@ export const StatusUpdating: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction({ isPending: true }),
-    escalate: makeIdAction({ isPending: true }),
-    resolveEscalation: makeIdAction({ isPending: true }),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -299,10 +237,6 @@ export const ReviewContentExpired: Story = {
       reviewText: null,
       reviewContentStatus: 'expired',
     },
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -335,10 +269,6 @@ export const ReviewContentNotFound: Story = {
       reviewText: null,
       reviewContentStatus: 'not_found',
     },
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -362,10 +292,6 @@ export const ReviewWithGoogleTranslation: Story = {
   args: {
     currentItem: reviewItem,
     detail: translatedReviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -386,10 +312,6 @@ export const ReviewWithoutTranslation: Story = {
   args: {
     currentItem: reviewItem,
     detail: reviewDetail,
-    statusActions: getStatusActions(reviewItem.status),
-    updateStatus: makeStatusAction(),
-    escalate: makeIdAction(),
-    resolveEscalation: makeIdAction(),
     notes,
     onNoteAdded: () => {},
     onReplyMutated: () => {},

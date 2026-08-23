@@ -15,10 +15,10 @@ export type { InboxListPanelProps } from './inbox-list-panel-parts'
 export function InboxListPanel(props: InboxListPanelProps) {
   const {
     folderLabel,
-    openCount,
+    totalCount,
     searchQ,
-    attention,
-    category,
+    filters,
+    sort,
     items,
     selectedIds,
     isLoading,
@@ -26,8 +26,10 @@ export function InboxListPanel(props: InboxListPanelProps) {
     loadAction,
     listRef,
     onSearchChange,
-    onAttentionChange,
-    onCategoryChange,
+    onFiltersChange,
+    onSortChange,
+    onSelectAll,
+    onDeselectAll,
     onBulkDone,
     bulkUpdateFn,
     onLoadMore,
@@ -38,20 +40,26 @@ export function InboxListPanel(props: InboxListPanelProps) {
     <div className="flex h-full flex-col overflow-hidden border-r">
       <InboxListHeader
         folderLabel={folderLabel}
-        openCount={openCount}
+        totalCount={totalCount}
         searchQ={searchQ}
         onSearchChange={onSearchChange}
-        attention={attention}
-        onAttentionChange={onAttentionChange}
-        category={category}
-        onCategoryChange={onCategoryChange}
+        filters={filters}
+        onFiltersChange={onFiltersChange}
+        sort={sort}
+        onSortChange={onSortChange}
         onOpenSidebar={onOpenSidebar}
-      />
-      <BulkActionBar
-        selectedIds={selectedIds}
-        items={items}
-        onBulkDone={onBulkDone}
-        bulkUpdateFn={bulkUpdateFn}
+        selectionToolbar={
+          selectedIds.length > 0 ? (
+            <BulkActionBar
+              selectedIds={selectedIds}
+              items={items}
+              onBulkDone={onBulkDone}
+              bulkUpdateFn={bulkUpdateFn}
+              onSelectAll={onSelectAll}
+              onDeselectAll={onDeselectAll}
+            />
+          ) : undefined
+        }
       />
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {renderListContent(props)}

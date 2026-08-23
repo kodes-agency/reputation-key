@@ -105,9 +105,7 @@ export function ReplyPublishFailed({ reply, isSaving, onRetry }: FailedProps) {
 type RejectedProps = Readonly<{
   reply: ReplyView
   isSaving: boolean
-  // NOTE(F094): onEditResubmit is currently a no-op placeholder. Future
-  // functionality will allow managers to edit a rejected reply inline and
-  // resubmit it for approval. Until then, the button is wired but does nothing.
+  /** Reopens the rejected reply as a draft before mounting the editor. */
   onEditResubmit: () => void
 }>
 

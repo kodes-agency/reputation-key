@@ -38,6 +38,8 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   if (patch.name !== undefined) set.name = patch.name
   if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.timezone !== undefined) set.timezone = patch.timezone
+  if (patch.defaultReplyLanguage !== undefined)
+    set.defaultReplyLanguage = patch.defaultReplyLanguage
   if (patch.address !== undefined) set.address = patch.address
   if (patch.gbpLocationId !== undefined) set.gbpLocationId = patch.gbpLocationId
   if (patch.gbpAccountId !== undefined) set.gbpAccountId = patch.gbpAccountId

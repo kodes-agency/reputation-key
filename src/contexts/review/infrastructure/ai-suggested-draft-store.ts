@@ -295,6 +295,7 @@ export function createAiSuggestedDraftStore(
           const exactReplay =
             existing?.originOperationId === provenance.operationId &&
             existing.text === input.text &&
+            existing.replyLanguageTag === provenance.concreteLanguageTag &&
             existing.authorship === 'ai_assisted' &&
             existing.status === 'draft' &&
             existing.stateRevision === operation.adoptedReplyRevision &&
@@ -333,6 +334,7 @@ export function createAiSuggestedDraftStore(
             .update(replies)
             .set({
               text: input.text,
+              replyLanguageTag: provenance.concreteLanguageTag,
               status: 'draft',
               aiGenerated: true,
               authorship: 'ai_assisted',
@@ -368,6 +370,7 @@ export function createAiSuggestedDraftStore(
               reviewId: input.reviewId,
               organizationId: input.organizationId,
               text: input.text,
+              replyLanguageTag: provenance.concreteLanguageTag,
               status: 'draft',
               source: 'internal',
               createdBy: input.actorUserId,

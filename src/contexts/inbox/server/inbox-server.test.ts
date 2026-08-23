@@ -7,6 +7,8 @@ import { inboxErrorStatus } from './inbox-shared'
 import {
   updateStatusDto,
   bulkUpdateStatusDto,
+  getInboxItemsDto,
+  INBOX_BULK_LIMIT,
   assignInboxItemDto,
   addInboxNoteDto,
 } from '../application/dto/inbox.dto'
@@ -43,6 +45,17 @@ describe('updateStatusDto', () => {
   })
 })
 
+describe('getInboxItemsDto', () => {
+  it('defaults to newest and accepts oldest', () => {
+    expect(getInboxItemsDto.parse({}).sort).toBe('newest')
+    expect(getInboxItemsDto.parse({ sort: 'oldest' }).sort).toBe('oldest')
+  })
+
+  it('rejects unsupported sort orders', () => {
+    expect(getInboxItemsDto.safeParse({ sort: 'highest' }).success).toBe(false)
+  })
+})
+
 describe('bulkUpdateStatusDto', () => {
   const validInput = {
     inboxItemIds: ['550e8400-e29b-41d4-a716-446655440000'],
@@ -60,7 +73,7 @@ describe('bulkUpdateStatusDto', () => {
   })
 
   it('rejects array exceeding 100 items', () => {
-    const ids = Array(101).fill('550e8400-e29b-41d4-a716-446655440000')
+    const ids = Array(INBOX_BULK_LIMIT + 1).fill('550e8400-e29b-41d4-a716-446655440000')
     expect(
       bulkUpdateStatusDto.safeParse({ ...validInput, inboxItemIds: ids }).success,
     ).toBe(false)

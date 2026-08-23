@@ -32,6 +32,8 @@ export type AiReviewInsightsPort = Readonly<{
     input: Readonly<{
       organizationId: OrganizationId
       propertyIds?: readonly PropertyId[]
+      /** Optional page-bounded review set used for list-row enrichment. */
+      reviewIds?: readonly ReviewId[]
       attention: readonly ReviewAttention[]
     }>,
   ): Promise<readonly ReviewId[]>

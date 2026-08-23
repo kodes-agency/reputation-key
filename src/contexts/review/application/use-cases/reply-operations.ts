@@ -140,6 +140,7 @@ export type RetryPublish = ReturnType<typeof retryPublish>
 export type DraftReplyInput = Readonly<{
   reviewId: ReviewId
   text: string
+  replyLanguageTag?: string
   provenanceToken?: string
 }>
 
@@ -206,6 +207,9 @@ export const draftReply =
         {
           status: 'draft',
           text: input.text,
+          ...(input.replyLanguageTag !== undefined
+            ? { replyLanguageTag: input.replyLanguageTag }
+            : {}),
           rejectedBy: null,
           rejectionReason: null,
           aiGenerated: false,
@@ -224,6 +228,7 @@ export const draftReply =
         reviewId: input.reviewId,
         organizationId: ctx.organizationId,
         text: input.text,
+        replyLanguageTag: input.replyLanguageTag ?? null,
         status: 'draft',
         source: 'internal',
         createdBy: ctx.userId,

@@ -97,12 +97,19 @@ export function InboxPageV2({
 
   const listPanelProps: InboxListPanelProps = {
     folderLabel: folderLabelFor(s.folder),
-    openCount: s.openCount,
+    totalCount: s.totalCount,
     searchQ: search.q,
-    attention: search.attention,
-    category: search.category,
+    filters: {
+      sourceType: search.sourceType,
+      ratingMin: search.ratingMin,
+      ratingMax: search.ratingMax,
+      attention: search.attention,
+      category: search.category,
+    },
+    sort: search.sort ?? 'newest',
     items: s.items,
     selectedIds: s.selectedIds,
+    activeItemId: search.itemId,
     isLoading: s.isLoading,
     error: s.error,
     onRetry: s.refetch,
@@ -111,16 +118,13 @@ export function InboxPageV2({
     listRef,
     onSearchChange: (q) =>
       onNavigate({ to: '.', search: (p) => ({ ...p, q, itemId: undefined }) }),
-    onAttentionChange: (attention) =>
+    onFiltersChange: (patch) =>
       onNavigate({
         to: '.',
-        search: (p) => ({ ...p, attention, itemId: undefined }),
+        search: (p) => ({ ...p, ...patch, itemId: undefined }),
       }),
-    onCategoryChange: (category) =>
-      onNavigate({
-        to: '.',
-        search: (p) => ({ ...p, category, itemId: undefined }),
-      }),
+    onSortChange: (sort) =>
+      onNavigate({ to: '.', search: (p) => ({ ...p, sort, itemId: undefined }) }),
     onToggleSelect: s.handleToggleSelect,
     onSelectAll: s.handleSelectAll,
     onDeselectAll: s.handleDeselectAll,

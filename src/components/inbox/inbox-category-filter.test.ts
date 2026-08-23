@@ -51,6 +51,35 @@ describe('inboxSearchSchema category param', () => {
   })
 })
 
+describe('inboxSearchSchema sort param', () => {
+  it('preserves both supported server sort orders', () => {
+    expect(inboxSearchSchema.parse({ sort: 'newest' })).toEqual({ sort: 'newest' })
+    expect(inboxSearchSchema.parse({ sort: 'oldest' })).toEqual({ sort: 'oldest' })
+  })
+
+  it('rejects unsupported sort orders', () => {
+    expect(() => inboxSearchSchema.parse({ sort: 'highest' })).toThrow(z.ZodError)
+  })
+})
+
+describe('inboxSearchSchema rating presets', () => {
+  it.each([
+    [{ ratingMin: 5 }, { ratingMin: 5, ratingMax: 5 }],
+    [{ ratingMin: 4, ratingMax: 5 }, { ratingMin: 4 }],
+    [{ ratingMin: 1, ratingMax: 3 }, { ratingMax: 3 }],
+  ])('normalizes an equivalent route range', (input, expected) => {
+    expect(inboxSearchSchema.parse(input)).toEqual(expected)
+  })
+
+  it.each([
+    { ratingMin: 2, ratingMax: 4 },
+    { ratingMin: 4, ratingMax: 4 },
+    { ratingMax: 5 },
+  ])('clears a range the preset control cannot represent: %o', (input) => {
+    expect(inboxSearchSchema.parse(input)).toEqual({})
+  })
+})
+
 describe('inbox category labels', () => {
   it('labels every canonical category in canonical order', () => {
     expect(AI_CATEGORY_OPTIONS.map((option) => option.value)).toEqual([

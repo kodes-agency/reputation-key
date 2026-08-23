@@ -14,6 +14,7 @@ import type { ReviewErrorCode } from '../domain/errors'
 import { reviewId } from '#/shared/domain/ids'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { MAX_REPLY_LENGTH } from '../domain/rules'
+import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
 
 // ── Error → HTTP status mapping ──────────────────────────────────────
 
@@ -51,6 +52,14 @@ export const reviewIdDto = z.object({ reviewId: z.string().uuid() })
 export const draftReplyDto = z.object({
   reviewId: z.string().uuid(),
   text: z.string().min(1).max(MAX_REPLY_LENGTH),
+  replyLanguageTag: z
+    .string()
+    .min(7)
+    .max(35)
+    .refine((value) => parseCanonicalReplyLanguageTag(value) !== null, {
+      message: 'Unsupported reply language',
+    })
+    .optional(),
   provenanceToken: z.string().min(1).max(16_384).optional(),
 })
 

@@ -1,4 +1,4 @@
-import { and, eq, desc, gte } from 'drizzle-orm'
+import { and, eq, desc, gte, inArray, lte, sql } from 'drizzle-orm'
 import { guestError } from '../../domain/errors'
 import type { Database } from '#/shared/db'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
@@ -151,6 +151,67 @@ export const createGuestInteractionRepository = (
         )
         .limit(1)
       return row ? ratingFromRow(row) : null
+    })
+  },
+
+  findFeedbackSnippetsByIds: async (ids, orgId) => {
+    if (ids.length === 0) return []
+    return trace('guestInteraction.findFeedbackSnippetsByIds', async () => {
+      const rows = await db
+        .select({
+          id: feedback.id,
+          comment: feedback.comment,
+          ratingValue: ratings.value,
+        })
+        .from(feedback)
+        .leftJoin(
+          ratings,
+          and(
+            eq(ratings.organizationId, feedback.organizationId),
+            eq(ratings.id, feedback.ratingId),
+          ),
+        )
+        .where(
+          and(
+            eq(feedback.organizationId, unbrand(orgId)),
+            inArray(
+              feedback.id,
+              ids.map((id) => unbrand(id)),
+            ),
+          ),
+        )
+      return rows.map((row) => ({
+        id: row.id as FeedbackId,
+        comment: row.comment,
+        ratingValue: row.ratingValue,
+      }))
+    })
+  },
+
+  findEligibleFeedbackIds: async (orgId, filter) => {
+    return trace('guestInteraction.findEligibleFeedbackIds', async () => {
+      const conditions = [eq(feedback.organizationId, unbrand(orgId))]
+      if (filter.ratingMin !== undefined)
+        conditions.push(gte(ratings.value, filter.ratingMin))
+      if (filter.ratingMax !== undefined)
+        conditions.push(lte(ratings.value, filter.ratingMax))
+      if (filter.textQuery) {
+        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        conditions.push(sql`${feedback.comment} ilike ${'%' + escaped + '%'}`)
+      }
+      const rows = await db
+        .select({ id: feedback.id })
+        .from(feedback)
+        .leftJoin(
+          ratings,
+          and(
+            eq(ratings.organizationId, feedback.organizationId),
+            eq(ratings.id, feedback.ratingId),
+          ),
+        )
+        .where(and(...conditions))
+        .limit(1000)
+      return rows.map((row) => row.id as FeedbackId)
     })
   },
 })

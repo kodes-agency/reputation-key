@@ -1,111 +1,130 @@
-// Inbox list v2 — Gmail-style 3-to-4-line rows.
-// Row 1: reviewer + date + stars.
-// Row 2-3: snippet (bold, 2 lines, as "subject").
-// Row 4: property + platform + status badge.
 import React from 'react'
+import { Star } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { Checkbox } from '#/components/ui/checkbox'
-import { InboxStatusBadge } from './inbox-status-badge'
-import { RatingStars } from './inbox-detail-helpers'
-import { formatDate } from './utils'
-import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { cn } from '#/lib/utils'
+import { INBOX_BULK_LIMIT, type InboxItem } from '#/contexts/inbox/application/public-api'
+import { formatDate, formatInboxListDate, formatReviewLanguage } from './utils'
 
-type InboxListV2Props = Readonly<{
+type Props = Readonly<{
   items: ReadonlyArray<InboxItem>
   selectedIds: ReadonlyArray<string>
+  activeItemId: string | undefined
   onToggleSelect: (id: string) => void
-  onSelectAll: () => void
-  onDeselectAll: () => void
   onRowClick: (item: InboxItem) => void
 }>
 
-// FE-4 FIX: Wrap ListItemRow in React.memo to avoid re-renders when parent state changes
+function CompactRating({ rating }: Readonly<{ rating: number | null }>) {
+  if (rating === null) return null
+  return (
+    <span
+      className="flex items-center gap-1 font-medium tabular-nums"
+      aria-label={`${rating} out of 5 stars`}
+    >
+      <Star className="size-4 fill-primary text-primary" aria-hidden="true" />
+      {rating.toFixed(1)}
+    </span>
+  )
+}
+
+function listItemContent(item: InboxItem): string {
+  if (item.contentAvailability === 'rating_only') return 'Rating only'
+  if (item.contentAvailability === 'unavailable') return 'Content unavailable'
+  return item.snippet?.trim() || 'Content unavailable'
+}
+
 const ListItemRow = React.memo(function ListItemRow({
   item,
-  isSelected,
+  isChecked,
+  isActive,
+  selectionAtLimit,
   onToggleSelect,
   onRowClick,
-}: {
+}: Readonly<{
   item: InboxItem
-  isSelected: boolean
+  isChecked: boolean
+  isActive: boolean
+  selectionAtLimit: boolean
   onToggleSelect: (id: string) => void
   onRowClick: (item: InboxItem) => void
-}) {
-  const isOpen = item.status === 'open'
-
+}>) {
+  const language = formatReviewLanguage(item.reviewLanguageCode)
+  const reviewer =
+    item.reviewerName ?? (item.sourceType === 'feedback' ? 'Guest feedback' : 'Anonymous')
+  const content = listItemContent(item)
+  const selectionDisabled = selectionAtLimit && !isChecked
   return (
     <div
       role="listitem"
-      className={`group flex items-start gap-3 border-b cursor-default transition-colors hover:bg-surface/50 px-4 py-3
-        ${isSelected ? 'bg-surface-elevated' : ''}
-        ${isOpen ? 'border-l-2 border-l-primary rounded-l-sm' : 'border-l-2 border-l-transparent'}`}
+      className={cn(
+        'group flex items-start gap-4 border-b border-l-2 px-5 py-4 transition-colors hover:bg-accent/30',
+        isActive ? 'border-l-primary bg-accent/60' : 'border-l-transparent',
+      )}
     >
       <Checkbox
         className="mt-1"
-        checked={isSelected}
+        checked={isChecked}
+        disabled={selectionDisabled}
         onCheckedChange={() => onToggleSelect(item.id)}
-        aria-label={`Select item from ${item.reviewerName ?? 'unknown'}`}
+        aria-label={
+          selectionDisabled
+            ? `Select item from ${reviewer} (${INBOX_BULK_LIMIT} item limit reached)`
+            : `Select item from ${reviewer}`
+        }
       />
       <div
         role="button"
         tabIndex={0}
-        aria-label={`Open review from ${item.reviewerName ?? 'Anonymous'}`}
-        className="min-w-0 flex-1 cursor-pointer rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        aria-current={isActive ? 'true' : undefined}
+        aria-label={`Open ${item.sourceType} from ${reviewer}`}
+        className="min-w-0 flex-1 cursor-pointer rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => onRowClick(item)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
             onRowClick(item)
           }
         }}
       >
-        {/* Row 1: Reviewer name + date + stars */}
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className={`min-w-0 flex-1 truncate text-sm ${isOpen ? 'font-semibold' : 'font-medium'}`}
-          >
-            {item.reviewerName ?? 'Anonymous'}
-          </span>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-              {formatDate(item.sourceDate)}
-            </span>
-            <RatingStars rating={item.rating} />
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold">{reviewer}</p>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {item.propertyName ?? 'Property unavailable'}
+              {item.platform && <span className="capitalize"> · {item.platform}</span>}
+              {language && <span> · {language}</span>}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-4 text-sm">
+            <CompactRating rating={item.rating} />
+            <time
+              className="text-muted-foreground tabular-nums"
+              dateTime={new Date(item.sourceDate).toISOString()}
+              title={formatDate(item.sourceDate)}
+            >
+              {formatInboxListDate(item.sourceDate)}
+            </time>
           </div>
         </div>
-        {/* Row 2-3: Snippet as "subject", 2 lines */}
-        {item.snippet ? (
+        <div className="mt-2 flex min-w-0 items-end gap-2">
           <p
-            className={`line-clamp-2 mt-1 text-sm leading-relaxed ${isOpen ? 'font-semibold' : 'font-medium'}`}
-          >
-            {item.snippet}
-          </p>
-        ) : (
-          <p className="line-clamp-2 mt-1 text-sm leading-relaxed italic text-muted-foreground">
-            No review text
-          </p>
-        )}
-        {/* Row 4: Property + platform + status (Gmail pattern: hide badge for new/read) */}
-        <div className="flex items-center gap-1.5 mt-1">
-          <span className="capitalize truncate text-xs text-muted-foreground">
-            {item.propertyName}
-          </span>
-          {item.platform && (
-            <span className="shrink-0 text-xs text-muted-foreground/60 capitalize">
-              · {item.platform}
-            </span>
-          )}
-          {item.status === 'closed' && (
-            <InboxStatusBadge
-              status={item.status}
-              isEscalated={item.isEscalated}
-              escalationResolvedAt={item.escalationResolvedAt}
-            />
-          )}
-          {item.status === 'open' &&
-            item.isEscalated &&
-            item.escalationResolvedAt === null && (
-              <InboxStatusBadge status={item.status} isEscalated />
+            className={cn(
+              'min-w-0 flex-1 text-sm leading-relaxed',
+              item.contentAvailability === 'text' || item.snippet
+                ? 'line-clamp-2'
+                : 'text-muted-foreground',
             )}
+          >
+            {content}
+          </p>
+          {item.attention === 'urgent' && (
+            <Badge
+              variant="outline"
+              className="border-destructive/20 bg-destructive/10 text-destructive"
+            >
+              Urgent
+            </Badge>
+          )}
         </div>
       </div>
     </div>
@@ -115,48 +134,25 @@ const ListItemRow = React.memo(function ListItemRow({
 export function InboxListV2({
   items,
   selectedIds,
+  activeItemId,
   onToggleSelect,
-  onSelectAll,
-  onDeselectAll,
   onRowClick,
-}: InboxListV2Props) {
-  // FE-095 FIX: Use Set for O(1) lookup instead of Array.includes O(n)
+}: Props) {
   const selectedSet = React.useMemo(() => new Set(selectedIds), [selectedIds])
-  const allSelected = items.length > 0 && items.every((item) => selectedSet.has(item.id))
-
+  const selectionAtLimit = selectedIds.length >= INBOX_BULK_LIMIT
   return (
-    // List (not listbox): rows navigate on click, selection is via the
-    // per-row checkbox — so list/listitem semantics fit better than listbox
-    // option and avoid nested-interactive (checkbox was inside role=option).
-    <div className="flex flex-col">
-      {/* Select-all header — kept outside the list so it isn't a listitem */}
-      <div className="flex items-center gap-3 border-b px-4 py-2">
-        <Checkbox
-          checked={allSelected}
-          onCheckedChange={(checked) => {
-            if (checked) onSelectAll()
-            else onDeselectAll()
-          }}
-          aria-label="Select all"
+    <div role="list" aria-label="Inbox items" className="flex flex-col">
+      {items.map((item) => (
+        <ListItemRow
+          key={item.id}
+          item={item}
+          isChecked={selectedSet.has(item.id)}
+          isActive={activeItemId === item.id}
+          selectionAtLimit={selectionAtLimit}
+          onToggleSelect={onToggleSelect}
+          onRowClick={onRowClick}
         />
-        <span className="text-xs text-muted-foreground">
-          {selectedIds.length > 0
-            ? `${selectedIds.length} selected`
-            : `${items.length} items`}
-        </span>
-      </div>
-
-      <div role="list" aria-label="Inbox items" className="flex flex-col">
-        {items.map((item) => (
-          <ListItemRow
-            key={item.id}
-            item={item}
-            isSelected={selectedSet.has(item.id)}
-            onToggleSelect={onToggleSelect}
-            onRowClick={onRowClick}
-          />
-        ))}
-      </div>
+      ))}
     </div>
   )
 }

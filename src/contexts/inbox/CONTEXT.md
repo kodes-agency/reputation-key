@@ -6,23 +6,23 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Glossary
 
-| Term              | Definition                                                                                                                                                                                                                       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Inbox Item**    | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment).                                                                          |
-| **Source Type**   | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                                                                                         |
-| **Source ID**     | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                                                                                             |
-| **Status**        | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`.                                                                                                                                          |
-| **Addressed**     | The item has been handled. For reviews: only via `review.reply.published` event (auto-transition). For feedback: manager manually marks it (no reply possible). No manual "Mark Addressed" button for reviews — archive instead. |
-| **Escalated**     | The item has been flagged for management attention. Can be escalated from any status.                                                                                                                                            |
-| **Assignment**    | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                                                                                                     |
-| **Internal Note** | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                                                                                               |
-| **Source Date**   | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                                                                                             |
-| **New Badge**     | Count of inbox items with `status = 'new'` for the current user's accessible properties. Redis-cached, invalidated on status events. Ephemeral — items auto-transition `new→read` on open.                                       |
-| **Unaddressed**   | Filter group meaning "needs attention": items with `status IN ('new', 'read')`. Used as the secondary tab alongside "All".                                                                                                       |
+| Term               | Definition                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inbox Item**     | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment). |
+| **Source Type**    | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                |
+| **Source ID**      | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                    |
+| **Status**         | The triage state of an inbox item: `open` or `closed`.                                                                                                  |
+| **Closed**         | The item has been handled. Publishing a review reply closes its inbox item automatically; authorized users can also close or reopen items.              |
+| **Escalated**      | An orthogonal flag for management attention. An open or closed item can be escalated until the flag is resolved.                                        |
+| **Assignment**     | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                            |
+| **Internal Note**  | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                      |
+| **Source Date**    | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                    |
+| **Filtered Total** | Authoritative count of all items matching the governed list filters, calculated before the page cursor and returned with every page.                    |
+| **List Sort**      | Stable keyset ordering by `(sourceDate, id)`, newest-first by default with an oldest-first option.                                                      |
 
 ## Relationships
 
-- Inbox Item → Review (via `sourceType = 'review'`, `sourceId = reviewId`). Detail fetched by JOIN.
+- Inbox Item → Review (via `sourceType = 'review'`, `sourceId = reviewId`). Eligible content is read through `ReviewLookupPort`, never cross-context SQL.
 - Inbox Item → Feedback (via `sourceType = 'feedback'`, `sourceId = feedbackId`). Rating value denormalized at creation time from linked `Rating`.
 - Inbox Item → StaffAssignment (assignment scoped to properties the user can access).
 - Inbox Note → Inbox Item (many-to-one).
@@ -101,7 +101,7 @@ inbox/
 
 | Use case                | Input                                                               | Output                | Permission    |
 | ----------------------- | ------------------------------------------------------------------- | --------------------- | ------------- |
-| `getInboxItems`         | organizationId, userId, role, filters, cursor?, limit?              | paginated inbox items | `inbox.read`  |
+| `getInboxItems`         | organizationId, userId, role, filters (including sort), cursor?, limit? | items, next cursor, filtered total | `inbox.read`  |
 | `getInboxItemDetail`    | inboxItemId, organizationId, userId, role                           | `InboxItemDetail`     | `inbox.read`  |
 | `updateInboxStatus`     | inboxItemId, organizationId, newStatus, userId, role                | updated item          | `inbox.write` |
 | `bulkUpdateInboxStatus` | inboxItemIds[], organizationId, newStatus, userId, role             | bulk result           | `inbox.write` |
@@ -116,9 +116,10 @@ inbox/
 
 Exported from `application/public-api.ts`:
 
-- Types: `InboxItem`, `InboxNote`, `InboxItemDetail`, `InboxStatus`, `SourceType`
+- Types: `InboxItem`, `InboxNote`, `InboxItemDetail`, `InboxStatus`, `SourceType`, `InboxSort`
 - Error types: `InboxError`, `InboxErrorCode`, `isInboxError`
-- Port types: `Cursor`
+- Port types: `Cursor` and paginated results with `totalCount`
+- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command)
 - Event types: `InboxItemCreated`, `InboxItemStatusChanged`, `InboxItemAssigned`, `InboxItemUnassigned`, `InboxItemEscalated`, `InboxNoteAdded`, `InboxItemBulkStatusChanged`, `InboxEvent`
 
 ## Server functions
@@ -146,7 +147,7 @@ Exported from `application/public-api.ts`:
 
 Inbox defines cross-context lookup ports (per ADR-0008):
 
-- **ReviewLookupPort** — fetches review snippet (reviewerName, text, translatedText, reviewerProfilePhotoUrl) by ID. `text` is the guest's original words; `translatedText` is the provider's machine translation (Google only, null elsewhere).
+- **ReviewLookupPort** — fetches eligible review snippets (reviewerName, text, translatedText, reviewerProfilePhotoUrl, rating, languageCode) by ID or bounded ID batch. `text` is the guest's original words; `translatedText` is the provider's machine translation (Google only, null elsewhere).
 - **FeedbackLookupPort** — fetches feedback snippet (comment, ratingValue) by ID.
 - **PropertyLookupPort** — fetches property name by ID (for denormalization).
 - **AiReviewInsightsPort** — reads the current AI analysis for a review, and resolves which reviews currently carry a given `attention` level or `primaryCategory`. Implemented by the AI context and wired at composition time.
@@ -161,12 +162,13 @@ All ports are implemented by adapters from their respective contexts, wired at c
 - An empty id set means **no matches**, never **no filter**. The same holds when the port is absent entirely.
 - Supplying both filters intersects them: each pushes its own `sourceId IN (…)` predicate into the same `and(…)`.
 - `attention` is the AI urgency level (`urgent`/`high`/`medium`/`low`); `category` is the primary topic. They are different dimensions, so a link that means "show me the service complaints" must use `category`, not `attention`.
+- List rows make one additional page-bounded current-analysis lookup for `urgent`. A row displays the Urgent badge only when that governed lookup confirms it; escalation state is never used as an urgency proxy.
 - Both search params must be declared in `inboxSearchSchema`. It is a `z.object`, which strips unknown keys, so an undeclared param arrives as `undefined` and silently filters nothing.
 
 
 - **Timestamp display**: `readAt` timestamp relabelled from "Read" to "Opened" in the detail panel. Auto-transition makes "Read" misleading — "Opened" is honest about what happened. The domain field stays `readAt`; only the display label changes. Status badge for `read` also changes from "Read" to "Opened".
-- **List row styling**: `new` items render bold with a subtle dot indicator. `read` items render normal weight — no badge. `escalated`, `addressed`, `archived` items get their colored status badges. Gmail pattern.
-- **Bulk "Mark Addressed" review guard**: Defense-in-depth. Use case skips reviews in the per-item validation loop (`sourceType === 'review' && newStatus === 'addressed'` → skip). UI filters selected IDs to only feedback items before calling bulk action.
+- **List row styling**: the active item has the accent tint/rail and `aria-current`; checkbox selection is independent. Rows lead with reviewer, property/platform/language metadata, compact rating/date, and a two-line snippet (or `Rating only`).
+- **Bulk status actions**: the contextual toolbar supports close/reopen and caps selection at `INBOX_BULK_LIMIT`; unchecked rows are disabled with an accessible limit explanation once the cap is reached.
 - **Activity timeline**: Inbox detail panel will render an activity timeline using the ReUI timeline component, showing status changes, notes, replies, and assignments in chronological order. Data sourced from the `activity` context's activity log (per Q11 decisions).
 - **Activity event delivery (Q12)**: In-process via `eventBus.on()`. Matching the metric context's subscriber pattern. Handlers are idempotent (`findDuplicate` check before insert) and errors are logged, not propagated. If durability becomes a requirement (audit entries must survive process crashes), migrate to BullMQ-backed delivery per the original Q12 intent — the `CONTEXT.md` in `src/contexts/activity/` documents this trade-off explicitly.
 - **Activity log schema (Q13)**: Polymorphic table `activity_log` with columns: `id` (UUID PK), `actor_id` (FK auth_user), `actor_role` (denormalized, role at time of action), `action` (verb from fixed vocabulary), `resource_type` + `resource_id` (polymorphic target, no typed FK), `property_id` (nullable, account-level events have no property), `account_id` (FK), `payload` (JSONB, uniform `{field, from, to}` grammar), `source` ('web'|'api'|'system'|'import'), `created_at`. Immutable — no `updated_at`. Indexes: `(resource_type, resource_id, created_at)`, `(account_id, property_id, created_at)`, `(actor_id, created_at)`.

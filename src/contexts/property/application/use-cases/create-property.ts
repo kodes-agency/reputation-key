@@ -105,6 +105,7 @@ export const createProperty =
       name: input.name,
       providedSlug: input.slug,
       timezone: input.timezone,
+      defaultReplyLanguage: input.defaultReplyLanguage ?? null,
       countryCode: input.countryCode ?? null,
       countrySource: input.countryCode ? 'manual' : undefined,
       now: deps.clock(),

@@ -254,11 +254,13 @@ function findCurrentAnalysisReviewIds(
   input: Readonly<{
     organizationId: string
     propertyIds?: readonly string[]
+    reviewIds?: readonly string[]
     nowEpochMillis: number
   }>,
   discriminate: (now: Date) => readonly SQL<unknown>[],
 ): Promise<readonly ReviewId[]> {
   if (input.propertyIds?.length === 0) return Promise.resolve([])
+  if (input.reviewIds?.length === 0) return Promise.resolve([])
   const now = new Date(input.nowEpochMillis)
   const conditions = [
     eq(aiReviewAnalyses.organizationId, input.organizationId),
@@ -286,6 +288,9 @@ function findCurrentAnalysisReviewIds(
   ]
   if (input.propertyIds) {
     conditions.push(inArray(aiReviewAnalyses.propertyId, [...input.propertyIds]))
+  }
+  if (input.reviewIds) {
+    conditions.push(inArray(aiReviewAnalyses.reviewId, [...input.reviewIds]))
   }
   return db
     .selectDistinct({ reviewId: aiReviewAnalyses.reviewId })

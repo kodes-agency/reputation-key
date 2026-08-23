@@ -16,19 +16,18 @@ import {
   useInboxNavigation,
   type InboxNavigate,
 } from './inbox-state-helpers'
+import {
+  itemMatchesActiveFolder,
+  reconcileInboxPageItems,
+  removeInboxSelection,
+} from './inbox-selection'
+import { useDebouncedValue } from './use-debounced-value'
 
-/** Debounce a value — used so the query key (and thus the fetch) only changes
- *  300ms after the user stops changing filters (matches the prior manual debounce). */
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(t)
-  }, [value, delayMs])
-  return debounced
+type InboxPage = {
+  items: ReadonlyArray<InboxItem>
+  nextCursor: Cursor | null
+  totalCount: number
 }
-
-type InboxPage = { items: ReadonlyArray<InboxItem>; nextCursor: Cursor | null }
 
 export function useInboxState(
   orgId: string | undefined,
@@ -67,12 +66,14 @@ export function useInboxState(
   const pages = query.data?.pages ?? []
   const items = pages.flatMap((p) => p.items)
   const nextCursor = pages.length ? pages[pages.length - 1]!.nextCursor : null
+  const totalCount = pages[0]?.totalCount ?? 0
 
   // Clear selection when the (live) filters change — immediate, not debounced.
   useEffect(() => {
     setSelectedIds([])
   }, [
     filters.status,
+    filters.isEscalated,
     filters.sourceType,
     filters.platform,
     filters.ratingMin,
@@ -81,6 +82,7 @@ export function useInboxState(
     filters.category,
     filters.propertyId,
     filters.q,
+    filters.sort,
   ])
 
   // Auto-close the detail if the selected item is no longer in the loaded list.
@@ -94,23 +96,18 @@ export function useInboxState(
   // status no longer matches the active filter. Replaces the old setItems callback.
   const patchItem = useCallback(
     (u: InboxItem) => {
+      const visible = itemMatchesActiveFolder(u, debouncedFilters)
+      if (!visible) {
+        setSelectedIds((previous) => removeInboxSelection(previous, u.id))
+      }
       qc.setQueryData(inboxKeys.list(debouncedFilters), (old: unknown) => {
         if (!old || typeof old !== 'object' || !('pages' in old)) return old
         const data = old as { pages: InboxPage[]; pageParams: unknown[] }
-        const visible = !debouncedFilters.status
-          ? true
-          : typeof debouncedFilters.status !== 'string'
-            ? debouncedFilters.status.includes(u.status)
-            : debouncedFilters.status === u.status
         return {
           ...data,
           pages: data.pages.map((p) => ({
             ...p,
-            items: visible
-              ? p.items.map((i) =>
-                  i.id === u.id ? { ...i, status: u.status, updatedAt: u.updatedAt } : i,
-                )
-              : p.items.filter((i) => i.id !== u.id),
+            items: reconcileInboxPageItems(p.items, u, visible),
           })),
         }
       })
@@ -129,6 +126,7 @@ export function useInboxState(
 
   return {
     items,
+    totalCount,
     nextCursor,
     isLoading: query.isPending,
     error: query.error ? 'Failed to load inbox. Try again.' : null,

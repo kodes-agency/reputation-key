@@ -28,6 +28,7 @@ export type BuildPropertyInput = Readonly<{
   name: string
   providedSlug?: string
   timezone: string
+  defaultReplyLanguage?: string | null
   address?: string | null
   gbpLocationId?: string | null
   gbpAccountId?: string | null
@@ -86,6 +87,7 @@ export const buildProperty = (
         name: validName,
         slug: validSlug,
         timezone: validTz,
+        defaultReplyLanguage: input.defaultReplyLanguage ?? null,
         ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
         address: input.address ?? null,
         gbpLocationId: locationId,

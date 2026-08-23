@@ -31,6 +31,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
             {
               reviewId: reviewId(data.reviewId),
               text: data.text,
+              replyLanguageTag: data.replyLanguageTag,
               provenanceToken: data.provenanceToken,
             },
             ctx,

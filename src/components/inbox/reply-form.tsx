@@ -23,6 +23,8 @@ type InnerProps = Readonly<{
   reviewId: string
   reply: ReplyData | null
   loading: boolean
+  propertyDefaultReplyLanguage: string | null
+  reviewReplyLanguage: string | null
   onReplyChanged: (reply: ReplyData | null) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
@@ -31,11 +33,12 @@ export function ReplyEditorInner({
   reviewId,
   reply,
   loading,
+  propertyDefaultReplyLanguage,
+  reviewReplyLanguage,
   onReplyChanged,
   generateReplySuggestion,
 }: InnerProps) {
   const draft = useActionMutation(draftReplyFn, {
-    successMessage: 'Draft saved',
     onSuccess: onReplyChanged,
   })
   const submit = useActionMutation(submitReplyFn, {
@@ -62,9 +65,7 @@ export function ReplyEditorInner({
     successMessage: 'Reply updated — republishing',
     onSuccess: onReplyChanged,
   })
-  const isSaving = [draft, submit, approve, reject, del, retry, edit].some(
-    (m) => m.isPending,
-  )
+  const isSaving = [submit, approve, reject, del, retry, edit].some((m) => m.isPending)
 
   if (loading) {
     return (
@@ -78,24 +79,19 @@ export function ReplyEditorInner({
     <ReplyStatusView
       view={resolveReplyView(reply)}
       isSaving={isSaving}
-      onSaveDraft={(text, provenanceToken) =>
+      propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
+      reviewReplyLanguage={reviewReplyLanguage}
+      onSaveDraft={(text, provenanceToken, replyLanguageTag) =>
         draft({
           data: {
             reviewId,
             text,
+            ...(replyLanguageTag ? { replyLanguageTag } : {}),
             ...(provenanceToken ? { provenanceToken } : {}),
           },
         })
       }
-      onSubmitReply={(text, provenanceToken) =>
-        draft({
-          data: {
-            reviewId,
-            text,
-            ...(provenanceToken ? { provenanceToken } : {}),
-          },
-        }).then(() => submit({ data: { reviewId } }))
-      }
+      onSubmitReply={() => submit({ data: { reviewId } })}
       onDeleteDraft={reply ? () => del({ data: { reviewId } }) : undefined}
       onApprove={() => approve({ data: { reviewId } })}
       onReject={(reason) => reject({ data: { reviewId, reason } })}
@@ -103,11 +99,12 @@ export function ReplyEditorInner({
       onSaveEdit={(text) => edit({ data: { reviewId, text } })}
       onGenerateSuggestion={
         generateReplySuggestion
-          ? (tone) =>
+          ? (tone, targetLanguage) =>
               generateReplySuggestion({
                 data: {
                   reviewId,
                   tone,
+                  targetLanguage,
                   idempotencyKey: crypto.randomUUID(),
                 },
               })

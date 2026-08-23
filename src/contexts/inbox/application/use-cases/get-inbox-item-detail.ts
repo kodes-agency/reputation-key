@@ -3,6 +3,7 @@
 // Enforces role-scoped property access.
 
 import type { InboxRepository } from '../ports/inbox.repository'
+import type { PropertyLookupPort } from '../ports/property-lookup.port'
 import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
 import type {
   AiReviewInsightsPort,
@@ -15,6 +16,10 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
 import { assertPropertyAccessible } from '../inbox-access'
+import {
+  mapReplyLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
+} from '#/shared/reply-language-catalogue'
 
 export type GetInboxItemDetailInput = Readonly<{
   inboxItemId: InboxItemId
@@ -24,6 +29,7 @@ export type GetInboxItemDetailDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
   replyLookup: ReplyLookupPort
+  propertyLookup?: PropertyLookupPort
   aiInsights?: AiReviewInsightsPort
 }>
 
@@ -36,6 +42,8 @@ export type InboxItemDetailResult = Readonly<
   InboxItemDetail & {
     reply: ReplyView | null
     analysis: InboxReviewAnalysis | null
+    propertyDefaultReplyLanguage?: string | null
+    reviewReplyLanguage?: string | null
   }
 >
 
@@ -86,7 +94,31 @@ export const getInboxItemDetail =
       )
     }
 
-    return { ...detail, reply, analysis }
+    const configuredPropertyLanguage = deps.propertyLookup?.getPropertyReplyLanguageById
+      ? await deps.propertyLookup.getPropertyReplyLanguageById(
+          detail.item.propertyId,
+          ctx.organizationId,
+        )
+      : null
+    const propertyDefaultReplyLanguage =
+      configuredPropertyLanguage !== null &&
+      parseCanonicalReplyLanguageTag(configuredPropertyLanguage) !== null
+        ? configuredPropertyLanguage
+        : null
+    const mappedReviewLanguage = mapReplyLanguageMetadata(detail.item.reviewLanguageCode)
+    const reviewReplyLanguage =
+      mappedReviewLanguage.status === 'supported' &&
+      mappedReviewLanguage.language !== null
+        ? mappedReviewLanguage.language.tag
+        : null
+
+    return {
+      ...detail,
+      reply,
+      analysis,
+      propertyDefaultReplyLanguage,
+      reviewReplyLanguage,
+    }
   }
 
 export type GetInboxItemDetailUseCase = ReturnType<typeof getInboxItemDetail>

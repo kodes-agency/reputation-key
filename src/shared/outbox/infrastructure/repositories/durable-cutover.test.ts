@@ -247,6 +247,7 @@ function makeReviewLookup(): ReviewLookupPort {
           translatedText: null,
           reviewerProfilePhotoUrl: null,
           rating: row.rating,
+          languageCode: row.languageCode,
         },
       }
     },
@@ -264,7 +265,11 @@ const stubEnrichmentPorts = {
     getReviewSnippetsByIds: async () => new Map(),
     findEligibleReviewIds: async () => [] as string[],
   },
-  feedbackLookup: { getFeedbackSnippetById: async () => null },
+  feedbackLookup: {
+    getFeedbackSnippetById: async () => null,
+    getFeedbackSnippetsByIds: async () => new Map(),
+    findEligibleFeedbackIds: async () => [],
+  },
   propertyLookup: {
     getPropertyNameById: async () => null,
     getPropertyNamesByIds: async () => new Map(),

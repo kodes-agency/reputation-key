@@ -6,6 +6,8 @@
 import { z } from 'zod/v4'
 import { AI_PRIMARY_CATEGORIES } from '#/shared/openai-route-output-schemas'
 
+export const INBOX_BULK_LIMIT = 100
+
 // GET inbox items — query params
 export const getInboxItemsDto = z.object({
   propertyId: z.string().optional(),
@@ -31,6 +33,7 @@ export const getInboxItemsDto = z.object({
   cursor: z.string().optional(), // base64-encoded cursor JSON
   limit: z.number().int().min(1).max(100).default(50),
   q: z.string().optional(), // full-text search on snippet
+  sort: z.enum(['newest', 'oldest']).default('newest'),
 })
 
 // POST update status (open ⇄ closed — ADR 0023)
@@ -41,7 +44,7 @@ export const updateStatusDto = z.object({
 
 // POST bulk update status
 export const bulkUpdateStatusDto = z.object({
-  inboxItemIds: z.array(z.string().uuid()).min(1).max(100),
+  inboxItemIds: z.array(z.string().uuid()).min(1).max(INBOX_BULK_LIMIT),
   status: z.enum(['open', 'closed']),
 })
 

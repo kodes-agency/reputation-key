@@ -39,13 +39,13 @@ export const ResizeHandle = () => (
 )
 
 const FOLDER_LABELS: Record<string, string> = {
-  escalated: 'Escalated',
-  addressed: 'Addressed',
-  archived: 'Archived',
+  open: 'Open reviews',
+  escalated: 'Escalated reviews',
+  closed: 'Closed reviews',
 }
 
 export const folderLabelFor = (folder: string | undefined): string =>
-  FOLDER_LABELS[folder ?? ''] ?? 'Inbox'
+  FOLDER_LABELS[folder ?? 'open'] ?? 'Open reviews'
 
 export function InboxNoOrgState() {
   return (

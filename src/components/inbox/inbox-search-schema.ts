@@ -9,7 +9,7 @@ export const INBOX_PAGE_SIZE = 50
 
 export type InboxFolder = 'open' | 'escalated' | 'closed'
 
-export const inboxSearchSchema = z.object({
+export const inboxSearchObjectSchema = z.object({
   folder: z.enum(['open', 'escalated', 'closed']).optional(),
   itemId: z.string().uuid().optional(),
   propertyId: z.string().optional(),
@@ -23,7 +23,30 @@ export const inboxSearchSchema = z.object({
   // cannot drift from what the analysis actually stores.
   category: z.enum(AI_PRIMARY_CATEGORIES).optional(),
   q: z.string().optional(),
+  sort: z.enum(['newest', 'oldest']).optional(),
 })
+
+type InboxSearchObject = z.infer<typeof inboxSearchObjectSchema>
+
+/** Keep route state aligned with the three rating presets the UI can render. */
+export function normalizeInboxRatingPreset(search: InboxSearchObject): InboxSearchObject {
+  const { ratingMin, ratingMax, ...rest } = search
+  if (ratingMin === undefined && ratingMax === undefined) return search
+  if (ratingMin === 5 && (ratingMax === undefined || ratingMax === 5)) {
+    return { ...rest, ratingMin: 5, ratingMax: 5 }
+  }
+  if (ratingMin === 4 && (ratingMax === undefined || ratingMax === 5)) {
+    return { ...rest, ratingMin: 4 }
+  }
+  if (ratingMax === 3 && (ratingMin === undefined || ratingMin === 1)) {
+    return { ...rest, ratingMax: 3 }
+  }
+  return rest
+}
+
+export const inboxSearchSchema = inboxSearchObjectSchema.transform(
+  normalizeInboxRatingPreset,
+)
 
 export type InboxSearchParams = z.infer<typeof inboxSearchSchema>
 

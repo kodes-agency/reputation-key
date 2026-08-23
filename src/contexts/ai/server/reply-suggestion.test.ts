@@ -133,6 +133,7 @@ const REVIEW_ID = '00000000-0000-4000-8000-000000000021'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000022'
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000023'
 const IDEMPOTENCY_KEY = '00000000-0000-4000-8000-000000000024'
+const REVIEW_LANGUAGE_TARGET = { kind: 'review_language' as const }
 
 const ACTOR = {
   organizationId: ORGANIZATION_ID,
@@ -161,6 +162,7 @@ const READY: GenerateReplySuggestionResult = {
   provenanceToken: 'provenance-token-1',
   expiresAtEpochMillis: 0,
   baseReplyStateRevision: NEVER_REPLIED_STATE_REVISION,
+  concreteLanguageTag: 'en-Latn',
 }
 
 /**
@@ -177,6 +179,7 @@ const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> 
   no_review_text: null,
   language_not_supported: null,
   language_undetermined: null,
+  target_language_unavailable: null,
   completed_without_delivery: null,
   policy_unavailable: RETRY_AT,
   provider_unavailable: RETRY_AT,
@@ -186,6 +189,7 @@ const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> 
 const HOOK_DISTINGUISHED_CODES: ReadonlyArray<UnavailableCode> = [
   'language_not_supported',
   'language_undetermined',
+  'target_language_unavailable',
   'not_authorized',
   'no_review_text',
   'source_changed',
@@ -202,6 +206,7 @@ const call = (overrides?: Partial<{ reviewId: string; idempotencyKey: string }>)
     data: {
       reviewId: overrides?.reviewId ?? REVIEW_ID,
       tone: 'professional',
+      targetLanguage: REVIEW_LANGUAGE_TARGET,
       idempotencyKey: overrides?.idempotencyKey ?? IDEMPOTENCY_KEY,
     },
   })
@@ -254,6 +259,7 @@ describe('generateReplySuggestionFn — request shaping', () => {
       reviewId: REVIEW_ID,
       actorUserId: ACTOR.userId,
       tone: 'professional',
+      targetLanguage: REVIEW_LANGUAGE_TARGET,
       idempotencyKey: IDEMPOTENCY_KEY,
       expectedSourceEpoch: 0,
       expectedSourceRevision: NEVER_EDITED_REVIEW.sourceRevision,
@@ -283,7 +289,12 @@ describe('generateReplySuggestionFn — request shaping', () => {
 
   it.each(REPLY_TONES)('accepts the catalogued %s tone and forwards it', async (tone) => {
     await generateReplySuggestionFn({
-      data: { reviewId: REVIEW_ID, tone, idempotencyKey: IDEMPOTENCY_KEY },
+      data: {
+        reviewId: REVIEW_ID,
+        tone,
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
     })
 
     // Keeps the DTO enum aligned with the reply template catalogue: a tone added
@@ -292,6 +303,24 @@ describe('generateReplySuggestionFn — request shaping', () => {
       expect.objectContaining({ tone }),
     )
   })
+
+  it.each(['review_language', 'property_default'] as const)(
+    'forwards the constrained %s target intent without accepting a tag',
+    async (kind) => {
+      await generateReplySuggestionFn({
+        data: {
+          reviewId: REVIEW_ID,
+          tone: 'professional',
+          targetLanguage: { kind },
+          idempotencyKey: IDEMPOTENCY_KEY,
+        },
+      })
+
+      expect(mocks.generateReplySuggestion).toHaveBeenCalledWith(
+        expect.objectContaining({ targetLanguage: { kind } }),
+      )
+    },
+  )
 })
 
 describe('generateReplySuggestionFn — AI content is never cached', () => {
@@ -449,28 +478,66 @@ describe('generateReplySuggestionFn — input validation fences the tenant path'
   it.each([
     [
       'a non-UUID reviewId',
-      { reviewId: 'nope', tone: 'professional', idempotencyKey: IDEMPOTENCY_KEY },
+      {
+        reviewId: 'nope',
+        tone: 'professional',
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
       /"path":\["reviewId"\]/,
     ],
     [
       'a non-UUID idempotencyKey',
-      { reviewId: REVIEW_ID, tone: 'professional', idempotencyKey: 'retry-1' },
+      {
+        reviewId: REVIEW_ID,
+        tone: 'professional',
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: 'retry-1',
+      },
       /"path":\["idempotencyKey"\]/,
     ],
     [
       'an uncatalogued tone',
-      { reviewId: REVIEW_ID, tone: 'shouty', idempotencyKey: IDEMPOTENCY_KEY },
+      {
+        reviewId: REVIEW_ID,
+        tone: 'shouty',
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
       /"path":\["tone"\]/,
     ],
     [
       'a missing idempotencyKey',
-      { reviewId: REVIEW_ID, tone: 'professional' },
+      {
+        reviewId: REVIEW_ID,
+        tone: 'professional',
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+      },
       /"path":\["idempotencyKey"\]/,
     ],
     [
       'a missing tone',
-      { reviewId: REVIEW_ID, idempotencyKey: IDEMPOTENCY_KEY },
+      {
+        reviewId: REVIEW_ID,
+        targetLanguage: REVIEW_LANGUAGE_TARGET,
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
       /"path":\["tone"\]/,
+    ],
+    [
+      'a missing targetLanguage',
+      { reviewId: REVIEW_ID, tone: 'professional', idempotencyKey: IDEMPOTENCY_KEY },
+      /"path":\["targetLanguage"\]/,
+    ],
+    [
+      'a client-supplied concrete language tag',
+      {
+        reviewId: REVIEW_ID,
+        tone: 'professional',
+        targetLanguage: { kind: 'property_default', tag: 'bg-Cyrl-BG' },
+        idempotencyKey: IDEMPOTENCY_KEY,
+      },
+      /"path":\["targetLanguage"\]/,
     ],
   ])(
     'rejects %s before any tenant, repository or policy work',

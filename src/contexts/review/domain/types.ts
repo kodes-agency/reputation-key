@@ -82,6 +82,8 @@ export type Reply = Readonly<{
   reviewId: ReviewId
   organizationId: OrganizationId
   text: string
+  /** Canonical concrete language selected for the public reply text. */
+  replyLanguageTag?: string | null
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null

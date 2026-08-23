@@ -5,7 +5,7 @@
 // Cross-context data (review/feedback/property) is fetched via lookup ports
 // defined in application/ports/ — never via direct table JOINs.
 
-import { and, eq, desc, inArray, sql, gte, gt, lte, isNull } from 'drizzle-orm'
+import { and, asc, eq, desc, inArray, sql, gte, gt, lte, isNull, or } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
@@ -19,12 +19,16 @@ import type {
   ReviewLookupPort,
   ReviewSnippet,
 } from '../../application/ports/review-lookup.port'
-import type { FeedbackLookupPort } from '../../application/ports/feedback-lookup.port'
+import type {
+  FeedbackLookupPort,
+  FeedbackSnippet,
+} from '../../application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '../../application/ports/property-lookup.port'
 import type { AiReviewInsightsPort } from '../../application/ports/ai-review-insights.port'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type {
   InboxItemId,
+  FeedbackId,
   OrganizationId,
   PropertyId,
   ReviewId,
@@ -145,6 +149,49 @@ async function resolveAiNarrowing(
   return narrowing
 }
 
+/** Resolve rating/text predicates against each source's owning content store. */
+async function resolveContentNarrowing(
+  ports: LookupPorts,
+  orgId: OrganizationId,
+  filters: InboxFilters,
+): Promise<SQL[] | null> {
+  if (filters.ratingMin === undefined && filters.ratingMax === undefined && !filters.q) {
+    return []
+  }
+  const contentFilter = {
+    ratingMin: filters.ratingMin,
+    ratingMax: filters.ratingMax,
+    textQuery: filters.q,
+  }
+  const [reviewIds, feedbackIds] = await Promise.all([
+    filters.sourceType === 'feedback'
+      ? Promise.resolve([])
+      : ports.reviewLookup.findEligibleReviewIds(orgId, contentFilter),
+    filters.sourceType === 'review'
+      ? Promise.resolve([])
+      : ports.feedbackLookup.findEligibleFeedbackIds(orgId, contentFilter),
+  ])
+  const sourceMatches: SQL[] = []
+  if (reviewIds.length > 0) {
+    sourceMatches.push(
+      and(
+        eq(inboxItems.sourceType, 'review'),
+        inArray(inboxItems.sourceId, [...reviewIds]),
+      )!,
+    )
+  }
+  if (feedbackIds.length > 0) {
+    sourceMatches.push(
+      and(
+        eq(inboxItems.sourceType, 'feedback'),
+        inArray(inboxItems.sourceId, [...feedbackIds]),
+      )!,
+    )
+  }
+  if (sourceMatches.length === 0) return null
+  return [sourceMatches.length === 1 ? sourceMatches[0]! : or(...sourceMatches)!]
+}
+
 export const createInboxRepository = (
   db: Database,
   ports: LookupPorts,
@@ -210,46 +257,56 @@ export const createInboxRepository = (
       const start = Date.now()
       log.debug({ limit }, 'querying inbox findFilteredPaginated')
       const conditions = buildFilterConditions(filters, orgId)
-      if (conditions === null) return { items: [], nextCursor: null } as PaginatedResult
+      if (conditions === null)
+        return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
 
-      // BQC-1.2: rating range / free-text search run against live, eligible
-      // reviews via the Review-owned query (no denormalized copies, no JOINs).
-      if (
-        filters.ratingMin !== undefined ||
-        filters.ratingMax !== undefined ||
-        filters.q
-      ) {
-        const eligibleIds = await ports.reviewLookup.findEligibleReviewIds(orgId, {
-          ratingMin: filters.ratingMin,
-          ratingMax: filters.ratingMax,
-          textQuery: filters.q,
-        })
-        if (eligibleIds.length === 0)
-          return { items: [], nextCursor: null } as PaginatedResult
-        conditions.push(inArray(inboxItems.sourceId, [...eligibleIds]))
-      }
+      // Rating/text predicates are resolved by each source-owning context.
+      // Source type is correlated with each id set so a UUID collision between
+      // storage generations cannot leak or falsely match another source.
+      const contentNarrowing = await resolveContentNarrowing(ports, orgId, filters)
+      if (contentNarrowing === null)
+        return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
+      conditions.push(...contentNarrowing)
       // AI-derived narrowing (attention / category). Extracted because adding
       // the second filter pushed this function past the complexity threshold.
       const aiNarrowing = await resolveAiNarrowing(ports, orgId, filters)
-      if (aiNarrowing === null) return { items: [], nextCursor: null } as PaginatedResult
+      if (aiNarrowing === null)
+        return { items: [], nextCursor: null, totalCount: 0 } as PaginatedResult
       conditions.push(...aiNarrowing)
 
+      const pageConditions = [...conditions]
+      const sort = filters.sort ?? 'newest'
+
       // Cursor-based pagination: sourceDate DESC, id DESC
-      // Keyset pagination: ORDER BY sourceDate DESC, id DESC means
-      // "next page" = rows with (sourceDate, id) < cursor value
+      // The tuple comparison mirrors the selected ordering so page boundaries
+      // remain stable even when several reviews share the same source date.
       if (cursor) {
-        conditions.push(
-          sql`(${inboxItems.sourceDate}, ${inboxItems.id}) < (${cursor.sourceDate}, ${cursor.id})`,
+        pageConditions.push(
+          sort === 'newest'
+            ? sql`(${inboxItems.sourceDate}, ${inboxItems.id}) < (${cursor.sourceDate}, ${cursor.id})`
+            : sql`(${inboxItems.sourceDate}, ${inboxItems.id}) > (${cursor.sourceDate}, ${cursor.id})`,
         )
       }
 
-      // Fetch inbox_items only — no cross-context JOINs
-      const rows = await db
-        .select()
-        .from(inboxItems)
-        .where(and(...conditions))
-        .orderBy(desc(inboxItems.sourceDate), desc(inboxItems.id))
-        .limit(limit + 1)
+      // Count and page use the same governed filter predicates. The count is
+      // intentionally evaluated before the cursor predicate.
+      const [countRows, rows] = await Promise.all([
+        db
+          .select({ count: sql<number>`count(*)` })
+          .from(inboxItems)
+          .where(and(...conditions)),
+        db
+          .select()
+          .from(inboxItems)
+          .where(and(...pageConditions))
+          .orderBy(
+            ...(sort === 'newest'
+              ? [desc(inboxItems.sourceDate), desc(inboxItems.id)]
+              : [asc(inboxItems.sourceDate), asc(inboxItems.id)]),
+          )
+          .limit(limit + 1),
+      ])
+      const totalCount = Number(countRows[0]?.count ?? 0)
 
       const sliced = rows.slice(0, limit)
 
@@ -257,26 +314,50 @@ export const createInboxRepository = (
       const reviewIdsToFetch = sliced
         .filter((r) => r.sourceType === 'review')
         .map((r) => r.sourceId)
+      const feedbackIdsToFetch = sliced
+        .filter((r) => r.sourceType === 'feedback')
+        .map((r) => feedbackId(r.sourceId))
 
       const propertyIdsToFetch = [...new Set(sliced.map((r) => r.propertyId))]
 
-      const [reviewSnippets, propertyNames] = await Promise.all([
-        batchReviewSnippets(ports, reviewIdsToFetch, orgId),
-        batchPropertyNames(ports, propertyIdsToFetch, orgId),
-      ])
+      const [reviewSnippets, feedbackSnippets, propertyNames, urgentReviewIds] =
+        await Promise.all([
+          batchReviewSnippets(ports, reviewIdsToFetch, orgId),
+          batchFeedbackSnippets(ports, feedbackIdsToFetch, orgId),
+          batchPropertyNames(ports, propertyIdsToFetch, orgId),
+          findUrgentReviewIds(ports, reviewIdsToFetch, propertyIdsToFetch, orgId),
+        ])
+      const urgentSet = new Set(urgentReviewIds)
 
       const items = sliced.map((row) => {
         const item = inboxItemFromRow(row)
         // BQC-1.2: rating/snippet/reviewerName come only from the live
         // eligible lookup — expired/missing content renders as nulls.
-        const live =
+        const review =
           row.sourceType === 'review' ? reviewSnippets.get(row.sourceId) : undefined
+        const feedback =
+          row.sourceType === 'feedback' ? feedbackSnippets.get(row.sourceId) : undefined
+        const text = row.sourceType === 'review' ? review?.text : feedback?.comment
+        const rating =
+          row.sourceType === 'review' ? review?.rating : feedback?.ratingValue
+        const hasText = typeof text === 'string' && text.trim().length > 0
+        const contentAvailability = hasText
+          ? ('text' as const)
+          : rating !== null && rating !== undefined
+            ? ('rating_only' as const)
+            : ('unavailable' as const)
         return {
           ...item,
-          rating: live?.rating ?? null,
-          snippet: live?.text ?? null,
-          reviewerName: live?.reviewerName ?? null,
+          rating: rating ?? null,
+          snippet: hasText ? text! : null,
+          contentAvailability,
+          reviewerName: review?.reviewerName ?? null,
           propertyName: propertyNames.get(row.propertyId) ?? null,
+          reviewLanguageCode: review?.languageCode ?? null,
+          attention:
+            row.sourceType === 'review' && urgentSet.has(reviewId(row.sourceId))
+              ? ('urgent' as const)
+              : null,
         }
       })
 
@@ -295,7 +376,7 @@ export const createInboxRepository = (
         'inbox findFilteredPaginated complete',
       )
 
-      return { items, nextCursor } as PaginatedResult
+      return { items, nextCursor, totalCount } as PaginatedResult
     })
   },
 
@@ -541,7 +622,12 @@ export const createInboxRepository = (
           'inbox findDetailById review enrichment',
         )
         return {
-          item: { ...item, propertyName, reviewerName: snippet?.reviewerName ?? null },
+          item: {
+            ...item,
+            propertyName,
+            reviewerName: snippet?.reviewerName ?? null,
+            reviewLanguageCode: snippet?.languageCode ?? null,
+          },
           reviewText: snippet?.text ?? null,
           reviewTranslatedText: snippet?.translatedText ?? null,
           reviewerProfilePhotoUrl: snippet?.reviewerProfilePhotoUrl ?? null,
@@ -623,6 +709,30 @@ async function batchReviewSnippets(
 ): Promise<ReadonlyMap<string, ReviewSnippet>> {
   if (sourceIds.length === 0) return new Map<string, ReviewSnippet>()
   return ports.reviewLookup.getReviewSnippetsByIds(sourceIds.map(reviewId), orgId)
+}
+
+async function batchFeedbackSnippets(
+  ports: LookupPorts,
+  sourceIds: ReadonlyArray<FeedbackId>,
+  orgId: OrganizationId,
+): Promise<ReadonlyMap<string, FeedbackSnippet>> {
+  if (sourceIds.length === 0) return new Map<string, FeedbackSnippet>()
+  return ports.feedbackLookup.getFeedbackSnippetsByIds(sourceIds, orgId)
+}
+
+async function findUrgentReviewIds(
+  ports: LookupPorts,
+  sourceIds: string[],
+  propertyIds: string[],
+  orgId: OrganizationId,
+): Promise<readonly ReviewId[]> {
+  if (!ports.aiInsights || sourceIds.length === 0) return []
+  return ports.aiInsights.findCurrentReviewIdsByAttention({
+    organizationId: orgId,
+    propertyIds: propertyIds.map(propertyId),
+    reviewIds: sourceIds.map(reviewId),
+    attention: ['urgent'],
+  })
 }
 
 async function batchPropertyNames(

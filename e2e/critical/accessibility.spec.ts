@@ -461,7 +461,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     })
     await signIn(page)
     await page.goto('/inbox')
-    const heading = page.getByRole('heading', { name: /^inbox$/i }).first()
+    const heading = page.getByRole('heading', { name: /^open reviews$/i }).first()
     await expect(heading).toBeVisible({ timeout: 15_000 })
     const row = page.getByRole('button', { name: /open review from zoom reviewer/i })
     await expect(row).toBeVisible()

@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 import { googleConnections } from './google-connection.schema'
+import { REPLY_LANGUAGE_TAG_SQL_PATTERN } from '../../reply-language-catalogue'
 import {
   pgTable,
   uuid,
@@ -25,6 +26,10 @@ export const properties = pgTable(
     name: varchar('name', { length: 100 }).notNull(),
     slug: varchar('slug', { length: 64 }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
+    // Tenant-confirmed canonical BCP 47 tag used as the default language for
+    // public review replies (for example, bg-Cyrl-BG). Nullable for legacy
+    // properties that have not chosen a reply language yet.
+    defaultReplyLanguage: varchar('default_reply_language', { length: 35 }),
     googleConnectionId: uuid('google_connection_id').references(
       () => googleConnections.id,
       { onDelete: 'set null' },
@@ -111,6 +116,10 @@ export const properties = pgTable(
     googleProfileVersionCheck: check(
       'properties_google_profile_version_valid',
       sql`${t.profileVersion} >= 1`,
+    ),
+    defaultReplyLanguageCheck: check(
+      'properties_default_reply_language_valid',
+      sql`${t.defaultReplyLanguage} IS NULL OR ${t.defaultReplyLanguage} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
     ),
     googleProfileConfirmationCheck: check(
       'properties_google_profile_confirmation_valid',

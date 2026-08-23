@@ -9,6 +9,7 @@ import type {
   PropertyFactsPublicApi,
   PropertyProcessingScopePublicApi,
   PropertyPublicApi,
+  PropertyReplyLanguagePublicApi,
 } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
@@ -144,7 +145,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
 
   const publicApi: PropertyPublicApi &
     PropertyFactsPublicApi &
-    PropertyProcessingScopePublicApi = {
+    PropertyProcessingScopePublicApi &
+    PropertyReplyLanguagePublicApi = {
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -152,6 +154,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getPropertyName: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p?.name ?? null
+    },
+    getPropertyReplyLanguage: async (orgId: OrganizationId, pid: PropertyId) => {
+      const p = await deps.repo.findById(orgId, pid)
+      return p?.defaultReplyLanguage ?? null
     },
     getPropertyTimezone: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)

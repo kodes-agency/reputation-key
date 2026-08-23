@@ -10,7 +10,7 @@ import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
 const onSaveDraft = fn(async (_text: string) => undefined)
-const onSubmit = fn(async (_text: string) => undefined)
+const onSubmit = fn(async () => undefined)
 const onDelete = fn(async () => undefined)
 const SUGGESTED_REPLY =
   'Thank you for the thoughtful review. We are glad you enjoyed your visit.'
@@ -20,6 +20,7 @@ const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> 
   provenanceToken: 'test-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,
   baseReplyStateRevision: 0,
+  concreteLanguageTag: 'en-Latn',
 })
 const onGenerateSuggestion = fn(async () => readySuggestion())
 const onGenerateUnavailable = fn(async () => ({
@@ -46,7 +47,15 @@ const meta: Meta<typeof ReplyCompose> = {
   tags: ['autodocs'],
   decorators: [withRole('PropertyManager')],
   parameters: { layout: 'centered' },
-  args: { initialText: '', isSaving: false, onSaveDraft, onSubmit },
+  args: {
+    initialText: '',
+    initialLanguageTag: null,
+    propertyDefaultReplyLanguage: 'en-Latn',
+    reviewReplyLanguage: 'tr-Latn-TR',
+    isSaving: false,
+    onSaveDraft,
+    onSubmit,
+  },
 }
 export default meta
 type Story = StoryObj<typeof ReplyCompose>
@@ -65,8 +74,7 @@ export const Saving: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('textbox')).toBeDisabled()
-    expect(canvas.getByRole('button', { name: /save draft/i })).toBeDisabled()
-    expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /submitting/i })).toBeDisabled()
   },
 }
 
@@ -76,7 +84,6 @@ export const OverLimit: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/5000\/4096/)).toHaveClass('text-destructive')
-    expect(canvas.getByRole('button', { name: /save draft/i })).toBeDisabled()
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
   },
 }
@@ -89,39 +96,23 @@ export const SubmitFlow: Story = {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByPlaceholderText(/write a reply/i), 'Thanks!')
     await userEvent.click(canvas.getByRole('button', { name: /submit for approval/i }))
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('Thanks!'))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
   },
 }
 
 export const AiSuggestionAdoption: Story = {
   args: { onGenerateSuggestion },
-  play: async ({ canvas, canvasElement }) => {
+  play: async ({ canvas }) => {
     onGenerateSuggestion.mockClear()
     onSaveDraft.mockClear()
-    await userEvent.click(canvas.getByRole('button', { name: /suggest reply/i }))
-    await expect(canvas.findByText(SUGGESTED_REPLY)).resolves.toBeVisible()
-    expect(canvas.getByRole('textbox')).toHaveValue('')
-    expect(canvas.getByText(/nothing is saved or submitted automatically/i)).toBeVisible()
-
-    await userEvent.click(canvas.getByRole('button', { name: /^use suggestion$/i }))
-    const documentCanvas = within(canvasElement.ownerDocument.body)
-    const dialog = await documentCanvas.findByRole('alertdialog')
-    // The assertion below must WAIT: findByRole resolves the instant Radix
-    // mounts AlertDialogContent, but that content fades in
-    // (data-[state=open]:animate-in fade-in-0), so its first frames compute to
-    // opacity: 0 — which jest-dom counts as NOT visible. A synchronous
-    // toBeVisible() here raced the entrance keyframes and lost in 14 of 114
-    // measured runner runs (and three times in CI today: the ancestor
-    // .group/alert-dialog-content was captured at opacity 0 with one running
-    // animation while this <p> already held "No draft text"). The dialog
-    // content is the assertion; the fade frame is not.
-    await waitFor(() => expect(within(dialog).getByText(/no draft text/i)).toBeVisible())
-    await userEvent.click(
-      within(dialog).getByRole('button', { name: /^use suggestion$/i }),
-    )
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY))
     await waitFor(() =>
-      expect(onSaveDraft).toHaveBeenCalledWith(SUGGESTED_REPLY, 'test-provenance-token'),
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        SUGGESTED_REPLY,
+        'test-provenance-token',
+        'en-Latn',
+      ),
     )
   },
 }
@@ -129,9 +120,9 @@ export const AiSuggestionAdoption: Story = {
 export const UnsupportedLanguage: Story = {
   args: { onGenerateSuggestion: onGenerateUnavailable },
   play: async ({ canvas }) => {
-    await userEvent.click(canvas.getByRole('button', { name: /suggest reply/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await expect(
-      canvas.findByText(/not available for this review language/i),
+      canvas.findByText(/unavailable for this review language/i),
     ).resolves.toBeVisible()
   },
 }
@@ -140,7 +131,7 @@ export const ManualEditWinsOverDelayedSuggestion: Story = {
   args: { onGenerateSuggestion: onGenerateDelayed },
   play: async ({ canvas }) => {
     resolveDelayedSuggestion = undefined
-    await userEvent.click(canvas.getByRole('button', { name: /suggest reply/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
     await userEvent.type(canvas.getByRole('textbox'), 'Manual draft')
     resolveDelayed(readySuggestion())
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue('Manual draft'))

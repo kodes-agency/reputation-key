@@ -19,6 +19,7 @@ export type PropertySetValues = {
   name?: string
   slug?: string
   timezone?: string
+  defaultReplyLanguage?: string | null
   address?: string | null
   gbpLocationId?: string | null
   gbpAccountId?: string | null
@@ -110,6 +111,8 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
       if (patch.name !== undefined) setValues.name = patch.name
       if (patch.slug !== undefined) setValues.slug = patch.slug
       if (patch.timezone !== undefined) setValues.timezone = patch.timezone
+      if (patch.defaultReplyLanguage !== undefined)
+        setValues.defaultReplyLanguage = patch.defaultReplyLanguage
       if (patch.gbpLocationId !== undefined) setValues.gbpLocationId = patch.gbpLocationId
       // BQR-3.5 processing profile fields
       if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode

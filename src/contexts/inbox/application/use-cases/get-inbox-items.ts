@@ -38,7 +38,7 @@ export const getInboxItems =
       'inbox.read',
     )
     if (visible === 'none') {
-      return { items: [], nextCursor: null }
+      return { items: [], nextCursor: null, totalCount: 0 }
     }
 
     let propertyIds: ReadonlyArray<PropertyId> | undefined

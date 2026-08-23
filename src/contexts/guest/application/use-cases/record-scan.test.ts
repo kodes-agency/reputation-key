@@ -22,6 +22,8 @@ function createInMemoryGuestRepo() {
       null,
     findFeedbackById: async () => null,
     findRatingById: async () => null,
+    findFeedbackSnippetsByIds: async () => [],
+    findEligibleFeedbackIds: async () => [],
   }
   return { ...repo, scans }
 }
@@ -92,6 +94,8 @@ describe('recordScan', () => {
       getLatestScanBySession: async () => null,
       findFeedbackById: async () => null,
       findRatingById: async () => null,
+      findFeedbackSnippetsByIds: async () => [],
+      findEligibleFeedbackIds: async () => [],
     }
     const useCase = recordScan({
       guestRepo: failingRepo,

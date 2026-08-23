@@ -4,7 +4,7 @@
 // detail-only fns are wired but only fire on item selection. Demonstrates the
 // Phase-1 prop channel end-to-end: a route-shaped fn bundle, no server/RPC.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, within } from 'storybook/test'
 import { useState } from 'react'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { InboxPageV2 } from './inbox-page-v2'
@@ -19,6 +19,11 @@ import type { InboxCtx } from './inbox-types'
 import type { InboxPageNav } from './use-inbox-page'
 import type { InboxServerFns } from './types'
 import type { InboxSearchParams } from './inbox-search-schema'
+import type {
+  InboxItem,
+  InboxItemDetailResult,
+} from '#/contexts/inbox/application/public-api'
+import { propertyId, replyId, reviewId, userId } from '#/shared/domain/ids'
 
 const container = createInboxContainer()
 // 6 items across folders → sidebar counts computed by the real use-case.
@@ -104,7 +109,7 @@ const meta: Meta<typeof InboxPageV2> = {
   },
   decorators: [
     (Story) => (
-      <div className="h-[800px] w-full bg-background text-foreground">
+      <div className="h-dvh min-h-[800px] w-full bg-background text-foreground">
         <SidebarProvider>
           <SidebarInset>
             <Story />
@@ -136,6 +141,180 @@ export const Default: Story = {
     // Row click wired selectedItem into the detail pane → the empty
     // placeholder ("No message selected") is replaced by the detail panel.
     await expect(canvas.queryByText('No message selected')).not.toBeInTheDocument()
+  },
+}
+
+const approvedProperties = [
+  { id: String(inboxTestIds.PROP), name: 'Hotel Elegance' },
+  {
+    id: 'prop-00000000-0000-0000-0000-000000000002',
+    name: 'Rila Grand Hotel',
+  },
+  {
+    id: 'prop-00000000-0000-0000-0000-000000000003',
+    name: 'Black Sea Residence',
+  },
+]
+
+const APPROVED_ITEM_ID = '10000000-0000-4000-8000-000000000101'
+const approvedItem: InboxItem = {
+  ...makeInboxItem({
+    id: APPROVED_ITEM_ID,
+    sourceType: 'review',
+    status: 'open',
+    rating: 4,
+  }),
+  reviewerName: 'gezgin tekniker',
+  propertyName: 'Hotel Elegance',
+  sourceDate: new Date('2026-08-19T07:07:00Z'),
+  snippet:
+    'Bulgaristanda nadir olarak gorulen Konforlu bir mekan ve konaklamada sabah kahvaltisi dahil',
+  contentAvailability: 'text',
+  reviewLanguageCode: 'tr-TR',
+  attention: 'low',
+}
+
+const approvedContainer = createInboxContainer()
+approvedContainer.seed([
+  {
+    ...makeInboxItem({
+      id: '10000000-0000-4000-8000-000000000102',
+      sourceType: 'review',
+      rating: 3,
+    }),
+    reviewerName: 'Тодор Василев',
+    propertyName: 'Rila Grand Hotel',
+    propertyId: propertyId(approvedProperties[1]!.id),
+    sourceDate: new Date('2026-08-22T09:35:00Z'),
+    snippet: null,
+    contentAvailability: 'rating_only',
+    reviewLanguageCode: 'bg-BG',
+  },
+  {
+    ...makeInboxItem({
+      id: '10000000-0000-4000-8000-000000000103',
+      sourceType: 'review',
+      rating: 5,
+    }),
+    reviewerName: 'Mumko Dzhunev',
+    propertyName: 'Black Sea Residence',
+    propertyId: propertyId(approvedProperties[2]!.id),
+    sourceDate: new Date('2026-08-21T15:10:00Z'),
+    snippet: null,
+    contentAvailability: 'rating_only',
+    reviewLanguageCode: 'bg-BG',
+  },
+  {
+    ...makeInboxItem({
+      id: '10000000-0000-4000-8000-000000000104',
+      sourceType: 'review',
+      rating: 5,
+    }),
+    reviewerName: 'Yozen Daud',
+    propertyName: 'Hotel Elegance',
+    sourceDate: new Date('2026-08-20T12:20:00Z'),
+    snippet: 'Прекрасен хотел и качествено обслужване.',
+    contentAvailability: 'text',
+    reviewLanguageCode: 'bg-BG',
+  },
+  approvedItem,
+])
+
+const approvedDetail: InboxItemDetailResult = {
+  item: approvedItem,
+  reviewText:
+    'Bulgaristanda nadir olarak gorulen Konforlu bir mekan ve konaklamada sabah kahvaltisi dahil',
+  reviewTranslatedText:
+    'A comfortable place to stay, rarely seen in Bulgaria, and includes breakfast.',
+  reviewerProfilePhotoUrl: null,
+  reviewContentStatus: 'available',
+  feedbackComment: null,
+  feedbackRatingValue: null,
+  propertyDefaultReplyLanguage: 'bg-Cyrl',
+  reviewReplyLanguage: 'tr-Latn-TR',
+  reply: {
+    id: replyId('10000000-0000-4000-8000-000000000201'),
+    reviewId: reviewId(String(approvedItem.sourceId)),
+    organizationId: inboxTestIds.ORG,
+    text: 'Благодарим Ви за чудесния отзив. Радваме се, че сте останали доволни от престоя и закуската. Ще се радваме да Ви посрещнем отново.',
+    replyLanguageTag: 'bg-Cyrl',
+    status: 'draft',
+    source: 'internal',
+    createdBy: userId('10000000-0000-4000-8000-000000000301'),
+    approvedBy: null,
+    rejectedBy: null,
+    rejectionReason: null,
+    aiGenerated: true,
+    stateRevision: 1,
+    submittedAt: null,
+    approvedAt: null,
+    publishedAt: null,
+    publicationState: null,
+    publicationAttempts: 0,
+    publicationLastErrorClass: null,
+    reconcileDueAt: null,
+    createdAt: new Date('2026-08-19T07:10:00Z'),
+    updatedAt: new Date('2026-08-19T07:10:00Z'),
+  },
+  analysis: {
+    status: 'ready',
+    sentiment: 'positive',
+    primaryCategory: 'service',
+    attention: 'low',
+    generatedAtEpochMillis: Date.parse('2026-08-19T07:08:00Z'),
+  },
+}
+
+const approvedFns: InboxServerFns = {
+  ...makeInboxFns(approvedContainer),
+  getInboxItemDetail: (async () =>
+    approvedDetail) as unknown as InboxServerFns['getInboxItemDetail'],
+  generateReplySuggestion: (async ({
+    data,
+  }: Parameters<NonNullable<InboxServerFns['generateReplySuggestion']>>[0]) => {
+    const useReviewLanguage = data.targetLanguage.kind === 'review_language'
+    return {
+      status: 'ready' as const,
+      replyText: useReviewLanguage
+        ? 'Güzel yorumunuz için teşekkür ederiz. Konaklamanızdan ve kahvaltımızdan memnun kalmanıza sevindik. Sizi yeniden ağırlamayı dört gözle bekliyoruz.'
+        : approvedDetail.reply!.text,
+      provenanceToken: 'storybook-signed-provenance',
+      expiresAtEpochMillis: Date.now() + 60_000,
+      baseReplyStateRevision: 1,
+      concreteLanguageTag: useReviewLanguage ? 'tr-Latn-TR' : 'bg-Cyrl',
+    }
+  }) as unknown as NonNullable<InboxServerFns['generateReplySuggestion']>,
+}
+
+/** Approved middle + detail panel direction with multi-property, language, and AI states. */
+export const ApprovedPanels: Story = {
+  parameters: {
+    theme: 'light',
+  },
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={approvedProperties}
+      inboxFns={approvedFns}
+      initialSearch={{ itemId: APPROVED_ITEM_ID }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.findAllByText('Hotel Elegance')).resolves.not.toHaveLength(0)
+    await expect(canvas.findByText('Rila Grand Hotel')).resolves.toBeVisible()
+    await expect(
+      canvas.findByRole('textbox', { name: 'Public reply' }),
+    ).resolves.toHaveValue(approvedDetail.reply!.text)
+    const languageSelect = await canvas.findByRole('combobox', {
+      name: 'Reply language',
+    })
+    await expect(languageSelect).toHaveTextContent(/property default/i)
+    await userEvent.click(languageSelect)
+    await expect(
+      screen.findByRole('option', { name: /review language · turkish/i }),
+    ).resolves.toBeVisible()
+    await userEvent.keyboard('{Escape}')
   },
 }
 

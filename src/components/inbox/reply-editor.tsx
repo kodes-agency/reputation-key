@@ -12,6 +12,8 @@ export type ReplyEditorProps = Readonly<{
   /** Reply from the detail payload (getInboxItemDetail); null if none / Staff. */
   initialReply: ReplyData | null
   loading: boolean
+  propertyDefaultReplyLanguage: string | null
+  reviewReplyLanguage: string | null
   /** Propagates reply mutations up so the owner can sync its cache. */
   onReplyChanged?: (reply: ReplyData | null) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
@@ -21,6 +23,8 @@ export function ReplyEditor({
   reviewId,
   initialReply,
   loading,
+  propertyDefaultReplyLanguage,
+  reviewReplyLanguage,
   onReplyChanged,
   generateReplySuggestion,
 }: ReplyEditorProps) {
@@ -37,6 +41,8 @@ export function ReplyEditor({
       reviewId={reviewId}
       reply={reply}
       loading={loading}
+      propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
+      reviewReplyLanguage={reviewReplyLanguage}
       onReplyChanged={handleChange}
       generateReplySuggestion={generateReplySuggestion}
     />

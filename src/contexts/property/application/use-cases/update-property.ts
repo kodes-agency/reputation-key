@@ -151,7 +151,16 @@ async function validateUpdateFields(
 
   const routing = resolveRoutingUpdate(existing, input.countryCode, now)
 
-  return { newName, newSlug, newTimezone, routing }
+  return {
+    newName,
+    newSlug,
+    newTimezone,
+    newDefaultReplyLanguage:
+      input.defaultReplyLanguage === undefined
+        ? existing.defaultReplyLanguage
+        : input.defaultReplyLanguage,
+    routing,
+  }
 }
 
 export const updateProperty =
@@ -187,6 +196,7 @@ export const updateProperty =
       fields.newName !== existing.name ||
       fields.newSlug !== existing.slug ||
       fields.newTimezone !== existing.timezone ||
+      fields.newDefaultReplyLanguage !== existing.defaultReplyLanguage ||
       fields.routing !== null
 
     if (!hasChanges) return existing
@@ -206,6 +216,7 @@ export const updateProperty =
         name: fields.newName,
         slug: fields.newSlug,
         timezone: fields.newTimezone,
+        defaultReplyLanguage: fields.newDefaultReplyLanguage,
         ...(fields.routing ?? {}),
         profileVersion: nextProfileVersion,
         sourceEpoch: nextSourceEpoch,
@@ -231,6 +242,7 @@ export const updateProperty =
       name: fields.newName,
       slug: fields.newSlug,
       timezone: fields.newTimezone,
+      defaultReplyLanguage: fields.newDefaultReplyLanguage,
       ...(fields.routing ?? {}),
       profileVersion: nextProfileVersion,
       sourceEpoch: nextSourceEpoch,

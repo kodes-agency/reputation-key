@@ -15,11 +15,17 @@ function disableAiContentCaching(): void {
   setResponseHeader('Expires', '0')
 }
 
-const generateReplySuggestionDto = z.object({
-  reviewId: z.uuid(),
-  tone: z.enum(['professional', 'friendly', 'casual']),
-  idempotencyKey: z.uuid(),
-})
+const generateReplySuggestionDto = z
+  .object({
+    reviewId: z.uuid(),
+    tone: z.enum(['professional', 'friendly', 'casual']),
+    targetLanguage: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('property_default') }).strict(),
+      z.object({ kind: z.literal('review_language') }).strict(),
+    ]),
+    idempotencyKey: z.uuid(),
+  })
+  .strict()
 
 export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
   .inputValidator(generateReplySuggestionDto)
@@ -53,6 +59,7 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
             reviewId: id,
             actorUserId: ctx.userId,
             tone: data.tone,
+            targetLanguage: data.targetLanguage,
             idempotencyKey: data.idempotencyKey,
             expectedSourceEpoch: review.sourceEpoch,
             expectedSourceRevision: review.sourceRevision,

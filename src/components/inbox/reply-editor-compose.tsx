@@ -1,130 +1,113 @@
-// Inbox detail — reply composer for empty and draft states
-
-import { Textarea } from '#/components/ui/textarea'
-import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
-import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
-import { ReplySuggestionControls } from './reply-suggestion-controls'
+import { Sparkles } from 'lucide-react'
 import {
-  useReplySuggestion,
-  type ReplySuggestionResult,
-  type ReplyTone,
-} from './use-reply-suggestion'
+  InputGroup,
+  InputGroupAddon,
+  InputGroupText,
+  InputGroupTextarea,
+} from '#/components/ui/input-group'
+import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
+import { ReplyComposerFooter } from './reply-composer-footer'
+import { ReplyLanguageSelect } from './reply-language-select'
+import { languageDisplayName, type ReplyLanguageTarget } from './reply-language-options'
+import { ReplySuggestionControls } from './reply-suggestion-controls'
+import { useReplyComposer } from './use-reply-composer'
+import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
 export type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
 export type ReplyComposeProps = Readonly<{
   initialText: string
+  initialLanguageTag: string | null
+  initialAiGenerated?: boolean
+  propertyDefaultReplyLanguage: string | null
+  reviewReplyLanguage: string | null
   isSaving: boolean
-  onSaveDraft: (text: string, provenanceToken?: string) => Promise<unknown>
-  onSubmit: (text: string, provenanceToken?: string) => Promise<unknown>
+  onSaveDraft: (
+    text: string,
+    provenanceToken?: string,
+    replyLanguageTag?: string,
+  ) => Promise<unknown>
+  onSubmit: () => Promise<unknown>
   onDelete?: () => Promise<unknown>
-  onGenerateSuggestion?: (tone: ReplyTone) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: (
+    tone: ReplyTone,
+    target: ReplyLanguageTarget,
+  ) => Promise<ReplySuggestionResult>
 }>
 
-export function ReplyCompose({
-  initialText,
-  isSaving,
-  onSaveDraft,
-  onSubmit,
-  onDelete,
-  onGenerateSuggestion,
-}: ReplyComposeProps) {
-  const suggestionState = useReplySuggestion({
-    initialText,
-    onSaveDraft,
-    onGenerateSuggestion,
+export function ReplyCompose(props: ReplyComposeProps) {
+  const state = useReplyComposer({
+    initialText: props.initialText,
+    initialLanguageTag: props.initialLanguageTag,
+    initialAiGenerated: props.initialAiGenerated ?? false,
+    propertyLanguage: props.propertyDefaultReplyLanguage,
+    reviewLanguage: props.reviewReplyLanguage,
+    onSaveDraft: props.onSaveDraft,
+    onSubmit: props.onSubmit,
+    onGenerate: props.onGenerateSuggestion,
   })
-  const {
-    text,
-    suggestion,
-    isAdopting,
-    suggestionError,
-    isUseDialogOpen,
-    clearSuggestion,
-    updateText,
-  } = suggestionState
-  const charCount = text.length
-  const isOverLimit = charCount > MAX_REPLY_LENGTH
-  const canAct = text.trim().length > 0 && !isOverLimit && !isSaving && !isAdopting
+  const busy = props.isSaving || state.ai.isGenerating
 
   return (
-    <div className="space-y-3 border-t pt-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="mr-auto text-sm font-medium">Reply</h2>
-        {onDelete && <Badge variant="secondary">Draft</Badge>}
-        {onGenerateSuggestion && (
-          <ReplySuggestionControls
-            tone={suggestionState.tone}
-            onToneChange={suggestionState.setTone}
-            suggestion={suggestion}
-            suggestionError={suggestionError}
-            isGenerating={suggestionState.isGenerating}
-            isSaving={isSaving}
-            isAdopting={isAdopting}
-            isUseDialogOpen={isUseDialogOpen}
-            onUseDialogOpenChange={suggestionState.setIsUseDialogOpen}
-            onRequest={suggestionState.requestSuggestion}
-            onOpenUseDialog={suggestionState.openUseDialog}
-            onAdopt={suggestionState.adoptSuggestion}
-            onDiscard={clearSuggestion}
-          />
-        )}
-      </div>
-
-      <Textarea
-        placeholder="Write a reply..."
-        value={text}
-        onChange={(event) => updateText(event.target.value)}
-        rows={4}
-        disabled={isSaving || isAdopting}
+    <div className="space-y-4">
+      <ReplyLanguageSelect
+        value={state.draft.languageTag}
+        options={state.options}
+        propertyLanguageTag={props.propertyDefaultReplyLanguage}
+        disabled={busy}
+        onChange={state.updateLanguage}
       />
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span
-          className={`text-xs ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}
-        >
-          {charCount}/{MAX_REPLY_LENGTH}
-        </span>
-        <div className="flex flex-wrap gap-2">
-          {onDelete && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={isSaving || isAdopting}
-              className="min-h-11"
-              onClick={async () => {
-                await onDelete()
-                clearSuggestion()
-              }}
-            >
-              Delete
-            </Button>
+      <InputGroup>
+        {state.hasAiDraft && (
+          <InputGroupAddon align="block-start">
+            <InputGroupText className="text-primary">
+              <Sparkles /> AI draft
+            </InputGroupText>
+          </InputGroupAddon>
+        )}
+        <InputGroupTextarea
+          aria-label="Public reply"
+          className="text-base leading-relaxed"
+          placeholder="Write a reply…"
+          value={state.draft.text}
+          rows={9}
+          aria-invalid={state.overLimit}
+          disabled={props.isSaving}
+          onChange={(event) => state.updateText(event.target.value)}
+          onBlur={state.flushOnBlur}
+        />
+        <InputGroupAddon align="block-end" className="flex-wrap gap-2 border-t">
+          {props.onGenerateSuggestion && (
+            <ReplySuggestionControls
+              tone={state.ai.tone}
+              disabled={busy || state.target === null}
+              isGenerating={state.ai.isGenerating}
+              hasAiDraft={state.hasAiDraft}
+              canUndo={state.historyCount > 0}
+              error={state.ai.error}
+              onToneChange={state.ai.setTone}
+              onRequest={state.ai.request}
+              onUndo={state.undo}
+            />
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="min-h-11"
-            disabled={!canAct}
-            onClick={async () => {
-              await onSaveDraft(text)
-              clearSuggestion()
-            }}
+          <span
+            className={`ml-auto text-xs ${state.overLimit ? 'text-destructive' : 'text-muted-foreground'}`}
           >
-            Save Draft
-          </Button>
-          <Button
-            size="sm"
-            className="min-h-11"
-            disabled={!canAct}
-            onClick={async () => {
-              await onSubmit(text)
-              clearSuggestion()
-            }}
-          >
-            Submit for Approval
-          </Button>
-        </div>
-      </div>
+            {state.draft.text.length}/{MAX_REPLY_LENGTH}
+          </span>
+        </InputGroupAddon>
+      </InputGroup>
+      <ReplyComposerFooter
+        status={state.autosave.status}
+        error={state.autosave.error ?? state.submitError}
+        languageName={languageDisplayName(state.draft.languageTag)}
+        canSubmit={state.canSubmit}
+        disabled={busy}
+        isSubmitting={props.isSaving}
+        onRetrySave={state.autosave.retry}
+        onSubmit={state.submit}
+        onDelete={props.onDelete}
+      />
     </div>
   )
 }

@@ -144,6 +144,7 @@ export type AiOutputStorePort = Readonly<{
     input: Readonly<{
       organizationId: OrganizationId
       propertyIds?: readonly PropertyId[]
+      reviewIds?: readonly ReviewId[]
       attention: readonly AiAnalysisDerivative['attention'][]
       nowEpochMillis: number
     }>,

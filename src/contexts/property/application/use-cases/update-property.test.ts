@@ -68,6 +68,50 @@ describe('updateProperty', () => {
     expect(updated.sourceEpoch).toBe(prop.sourceEpoch)
   })
 
+  it('updates the tenant-confirmed default reply language without changing profile generations', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ defaultReplyLanguage: null })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase(
+      { propertyId: prop.id, defaultReplyLanguage: 'bg-Cyrl' },
+      ctx,
+    )
+
+    expect(updated.defaultReplyLanguage).toBe('bg-Cyrl')
+    expect(updated.profileVersion).toBe(prop.profileVersion)
+    expect(updated.sourceEpoch).toBe(prop.sourceEpoch)
+  })
+
+  it('clears the default reply language only when null is submitted explicitly', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({ defaultReplyLanguage: 'tr-Latn' })
+    propertyRepo.seed([prop])
+
+    const cleared = await useCase(
+      { propertyId: prop.id, defaultReplyLanguage: null },
+      ctx,
+    )
+
+    expect(cleared.defaultReplyLanguage).toBeNull()
+  })
+
+  it('preserves the default reply language when the field is omitted', async () => {
+    const { useCase, propertyRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const prop = buildTestProperty({
+      name: 'Old Name',
+      defaultReplyLanguage: 'tr-Latn',
+    })
+    propertyRepo.seed([prop])
+
+    const updated = await useCase({ propertyId: prop.id, name: 'New Name' }, ctx)
+
+    expect(updated.defaultReplyLanguage).toBe('tr-Latn')
+  })
+
   it('rejects users who cannot edit', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })

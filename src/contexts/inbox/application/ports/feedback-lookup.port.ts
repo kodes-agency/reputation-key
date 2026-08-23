@@ -10,9 +10,23 @@ export type FeedbackSnippet = Readonly<{
   ratingValue: number | null
 }>
 
+export type FeedbackContentFilter = Readonly<{
+  ratingMin?: number
+  ratingMax?: number
+  textQuery?: string
+}>
+
 export type FeedbackLookupPort = Readonly<{
   getFeedbackSnippetById(
     id: FeedbackId,
     orgId: OrganizationId,
   ): Promise<FeedbackSnippet | null>
+  getFeedbackSnippetsByIds(
+    ids: ReadonlyArray<FeedbackId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyMap<string, FeedbackSnippet>>
+  findEligibleFeedbackIds(
+    orgId: OrganizationId,
+    filter: FeedbackContentFilter,
+  ): Promise<ReadonlyArray<FeedbackId>>
 }>

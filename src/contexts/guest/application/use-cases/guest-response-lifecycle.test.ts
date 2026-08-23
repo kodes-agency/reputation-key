@@ -47,6 +47,8 @@ function memoryRepo(): GuestResponseRepository & {
         ratingValue: row.responseConsent ? row.rating : null,
       }
     },
+    findSnippetsForOrg: async () => [],
+    findEligibleSnippetIdsForOrg: async () => [],
     insertSubmitted: async (response) => {
       if (
         responses.some(

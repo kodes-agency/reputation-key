@@ -1,100 +1,109 @@
-// Source content display — review text, feedback, or an honest unavailable
-// state when the source content is no longer eligible (BQC-1.2: raw copies
-// are never stored, so there is no snippet fallback).
 import { useState } from 'react'
+import { Separator } from '#/components/ui/separator'
 import { RatingStars } from './inbox-detail-helpers'
-import { formatDateTime } from './utils'
+import { languageDisplayName } from './reply-language-options'
+import { formatDate } from './utils'
 import type { InboxItem, InboxItemDetail } from '#/contexts/inbox/application/public-api'
 
 type Props = Readonly<{
   currentItem: InboxItem
   detail: InboxItemDetail | null
+  reviewReplyLanguage?: string | null
 }>
 
-export function InboxDetailSourceContent({ currentItem, detail }: Props) {
-  // FE-28 FIX: track img load failure for broken reviewer photo URLs
-  const [imgFailed, setImgFailed] = useState(false)
-
+function ReviewerAvatar({
+  name,
+  photoUrl,
+}: Readonly<{ name: string; photoUrl: string | null }>) {
+  const [failed, setFailed] = useState(false)
+  if (photoUrl && !failed) {
+    return (
+      <img
+        src={photoUrl}
+        alt=""
+        className="size-11 shrink-0 rounded-full object-cover"
+        onError={() => setFailed(true)}
+      />
+    )
+  }
   return (
-    <>
-      {currentItem.sourceType === 'review' && detail && (
-        <div className="space-y-3">
-          {detail.item.reviewerName && (
-            <div className="flex items-center gap-3">
-              {detail.reviewerProfilePhotoUrl && !imgFailed ? (
-                <img
-                  src={detail.reviewerProfilePhotoUrl}
-                  alt={detail.item.reviewerName}
-                  className="size-10 rounded-full object-cover"
-                  onError={() => setImgFailed(true)}
-                />
-              ) : (
-                <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                  <span className="text-sm font-medium">
-                    {detail.item.reviewerName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-              <div>
-                <p className="text-sm font-medium">{detail.item.reviewerName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDateTime(currentItem.sourceDate)}
-                </p>
-              </div>
-            </div>
-          )}
-          <RatingStars rating={currentItem.rating} />
-          {detail.reviewText && (
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                {detail.reviewText}
-              </p>
-              {detail.reviewTranslatedText && (
-                <div className="mt-3 border-t pt-3 text-muted-foreground">
-                  <p className="text-xs">Translated by Google</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
-                    {detail.reviewTranslatedText}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+    <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+      {name.charAt(0).toUpperCase()}
+    </span>
+  )
+}
+
+function UnavailableReview({ status }: Readonly<{ status: string | null }>) {
+  if (status !== 'expired' && status !== 'not_found') return null
+  return (
+    <p className="text-sm text-muted-foreground">
+      {status === 'expired'
+        ? 'Review content unavailable (source cache expired)'
+        : 'Review content unavailable'}
+    </p>
+  )
+}
+
+export function InboxDetailSourceContent({
+  currentItem,
+  detail,
+  reviewReplyLanguage,
+}: Props) {
+  if (!detail) return null
+  if (currentItem.sourceType === 'feedback') {
+    return (
+      <section aria-label="Guest feedback" className="space-y-3">
+        {detail.feedbackRatingValue !== null && (
+          <p className="text-sm font-medium">Rating {detail.feedbackRatingValue}</p>
+        )}
+        {detail.feedbackComment && (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+            {detail.feedbackComment}
+          </p>
+        )}
+      </section>
+    )
+  }
+
+  const reviewerName = detail.item.reviewerName ?? 'Anonymous guest'
+  const language = languageDisplayName(
+    reviewReplyLanguage ?? currentItem.reviewLanguageCode,
+  )
+  return (
+    <section aria-label="Guest review" className="space-y-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <ReviewerAvatar
+          key={detail.reviewerProfilePhotoUrl ?? reviewerName}
+          name={reviewerName}
+          photoUrl={detail.reviewerProfilePhotoUrl}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-semibold">{reviewerName}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <RatingStars rating={currentItem.rating} />
+            <span>{formatDate(currentItem.sourceDate)}</span>
+            {language && <span>Review language: {language}</span>}
+          </div>
         </div>
+      </div>
+
+      {detail.reviewText ? (
+        <p className="whitespace-pre-wrap text-base leading-relaxed">
+          {detail.reviewText}
+        </p>
+      ) : (
+        <UnavailableReview status={detail.reviewContentStatus} />
       )}
 
-      {currentItem.sourceType === 'feedback' && detail && (
-        <div className="space-y-3">
-          {detail.feedbackRatingValue !== null && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Rating:</span>
-              <span className="text-sm font-medium">{detail.feedbackRatingValue}</span>
-            </div>
-          )}
-          {detail.feedbackComment && (
-            <div className="rounded-md border bg-muted/30 p-3">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                {detail.feedbackComment}
-              </p>
-            </div>
-          )}
+      {detail.reviewText && detail.reviewTranslatedText && (
+        <div className="space-y-2 text-muted-foreground">
+          <Separator />
+          <p className="text-xs font-medium">Translated by Google</p>
+          <p className="whitespace-pre-wrap text-base leading-relaxed">
+            {detail.reviewTranslatedText}
+          </p>
         </div>
       )}
-
-      {currentItem.sourceType === 'review' &&
-        detail?.reviewContentStatus === 'expired' && (
-          <div className="rounded-md border bg-muted/30 p-3">
-            <p className="text-sm text-muted-foreground">
-              Review content unavailable (source cache expired)
-            </p>
-          </div>
-        )}
-
-      {currentItem.sourceType === 'review' &&
-        detail?.reviewContentStatus === 'not_found' && (
-          <div className="rounded-md border bg-muted/30 p-3">
-            <p className="text-sm text-muted-foreground">Review content unavailable</p>
-          </div>
-        )}
-    </>
+    </section>
   )
 }

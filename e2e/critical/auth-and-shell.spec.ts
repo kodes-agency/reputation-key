@@ -18,7 +18,7 @@ import { requireE2eSeedState } from '../helpers/seed-state'
  * Multiple "Inbox" headings can exist (sidebar + list header) — use .first(). */
 function inboxChrome(page: import('@playwright/test').Page) {
   return page
-    .getByRole('heading', { name: /^inbox$/i })
+    .getByRole('heading', { name: /^open reviews$/i })
     .or(page.getByText(/no message selected/i))
     .or(page.getByText(/no inbox items/i))
     .or(page.getByText(/new reviews and feedback will appear here/i))

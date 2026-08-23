@@ -122,6 +122,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
           target: [replies.reviewId, replies.source, replies.organizationId],
           set: {
             text: row.text,
+            replyLanguageTag: row.replyLanguageTag,
             status: row.status,
             approvedBy: row.approvedBy,
             rejectedBy: row.rejectedBy,

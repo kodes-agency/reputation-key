@@ -51,7 +51,7 @@ export const inboxItems = pgTable(
     index('inbox_items_org_source_date_idx').on(
       t.organizationId,
       t.sourceDate.desc(),
-      t.id,
+      t.id.desc(),
     ),
     index('inbox_items_org_property_idx').on(t.organizationId, t.propertyId),
     // Composite index for attention signal count queries (org + property + status)

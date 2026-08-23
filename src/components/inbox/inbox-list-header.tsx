@@ -1,125 +1,95 @@
-// Inbox list panel header — title, open count badge, and search bar.
-// Extracted from inbox-page-v2.tsx for max-lines compliance.
-// Per ADR 0023: no All/Unaddressed tabs (Open folder IS the working view).
+import type { ReactNode } from 'react'
 import { Menu, Search } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import { Input } from '#/components/ui/input'
+import { Button } from '#/components/ui/button'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/input-group'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { ReviewCategory } from '#/contexts/inbox/application/public-api'
-import { AI_CATEGORY_OPTIONS } from '#/shared/ai-category-labels'
+import type { InboxSort } from '#/contexts/inbox/application/public-api'
+import { InboxFilterPopover } from './inbox-filter-popover'
+import type { InboxListFilterValues } from './inbox-filters'
 
 type Props = Readonly<{
   folderLabel: string
-  openCount: number
+  totalCount: number
   searchQ: string | undefined
-  attention: 'urgent' | 'high' | 'medium' | 'low' | undefined
-  onAttentionChange: (attention: 'urgent' | 'high' | 'medium' | 'low' | undefined) => void
-  category: ReviewCategory | undefined
-  onCategoryChange: (category: ReviewCategory | undefined) => void
+  filters: InboxListFilterValues
+  sort: InboxSort
   onSearchChange: (q: string | undefined) => void
-  /** Opens the folder sidebar drawer (mobile only). */
+  onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
+  onSortChange: (sort: InboxSort) => void
   onOpenSidebar?: () => void
+  selectionToolbar?: ReactNode
 }>
 
 export function InboxListHeader({
   folderLabel,
-  openCount,
+  totalCount,
   searchQ,
-  attention,
-  onAttentionChange,
-  category,
-  onCategoryChange,
+  filters,
+  sort,
   onSearchChange,
+  onFiltersChange,
+  onSortChange,
   onOpenSidebar,
+  selectionToolbar,
 }: Props) {
   return (
-    <div className="shrink-0 border-b px-4 py-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          {onOpenSidebar && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="-ml-1 size-8 md:hidden"
-              onClick={onOpenSidebar}
-              aria-label="Open folders"
-            >
-              <Menu className="size-4" />
-            </Button>
-          )}
-          <h1 className="truncate text-lg font-semibold tracking-tight">{folderLabel}</h1>
-          {openCount > 0 && (
-            <Badge variant="secondary" className="text-xs tabular-nums">
-              {openCount} open
-            </Badge>
-          )}
-        </div>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
-          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search reviews..."
-            value={searchQ ?? ''}
-            onChange={(e) => onSearchChange(e.target.value || undefined)}
-            className="h-8 pl-8 text-sm"
-          />
-        </div>
-        <Select
-          value={attention ?? 'all'}
-          onValueChange={(value) =>
-            onAttentionChange(
-              value === 'all'
-                ? undefined
-                : (value as 'urgent' | 'high' | 'medium' | 'low'),
-            )
-          }
-        >
-          <SelectTrigger
-            size="sm"
-            aria-label="Filter by AI attention"
-            className="w-[112px] shrink-0"
+    <header className="shrink-0 border-b px-5 py-4">
+      <div className="flex min-w-0 items-center gap-3">
+        {onOpenSidebar && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-ml-2 md:hidden"
+            onClick={onOpenSidebar}
+            aria-label="Open folders"
           >
-            <SelectValue placeholder="Attention" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All signals</SelectItem>
-            <SelectItem value="urgent">Urgent</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={category ?? 'all'}
-          onValueChange={(value) =>
-            onCategoryChange(value === 'all' ? undefined : (value as ReviewCategory))
-          }
-        >
-          <SelectTrigger
-            size="sm"
-            aria-label="Filter by AI category"
-            className="w-[132px] shrink-0"
-          >
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All categories</SelectItem>
-            {AI_CATEGORY_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Menu />
+          </Button>
+        )}
+        <h1 className="truncate text-xl font-semibold tracking-tight">{folderLabel}</h1>
+        <Badge variant="secondary" className="tabular-nums">
+          {totalCount}
+        </Badge>
       </div>
-    </div>
+
+      {selectionToolbar ?? (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <InputGroup className="h-10 min-w-48 flex-1 basis-64">
+            <InputGroupInput
+              aria-label="Search reviews"
+              placeholder="Search reviews..."
+              value={searchQ ?? ''}
+              onChange={(event) => onSearchChange(event.target.value || undefined)}
+            />
+            <InputGroupAddon>
+              <Search aria-hidden="true" />
+            </InputGroupAddon>
+          </InputGroup>
+          <InboxFilterPopover value={filters} onChange={onFiltersChange} />
+          <Select
+            value={sort}
+            onValueChange={(value) => onSortChange(value as InboxSort)}
+          >
+            <SelectTrigger className="h-10 w-32" aria-label="Sort reviews">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectGroup>
+                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="oldest">Oldest</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </header>
   )
 }

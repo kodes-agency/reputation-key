@@ -38,6 +38,7 @@ export type ReplyView = Readonly<{
   reviewId: ReviewId
   organizationId: OrganizationId
   text: string
+  replyLanguageTag?: string | null
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null

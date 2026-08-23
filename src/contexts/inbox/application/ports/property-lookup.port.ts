@@ -9,6 +9,10 @@ export type PropertyLookupPort = Readonly<{
     propertyId: PropertyId,
     orgId: OrganizationId,
   ): Promise<string | null>
+  getPropertyReplyLanguageById?(
+    propertyId: PropertyId,
+    orgId: OrganizationId,
+  ): Promise<string | null>
   getPropertyNamesByIds(
     propertyIds: ReadonlyArray<PropertyId>,
     orgId: OrganizationId,

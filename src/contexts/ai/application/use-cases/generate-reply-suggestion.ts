@@ -7,6 +7,8 @@ import {
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
+  type ConcreteReplyLanguage,
   type EvaluatedReviewLanguage,
 } from '#/shared/ai-review-language-catalogue'
 import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
@@ -33,6 +35,7 @@ import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
+import type { PropertyReplyLanguagePort } from '../ports/property-reply-language.port'
 import type { AiExecutionBinding, AiOperationIdentity } from '../../domain/types'
 import {
   aiRequestFingerprint,
@@ -51,6 +54,8 @@ export type GenerateReplySuggestionInput = Readonly<{
   reviewId: ReviewId
   actorUserId: UserId
   tone: ReplyTone
+  targetLanguage:
+    Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
   idempotencyKey: string
   expectedSourceEpoch: number
   expectedSourceRevision: number
@@ -64,6 +69,7 @@ export type GenerateReplySuggestionResult =
       provenanceToken: string
       expiresAtEpochMillis: number
       baseReplyStateRevision: number
+      concreteLanguageTag: string
     }>
   | Readonly<{
       status: 'unavailable'
@@ -78,6 +84,9 @@ export type GenerateReplySuggestionResult =
         // Not enough text (or too little detector confidence) to decide which
         // language the review is in. Not the same as refusing a language.
         | 'language_undetermined'
+        // The property has no configured default, or the persisted value no
+        // longer resolves through the pinned concrete-language catalogue.
+        | 'target_language_unavailable'
         | 'policy_unavailable'
         | 'completed_without_delivery'
         | 'provider_unavailable'
@@ -93,6 +102,7 @@ export type GenerateReplySuggestionDependencies = Readonly<{
   quota: AiQuotaPort
   reviewSources: AiReviewSourcePort
   processingProfiles: PropertyProcessingProfilePort
+  propertyReplyLanguages: PropertyReplyLanguagePort
   resolveReplyLanguage(
     input: Readonly<{
       text: string
@@ -107,6 +117,19 @@ function unavailable(
   retryAfterEpochMillis: number | null = null,
 ): GenerateReplySuggestionResult {
   return { status: 'unavailable', code, retryAfterEpochMillis }
+}
+
+async function resolveTargetReplyLanguage(
+  dependencies: Pick<GenerateReplySuggestionDependencies, 'propertyReplyLanguages'>,
+  input: GenerateReplySuggestionInput,
+  reviewLanguage: ConcreteReplyLanguage,
+): Promise<ConcreteReplyLanguage | null> {
+  if (input.targetLanguage.kind === 'review_language') return reviewLanguage
+  const configured = await dependencies.propertyReplyLanguages.readDefaultReplyLanguage({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+  })
+  return configured === null ? null : parseCanonicalReplyLanguageTag(configured)
 }
 
 export function createGenerateReplySuggestion(
@@ -161,11 +184,11 @@ export function createGenerateReplySuggestion(
           : 'policy_unavailable',
       )
     }
-    const concreteLanguage = await dependencies.resolveReplyLanguage({
+    const reviewLanguage = await dependencies.resolveReplyLanguage({
       text: reviewText,
       evaluatedLanguage: evaluatedLanguage.language,
     })
-    if (concreteLanguage.status !== 'resolved') {
+    if (reviewLanguage.status !== 'resolved') {
       // The verifier already separates "cannot tell which language this is"
       // (MIN_REPLY_LANGUAGE_LETTERS_V1 / detector confidence) from "this
       // language has no templates". Only the second is an unsupported
@@ -173,12 +196,20 @@ export function createGenerateReplySuggestion(
       // computed and reported a five-character review as a language we refuse
       // to serve.
       return unavailable(
-        concreteLanguage.status !== 'language_not_supported'
+        reviewLanguage.status !== 'language_not_supported'
           ? 'policy_unavailable'
-          : concreteLanguage.reason === 'insufficient_language_evidence'
+          : reviewLanguage.reason === 'insufficient_language_evidence'
             ? 'language_undetermined'
             : 'language_not_supported',
       )
+    }
+    const targetReplyLanguage = await resolveTargetReplyLanguage(
+      dependencies,
+      input,
+      reviewLanguage.language,
+    )
+    if (targetReplyLanguage === null) {
+      return unavailable('target_language_unavailable')
     }
     const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
       providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
@@ -222,7 +253,7 @@ export function createGenerateReplySuggestion(
       },
       sourceEpoch: input.expectedSourceEpoch,
       evaluatedLanguage: evaluatedLanguage.language.group,
-      concreteReplyLanguage: concreteLanguage.language,
+      concreteReplyLanguage: targetReplyLanguage,
       languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
       replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
       languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
@@ -392,6 +423,7 @@ export function createGenerateReplySuggestion(
         provenanceToken: response.result.provenanceToken,
         expiresAtEpochMillis: response.result.expiresAtEpochMillis,
         baseReplyStateRevision,
+        concreteLanguageTag: targetReplyLanguage.tag,
       }
     } finally {
       await dependencies.quota.release({ quotaId: quota.quotaId })

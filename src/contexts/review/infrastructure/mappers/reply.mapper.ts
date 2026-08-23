@@ -5,7 +5,8 @@ import type { replies } from '#/shared/db/schema/review.schema'
 import type { Reply } from '../../domain/types'
 import { unbrand, replyId, reviewId, organizationId, userId } from '#/shared/domain/ids'
 
-type ReplyRow = typeof replies.$inferSelect
+type ReplyRow = Omit<typeof replies.$inferSelect, 'replyLanguageTag'> &
+  Readonly<{ replyLanguageTag?: string | null }>
 type ReplyInsertRow = typeof replies.$inferInsert
 
 export const replyFromRow = (row: ReplyRow): Reply => ({
@@ -13,6 +14,7 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   reviewId: reviewId(row.reviewId),
   organizationId: organizationId(row.organizationId),
   text: row.text,
+  replyLanguageTag: row.replyLanguageTag ?? null,
   status: row.status as Reply['status'],
   source: row.source as Reply['source'],
   createdBy: row.createdBy ? userId(row.createdBy) : null,
@@ -40,6 +42,7 @@ export const replyToRow = (
   reviewId: unbrand(reply.reviewId),
   organizationId: unbrand(reply.organizationId),
   text: reply.text,
+  replyLanguageTag: reply.replyLanguageTag ?? null,
   status: reply.status,
   source: reply.source,
   createdBy: reply.createdBy != null ? unbrand(reply.createdBy) : null,

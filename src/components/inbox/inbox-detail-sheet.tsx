@@ -8,10 +8,8 @@ import {
 } from '#/components/ui/sheet'
 import { Skeleton } from '#/components/ui/skeleton'
 import { InboxDetailContent } from './inbox-detail-content'
-import { MessageSquare } from 'lucide-react'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
-import { getStatusActions } from './inbox-detail-helpers'
-import { InboxStatusBadge } from './inbox-status-badge'
+import { InboxDetailHeader } from './inbox-detail-header'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxDetailFns } from './types'
 import { Button } from '#/components/ui/button'
@@ -34,30 +32,27 @@ export function InboxDetailSheet({
   if (!item) return null
 
   const currentItem = detailState.currentItem ?? item
-  const statusActions = getStatusActions(currentItem.status)
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        showCloseButton={false}
         className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-lg"
       >
-        <SheetHeader className="border-b pb-4">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="size-4 text-muted-foreground" />
-            <SheetTitle className="text-base">
-              {currentItem.sourceType === 'review' ? 'Review' : 'Feedback'} Detail
-            </SheetTitle>
-            <InboxStatusBadge
-              status={currentItem.status}
-              isEscalated={currentItem.isEscalated}
-              escalationResolvedAt={currentItem.escalationResolvedAt}
-            />
-          </div>
+        <SheetHeader className="sr-only">
+          <SheetTitle>
+            {currentItem.sourceType === 'review' ? 'Review' : 'Feedback'} detail
+          </SheetTitle>
           <SheetDescription className="sr-only">
             Detail view for inbox item {currentItem.id}
           </SheetDescription>
         </SheetHeader>
+        <InboxDetailHeader
+          item={currentItem}
+          detail={detailState.detail}
+          detailState={detailState}
+          onClose={() => onOpenChange(false)}
+        />
 
         {detailState.error ? (
           <div className="space-y-4 p-4">
@@ -76,10 +71,6 @@ export function InboxDetailSheet({
           <InboxDetailContent
             currentItem={detailState.currentItem}
             detail={detailState.detail}
-            statusActions={statusActions}
-            updateStatus={detailState.updateStatus}
-            escalate={detailState.escalate}
-            resolveEscalation={detailState.resolveEscalation}
             notes={detailState.notes}
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}

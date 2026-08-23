@@ -32,9 +32,15 @@ export type InboxItem = Readonly<{
   sourceDate: Date
   platform: string | null
   snippet: string | null
+  /** Governed list-content state. Absent on unenriched command/detail reads. */
+  contentAvailability?: 'text' | 'rating_only' | 'unavailable'
   assignedTo: UserId | null
   reviewerName: string | null
   propertyName: string | null
+  /** Live review-language metadata; null for feedback or unavailable content. */
+  reviewLanguageCode?: string | null
+  /** Current governed AI attention. Null means unavailable or not enriched. */
+  attention?: 'urgent' | 'high' | 'medium' | 'low' | null
   closedAt: Date | null
   firstReplySubmittedAt: Date | null
   firstReplyPublishedAt: Date | null

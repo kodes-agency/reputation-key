@@ -11,6 +11,7 @@ import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 export type ConditionalReplyUpdate = Readonly<{
   status?: ReplyStatus
   text?: string
+  replyLanguageTag?: string | null
   aiGenerated?: boolean
   submittedAt?: Date | null
   approvedBy?: string | null

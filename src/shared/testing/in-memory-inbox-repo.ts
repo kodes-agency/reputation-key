@@ -1,10 +1,15 @@
 // Shared testing utility — in-memory inbox repository for unit tests
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
+import type { ReviewCategory } from '#/contexts/inbox/application/ports/ai-review-insights.port'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { unbrandAll } from '#/shared/domain/ids'
 
-export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[] } {
+export function createInMemoryInboxRepo(): InboxRepository & {
+  items: InboxItem[]
+  categories: Map<string, ReviewCategory>
+} {
   const items: InboxItem[] = []
+  const categories = new Map<string, ReviewCategory>()
   const repo: InboxRepository = {
     findById: async (id, orgId) =>
       items.find((i) => i.id === id && i.organizationId === orgId) ?? null,
@@ -33,17 +38,44 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
         filtered = filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
       if (filters.sourceType)
         filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      if (filters.platform)
+        filtered = filtered.filter((i) => i.platform === filters.platform)
+      if (filters.ratingMin !== undefined)
+        filtered = filtered.filter(
+          (i) => i.rating !== null && i.rating >= filters.ratingMin!,
+        )
+      if (filters.ratingMax !== undefined)
+        filtered = filtered.filter(
+          (i) => i.rating !== null && i.rating <= filters.ratingMax!,
+        )
+      if (filters.q) {
+        const query = filters.q.toLocaleLowerCase()
+        filtered = filtered.filter((i) =>
+          (i.snippet ?? '').toLocaleLowerCase().includes(query),
+        )
+      }
+      if (filters.attention?.length)
+        filtered = filtered.filter(
+          (i) => i.attention !== null && filters.attention!.includes(i.attention!),
+        )
+      if (filters.category?.length)
+        filtered = filtered.filter((item) => {
+          const category = categories.get(item.id)
+          return category !== undefined && filters.category!.includes(category)
+        })
       if (filters.isEscalated !== undefined)
         filtered = filtered.filter((i) =>
           filters.isEscalated
             ? i.isEscalated && i.escalationResolvedAt === null
             : !i.isEscalated,
         )
+      const direction = filters.sort === 'oldest' ? 1 : -1
       filtered.sort(
         (a, b) =>
-          b.sourceDate.getTime() - a.sourceDate.getTime() ||
-          (b.id as string).localeCompare(a.id as string),
+          direction * (a.sourceDate.getTime() - b.sourceDate.getTime()) ||
+          direction * (a.id as string).localeCompare(b.id as string),
       )
+      const totalCount = filtered.length
       if (cursor) {
         const idx = filtered.findIndex(
           (i) =>
@@ -59,6 +91,7 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       return {
         items: sliced,
         nextCursor: hasMore && last ? { sourceDate: last.sourceDate, id: last.id } : null,
+        totalCount,
       }
     },
     create: async (item) => {
@@ -205,5 +238,5 @@ export function createInMemoryInboxRepo(): InboxRepository & { items: InboxItem[
       }
     },
   }
-  return { ...repo, items }
+  return { ...repo, items, categories }
 }

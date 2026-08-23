@@ -6,6 +6,7 @@ import { encodeCanonicalAiReviewSource } from '../../src/shared/ai-review-source
 import {
   LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
   type ConcreteReplyLanguage,
   type EvaluatedReviewLanguage,
 } from '../../src/shared/ai-review-language-catalogue'
@@ -199,7 +200,7 @@ function languageFor(
     throw new GatewayPreparationError('policy_unavailable')
   if (
     request.binding.languageCatalogueDigest !== LANGUAGE_CATALOGUE_DIGEST ||
-    request.binding.evaluatedLanguage !== mapped.language.tag
+    request.binding.evaluatedLanguage !== mapped.language.group
   )
     throw new GatewayPreparationError('policy_unavailable')
   return mapped.language
@@ -338,12 +339,20 @@ export function createAiGatewayRoutePreparer(
           if (resolved.status !== 'resolved') {
             throw new GatewayPreparationError('policy_unavailable')
           }
-          const concrete = resolved.language
+          // Source language and reply target are separate governed facts. The
+          // source still passes the pinned detector + metadata consistency
+          // check above, while the target is the canonical language admitted
+          // in the operation binding by the tenant-scoped application use case.
+          const admittedTarget = request.binding.concreteReplyLanguage
+          const concrete =
+            admittedTarget === null
+              ? null
+              : parseCanonicalReplyLanguageTag(admittedTarget.tag)
           if (
-            request.binding.concreteReplyLanguage?.tag !== concrete.tag ||
-            request.binding.concreteReplyLanguage.templateGroup !== concrete.templateGroup
+            concrete === null ||
+            concrete.templateGroup !== admittedTarget?.templateGroup
           )
-            throw new GatewayPreparationError('language_not_supported')
+            throw new GatewayPreparationError('policy_unavailable')
           if (
             request.binding.replyTemplateCatalogueVersion !==
               AI_REPLY_TEMPLATE_CATALOGUE_VERSION ||

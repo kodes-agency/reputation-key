@@ -117,7 +117,11 @@ const setup = (
   const repo: InboxRepository = {
     findById: async () => null,
     findBySource: async () => null,
-    findFilteredPaginated: async () => ({ items: [], nextCursor: null }),
+    findFilteredPaginated: async () => ({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+    }),
     create: async (item) => item,
     updateStatus: async () => storedDetail!.item,
     bulkUpdateStatus: async () => ({ updated: 0 }),

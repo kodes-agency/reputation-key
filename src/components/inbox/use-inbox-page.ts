@@ -9,6 +9,8 @@ import type { InboxSearchParams } from './inbox-search-schema'
 import { folderToStatus, folderIsEscalated } from './inbox-search-schema'
 import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
+import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
+import { toggleInboxSelection } from './inbox-selection'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -35,6 +37,7 @@ export function useInboxPage(
       attention: rest.attention ?? undefined,
       category: rest.category ?? undefined,
       q: rest.q ?? undefined,
+      sort: rest.sort ?? 'newest',
     }),
     [
       rest.propertyId,
@@ -45,6 +48,7 @@ export function useInboxPage(
       rest.attention,
       rest.category,
       rest.q,
+      rest.sort,
       folder,
     ],
   )
@@ -52,6 +56,7 @@ export function useInboxPage(
   const {
     items,
     nextCursor,
+    totalCount,
     isLoading,
     error,
     selectedIds,
@@ -90,18 +95,12 @@ export function useInboxPage(
     closeDetail,
   })
 
-  const openCount = useMemo(
-    () => items.filter((i) => i.status === 'open').length,
-    [items],
-  )
-
   const handleToggleSelect = useCallback(
-    (id: string) =>
-      setSelectedIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])),
+    (id: string) => setSelectedIds((previous) => toggleInboxSelection(previous, id)),
     [setSelectedIds],
   )
   const handleSelectAll = useCallback(
-    () => setSelectedIds(items.map((i) => i.id)),
+    () => setSelectedIds(items.slice(0, INBOX_BULK_LIMIT).map((i) => i.id)),
     [items, setSelectedIds],
   )
   const handleDeselectAll = useCallback(() => setSelectedIds([]), [setSelectedIds])
@@ -113,6 +112,7 @@ export function useInboxPage(
     filters,
     items,
     nextCursor,
+    totalCount,
     isLoading,
     error,
     selectedIds,
@@ -125,7 +125,6 @@ export function useInboxPage(
     handleBulkDone,
     selectedItem,
     detailState,
-    openCount,
     handleToggleSelect,
     handleSelectAll,
     handleDeselectAll,

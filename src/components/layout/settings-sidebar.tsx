@@ -88,7 +88,7 @@ export function SettingsSidebar() {
       ? [
           {
             key: 'ai',
-            label: 'AI data use',
+            label: 'AI & replies',
             icon: BrainCircuit,
             href: '/settings/ai',
           },

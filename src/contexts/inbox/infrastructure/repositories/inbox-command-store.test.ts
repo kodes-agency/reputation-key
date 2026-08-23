@@ -85,6 +85,8 @@ const stubPorts = {
   } satisfies ReviewLookupPort,
   feedbackLookup: {
     getFeedbackSnippetById: async () => null,
+    getFeedbackSnippetsByIds: async () => new Map(),
+    findEligibleFeedbackIds: async () => [],
   } satisfies FeedbackLookupPort,
   propertyLookup: {
     getPropertyNameById: async () => null,

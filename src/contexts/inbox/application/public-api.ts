@@ -16,7 +16,8 @@ export type {
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
 export type { InboxError, InboxErrorCode } from '../domain/errors'
 export { isInboxError } from '../domain/errors'
-export type { Cursor } from './ports/inbox.repository'
+export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
+export type { Cursor, InboxSort } from './ports/inbox.repository'
 export type {
   InboxReviewAnalysis,
   ReviewAttention,

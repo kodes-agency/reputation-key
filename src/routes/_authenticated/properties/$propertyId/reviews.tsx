@@ -4,7 +4,11 @@ import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { InboxPageV2, inboxSearchSchema } from '#/components/inbox/inbox-page-v2'
+import { InboxPageV2 } from '#/components/inbox/inbox-page-v2'
+import {
+  inboxSearchObjectSchema,
+  normalizeInboxRatingPreset,
+} from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 
@@ -12,7 +16,9 @@ const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
 
 // Reviews route excludes propertyId from search — it's in the URL path.
-const reviewsSearchSchema = inboxSearchSchema.omit({ propertyId: true })
+const reviewsSearchSchema = inboxSearchObjectSchema
+  .omit({ propertyId: true })
+  .transform(normalizeInboxRatingPreset)
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/reviews')({
   beforeLoad: ({ context }) => {

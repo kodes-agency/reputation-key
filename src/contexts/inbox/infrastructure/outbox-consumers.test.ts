@@ -92,6 +92,7 @@ const AVAILABLE_SNIPPET: ReviewSnippetResult = {
     reviewerName: 'Jane',
     reviewerProfilePhotoUrl: null,
     rating: 4,
+    languageCode: 'en',
   },
 }
 

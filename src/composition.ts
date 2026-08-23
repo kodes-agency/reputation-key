@@ -104,7 +104,7 @@ import {
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { feedbackId, organizationId, propertyId } from '#/shared/domain/ids'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
@@ -1219,6 +1219,10 @@ export function createContainer(options?: {
     db,
     redis,
     reviewSources: review.internal.aiReviewSource,
+    propertyReplyLanguages: {
+      readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
+        property.publicApi.getPropertyReplyLanguage(orgId, pid),
+    },
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
     enqueuePropertyTrend: infra.jobQueue
@@ -1273,12 +1277,21 @@ export function createContainer(options?: {
       // aggregate read is what makes a new feedback inbox item render at all —
       // the legacy lookup cannot resolve that id.
       feedback: {
-        findResponseSnippetById: (id, orgId) =>
-          guest.internal.repos.guestResponseRepo.findSnippetForOrg(orgId, id),
-        findFeedbackById: (id, orgId) =>
-          guest.internal.repos.guestRepo.findFeedbackById(id, orgId),
-        findRatingById: (id, orgId) =>
-          guest.internal.repos.guestRepo.findRatingById(id, orgId),
+        findResponseSnippetsByIds: async (ids, orgId) =>
+          (
+            await guest.internal.repos.guestResponseRepo.findSnippetsForOrg(orgId, ids)
+          ).map((row) => ({ ...row, id: feedbackId(row.id) })),
+        findEligibleResponseIds: async (orgId, filter) =>
+          (
+            await guest.internal.repos.guestResponseRepo.findEligibleSnippetIdsForOrg(
+              orgId,
+              filter,
+            )
+          ).map(feedbackId),
+        findLegacyFeedbackSnippetsByIds: (ids, orgId) =>
+          guest.internal.repos.guestRepo.findFeedbackSnippetsByIds(ids, orgId),
+        findEligibleLegacyFeedbackIds: (orgId, filter) =>
+          guest.internal.repos.guestRepo.findEligibleFeedbackIds(orgId, filter),
       },
       property: property.publicApi,
       reply: review.internal.repos.replyRepo,

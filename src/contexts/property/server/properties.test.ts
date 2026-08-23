@@ -211,6 +211,34 @@ describe('updateProperty input validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it('accepts a supported canonical reply language or an explicit clear', () => {
+    for (const defaultReplyLanguage of ['bg-Cyrl', 'bg-Cyrl-BG']) {
+      expect(
+        updatePropertyInputSchema.safeParse({
+          propertyId: 'abc-123',
+          defaultReplyLanguage,
+        }).success,
+      ).toBe(true)
+    }
+    expect(
+      updatePropertyInputSchema.safeParse({
+        propertyId: 'abc-123',
+        defaultReplyLanguage: null,
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects inferred-looking or unsupported reply-language values', () => {
+    for (const defaultReplyLanguage of ['bg', 'BG', 'xx-Latn', 'bg-Cyrl-XX']) {
+      expect(
+        updatePropertyInputSchema.safeParse({
+          propertyId: 'abc-123',
+          defaultReplyLanguage,
+        }).success,
+      ).toBe(false)
+    }
+  })
+
   it('rejects update without propertyId', () => {
     const result = updatePropertyInputSchema.safeParse({
       name: 'Test',

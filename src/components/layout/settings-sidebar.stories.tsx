@@ -1,8 +1,8 @@
 // Storybook stories for SettingsSidebar — the ONLY sidebar that gates its own
 // items off usePermissions(). `organization.update`, `member.list`,
-// `badge.manage`, and `integration.manage` each conditionally render a nav
+// `badge.manage`, `ai.manage`, and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
-//   - AccountAdmin (owner) / PropertyManager (admin): all 8 items render —
+//   - AccountAdmin (owner) / PropertyManager (admin): all 9 items render —
 //     both roles hold every gated statement.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
@@ -48,6 +48,7 @@ export const AsAccountAdmin: Story = {
     expect(canvas.getByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
   },
 }
@@ -62,6 +63,7 @@ export const AsPropertyManager: Story = {
     expect(await canvas.findByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
   },
 }
@@ -81,6 +83,7 @@ export const AsStaff: Story = {
     expect(canvas.queryByText(/^organization$/i)).toBeNull()
     expect(canvas.queryByText(/^members$/i)).toBeNull()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()
+    expect(canvas.queryByText(/^ai & replies$/i)).toBeNull()
     expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }

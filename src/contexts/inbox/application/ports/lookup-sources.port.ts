@@ -9,37 +9,49 @@ import type {
   FeedbackId,
   OrganizationId,
   PropertyId,
-  RatingId,
   ReviewId,
 } from '#/shared/domain/ids'
 import type { ReplyView } from './reply-lookup.port'
+import type { FeedbackContentFilter } from './feedback-lookup.port'
 
 /**
  * Guest-owned feedback/rating reads.
  *
  * Two storage generations, in precedence order:
- *  - `findResponseSnippetById` reads the CURRENT `guest_responses` aggregate,
+ *  - `findResponseSnippetsByIds` reads the CURRENT `guest_responses` aggregate,
  *    which holds the rating and the text on one row. This is what the live
  *    guest form writes, so every new feedback inbox item resolves here.
- *  - `findFeedbackById` + `findRatingById` read the LEGACY `feedback`/`ratings`
- *    tables, kept so inbox items created before the aggregate still render.
+ *  - `findLegacyFeedbackSnippetsByIds` reads the LEGACY `feedback`/`ratings`
+ *    pair, kept so inbox items created before the aggregate still render.
  *
  * The adapter tries the aggregate first and falls back; an id can only exist in
  * one generation, so there is no ambiguity.
  */
 export type FeedbackLookupSource = Readonly<{
-  findResponseSnippetById: (
-    id: FeedbackId,
+  findResponseSnippetsByIds: (
+    ids: ReadonlyArray<FeedbackId>,
     orgId: OrganizationId,
-  ) => Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
-  findFeedbackById: (
-    id: FeedbackId,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{ id: FeedbackId; comment: string | null; ratingValue: number | null }>
+    >
+  >
+  findEligibleResponseIds: (
     orgId: OrganizationId,
-  ) => Promise<Readonly<{ comment: string; ratingId: RatingId | null }> | null>
-  findRatingById: (
-    id: RatingId,
+    filter: FeedbackContentFilter,
+  ) => Promise<ReadonlyArray<FeedbackId>>
+  findLegacyFeedbackSnippetsByIds: (
+    ids: ReadonlyArray<FeedbackId>,
     orgId: OrganizationId,
-  ) => Promise<Readonly<{ value: number }> | null>
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{ id: FeedbackId; comment: string | null; ratingValue: number | null }>
+    >
+  >
+  findEligibleLegacyFeedbackIds: (
+    orgId: OrganizationId,
+    filter: FeedbackContentFilter,
+  ) => Promise<ReadonlyArray<FeedbackId>>
 }>
 
 /** Property-owned name reads (satisfied by the property public API). */
@@ -52,6 +64,11 @@ export type PropertyLookupSource = Readonly<{
     orgId: OrganizationId,
     propertyIds: ReadonlyArray<PropertyId>,
   ) => Promise<ReadonlyArray<Readonly<{ id: string; name: string | null }>>>
+  /** Optional for legacy source fixtures; the adapter normalizes absence to null. */
+  getPropertyReplyLanguage?: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<string | null>
 }>
 
 /** Review-owned reply reads (satisfied by the reply repository). */

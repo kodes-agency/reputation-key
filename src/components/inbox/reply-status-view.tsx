@@ -1,21 +1,14 @@
 // Inbox detail — reply status view selection (extracted from reply-form.tsx
 // to keep both files under the max-lines budget).
 
-import { useState } from 'react'
 import type { getReplyFn } from '#/contexts/review/server/reply'
 import { ReplyCompose } from './reply-editor-compose'
-import {
-  ReviewReplyApproved,
-  ReviewReplyPublished,
-  ReviewReplyPublishedEditor,
-  ReviewReplyMirror,
-} from './reply-editor-views'
-import {
-  ReplyPendingApproval,
-  ReplyPublishFailed,
-  ReviewReplyRejected,
-} from './reply-editor-actions'
+import { ReviewReplyApproved, ReviewReplyMirror } from './reply-editor-views'
+import { ReplyPendingApproval, ReplyPublishFailed } from './reply-editor-actions'
+import { ReplyRejectedWithEdit } from './reply-rejected-edit'
+import { ReplyPublishedWithEdit } from './reply-published-edit'
 import type { ReplyTone, ReplySuggestionResult } from './reply-editor-compose'
+import type { ReplyLanguageTarget } from './reply-language-options'
 
 export type ReplyData = Awaited<ReturnType<typeof getReplyFn>>
 
@@ -46,20 +39,31 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
 type ReplyStatusViewProps = Readonly<{
   view: ResolvedReplyView
   isSaving: boolean
-  onSaveDraft: (text: string, provenanceToken?: string) => Promise<unknown>
-  onSubmitReply: (text: string, provenanceToken?: string) => Promise<unknown>
+  propertyDefaultReplyLanguage: string | null
+  reviewReplyLanguage: string | null
+  onSaveDraft: (
+    text: string,
+    provenanceToken?: string,
+    replyLanguageTag?: string,
+  ) => Promise<unknown>
+  onSubmitReply: () => Promise<unknown>
   onDeleteDraft: (() => Promise<unknown>) | undefined
   onApprove: () => Promise<unknown>
   onReject: (reason?: string) => Promise<unknown>
   onRetry: () => Promise<unknown>
   onSaveEdit: (text: string) => Promise<unknown>
-  onGenerateSuggestion?: (tone: ReplyTone) => Promise<ReplySuggestionResult>
+  onGenerateSuggestion?: (
+    tone: ReplyTone,
+    target: ReplyLanguageTarget,
+  ) => Promise<ReplySuggestionResult>
 }>
 
 /** Renders the reply in its current state (compose / read-only status views). */
 export function ReplyStatusView({
   view,
   isSaving,
+  propertyDefaultReplyLanguage,
+  reviewReplyLanguage,
   onSaveDraft,
   onSubmitReply,
   onDeleteDraft,
@@ -69,11 +73,18 @@ export function ReplyStatusView({
   onSaveEdit,
   onGenerateSuggestion,
 }: ReplyStatusViewProps) {
+  const languageProps = {
+    propertyDefaultReplyLanguage,
+    reviewReplyLanguage,
+  }
   switch (view.kind) {
     case 'compose':
       return (
         <ReplyCompose
           initialText={view.reply?.text ?? ''}
+          initialLanguageTag={view.reply?.replyLanguageTag ?? null}
+          initialAiGenerated={view.reply?.aiGenerated ?? false}
+          {...languageProps}
           isSaving={isSaving}
           onSaveDraft={onSaveDraft}
           onSubmit={onSubmitReply}
@@ -96,7 +107,7 @@ export function ReplyStatusView({
       return <ReviewReplyMirror reply={view.reply} />
     case 'published':
       return (
-        <PublishedWithEdit
+        <ReplyPublishedWithEdit
           reply={view.reply}
           isSaving={isSaving}
           onSaveEdit={onSaveEdit}
@@ -108,40 +119,17 @@ export function ReplyStatusView({
       )
     case 'rejected':
       return (
-        <ReviewReplyRejected
+        <ReplyRejectedWithEdit
           reply={view.reply}
           isSaving={isSaving}
-          onEditResubmit={() => {}}
+          {...languageProps}
+          onSaveDraft={onSaveDraft}
+          onSubmitReply={onSubmitReply}
+          onDeleteDraft={onDeleteDraft}
+          onGenerateSuggestion={onGenerateSuggestion}
         />
       )
     case 'none':
       return null
   }
-}
-
-/** Published reply with an inline edit mode (edit-and-republish). */
-function PublishedWithEdit({
-  reply,
-  isSaving,
-  onSaveEdit,
-}: Readonly<{
-  reply: NonNullable<ReplyData>
-  isSaving: boolean
-  onSaveEdit: (text: string) => Promise<unknown>
-}>) {
-  const [editing, setEditing] = useState(false)
-  if (!editing) {
-    return <ReviewReplyPublished reply={reply} onEdit={() => setEditing(true)} />
-  }
-  return (
-    <ReviewReplyPublishedEditor
-      reply={reply}
-      isSaving={isSaving}
-      onSave={async (text) => {
-        await onSaveEdit(text)
-        setEditing(false)
-      }}
-      onCancel={() => setEditing(false)}
-    />
-  )
 }

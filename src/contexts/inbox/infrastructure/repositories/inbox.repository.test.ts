@@ -46,6 +46,8 @@ const stubPorts = {
   } satisfies ReviewLookupPort,
   feedbackLookup: {
     getFeedbackSnippetById: async () => null,
+    getFeedbackSnippetsByIds: async () => new Map(),
+    findEligibleFeedbackIds: async () => [],
   } satisfies FeedbackLookupPort,
   propertyLookup: {
     getPropertyNameById: async () => null,
@@ -358,12 +360,85 @@ describe('inbox repository — pagination', () => {
     // Request first 3
     const result = await repo.findFilteredPaginated({}, ORG_A, undefined, 3)
     expect(result.items).toHaveLength(3)
+    expect(result.totalCount).toBe(5)
     expect(result.nextCursor).not.toBeNull()
 
     // Request next page
     const page2 = await repo.findFilteredPaginated({}, ORG_A, result.nextCursor!, 3)
     expect(page2.items).toHaveLength(2)
+    expect(page2.totalCount).toBe(5)
     expect(page2.nextCursor).toBeNull()
+  })
+
+  it('supports oldest-first keyset pagination', async () => {
+    for (let i = 0; i < 3; i++) {
+      await repo.create(
+        makeInboxItem({
+          sourceId: reviewId(crypto.randomUUID()),
+          sourceDate: new Date(Date.UTC(2026, 0, i + 1)),
+        }),
+        ORG_A,
+      )
+    }
+
+    const page1 = await repo.findFilteredPaginated(
+      { sort: 'oldest' },
+      ORG_A,
+      undefined,
+      2,
+    )
+    const page2 = await repo.findFilteredPaginated(
+      { sort: 'oldest' },
+      ORG_A,
+      page1.nextCursor!,
+      2,
+    )
+
+    expect(page1.items.map((item) => item.sourceDate.toISOString())).toEqual([
+      '2026-01-01T00:00:00.000Z',
+      '2026-01-02T00:00:00.000Z',
+    ])
+    expect(page2.items[0]!.sourceDate.toISOString()).toBe('2026-01-03T00:00:00.000Z')
+    expect(page2.totalCount).toBe(3)
+  })
+
+  it.each([
+    [
+      'newest' as const,
+      [
+        '00000000-0000-4000-8000-000000000003',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000001',
+      ],
+    ],
+    [
+      'oldest' as const,
+      [
+        '00000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-000000000003',
+      ],
+    ],
+  ])('uses id as the %s tie-breaker across pages', async (sort, expectedIds) => {
+    const sharedDate = new Date('2026-01-15T10:00:00.000Z')
+    for (const id of expectedIds) {
+      await repo.create(
+        makeInboxItem({
+          id: inboxItemId(id),
+          sourceId: reviewId(crypto.randomUUID()),
+          sourceDate: sharedDate,
+        }),
+        ORG_A,
+      )
+    }
+
+    const page1 = await repo.findFilteredPaginated({ sort }, ORG_A, undefined, 2)
+    const page2 = await repo.findFilteredPaginated({ sort }, ORG_A, page1.nextCursor!, 2)
+
+    expect([...page1.items, ...page2.items].map((item) => item.id)).toEqual(
+      expectedIds.map(inboxItemId),
+    )
+    expect(page2.totalCount).toBe(3)
   })
 
   it('filters by property', async () => {
@@ -445,6 +520,7 @@ describe('inbox repository — detail view', () => {
               'The hotel was clean and cosy, and the breakfast was very tasty.',
             reviewerProfilePhotoUrl: null,
             rating: 5,
+            languageCode: 'bg',
           },
         }),
       },
@@ -479,6 +555,7 @@ describe('inbox repository — detail view', () => {
             translatedText: null,
             reviewerProfilePhotoUrl: null,
             rating: 5,
+            languageCode: 'en',
           },
         }),
       },
@@ -539,6 +616,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
                 reviewerName: 'Live Reviewer',
                 reviewerProfilePhotoUrl: null,
                 rating: 5,
+                languageCode: 'en',
               },
             ],
           ]),
@@ -550,6 +628,93 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items[0]!.rating).toBe(5)
     expect(result.items[0]!.snippet).toBe('Live text')
     expect(result.items[0]!.reviewerName).toBe('Live Reviewer')
+    expect(result.items[0]!.reviewLanguageCode).toBe('en')
+    expect(result.items[0]!.contentAvailability).toBe('text')
+  })
+
+  it('marks a live textless review as rating-only only when a rating exists', async () => {
+    const sourceId = reviewId(crypto.randomUUID())
+    await repo.create(makeInboxItem({ sourceId }), ORG_A)
+    const ratingOnlyRepo = createInboxRepository(db, {
+      ...stubPorts,
+      reviewLookup: {
+        ...stubPorts.reviewLookup,
+        getReviewSnippetsByIds: async () =>
+          new Map([
+            [
+              sourceId,
+              {
+                text: null,
+                translatedText: null,
+                reviewerName: null,
+                reviewerProfilePhotoUrl: null,
+                rating: 4,
+                languageCode: null,
+              },
+            ],
+          ]),
+      },
+    })
+
+    const [item] = (await ratingOnlyRepo.findFilteredPaginated({}, ORG_A)).items
+    expect(item?.snippet).toBeNull()
+    expect(item?.contentAvailability).toBe('rating_only')
+  })
+
+  it('batches and enriches feedback rows without inventing a reviewer', async () => {
+    const sourceId = feedbackId(crypto.randomUUID())
+    await repo.create(
+      makeInboxItem({ sourceType: 'feedback', sourceId, platform: 'direct' }),
+      ORG_A,
+    )
+    const getFeedbackSnippetsByIds = vi.fn(
+      async () =>
+        new Map([[sourceId, { comment: 'Excellent breakfast', ratingValue: 5 }]]),
+    )
+    const feedbackRepo = createInboxRepository(db, {
+      ...stubPorts,
+      feedbackLookup: { ...stubPorts.feedbackLookup, getFeedbackSnippetsByIds },
+    })
+
+    const [item] = (await feedbackRepo.findFilteredPaginated({}, ORG_A)).items
+
+    expect(getFeedbackSnippetsByIds).toHaveBeenCalledWith([sourceId], ORG_A)
+    expect(item).toMatchObject({
+      sourceType: 'feedback',
+      rating: 5,
+      snippet: 'Excellent breakfast',
+      reviewerName: null,
+      contentAvailability: 'text',
+    })
+  })
+
+  it('enriches urgent attention only from a page-bounded current analysis', async () => {
+    const urgentSourceId = reviewId(crypto.randomUUID())
+    const otherSourceId = reviewId(crypto.randomUUID())
+    await repo.create(makeInboxItem({ sourceId: urgentSourceId }), ORG_A)
+    await repo.create(makeInboxItem({ sourceId: otherSourceId }), ORG_A)
+    const findCurrentReviewIdsByAttention = vi.fn(async () => [urgentSourceId])
+    const aiInsights: AiReviewInsightsPort = {
+      readCurrentReviewAnalysis: vi.fn(async () => ({ status: 'disabled' as const })),
+      findCurrentReviewIdsByAttention,
+      findCurrentReviewIdsByCategory: vi.fn(async () => []),
+    }
+    const enrichedRepo = createInboxRepository(db, { ...stubPorts, aiInsights })
+
+    const result = await enrichedRepo.findFilteredPaginated({}, ORG_A, undefined, 50)
+
+    expect(findCurrentReviewIdsByAttention).toHaveBeenCalledWith({
+      organizationId: ORG_A,
+      propertyIds: [PROP_A],
+      reviewIds: expect.arrayContaining([urgentSourceId, otherSourceId]),
+      attention: ['urgent'],
+    })
+    expect(result.items.find((item) => item.sourceId === urgentSourceId)?.attention).toBe(
+      'urgent',
+    )
+    expect(result.items.find((item) => item.sourceId === otherSourceId)?.attention).toBe(
+      null,
+    )
   })
 
   it('list items render nulls when the lookup has no eligible snippet', async () => {
@@ -560,6 +725,7 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     expect(result.items[0]!.rating).toBeNull()
     expect(result.items[0]!.snippet).toBeNull()
     expect(result.items[0]!.reviewerName).toBeNull()
+    expect(result.items[0]!.contentAvailability).toBe('unavailable')
   })
 
   it('rating/search filters resolve via reviewLookup.findEligibleReviewIds', async () => {
@@ -584,6 +750,38 @@ describe('inbox repository — live content lookup (BQC-1.2)', () => {
     )
     expect(result.items).toHaveLength(1)
     expect(result.items[0]!.sourceId).toBe(reviewId(srcMatch))
+  })
+
+  it('rating/search filters correlate eligible ids with feedback source type', async () => {
+    const sharedId = crypto.randomUUID()
+    await repo.create(
+      makeInboxItem({ sourceType: 'review', sourceId: reviewId(sharedId) }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({ sourceType: 'feedback', sourceId: feedbackId(sharedId) }),
+      ORG_A,
+    )
+    const findEligibleFeedbackIds = vi.fn(async () => [feedbackId(sharedId)])
+    const filteredRepo = createInboxRepository(db, {
+      ...stubPorts,
+      feedbackLookup: { ...stubPorts.feedbackLookup, findEligibleFeedbackIds },
+    })
+
+    const result = await filteredRepo.findFilteredPaginated(
+      { q: 'breakfast' },
+      ORG_A,
+      undefined,
+      50,
+    )
+
+    expect(findEligibleFeedbackIds).toHaveBeenCalledWith(ORG_A, {
+      ratingMin: undefined,
+      ratingMax: undefined,
+      textQuery: 'breakfast',
+    })
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.sourceType).toBe('feedback')
   })
 
   it('attention filters resolve through the tenant and property-scoped AI projection', async () => {
@@ -720,6 +918,7 @@ describe('inbox repository — tenant isolation', () => {
 
     const result = await repo.findFilteredPaginated({}, ORG_B, undefined, 50)
     expect(result.items).toHaveLength(0)
+    expect(result.totalCount).toBe(0)
   })
 
   it('updateStatus does not affect different org items', async () => {

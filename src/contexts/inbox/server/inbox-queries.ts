@@ -59,6 +59,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                 sourceDateFrom: data.sourceDateFrom,
                 sourceDateTo: data.sourceDateTo,
                 q: data.q,
+                sort: data.sort,
               },
               cursor: data.cursor
                 ? (() => {

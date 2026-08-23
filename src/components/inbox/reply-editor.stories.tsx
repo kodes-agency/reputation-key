@@ -50,7 +50,11 @@ const meta: Meta<typeof ReplyEditor> = {
   tags: ['autodocs'],
   decorators: [withRole('PropertyManager')],
   parameters: { layout: 'centered' },
-  args: { reviewId: REVIEW_ID },
+  args: {
+    reviewId: REVIEW_ID,
+    propertyDefaultReplyLanguage: 'en-Latn',
+    reviewReplyLanguage: null,
+  },
 }
 export default meta
 type Story = StoryObj<typeof ReplyEditor>

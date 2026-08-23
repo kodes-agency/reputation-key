@@ -19,6 +19,7 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   name: 'Sunset Apartments',
   slug: 'sunset-apartments',
   timezone: 'America/Los_Angeles',
+  defaultReplyLanguage: null,
   googleConnectionId: null,
   address: null,
   gbpAccountId: null,
@@ -54,6 +55,7 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   name: 'Sunset Apartments',
   slug: 'sunset-apartments',
   timezone: 'America/Los_Angeles',
+  defaultReplyLanguage: null,
   gbpLocationId: 'ChIJ123',
   googleConnectionId: null,
   createdAt: FIXED_TIME,
@@ -79,6 +81,7 @@ describe('propertyFromRow', () => {
     expect(property.name).toBe('Sunset Apartments')
     expect(property.slug).toBe('sunset-apartments')
     expect(property.timezone).toBe('America/Los_Angeles')
+    expect(property.defaultReplyLanguage).toBeNull()
     expect(property.gbpLocationId).toBe('ChIJ123')
     expect(property.createdAt).toBe(FIXED_TIME)
     expect(property.updatedAt).toBe(FIXED_TIME)
@@ -91,6 +94,14 @@ describe('propertyFromRow', () => {
     const property = propertyFromRow(row)
 
     expect(property.gbpLocationId).toBeNull()
+  })
+
+  it('maps a configured default reply language', () => {
+    const property = propertyFromRow(
+      makePropertyRow({ defaultReplyLanguage: 'bg-Cyrl-BG' }),
+    )
+
+    expect(property.defaultReplyLanguage).toBe('bg-Cyrl-BG')
   })
 
   it('maps deletedAt date when present', () => {
@@ -119,6 +130,7 @@ describe('propertyToRow', () => {
     expect(row.name).toBe('Sunset Apartments')
     expect(row.slug).toBe('sunset-apartments')
     expect(row.timezone).toBe('America/Los_Angeles')
+    expect(row.defaultReplyLanguage).toBeNull()
     expect(row.gbpLocationId).toBe('ChIJ123')
     expect(row.lifecycleState).toBe('active')
   })
@@ -128,6 +140,12 @@ describe('propertyToRow', () => {
     const row = propertyToRow(property)
 
     expect(row.gbpLocationId).toBeNull()
+  })
+
+  it('maps a configured default reply language to persistence', () => {
+    const row = propertyToRow(makeProperty({ defaultReplyLanguage: 'tr-Latn-TR' }))
+
+    expect(row.defaultReplyLanguage).toBe('tr-Latn-TR')
   })
 })
 
@@ -142,6 +160,7 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.name).toBe(original.name)
     expect(restored.slug).toBe(original.slug)
     expect(restored.timezone).toBe(original.timezone)
+    expect(restored.defaultReplyLanguage).toBe(original.defaultReplyLanguage)
     expect(restored.gbpLocationId).toBe(original.gbpLocationId)
     expect(restored.createdAt).toBe(original.createdAt)
     expect(restored.updatedAt).toBe(original.updatedAt)

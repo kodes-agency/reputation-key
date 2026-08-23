@@ -17,6 +17,9 @@ function makeItem(opts: {
   reviewerName?: string
   snippet?: string
   isEscalated?: boolean
+  propertyName?: string
+  reviewLanguageCode?: string
+  attention?: InboxItem['attention']
 }): InboxItem {
   return {
     id: opts.id as InboxItem['id'],
@@ -31,7 +34,9 @@ function makeItem(opts: {
     snippet: opts.snippet ?? 'Great service, highly recommend!',
     assignedTo: null,
     reviewerName: opts.reviewerName ?? 'Anonymous',
-    propertyName: 'Acme Hotel',
+    propertyName: opts.propertyName ?? 'Acme Hotel',
+    reviewLanguageCode: opts.reviewLanguageCode,
+    attention: opts.attention,
     isEscalated: opts.isEscalated ?? false,
     escalatedAt: null,
     escalatedBy: null,
@@ -52,6 +57,7 @@ const items: ReadonlyArray<InboxItem> = [
     status: 'open',
     rating: 4,
     reviewerName: 'Alice Reviewer',
+    reviewLanguageCode: 'en',
   }),
   makeItem({
     id: 'rev-2',
@@ -60,12 +66,14 @@ const items: ReadonlyArray<InboxItem> = [
     rating: 5,
     reviewerName: 'Bob Critic',
     snippet: 'Fantastic experience overall.',
+    propertyName: 'Beachside Resort',
+    reviewLanguageCode: 'de',
   }),
   makeItem({
     id: 'fb-1',
     sourceType: 'feedback',
     status: 'open',
-    isEscalated: true,
+    attention: 'urgent',
     rating: 2,
     reviewerName: 'Carol Guest',
     snippet: 'Slow response from support.',
@@ -84,25 +92,60 @@ type Story = StoryObj<typeof InboxListV2>
 const baseArgs = {
   items,
   selectedIds: [] as ReadonlyArray<string>,
+  activeItemId: undefined,
   onToggleSelect: fn(),
-  onSelectAll: fn(),
-  onDeselectAll: fn(),
   onRowClick: fn(),
 }
 
-// Three items across statuses — "new" rows get the bold + left accent.
+// Compact review and feedback rows with property-first metadata.
 export const Default: Story = {
   args: { ...baseArgs },
 }
 
-// No items — the header still renders, showing "0 items".
+// No items — the panel-level empty state handles this in composition.
 export const Empty: Story = {
   args: { ...baseArgs, items: [] },
 }
 
-// One row checked — header reflects "1 selected".
+// One row checked for a bulk action.
 export const WithSelection: Story = {
   args: { ...baseArgs, selectedIds: ['rev-1'] },
+}
+
+// Opening a row is independent of selecting it for a bulk action.
+export const ActiveReview: Story = {
+  args: {
+    ...baseArgs,
+    activeItemId: 'rev-2',
+    selectedIds: ['rev-1'],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('button', { name: /open review from bob critic/i }),
+    ).toHaveAttribute('aria-current', 'true')
+    expect(
+      canvas.getByRole('checkbox', { name: /select item from alice reviewer/i }),
+    ).toBeChecked()
+  },
+}
+
+export const SelectionLimit: Story = {
+  args: {
+    ...baseArgs,
+    selectedIds: ['rev-1', ...Array.from({ length: 99 }, (_, index) => `other-${index}`)],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByRole('checkbox', {
+        name: 'Select item from Bob Critic (100 item limit reached)',
+      }),
+    ).toBeDisabled()
+    expect(
+      canvas.getByRole('checkbox', { name: 'Select item from Alice Reviewer' }),
+    ).toBeEnabled()
+  },
 }
 
 // Toggling a row checkbox fires onToggleSelect with that item's id.

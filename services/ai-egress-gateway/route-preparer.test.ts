@@ -7,6 +7,17 @@ import {
 import { AI_REDACTION_PROFILE_VERSION } from '../../src/shared/ai-deterministic-redactor'
 import { parseAiGatewayRouteRequest } from '../../src/shared/ai-gateway-transport-contract'
 import { LANGUAGE_CATALOGUE_DIGEST } from '../../src/shared/ai-review-language-catalogue'
+import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '../../src/shared/ai-reply-language-verifier'
+import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '../../src/shared/ai-language-script-consistency'
+import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '../../src/shared/ai-zh-orthography-verifier'
+import {
+  AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+  AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
+} from '../../src/shared/ai-reply-template-catalogue'
+import {
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+} from '../../src/shared/ai-reply-output-leakage'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -90,13 +101,57 @@ function analysisRequest() {
   })
 }
 
-function preparer() {
+function replyRequest() {
+  const analysis = analysisRequest()
+  return parseAiGatewayRouteRequest({
+    ...analysis,
+    route: 'reply-suggestion',
+    actorId: 'better-auth-user_01',
+    tone: 'professional',
+    binding: {
+      ...analysis.binding,
+      capabilityFence: {
+        capability: 'reply_drafting',
+        replyDraftingEpoch: 1,
+        baseReplyStateRevision: 0,
+      },
+      evaluatedLanguage: 'tr-Latn',
+      concreteReplyLanguage: {
+        tag: 'bg-Cyrl-BG',
+        templateGroup: 'bg-Cyrl',
+      },
+      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
+      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
+      outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+      replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
+      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+      operationProfileVersion: 'reply-suggestion-v1',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+      aiSubjectHmacKeyVersion: null,
+    },
+    source: {
+      ...analysis.source,
+      text: 'Konaklamamız boyunca personel çok ilgili ve yardımseverdi.',
+      languageCode: 'tr-TR',
+    },
+  })
+}
+
+function preparer(
+  detect: (text: string) => Readonly<{
+    language: string
+    probability: number
+    reliable: boolean
+  }> = () => ({ language: 'en', probability: 1, reliable: true }),
+) {
   const provenance = generateKeyPairSync('ed25519')
   return createAiGatewayRoutePreparer({
     requestBindingKeys: createVersionedHmacKeyring(`request-v1:${'11'.repeat(32)}`),
     safetyIdentifierKey: Buffer.alloc(32, 7),
     replyLanguageDetector: {
-      detect: () => ({ language: 'en', probability: 1, reliable: true }),
+      detect,
     },
     provenanceKid: 'provenance-v1',
     provenancePrivateKey: provenance.privateKey,
@@ -196,6 +251,50 @@ describe('gateway route-preparer source lifetime', () => {
       preparedRequestBytes: profile?.preparedRequestByteLimit,
       responseBytes: profile?.responseByteLimit,
       outputTokens: profile?.maxOutputTokens,
+    })
+  })
+
+  it('verifies a regional Turkish source group independently and admits the bound Bulgarian target', () => {
+    const request = replyRequest()
+    if (request.route !== 'reply-suggestion') {
+      throw new Error('expected reply suggestion request')
+    }
+    const prepared = preparer((text) => ({
+      language: /[\u0400-\u04ff]/u.test(text) ? 'bg' : 'tr',
+      probability: 1,
+      reliable: true,
+    })).prepare(request)
+
+    expect(JSON.parse(prepared.invocation.sdkRequest.input[1].content)).toMatchObject({
+      reviewText: request.source.text,
+      languageCode: 'bg-Cyrl-BG',
+      tone: 'professional',
+    })
+    expect(prepared.invocation.descriptor.binding).toMatchObject({
+      evaluatedLanguage: 'tr-Latn',
+      concreteReplyLanguage: {
+        tag: 'bg-Cyrl-BG',
+        templateGroup: 'bg-Cyrl',
+      },
+    })
+    const accepted = prepared.acceptProviderResult({
+      templateId: 'appreciation_positive',
+      languageCode: 'bg-Cyrl-BG',
+    })
+    expect(accepted).not.toBeNull()
+    expect(
+      accepted?.buildResponse(fakeReceipt(), {
+        requestBindingHmac: 'A'.repeat(43),
+        replyTokenExpiresAtEpochMillis: Date.now() + 60_000,
+        replyDraftExpiresAtEpochMillis: Date.now() + 120_000,
+      } as never),
+    ).toMatchObject({
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        concreteLanguageTag: 'bg-Cyrl-BG',
+        templateGroup: 'bg-Cyrl',
+      },
     })
   })
 })

@@ -113,15 +113,22 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   // Cross-context lookup ports — the inbox build adapts the foreign-owned
   // sources (injected structurally) into its own lookup contracts.
   const feedbackLookup: FeedbackLookupPort = createFeedbackLookupAdapter({
-    findResponseSnippetById: (id, orgId) =>
-      input.sources.feedback.findResponseSnippetById(id, orgId),
-    findFeedbackById: (id, orgId) => input.sources.feedback.findFeedbackById(id, orgId),
-    findRatingById: (id, orgId) => input.sources.feedback.findRatingById(id, orgId),
+    findResponseSnippetsByIds: (ids, orgId) =>
+      input.sources.feedback.findResponseSnippetsByIds(ids, orgId),
+    findEligibleResponseIds: (orgId, filter) =>
+      input.sources.feedback.findEligibleResponseIds(orgId, filter),
+    findLegacyFeedbackSnippetsByIds: (ids, orgId) =>
+      input.sources.feedback.findLegacyFeedbackSnippetsByIds(ids, orgId),
+    findEligibleLegacyFeedbackIds: (orgId, filter) =>
+      input.sources.feedback.findEligibleLegacyFeedbackIds(orgId, filter),
   })
   const propertyLookup: PropertyLookupPort = createPropertyLookupAdapter({
     getPropertyName: (orgId, pid) => input.sources.property.getPropertyName(orgId, pid),
     getPropertyNames: (orgId, pids) =>
       input.sources.property.getPropertyNames(orgId, pids),
+    getPropertyReplyLanguage: input.sources.property.getPropertyReplyLanguage
+      ? (orgId, pid) => input.sources.property.getPropertyReplyLanguage!(orgId, pid)
+      : undefined,
   })
   const replyLookup: ReplyLookupPort = createReplyLookupAdapter({
     findInternalByReviewId: (id, orgId) =>
@@ -156,6 +163,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     commandStore,
     reviewSourceLookup,
     replyLookup,
+    propertyLookup,
     staffPublicApi: input.staffPublicApi,
     aiInsights: input.aiInsights,
     logger: input.logger,

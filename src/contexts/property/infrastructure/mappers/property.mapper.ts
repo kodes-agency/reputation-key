@@ -7,7 +7,8 @@ import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
 
-type PropertyRow = typeof properties.$inferSelect
+type PropertyRow = Omit<typeof properties.$inferSelect, 'defaultReplyLanguage'> &
+  Readonly<{ defaultReplyLanguage?: string | null }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
 export const propertyFromRow = (row: PropertyRow): Property => ({
@@ -16,6 +17,7 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   name: row.name,
   slug: row.slug,
   timezone: row.timezone,
+  defaultReplyLanguage: row.defaultReplyLanguage ?? null,
   address: row.address ?? null,
   gbpLocationId: row.gbpLocationId,
   gbpAccountId: row.gbpAccountId ?? null,
@@ -52,6 +54,7 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   name: property.name,
   slug: property.slug,
   timezone: property.timezone,
+  defaultReplyLanguage: property.defaultReplyLanguage ?? null,
   address: property.address,
   gbpLocationId: property.gbpLocationId,
   gbpAccountId: property.gbpAccountId,

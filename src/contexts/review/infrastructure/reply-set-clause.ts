@@ -13,6 +13,8 @@ export function buildReplySetClause(
   const setClause: Record<string, unknown> = { updatedAt }
   if (updates.status !== undefined) setClause.status = updates.status
   if (updates.text !== undefined) setClause.text = updates.text
+  if (updates.replyLanguageTag !== undefined)
+    setClause.replyLanguageTag = updates.replyLanguageTag
   if (updates.aiGenerated !== undefined) {
     setClause.aiGenerated = updates.aiGenerated
     if (!updates.aiGenerated) {

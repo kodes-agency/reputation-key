@@ -58,9 +58,20 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
             platform: data.platform,
             ratingMin: data.ratingMin,
             ratingMax: data.ratingMax,
+            attention: data.attention
+              ? Array.isArray(data.attention)
+                ? data.attention
+                : [data.attention]
+              : undefined,
+            category: data.category
+              ? Array.isArray(data.category)
+                ? data.category
+                : [data.category]
+              : undefined,
             q: data.q,
             sourceDateFrom: data.sourceDateFrom,
             sourceDateTo: data.sourceDateTo,
+            sort: data.sort,
           },
           limit: data.limit,
           // Cursor replication is out-of-scope: prod base64-encodes/validates the

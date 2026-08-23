@@ -21,10 +21,14 @@ import type { Role } from '#/shared/domain/roles'
 
 const OWNER_ROLE: Role = 'AccountAdmin'
 
-export function RouterDecorator(Story: () => ReactNode) {
+function RouterDecoratorRoot({ Story }: { Story: () => ReactNode }) {
   const storyRef = useRef(Story)
   storyRef.current = Story
   const [router] = useState(() => {
+    const StoryRoute = () => {
+      const CurrentStory = storyRef.current
+      return <CurrentStory />
+    }
     const rootRoute = createRootRouteWithContext<{ role: Role }>()({
       component: Outlet,
     })
@@ -36,7 +40,10 @@ export function RouterDecorator(Story: () => ReactNode) {
     const indexRoute = createRoute({
       getParentRoute: () => authRoute,
       path: '/',
-      component: () => <>{storyRef.current()}</>,
+      // Render the hookified Storybook function as a React component. Calling
+      // it as a plain function bypasses Storybook's hook dispatcher and causes
+      // invalid-hook-call failures in browser tests.
+      component: StoryRoute,
     })
     const routeTree = rootRoute.addChildren([authRoute.addChildren([indexRoute])])
     return createRouter({
@@ -46,4 +53,10 @@ export function RouterDecorator(Story: () => ReactNode) {
     })
   })
   return <RouterProvider router={router} />
+}
+
+export function RouterDecorator(Story: () => ReactNode) {
+  // Storybook invokes decorator functions through its own hook wrapper rather
+  // than as React components. Keep React hooks in a component that React mounts.
+  return <RouterDecoratorRoot Story={Story} />
 }

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import { createGuestResponseRepository } from './repositories/guest-response.repository'
 
@@ -10,10 +12,20 @@ const scope = {
 
 function selectDatabase(rows: readonly unknown[]) {
   const chain: Record<string, unknown> = {}
+  let whereCondition: unknown
   chain.from = vi.fn(() => chain)
-  chain.where = vi.fn(() => chain)
+  chain.where = vi.fn((condition: unknown) => {
+    whereCondition = condition
+    return chain
+  })
   chain.limit = vi.fn(async () => rows)
-  return { db: { select: vi.fn(() => chain) } as unknown as Database, chain }
+  chain.then = (resolve: (value: readonly unknown[]) => unknown) =>
+    Promise.resolve(rows).then(resolve)
+  return {
+    db: { select: vi.fn(() => chain) } as unknown as Database,
+    chain,
+    getWhereCondition: () => whereCondition,
+  }
 }
 
 describe('createGuestResponseRepository', () => {
@@ -72,6 +84,58 @@ describe('createGuestResponseRepository', () => {
     await expect(
       createGuestResponseRepository(selectDatabase([]).db).findById(scope, 'missing'),
     ).resolves.toBeNull()
+  })
+
+  it('batches only consented response fields for inbox enrichment', async () => {
+    const { db, chain, getWhereCondition } = selectDatabase([
+      {
+        id: 'response-1',
+        comment: 'Private comment',
+        ratingValue: 5,
+        textConsent: false,
+        responseConsent: true,
+      },
+      {
+        id: 'response-2',
+        comment: 'Shared comment',
+        ratingValue: 2,
+        textConsent: true,
+        responseConsent: false,
+      },
+    ])
+
+    await expect(
+      createGuestResponseRepository(db).findSnippetsForOrg('org-1', [
+        'response-1',
+        'response-2',
+      ]),
+    ).resolves.toEqual([
+      { id: 'response-1', comment: null, ratingValue: 5 },
+      { id: 'response-2', comment: 'Shared comment', ratingValue: null },
+    ])
+    expect(chain.where).toHaveBeenCalledOnce()
+    const compiled = new PgDialect().sqlToQuery(getWhereCondition() as SQL)
+    expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."id" in')
+    expect(compiled.params).toEqual(
+      expect.arrayContaining(['org-1', 'response-1', 'response-2']),
+    )
+  })
+
+  it('returns the bounded ids selected by the consent-aware content query', async () => {
+    const { db, chain, getWhereCondition } = selectDatabase([{ id: 'response-1' }])
+
+    await expect(
+      createGuestResponseRepository(db).findEligibleSnippetIdsForOrg('org-1', {
+        ratingMin: 4,
+        textQuery: 'breakfast',
+      }),
+    ).resolves.toEqual(['response-1'])
+    expect(chain.limit).toHaveBeenCalledWith(1000)
+    const compiled = new PgDialect().sqlToQuery(getWhereCondition() as SQL)
+    expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."response_consent" =')
+    expect(compiled.sql).toContain('"guest_responses"."text_consent" =')
   })
 
   it.each([

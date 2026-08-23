@@ -8,6 +8,7 @@ import {
 import type { AiInferencePort } from './application/ports/ai-inference.port'
 import type { AiQuotaPort } from './application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
+import type { PropertyReplyLanguagePort } from './application/ports/property-reply-language.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAdvanceReviewAnalysisBackfill } from './application/use-cases/advance-review-analysis-backfill'
 import type { AiOutputStorePort } from './application/ports/ai-output-store.port'
@@ -78,6 +79,7 @@ export type AiContextBuildInput = Readonly<{
   db: Database
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
+  propertyReplyLanguages: PropertyReplyLanguagePort
   inference?: AiInferencePort
   quota?: AiQuotaPort
   subjectHmac?: AiSubjectHmacPort
@@ -159,6 +161,7 @@ export function buildAiContext(input: AiContextBuildInput) {
         quota,
         reviewSources: input.reviewSources,
         processingProfiles,
+        propertyReplyLanguages: input.propertyReplyLanguages,
         resolveReplyLanguage,
         nowEpochMillis,
       }),
