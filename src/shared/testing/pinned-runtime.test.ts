@@ -36,24 +36,29 @@ describe('the pinned runtime', () => {
     expect(manifest.engines.node).toBe(pinned)
   })
 
-  it('is enforced at install time, and NOT via engine-strict', () => {
+  it('uses neither engine-strict nor a preinstall guard — both were measured wrong', () => {
     const manifest = JSON.parse(read('package.json')) as {
       scripts: Record<string, string>
     }
-    // The guard checks Node/ICU/Unicode only. engine-strict would also enforce
-    // every package's os/cpu, which fails linux CI on the darwin-only rolldown
-    // binding the lockfile carries for local dev — measured, see .npmrc.
-    expect(manifest.scripts.preinstall).toBe('node scripts/assert-pinned-runtime.mjs')
+    // engine-strict also hard-enforces os/cpu, which failed every linux job on
+    // the darwin-only rolldown binding. A preinstall guard died inside the
+    // Docker deps stages (they COPY only package.json + the lockfile) and does
+    // not fire at all for a developer whose node_modules is already current.
+    // .npmrc records both findings; this keeps them from being re-added.
     expect(read('.npmrc')).not.toMatch(/^engine-strict=true$/m)
+    expect(manifest.scripts.preinstall).toBeUndefined()
   })
 
-  it('checks the same values in the preinstall guard, which cannot import this', () => {
-    // scripts/assert-pinned-runtime.mjs runs before node_modules exists, so it
-    // reads .nvmrc itself and hardcodes the ICU pair. Keep the copies equal.
-    const guard = read('scripts/assert-pinned-runtime.mjs')
-    expect(guard).toContain(`const EXPECTED_ICU = '${PINNED_ICU_VERSION}'`)
-    expect(guard).toContain(`const EXPECTED_UNICODE = '${PINNED_UNICODE_VERSION}'`)
-    expect(guard).toContain("readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim()")
+  it('is asserted where a wrong runtime silently corrupts work', () => {
+    // The local-stack orchestrator is the one entry point that MUST refuse:
+    // spawnSync fails ENOBUFS mid-boot there, after the containers are up.
+    const stack = read('scripts/local-stack/stack.ts')
+    expect(stack).toContain(
+      "import { assertPinnedRuntime } from '../../src/shared/testing/pinned-runtime'",
+    )
+    expect(stack).toMatch(
+      /async function main\(\): Promise<void> \{[\s\S]{0,400}?assertPinnedRuntime\(ROOT\)/,
+    )
   })
   it.each(['.github/workflows/ci.yml', '.github/workflows/simulation.yml'])(
     '%s resolves the runtime from .nvmrc, with no literal left behind',
