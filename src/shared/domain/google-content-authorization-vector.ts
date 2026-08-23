@@ -141,3 +141,22 @@ export function frozenVectorDrift(
     .filter((key) => frozen[key] !== recomputed[key])
     .map((key) => ({ key, frozen: frozen[key], recomputed: recomputed[key] }))
 }
+
+/**
+ * Every differing key, the two `FROZEN_VECTOR_EXCLUDED_KEYS` included.
+ *
+ * For call sites that compare with `sameGoogleContentAuthorizationVector` (all
+ * keys, exactly). Reporting such a site with `frozenVectorDrift` logged
+ * `drift: []` for a real denial, because the difference was in a key the report
+ * excluded — it cost an investigation exactly the answer the log existed to
+ * give. A drift report must always mirror the comparison it explains.
+ */
+export function exactVectorDrift(
+  left: AuthorizationVector,
+  right: AuthorizationVector,
+): ReadonlyArray<FrozenVectorDriftEntry> {
+  const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()
+  return keys
+    .filter((key) => left[key] !== right[key])
+    .map((key) => ({ key, frozen: left[key], recomputed: right[key] }))
+}

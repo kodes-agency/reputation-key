@@ -725,4 +725,98 @@ describe('authorizeGoogleImportCommand', () => {
       })
     })
   })
+
+  // The same-request vector check compares the content authority's vector with
+  // a local recompute - and those come from DIFFERENT reads (the authority runs
+  // its own SQL in google-content-authorization-check.ts). Exact equality here
+  // cancelled healthy relinks on main: the sibling create item's provisioning
+  // bumped the global policy generation between the two reads.
+  describe('the authority and the local recompute read at different instants', () => {
+    const relinkProperties = [
+      {
+        propertyId: destinationId,
+        sourceEpoch: 8,
+        profileVersion: 6,
+        action: 'property.update' as const,
+      },
+    ]
+
+    it('allows a global policy generation that moved between the two reads', async () => {
+      const { authorize } = setup({
+        // The authority's vector was built at generation 11; its returned
+        // policyVersion - and so the local recompute - already sees 12.
+        authorizeGoogleContent: async () => ({
+          ...contentAuthorization(),
+          policyVersion: 12,
+        }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({ ok: true })
+    })
+
+    it('allows a credential generation that moved between the two reads', async () => {
+      const { authorize } = setup({
+        current: connection({ credentialGeneration: 6 }),
+        authorizeGoogleContent: async () => contentAuthorization(),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toMatchObject({
+        ok: true,
+        authorization: { credentialGeneration: 6 },
+      })
+    })
+
+    it('still denies an authority-withdrawing difference, and the drift is never empty', async () => {
+      const warn = vi.fn()
+      const { authorize } = setup({
+        warn,
+        authorizeGoogleContent: async () => ({
+          ...contentAuthorization(),
+          authorizationVector: {
+            ...contentAuthorization().authorizationVector,
+            permissionDigest: 'b'.repeat(64),
+          },
+        }),
+      })
+
+      await expect(
+        authorize({
+          actor,
+          connectionId,
+          phase: 'publish',
+          properties: relinkProperties,
+          requireAccessToken: false,
+        }),
+      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
+
+      const logged = warn.mock.calls[0]?.[0] as { site: string; drift: unknown[] }
+      expect(logged.site).toBe('same_request_vector')
+      // The whole point of the report: a denial always names a key. A previous
+      // version logged `drift: []` here because it excluded the keys that had
+      // actually moved.
+      expect(logged.drift).toEqual([
+        {
+          key: 'permissionDigest',
+          frozen: 'b'.repeat(64),
+          recomputed: googleAuthorizationPermissionDigest(actor),
+        },
+      ])
+    })
+  })
 })

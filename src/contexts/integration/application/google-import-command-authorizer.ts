@@ -1,8 +1,8 @@
 import {
+  exactVectorDrift,
   frozenVectorDrift,
   googleAuthorizationPermissionDigest,
   sameFrozenGoogleContentAuthorizationVector,
-  sameGoogleContentAuthorizationVector,
 } from '#/shared/domain/google-content-authorization-vector'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
@@ -374,17 +374,30 @@ export function createGoogleImportCommandAuthorizer(
       credentialGeneration: connection.credentialGeneration,
     } as const
     if (
-      !sameGoogleContentAuthorizationVector(
+      !sameFrozenGoogleContentAuthorizationVector(
         contentAuthorization.authorizationVector,
         expectedAuthorizationVector,
       )
     ) {
-      // Both sides were built in THIS request, so exact equality is right here
-      // — a mismatch means the content authorizer disagreed with the facts it
-      // was just handed, not that time passed.
+      // Same request, but NOT the same read: the content authority builds its
+      // vector from its own SQL read of the connection row and its own policy
+      // snapshot (google-content-authorization-check.ts), while the expectation
+      // above is recomputed from `deps.connectionRepo.findById` and
+      // `contentAuthorization.policyVersion`. So the two non-revoking counters
+      // can legitimately differ across those reads inside one request:
+      //   * `googleContentPolicyVersion` - a concurrent capability write bumps
+      //     the global cache generation. The sibling item of a two-item import
+      //     does exactly that (provisioning writes capability rows), which is
+      //     how this cancelled healthy relinks ~50% of the time in CI.
+      //   * `credentialGeneration` - a routine token refresh landing between
+      //     the two reads.
+      // Neither withdraws authority, and every dimension that does is still
+      // compared exactly. This must stay `sameFrozen...`, not exact equality.
       return denyChanged({
         site: 'same_request_vector',
-        drift: frozenVectorDrift(
+        // Reports the excluded keys too: this is a mismatch in a dimension that
+        // is compared, and an empty drift array once cost an investigation.
+        drift: exactVectorDrift(
           contentAuthorization.authorizationVector,
           expectedAuthorizationVector,
         ),

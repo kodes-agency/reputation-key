@@ -1,7 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   googleAuthorizationPermissionDigest,
-  sameGoogleContentAuthorizationVector,
+  sameFrozenGoogleContentAuthorizationVector,
 } from '#/shared/domain/google-content-authorization-vector'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
@@ -272,7 +272,15 @@ export function createGooglePerformanceAuthorizer(
       propertyTimezoneConfirmed: binding.profileConfirmedAt !== null,
     })
     if (
-      !sameGoogleContentAuthorizationVector(
+      // Same request, different reads: `content.authorizationVector` comes from
+      // the authority's own SQL, the expectation above from this call's
+      // `connection` row. The two non-revoking counters can differ across them
+      // (a concurrent capability write bumps the global policy generation, a
+      // token refresh bumps the credential generation), and neither withdraws
+      // authority - the lease fence digest below already omits the second for
+      // exactly this reason. Every property-binding key stays compared
+      // exactly, which is what the fence is for.
+      !sameFrozenGoogleContentAuthorizationVector(
         content.authorizationVector,
         expectedAuthorizationVector,
       )

@@ -243,6 +243,63 @@ describe('createGooglePerformanceAuthorizer', () => {
     )
   })
 
+  // The vector comparison has two sides read at different instants (the
+  // authority's own SQL vs this call's connection row), so a counter that moves
+  // between them must not read as lost authority. The import path cancelled
+  // healthy relinks on `main` for exactly this.
+  it('authorizes when only a non-revoking counter differs between the two reads', async () => {
+    const skewed = await setup({
+      connection: connection({ credentialGeneration: 7 }),
+      contentVector: {
+        executionPolicyVersion: 'beta-local-2',
+        googleContentPolicyVersion: 12,
+        emergencyKillVersion: 3,
+        role: 'PropertyManager',
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 4,
+        connectionAccessVersion: 5,
+        // The authority read the row before the refresh landed; the connection
+        // above is already at 7.
+        credentialGeneration: 6,
+        propertySourceEpoch: 7,
+        propertyProfileVersion: 8,
+        propertyBindingState: 'active',
+        propertyLifecycleState: 'active',
+        propertyProfileSource: 'tenant_confirmed',
+        propertyTimezoneConfirmed: true,
+      },
+    }).authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' })
+
+    expect(skewed.ok).toBe(true)
+  })
+
+  it('still refuses when a property-binding fact differs between the two reads', async () => {
+    const drifted = await setup({
+      contentVector: {
+        executionPolicyVersion: 'beta-local-2',
+        googleContentPolicyVersion: 12,
+        emergencyKillVersion: 3,
+        role: 'PropertyManager',
+        permissionDigest: googleAuthorizationPermissionDigest(actor),
+        connectionLifecycleVersion: 4,
+        connectionAccessVersion: 5,
+        credentialGeneration: 6,
+        // The lease fence: a property fact moving is never tolerated.
+        propertySourceEpoch: 99,
+        propertyProfileVersion: 8,
+        propertyBindingState: 'active',
+        propertyLifecycleState: 'active',
+        propertyProfileSource: 'tenant_confirmed',
+        propertyTimezoneConfirmed: true,
+      },
+    }).authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' })
+
+    expect(drifted).toMatchObject({
+      ok: false,
+      result: { status: 'unavailable', reason: 'policy_disabled', action: null },
+    })
+  })
+
   it('revalidates a provider retry without decrypting a credential', async () => {
     const { authorize, getAccessToken } = setup()
 
