@@ -170,6 +170,28 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
     const [, data] = jobQueue.add.mock.calls[0]!
     expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
   })
+
+  // The last link of the backoff chain: a rate-limited continuation asks for a
+  // delay, and BullMQ only honours it as the `delay` option. Passing it in the
+  // job DATA instead would look correct and change nothing about scheduling.
+  it('passes a continuation delay to BullMQ as the delay option, not as job data', async () => {
+    const { api, jobQueue } = setup()
+
+    await api.internal.repos.queue.addSyncJob(SYNC_DATA, { delayMs: 5_000 })
+
+    const [, data, options] = jobQueue.add.mock.calls[0]!
+    expect(options).toMatchObject({ delay: 5_000 })
+    expect(data).toEqual({ ...SYNC_DATA, ...SYNC_EXECUTION })
+  })
+
+  it('omits delay entirely for an ordinary enqueue', async () => {
+    const { api, jobQueue } = setup()
+
+    await api.internal.repos.queue.addSyncJob(SYNC_DATA)
+
+    const [, , options] = jobQueue.add.mock.calls[0]!
+    expect(options).not.toHaveProperty('delay')
+  })
 })
 
 describe('publish enqueue routing stamp (BQC-4.2)', () => {

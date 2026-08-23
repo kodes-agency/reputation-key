@@ -56,5 +56,17 @@ and the register would fill with noise:
   `beta-product-journeys.spec.ts:402` and `accessibility.spec.ts:181` fail on the
   second and later runs because they assume first-run seed state. Use
   `pnpm e2e:stack:reseed` between runs.
+- **Local reply-lifecycle `(a)`/`(b)` timeouts were NOT a flake** — they were the
+  first symptom of a real amplification bug, found 2026-08-23. A
+  `quota_exhausted` admission denial surfaced as `provider_rate_limited`, the
+  review snapshot checkpointed WITHOUT advancing its cursor, and
+  `sync-property-reviews` re-enqueued the continuation with no delay. Measured:
+  3,225 `reviews.list` denials over 344s (~9/s, sustained for the whole run)
+  which starved `reviews.reply` behind the same per-minute quota, so reply
+  publishing never happened and the two specs timed out on a healthy worker.
+  Fixed by carrying the provider's `retryAfterMs` into the continuation's
+  enqueue delay. If reply publishing ever times out again, count
+  `quota_exhausted` in the worker log FIRST — a storm there means the backoff
+  chain regressed, not that the test is slow.
 - **Wrong Node major.** The stack fails `ENOBUFS` mid-boot and the ICU-fenced
   suites skip themselves. `pnpm local:doctor` catches it.

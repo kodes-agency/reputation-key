@@ -222,8 +222,11 @@ export async function bootstrap(
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: container.useCases.runReviewProviderSnapshot,
     propertyRouting: container.propertyProcessingScopeApi,
-    enqueueContinuation: async (data) => {
-      await container.reviewQueue.addSyncJob(data)
+    enqueueContinuation: async (data, options) => {
+      await container.reviewQueue.addSyncJob(
+        data,
+        options?.delayMs === undefined ? undefined : { delayMs: options.delayMs },
+      )
     },
     syncActivity: reviewSyncActivity,
     clock: container.clock,

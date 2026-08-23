@@ -353,6 +353,41 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.commitPage).not.toHaveBeenCalled()
   })
 
+  // The cursor does not move here, so the continuation repeats this exact call.
+  // Carrying the provider's own hint out is what lets the scheduler wait
+  // instead of spinning: without it the retry rate is queue speed.
+  it('carries the provider backoff hint out on a rate-limited checkpoint', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+      Object.assign(new Error('429 from provider'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'provider_rate_limited' as const,
+        recoverable: true,
+        retryAfterMs: 5_000,
+      }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'checkpointed', runId, state: 'scanning', retryAfterMs: 5_000 },
+    )
+  })
+
+  it('omits the hint when the provider sent none, rather than inventing one', async () => {
+    const deps = makeDeps()
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+      Object.assign(new Error('429 from provider'), {
+        _tag: 'GoogleReviewApiError' as const,
+        code: 'provider_rate_limited' as const,
+        recoverable: true,
+        retryAfterMs: 0,
+      }),
+    )
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'checkpointed', runId, state: 'scanning' },
+    )
+  })
+
   it('checkpoints a provider-unavailable page scan', async () => {
     const deps = makeDeps()
     vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(

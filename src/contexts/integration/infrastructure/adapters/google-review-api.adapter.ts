@@ -125,26 +125,64 @@ function defineEnumerable<T>(value: T): PropertyDescriptor {
   }
 }
 
+/**
+ * `retryAfterMs` carries the provider's own backoff hint to the scheduler.
+ *
+ * Dropping it was a live amplification bug: a `quota_exhausted` admission
+ * denial surfaces as `provider_rate_limited`, the snapshot use case checkpoints
+ * WITHOUT advancing its cursor, and the sync job re-enqueued the continuation
+ * with no delay - so a provider asking for a ~1s pause got hammered at queue
+ * speed instead (observed: 3,225 denials over 344s, ~9/s, which starved every
+ * other Google route sharing the quota, reply publishing included).
+ */
 function reviewApiError(
   code: GoogleReviewApiErrorCode,
   recoverable: boolean,
+  retryAfterMs?: number,
 ): Error & {
   readonly _tag: 'GoogleReviewApiError'
   readonly code: GoogleReviewApiErrorCode
   readonly recoverable: boolean
+  readonly retryAfterMs?: number
 } {
   const error = new Error('Google review API request failed') as Error & {
     readonly _tag: 'GoogleReviewApiError'
     readonly code: GoogleReviewApiErrorCode
     readonly recoverable: boolean
+    readonly retryAfterMs?: number
   }
   Object.defineProperties(error, {
     name: defineEnumerable('GoogleReviewApiError'),
     _tag: defineEnumerable('GoogleReviewApiError'),
     code: defineEnumerable(code),
     recoverable: defineEnumerable(recoverable),
+    ...(retryAfterMs === undefined
+      ? {}
+      : { retryAfterMs: defineEnumerable(retryAfterMs) }),
   })
   return error
+}
+
+/**
+ * Maps an authorized-executor rejection onto the review API's error vocabulary,
+ * preserving the backoff hint the executor already computed
+ * (`googleRetryFloorMs` over Retry-After or the admission denial). Dropping it
+ * turned a rate-limited provider into a queue-speed retry loop.
+ */
+function executorErrorToReviewApiError(error: unknown): Error {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('kind' in error) ||
+    error.kind !== 'rate_limited'
+  ) {
+    return reviewApiError('provider_unavailable', true)
+  }
+  const hint =
+    'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
+      ? error.retryAfterMs
+      : undefined
+  return reviewApiError('provider_rate_limited', true, hint)
 }
 
 function isGoogleReviewApiError(error: unknown): boolean {
@@ -469,15 +507,7 @@ export const createGoogleReviewApiAdapter = (
           }),
         )
       } catch (error) {
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'kind' in error &&
-          error.kind === 'rate_limited'
-        ) {
-          throw reviewApiError('provider_rate_limited', true)
-        }
-        throw reviewApiError('provider_unavailable', true)
+        throw executorErrorToReviewApiError(error)
       }
     }
     deps.assertDirectEgressAllowed?.(operation)

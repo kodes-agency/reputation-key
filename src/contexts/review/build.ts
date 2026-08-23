@@ -209,6 +209,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         { ...data, ...execution, ...(routing ? { routing } : {}) },
         {
           jobId: options?.jobId,
+          ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 50 },
           // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.

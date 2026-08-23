@@ -5,7 +5,10 @@ import {
 } from '../../application/ports/review-queue.port'
 import type { PropertyRoutingPort } from '../../application/ports/property-routing.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
-import type { RunReviewProviderSnapshot } from '../../application/use-cases/run-review-provider-snapshot'
+import type {
+  ContinuableSnapshotResult,
+  RunReviewProviderSnapshot,
+} from '../../application/use-cases/run-review-provider-snapshot'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
@@ -14,7 +17,10 @@ export const JOB_NAME = 'sync-property-reviews' as const
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
   propertyRouting: PropertyRoutingPort
-  enqueueContinuation(data: SyncPropertyReviewsJobData): Promise<void>
+  enqueueContinuation(
+    data: SyncPropertyReviewsJobData,
+    options?: Readonly<{ delayMs?: number }>,
+  ): Promise<void>
   /**
    * Discovery-ladder liveness stamps. A GBP push proves Google is publishing
    * for this location, so a push-initiated sync resets the property to the
@@ -28,6 +34,23 @@ type SyncHandlerDeps = Readonly<{
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u
 const SAFE_SCOPE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/u
+
+/**
+ * Enqueues the next bounded step, delayed only when the provider asked for a
+ * pause. A `checkpointed` result carrying `retryAfterMs` did NOT advance the
+ * cursor, so its continuation repeats the same provider call: undelayed, that
+ * retries a rate-limited provider at queue speed. `deleting` makes real
+ * progress and stays immediate.
+ */
+async function enqueueNextStep(
+  deps: SyncHandlerDeps,
+  continuation: SyncPropertyReviewsJobData,
+  result: ContinuableSnapshotResult,
+): Promise<void> {
+  const delayMs = result.status === 'checkpointed' ? result.retryAfterMs : undefined
+  if (delayMs === undefined) await deps.enqueueContinuation(continuation)
+  else await deps.enqueueContinuation(continuation, { delayMs })
+}
 
 /**
  * Executes exactly one bounded provider-snapshot step. Each successful page,
@@ -85,11 +108,7 @@ export const createSyncPropertyReviewsHandler =
         ...(data.runId == null ? {} : { runId: data.runId }),
       })
       if (result.status === 'checkpointed' || result.status === 'deleting') {
-        await deps.enqueueContinuation({
-          ...data,
-          sourceEpoch,
-          runId: result.runId,
-        })
+        await enqueueNextStep(deps, { ...data, sourceEpoch, runId: result.runId }, result)
       }
       if (result.status === 'failed') throw new Error(result.code)
       return result

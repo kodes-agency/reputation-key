@@ -33,7 +33,17 @@ export type RunReviewProviderSnapshotInput = Readonly<{
 }>
 
 export type RunReviewProviderSnapshotResult =
-  | Readonly<{ status: 'checkpointed'; runId: string; state: 'scanning' | 'confirming' }>
+  | Readonly<{
+      status: 'checkpointed'
+      runId: string
+      state: 'scanning' | 'confirming'
+      /**
+       * Set only when the checkpoint was forced by a rate-limited or
+       * unavailable provider. The cursor did not move, so the continuation
+       * repeats the same call and MUST wait this long first.
+       */
+      retryAfterMs?: number
+    }>
   | Readonly<{ status: 'deleting'; runId: string; applied: number }>
   | Readonly<{ status: 'completed'; runId: string }>
   | Readonly<{
@@ -41,6 +51,16 @@ export type RunReviewProviderSnapshotResult =
       runId: string
       code: ReviewProviderSnapshotFailureCode
     }>
+
+/**
+ * The results that leave a run unfinished, so the caller must enqueue another
+ * bounded step. Named here because the sync job branches on exactly this
+ * subset, including the `retryAfterMs` backoff hint.
+ */
+export type ContinuableSnapshotResult = Extract<
+  RunReviewProviderSnapshotResult,
+  { status: 'checkpointed' | 'deleting' }
+>
 
 export type RunReviewProviderSnapshotDeps = Readonly<{
   repository: ReviewProviderSnapshotRepository
@@ -85,12 +105,28 @@ const failureCodeForProviderError = (
  * are still valid, so the correct move is to checkpoint and let the queue
  * retry the same page. Routing these through failAndDiscard threw away every
  * published cursor and restarted a multi-page scan from zero on a single 429.
+ *
+ * The cursor does NOT advance on this path, so the continuation repeats the
+ * same call. That only terminates if the continuation is DELAYED - see
+ * `retryAfterMs` on the checkpointed result, which the sync job turns into the
+ * enqueue delay. Without it a rate-limited provider is retried at queue speed.
  */
 const isRecoverableProviderError = (error: unknown): boolean =>
   typeof error === 'object' &&
   error != null &&
   'code' in error &&
   (error.code === 'provider_rate_limited' || error.code === 'provider_unavailable')
+
+/** The provider's own backoff hint, when the adapter forwarded one. */
+const retryHintMs = (error: unknown): number | undefined =>
+  typeof error === 'object' &&
+  error != null &&
+  'retryAfterMs' in error &&
+  typeof error.retryAfterMs === 'number' &&
+  Number.isFinite(error.retryAfterMs) &&
+  error.retryAfterMs > 0
+    ? error.retryAfterMs
+    : undefined
 
 const sameScope = async (
   deps: RunReviewProviderSnapshotDeps,
@@ -247,10 +283,12 @@ type ScanPosition = Readonly<{
 const checkpointInPhase = (
   runId: string,
   phase: ScanPosition['phase'],
+  retryAfterMs?: number,
 ): RunReviewProviderSnapshotResult => ({
   status: 'checkpointed',
   runId,
   state: phase === 'main' ? 'scanning' : 'confirming',
+  ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
 })
 
 /**
@@ -288,7 +326,10 @@ const fetchListPage = async (
     }
   } catch (error) {
     if (isRecoverableProviderError(error)) {
-      return { ok: false, outcome: checkpointInPhase(run.id, position.phase) }
+      return {
+        ok: false,
+        outcome: checkpointInPhase(run.id, position.phase, retryHintMs(error)),
+      }
     }
     return {
       ok: false,
@@ -423,7 +464,7 @@ const confirmTargetedCandidate = async (
     })
   } catch (error) {
     if (isRecoverableProviderError(error)) {
-      return { status: 'checkpointed', runId: run.id, state: 'confirming' }
+      return checkpointInPhase(run.id, 'confirmation', retryHintMs(error))
     }
     return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))
   }
