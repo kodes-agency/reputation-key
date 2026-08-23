@@ -1,4 +1,4 @@
-import { Languages } from 'lucide-react'
+import { Globe2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -11,39 +11,48 @@ import { languageDisplayName, type ReplyLanguageOption } from './reply-language-
 type Props = Readonly<{
   value: string | null
   options: ReadonlyArray<ReplyLanguageOption>
-  propertyLanguageTag: string | null
   disabled: boolean
   onChange: (tag: string) => void
 }>
 
-export function ReplyLanguageSelect({
-  value,
-  options,
-  propertyLanguageTag,
-  disabled,
-  onChange,
-}: Props) {
+const sourceLabels: Record<ReplyLanguageOption['source'], string> = {
+  property: 'Property default',
+  review: 'Review language',
+  saved: 'Saved draft',
+}
+
+export function ReplyLanguageSelect({ value, options, disabled, onChange }: Props) {
+  const selectedOption = options.find((option) => option.tag === value)
+  const languageName = languageDisplayName(value) ?? 'Language not set'
+  const sourceLabel = selectedOption ? sourceLabels[selectedOption.source] : null
+
   return (
-    <div
-      data-slot="reply-language"
-      className="flex min-w-0 flex-wrap items-center justify-between gap-2"
-    >
-      <div>
-        <p className="text-sm font-medium">Reply language</p>
-        <p className="text-xs text-muted-foreground">
-          {propertyLanguageTag
-            ? `Property default: ${languageDisplayName(propertyLanguageTag)}.`
-            : 'Property default is not configured.'}
-        </p>
-      </div>
+    <div data-slot="reply-language" className="min-w-0">
       <Select
         value={value ?? undefined}
         disabled={disabled || options.length === 0}
         onValueChange={onChange}
       >
-        <SelectTrigger size="sm" aria-label="Reply language" className="max-w-full">
-          <Languages className="text-muted-foreground" />
-          <SelectValue placeholder="Language not set" />
+        <SelectTrigger
+          aria-label="Reply language"
+          className="h-10 w-full min-w-0 gap-2.5 rounded-lg border-border/80 bg-background px-3 shadow-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-primary/25 data-[size=default]:h-10 @min-[38rem]/reply-workspace:w-[17.5rem] [&>svg:last-child]:ml-auto"
+        >
+          <Globe2 className="size-[18px] text-muted-foreground" />
+          <SelectValue placeholder="Language not set">
+            <span className="min-w-0 truncate font-medium text-foreground">
+              {languageName}
+            </span>
+            {sourceLabel && (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground/70">
+                  ·
+                </span>
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {sourceLabel}
+                </span>
+              </>
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent align="end">
           {options.map((option) => (

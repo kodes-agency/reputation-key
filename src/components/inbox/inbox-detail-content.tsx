@@ -6,6 +6,7 @@ import { InboxDetailSourceContent } from './inbox-detail-source-content'
 import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
 import { ReplyEditor } from './reply-editor'
+import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
 import type { InboxDetailFns } from './types'
 import type {
   InboxItem,
@@ -57,29 +58,47 @@ export function InboxDetailContent({
       {currentItem.sourceType === 'review' && canManageReplies ? (
         <Tabs
           defaultValue="reply"
-          className="relative border-t pt-5 lg:[&_[data-slot=reply-language]]:absolute lg:[&_[data-slot=reply-language]]:right-0 lg:[&_[data-slot=reply-language]]:top-5 lg:[&_[data-slot=reply-language]]:max-w-[55%]"
+          className="@container/reply-workspace gap-0 border-t pt-5"
         >
-          <TabsList variant="line" className="mb-4 lg:mr-[22rem] lg:mb-10">
-            <TabsTrigger value="reply">
-              <MessageSquare /> Public reply
-            </TabsTrigger>
-            <TabsTrigger value="note">
-              <Lock /> Internal note
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="reply">
-            <ReplyEditor
-              key={currentItem.id}
-              reviewId={currentItem.sourceId}
-              initialReply={detail?.reply ?? null}
-              loading={!detail}
-              propertyDefaultReplyLanguage={detail?.propertyDefaultReplyLanguage ?? null}
-              reviewReplyLanguage={detail?.reviewReplyLanguage ?? null}
-              onReplyChanged={onReplyMutated}
-              generateReplySuggestion={detailFns.generateReplySuggestion}
-            />
-          </TabsContent>
-          <TabsContent value="note">{notesThread}</TabsContent>
+          <ReplyToolbarProvider>
+            <div className="grid min-w-0 grid-cols-1 items-center gap-3 @min-[38rem]/reply-workspace:grid-cols-[minmax(0,1fr)_auto] @min-[38rem]/reply-workspace:gap-x-6">
+              <TabsList
+                variant="line"
+                className="gap-5 p-0 group-data-[orientation=horizontal]/tabs:h-10"
+              >
+                <TabsTrigger
+                  value="reply"
+                  className="h-10 flex-none gap-2 rounded-none px-1 after:bottom-0 after:bg-primary data-[state=active]:font-semibold [&_svg:not([class*='size-'])]:size-[18px]"
+                >
+                  <MessageSquare /> Public reply
+                </TabsTrigger>
+                <TabsTrigger
+                  value="note"
+                  className="h-10 flex-none gap-2 rounded-none px-1 after:bottom-0 after:bg-primary data-[state=active]:font-semibold [&_svg:not([class*='size-'])]:size-[18px]"
+                >
+                  <Lock /> Internal note
+                </TabsTrigger>
+              </TabsList>
+              <ReplyToolbarSlot className="min-w-0 @min-[38rem]/reply-workspace:justify-self-end" />
+            </div>
+            <TabsContent value="reply" className="mt-5">
+              <ReplyEditor
+                key={currentItem.id}
+                reviewId={currentItem.sourceId}
+                initialReply={detail?.reply ?? null}
+                loading={!detail}
+                propertyDefaultReplyLanguage={
+                  detail?.propertyDefaultReplyLanguage ?? null
+                }
+                reviewReplyLanguage={detail?.reviewReplyLanguage ?? null}
+                onReplyChanged={onReplyMutated}
+                generateReplySuggestion={detailFns.generateReplySuggestion}
+              />
+            </TabsContent>
+            <TabsContent value="note" className="mt-5">
+              {notesThread}
+            </TabsContent>
+          </ReplyToolbarProvider>
         </Tabs>
       ) : (
         <div className="border-t pt-4">{notesThread}</div>

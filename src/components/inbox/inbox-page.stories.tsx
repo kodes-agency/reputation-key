@@ -309,12 +309,13 @@ export const ApprovedPanels: Story = {
     const languageSelect = await canvas.findByRole('combobox', {
       name: 'Reply language',
     })
-    await expect(languageSelect).toHaveTextContent(/property default/i)
+    await expect(languageSelect).toHaveTextContent(/^Bulgarian\s*·\s*Property default$/i)
     await userEvent.click(languageSelect)
     await expect(
       screen.findByRole('option', { name: /review language · turkish/i }),
     ).resolves.toBeVisible()
     await userEvent.keyboard('{Escape}')
+    languageSelect.blur()
   },
 }
 

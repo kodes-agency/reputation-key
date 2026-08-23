@@ -10,6 +10,7 @@ import { ReplyComposerFooter } from './reply-composer-footer'
 import { ReplyLanguageSelect } from './reply-language-select'
 import { languageDisplayName, type ReplyLanguageTarget } from './reply-language-options'
 import { ReplySuggestionControls } from './reply-suggestion-controls'
+import { ReplyToolbarPortal } from './reply-toolbar-slot'
 import { useReplyComposer } from './use-reply-composer'
 import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 
@@ -50,13 +51,14 @@ export function ReplyCompose(props: ReplyComposeProps) {
 
   return (
     <div className="space-y-4">
-      <ReplyLanguageSelect
-        value={state.draft.languageTag}
-        options={state.options}
-        propertyLanguageTag={props.propertyDefaultReplyLanguage}
-        disabled={busy}
-        onChange={state.updateLanguage}
-      />
+      <ReplyToolbarPortal>
+        <ReplyLanguageSelect
+          value={state.draft.languageTag}
+          options={state.options}
+          disabled={busy}
+          onChange={state.updateLanguage}
+        />
+      </ReplyToolbarPortal>
       <InputGroup>
         {state.hasAiDraft && (
           <InputGroupAddon align="block-start">

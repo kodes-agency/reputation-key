@@ -4,7 +4,7 @@
 // not (gate OFF). The component also renders the status actions, activity
 // timeline, and notes thread, so stories supply mock detailFns for all three.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { InboxDetailContent } from './inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -142,6 +142,43 @@ export const ReviewAsPropertyManagerLight: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+}
+
+export const ReplyToolbarWithLanguages: Story = {
+  decorators: [withRole('PropertyManager')],
+  parameters: { theme: 'light' },
+  args: {
+    currentItem: reviewItem,
+    detail: {
+      ...reviewDetail,
+      propertyDefaultReplyLanguage: 'bg-Cyrl',
+      reviewReplyLanguage: 'tr-Latn-TR',
+    },
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const publicTab = canvas.getByRole('tab', { name: 'Public reply' })
+    const noteTab = canvas.getByRole('tab', { name: 'Internal note' })
+
+    await expect(publicTab).toHaveAttribute('aria-selected', 'true')
+    await expect(
+      canvas.getByRole('combobox', { name: 'Reply language' }),
+    ).toHaveTextContent(/Bulgarian\s*·\s*Property default/i)
+
+    await userEvent.click(noteTab)
+    await expect(noteTab).toHaveAttribute('aria-selected', 'true')
+    await expect(canvas.queryByRole('combobox', { name: 'Reply language' })).toBeNull()
+    await expect(canvas.getByPlaceholderText('Add a note…')).toBeVisible()
+
+    await userEvent.click(publicTab)
+    await expect(canvas.getByRole('textbox', { name: 'Public reply' })).toBeVisible()
+    await expect(canvas.getByRole('combobox', { name: 'Reply language' })).toBeVisible()
+    publicTab.blur()
   },
 }
 
