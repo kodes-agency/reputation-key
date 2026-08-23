@@ -101,6 +101,34 @@ describe('outbox repository lease lifecycle (BQC-3.7)', () => {
     // Whether serialized or truly concurrent, every row is claimed exactly once.
     expect(claimA.length + claimB.length).toBe(20)
   })
+  // `relay.ts` publishes in the order this returns, so the returned order IS
+  // the delivery order. The ORDER BY inside the claim CTE only decides which
+  // rows are taken - `UPDATE ... RETURNING` defines no row order - so this
+  // inserts NEWEST FIRST, making insertion order the reverse of the contract.
+  // A claim that leans on RETURNING's incidental order fails this; the outer
+  // ORDER BY is what satisfies it.
+  it('returns the batch oldest-first regardless of insertion order', async () => {
+    const newest = await insertEvent(new Date(NOW - 1000))
+    const middle = await insertEvent(new Date(NOW - 2000))
+    const oldest = await insertEvent(new Date(NOW - 3000))
+
+    const claimed = await repo.claimUnpublished(3, 'relay-order', 30_000)
+
+    expect(claimed.map((e) => e.id)).toEqual([oldest, middle, newest])
+  })
+
+  it('breaks a created_at tie by id, so a batch never reorders between claims', async () => {
+    const sameInstant = new Date(NOW - 5000)
+    const ids = [
+      await insertEvent(sameInstant),
+      await insertEvent(sameInstant),
+      await insertEvent(sameInstant),
+    ]
+
+    const claimed = await repo.claimUnpublished(3, 'relay-tie', 30_000)
+
+    expect(claimed.map((e) => e.id)).toEqual([...ids].sort())
+  })
 
   it('renewLease extends lease_expires_at only for the owner\u2019s unpublished rows', async () => {
     const a1 = await insertEvent(new Date(NOW - 4000))

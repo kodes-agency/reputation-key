@@ -1603,17 +1603,31 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   // repkey-local-perf"), and then builds it during startup regardless. The work
   // does not disappear, it just moves out of this phase and gains a failed pull
   // round trip. Building it explicitly here keeps the boot log honest.
-  dockerCompose(mode, state, [
-    'build',
-    'web',
-    'worker',
-    'provider-sandbox',
-    'google-execution-admission',
-    'google-egress-gateway',
-    'ai-execution-admission',
-    'ai-egress-gateway',
-    'perf-runner',
-  ])
+  //
+  // COMPOSE_PARALLEL_LIMIT: compose builds every service at once by default,
+  // and each of these stages runs its own `pnpm install --frozen-lockfile`.
+  // Eight of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
+  // logged `global_oom` and killed whatever was largest, twice taking `dockerd`
+  // itself, which surfaces to the client as the useless
+  // `failed to solve: Unavailable: error reading from server: EOF`. Capping the
+  // fan-out costs wall clock on a big machine and is the difference between
+  // booting and not on a small one.
+  dockerCompose(
+    mode,
+    state,
+    [
+      'build',
+      'web',
+      'worker',
+      'provider-sandbox',
+      'google-execution-admission',
+      'google-egress-gateway',
+      'ai-execution-admission',
+      'ai-egress-gateway',
+      'perf-runner',
+    ],
+    { env: { ...process.env, COMPOSE_PARALLEL_LIMIT: '3' } },
+  )
 }
 
 function startDependencies(mode: LocalStackMode, state: StackPaths): void {
@@ -2049,15 +2063,38 @@ function eventDelivery(
   }
 }
 
+/**
+ * Waits for a delivery to SETTLE, not merely to start.
+ *
+ * `event_consumer_receipts` is keyed `(event_id, consumer_name)`, and the probe
+ * event (`review.created`) has two durable consumers —
+ * `inbox.on-review-created` and `ai.analyze-review-event`. Returning at the
+ * first receipt therefore handed the caller an unfinished fan-out, which it
+ * then compared against a post-replay steady state: `beta-acceptance` failed
+ * with `first: 1` / `replay: 2` even though that primary key makes a genuine
+ * duplicate impossible, and `noDuplicateExternalEffect` was true in the same
+ * observation. The race was in the assertion, not the system.
+ *
+ * So require the count to hold still before returning. Both sides of the
+ * idempotence comparison are then steady states, which is what makes
+ * "the replay added nothing" mean anything.
+ */
 async function waitForEventDelivery(
   mode: LocalStackMode,
   state: StackPaths,
   eventId: string,
 ): Promise<Readonly<{ published: boolean; receipts: number }>> {
+  const SETTLE_POLLS = 3
   const deadline = Date.now() + 60_000
+  let last = -1
+  let stableFor = 0
   while (Date.now() < deadline) {
     const delivery = eventDelivery(mode, state, eventId)
-    if (delivery.published && delivery.receipts > 0) return delivery
+    if (delivery.published && delivery.receipts > 0) {
+      stableFor = delivery.receipts === last ? stableFor + 1 : 0
+      last = delivery.receipts
+      if (stableFor >= SETTLE_POLLS) return delivery
+    }
     await sleep(1_000)
   }
   throw new Error(`Queued mutation ${eventId} did not drain after worker recovery`)

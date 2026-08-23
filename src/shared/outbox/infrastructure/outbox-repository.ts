@@ -133,6 +133,15 @@ export function createOutboxRepository(db: Database): OutboxRepository {
       return trace('outbox.claimUnpublished', async () => {
         // Atomic claim: select unpublished, unleased rows with SKIP LOCKED,
         // set lease_owner and lease_expires_at in the same transaction.
+        //
+        // The ORDER BY inside the CTE chooses WHICH rows are claimed (oldest
+        // first). It does not order the result: `UPDATE ... RETURNING` has no
+        // defined row order, so the batch handed to the relay came back
+        // arbitrarily and `relay.ts` publishes in exactly that order. Two rows
+        // inserted 1s apart were observed returning newest-first, which is how
+        // an integration test asserting FIFO started failing. The final SELECT
+        // is what makes the delivered order match the claimed order; `id` is
+        // the tiebreaker so rows sharing a `created_at` are deterministic too.
         const leaseExpiresAt = new Date(Date.now() + leaseDurationMs)
 
         const rows = await db.execute(sql`
@@ -140,25 +149,38 @@ export function createOutboxRepository(db: Database): OutboxRepository {
             SELECT id FROM ${outboxEvents}
             WHERE ${outboxEvents.publishedAt} IS NULL
               AND (${outboxEvents.leaseExpiresAt} IS NULL OR ${outboxEvents.leaseExpiresAt} < NOW())
-            ORDER BY ${outboxEvents.createdAt}
+            ORDER BY ${outboxEvents.createdAt}, ${outboxEvents.id}
             LIMIT ${limit}
             FOR UPDATE SKIP LOCKED
+          ),
+          leased AS (
+            UPDATE ${outboxEvents}
+            SET lease_owner = ${leaseOwner},
+                leased_at = NOW(),
+                lease_expires_at = ${leaseExpiresAt}
+            FROM claimed
+            WHERE ${outboxEvents.id} = claimed.id
+            RETURNING ${outboxEvents.id},
+                      ${outboxEvents.eventType},
+                      ${outboxEvents.eventVersion},
+                      ${outboxEvents.payload},
+                      ${outboxEvents.organizationId},
+                      ${outboxEvents.propertyId},
+                      ${outboxEvents.sourceContext},
+                      ${outboxEvents.sourceAggregateId},
+                      ${outboxEvents.createdAt}
           )
-          UPDATE ${outboxEvents}
-          SET lease_owner = ${leaseOwner},
-              leased_at = NOW(),
-              lease_expires_at = ${leaseExpiresAt}
-          FROM claimed
-          WHERE ${outboxEvents.id} = claimed.id
-          RETURNING ${outboxEvents.id},
-                    ${outboxEvents.eventType},
-                    ${outboxEvents.eventVersion},
-                    ${outboxEvents.payload},
-                    ${outboxEvents.organizationId},
-                    ${outboxEvents.propertyId},
-                    ${outboxEvents.sourceContext},
-                    ${outboxEvents.sourceAggregateId},
-                    (EXTRACT(EPOCH FROM ${outboxEvents.createdAt}) * 1000)::float8 AS "recordedAtMs"
+          SELECT id,
+                 event_type,
+                 event_version,
+                 payload,
+                 organization_id,
+                 property_id,
+                 source_context,
+                 source_aggregate_id,
+                 (EXTRACT(EPOCH FROM created_at) * 1000)::float8 AS "recordedAtMs"
+          FROM leased
+          ORDER BY created_at, id
         `)
 
         return (rows.rows as unknown as ClaimedRow[]).map(mapClaimedRow)

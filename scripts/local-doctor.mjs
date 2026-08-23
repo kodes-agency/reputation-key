@@ -103,6 +103,61 @@ if (dockerUp) {
   )
 }
 
+// ── docker VM headroom ─────────────────────────────────────────────────
+// The stack runs postgres + redis + eight node services in the Docker VM, and
+// builds their images there too. On a 4 GiB VM that OOMs: the guest kernel
+// logged `global_oom` and killed the biggest process — postgres, node, redis,
+// and twice `dockerd` itself, which reaches the client as
+// "failed to solve: Unavailable: error reading from server: EOF" and looks like
+// a broken Dockerfile. The memory lives in Docker Desktop's settings, not in
+// this repo, so all this can do is say so before the boot rather than after.
+if (dockerUp) {
+  const info = spawnSync(
+    'docker',
+    ['info', '--format', '{{.MemTotal}}\t{{.DockerRootDir}}'],
+    { encoding: 'utf8' },
+  )
+  const [memRaw] = info.stdout.trim().split('\t')
+  const gib = Number(memRaw) / 1024 ** 3
+  record(
+    gib >= 6,
+    'docker VM memory',
+    gib >= 6
+      ? `${gib.toFixed(1)} GiB`
+      : `${gib.toFixed(1)} GiB is not enough for postgres + redis + 8 services and their builds — ` +
+          'raise it in Docker Desktop > Settings > Resources (8 GiB is comfortable). ' +
+          'Below that the VM hits global_oom mid-boot and can take dockerd with it',
+  )
+
+  const df = spawnSync('docker', ['system', 'df', '--format', '{{.Type}}\t{{.Size}}'], {
+    encoding: 'utf8',
+  })
+  const toGb = (s) => {
+    const n = Number.parseFloat(s)
+    if (Number.isNaN(n)) return 0
+    if (/TB/i.test(s)) return n * 1024
+    if (/GB/i.test(s)) return n
+    if (/MB/i.test(s)) return n / 1024
+    return 0
+  }
+  const used = df.stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .reduce((sum, line) => sum + toGb(line.split('\t')[1] ?? ''), 0)
+  record(
+    used < 60,
+    'docker disk footprint',
+    used < 60
+      ? `~${used.toFixed(0)} GB`
+      : `~${used.toFixed(0)} GB of images/cache/volumes. Every stack run tags a new set of ` +
+          'repkey-local-* images and they are never collected: this reached 161 GB and left the ' +
+          'host with 43 GiB free. Reclaim with ' +
+          "`docker rmi -f $(docker images --format '{{.Repository}}:{{.Tag}}' | grep ^repkey)` " +
+          'and `docker builder prune -af`',
+  )
+}
+
 const width = Math.max(...results.map((r) => r.name.length))
 for (const { ok, name, detail } of results) {
   process.stdout.write(`${ok ? '✓' : '✗'} ${name.padEnd(width)}  ${detail}\n`)
