@@ -93,10 +93,30 @@ export function bailWait(description: string, observed: unknown): never {
   throw new WaitBailedError(description, observed)
 }
 
+/**
+ * Default budget for a `waitFor` that does not name one.
+ *
+ * Convention: a wait that polls a REAL BACKGROUND WORKER (outbox relay, BullMQ
+ * job, import processor) omits `timeoutMs` and passes `diagnose`. 90s is not a
+ * guess about how slow the worker is — it is the ceiling that keeps a loaded
+ * runner from being reported as a wedged system. The assertions after the wait
+ * are what prove the behaviour; the budget only bounds the wrong answer.
+ *
+ * Waits on a synchronous read (a DB row a server fn just wrote, a rendered
+ * element) should still pass an explicit short budget — a 90s wait on those
+ * hides a real hang for 90 seconds.
+ *
+ * History: 30s and 45s budgets on worker-polling waits produced two of this
+ * suite's three known flake signatures (reply-lifecycle terminal-403 at 30s,
+ * transient-retry at 45s), each costing a ~10-minute CI rerun to classify.
+ */
+const DEFAULT_WAIT_TIMEOUT_MS = 90_000
+
 export async function waitFor<T>(
   probe: () => Promise<T | null | undefined | false>,
   options: {
-    timeoutMs: number
+    /** Omit for worker-polling waits — see DEFAULT_WAIT_TIMEOUT_MS. */
+    timeoutMs?: number
     intervalMs?: number
     description: string
     /**
@@ -115,7 +135,8 @@ export async function waitFor<T>(
     diagnose?: () => Promise<unknown>
   },
 ): Promise<T> {
-  const deadline = Date.now() + options.timeoutMs
+  const timeoutMs = options.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS
+  const deadline = Date.now() + timeoutMs
   const interval = options.intervalMs ?? 250
   let lastError: unknown
   let attempts = 0
@@ -141,7 +162,7 @@ export async function waitFor<T>(
     }
   }
   throw new Error(
-    `waitFor timed out after ${options.timeoutMs}ms across ${attempts} probe(s): ${options.description}` +
+    `waitFor timed out after ${timeoutMs}ms across ${attempts} probe(s): ${options.description}` +
       (lastError ? ` (last error: ${String(lastError)})` : '') +
       observed,
   )

@@ -232,7 +232,12 @@ test.describe('Critical workflow: reply lifecycle', () => {
         const reply = await getReplyForReview(s.reviewId)
         return reply?.status === 'published' ? reply : null
       },
-      { timeoutMs: 45_000, description: 'reply published after the transient retry' },
+      {
+        // Worker-polling wait: inherit the 90s default instead of the 45s that
+        // timed out on a loaded runner (179 probes, no terminal state).
+        description: 'reply published after the transient retry',
+        diagnose: async () => await getReplyForReview(s.reviewId),
+      },
     )
     expect(healed.publication_state).toBe('published')
     expect(healed.publication_attempts).toBe(2)

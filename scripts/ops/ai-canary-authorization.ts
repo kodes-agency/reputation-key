@@ -106,6 +106,9 @@ async function readIssueExpectation(
       globalGeneration: global.generation,
       providerControlId: provider.controlId,
       providerGeneration: provider.generation,
+      // `as const` is load-bearing: the expectation type wants a 3-tuple, and a
+      // plain array literal widens to `readonly (A | B | C)[]`, which does not
+      // satisfy it ("Target requires 3 element(s) but source may have fewer").
       allCapabilityStopFences: Object.freeze([
         Object.freeze({
           capability: 'review_analysis' as const,
@@ -122,7 +125,7 @@ async function readIssueExpectation(
           capabilityControlId: propertyTrends.controlId,
           capabilityGeneration: propertyTrends.generation,
         }),
-      ]),
+      ] as const),
     }),
   })
 }

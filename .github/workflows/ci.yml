@@ -146,6 +146,15 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm check:schema-drift
 
+      # On a PR: `pnpm test` (unit + integration).
+      #
+      # On main: the same coverage, minus one whole duplicate unit run.
+      # `check:coverage` runs the unit project itself under v8 coverage, so
+      # pairing it with the integration project covers exactly what `pnpm test`
+      # covers and adds the BQC-6.9 gate — 100% on pure domain rules plus the
+      # two-sided baseline ratchet (floor AND staleness ceiling). Running
+      # `pnpm test` and then `check:coverage` executed the unit suite twice
+      # (~201s + ~135s) for one result.
       - name: Test
         env:
           NODE_ENV: test
@@ -158,24 +167,21 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm test
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            pnpm check:coverage
+            pnpm test:integration
+          else
+            pnpm test
+          fi
 
       # BQC-6.9: changed-code budget — every src production file added by the
       # branch must carry a colocated test (diffs against origin/main; the
-      # checkout above uses fetch-depth: 0). Measured 2s: it is the cheapest
-      # gate in this job, and the only thing that keeps new production code
-      # from landing untested. See scripts/check-changed-code.mjs.
+      # checkout above uses fetch-depth: 0). Measured 2-3s: the cheapest gate in
+      # this job, and the only thing keeping new production code from landing
+      # untested. See scripts/check-changed-code.mjs.
       - name: Changed-code budget
         run: pnpm check:changed-code
-
-      # BQC-6.9: coverage gate — 100% on pure domain rules + the two-sided
-      # baseline ratchet (floor AND staleness ceiling). MAIN ONLY: the script
-      # re-runs the whole unit project under v8 coverage, which cost 133s on
-      # every PR — the duplicate run was the cost, not the check. On main it
-      # gates the release without taxing the PR loop.
-      - name: Coverage gate (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm check:coverage
 
       - name: Web build
         run: pnpm build
@@ -402,6 +408,7 @@ jobs:
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
+          cache-db: true
 
       - name: Vulnerability scan worker image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
@@ -410,6 +417,7 @@ jobs:
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
+          cache-db: true
 
       - name: Vulnerability scan Google import compatibility image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
@@ -418,6 +426,7 @@ jobs:
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
+          cache-db: true
 
   # BQC-7.7: secret scanning incl. full git history (gitleaks). Separate job:
   # runs in parallel with check (no pnpm install needed) and its failure is a
@@ -555,7 +564,7 @@ jobs:
       - name: Smoke local Compose application stack
         run: pnpm e2e:stack:smoke
       - name: Run critical e2e (hard gate — BQR-5.1)
-        run: pnpm test:e2e --project=critical
+        run: pnpm test:e2e --project=critical ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # BQC-6.4: retain failure diagnostics (trace/screenshot/video, written to
       # test-results/playwright/ only by failed tests). `if: failure()` is correct HERE:
       # the critical run has no continue-on-error, so its failure fails the job
@@ -571,7 +580,7 @@ jobs:
           retention-days: 7
       - name: Run full e2e suite (hard gate — BQC-6.7)
         id: e2e_full
-        run: pnpm test:e2e --project=full
+        run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # BQC-6.7: the full suite is a hard gate — its failure fails the job, so
       # `if: failure()` would also fire; gating on the step outcome stays more
       # precise (a skipped full run after a critical-gate failure does not

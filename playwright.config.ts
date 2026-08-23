@@ -9,13 +9,24 @@ import { localStackPlaywrightEnv } from './src/shared/testing/local-stack-playwr
 // hard gate too (deterministic — fake mail outbox, hydration-safe specs,
 // F-PEOPLE fix — and green).
 //
-// BQC-6.4 — retries: 0 is the INTENTIONAL choice: the suite is deterministic
-// (6.1 env floor, 6.2 error-injection proofs) and there is no independently
-// justified infrastructure instability a retry would absorb — a retry would
-// only mask real defects. Never pair retries: 0 with trace: 'on-first-retry'
-// (no retry ⇒ a trace is NEVER captured). Diagnostics are failure-retained
-// instead: trace/screenshot/video are recorded on the FIRST failing run, kept
-// under outputDir, and uploaded by the ci.yml e2e job.
+// BQC-6.4 chose retries: 0 so a retry could never mask a real defect. The
+// reasoning was right and the mechanism was backwards in practice: with no
+// retry, a flake and a bug are indistinguishable until a human spends ~10
+// minutes re-running the job to find out. That happened three times in one
+// session, on top of the six occurrences recorded in
+// google-import-sync.spec.ts, and it trains reflexive re-running — which masks
+// intermittent defects far more effectively than a retry does.
+//
+// Now: one retry in CI, and the RELEASE path refuses a flaky suite. The e2e job
+// passes --fail-on-flaky-tests on pushes to main, so a test that only passes on
+// retry FAILS main and has to be fixed or quarantined; on a PR the same test
+// reports `flaky` in the log and the run stays green, so nobody pays the rerun
+// tax to learn what the first attempt already showed. Locally retries stay 0.
+// Every occurrence goes in docs/operations/e2e-flake-register.md.
+//
+// Diagnostics stay failure-retained (trace/screenshot/video on the first
+// failing run, uploaded by the ci.yml e2e job) rather than 'on-first-retry',
+// so the artifact exists whether or not the retry saves the run.
 //
 // BETA-LOCAL — Playwright is a pure browser client. The Docker application
 // stack owns both production-profile web processes, the worker, migrations,
@@ -51,7 +62,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: isCi,
-  retries: 0,
+  retries: isCi ? 1 : 0,
   workers: isCi ? 1 : undefined,
   reporter: 'list',
   // Isolate browser artifacts so Playwright cleanup cannot delete local-stack

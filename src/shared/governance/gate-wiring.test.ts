@@ -30,6 +30,7 @@ const packageJson = JSON.parse(read('package.json')) as {
 const ciWorkflow = read('.github/workflows/ci.yml')
 const prePush = read('.husky/pre-push')
 const runBaseline = read('scripts/bqc/run-baseline.ts')
+const playwrightConfig = read('playwright.config.ts')
 
 /** The gates that must never be droppable from the CI lint chain. */
 const ARTIFACT_GATES = [
@@ -76,18 +77,40 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  it('runs the coverage gate on main pushes only', () => {
+  it('runs the coverage gate on main pushes only, without a second unit run', () => {
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
-    // The gate itself is not the cost — re-running the unit suite under v8
-    // coverage on every PR was. It must stay wired, and stay off the PR path.
-    const coverageStep = /- name: Coverage gate[^\n]*\n(?<body>(?: {8}[^\n]*\n)+)/.exec(
-      ciWorkflow,
+    // The gate is not the cost — re-running the unit suite under v8 coverage on
+    // every PR was, and running `pnpm test` AND `check:coverage` on main ran the
+    // unit project twice for one result. So the Test step branches: PR gets
+    // `pnpm test`, main gets coverage (unit) + the integration project.
+    const testStep = /- name: Test\n(?<body>(?: {8}[^\n]*\n)+)/.exec(ciWorkflow)
+    const body = testStep?.groups?.body
+    expect(body).toBeDefined()
+    expect(body).toContain('if [ "${{ github.event_name }}" = "push" ]; then')
+    expect(body).toContain('pnpm check:coverage')
+    expect(body).toContain('pnpm test:integration')
+    expect(body).toContain('pnpm test')
+    // And the standalone main-only coverage step is gone, not duplicated.
+    expect(ciWorkflow).not.toContain('- name: Coverage gate')
+  })
+
+  it('lets a flake report itself on a PR and refuses one on the release path', () => {
+    // retries: 1 means a flake no longer costs a 10-minute manual rerun to
+    // classify; --fail-on-flaky-tests on pushes means it cannot reach main.
+    expect(playwrightConfig).toMatch(/retries: isCi \? 1 : 0/)
+    const flakyGate = '--fail-on-flaky-tests'
+    expect(ciWorkflow).toContain(
+      `--project=critical \${{ github.event_name == 'push' && '${flakyGate}'`,
     )
-    expect(coverageStep?.groups?.body).toBeDefined()
-    expect(coverageStep?.groups?.body).toContain(
-      "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+    expect(ciWorkflow).toContain(
+      `--project=full \${{ github.event_name == 'push' && '${flakyGate}'`,
     )
-    expect(coverageStep?.groups?.body).toContain('run: pnpm check:coverage')
+  })
+
+  it('caches the grype vulnerability DB for every image scan', () => {
+    // The first scan otherwise spends ~50s downloading and loading the DB.
+    const scans = ciWorkflow.match(/grype-version: v0\.116\.1\n\s+cache-db: true/g)
+    expect(scans).toHaveLength(3)
   })
 })
 

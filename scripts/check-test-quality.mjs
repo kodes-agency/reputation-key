@@ -255,35 +255,36 @@ function auditRegister(label, entries, hits) {
 
 auditRegister('skip/todo/skipIf/runIf', SKIP_REGISTER, skipHits)
 
-// Rule 5 — the fenced suites must actually be running where it counts.
+// Rule 5 — the fenced suites must actually be running, everywhere.
 //
-// The hard-fail branch keys on GITHUB_ACTIONS, not a bare `CI === 'true'`.
-// The claim being enforced is
-// "the runtime ci.yml pinned is the runtime we got", which is only meaningful
-// inside a GitHub Actions job; a bare `CI=true` is exported by any number of
-// local wrappers and carries no runtime guarantee, so failing on it would be a
-// false positive by construction.
+// This used to hard-fail only inside GitHub Actions, on the argument that CI was
+// the only place the runtime could be guaranteed. That is no longer true: the
+// runtime is pinned in .nvmrc, named exactly by engines.node, resolved by every
+// CI job through node-version-file, and asserted by the local-stack
+// orchestrator. Drift is now a fixable local condition, so it fails locally too
+// — with ALLOW_RUNTIME_DRIFT=1 as the explicit, noisy acknowledgement.
 const fenced = SKIP_REGISTER.filter((r) => r.runtimeFence)
 const fencedTests = fenced.reduce((sum, r) => sum + (r.skippedTests ?? 0), 0)
 if (RUNTIME_DRIFT.length > 0) {
   const detail =
     `${fenced.length} runtime-fenced file(s) (~${fencedTests} tests) do NOT run on this runtime ` +
     `(${RUNTIME_DRIFT.join(', ')})`
-  if (process.env.GITHUB_ACTIONS === 'true') {
-    failures.push(
-      `runtime-fence drift — ${detail}. ci.yml pins node ${PINNED_RUNTIME.node} precisely so these ` +
-        'suites RUN; on a drifted runtime the governed AI-language admission tables stop being ' +
-        'verified and the suite still exits 0. Re-pin the runtime, or re-home the coverage.',
+  // Fails everywhere now, not just in GitHub Actions. The runtime is pinned and
+  // enforced (.nvmrc + engines.node + the local-stack assert), so drift is a
+  // fixable local condition rather than an unavoidable fact about contributors'
+  // machines — and the old warn-locally branch is exactly how ~150 governed
+  // AI-language assertions sat silently skipped on a Node 26 workstation while
+  // the suite still exited 0.
+  if (process.env.ALLOW_RUNTIME_DRIFT === '1') {
+    console.warn(
+      `[test-quality] NOTE — ${detail}. Skipped by ALLOW_RUNTIME_DRIFT=1; the fenced suites did NOT run.`,
     )
   } else {
-    console.warn(`[test-quality] NOTE — ${detail}.`)
-    for (const r of fenced) {
-      console.warn(
-        `[test-quality]   ⚠ ${r.file} — ${r.skippedTests} test(s) (owner ${r.owner})`,
-      )
-    }
-    console.warn(
-      `[test-quality] Expected outside CI. These are verified on the pinned runtime; rule 5 fails the GitHub Actions run if that drifts.`,
+    failures.push(
+      `runtime-fence drift — ${detail}. The pinned runtime (.nvmrc, node ${PINNED_RUNTIME.node}) is what ` +
+        'makes these suites run at all; on a drifted runtime the governed AI-language admission tables ' +
+        'stop being verified and the suite still exits 0. Run `fnm use` (or `nvm use`), or set ' +
+        'ALLOW_RUNTIME_DRIFT=1 to acknowledge the gap.',
     )
   }
 }

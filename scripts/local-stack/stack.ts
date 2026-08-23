@@ -2479,6 +2479,17 @@ async function main(): Promise<void> {
     case 'down':
       down(mode)
       return
+    case 'reseed':
+      // Flake hunting needs to run a spec N times, and most critical specs are
+      // NOT re-runnable against a stack they have already mutated: guest-portal
+      // replay idempotency, the product journeys and the seeded inbox rows all
+      // assume first-run state. Re-running the seed one-shot restores that
+      // without the ~200s of a full down/up cycle, so
+      //   for i in 1 2 3; do pnpm e2e:stack:reseed && pnpm test:e2e --project=critical; done
+      // is a usable loop.
+      if (!existsSync(state.env)) throw new Error(`Run local ${mode} stack up first`)
+      oneShot(mode, state, 'seed')
+      return
     case 'test':
       await test(mode)
       return
