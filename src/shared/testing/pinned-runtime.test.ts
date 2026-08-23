@@ -36,12 +36,25 @@ describe('the pinned runtime', () => {
     expect(manifest.engines.node).toBe(pinned)
   })
 
-  it('is enforced by pnpm rather than warned about', () => {
-    // Without engine-strict, `engines` is advisory and a wrong runtime installs
-    // happily — which is exactly how the ENOBUFS boot happened.
-    expect(read('.npmrc')).toMatch(/^engine-strict=true$/m)
+  it('is enforced at install time, and NOT via engine-strict', () => {
+    const manifest = JSON.parse(read('package.json')) as {
+      scripts: Record<string, string>
+    }
+    // The guard checks Node/ICU/Unicode only. engine-strict would also enforce
+    // every package's os/cpu, which fails linux CI on the darwin-only rolldown
+    // binding the lockfile carries for local dev — measured, see .npmrc.
+    expect(manifest.scripts.preinstall).toBe('node scripts/assert-pinned-runtime.mjs')
+    expect(read('.npmrc')).not.toMatch(/^engine-strict=true$/m)
   })
 
+  it('checks the same values in the preinstall guard, which cannot import this', () => {
+    // scripts/assert-pinned-runtime.mjs runs before node_modules exists, so it
+    // reads .nvmrc itself and hardcodes the ICU pair. Keep the copies equal.
+    const guard = read('scripts/assert-pinned-runtime.mjs')
+    expect(guard).toContain(`const EXPECTED_ICU = '${PINNED_ICU_VERSION}'`)
+    expect(guard).toContain(`const EXPECTED_UNICODE = '${PINNED_UNICODE_VERSION}'`)
+    expect(guard).toContain("readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim()")
+  })
   it.each(['.github/workflows/ci.yml', '.github/workflows/simulation.yml'])(
     '%s resolves the runtime from .nvmrc, with no literal left behind',
     (workflow) => {

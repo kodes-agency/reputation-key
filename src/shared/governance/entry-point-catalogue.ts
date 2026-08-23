@@ -3321,6 +3321,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:coverage — CI gate (BQC-6.9), MAIN ONLY: runs the unit suite with v8 coverage; enforces 100% on pure domain rules + the two-sided baseline ratchet',
   }),
+  ops('scripts/assert-pinned-runtime.mjs', 'scripts/assert-pinned-runtime.mjs', 'none', {
+    notes:
+      'preinstall guard: refuses `pnpm install` on a Node/ICU/Unicode other than the pin in .nvmrc; read-only',
+  }),
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
   }),
