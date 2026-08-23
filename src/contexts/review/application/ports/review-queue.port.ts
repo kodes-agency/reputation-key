@@ -27,6 +27,12 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
 
 export type AddSyncJobOptions = Readonly<{
   jobId?: string
+  /**
+   * Delay before the job becomes runnable. Set on rate-limited continuations:
+   * that path checkpoints WITHOUT advancing the cursor, so an undelayed
+   * continuation repeats the denied call at queue speed.
+   */
+  delayMs?: number
 }>
 
 /**

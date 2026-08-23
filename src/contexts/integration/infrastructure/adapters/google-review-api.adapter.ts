@@ -125,24 +125,40 @@ function defineEnumerable<T>(value: T): PropertyDescriptor {
   }
 }
 
+/**
+ * `retryAfterMs` carries the provider's own backoff hint to the scheduler.
+ *
+ * Dropping it was a live amplification bug: a `quota_exhausted` admission
+ * denial surfaces as `provider_rate_limited`, the snapshot use case checkpoints
+ * WITHOUT advancing its cursor, and the sync job re-enqueued the continuation
+ * with no delay - so a provider asking for a ~1s pause got hammered at queue
+ * speed instead (observed: 3,225 denials over 344s, ~9/s, which starved every
+ * other Google route sharing the quota, reply publishing included).
+ */
 function reviewApiError(
   code: GoogleReviewApiErrorCode,
   recoverable: boolean,
+  retryAfterMs?: number,
 ): Error & {
   readonly _tag: 'GoogleReviewApiError'
   readonly code: GoogleReviewApiErrorCode
   readonly recoverable: boolean
+  readonly retryAfterMs?: number
 } {
   const error = new Error('Google review API request failed') as Error & {
     readonly _tag: 'GoogleReviewApiError'
     readonly code: GoogleReviewApiErrorCode
     readonly recoverable: boolean
+    readonly retryAfterMs?: number
   }
   Object.defineProperties(error, {
     name: defineEnumerable('GoogleReviewApiError'),
     _tag: defineEnumerable('GoogleReviewApiError'),
     code: defineEnumerable(code),
     recoverable: defineEnumerable(recoverable),
+    ...(retryAfterMs === undefined
+      ? {}
+      : { retryAfterMs: defineEnumerable(retryAfterMs) }),
   })
   return error
 }
@@ -475,7 +491,13 @@ export const createGoogleReviewApiAdapter = (
           'kind' in error &&
           error.kind === 'rate_limited'
         ) {
-          throw reviewApiError('provider_rate_limited', true)
+          // The executor already computed a floored backoff (googleRetryFloorMs)
+          // from the provider's Retry-After or the admission denial. Forward it.
+          const hint =
+            'retryAfterMs' in error && typeof error.retryAfterMs === 'number'
+              ? error.retryAfterMs
+              : undefined
+          throw reviewApiError('provider_rate_limited', true, hint)
         }
         throw reviewApiError('provider_unavailable', true)
       }

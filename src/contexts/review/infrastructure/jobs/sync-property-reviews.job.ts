@@ -14,7 +14,10 @@ export const JOB_NAME = 'sync-property-reviews' as const
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
   propertyRouting: PropertyRoutingPort
-  enqueueContinuation(data: SyncPropertyReviewsJobData): Promise<void>
+  enqueueContinuation(
+    data: SyncPropertyReviewsJobData,
+    options?: Readonly<{ delayMs?: number }>,
+  ): Promise<void>
   /**
    * Discovery-ladder liveness stamps. A GBP push proves Google is publishing
    * for this location, so a push-initiated sync resets the property to the
@@ -85,11 +88,14 @@ export const createSyncPropertyReviewsHandler =
         ...(data.runId == null ? {} : { runId: data.runId }),
       })
       if (result.status === 'checkpointed' || result.status === 'deleting') {
-        await deps.enqueueContinuation({
-          ...data,
-          sourceEpoch,
-          runId: result.runId,
-        })
+        const continuation = { ...data, sourceEpoch, runId: result.runId }
+        // A checkpoint carrying `retryAfterMs` means the provider rate-limited
+        // us and the cursor did NOT advance, so this continuation repeats the
+        // same call. Enqueue it delayed, or it is retried at queue speed and
+        // amplifies load on a provider that just asked for a pause.
+        const delayMs = result.status === 'checkpointed' ? result.retryAfterMs : undefined
+        if (delayMs === undefined) await deps.enqueueContinuation(continuation)
+        else await deps.enqueueContinuation(continuation, { delayMs })
       }
       if (result.status === 'failed') throw new Error(result.code)
       return result

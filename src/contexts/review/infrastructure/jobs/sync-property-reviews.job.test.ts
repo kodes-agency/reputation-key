@@ -64,6 +64,61 @@ describe('sync-property-reviews snapshot handler', () => {
     expect(JSON.stringify(enqueueContinuation.mock.calls)).not.toContain('pageToken')
   })
 
+  // The rate-limited checkpoint does NOT advance the cursor, so the
+  // continuation repeats the same provider call. Undelayed, that is an
+  // amplification loop against a provider that just asked for a pause - it was
+  // measured at ~9 denials/second for a whole e2e run, starving every other
+  // Google route behind the same quota.
+  it('delays the continuation by the provider backoff hint', async () => {
+    const runSnapshot = vi.fn(async () => ({
+      status: 'checkpointed' as const,
+      runId: '44444444-4444-4444-8444-444444444444',
+      state: 'scanning' as const,
+      retryAfterMs: 5_000,
+    }))
+    const enqueueContinuation = vi.fn(async () => undefined)
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot,
+      propertyRouting,
+      enqueueContinuation,
+      ...ladderDeps(makeSyncActivity()),
+    })
+
+    await handler({ id: 'job-1', data: JOB_DATA } as never)
+
+    expect(enqueueContinuation).toHaveBeenCalledWith(
+      {
+        ...JOB_DATA,
+        sourceEpoch: 7,
+        runId: '44444444-4444-4444-8444-444444444444',
+      },
+      { delayMs: 5_000 },
+    )
+  })
+
+  it('does not delay a deleting continuation, which makes real progress', async () => {
+    const runSnapshot = vi.fn(async () => ({
+      status: 'deleting' as const,
+      runId: '44444444-4444-4444-8444-444444444444',
+      applied: 3,
+    }))
+    const enqueueContinuation = vi.fn(async () => undefined)
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot,
+      propertyRouting,
+      enqueueContinuation,
+      ...ladderDeps(makeSyncActivity()),
+    })
+
+    await handler({ id: 'job-1', data: JOB_DATA } as never)
+
+    expect(enqueueContinuation).toHaveBeenCalledWith({
+      ...JOB_DATA,
+      sourceEpoch: 7,
+      runId: '44444444-4444-4444-8444-444444444444',
+    })
+  })
+
   it('rejects a stale source epoch before snapshot work', async () => {
     const runSnapshot = vi.fn()
     const handler = createSyncPropertyReviewsHandler({
