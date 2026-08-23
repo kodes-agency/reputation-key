@@ -65,8 +65,13 @@ and the register would fill with noise:
   which starved `reviews.reply` behind the same per-minute quota, so reply
   publishing never happened and the two specs timed out on a healthy worker.
   Fixed by carrying the provider's `retryAfterMs` into the continuation's
-  enqueue delay. If reply publishing ever times out again, count
-  `quota_exhausted` in the worker log FIRST — a storm there means the backoff
-  chain regressed, not that the test is slow.
+  enqueue delay. Confirmed on the machine that reproduced it, same suite:
+  denials 3,230 -> 11, `sync-property-reviews` jobs 3,933 -> 61, and the
+  critical suite went from "1 failed + 1 flaky in 4m29s" to "73 passed in
+  2m08s". The residual 11 are the intended behaviour - the quota is still
+  reached occasionally, and now the loop waits instead of spinning. If reply
+  publishing ever times out again, count `quota_exhausted` in the worker log
+  FIRST: a storm there means the backoff chain regressed, not that the test is
+  slow.
 - **Wrong Node major.** The stack fails `ENOBUFS` mid-boot and the ICU-fenced
   suites skip themselves. `pnpm local:doctor` catches it.
