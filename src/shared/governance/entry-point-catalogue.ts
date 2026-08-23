@@ -3321,6 +3321,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:coverage — CI gate (BQC-6.9), MAIN ONLY: runs the unit suite with v8 coverage; enforces 100% on pure domain rules + the two-sided baseline ratchet',
   }),
+  ops('scripts/local-doctor.mjs', 'scripts/local-doctor.mjs', 'none', {
+    notes:
+      'local:doctor — read-only local preflight (pinned runtime, docker daemon, stack host ports, stale containers); starts and stops nothing',
+  }),
   ops('scripts/check-filenames.mjs', 'scripts/check-filenames.mjs', 'none', {
     notes: 'CI lint: filename convention check',
   }),

@@ -37,7 +37,7 @@ function printEntry(entry: QuarantinedEntry): void {
     entry.quarantineJobId.padEnd(48),
     e.jobName.padEnd(28),
     `queue=${e.originalQueue}`.padEnd(20),
-    `attempts=${e.attempts}`.padEnd(12),
+    `attempts=${e.attemptsMade}`.padEnd(12),
     e.quarantinedAt,
   )
   console.log(

@@ -8,7 +8,6 @@ import {
 } from '../../src/shared/auth/google-content-approval'
 import { createGoogleContentApprovalInstaller } from '../../src/shared/auth/google-content-authority'
 import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
-import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
 const MAX_BUNDLE_BYTES = 5 * 1024 * 1024

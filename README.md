@@ -5,6 +5,12 @@ A reputation management platform built with TanStack Start, Better Auth, Drizzle
 ## Quick Start
 
 ```bash
+# 0. Use the pinned Node runtime — 22.23.2, exactly (.nvmrc)
+fnm use            # or: nvm use
+# Not a floor: the local stack fails ENOBUFS mid-boot on another major, and the
+# ICU-fenced AI-language suites (~150 assertions) skip themselves. Check with:
+pnpm local:doctor  # runtime, docker daemon, stack ports, stale containers
+
 # 1. Install dependencies
 pnpm install
 
