@@ -58,8 +58,17 @@ export function useReplyComposer(input: Input) {
       }),
     [input.initialLanguageTag, input.propertyLanguage, input.reviewLanguage],
   )
-  const autosave = useReplyAutosave(draft, (snapshot, provenanceToken) =>
-    input.onSaveDraft(snapshot.text, provenanceToken, snapshot.languageTag ?? undefined),
+  const autosave = useReplyAutosave(
+    {
+      text: input.initialText,
+      languageTag: input.initialLanguageTag,
+    },
+    (snapshot, provenanceToken) =>
+      input.onSaveDraft(
+        snapshot.text,
+        provenanceToken,
+        snapshot.languageTag ?? undefined,
+      ),
   )
   const target = targetForReplyLanguage(
     draft.languageTag,

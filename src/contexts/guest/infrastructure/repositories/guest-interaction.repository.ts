@@ -210,7 +210,6 @@ export const createGuestInteractionRepository = (
           ),
         )
         .where(and(...conditions))
-        .limit(1000)
       return rows.map((row) => row.id as FeedbackId)
     })
   },

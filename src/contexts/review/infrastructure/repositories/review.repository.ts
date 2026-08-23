@@ -528,7 +528,9 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
    * BQC-1.2: eligible content filter for cross-context list queries.
    * Eligibility predicate lives here (defense in depth): non-null
    * contentExpiresAt strictly in the future. Text search escapes LIKE
-   * wildcards. Bounded at 1000 ids — page-size guard for list filters.
+   * wildcards. This returns the complete eligible id set because the inbox
+   * uses it for both page results and the matching total; truncating here
+   * would silently hide older matches for larger organizations.
    */
   findIdsByContentFilter: async (orgId, filter, now) => {
     return trace('review.findIdsByContentFilter', async () => {
@@ -549,7 +551,6 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
         .select({ id: reviews.id })
         .from(reviews)
         .where(and(...conditions))
-        .limit(1000)
       return rows.map((r) => r.id as string)
     })
   },

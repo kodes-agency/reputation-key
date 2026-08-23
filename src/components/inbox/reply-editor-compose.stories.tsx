@@ -100,6 +100,33 @@ export const SubmitFlow: Story = {
   },
 }
 
+export const LegacyDraftPersistsDefaultLanguageOnSubmit: Story = {
+  args: {
+    initialText: 'Thank you for your feedback!',
+    initialLanguageTag: null,
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+  },
+  play: async ({ canvasElement }) => {
+    onSaveDraft.mockClear()
+    onSubmit.mockClear()
+    const canvas = within(canvasElement)
+
+    await userEvent.click(canvas.getByRole('button', { name: /submit for approval/i }))
+
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        'Thank you for your feedback!',
+        undefined,
+        'bg-Cyrl',
+      ),
+    )
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+    expect(onSaveDraft.mock.invocationCallOrder[0]).toBeLessThan(
+      onSubmit.mock.invocationCallOrder[0] ?? 0,
+    )
+  },
+}
+
 export const AiSuggestionAdoption: Story = {
   args: { onGenerateSuggestion },
   play: async ({ canvas }) => {

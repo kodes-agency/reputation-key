@@ -299,6 +299,34 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
+  describe('findIdsByContentFilter', () => {
+    it('returns the complete match set for organizations with more than 1,000 reviews', async () => {
+      await pool.query(
+        `INSERT INTO reviews (
+           id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, text, reviewed_at, expires_at,
+           content_expires_at, source_epoch, source_revision, analysis_sequence,
+           ai_source_byte_length, ai_source_digest
+         )
+         SELECT
+           ('1c000000-0000-0000-0000-' || lpad(series::text, 12, '0'))::uuid,
+           $1, $2, 'google', 'bulk-filter-' || series,
+           $3, 5, 'Complete filter match', NOW(), NOW() + INTERVAL '30 days',
+           NOW() + INTERVAL '30 days', 0, 0, 0, 1, repeat('0', 64)
+         FROM generate_series(1, 1001) AS series`,
+        [ORG_A, PROP_A, GOOGLE_LOCATION_PRIMARY_RESOURCE],
+      )
+
+      const ids = await createReviewRepository(getDb()).findIdsByContentFilter(
+        ORG_A,
+        { ratingMin: 5, textQuery: 'complete filter' },
+        new Date(),
+      )
+
+      expect(ids).toHaveLength(1001)
+    })
+  })
+
   describe('findExpiringBatchAcrossTenants keyset batches (BQC-1.5)', () => {
     const NOW = new Date('2025-06-01T12:00:00Z')
 

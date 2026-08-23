@@ -1,3 +1,5 @@
+import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
+
 export type ReplyLanguageTarget =
   Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
 
@@ -18,6 +20,18 @@ export function languageDisplayName(tag: string | null | undefined): string | nu
   }
 }
 
+function equivalentReplyLanguageTags(left: string | null, right: string | null): boolean {
+  if (!left || !right) return false
+  if (left === right) return true
+  const leftLanguage = parseCanonicalReplyLanguageTag(left)
+  const rightLanguage = parseCanonicalReplyLanguageTag(right)
+  return (
+    leftLanguage !== null &&
+    rightLanguage !== null &&
+    leftLanguage.templateGroup === rightLanguage.templateGroup
+  )
+}
+
 export function replyLanguageOptions(
   input: Readonly<{
     propertyTag: string | null
@@ -33,14 +47,20 @@ export function replyLanguageOptions(
       source: 'property',
     })
   }
-  if (input.reviewTag && input.reviewTag !== input.propertyTag) {
+  if (
+    input.reviewTag &&
+    !equivalentReplyLanguageTags(input.reviewTag, input.propertyTag)
+  ) {
     options.push({
       tag: input.reviewTag,
       label: `Review language · ${languageDisplayName(input.reviewTag)}`,
       source: 'review',
     })
   }
-  if (input.savedTag && !options.some((option) => option.tag === input.savedTag)) {
+  if (
+    input.savedTag &&
+    !options.some((option) => equivalentReplyLanguageTags(option.tag, input.savedTag))
+  ) {
     options.push({
       tag: input.savedTag,
       label: `Saved draft · ${languageDisplayName(input.savedTag)}`,
@@ -57,6 +77,14 @@ export function defaultReplyLanguageTag(
     savedTag: string | null
   }>,
 ): string | null {
+  if (input.savedTag) {
+    if (equivalentReplyLanguageTags(input.savedTag, input.propertyTag)) {
+      return input.propertyTag
+    }
+    if (equivalentReplyLanguageTags(input.savedTag, input.reviewTag)) {
+      return input.reviewTag
+    }
+  }
   return input.savedTag ?? input.propertyTag ?? input.reviewTag
 }
 
@@ -65,7 +93,11 @@ export function targetForReplyLanguage(
   propertyTag: string | null,
   reviewTag: string | null,
 ): ReplyLanguageTarget | null {
-  if (tag && tag === propertyTag) return { kind: 'property_default' }
-  if (tag && tag === reviewTag) return { kind: 'review_language' }
+  if (equivalentReplyLanguageTags(tag, propertyTag)) {
+    return { kind: 'property_default' }
+  }
+  if (equivalentReplyLanguageTags(tag, reviewTag)) {
+    return { kind: 'review_language' }
+  }
   return null
 }

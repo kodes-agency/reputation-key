@@ -122,16 +122,19 @@ describe('createGuestResponseRepository', () => {
     )
   })
 
-  it('returns the bounded ids selected by the consent-aware content query', async () => {
-    const { db, chain, getWhereCondition } = selectDatabase([{ id: 'response-1' }])
+  it('returns every id selected by the consent-aware content query', async () => {
+    const rows = Array.from({ length: 1001 }, (_, index) => ({
+      id: `response-${index + 1}`,
+    }))
+    const { db, chain, getWhereCondition } = selectDatabase(rows)
 
     await expect(
       createGuestResponseRepository(db).findEligibleSnippetIdsForOrg('org-1', {
         ratingMin: 4,
         textQuery: 'breakfast',
       }),
-    ).resolves.toEqual(['response-1'])
-    expect(chain.limit).toHaveBeenCalledWith(1000)
+    ).resolves.toHaveLength(1001)
+    expect(chain.limit).not.toHaveBeenCalled()
     const compiled = new PgDialect().sqlToQuery(getWhereCondition() as SQL)
     expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
     expect(compiled.sql).toContain('"guest_responses"."response_consent" =')

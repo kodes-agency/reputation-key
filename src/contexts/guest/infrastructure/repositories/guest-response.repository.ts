@@ -176,7 +176,6 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         .select({ id: guestResponses.id })
         .from(guestResponses)
         .where(and(...conditions))
-        .limit(1000)
       return rows.map((row) => row.id)
     },
 

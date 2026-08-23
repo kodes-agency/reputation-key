@@ -34,14 +34,65 @@ describe('reply language options', () => {
     ).toBe('bg-Cyrl')
   })
 
-  it('does not duplicate the review language when it matches the property', () => {
+  it.each([
+    ['bg-Cyrl', 'bg-Cyrl'],
+    ['bg-Cyrl', 'bg-Cyrl-BG'],
+    ['bg-Cyrl-BG', 'bg-Cyrl'],
+  ])(
+    'does not duplicate equivalent property %s and review %s language tags',
+    (propertyTag, reviewTag) => {
+      expect(
+        replyLanguageOptions({
+          propertyTag,
+          reviewTag,
+          savedTag: null,
+        }),
+      ).toHaveLength(1)
+    },
+  )
+
+  it.each([
+    ['bg-Cyrl', 'ru-Cyrl'],
+    ['zh-Hans', 'zh-Hant'],
+  ])(
+    'offers genuinely different property %s and review %s language groups',
+    (propertyTag, reviewTag) => {
+      expect(
+        replyLanguageOptions({
+          propertyTag,
+          reviewTag,
+          savedTag: null,
+        }),
+      ).toHaveLength(2)
+    },
+  )
+
+  it('uses the visible canonical choice for an equivalent saved region variant', () => {
     expect(
       replyLanguageOptions({
         propertyTag: 'bg-Cyrl',
-        reviewTag: 'bg-Cyrl',
-        savedTag: null,
+        reviewTag: 'tr-Latn',
+        savedTag: 'bg-Cyrl-BG',
       }),
-    ).toHaveLength(1)
+    ).toEqual([
+      {
+        tag: 'bg-Cyrl',
+        label: 'Property default · Bulgarian',
+        source: 'property',
+      },
+      {
+        tag: 'tr-Latn',
+        label: 'Review language · Turkish',
+        source: 'review',
+      },
+    ])
+    expect(
+      defaultReplyLanguageTag({
+        propertyTag: 'bg-Cyrl',
+        reviewTag: 'tr-Latn',
+        savedTag: 'bg-Cyrl-BG',
+      }),
+    ).toBe('bg-Cyrl')
   })
 
   it('preserves a saved draft language and maps governed AI targets', () => {
@@ -57,6 +108,9 @@ describe('reply language options', () => {
     })
     expect(targetForReplyLanguage('tr-Latn-TR', 'bg-Cyrl', 'tr-Latn-TR')).toEqual({
       kind: 'review_language',
+    })
+    expect(targetForReplyLanguage('bg-Cyrl-BG', 'bg-Cyrl', 'tr-Latn-TR')).toEqual({
+      kind: 'property_default',
     })
     expect(targetForReplyLanguage('de-Latn-DE', 'bg-Cyrl', 'tr-Latn-TR')).toBeNull()
   })
