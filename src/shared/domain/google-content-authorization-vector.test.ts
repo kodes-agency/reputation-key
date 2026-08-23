@@ -5,6 +5,7 @@ import type { Permission } from './permissions'
 import type { AuthContext } from './auth-context'
 import {
   FROZEN_VECTOR_EXCLUDED_KEYS,
+  exactVectorDrift,
   frozenVectorDrift,
   googleAuthorizationPermissionDigest,
   sameFrozenGoogleContentAuthorizationVector,
@@ -196,6 +197,25 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
       for (const key of FROZEN_VECTOR_EXCLUDED_KEYS) {
         expect(frozenVectorDrift(persisted(), persisted({ [key]: 12345 }))).toEqual([])
       }
+    })
+  })
+
+  // For sites whose comparison excludes nothing. Pairing those with
+  // `frozenVectorDrift` produced a real denial logged as `drift: []`.
+  describe('exactVectorDrift', () => {
+    it('reports the excluded keys too', () => {
+      for (const key of FROZEN_VECTOR_EXCLUDED_KEYS) {
+        expect(exactVectorDrift(persisted(), persisted({ [key]: 12345 }))).toEqual([
+          { key, frozen: persisted()[key], recomputed: 12345 },
+        ])
+      }
+    })
+
+    it('is empty only for identical vectors', () => {
+      expect(exactVectorDrift(persisted(), persisted())).toEqual([])
+      expect(exactVectorDrift(persisted(), persisted({ role: 'Staff' }))).toEqual([
+        { key: 'role', frozen: 'AccountAdmin', recomputed: 'Staff' },
+      ])
     })
   })
 })
