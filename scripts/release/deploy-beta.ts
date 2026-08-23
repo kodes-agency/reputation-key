@@ -492,11 +492,30 @@ function provenanceFailures(force: boolean): readonly string[] {
 async function deployAndVerify(sha: string, options: Options): Promise<number> {
   const plan = deployPlan(sha)
   out(`APPLY — environment ${ENVIRONMENT}, revision ${sha}`)
+
+  // Web owns the pre-deploy database migration. Let Railway finish that
+  // deployment (including its /api/health/started activation check) before a
+  // worker or gateway can start running code that depends on the new schema.
+  const [web, ...remaining] = plan
+  if (!web || web.service !== 'web') {
+    throw new Error('release plan must start with web')
+  }
+
+  out('')
+  out(`1/${String(plan.length)} ${web.service}: ${web.variables.join(' ')}`)
+  const webSettlement = await awaitSettlement(
+    [deployService(web)],
+    options.deployTimeoutMs,
+  )
+  if (webSettlement.length > 0) {
+    return report(webSettlement, false)
+  }
+
   const deployments: Deployment[] = []
-  for (const [index, entry] of plan.entries()) {
+  for (const [index, entry] of remaining.entries()) {
     out('')
     out(
-      `${String(index + 1)}/${String(plan.length)} ${entry.service}: ${entry.variables.join(' ')}`,
+      `${String(index + 2)}/${String(plan.length)} ${entry.service}: ${entry.variables.join(' ')}`,
     )
     deployments.push(deployService(entry))
   }
