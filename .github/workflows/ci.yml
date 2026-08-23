@@ -401,6 +401,15 @@ jobs:
       # scan does not (.grype.yaml applied identically — 142 ignores in both).
       # That is a fidelity loss, not a wash: do not reintroduce it without
       # symbol-capturing SBOMs AND a match-count comparison against main.
+      #
+      # cache-db: true — measured, and it is a modest steady-state win with a
+      # cold-start penalty, not a free one. Three scans, same commit:
+      #   no cache      57s + 15s + 14s = 86s
+      #   cold cache   62s + 24s + 24s = 110s  (nothing to restore, pays the save)
+      #   warm cache   23s + 21s + 22s = 66s   (-23% vs no cache)
+      # Break-even is roughly a 55% hit rate. grype publishes a new DB about
+      # daily, so the first run after each publish pays the cold cost and the
+      # rest of that day's runs hit. Revisit if CI volume drops to ~1 run/day.
       - name: Vulnerability scan web image (grype)
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
