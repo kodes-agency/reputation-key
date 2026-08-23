@@ -56,6 +56,17 @@ const withDefaults = (row: InboxItemRow): InboxItem => ({
   propertyName: null,
 })
 
+/**
+ * Match source ids with one PostgreSQL array parameter. Content and AI
+ * lookups can legitimately return thousands of ids; expanding them through
+ * `inArray` would consume one bind parameter per id and eventually exceed the
+ * PostgreSQL parameter ceiling.
+ */
+export function inboxSourceIdMatchesAny(ids: ReadonlyArray<string>): SQL {
+  if (ids.length === 0) return sql`false`
+  return sql`${inboxItems.sourceId} = ANY(${sql.param(ids.map(String))}::uuid[])`
+}
+
 /** Mutable set-values for an inbox_items update. */
 type InboxItemSet = Partial<typeof inboxItems.$inferInsert>
 
@@ -144,7 +155,7 @@ async function resolveAiNarrowing(
   const narrowing: SQL[] = [eq(inboxItems.sourceType, 'review')]
   for (const reviewIds of await Promise.all(lookups)) {
     if (reviewIds === undefined || reviewIds.length === 0) return null
-    narrowing.push(inArray(inboxItems.sourceId, [...reviewIds]))
+    narrowing.push(inboxSourceIdMatchesAny(reviewIds))
   }
   return narrowing
 }
@@ -174,18 +185,12 @@ async function resolveContentNarrowing(
   const sourceMatches: SQL[] = []
   if (reviewIds.length > 0) {
     sourceMatches.push(
-      and(
-        eq(inboxItems.sourceType, 'review'),
-        inArray(inboxItems.sourceId, [...reviewIds]),
-      )!,
+      and(eq(inboxItems.sourceType, 'review'), inboxSourceIdMatchesAny(reviewIds))!,
     )
   }
   if (feedbackIds.length > 0) {
     sourceMatches.push(
-      and(
-        eq(inboxItems.sourceType, 'feedback'),
-        inArray(inboxItems.sourceId, [...feedbackIds]),
-      )!,
+      and(eq(inboxItems.sourceType, 'feedback'), inboxSourceIdMatchesAny(feedbackIds))!,
     )
   }
   if (sourceMatches.length === 0) return null
