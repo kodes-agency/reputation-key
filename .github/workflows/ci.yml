@@ -290,6 +290,20 @@ jobs:
       # COPY changing source early, so cross-run layer reuse was low to begin
       # with. Total effect +2.7 min per push. Do not reintroduce it without
       # measuring both the build steps AND the stack step.
+      #
+      # Sharing built images with the `e2e` job (build once, transfer, load) was
+      # costed out and rejected on arithmetic, not taste:
+      #   * transfer is real weight — `docker save` of the eight compose-tagged
+      #     images for one revision is 0.66 GB gzipped (measured locally), so
+      #     upload + download + save + load lands around 2-3.5 min, which is
+      #     already the whole e2e Compose build (169-211s).
+      #   * and it would SERIALISE what is parallel today. Sharing needs
+      #     `needs:`, so the critical path stops being max(docker 274s,
+      #     e2e 510s) = 510s and becomes build + e2e-remainder + transfer
+      #     (~210 + ~320 + ~150 = 680s). Worse by ~3 min.
+      # A shared third build job has the same problem: e2e needs seven
+      # compose-tagged images, so the shared build is ~210s of critical path
+      # that both consumers then wait on.
       - name: Build web image
         run: docker build -f Dockerfile -t repkey-web:ci .
 
