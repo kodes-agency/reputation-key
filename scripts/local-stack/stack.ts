@@ -1603,17 +1603,31 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   // repkey-local-perf"), and then builds it during startup regardless. The work
   // does not disappear, it just moves out of this phase and gains a failed pull
   // round trip. Building it explicitly here keeps the boot log honest.
-  dockerCompose(mode, state, [
-    'build',
-    'web',
-    'worker',
-    'provider-sandbox',
-    'google-execution-admission',
-    'google-egress-gateway',
-    'ai-execution-admission',
-    'ai-egress-gateway',
-    'perf-runner',
-  ])
+  //
+  // COMPOSE_PARALLEL_LIMIT: compose builds every service at once by default,
+  // and each of these stages runs its own `pnpm install --frozen-lockfile`.
+  // Eight of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
+  // logged `global_oom` and killed whatever was largest, twice taking `dockerd`
+  // itself, which surfaces to the client as the useless
+  // `failed to solve: Unavailable: error reading from server: EOF`. Capping the
+  // fan-out costs wall clock on a big machine and is the difference between
+  // booting and not on a small one.
+  dockerCompose(
+    mode,
+    state,
+    [
+      'build',
+      'web',
+      'worker',
+      'provider-sandbox',
+      'google-execution-admission',
+      'google-egress-gateway',
+      'ai-execution-admission',
+      'ai-egress-gateway',
+      'perf-runner',
+    ],
+    { env: { ...process.env, COMPOSE_PARALLEL_LIMIT: '3' } },
+  )
 }
 
 function startDependencies(mode: LocalStackMode, state: StackPaths): void {
