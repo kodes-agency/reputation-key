@@ -1595,6 +1595,14 @@ function oneShot(
 
 function buildImages(mode: LocalStackMode, state: StackPaths): void {
   dockerCompose(mode, state, ['config', '--quiet'])
+  // Every service in the active profiles is built here, perf-runner included.
+  //
+  // Skipping perf-runner for e2e was tried and measured pointless: it sits in
+  // the `backend` profile, so `docker compose up` needs its image anyway, finds
+  // it missing, attempts a registry pull ("pull access denied for
+  // repkey-local-perf"), and then builds it during startup regardless. The work
+  // does not disappear, it just moves out of this phase and gains a failed pull
+  // round trip. Building it explicitly here keeps the boot log honest.
   dockerCompose(mode, state, [
     'build',
     'web',
@@ -1604,11 +1612,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
     'google-egress-gateway',
     'ai-execution-admission',
     'ai-egress-gateway',
-    // perf-runner is the BQC-8 target-cell shell (`command: [sleep, infinity]`,
-    // driven over Railway SSH by perf:cell). The e2e suite never execs into it,
-    // so building it there only lengthens the job's critical path; every other
-    // mode still gets it.
-    ...(mode === 'e2e' ? [] : ['perf-runner']),
+    'perf-runner',
   ])
 }
 
