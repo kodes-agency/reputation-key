@@ -45,6 +45,7 @@ import {
   type LocalStackMode,
   type MigrationHeadProof,
 } from '../../src/shared/testing/local-stack-controller'
+import { assertPinnedRuntime } from '../../src/shared/testing/pinned-runtime'
 import {
   localStackPlaywrightEnv,
   parseLocalStackEnvFile as parseEnvFile,
@@ -2450,6 +2451,11 @@ async function acceptance(mode: LocalStackMode, dumpPath: string): Promise<void>
 }
 
 async function main(): Promise<void> {
+  // Before anything else: every command here drives docker compose through
+  // spawnSync, which fails ENOBUFS on a non-pinned Node major — after the
+  // containers are up, and again in the diagnostics collector, so the symptom
+  // hides the cause. Refuse up front with the fix.
+  assertPinnedRuntime(ROOT)
   const command = process.argv[2] ?? 'smoke'
   const mode = parseLocalStackMode(flagValue('--mode'))
   const state = paths(mode)
