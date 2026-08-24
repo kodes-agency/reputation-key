@@ -3,10 +3,12 @@ import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogu
 export type ReplyLanguageTarget =
   Readonly<{ kind: 'property_default' }> | Readonly<{ kind: 'review_language' }>
 
+export const AUTO_DETECT_REVIEW_LANGUAGE = '__review_language_auto__' as const
+
 export type ReplyLanguageOption = Readonly<{
   tag: string
   label: string
-  source: 'property' | 'review' | 'saved'
+  source: 'property' | 'review' | 'review_auto' | 'saved'
 }>
 
 export function languageDisplayName(tag: string | null | undefined): string | null {
@@ -37,6 +39,7 @@ export function replyLanguageOptions(
     propertyTag: string | null
     reviewTag: string | null
     savedTag: string | null
+    canDetectReviewLanguage?: boolean
   }>,
 ): ReadonlyArray<ReplyLanguageOption> {
   const options: ReplyLanguageOption[] = []
@@ -55,6 +58,12 @@ export function replyLanguageOptions(
       tag: input.reviewTag,
       label: `Review language · ${languageDisplayName(input.reviewTag)}`,
       source: 'review',
+    })
+  } else if (!input.reviewTag && input.canDetectReviewLanguage === true) {
+    options.push({
+      tag: AUTO_DETECT_REVIEW_LANGUAGE,
+      label: 'Review language · Detect automatically',
+      source: 'review_auto',
     })
   }
   if (
@@ -92,7 +101,11 @@ export function targetForReplyLanguage(
   tag: string | null,
   propertyTag: string | null,
   reviewTag: string | null,
+  options?: Readonly<{ canDetectReviewLanguage?: boolean }>,
 ): ReplyLanguageTarget | null {
+  if (tag === AUTO_DETECT_REVIEW_LANGUAGE && options?.canDetectReviewLanguage === true) {
+    return { kind: 'review_language' }
+  }
   if (equivalentReplyLanguageTags(tag, propertyTag)) {
     return { kind: 'property_default' }
   }
@@ -100,4 +113,23 @@ export function targetForReplyLanguage(
     return { kind: 'review_language' }
   }
   return null
+}
+
+/**
+ * Verifies the concrete language returned by the governed AI boundary before
+ * the composer adopts it. An explicit selection must match exactly. A deferred
+ * review-language target may resolve a previously unknown tag through CLD3.
+ */
+export function resolveSuggestedReplyLanguageTag(
+  suggestedTag: string,
+  selectedTag: string | null,
+  target: ReplyLanguageTarget,
+): string | null {
+  const suggested = parseCanonicalReplyLanguageTag(suggestedTag)
+  if (suggested === null) return null
+  if (selectedTag === null) {
+    return target.kind === 'review_language' ? suggested.tag : null
+  }
+  const selected = parseCanonicalReplyLanguageTag(selectedTag)
+  return selected?.tag === suggested.tag ? suggested.tag : null
 }

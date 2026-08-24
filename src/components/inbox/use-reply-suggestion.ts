@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
-import type { ReplyLanguageTarget } from './reply-language-options'
+import {
+  resolveSuggestedReplyLanguageTag,
+  type ReplyLanguageTarget,
+} from './reply-language-options'
 
 export type ReplyTone = 'professional' | 'friendly' | 'casual'
 export type ReplySuggestionResult =
@@ -80,18 +83,23 @@ export function useReplySuggestion(input: Input) {
           setError(unavailableMessage(result.code))
           return
         }
+        const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
+          result.concreteLanguageTag,
+          baseDraft.languageTag,
+          input.target,
+        )
         if (
           !result.replyText ||
           result.replyText.length > MAX_REPLY_LENGTH ||
           result.expiresAtEpochMillis <= Date.now() ||
-          result.concreteLanguageTag !== baseDraft.languageTag
+          verifiedLanguageTag === null
         ) {
           setError('The AI draft could not be verified. Try again.')
           return
         }
         const nextDraft = {
           text: result.replyText,
-          languageTag: result.concreteLanguageTag,
+          languageTag: verifiedLanguageTag,
         }
         await input.onAccept(nextDraft, result.provenanceToken)
         if (

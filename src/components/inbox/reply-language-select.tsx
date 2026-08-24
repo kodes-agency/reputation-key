@@ -2,11 +2,16 @@ import { Globe2 } from 'lucide-react'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { languageDisplayName, type ReplyLanguageOption } from './reply-language-options'
+import {
+  AUTO_DETECT_REVIEW_LANGUAGE,
+  languageDisplayName,
+  type ReplyLanguageOption,
+} from './reply-language-options'
 
 type Props = Readonly<{
   value: string | null
@@ -18,18 +23,22 @@ type Props = Readonly<{
 const sourceLabels: Record<ReplyLanguageOption['source'], string> = {
   property: 'Property default',
   review: 'Review language',
+  review_auto: 'Detect automatically',
   saved: 'Saved draft',
 }
 
 export function ReplyLanguageSelect({ value, options, disabled, onChange }: Props) {
   const selectedOption = options.find((option) => option.tag === value)
-  const languageName = languageDisplayName(value) ?? 'Language not set'
+  const languageName =
+    value === AUTO_DETECT_REVIEW_LANGUAGE
+      ? 'Review language'
+      : (languageDisplayName(value) ?? 'Language not set')
   const sourceLabel = selectedOption ? sourceLabels[selectedOption.source] : null
 
   return (
     <div data-slot="reply-language" className="min-w-0">
       <Select
-        value={value ?? undefined}
+        value={value ?? ''}
         disabled={disabled || options.length === 0}
         onValueChange={onChange}
       >
@@ -55,11 +64,13 @@ export function ReplyLanguageSelect({ value, options, disabled, onChange }: Prop
           </SelectValue>
         </SelectTrigger>
         <SelectContent align="end">
-          {options.map((option) => (
-            <SelectItem key={`${option.source}-${option.tag}`} value={option.tag}>
-              {option.label}
-            </SelectItem>
-          ))}
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem key={`${option.source}-${option.tag}`} value={option.tag}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>

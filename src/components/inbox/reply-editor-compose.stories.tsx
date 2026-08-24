@@ -5,7 +5,7 @@
 // are the authoritative coverage for the pending + validation surfaces that
 // ReplyEditorInner derives internally.
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { ReplyCompose, type ReplySuggestionResult } from './reply-editor-compose'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
@@ -23,6 +23,10 @@ const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> 
   concreteLanguageTag: 'en-Latn',
 })
 const onGenerateSuggestion = fn(async () => readySuggestion())
+const onGenerateDetectedSuggestion = fn(async () => ({
+  ...readySuggestion(),
+  concreteLanguageTag: 'tr-Latn',
+}))
 const onGenerateUnavailable = fn(async () => ({
   status: 'unavailable' as const,
   code: 'language_not_supported',
@@ -48,10 +52,12 @@ const meta: Meta<typeof ReplyCompose> = {
   decorators: [withRole('PropertyManager')],
   parameters: { layout: 'centered' },
   args: {
+    propertyId: '10000000-0000-4000-8000-000000000101',
     initialText: '',
     initialLanguageTag: null,
     propertyDefaultReplyLanguage: 'en-Latn',
     reviewReplyLanguage: 'tr-Latn-TR',
+    canDetectReviewLanguage: true,
     isSaving: false,
     onSaveDraft,
     onSubmit,
@@ -141,6 +147,126 @@ export const AiSuggestionAdoption: Story = {
         'en-Latn',
       ),
     )
+  },
+}
+
+export const AiDetectsMissingReviewLanguage: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    initialText: 'Thank you for sharing your experience.',
+    propertyDefaultReplyLanguage: null,
+    reviewReplyLanguage: null,
+    canDetectReviewLanguage: true,
+    onGenerateSuggestion: onGenerateDetectedSuggestion,
+  },
+  play: async ({ canvas }) => {
+    onGenerateDetectedSuggestion.mockClear()
+    onSaveDraft.mockClear()
+
+    expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
+      /Review language\s*·\s*Detect automatically/i,
+    )
+    expect(canvas.getByRole('link', { name: /set property language/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('propertyId=10000000-0000-4000-8000-000000000101'),
+    )
+    const aiButton = canvas.getByRole('button', { name: /draft with ai/i })
+    expect(aiButton).toBeEnabled()
+    await userEvent.click(aiButton)
+
+    await waitFor(() =>
+      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith('professional', {
+        kind: 'review_language',
+      }),
+    )
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenCalledWith(
+        SUGGESTED_REPLY,
+        'test-provenance-token',
+        'tr-Latn',
+      ),
+    )
+    await waitFor(() =>
+      expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
+        /Turkish\s*·\s*Review language/i,
+      ),
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: /^undo$/i }))
+    await waitFor(() =>
+      expect(canvas.getByRole('textbox')).toHaveValue(
+        'Thank you for sharing your experience.',
+      ),
+    )
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenLastCalledWith(
+        'Thank you for sharing your experience.',
+        undefined,
+        'tr-Latn',
+      ),
+    )
+    expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
+      /Turkish\s*·\s*Review language/i,
+    )
+  },
+}
+
+export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: 'bg-Cyrl',
+    reviewReplyLanguage: null,
+    canDetectReviewLanguage: true,
+    onGenerateSuggestion: onGenerateDetectedSuggestion,
+  },
+  play: async ({ canvas }) => {
+    onGenerateDetectedSuggestion.mockClear()
+    const languageSelect = canvas.getByRole('combobox', { name: 'Reply language' })
+
+    expect(languageSelect).toHaveTextContent(/Bulgarian\s*·\s*Property default/i)
+    await userEvent.click(languageSelect)
+    await userEvent.click(
+      await screen.findByRole('option', {
+        name: /Review language · Detect automatically/i,
+      }),
+    )
+    expect(languageSelect).toHaveTextContent(
+      /Review language\s*·\s*Detect automatically/i,
+    )
+    const languageContainer = languageSelect.closest('[data-slot="reply-language"]')
+    if (!languageContainer) throw new Error('Reply language container was not rendered')
+    await waitFor(() => expect(languageContainer).not.toHaveAttribute('aria-hidden'))
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await waitFor(() =>
+      expect(onGenerateDetectedSuggestion).toHaveBeenCalledWith('professional', {
+        kind: 'review_language',
+      }),
+    )
+    await waitFor(() =>
+      expect(languageSelect).toHaveTextContent(/Turkish\s*·\s*Review language/i),
+    )
+  },
+}
+
+export const RatingOnlyAiUnavailable: Story = {
+  tags: ['ai-language-regression'],
+  args: {
+    propertyDefaultReplyLanguage: null,
+    reviewReplyLanguage: null,
+    canDetectReviewLanguage: false,
+    onGenerateSuggestion: onGenerateDetectedSuggestion,
+  },
+  play: async ({ canvas }) => {
+    const aiButton = canvas.getByRole('button', { name: /draft with ai/i })
+
+    expect(aiButton).toBeDisabled()
+    expect(
+      canvas.getAllByText(/AI drafting needs written review text/i),
+    ).not.toHaveLength(0)
+    expect(
+      canvas.getByText(/AI remains unavailable because this review has no text/i),
+    ).toBeVisible()
   },
 }
 

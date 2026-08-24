@@ -9,9 +9,12 @@ vi.mock('#/shared/ai-review-language-catalogue', async (importOriginal) => {
     await importOriginal<typeof import('#/shared/ai-review-language-catalogue')>()
   return {
     ...actual,
-    mapReviewLanguageMetadata: vi.fn(() => ({
+    mapReviewLanguageMetadata: vi.fn((metadata: string | null | undefined) => ({
       status: 'supported' as const,
-      language: { tag: 'en-Latn', group: 'en-Latn' },
+      language:
+        metadata === null || metadata === undefined
+          ? { tag: 'und' as const, group: 'und' as const }
+          : { tag: 'en-Latn', group: 'en-Latn' },
     })),
   }
 })
@@ -45,6 +48,7 @@ function createHarness(
   options: Readonly<{
     currentReplyStateRevision?: number
     reviewText?: string | null
+    reviewLanguageCode?: string | null
     replyLanguage?: Readonly<{
       status: string
       language?: ReturnType<typeof parseCanonicalReplyLanguageTag>
@@ -226,7 +230,10 @@ function createHarness(
               ? 'A thoughtful review.'
               : options.reviewText,
           rating: 5 as const,
-          languageCode: 'en-US',
+          languageCode:
+            options.reviewLanguageCode === undefined
+              ? 'en-US'
+              : options.reviewLanguageCode,
           reviewedAtEpochMillis: NOW - 1_000,
           contentExpiresAtEpochMillis: NOW + 60_000,
           sourceEpoch: 2,
@@ -278,6 +285,7 @@ function createHarness(
       readReplyStateRevision,
       readDefaultReplyLanguage:
         dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
+      resolveReplyLanguage: dependencies.resolveReplyLanguage,
     },
   }
 }
@@ -434,6 +442,39 @@ describe('generate reply suggestion', () => {
           concreteReplyLanguage: {
             tag: 'en-Latn',
             templateGroup: 'en-Latn',
+          },
+        }),
+      }),
+    )
+  })
+
+  it('governs missing provider metadata through review-text detection', async () => {
+    const text =
+      'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.'
+    const harness = createHarness({
+      reviewText: text,
+      reviewLanguageCode: null,
+      replyLanguage: {
+        status: 'resolved',
+        language: parseCanonicalReplyLanguageTag('tr-Latn'),
+      },
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({
+      status: 'ready',
+      concreteLanguageTag: 'tr-Latn',
+    })
+    expect(harness.mocks.resolveReplyLanguage).toHaveBeenCalledWith({
+      text,
+      evaluatedLanguage: { tag: 'und', group: 'und' },
+    })
+    expect(harness.mocks.claim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: expect.objectContaining({
+          evaluatedLanguage: 'und',
+          concreteReplyLanguage: {
+            tag: 'tr-Latn',
+            templateGroup: 'tr-Latn',
           },
         }),
       }),

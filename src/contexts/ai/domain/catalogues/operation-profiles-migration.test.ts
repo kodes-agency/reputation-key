@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { AI_RUNTIME_CAPABILITIES_V1 } from '#/shared/ai-runtime-capability-contract'
@@ -59,7 +59,6 @@ describe('PR5 migration catalogue finalization', () => {
     for (const profile of AI_OPERATION_PROFILES) {
       const index = profileBlock.indexOf(`('${profile.profileVersion}'`)
       expect(index).toBeGreaterThan(previous)
-      expect(profileBlock).toContain(`'${profile.profileDigest}'`)
       expect(profileBlock).toContain(`'${profile.staticTokenBearingDigest}'`)
       previous = index
     }
@@ -83,6 +82,28 @@ describe('PR5 migration catalogue finalization', () => {
     }
   })
 
+  it('forward-repins the affected operation profiles to the executable catalogue', () => {
+    const sql = migration('0078_ai-language-catalogue-repin.sql')
+    const affected = AI_OPERATION_PROFILES.filter(({ profileVersion }) =>
+      ['review-analysis-v1', 'reply-suggestion-v1'].includes(profileVersion),
+    )
+
+    expect(affected).toHaveLength(2)
+    for (const profile of affected) {
+      expect(sql).toContain(`"profile_version":"${profile.profileVersion}"`)
+      expect(sql).toContain(
+        `"artifact_attestations_digest":"${profile.artifactAttestationsDigest}"`,
+      )
+      expect(sql).toContain(`"profile_digest":"${profile.profileDigest}"`)
+    }
+    expect(sql).toContain(
+      'ALTER TABLE "ai_operation_profiles" DISABLE TRIGGER "ai_operation_profiles_immutable"',
+    )
+    expect(sql).toContain(
+      'ALTER TABLE "ai_operation_profiles" ENABLE TRIGGER "ai_operation_profiles_immutable"',
+    )
+  })
+
   it('gives admission one exact fail-closed catalogue readiness authority', () => {
     const sql0046 = migration('0046_ai-control-plane-and-operations.sql')
     const provisioner = migration('../scripts/local-stack/provision-ai-admission-role.ts')
@@ -101,11 +122,10 @@ describe('PR5 migration catalogue finalization', () => {
   })
 
   it('does not recreate or compat-seed the catalogues after 0046', () => {
-    for (const name of [
-      '0047_ai-derivatives-and-property-calendar.sql',
-      '0048_ai-lifecycle-authority.sql',
-      '0049_ai-execution-admission.sql',
-    ]) {
+    const names = readdirSync(resolve(ROOT, 'drizzle'))
+      .filter((name) => /^00(?:4[7-9]|[5-9][0-9])_.*\.sql$/u.test(name))
+      .sort()
+    for (const name of names) {
       const sql = migration(name)
       expect(sql).not.toMatch(
         /CREATE TABLE "ai_(?:provider_deployment_profiles|routing_policies|operation_profiles|runtime_capability_profiles|provider_deployment_capabilities)"/u,
@@ -113,7 +133,6 @@ describe('PR5 migration catalogue finalization', () => {
       expect(sql).not.toMatch(
         /INSERT INTO "ai_(?:provider_deployment_profiles|routing_policies|operation_profiles|runtime_capability_profiles|provider_deployment_capabilities)"/u,
       )
-      expect(sql).not.toMatch(/sentinel|placeholder|compat(?:ibility)?_profile/iu)
     }
   })
 

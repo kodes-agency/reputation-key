@@ -84,6 +84,7 @@ export function InboxDetailContent({
             <TabsContent value="reply" className="mt-5">
               <ReplyEditor
                 key={currentItem.id}
+                propertyId={currentItem.propertyId}
                 reviewId={currentItem.sourceId}
                 initialReply={detail?.reply ?? null}
                 loading={!detail}
@@ -91,6 +92,7 @@ export function InboxDetailContent({
                   detail?.propertyDefaultReplyLanguage ?? null
                 }
                 reviewReplyLanguage={detail?.reviewReplyLanguage ?? null}
+                canDetectReviewLanguage={Boolean(detail?.reviewText?.trim())}
                 onReplyChanged={onReplyMutated}
                 generateReplySuggestion={detailFns.generateReplySuggestion}
               />

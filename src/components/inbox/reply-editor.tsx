@@ -8,23 +8,27 @@ import type { ReplyData } from './reply-form'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export type ReplyEditorProps = Readonly<{
+  propertyId: string
   reviewId: string
   /** Reply from the detail payload (getInboxItemDetail); null if none / Staff. */
   initialReply: ReplyData | null
   loading: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
+  canDetectReviewLanguage: boolean
   /** Propagates reply mutations up so the owner can sync its cache. */
   onReplyChanged?: (reply: ReplyData | null) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
 export function ReplyEditor({
+  propertyId,
   reviewId,
   initialReply,
   loading,
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
+  canDetectReviewLanguage,
   onReplyChanged,
   generateReplySuggestion,
 }: ReplyEditorProps) {
@@ -38,11 +42,13 @@ export function ReplyEditor({
   )
   return (
     <ReplyEditorInner
+      propertyId={propertyId}
       reviewId={reviewId}
       reply={reply}
       loading={loading}
       propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
       reviewReplyLanguage={reviewReplyLanguage}
+      canDetectReviewLanguage={canDetectReviewLanguage}
       onReplyChanged={handleChange}
       generateReplySuggestion={generateReplySuggestion}
     />

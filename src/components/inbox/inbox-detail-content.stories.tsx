@@ -11,6 +11,7 @@ import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type {
   InboxItem,
   InboxItemDetailResult,
@@ -84,6 +85,20 @@ const detailFns = {
   addInboxNote: mockServerFn(async () => ({
     ok: true,
   })) as unknown as typeof addInboxNoteFn,
+  generateReplySuggestion: mockServerFn(
+    async ({ data }: Parameters<typeof generateReplySuggestionFn>[0]) => ({
+      status: 'ready' as const,
+      replyText:
+        data.targetLanguage.kind === 'review_language'
+          ? 'Değerli yorumunuz için teşekkür ederiz. Sizi yeniden ağırlamayı sabırsızlıkla bekliyoruz.'
+          : 'Thank you for your review. We look forward to welcoming you again.',
+      provenanceToken: 'storybook-provenance-token',
+      expiresAtEpochMillis: Date.now() + 60_000,
+      baseReplyStateRevision: 0,
+      concreteLanguageTag:
+        data.targetLanguage.kind === 'review_language' ? 'tr-Latn' : 'bg-Cyrl',
+    }),
+  ) as unknown as typeof generateReplySuggestionFn,
 }
 
 const meta: Meta<typeof InboxDetailContent> = {
@@ -146,6 +161,7 @@ export const ReviewAsPropertyManagerLight: Story = {
 }
 
 export const ReplyToolbarWithLanguages: Story = {
+  tags: ['ai-language-regression'],
   decorators: [withRole('PropertyManager')],
   parameters: { theme: 'light' },
   args: {
@@ -178,7 +194,39 @@ export const ReplyToolbarWithLanguages: Story = {
     await userEvent.click(publicTab)
     await expect(canvas.getByRole('textbox', { name: 'Public reply' })).toBeVisible()
     await expect(canvas.getByRole('combobox', { name: 'Reply language' })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: /draft with ai/i })).toBeEnabled()
     publicTab.blur()
+  },
+}
+
+export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
+  tags: ['ai-language-regression'],
+  decorators: [withRole('PropertyManager')],
+  parameters: { theme: 'light' },
+  args: {
+    currentItem: reviewItem,
+    detail: {
+      ...reviewDetail,
+      reviewText:
+        'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.',
+      propertyDefaultReplyLanguage: null,
+      reviewReplyLanguage: null,
+    },
+    notes,
+    onNoteAdded: () => {},
+    onReplyMutated: () => {},
+    detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const aiButton = canvas.getByRole('button', { name: /draft with ai/i })
+
+    await expect(aiButton).toBeEnabled()
+    await userEvent.click(aiButton)
+    await expect(canvas.findByText(/AI draft/i)).resolves.toBeVisible()
+    await expect(
+      canvas.getByRole('combobox', { name: 'Reply language' }),
+    ).toHaveTextContent(/Turkish\s*·\s*Review language/i)
   },
 }
 

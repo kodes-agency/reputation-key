@@ -20,21 +20,25 @@ import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-sugge
 export type { ReplyData } from './reply-status-view'
 
 type InnerProps = Readonly<{
+  propertyId: string
   reviewId: string
   reply: ReplyData | null
   loading: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
+  canDetectReviewLanguage: boolean
   onReplyChanged: (reply: ReplyData | null) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
 export function ReplyEditorInner({
+  propertyId,
   reviewId,
   reply,
   loading,
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
+  canDetectReviewLanguage,
   onReplyChanged,
   generateReplySuggestion,
 }: InnerProps) {
@@ -77,10 +81,12 @@ export function ReplyEditorInner({
 
   return (
     <ReplyStatusView
+      propertyId={propertyId}
       view={resolveReplyView(reply)}
       isSaving={isSaving}
       propertyDefaultReplyLanguage={propertyDefaultReplyLanguage}
       reviewReplyLanguage={reviewReplyLanguage}
+      canDetectReviewLanguage={canDetectReviewLanguage}
       onSaveDraft={(text, provenanceToken, replyLanguageTag) =>
         draft({
           data: {

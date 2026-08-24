@@ -21,6 +21,7 @@ type Reply = NonNullable<ReplyData>
 
 const NOW = new Date('2025-01-15T10:00:00Z')
 const REVIEW_ID = '11111111-1111-4111-8111-111111111111'
+const PROPERTY_ID = '55555555-5555-4555-8555-555555555555'
 
 function makeReply(overrides: Partial<Reply> = {}): Reply {
   return {
@@ -60,10 +61,12 @@ const meta: Meta<typeof ReplyEditorInner> = {
   decorators: [withRole('PropertyManager')],
   parameters: { layout: 'centered' },
   args: {
+    propertyId: PROPERTY_ID,
     reviewId: REVIEW_ID,
     loading: false,
     propertyDefaultReplyLanguage: 'en-Latn',
     reviewReplyLanguage: null,
+    canDetectReviewLanguage: true,
     onReplyChanged,
   },
 }

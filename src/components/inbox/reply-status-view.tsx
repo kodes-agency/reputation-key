@@ -37,10 +37,12 @@ export function resolveReplyView(reply: ReplyData | null): ResolvedReplyView {
 }
 
 type ReplyStatusViewProps = Readonly<{
+  propertyId: string
   view: ResolvedReplyView
   isSaving: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
+  canDetectReviewLanguage: boolean
   onSaveDraft: (
     text: string,
     provenanceToken?: string,
@@ -60,10 +62,12 @@ type ReplyStatusViewProps = Readonly<{
 
 /** Renders the reply in its current state (compose / read-only status views). */
 export function ReplyStatusView({
+  propertyId,
   view,
   isSaving,
   propertyDefaultReplyLanguage,
   reviewReplyLanguage,
+  canDetectReviewLanguage,
   onSaveDraft,
   onSubmitReply,
   onDeleteDraft,
@@ -76,11 +80,13 @@ export function ReplyStatusView({
   const languageProps = {
     propertyDefaultReplyLanguage,
     reviewReplyLanguage,
+    canDetectReviewLanguage,
   }
   switch (view.kind) {
     case 'compose':
       return (
         <ReplyCompose
+          propertyId={propertyId}
           initialText={view.reply?.text ?? ''}
           initialLanguageTag={view.reply?.replyLanguageTag ?? null}
           initialAiGenerated={view.reply?.aiGenerated ?? false}
@@ -120,6 +126,7 @@ export function ReplyStatusView({
     case 'rejected':
       return (
         <ReplyRejectedWithEdit
+          propertyId={propertyId}
           reply={view.reply}
           isSaving={isSaving}
           {...languageProps}

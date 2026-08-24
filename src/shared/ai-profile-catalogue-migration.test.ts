@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
@@ -11,15 +11,17 @@ import {
   AI_RUNTIME_CAPABILITIES_V1_DIGEST,
 } from './ai-runtime-capability-contract'
 
-const migration = readFileSync(
+const seedMigration = readFileSync(
   resolve(process.cwd(), 'drizzle/0046_ai-control-plane-and-operations.sql'),
   'utf8',
 )
-const laterMigrations = [
-  '0047_ai-derivatives-and-property-calendar.sql',
-  '0048_ai-lifecycle-authority.sql',
-  '0049_ai-execution-admission.sql',
-]
+const currentCatalogueMigration = readFileSync(
+  resolve(process.cwd(), 'drizzle/0078_ai-language-catalogue-repin.sql'),
+  'utf8',
+)
+const laterMigrations = readdirSync(resolve(process.cwd(), 'drizzle'))
+  .filter((name) => /^00(?:4[7-9]|[5-9][0-9])_.*\.sql$/u.test(name))
+  .sort()
   .map((name) => readFileSync(resolve(process.cwd(), 'drizzle', name), 'utf8'))
   .join('\n')
 const cumulativeSnapshots = [
@@ -124,21 +126,23 @@ const expectedMembershipRows = AI_RUNTIME_CAPABILITIES_V1.map((runtime) => ({
   catalogue_digest: AI_RUNTIME_CAPABILITIES_V1_DIGEST,
 })).sort((left, right) => left.capability.localeCompare(right.capability))
 
-describe('unshipped 0046 AI runtime catalogue', () => {
-  it('seeds one provider, one route, four operation profiles, three runtimes, and three memberships from the executable contracts', () => {
-    expect(embeddedRows(migration, 'ai_provider_deployment_profiles')).toEqual(
-      expectedProviderRows,
+describe('AI runtime catalogue migrations', () => {
+  it('converges one provider, one route, four operation profiles, three runtimes, and three memberships on the executable contracts', () => {
+    expect(
+      embeddedRows(currentCatalogueMigration, 'ai_provider_deployment_profiles'),
+    ).toEqual(expectedProviderRows)
+    expect(embeddedRows(currentCatalogueMigration, 'ai_routing_policies')).toEqual(
+      expectedRoutingRows,
     )
-    expect(embeddedRows(migration, 'ai_routing_policies')).toEqual(expectedRoutingRows)
-    expect(embeddedRows(migration, 'ai_operation_profiles')).toEqual(
+    expect(embeddedRows(currentCatalogueMigration, 'ai_operation_profiles')).toEqual(
       expectedOperationRows,
     )
-    expect(embeddedRows(migration, 'ai_runtime_capability_profiles')).toEqual(
-      expectedRuntimeRows,
-    )
-    expect(embeddedRows(migration, 'ai_provider_deployment_capabilities')).toEqual(
-      expectedMembershipRows,
-    )
+    expect(
+      embeddedRows(currentCatalogueMigration, 'ai_runtime_capability_profiles'),
+    ).toEqual(expectedRuntimeRows)
+    expect(
+      embeddedRows(currentCatalogueMigration, 'ai_provider_deployment_capabilities'),
+    ).toEqual(expectedMembershipRows)
     expect(expectedOperationRows.map((row) => row.profile_version)).toEqual([
       'property-trend-v1',
       'reply-suggestion-v1',
@@ -162,7 +166,9 @@ describe('unshipped 0046 AI runtime catalogue', () => {
       'ai_runtime_capability_profiles',
       'ai_provider_deployment_capabilities',
     ]) {
-      expect(migration.match(new RegExp(`INSERT INTO "${table}"`, 'gu'))).toHaveLength(1)
+      expect(
+        seedMigration.match(new RegExp(`INSERT INTO "${table}"`, 'gu')),
+      ).toHaveLength(1)
       expect(laterMigrations).not.toContain(`INSERT INTO "${table}"`)
     }
     const expectedContractConstraint = `jsonb_typeof("ai_provider_deployment_profiles"."deployment_contract") = 'object'\n        AND "ai_provider_deployment_profiles"."deployment_contract" = '${JSON.stringify(AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract)}'::jsonb`
@@ -172,20 +178,18 @@ describe('unshipped 0046 AI runtime catalogue', () => {
           .ai_provider_profiles_contract_valid?.value,
       ).toEqual(expectedContractConstraint)
     }
-    expect(`${migration}\n${laterMigrations}`).not.toMatch(
-      /sentinel|placeholder-profile|compat-profile/iu,
-    )
+    expect(seedMigration).not.toMatch(/sentinel|placeholder-profile|compat-profile/iu)
   })
 
   it('makes a single-field readiness mutation disagree with the compiled contract', () => {
-    const mutated = migration.replace(
+    const mutated = seedMigration.replace(
       `"profile_digest":"${AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest}"`,
       `"profile_digest":"${'0'.repeat(64)}"`,
     )
     expect(embeddedRows(mutated, 'ai_provider_deployment_profiles')).not.toEqual(
       expectedProviderRows,
     )
-    expect(migration).toContain('CREATE TRIGGER "ai_provider_profiles_immutable"')
-    expect(migration).toContain('CREATE TRIGGER "ai_provider_profiles_no_truncate"')
+    expect(seedMigration).toContain('CREATE TRIGGER "ai_provider_profiles_immutable"')
+    expect(seedMigration).toContain('CREATE TRIGGER "ai_provider_profiles_no_truncate"')
   })
 })

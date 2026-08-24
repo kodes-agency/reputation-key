@@ -377,8 +377,8 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'assert_ai_runtime_catalogue_ready_v1',
     kind: 'function',
     owner: 'ai',
-    source: 'drizzle/0068_ai-prompt-rubric-repin.sql',
-    reason: `${NO_TRIGGER_DSL}; verifies the complete immutable runtime catalogue at readiness. Introduced in 0046; re-emitted whenever the catalogue projection it byte-compares moves, most recently in 0068 for the analysis and reply rubric prompts.`,
+    source: 'drizzle/0078_ai-language-catalogue-repin.sql',
+    reason: `${NO_TRIGGER_DSL}; verifies the complete immutable runtime catalogue at readiness. Introduced in 0046; re-emitted whenever the catalogue projection it byte-compares moves, most recently in 0078 for the shared reply-language catalogue extraction.`,
   },
   {
     name: 'reject_ai_catalogue_mutation_v1',

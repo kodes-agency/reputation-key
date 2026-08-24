@@ -547,6 +547,13 @@
       "when": 1787512888638,
       "tag": "0077_inbox-source-date-id-desc",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1787560928000,
+      "tag": "0078_ai-language-catalogue-repin",
+      "breakpoints": true
     }
   ]
 }

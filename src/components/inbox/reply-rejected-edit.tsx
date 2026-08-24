@@ -6,10 +6,12 @@ import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
 import type { ReplyLanguageTarget } from './reply-language-options'
 
 type Props = Readonly<{
+  propertyId: string
   reply: NonNullable<ReplyData>
   isSaving: boolean
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
+  canDetectReviewLanguage: boolean
   onSaveDraft: (
     text: string,
     provenanceToken?: string,
@@ -57,11 +59,13 @@ export function ReplyRejectedWithEdit(props: Props) {
   }
   return (
     <ReplyCompose
+      propertyId={props.propertyId}
       initialText={props.reply.text}
       initialLanguageTag={props.reply.replyLanguageTag ?? null}
       initialAiGenerated={props.reply.aiGenerated}
       propertyDefaultReplyLanguage={props.propertyDefaultReplyLanguage}
       reviewReplyLanguage={props.reviewReplyLanguage}
+      canDetectReviewLanguage={props.canDetectReviewLanguage}
       isSaving={props.isSaving}
       onSaveDraft={props.onSaveDraft}
       onSubmit={props.onSubmitReply}

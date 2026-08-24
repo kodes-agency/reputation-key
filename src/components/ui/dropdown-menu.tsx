@@ -16,6 +16,12 @@ function DropdownMenuTrigger({
   return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
 }
 
+function DropdownMenuGroup({
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
+  return <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
+}
+
 function DropdownMenuContent({
   className,
   sideOffset = 4,
@@ -75,6 +81,7 @@ function DropdownMenuSeparator({
 export {
   DropdownMenu,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
