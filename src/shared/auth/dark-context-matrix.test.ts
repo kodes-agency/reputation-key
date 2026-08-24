@@ -1,9 +1,10 @@
 // BQC-2.6 / ADR 0049 — controlled-feature containment matrix.
 //
 // Team, Portal, Guest, Goal, Badge, Leaderboard, email, and AI stay off by
-// default but are promotable through scoped persisted policy. This file keeps
-// the negative default-posture contract; positive P1/P2 scope tests live with
-// ExecutionPolicy and the product journeys.
+// default. Most are promotable through scoped persisted policy; portal.upload
+// is temporarily safety-blocked. This file keeps the negative default-posture
+// contract; positive P1/P2 scope tests live with ExecutionPolicy and the
+// product journeys.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
@@ -25,12 +26,12 @@ import {
 } from './beta-capabilities'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
-/** Promotable capabilities and their default-posture deny reasons. */
+/** Controlled capabilities and their effective default-posture deny reasons. */
 const DARK: ReadonlyArray<
   Readonly<{ capability: Capability; reason: string; label: string }>
 > = [
   { capability: 'portal.write', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'portal.upload', reason: 'org_not_allowlisted', label: 'Portals' },
+  { capability: 'portal.upload', reason: 'capability_blocked', label: 'Portals' },
   { capability: 'portal.read', reason: 'org_not_allowlisted', label: 'Portals' },
   { capability: 'team.use', reason: 'org_not_allowlisted', label: 'Teams' },
   { capability: 'goal.use', reason: 'org_not_allowlisted', label: 'Goals' },

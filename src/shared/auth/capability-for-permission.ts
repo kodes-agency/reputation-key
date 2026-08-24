@@ -37,7 +37,8 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'invitation.cancel': 'identity.invite',
   'invitation.resend': 'identity.invite',
   // BQC-0.2 / STD-P0-01: mutations and media are independent of portal.read.
-  // portal.write and portal.upload remain hard-blocked for beta (ADR 0032).
+  // portal.write remains promotable. portal.upload is temporarily blocked at
+  // capability policy level until its issuance-bound SEC-01 remediation lands.
   'portal.create': 'portal.write',
   'portal.update': 'portal.write',
   'portal.delete': 'portal.write',

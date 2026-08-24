@@ -161,17 +161,13 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       expect(manifest.e2eExecutionIdentity).toBe('playwright-e2e')
     })
 
-    it('filters permanent prohibitions but records controlled overrides', () => {
+    it('filters permanent and temporary safety prohibitions but records controlled overrides', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
         BETA_E2E_GLOBAL_CAPABILITIES:
           'gbp.reply.auto_publish,portal.write,portal.upload,team.use',
       })
-      expect(manifest.e2eGlobalOverrides).toEqual([
-        'portal.upload',
-        'portal.write',
-        'team.use',
-      ])
+      expect(manifest.e2eGlobalOverrides).toEqual(['portal.write', 'team.use'])
     })
 
     it('records no tenant identifiers', () => {

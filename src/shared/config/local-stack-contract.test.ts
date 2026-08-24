@@ -35,7 +35,6 @@ describe('local beta stack contract', () => {
       expect.arrayContaining([
         'portal.read',
         'portal.write',
-        'portal.upload',
         'portal.public_read',
         'portal.guest_response',
         'portal.guest_text',
@@ -52,6 +51,7 @@ describe('local beta stack contract', () => {
     )
     expect(LOCAL_BETA_CAPABILITIES).not.toEqual(
       expect.arrayContaining([
+        'portal.upload',
         'gbp.reply.auto_publish',
         'gbp.ai.cross_property_summary',
         'gbp.review_solicitation_gamification',

@@ -27,7 +27,7 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-2'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-3'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -96,11 +96,20 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * Capabilities that are always off and can never be allowlisted.
  *
  * Google policy permanently prohibits automated reply publishing,
- * cross-property AI summaries, and review-solicitation gamification. Portal,
- * guest, and product-email capabilities are non-core controlled-beta features:
- * they remain off by default and require persisted org/property policy.
+ * cross-property AI summaries, and review-solicitation gamification.
+ *
+ * `portal.upload` is a temporary SEC-01 safety containment. Remove it from
+ * this set only after upload finalization accepts a durable, tenant-bound
+ * issuance ID instead of an object key, storage revalidates the uploaded
+ * object, derivative keys cannot alias the source, stale workers fail closed,
+ * and the cross-tenant/replay/expiry/oversize adversarial suite passes.
+ *
+ * Other Portal, guest, and product-email capabilities are non-core
+ * controlled-beta features: they remain off by default and require persisted
+ * organization/property policy.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  'portal.upload',
   'gbp.reply.auto_publish',
   'gbp.ai.cross_property_summary',
   'gbp.review_solicitation_gamification',

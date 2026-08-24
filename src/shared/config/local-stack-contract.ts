@@ -4,7 +4,10 @@ export type LocalStackMode = 'beta' | 'e2e' | 'perf'
 
 /**
  * Non-core features promoted for the controlled local beta cohort.
- * Permanently blocked Google behaviors are deliberately absent.
+ * Permanently blocked Google behaviors are deliberately absent. Portal image
+ * upload is also withheld under the temporary SEC-01 containment; re-enable it
+ * here only after the issuance-bound implementation and adversarial tests meet
+ * the removal criteria documented beside BLOCKED_CAPABILITIES.
  */
 export const LOCAL_BETA_CAPABILITIES = [
   'identity.register',
@@ -12,7 +15,6 @@ export const LOCAL_BETA_CAPABILITIES = [
   'notification.send_email',
   'portal.read',
   'portal.write',
-  'portal.upload',
   'portal.public_read',
   'portal.guest_response',
   'portal.guest_text',

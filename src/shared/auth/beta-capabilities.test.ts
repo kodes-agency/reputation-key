@@ -109,7 +109,7 @@ describe('BetaCapabilities', () => {
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('capability_blocked')
     })
-    it('promotes Portal write, upload, guest, and email through scoped allowlists', () => {
+    it('promotes safe Portal, guest, and email capabilities through scoped allowlists', () => {
       const ctx = buildTestAuthContext()
       initCapabilityPolicyStore(
         makeStore({
@@ -121,7 +121,6 @@ describe('BetaCapabilities', () => {
 
       for (const capability of [
         'portal.write',
-        'portal.upload',
         'portal.public_read',
         'portal.guest_response',
         'portal.guest_text',
@@ -146,6 +145,28 @@ describe('BetaCapabilities', () => {
           ).reason,
         ).toBe('property_not_allowlisted')
       }
+    })
+
+    it('denies Portal upload even when every scoped policy seam allows it', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => true,
+          isOrgAllowlisted: () => true,
+          isPropertyAllowlisted: () => true,
+        }),
+      )
+
+      expect(
+        checkScopedCapability(
+          { organizationId: ctx.organizationId, propertyId: 'p1' },
+          'portal.upload',
+        ),
+      ).toEqual({
+        allowed: false,
+        reason: 'capability_blocked',
+        capability: 'portal.upload',
+      })
     })
 
     it('denies all capabilities when org is suspended', () => {
@@ -320,12 +341,12 @@ describe('BetaCapabilities', () => {
       expect(isCoreCapability('portal.read')).toBe(false)
     })
 
-    it('identifies only permanent Google prohibitions as blocked', () => {
+    it('identifies permanent prohibitions and the temporary upload containment', () => {
       expect(isBlockedCapability('gbp.reply.auto_publish')).toBe(true)
       expect(isBlockedCapability('gbp.ai.cross_property_summary')).toBe(true)
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('portal.write')).toBe(false)
-      expect(isBlockedCapability('portal.upload')).toBe(false)
+      expect(isBlockedCapability('portal.upload')).toBe(true)
       expect(isBlockedCapability('notification.send_email')).toBe(false)
     })
   })
@@ -349,6 +370,10 @@ describe('BetaCapabilities', () => {
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
       expect(isCapabilityJobEnabled('portal.guest_media')).toBe(true)
       expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
+    })
+
+    it('does not register the temporarily blocked Portal image job', () => {
+      expect(isCapabilityJobEnabled('portal.upload')).toBe(false)
     })
   })
 
