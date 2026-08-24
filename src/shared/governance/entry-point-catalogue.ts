@@ -3171,6 +3171,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/check-production-artifacts.mjs',
+    'scripts/check-production-artifacts.mjs',
+    'none',
+    {
+      notes:
+        'check:production-artifacts — build/image gate rejecting local-only executables, credentials, simulations, operator commands, and Storybook sources from promoted web/worker artifacts',
+    },
+  ),
+  ops(
     'scripts/check-ai-contract-attestations.ts',
     'scripts/check-ai-contract-attestations.ts',
     'none',
@@ -3358,6 +3367,19 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/check-action-pins.mjs', 'scripts/check-action-pins.mjs', 'none', {
     notes:
       'check:action-pins — CI gate (BQC-7.7): every workflow uses: is full-SHA pinned with # v… comment; every image: is digest-pinned',
+  }),
+  ops(
+    'scripts/review/baseline-inventory.ts',
+    'scripts/review/baseline-inventory.ts',
+    'none',
+    {
+      notes:
+        'review baseline support library: deterministic source classification, symbol/import discovery, entry-point inventory, and prior-finding parsing; imported by freeze-baseline, not a standalone mutator',
+    },
+  ),
+  ops('scripts/review/freeze-baseline.ts', 'scripts/review/freeze-baseline.ts', 'none', {
+    notes:
+      'review:freeze-baseline — writes a release-SHA-bound, hashed review evidence bundle from tracked source, plan, consolidated report, validation gates, and repository governance state',
   }),
   ops('scripts/cleanup-all.ts', 'scripts/cleanup-all.ts', 'tenant_cross', {
     notes: 'DIRECT-DB: deletes ALL reviews/replies/inbox items/properties — dev-only',
