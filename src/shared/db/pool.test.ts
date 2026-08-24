@@ -10,7 +10,8 @@ vi.mock('pg', () => {
       query: vi.fn(async () => ({ rows: [] })),
       release: vi.fn(),
     }))
-    query = vi.fn(async () => ({ rows: [] }))
+    queryImplementation = vi.fn(async (..._args: unknown[]) => ({ rows: [] }))
+    query = vi.fn((...args: unknown[]) => this.queryImplementation(...args))
 
     constructor(public readonly options: unknown) {
       FakePool.instances.push(this)
@@ -29,6 +30,7 @@ import { Pool } from 'pg'
 type FakePoolInstance = Pool & {
   options: { connectionString?: string; max?: number }
   end: ReturnType<typeof vi.fn>
+  queryImplementation: ReturnType<typeof vi.fn>
 }
 
 function fakePools(): FakePoolInstance[] {
@@ -143,6 +145,21 @@ describe('getPool / closePool (BQC-7.1)', () => {
       connectionTimeoutMillis: 15_000,
       idleTimeoutMillis: 30_000,
     })
+  })
+
+  it('never retries pool.query after an ambiguous connection failure', async () => {
+    const pool = getPool() as FakePoolInstance
+    const ambiguous = Object.assign(new Error('Connection terminated during query'), {
+      code: 'ECONNRESET',
+    })
+    pool.queryImplementation
+      .mockRejectedValueOnce(ambiguous)
+      .mockResolvedValueOnce({ rows: [] })
+
+    await expect(
+      pool.query('INSERT INTO audit_log VALUES ($1)', ['event-1']),
+    ).rejects.toBe(ambiguous)
+    expect(pool.queryImplementation).toHaveBeenCalledTimes(1)
   })
 
   it('closePool ends the pool and resets the store so getPool recreates', async () => {

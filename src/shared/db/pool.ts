@@ -59,7 +59,7 @@ export function isTransientConnectionError(err: unknown): boolean {
   return walk(err)
 }
 
-/** Retry a promise-returning operation on transient connection errors. */
+/** Retry connection acquisition on transient connection errors. */
 async function retryTransient<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -72,25 +72,23 @@ async function retryTransient<T>(fn: () => Promise<T>, maxAttempts = 3): Promise
 }
 
 /**
- * Wrap pool.connect() and pool.query() so the promise form of each retries
- * on transient network errors. Kysely (Better Auth) calls pool.connect()
- * directly. Drizzle calls pool.query() — which internally uses the callback
- * form of connect(), so the connect() wrapper alone does not cover it.
- * Wrapping both promise forms covers every query path without modifying
- * either library. Callback-form callers (pg's internal pool.query delegate)
- * are passed through untouched.
+ * Retry only pool.connect() acquisition failures. Once pool.query() has sent a
+ * statement, a connection error is ambiguous: PostgreSQL may have committed
+ * an autocommit write before the response was lost. Retrying that statement
+ * here can duplicate a non-idempotent mutation. Callers that can prove safe
+ * replay must implement it at their operation boundary with an idempotency
+ * key or authoritative readback.
+ *
+ * Kysely (Better Auth) calls pool.connect() directly, so it retains cold-start
+ * resilience. Callback-form callers (including pg's internal pool.query
+ * checkout) are passed through untouched.
  */
-function wrapPoolWithRetry(pool: Pool): void {
+function wrapPoolConnectWithRetry(pool: Pool): void {
   const originalConnect = pool.connect.bind(pool)
   pool.connect = ((...args: Parameters<typeof originalConnect>) => {
     if (args.length > 0) return originalConnect(...args)
     return retryTransient(() => originalConnect())
   }) as typeof pool.connect
-  const originalQuery = pool.query.bind(pool)
-  pool.query = ((...args: Parameters<typeof originalQuery>): unknown => {
-    if (typeof args.at(-1) === 'function') return originalQuery(...args)
-    return retryTransient(() => originalQuery(...args) as unknown as Promise<unknown>)
-  }) as typeof pool.query
 }
 
 /**
@@ -191,10 +189,9 @@ export function getPool(): Pool {
         '[db] idle pool connection error (Neon recycled connection)',
       )
     })
-    // Retry transient connection failures (Neon cold-start, recycled
-    // connections) at the pool level — wraps connect() + query() so both
-    // Kysely (Better Auth) and Drizzle queries survive a cold Neon endpoint.
-    wrapPoolWithRetry(pool)
+    // Retry only acquisition failures. Never replay pool.query(): a write may
+    // have committed before a connection failure made its outcome ambiguous.
+    wrapPoolConnectWithRetry(pool)
     // Warm the first connection (fire-and-forget). Retries internally.
     void warmup(pool)
     store[POOL_KEY] = pool
