@@ -21,7 +21,10 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const ROOT = resolve(process.cwd(), 'docs/release-evidence/baseline')
+const ROOT = resolve(
+  process.env.BQC_EVIDENCE_ROOT ??
+    resolve(process.cwd(), 'docs/release-evidence/baseline'),
+)
 
 type Gate = Readonly<{
   id: string
@@ -116,8 +119,19 @@ function main(): void {
   mkdirSync(evidenceDir, { recursive: true })
 
   const sha = sh('git rev-parse HEAD')
+  const expectedSha = process.env.BQC_EXPECTED_SHA
+  if (expectedSha && sha !== expectedSha) {
+    throw new Error(`Baseline SHA mismatch: expected ${expectedSha}, received ${sha}`)
+  }
+  const dirtyPaths = sh('git status --porcelain')
+  if (dirtyPaths) {
+    throw new Error(`Baseline checkout must be clean:\n${dirtyPaths}`)
+  }
   const lockfileSha256 = createHash('sha256')
     .update(readFileSync(resolve(process.cwd(), 'pnpm-lock.yaml')))
+    .digest('hex')
+  const routeTreeSha256 = createHash('sha256')
+    .update(readFileSync(resolve(process.cwd(), 'src/routeTree.gen.ts')))
     .digest('hex')
   const journal = JSON.parse(
     readFileSync(resolve(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
@@ -128,6 +142,7 @@ function main(): void {
     sha,
     branch: sh('git rev-parse --abbrev-ref HEAD'),
     lockfileSha256,
+    routeTreeSha256,
     migrationVersion,
     node: process.version,
     pnpm: sh('pnpm --version'),

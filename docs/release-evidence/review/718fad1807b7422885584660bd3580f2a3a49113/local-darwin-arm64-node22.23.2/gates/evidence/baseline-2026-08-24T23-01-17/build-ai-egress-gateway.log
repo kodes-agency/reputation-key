@@ -1,0 +1,18 @@
+$ pnpm build:ai-egress-gateway
+started: 2026-08-24T23:02:43.908Z  durationMs: 382  exit: 0
+
+
+> reputation-key@ build:ai-egress-gateway /private/tmp/repkey-fnd01.INMxZB/source
+> tsup --config tsup.ai-egress-gateway.config.ts
+
+CLI Building entry: {"index":"services/ai-egress-gateway/index.ts","canary":"services/ai-egress-gateway/canary-entry.ts"}
+CLI Using tsconfig: tsconfig.json
+CLI tsup v8.5.1
+CLI Using tsup config: /private/tmp/repkey-fnd01.INMxZB/source/tsup.ai-egress-gateway.config.ts
+CLI Target: node22
+CLI Cleaning output folder
+ESM Build start
+ESM dist-ai-egress-gateway/canary.js 3.93 MB
+ESM dist-ai-egress-gateway/index.js  4.03 MB
+ESM ⚡️ Build success in 95ms
+

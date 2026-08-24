@@ -1,10 +1,11 @@
 # RepKey comprehensive beta implementation program
 
-**Status:** Proposed execution authority; no implementation work is authorized by this document alone  
-**Date:** 2026-08-25  
-**Planning baseline:** `4d531c9791cf79b972a4853f90b9e61cdb5e779e` (clean and equal to local `origin/main` when this plan was written)  
-**Release baseline:** Not frozen. `FND-01` must replace the planning baseline with the final post-Inbox-merge SHA before execution.  
-**Primary evidence:** `/Users/bozhidardenev/tmp/rep-key-comprehensive-review-consolidated-2026-08-24.md`, its 27 raw specialist reports, the ADR/standards matrices, and the owner decisions captured in the grilling session through 2026-08-25.
+- **Status:** Active execution authority; implementation approved 2026-08-25
+- **Date:** 2026-08-25
+- **Planning baseline:** `4d531c9791cf79b972a4853f90b9e61cdb5e779e` (clean and equal to local `origin/main` when this plan was written)
+- **Frozen implementation baseline:** `718fad1807b7422885584660bd3580f2a3a49113` (the approved program commit immediately after the Inbox merge; immutable local evidence is under `docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/`)
+- **Release candidate:** Not selected. `REL-01` selects a later merged SHA only after its prerequisite gates pass.
+- **Primary evidence:** `/Users/bozhidardenev/tmp/rep-key-comprehensive-review-consolidated-2026-08-24.md`, its 27 raw specialist reports, the ADR/standards matrices, and the owner decisions captured in the grilling session through 2026-08-25.
 
 ## 1. Outcome
 

@@ -81,6 +81,7 @@
     "release:promote-local-evidence": "tsx scripts/release/promote-local-evidence.ts",
     "release:beta": "tsx scripts/release/deploy-beta.ts",
     "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",
+    "review:freeze-baseline": "tsx scripts/review/freeze-baseline.ts",
     "check:schema-drift": "tsx scripts/check-schema-drift.ts",
     "check:bundles": "node scripts/check-bundle-budget.mjs",
     "check:google-import-artifacts": "node scripts/check-google-import-artifacts.mjs",

@@ -1,0 +1,453 @@
+$ pnpm build-storybook
+started: 2026-08-24T23:02:44.291Z  durationMs: 6812  exit: 0
+
+
+> reputation-key@ build-storybook /private/tmp/repkey-fnd01.INMxZB/source
+> storybook build
+
+
+┌  Building storybook v10.5.9
+│
+◇  Cleaning outputDir: storybook-static
+│
+◇  Loading presets
+│
+◇  Building manager..
+│
+●  Building open services..
+│
+●  Building preview..
+│  Vite vite v8.1.4 building client environment for production...
+[2Ktransforming...✓ 3598 modules transformed.
+rendering chunks...
+computing gzip size...
+│  Vite storybook-static/iframe.html
+│  18.90 kB │ gzip:   5.30 kB
+│  storybook-static/assets/iframe-B4c1dZHY.css
+│  132.18 kB │ gzip:  21.41 kB
+│  storybook-static/assets/react-CBArkJiJ.js
+│  0.08 kB │ gzip:   0.10 kB
+│  storybook-static/assets/domain-C6Xibi0B.js
+│  0.12 kB │ gzip:   0.12 kB
+│  storybook-static/assets/mock-action-J5j0zmCz.js
+│  0.12 kB │ gzip:   0.13 kB
+│  storybook-static/assets/zod-Ggefvlw3.js
+│  0.12 kB │ gzip:   0.12 kB
+│  storybook-static/assets/v4-BaqXk7ol.js
+│  0.14 kB │ gzip:   0.13 kB
+│  storybook-static/assets/review-reply-server-CKvz8lwr.js
+│  0.18 kB │ gzip:   0.15 kB
+│  storybook-static/assets/chunk-242VQQM5-DB2JSNUA.js
+│  0.22 kB │ gzip:   0.19 kB
+│  storybook-static/assets/useCapabilities-CXuWGmxJ.js
+│  0.26 kB │ gzip:   0.22 kB
+│  storybook-static/assets/formatter-L2YTDE3Q-KOgGwyoc.js
+│  0.27 kB │ gzip:   0.22 kB
+│  storybook-static/assets/chunk-QQBDHPVZ-nYh9QWsm.js
+│  0.30 kB │ gzip:   0.18 kB
+│  storybook-static/assets/slug-BYqv_PUI.js
+│  0.30 kB │ gzip:   0.22 kB
+│  storybook-static/assets/ai-category-labels-Da-pBdBr.js
+│  0.33 kB │ gzip:   0.25 kB
+│  storybook-static/assets/usePermissions-CV-Erfi7.js
+│  0.46 kB │ gzip:   0.30 kB
+│  storybook-static/assets/ids-C53KCF9R.js
+│  0.51 kB │ gzip:   0.20 kB
+│  storybook-static/assets/clipboard-D9dm_cen.js
+│  0.55 kB │ gzip:   0.35 kB
+│  storybook-static/assets/dist-BqLpV1OO.js
+│  0.73 kB │ gzip:   0.44 kB
+│  storybook-static/assets/use-lazy-ref-NwT0_r4A.js
+│  0.80 kB │ gzip:   0.44 kB
+│  storybook-static/assets/AuthedRouterDecorator-BBqKn0In.js
+│  0.99 kB │ gzip:   0.56 kB
+│  storybook-static/assets/inbox-visit-badge.stories-5UBcuXKP.js
+│  1.14 kB │ gzip:   0.50 kB
+│  storybook-static/assets/esm-DZonLRPx.js
+│  1.17 kB │ gzip:   0.67 kB
+│  storybook-static/assets/metric-keys-DoKNvu_E.js
+│  1.19 kB │ gzip:   0.35 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~j4rsoope-BUmZzfT4.js
+│  1.70 kB │ gzip:   0.69 kB
+│  storybook-static/assets/query-keys-D0lsCLhb.js
+│  1.74 kB │ gzip:   0.67 kB
+│  storybook-static/assets/openai-route-output-schemas-B2sLZb8R.js
+│  2.09 kB │ gzip:   1.11 kB
+│  storybook-static/assets/staff-participation-form.stories-BXW4hS2p.js
+│  2.11 kB │ gzip:   0.85 kB
+│  storybook-static/assets/alert.stories-DeZ0Uz2T.js
+│  2.17 kB │ gzip:   0.78 kB
+│  storybook-static/assets/portal-responsibilities-modal.stories-3gPD1oGz.js
+│  2.20 kB │ gzip:   0.87 kB
+│  storybook-static/assets/badge.stories-qbxFPZDb.js
+│  2.33 kB │ gzip:   0.81 kB
+│  storybook-static/assets/transactional-email.stories-CgBjOA7u.js
+│  2.40 kB │ gzip:   0.94 kB
+│  storybook-static/assets/preload-helper-BdFrVu1K.js
+│  2.40 kB │ gzip:   1.25 kB
+│  storybook-static/assets/star-rating.stories-DzUCmkW7.js
+│  2.50 kB │ gzip:   0.87 kB
+│  storybook-static/assets/skeleton.stories-CXNf6e2u.js
+│  2.53 kB │ gzip:   0.75 kB
+│  storybook-static/assets/fleet-overview-pagination.stories-BNYh1S5O.js
+│  2.69 kB │ gzip:   0.95 kB
+│  storybook-static/assets/card.stories-6dH8a8a2.js
+│  2.72 kB │ gzip:   0.95 kB
+│  storybook-static/assets/team-lead-controls.stories-DV5-skwX.js
+│  2.83 kB │ gzip:   1.03 kB
+│  storybook-static/assets/inbox-filters.stories-CoCC8OOi.js
+│  2.98 kB │ gzip:   0.96 kB
+│  storybook-static/assets/reply-editor.stories-DOQqCcza.js
+│  2.99 kB │ gzip:   1.17 kB
+│  storybook-static/assets/inbox-detail-panel.stories-GL8bu7zF.js
+│  3.09 kB │ gzip:   1.14 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~jxdljjf3-bZp0Dd1v.js
+│  3.11 kB │ gzip:   1.19 kB
+│  storybook-static/assets/inbox-real-logic.stories-BqnHCqLe.js
+│  3.17 kB │ gzip:   1.35 kB
+│  storybook-static/assets/inbox-notes-thread.stories-BxYF4a4s.js
+│  3.21 kB │ gzip:   1.23 kB
+│  storybook-static/assets/staff-team-view.stories-Dflrud0Q.js
+│  3.22 kB │ gzip:   1.12 kB
+│  storybook-static/assets/app-shared~inbox-page.stories~inbox-detail-sheet.stories~inbox-detail-panel.stories-BforNVyQ.js
+│  3.28 kB │ gzip:   1.43 kB
+│  storybook-static/assets/app-shared~google-performance-chart.stories~google-performance-section.stories~property-das~ethhvop7-CsC9xA5z.js
+│  3.28 kB │ gzip:   1.53 kB
+│  storybook-static/assets/app-shared~notification-page.stories~notification-panel.stories~link-tree.stories~portal-de~f0tyxrtk-cfRDAGwH.js
+│  3.29 kB │ gzip:   1.62 kB
+│  storybook-static/assets/notification-announcer.stories-9U-ohLxL.js
+│  3.31 kB │ gzip:   1.23 kB
+│  storybook-static/assets/form-error-banner.stories-DbOdUUNM.js
+│  3.34 kB │ gzip:   0.90 kB
+│  storybook-static/assets/chunk-DRQKCCAG-D78ZUjte.js
+│  3.36 kB │ gzip:   1.39 kB
+│  storybook-static/assets/app-shared~public-portal-content.stories~portal-detail-page.stories~portal-creation-with-pr~pavoihsm-BRnEyaaQ.js
+│  3.43 kB │ gzip:   1.30 kB
+│  storybook-static/assets/app-shared~login-form.stories~invite-member-form.stories~register-form.stories~inbox-page.s~nvjjawg5-Ckxo4eif.js
+│  3.47 kB │ gzip:   1.38 kB
+│  storybook-static/assets/inbox-detail-sheet.stories-DXFbZ1eT.js
+│  3.48 kB │ gzip:   1.22 kB
+│  storybook-static/assets/app-shared~inbox-filters.stories~inbox-page.stories-CoQ9yL8E.js
+│  3.53 kB │ gzip:   1.40 kB
+│  storybook-static/assets/app-shared~people-page.stories~staff-participation-form.stories-DAKz5iVs.js
+│  3.56 kB │ gzip:   1.59 kB
+│  storybook-static/assets/connect-google-button.stories-CztEtH8q.js
+│  3.66 kB │ gzip:   1.45 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~cj0dsjqc-CEiHx0iD.js
+│  3.66 kB │ gzip:   1.28 kB
+│  storybook-static/assets/team-member-list.stories-DruzN1Td.js
+│  3.66 kB │ gzip:   1.20 kB
+│  storybook-static/assets/reply-language-catalogue-Cq0ZvvFo.js
+│  3.69 kB │ gzip:   1.94 kB
+│  storybook-static/assets/app-shared~portal-detail-page.stories~app-top-bar.stories~manager-sidebar.stories~settings-~jd1l6yoe-CQK-hR-B.js
+│  3.76 kB │ gzip:   1.21 kB
+│  storybook-static/assets/page-states.stories-CpTmsiMW.js
+│  3.80 kB │ gzip:   1.17 kB
+│  storybook-static/assets/app-shared~goal-create-form.stories~goal-detail-page.stories~goals-list-page.stories~staff-~7hpxati1-q71CWUjY.js
+│  3.85 kB │ gzip:   1.56 kB
+│  storybook-static/assets/remove-member-dialog.stories-BCyP4ZSD.js
+│  3.86 kB │ gzip:   1.46 kB
+│  storybook-static/assets/app-shared~cookie-consent-banner.stories~portal-detail-page.stories~portal-creation-with-pr~ewraa2ob-DDsJ9xJ_.js
+│  3.87 kB │ gzip:   1.86 kB
+│  storybook-static/assets/app-shared~merchant-ai-settings-page.stories~property-reply-language-card.stories-D1cquNDH.js
+│  3.88 kB │ gzip:   1.73 kB
+│  storybook-static/assets/google-performance-chart.stories-A1Ll5txk.js
+│  3.90 kB │ gzip:   1.33 kB
+│  storybook-static/assets/app-shared~goal-create-form.stories~goal-progress-ring.stories-CX67trja.js
+│  3.95 kB │ gzip:   1.91 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~gfhuxdyt-DRBk4vPs.js
+│  3.96 kB │ gzip:   1.64 kB
+│  storybook-static/assets/app-shared~profile-settings-form.stories~security-settings-form.stories~google-import-disco~mqacrzvl-DudDMHcW.js
+│  3.97 kB │ gzip:   1.09 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~mczwt89v-DkYGVOrA.js
+│  4.01 kB │ gzip:   1.54 kB
+│  storybook-static/assets/property-reply-language-card.stories-BjQQVyiz.js
+│  4.02 kB │ gzip:   1.23 kB
+│  storybook-static/assets/goal-progress-ring.stories-aG99S5Gf.js
+│  4.02 kB │ gzip:   1.09 kB
+│  storybook-static/assets/app-shared~notification-announcer.stories~notification-page.stories~notification-panel.stor~ncod9b5f-DzTm9Ild.js
+│  4.05 kB │ gzip:   1.80 kB
+│  storybook-static/assets/app-shared~people-page.stories~portal-responsibilities-modal.stories-Cl6KOd3Q.js
+│  4.14 kB │ gzip:   1.79 kB
+│  storybook-static/assets/goal-trajectory-graph.stories-Bd0pNpKf.js
+│  4.17 kB │ gzip:   1.63 kB
+│  storybook-static/assets/app-shared~create-portal-form.stories~portal-creation-with-preview.stories-BBCWTsfd.js
+│  4.20 kB │ gzip:   1.83 kB
+│  storybook-static/assets/app-shared~login-form.stories~invite-member-form.stories~profile-settings-form.stories~regi~omgr286x-BDx3KAsA.js
+│  4.31 kB │ gzip:   1.71 kB
+│  storybook-static/assets/app-shared~people-page.stories~team-lead-controls.stories~inbox-visit-badge.stories~manager~igw1maz4-7Tg3eSBM.js
+│  4.32 kB │ gzip:   1.90 kB
+│  storybook-static/assets/app-shared~inbox-page.stories~inbox-detail-panel.stories-DIXd1y-V.js
+│  4.41 kB │ gzip:   1.26 kB
+│  storybook-static/assets/portal-links-C0b6JxzZ.js
+│  4.42 kB │ gzip:   1.90 kB
+│  storybook-static/assets/guest-response-form.stories-DOCl_15P.js
+│  4.44 kB │ gzip:   1.54 kB
+│  storybook-static/assets/app-shared~portal-detail-page.stories~create-portal-form.stories~edit-portal-form.stories~p~jepr2nwx-Dew7Ewg2.js
+│  4.46 kB │ gzip:   1.47 kB
+│  storybook-static/assets/reset-password-form.stories-D6eq3Ca3.js
+│  4.77 kB │ gzip:   1.81 kB
+│  storybook-static/assets/app-shared~fleet-overview-pagination.stories~fleet-overview.stories~invite-member-form.stor~juy8xnhb-C4GQloAo.js
+│  4.88 kB │ gzip:   1.98 kB
+│  storybook-static/assets/app-shared~remove-member-dialog.stories~link-tree.stories~portal-detail-page.stories~portal~kbjhlhc3-eKY1m-Xg.js
+│  4.91 kB │ gzip:   1.39 kB
+│  storybook-static/assets/inbox-bulk-actions.stories-etW3eRhM.js
+│  4.99 kB │ gzip:   1.47 kB
+│  storybook-static/assets/login-form.stories-5e_9w-f2.js
+│  5.23 kB │ gzip:   1.85 kB
+│  storybook-static/assets/submit-button.stories-B3_qhWRi.js
+│  5.25 kB │ gzip:   1.35 kB
+│  storybook-static/assets/form-textarea.stories-x_cl7FCx.js
+│  5.38 kB │ gzip:   1.49 kB
+│  storybook-static/assets/reply-editor-actions.stories-Ba__b8Uq.js
+│  5.43 kB │ gzip:   1.35 kB
+│  storybook-static/assets/app-shared~inbox-list-v2.stories~inbox-page.stories~inbox-bulk-actions.stories-DepG1vUr.js
+│  5.47 kB │ gzip:   2.25 kB
+│  storybook-static/assets/cookie-consent-banner.stories-BWVCjh7W.js
+│  5.51 kB │ gzip:   1.24 kB
+│  storybook-static/assets/form-text-field.stories-CRLXEOU4.js
+│  5.52 kB │ gzip:   1.52 kB
+│  storybook-static/assets/inbox-list-v2.stories-CR5GVjUp.js
+│  5.54 kB │ gzip:   1.69 kB
+│  storybook-static/assets/image-upload-field.stories-CSqiVozu.js
+│  5.57 kB │ gzip:   1.69 kB
+│  storybook-static/assets/reply-form.stories-C2f-X7x0.js
+│  5.58 kB │ gzip:   1.82 kB
+│  storybook-static/assets/button.stories-CshQhpAB.js
+│  5.67 kB │ gzip:   1.49 kB
+│  storybook-static/assets/app-shared~profile-settings-form.stories~portal-detail-page.stories~edit-portal-form.storie~ondxdbja-1-SNFL2i.js
+│  5.75 kB │ gzip:   2.44 kB
+│  storybook-static/assets/app-shared~property-ai-aggregate-section.stories~property-dashboard.stories-C6qngJlO.js
+│  5.88 kB │ gzip:   2.35 kB
+│  storybook-static/assets/portal-group-management.stories-C0odP7Ie.js
+│  6.12 kB │ gzip:   1.61 kB
+│  storybook-static/assets/notification-list-body.stories-w7LgU1E0.js
+│  6.12 kB │ gzip:   1.80 kB
+│  storybook-static/assets/app-shared~google-import-discovery-panel.stories~google-import-review-form.stories~portal-d~c7j5lila-DpHF6kJb.js
+│  6.19 kB │ gzip:   2.08 kB
+│  storybook-static/assets/app-shared~fleet-overview-pagination.stories~fleet-overview.stories~notification-page.stori~nhler33v-BRDCj8Nm.js
+│  6.19 kB │ gzip:   1.98 kB
+│  storybook-static/assets/create-portal-form.stories-BVRgk_0k.js
+│  6.21 kB │ gzip:   1.58 kB
+│  storybook-static/assets/form-controls.stories-CmmupzGf.js
+│  6.24 kB │ gzip:   1.63 kB
+│  storybook-static/assets/data-display.stories-Dk4Iz_0y.js
+│  6.25 kB │ gzip:   1.48 kB
+│  storybook-static/assets/property-ai-aggregate-section.stories-CNIOb1vO.js
+│  6.35 kB │ gzip:   1.94 kB
+│  storybook-static/assets/public-portal-content.stories-DH7WCb0k.js
+│  6.40 kB │ gzip:   1.90 kB
+│  storybook-static/assets/notification-popover-content.stories-BJIs6WM0.js
+│  6.42 kB │ gzip:   2.05 kB
+│  storybook-static/assets/property-list-page.stories-eBUKFKDx.js
+│  6.46 kB │ gzip:   2.32 kB
+│  storybook-static/assets/app-shared~fleet-overview-pagination.stories~fleet-overview.stories~cookie-consent-banner.s~cmyjy46g-F__6kfmd.js
+│  6.52 kB │ gzip:   2.18 kB
+│  storybook-static/assets/complex.stories-BjQ1rscP.js
+│  6.52 kB │ gzip:   2.30 kB
+│  storybook-static/assets/result-Ctf0e0bl.js
+│  6.61 kB │ gzip:   1.96 kB
+│  storybook-static/assets/set-new-password-form.stories-CMbYhMlj.js
+│  6.64 kB │ gzip:   2.02 kB
+│  storybook-static/assets/portal-creation-with-preview.stories-CtImBYyv.js
+│  6.64 kB │ gzip:   2.15 kB
+│  storybook-static/assets/settings-sidebar.stories-B5wQWO-4.js
+│  6.65 kB │ gzip:   1.76 kB
+│  storybook-static/assets/link-tree.stories-DNSmqsWq.js
+│  6.66 kB │ gzip:   2.47 kB
+│  storybook-static/assets/app-shared~portal-detail-page.stories~portal-list-page.stories~portal-settings.stories-B0CuJHPY.js
+│  6.68 kB │ gzip:   2.38 kB
+│  storybook-static/assets/edit-portal-form.stories-QBz6gy1H.js
+│  7.03 kB │ gzip:   2.20 kB
+│  storybook-static/assets/organization-settings-form.stories-aLej_AYE.js
+│  7.32 kB │ gzip:   2.58 kB
+│  storybook-static/assets/profile-settings-form.stories-CaYVrxTu.js
+│  7.50 kB │ gzip:   2.71 kB
+│  storybook-static/assets/app-shared~notification-list-body.stories~notification-page.stories~notification-panel.stor~gr8tuaxr-BaYp8JqR.js
+│  7.54 kB │ gzip:   2.84 kB
+│  storybook-static/assets/app-shared~login-form.stories~invite-member-form.stories~profile-settings-form.stories~regi~nk8hah5v-BOe497rT.js
+│  7.66 kB │ gzip:   2.60 kB
+│  storybook-static/assets/app-shared~profile-settings-form.stories~portal-detail-page.stories~edit-portal-form.storie~dexwcewf-CoEN50Ob.js
+│  7.92 kB │ gzip:   2.62 kB
+│  storybook-static/assets/app-shared~portal-detail-page.stories~google-performance-chart.stories~google-performance-s~b79ojmiw-DSnxPC3u.js
+│  7.92 kB │ gzip:   2.58 kB
+│  storybook-static/assets/app-shared~goal-create-form.stories~goal-detail-page.stories~goals-list-page.stories~staff-~k8pz2h1z-EwEL8eRj.js
+│  8.01 kB │ gzip:   3.01 kB
+│  storybook-static/assets/app-shared~notification-page.stories~notification-panel.stories~notification-popover-conten~oum8kvpb-CiZp7SnF.js
+│  8.26 kB │ gzip:   2.80 kB
+│  storybook-static/assets/security-settings-form.stories-Crkm0Mxf.js
+│  8.58 kB │ gzip:   2.47 kB
+│  storybook-static/assets/portal-share.stories-C6GA9CH-.js
+│  8.76 kB │ gzip:   1.92 kB
+│  storybook-static/assets/notification-page.stories-A0bym5Cu.js
+│  8.77 kB │ gzip:   2.89 kB
+│  storybook-static/assets/invite-member-form.stories-BwLuLrU7.js
+│  8.90 kB │ gzip:   3.07 kB
+│  storybook-static/assets/app-shared~portal-group-management.stories~portal-list-page.stories-vqIOd-1T.js
+│  9.20 kB │ gzip:   3.09 kB
+│  storybook-static/assets/register-form.stories-CzE54Iqc.js
+│  9.20 kB │ gzip:   2.43 kB
+│  storybook-static/assets/simple-visual.stories-CBlfhDP9.js
+│  9.22 kB │ gzip:   2.77 kB
+│  storybook-static/assets/overlays.stories-C326zZs_.js
+│  9.53 kB │ gzip:   2.54 kB
+│  storybook-static/assets/app-shared~people-page.stories~notifications-settings-page.stories~staff-team-view.stories~~fnhh5a49-BRujHj_p.js
+│  10.19 kB │ gzip:   3.65 kB
+│  storybook-static/assets/manager-sidebar.stories-Cm72rCat.js
+│  10.41 kB │ gzip:   3.16 kB
+│  storybook-static/assets/app-shared~inbox-list-v2.stories~reply-editor.stories~reply-form.stories~inbox-page.stories~dzzcdxl4-DdUkMtM2.js
+│  10.43 kB │ gzip:   3.18 kB
+│  storybook-static/assets/staff-sidebar.stories--l_L_fzE.js
+│  10.54 kB │ gzip:   3.12 kB
+│  storybook-static/assets/portal-settings.stories-C3psn3W0.js
+│  10.62 kB │ gzip:   2.44 kB
+│  storybook-static/assets/inbox-container-Gw7VdfOP.js
+│  10.66 kB │ gzip:   3.51 kB
+│  storybook-static/assets/app-shared~fleet-overview-pagination.stories~fleet-overview.stories~people-page.stories~pag~jf5g4egz-DdzM-aU0.js
+│  10.74 kB │ gzip:   3.74 kB
+│  storybook-static/assets/app-shared~guest-response-form.stories~public-portal-content.stories~portal-detail-page.sto~clysg13p-UWewIjwv.js
+│  11.01 kB │ gzip:   3.70 kB
+│  storybook-static/assets/notification-row.stories-DNBVPBMy.js
+│  11.10 kB │ gzip:   3.34 kB
+│  storybook-static/assets/notification-email.stories-Ba6ZJsno.js
+│  11.39 kB │ gzip:   3.86 kB
+│  storybook-static/assets/fleet-overview.stories-BFD3cpG1.js
+│  11.64 kB │ gzip:   2.96 kB
+│  storybook-static/assets/app-shared~inbox-page.stories~inbox-detail-sheet.stories~inbox-detail-panel.stories~inbox-d~etegvr9g-C4btVyOM.js
+│  12.37 kB │ gzip:   3.91 kB
+│  storybook-static/assets/notification-panel.stories-DbLixjf5.js
+│  12.46 kB │ gzip:   2.61 kB
+│  storybook-static/assets/app-shared~portal-detail-page.stories~portal-share.stories-DsaqrgmB.js
+│  13.28 kB │ gzip:   4.60 kB
+│  storybook-static/assets/google-import-review-form.stories-0Ke_J6Tk.js
+│  14.15 kB │ gzip:   4.99 kB
+│  storybook-static/assets/inputs-nav.stories-BVYaGAAw.js
+│  14.53 kB │ gzip:   3.21 kB
+│  storybook-static/assets/reply-editor-compose.stories-D3CWP_vg.js
+│  14.73 kB │ gzip:   3.08 kB
+│  storybook-static/assets/google-performance-section.stories-Cv1WuOGs.js
+│  15.03 kB │ gzip:   3.56 kB
+│  storybook-static/assets/google-import-discovery-panel.stories-Ls4RdnSt.js
+│  15.42 kB │ gzip:   4.74 kB
+│  storybook-static/assets/app-shared~google-performance-section.stories~property-dashboard.stories-Dcd9odsj.js
+│  15.51 kB │ gzip:   5.30 kB
+│  storybook-static/assets/app-shared~inbox-list-v2.stories~inbox-real-logic.stories~inbox-page.stories~inbox-detail-s~g6b17vuz-DbmZbxt2.js
+│  15.95 kB │ gzip:   4.17 kB
+│  storybook-static/assets/notifications-settings-page.stories-aI5XM990.js
+│  16.00 kB │ gzip:   4.99 kB
+│  storybook-static/assets/goal-detail-page.stories-DA9ua6Ni.js
+│  16.12 kB │ gzip:   4.66 kB
+│  storybook-static/assets/google-import-progress-view.stories-C1zegIWO.js
+│  16.48 kB │ gzip:   4.64 kB
+│  storybook-static/assets/portal-list-page.stories-6-kpOyTc.js
+│  16.76 kB │ gzip:   4.31 kB
+│  storybook-static/assets/goals-list-page.stories-CELCOThT.js
+│  17.59 kB │ gzip:   4.87 kB
+│  storybook-static/assets/inbox-detail-content.stories-CCt0SVDC.js
+│  17.82 kB │ gzip:   4.02 kB
+│  storybook-static/assets/staff-home.stories-CrRIxjKh.js
+│  18.43 kB │ gzip:   5.55 kB
+│  storybook-static/assets/app-shared~link-tree.stories~portal-detail-page.stories-Bopx003h.js
+│  19.22 kB │ gzip:   5.64 kB
+│  storybook-static/assets/app-shared~app-top-bar.stories~manager-sidebar.stories~settings-sidebar.stories~staff-sideb~i3jv05q3-xvNI3Vq_.js
+│  20.05 kB │ gzip:   4.92 kB
+│  storybook-static/assets/goal-create-form.stories-D6QmkSqy.js
+│  21.29 kB │ gzip:   6.74 kB
+│  storybook-static/assets/chunk-W22LQPXL-DacwkwWD.js
+│  22.67 kB │ gzip:   7.58 kB
+│  storybook-static/assets/portal-detail-page.stories-DMHebGnt.js
+│  22.89 kB │ gzip:   7.44 kB
+│  storybook-static/assets/app-shared~reply-editor-compose.stories~reply-editor.stories~reply-form.stories~inbox-page.~g6uwzlb9-Cwiye5kS.js
+│  23.04 kB │ gzip:   7.52 kB
+│  storybook-static/assets/browser-DIrIrMcw.js
+│  23.47 kB │ gzip:   8.85 kB
+│  storybook-static/assets/property-dashboard.stories-xSHo3uhl.js
+│  24.99 kB │ gzip:   7.40 kB
+│  storybook-static/assets/app-shared~notification-panel.stories~portal-detail-page.stories~create-portal-form.stories~lnbid74g-vFzaq2Vp.js
+│  25.82 kB │ gzip:   7.41 kB
+│  storybook-static/assets/merchant-ai-settings-page.stories-Ce9sUw_j.js
+│  26.54 kB │ gzip:   8.54 kB
+│  storybook-static/assets/utils-CtWB8C0I.js
+│  27.27 kB │ gzip:   8.81 kB
+│  storybook-static/vite-inject-mocker-entry.js
+│  27.81 kB │ gzip:   9.63 kB
+│  storybook-static/assets/matchers-JIUQ3HVY-9iRExWZO.js
+│  28.76 kB │ gzip:   9.66 kB
+│  storybook-static/assets/lucide-react-D8V20YWr.js
+│  29.22 kB │ gzip:  10.51 kB
+│  storybook-static/assets/Color-6AOWCN3U-DAGCNisD.js
+│  31.04 kB │ gzip:  11.69 kB
+│  storybook-static/assets/people-page.stories-Bes-3FIs.js
+│  32.22 kB │ gzip:   7.35 kB
+│  storybook-static/assets/WithTooltip-7X4HQR7L-CbbRZkGP.js
+│  32.74 kB │ gzip:  11.48 kB
+│  storybook-static/assets/dist-1pkZ9Gf4.js
+│  33.65 kB │ gzip:   9.44 kB
+│  storybook-static/assets/app-top-bar.stories-CSk086PR.js
+│  41.88 kB │ gzip:  14.72 kB
+│  storybook-static/assets/vendor-dnd-D_oCFxVx.js
+│  44.52 kB │ gzip:  14.78 kB
+│  storybook-static/assets/theming-BRBxlxOg.js
+│  55.70 kB │ gzip:  21.51 kB
+│  storybook-static/assets/esm-KXMiP5TM.js
+│  64.01 kB │ gzip:  16.06 kB
+│  storybook-static/assets/external-B7QZXZsE.js
+│  73.71 kB │ gzip:  20.18 kB
+│  storybook-static/assets/syntaxhighlighter-QEQV7K2Y-CLJfYVjw.js
+│  75.93 kB │ gzip:  27.28 kB
+│  storybook-static/assets/inbox-page.stories-BZmsJ4GX.js
+│  96.89 kB │ gzip:  25.58 kB
+│  storybook-static/assets/dist-3MXIaxB3.js
+│  148.57 kB │ gzip:  47.76 kB
+│  storybook-static/assets/react-18-Budzm77-.js
+│  179.09 kB │ gzip:  56.69 kB
+│  storybook-static/assets/DocsRenderer-JROSPFPF-_t8Q8Bex.js
+│  191.59 kB │ gzip:  60.75 kB
+│  storybook-static/assets/transactional-D4d5znQB.js
+│  277.67 kB │ gzip:  87.02 kB
+│  storybook-static/assets/vendor-charts-CyDoyBAX.js
+│  448.68 kB │ gzip: 130.89 kB
+│  storybook-static/assets/components-NtiQm0pp.js
+│  568.16 kB │ gzip: 181.00 kB
+│  storybook-static/assets/axe-DtUsZoXj.js
+│  587.26 kB │ gzip: 160.31 kB
+│  storybook-static/assets/iframe-BH0Hux_x.js
+│  1,286.87 kB │ gzip: 370.67 kB
+
+│
+▲  Vite [33m[INEFFECTIVE_DYNAMIC_IMPORT][39m
+│  [33m[0m.storybook/stubs/observability-logger.ts is dynamically imported by
+│  src/shared/events/event-bus.ts but also statically imported by
+│  src/shared/testing/sequential-inbox-command-store.ts, dynamic import
+│  will not move module into another chunk.
+
+│
+▲  Vite [plugin builtin:vite-reporter]
+│  (!) Some chunks are larger than 500 kB after minification. Consider:
+│  - Using dynamic import() to code-split the application
+│  - Use build.rolldownOptions.output.codeSplitting to improve chunking:
+│  ]8;;https://rolldown.rs/reference/OutputOptions.codeSplittinghttps://rolldown.rs/reference/OutputOptions.codeSplitting]8;;
+│  - Adjust chunk size limit for this warning via
+│  build.chunkSizeWarningLimit.
+│
+▲  Vite [33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugins.
+│  Here is a breakdown:
+│  - storybook:project-annotations-plugin (70%)
+│  - storybook:mock-loader (14%)
+│  - storybook:react-docgen-plugin (7%)
+│  - plugin-csf (3%)
+│  See ]8;;https://rolldown.rs/reference/InputOptions.checks#plugintimingshttps://rolldown.rs/reference/InputOptions.checks#plugintimings]8;;
+│  for more details.
+
+│  Vite ✓ built in 3.46s
+│
+●  Storybook collects completely anonymous usage telemetry. We use it to
+│  shape Storybook's roadmap and prioritize features. You can learn more,
+│  including how to opt out, at ]8;;https://storybook.js.org/telemetryhttps://storybook.js.org/telemetry]8;;
+│
+◇  Output directory:
+│  /private/tmp/repkey-fnd01.INMxZB/source/storybook-static
+│
+└  Storybook build completed successfully
+
+
