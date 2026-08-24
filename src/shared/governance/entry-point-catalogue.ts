@@ -818,14 +818,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── integration ───────────────────────────────────────────────────
   ...[
     sf(
-      'connectGoogle',
-      `${INTEGRATION}/google-connections.ts`,
-      'integration.manage',
-      'integration.use',
-      'organization',
-      { externalEffect: true, notes: 'exchanges OAuth code, stores Google tokens' },
-    ),
-    sf(
       'listGoogleConnections',
       `${INTEGRATION}/google-connections.ts`,
       'integration.manage',

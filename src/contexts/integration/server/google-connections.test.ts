@@ -1,11 +1,12 @@
-// Integration context — Google connection server function tests
-// Tests input validation for the Google connection server functions and verifies
-// throwContextError construction for the 5 handlers.
+// Integration context — Google connection boundary tests.
+// Tests input validation for the remaining Google connection server functions,
+// the callback-only connect command, and IntegrationError translation.
 //
 // Per architecture: server functions are thin wrappers — resolve auth →
 // validate input → call use case → translate errors → return.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { z } from 'zod/v4'
 import { integrationErrorStatus } from './error-helpers'
 import { integrationError } from '../domain/errors'
@@ -14,6 +15,19 @@ import { throwContextError } from '#/shared/auth/server-errors'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
+
+describe('Google OAuth server boundary', () => {
+  it('does not expose a server function that accepts PKCE verifier material', () => {
+    const source = readFileSync(
+      'src/contexts/integration/server/google-connections.ts',
+      'utf8',
+    )
+
+    expect(source).not.toMatch(/export const connectGoogle\s*=/)
+    expect(source).not.toMatch(/\bconnectGoogleInputSchema\b/)
+    expect(source).not.toContain('verifierMaterial')
+  })
+})
 
 // ── throwContextError with IntegrationError ───────────────────────
 
@@ -105,7 +119,7 @@ describe('getAuthUrlInputSchema', () => {
   })
 })
 
-// ── connectGoogle input validation ────────────────────────────────
+// ── callback-only connect command validation ─────────────────────
 
 const validConnectInput = () => ({
   code: 'auth-code-123',
@@ -119,7 +133,7 @@ const validConnectInput = () => ({
   },
 })
 
-describe('connectGoogleInputSchema', () => {
+describe('opaque OAuth callback connect input', () => {
   it('accepts valid input with code and visibility', () => {
     const result = connectGoogleInputSchema.safeParse({
       ...validConnectInput(),
