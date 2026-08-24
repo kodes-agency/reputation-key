@@ -1,10 +1,26 @@
 // Global TanStack Start configuration.
-import { createMiddleware, createStart } from '@tanstack/react-start'
+import {
+  createCsrfMiddleware,
+  createMiddleware,
+  createStart,
+} from '@tanstack/react-start'
 import { getSecurityHeaders } from '#/shared/security/security-headers'
 // Policy administration is an operator-facing server surface rather than a
 // route component. Import it here so its createServerFn handlers are present
 // in the production server manifest.
 import '#/contexts/identity/server/policy-admin'
+
+// TanStack Start disables its default server-function CSRF middleware as soon
+// as an application supplies a custom start instance. Restore the framework's
+// documented policy explicitly: only server-function RPC requests are in
+// scope, and they must carry same-origin Fetch Metadata or exact-origin
+// Origin/Referer evidence. `same-site` is intentionally insufficient because
+// a sibling subdomain may be independently controlled.
+const csrfMiddleware = createCsrfMiddleware({
+  filter: ({ handlerType }) => handlerType === 'serverFn',
+  secFetchSite: 'same-origin',
+  allowRequestsWithoutOriginCheck: false,
+})
 
 const cspNonceMiddleware = createMiddleware({ type: 'request' }).server(
   async ({ handlerType, next }) => {
@@ -26,5 +42,5 @@ const cspNonceMiddleware = createMiddleware({ type: 'request' }).server(
 )
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [cspNonceMiddleware],
+  requestMiddleware: [csrfMiddleware, cspNonceMiddleware],
 }))
