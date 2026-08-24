@@ -41,6 +41,7 @@ describe('Auth configuration', () => {
     const options = auth.options
     expect(options.emailAndPassword?.enabled).toBe(true)
     expect(options.emailAndPassword?.requireEmailVerification).toBe(false)
+    expect(options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(true)
   })
 
   it('session configuration has correct expiry', async () => {

@@ -34,6 +34,9 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
             body: {
               currentPassword: data.currentPassword,
               newPassword: data.newPassword,
+              // Better Auth rotates the current session and invalidates every
+              // other device session when this is true.
+              revokeOtherSessions: true,
             },
           })
         } catch (e) {

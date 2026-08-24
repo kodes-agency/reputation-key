@@ -110,6 +110,10 @@ export function createAuth() {
     trustedOrigins: [env.BETTER_AUTH_URL],
     emailAndPassword: {
       enabled: true,
+      // A reset token is an account-recovery credential. Once consumed, all
+      // previously issued sessions are invalidated so a stolen session cannot
+      // survive the recovery event.
+      revokeSessionsOnPasswordReset: true,
       // Enable email verification in production
       // Prerequisites:
       //   1. Verify Resend domain ownership (currently using sandbox)
