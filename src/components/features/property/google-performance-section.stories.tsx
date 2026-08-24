@@ -1,6 +1,6 @@
 import { useMemo, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
@@ -412,8 +412,19 @@ export const Compact320: Story = {
     await expect(range.getBoundingClientRect().height).toBeGreaterThanOrEqual(44)
     if (range.getAttribute('role') === 'combobox') {
       await userEvent.click(range)
-      await userEvent.keyboard('{Home}{Enter}')
-      await expect(range).toHaveTextContent('7 days')
+      const ownerDocument = range.ownerDocument
+      const contentId = range.getAttribute('aria-controls')
+      expect(contentId).not.toBeNull()
+      if (contentId === null) return
+      const content = ownerDocument.getElementById(contentId)
+      expect(content).not.toBeNull()
+      if (content === null) return
+      await userEvent.click(within(content).getByRole('option', { name: '7 days' }))
+      await waitFor(() => {
+        expect(range).toHaveTextContent('7 days')
+        expect(ownerDocument.querySelector('[role="listbox"]')).toBeNull()
+        expect(ownerDocument.body.style.pointerEvents).toBe('')
+      })
       return
     }
     const sevenDays = range.querySelector<HTMLButtonElement>('button')!

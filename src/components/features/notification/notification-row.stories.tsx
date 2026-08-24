@@ -162,9 +162,10 @@ export const OverflowMenu: Story = {
   args: { notification: newReview },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     // Radix portals the menu outside the story canvas.
-    const menu = within(document.body)
+    const menu = within(ownerDocument.body)
     expect(
       await menu.findByRole('menuitem', { name: 'Mark as read' }),
     ).toBeInTheDocument()
@@ -178,11 +179,10 @@ export const OverflowMenu: Story = {
     expect(actions.onMarkRead).toHaveBeenCalledWith(newReview.id)
 
     await waitFor(() => {
-      expect(document.querySelector('[role="menu"]')).toBeNull()
-      const root = document.getElementById('storybook-root')
-      expect(root).not.toHaveAttribute('aria-hidden')
-      expect(root).not.toHaveAttribute('data-aria-hidden')
-      expect(document.body.style.pointerEvents).toBe('')
+      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+      expect(canvasElement).not.toHaveAttribute('aria-hidden')
+      expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
+      expect(ownerDocument.body.style.pointerEvents).toBe('')
     })
   },
 }
