@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
 
-const envSchema = z.object({
+const baseEnvSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -328,6 +328,23 @@ const envSchema = z.object({
   GOOGLE_OAUTH_TOKEN_URL: z.url().optional(),
   GOOGLE_OAUTH_JWKS_URL: z.url().optional(),
   GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
+})
+
+const envSchema = baseEnvSchema.superRefine((env, context) => {
+  // A production auth origin controls trusted-origin checks, callback URLs,
+  // and the Secure attribute on session cookies. Refuse the deployment before
+  // either web or worker starts if a configuration mistake would make those
+  // cookies eligible for plaintext transport.
+  if (
+    env.NODE_ENV === 'production' &&
+    new URL(env.BETTER_AUTH_URL).protocol !== 'https:'
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['BETTER_AUTH_URL'],
+      message: 'Production BETTER_AUTH_URL must use HTTPS',
+    })
+  }
 })
 
 export type Env = z.infer<typeof envSchema>

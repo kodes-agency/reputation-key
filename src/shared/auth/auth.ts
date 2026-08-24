@@ -119,10 +119,11 @@ export function createAuth() {
       //   1. Verify Resend domain ownership (currently using sandbox)
       //   2. Test sendVerificationEmail flow end-to-end
       //   3. Update login/register UX to show "check your email" state
-      // Email verification: gated behind env var. Enable in production after:
+      // Email verification follows the parsed environment policy. Production
+      // defaults to enabled; explicitly disabling it is an operator decision.
+      // Before relying on the production default:
       //   1. Run scripts/migrations/verify-existing-emails.sql
       //   2. Confirm Resend domain verification is complete
-      //   3. Set EMAIL_VERIFICATION_REQUIRED=true in env
       requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
@@ -181,8 +182,10 @@ export function createAuth() {
           enabled: true,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
-        requireEmailVerificationOnInvitation:
-          process.env.EMAIL_VERIFICATION_REQUIRED === 'true',
+        // Use the same validated/defaulted policy as password signup. Reading
+        // process.env here previously made an unset production variable mean
+        // true above but false for invitation acceptance.
+        requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
         // Custom fields on invitation (propertyIds) and organization (billing/SLA).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).

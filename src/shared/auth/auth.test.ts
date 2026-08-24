@@ -67,7 +67,7 @@ describe('Auth configuration', () => {
     expect(auth.options.trustedOrigins).toEqual(['http://localhost:3000'])
   })
 
-  it('persists session cookies for the loopback HTTP production stack', async () => {
+  it('refuses an HTTP auth origin in production', async () => {
     // This suite resets the module graph so the cached environment is rebuilt
     // after each case's process.env setup.
     const { resetEnv } = await import('#/shared/config/env')
@@ -76,9 +76,43 @@ describe('Auth configuration', () => {
     process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3000'
 
     const { createAuth } = await import('#/shared/auth/auth')
+    expect(() => createAuth()).toThrow(/BETTER_AUTH_URL.*HTTPS|HTTPS.*BETTER_AUTH_URL/i)
+  })
+
+  it('marks auth cookies Secure for a production HTTPS origin', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    process.env.NODE_ENV = 'production'
+    process.env.BETTER_AUTH_URL = 'https://repkey.example'
+
+    const { createAuth } = await import('#/shared/auth/auth')
     const auth = createAuth()
 
-    expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(false)
+    expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(true)
+  })
+
+  it('uses the parsed verification policy for invitation acceptance', async () => {
+    process.env.EMAIL_VERIFICATION_REQUIRED = 'true'
+    const { getEnv, resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    expect(getEnv().EMAIL_VERIFICATION_REQUIRED).toBe(true)
+
+    // Reproduce a raw-env/config split after the policy has been parsed and
+    // cached. Every Better Auth surface must use the same parsed value.
+    delete process.env.EMAIL_VERIFICATION_REQUIRED
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+    const organizationPlugin = auth.options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{
+          options?: Readonly<{ requireEmailVerificationOnInvitation?: boolean }>
+        }>
+      | undefined
+
+    expect(auth.options.emailAndPassword?.requireEmailVerification).toBe(true)
+    expect(organizationPlugin?.options?.requireEmailVerificationOnInvitation).toBe(true)
   })
 })
 
