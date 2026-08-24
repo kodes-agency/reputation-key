@@ -18,7 +18,8 @@ export function getClientIpFromForwardedFor(
   if (!forwardedFor) return undefined
 
   // X-Forwarded-For: client, proxy1, proxy2, ...
-  // With N trusted proxies, the client IP is at position length - (N+1)
+  // The direct proxy is the socket peer and is not another XFF element. With N
+  // trusted proxies, the first untrusted hop is therefore at length - N.
   const hops = forwardedFor
     .split(',')
     .map((s) => s.trim())
@@ -26,9 +27,15 @@ export function getClientIpFromForwardedFor(
 
   if (hops.length === 0) return undefined
 
-  // If we have fewer hops than expected proxies, take the leftmost (original client)
-  const clientIndex = Math.max(0, hops.length - trustedProxyCount - 1)
-  return hops[clientIndex]
+  if (
+    !Number.isInteger(trustedProxyCount) ||
+    trustedProxyCount < 1 ||
+    hops.length < trustedProxyCount
+  ) {
+    return undefined
+  }
+
+  return hops[hops.length - trustedProxyCount]
 }
 
 /**
@@ -59,9 +66,9 @@ export function deriveClientIp(
  * configured trusted proxy count (env TRUSTED_PROXY_COUNT, default 1).
  *
  * This is the ONLY sanctioned way to read a client IP at the server-fn
- * boundary (BQC-7.6): the previous call-site pattern trusted the leftmost
- * X-Forwarded-For hop, which any client can spoof — with N trusted proxies
- * the client IP sits at position length-(N+1), never at the left edge.
+ * boundary (BQC-7.6): a client can prepend spoofed values, so with N trusted
+ * proxies the client IP sits at position length-N. The direct socket proxy is
+ * not duplicated in XFF; subtracting N+1 trusts one attacker-controlled hop.
  * Server functions have no socket address, so the fallback is 'unknown'
  * (never a spoofable header value).
  */

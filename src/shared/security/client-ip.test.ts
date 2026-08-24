@@ -9,18 +9,19 @@ import { resetEnv } from '#/shared/config/env'
 describe('client-ip (B0.7)', () => {
   describe('getClientIpFromForwardedFor', () => {
     it('extracts client IP with 1 trusted proxy', () => {
-      const result = getClientIpFromForwardedFor('203.0.113.5, 10.0.0.1', 1)
+      // The direct proxy is represented by the socket, not appended to XFF.
+      const result = getClientIpFromForwardedFor('203.0.113.5', 1)
       expect(result).toBe('203.0.113.5')
     })
 
     it('extracts client IP with 2 trusted proxies', () => {
-      const result = getClientIpFromForwardedFor('203.0.113.5, 10.0.0.1, 10.0.0.2', 2)
+      const result = getClientIpFromForwardedFor('203.0.113.5, 10.0.0.1', 2)
       expect(result).toBe('203.0.113.5')
     })
 
-    it('takes leftmost when fewer hops than proxies', () => {
+    it('rejects a chain shorter than the configured proxy count', () => {
       const result = getClientIpFromForwardedFor('203.0.113.5', 3)
-      expect(result).toBe('203.0.113.5')
+      expect(result).toBeUndefined()
     })
 
     it('returns undefined for empty header', () => {
@@ -29,20 +30,25 @@ describe('client-ip (B0.7)', () => {
     })
 
     it('trims whitespace from hops', () => {
-      const result = getClientIpFromForwardedFor('  203.0.113.5  ,  10.0.0.1  ', 1)
+      const result = getClientIpFromForwardedFor('  203.0.113.5  ', 1)
       expect(result).toBe('203.0.113.5')
     })
 
     it('handles IPv6 addresses', () => {
-      const result = getClientIpFromForwardedFor('::1, ::ffff:10.0.0.1', 1)
+      const result = getClientIpFromForwardedFor('::1', 1)
       expect(result).toBe('::1')
     })
   })
 
   describe('deriveClientIp', () => {
     it('uses forwarded header when behind trusted proxies', () => {
-      const result = deriveClientIp('10.0.0.1', '203.0.113.5, 10.0.0.1', 1)
+      const result = deriveClientIp('10.0.0.1', '203.0.113.5', 1)
       expect(result).toBe('203.0.113.5')
+    })
+
+    it('falls back to the socket when the forwarded chain is too short', () => {
+      const result = deriveClientIp('10.0.0.1', '203.0.113.5', 2)
+      expect(result).toBe('10.0.0.1')
     })
 
     it('falls back to remote address when no proxies', () => {
@@ -73,7 +79,7 @@ describe('client-ip (B0.7)', () => {
       delete process.env.TRUSTED_PROXY_COUNT
       resetEnv()
       const headers = new Headers({
-        'x-forwarded-for': '6.6.6.6, 203.0.113.5, 10.0.0.1',
+        'x-forwarded-for': '6.6.6.6, 203.0.113.5',
       })
       expect(clientIpFromHeaders(headers)).toBe('203.0.113.5')
     })
@@ -82,7 +88,7 @@ describe('client-ip (B0.7)', () => {
       process.env.TRUSTED_PROXY_COUNT = '2'
       resetEnv()
       const headers = new Headers({
-        'x-forwarded-for': '6.6.6.6, 203.0.113.5, 10.0.0.1, 10.0.0.2',
+        'x-forwarded-for': '6.6.6.6, 203.0.113.5, 10.0.0.1',
       })
       expect(clientIpFromHeaders(headers)).toBe('203.0.113.5')
     })

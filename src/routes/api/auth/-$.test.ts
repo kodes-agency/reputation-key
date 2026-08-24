@@ -62,7 +62,8 @@ async function loadRoute() {
 function signInPost() {
   return new Request('http://localhost:3000/api/auth/sign-in/email', {
     method: 'POST',
-    headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.1' },
+    // The one trusted edge is the socket peer; XFF contains the client hop.
+    headers: { 'x-forwarded-for': '203.0.113.5' },
   })
 }
 
