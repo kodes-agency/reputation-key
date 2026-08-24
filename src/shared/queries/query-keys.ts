@@ -74,6 +74,8 @@ export const identityKeys = {
   responseSla: () => [...identityKeys.all, 'response-sla'] as const,
   members: () => [...identityKeys.all, 'members'] as const,
   invitations: () => [...identityKeys.all, 'invitations'] as const,
+  userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
+  organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

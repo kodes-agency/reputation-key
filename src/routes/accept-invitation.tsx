@@ -17,7 +17,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // hit with zero extra fetch. The filter+map lives inside the queryFn so the
 // cached value is the filtered invitation list.
 const invitationsQuery = queryOptions({
-  queryKey: identityKeys.invitations(),
+  queryKey: identityKeys.userInvitations(),
   queryFn: async () => {
     const { invitations } = await listUserInvitations()
     return invitations

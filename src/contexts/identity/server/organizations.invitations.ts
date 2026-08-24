@@ -42,6 +42,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
           // so any cached AuthContext (role/org) is now stale.
           resetTenantCache()
         } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
         }
       },

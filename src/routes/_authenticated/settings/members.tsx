@@ -49,7 +49,7 @@ const membersQuery = queryOptions({
 })
 
 const invitationsQuery = queryOptions({
-  queryKey: identityKeys.invitations(),
+  queryKey: identityKeys.organizationInvitations(),
   queryFn: () => listInvitations(),
   staleTime: 30_000,
 })
