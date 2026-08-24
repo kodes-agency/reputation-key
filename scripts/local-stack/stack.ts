@@ -1606,7 +1606,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   //
   // COMPOSE_PARALLEL_LIMIT: compose builds every service at once by default,
   // and each of these stages runs its own `pnpm install --frozen-lockfile`.
-  // Eight of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
+  // Nine of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
   // logged `global_oom` and killed whatever was largest, twice taking `dockerd`
   // itself, which surfaces to the client as the useless
   // `failed to solve: Unavailable: error reading from server: EOF`. Capping the
@@ -1619,6 +1619,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
       'build',
       'web',
       'worker',
+      'seed',
       'provider-sandbox',
       'google-execution-admission',
       'google-egress-gateway',

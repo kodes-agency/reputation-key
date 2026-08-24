@@ -21,6 +21,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
+      '**/dist-local-tools/**',
       '**/dist-google-*/**',
       '**/dist-ai-*/**',
       '**/dist-provider-services/**',

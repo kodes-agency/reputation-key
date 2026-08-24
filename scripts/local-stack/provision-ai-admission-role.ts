@@ -1,4 +1,5 @@
 import { Client } from 'pg'
+import { assertLocalToolExecutionIdentity } from '../../src/shared/config/local-tool-execution'
 
 const ROLE = 'repkey_ai_admission_local'
 
@@ -9,6 +10,7 @@ function requiredEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
+  assertLocalToolExecutionIdentity(process.env)
   const password = requiredEnv('AI_CONTROL_DATABASE_PASSWORD')
   if (!/^[a-f0-9]{64}$/.test(password)) {
     throw new Error('local AI admission database password is invalid')

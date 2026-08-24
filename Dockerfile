@@ -83,7 +83,8 @@ RUN NODE_ENV=production \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     pnpm build && pnpm build:worker \
- && node scripts/check-google-import-artifacts.mjs final .output dist-worker
+ && node scripts/check-google-import-artifacts.mjs final .output dist-worker \
+ && node scripts/check-production-artifacts.mjs .output dist-worker
 
 # ── Production-only dependencies (runtime: worker externals + migrate trio) ─
 FROM base AS prod-deps
@@ -92,6 +93,25 @@ COPY package.json pnpm-lock.yaml ./
 # here; no production dependency needs an install script (verified against
 # pnpm.onlyBuiltDependencies).
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+
+# ── Local-stack-only one-shot tools ──────────────────────────────────────────
+# This target is selected explicitly by compose.local.yml. It is not an
+# ancestor of the default final `web` target, so its bundle and fixture
+# credentials cannot enter a production or Railway serving image.
+FROM deps AS local-tools-build
+COPY . .
+RUN NODE_ENV=production pnpm build:local-tools
+
+FROM base AS local-tools
+ARG SOURCE_REVISION
+ENV NODE_ENV=production
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
+      com.repkey.artifact-scope=local-tools-only
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+COPY --from=local-tools-build /app/dist-local-tools ./dist-local-tools
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY package.runtime.json ./package.json
+USER node
 
 # ── Web runtime ──────────────────────────────────────────────────────────────
 FROM base AS web

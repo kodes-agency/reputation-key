@@ -57,7 +57,8 @@ RUN NODE_ENV=production \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     pnpm build:worker \
- && node scripts/check-google-import-artifacts.mjs final dist-worker
+ && node scripts/check-google-import-artifacts.mjs final dist-worker \
+ && node scripts/check-production-artifacts.mjs dist-worker
 
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml ./

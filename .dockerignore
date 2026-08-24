@@ -5,6 +5,7 @@ node_modules
 .output
 dist
 dist-worker
+dist-local-tools
 dist-google-import-compatibility
 dist-google-execution-admission
 dist-google-egress-gateway

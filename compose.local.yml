@@ -70,6 +70,15 @@ x-web-image: &web-image
     args:
       SOURCE_REVISION: ${SOURCE_REVISION}
 
+x-local-tools-image: &local-tools-image
+  image: repkey-local-tools:${SOURCE_REVISION}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: local-tools
+    args:
+      SOURCE_REVISION: ${SOURCE_REVISION}
+
 services:
   postgres-tls-init:
     profiles: [backend]
@@ -502,10 +511,11 @@ services:
 
   ai-admission-role:
     profiles: [backend]
-    image: repkey-local-worker:${SOURCE_REVISION}
-    command: [node, dist-worker/provision-ai-admission-role.js]
+    <<: *local-tools-image
+    command: [node, dist-local-tools/provision-ai-admission-role.js]
     environment:
       NODE_ENV: production
+      LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AI_CONTROL_DATABASE_PASSWORD: ${AI_CONTROL_DATABASE_PASSWORD}
     init: true
@@ -648,10 +658,11 @@ services:
         condition: service_healthy
   seed:
     profiles: [backend]
-    <<: [*web-image, *app-runtime]
-    command: [node, dist-worker/seed-e2e-user.js]
+    <<: [*local-tools-image, *app-runtime]
+    command: [node, dist-local-tools/seed-e2e-user.js]
     environment:
       <<: *app-environment
+      LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1
       BETTER_AUTH_URL: http://127.0.0.1:3000
       E2E_TEST_EMAIL: ${E2E_TEST_EMAIL}
       E2E_TEST_PASSWORD: ${E2E_TEST_PASSWORD}

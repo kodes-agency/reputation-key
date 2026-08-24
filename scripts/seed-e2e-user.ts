@@ -77,6 +77,7 @@ import {
   signUpResponseSchema,
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
+import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
 
 import {
   createGoogleContentRoleSignatureVerifier,
@@ -86,6 +87,9 @@ import {
 import { createGoogleContentAuthorizationAuthority } from '../src/shared/auth/google-content-authority'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { randomUUID } from 'node:crypto'
+
+assertLocalToolExecutionIdentity(process.env)
+
 const managerEmail = process.env.E2E_TEST_EMAIL ?? 'test@example.com'
 const managerPassword = process.env.E2E_TEST_PASSWORD ?? 'password123'
 const managerName = process.env.E2E_TEST_NAME ?? 'E2E Beta Manager'
