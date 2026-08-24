@@ -12,6 +12,10 @@ import { createGoogleExecutionAdmissionService } from './service'
 import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 import { handleGoogleExecutionAdmissionRequest } from './http-api'
 import { createInternalMtlsWebServer, loadInternalMtlsMaterial } from '../internal-mtls'
+import {
+  assertGoogleEgressGatewayIdentity,
+  createGoogleAdmissionPeerIdentityResolver,
+} from '../google-peer-identities'
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
@@ -53,7 +57,9 @@ redis.on('error', () => {
 })
 await redis.connect()
 
-const gatewayIdentity = requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY')
+const gatewayIdentity = assertGoogleEgressGatewayIdentity(
+  requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY'),
+)
 const quotaCoordinators = new Map()
 const inFlightCoordinators = new Map()
 for (const [policyId, policy] of Object.entries(GOOGLE_QUOTA_POLICIES)) {
@@ -105,6 +111,7 @@ const server = createInternalMtlsWebServer({
   port: portFromEnv(),
   tls,
   maxRequestBytes: 32 * 1024,
+  resolvePeerIdentity: createGoogleAdmissionPeerIdentityResolver(),
   handle: (request, peerIdentity) =>
     handleGoogleExecutionAdmissionRequest({
       request,

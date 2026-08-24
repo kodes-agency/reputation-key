@@ -282,7 +282,7 @@ services:
       PORT: '8443'
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
-      GOOGLE_EGRESS_GATEWAY_IDENTITY: google-egress-gateway-1
+      GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/ca.crt
       GOOGLE_INTERNAL_MTLS_CERT_PATH: /run/repkey/google-execution-admission.crt
@@ -334,8 +334,8 @@ services:
     environment:
       RELEASE_SHA: ${SOURCE_REVISION}
       PORT: '8443'
-      GOOGLE_EGRESS_GATEWAY_IDENTITY: google-egress-gateway-1
-      GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES: repkey-web-e2e,repkey-worker-e2e
+      GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
+      GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES: spiffe://repkey.internal/repkey-web,spiffe://repkey.internal/repkey-worker
       GOOGLE_EXECUTION_ADMISSION_ORIGIN: https://google-execution-admission:8443
       GOOGLE_EXECUTION_ADMISSION_SERVER_NAME: google-execution-admission
       GOOGLE_PROVIDER_ROUTE_PROFILE: local_sandbox

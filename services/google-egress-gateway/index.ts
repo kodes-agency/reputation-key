@@ -8,6 +8,11 @@ import {
   createInternalMtlsWebServer,
   loadInternalMtlsMaterial,
 } from '../internal-mtls'
+import {
+  assertGoogleEgressGatewayIdentity,
+  createGoogleEgressPeerIdentityResolver,
+  parseGoogleEgressCallerIdentities,
+} from '../google-peer-identities'
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
@@ -26,17 +31,9 @@ function portFromEnv(): number {
 }
 
 function allowedCallerIdentities(): ReadonlySet<string> {
-  const values = requiredEnv('GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES')
-    .split(',')
-    .map((value) => value.trim())
-  if (
-    values.length === 0 ||
-    values.some((value) => !/^[A-Za-z0-9._:@/-]{1,255}$/.test(value)) ||
-    new Set(values).size !== values.length
-  ) {
-    throw new Error('egress-gateway caller identities are invalid')
-  }
-  return new Set(values)
+  return parseGoogleEgressCallerIdentities(
+    requiredEnv('GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES'),
+  )
 }
 
 function routeTargetFromEnv() {
@@ -73,7 +70,9 @@ const grantKeyring = createVersionedHmacKeyring(
 const credentialKeyring = createVersionedHmacKeyring(
   requiredEnv('GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS'),
 )
-const gatewayIdentity = requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY')
+const gatewayIdentity = assertGoogleEgressGatewayIdentity(
+  requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY'),
+)
 const callerIdentities = allowedCallerIdentities()
 const routeTarget = routeTargetFromEnv()
 const gateway = createGoogleEgressGateway({
@@ -91,6 +90,7 @@ const server = createInternalMtlsWebServer({
   port: portFromEnv(),
   tls,
   maxRequestBytes: 256 * 1024,
+  resolvePeerIdentity: createGoogleEgressPeerIdentityResolver(),
   handle: (request, peerIdentity) =>
     handleGoogleEgressGatewayRequest({
       request,

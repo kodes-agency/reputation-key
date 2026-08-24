@@ -251,29 +251,31 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
     {
       name: 'repkey-web',
       commonName: 'repkey-web-e2e',
-      dnsName: 'repkey-web',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/repkey-web',
     },
     {
       name: 'repkey-worker',
       commonName: 'repkey-worker-e2e',
-      dnsName: 'repkey-worker',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/repkey-worker',
     },
     {
       name: 'google-healthcheck',
       commonName: 'google-healthcheck',
-      dnsName: 'google-healthcheck',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/google-healthcheck',
     },
   ] as const
   const caCertificate = asset('ca.crt')
+  const mtlsProfile = asset('google-mtls-spiffe-v2')
   const generatedAssets = certificates.flatMap(({ name }) => [
     `${name}.crt`,
     `${name}.key`,
   ])
   if (
     !existsSync(caCertificate) ||
+    !existsSync(mtlsProfile) ||
     generatedAssets.some((name) => !existsSync(asset(name)))
   ) {
     for (const name of [
@@ -326,7 +328,7 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
         { capture: true },
       )
       const subjectAltNames = [
-        `DNS:${certificate.dnsName}`,
+        ...('dnsName' in certificate ? [`DNS:${certificate.dnsName}`] : []),
         ...('uriName' in certificate ? [`URI:${certificate.uriName}`] : []),
       ]
       writeFileSync(
@@ -357,6 +359,7 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
         { capture: true },
       )
     }
+    writeFileSync(mtlsProfile, 'google-mtls-spiffe-v2\n', { mode: 0o644 })
     for (const name of [
       'ca.key',
       'ca.srl',
@@ -392,6 +395,7 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
     { mode: 0o600 },
   )
   chmodSync(caCertificate, 0o644)
+  chmodSync(mtlsProfile, 0o644)
   for (const name of generatedAssets) chmodSync(asset(name), 0o644)
   chmodSync(asset('provider-redis.acl'), 0o644)
 
