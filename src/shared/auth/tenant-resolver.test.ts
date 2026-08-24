@@ -367,6 +367,43 @@ describe('resolveTenant cache', () => {
     expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
   })
 
+  it('returns a cached result for the Secure cookie name used in production', async () => {
+    const headers = makeHeaders({
+      cookie: '__Secure-better-auth.session_token=secure-abc123; theme=dark',
+    })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-secure', activeOrganizationId: 'org-secure' },
+      user: { id: 'user-secure' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    await resolveTenant(headers)
+    await resolveTenant(headers)
+
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+  })
+
+  it('keys on the Secure cookie when both secure and legacy names are present', async () => {
+    const first = makeHeaders({
+      cookie:
+        'better-auth.session_token=legacy-shared; __Secure-better-auth.session_token=secure-a',
+    })
+    const second = makeHeaders({
+      cookie:
+        'better-auth.session_token=legacy-shared; __Secure-better-auth.session_token=secure-b',
+    })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-secure', activeOrganizationId: 'org-secure' },
+      user: { id: 'user-secure' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    await resolveTenant(first)
+    await resolveTenant(second)
+
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
+  })
+
   it('bypasses cache after TTL expires', async () => {
     // Arrange
     vi.useFakeTimers()

@@ -78,11 +78,18 @@ function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
   }
   // Extract only the session cookie value — different cookie ordering
   // or non-session cookies shouldn't create separate cache entries.
-  // Better-auth uses 'better-auth.session_token' by default.
-  const sessionCookie = cookie
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith('better-auth.session_token='))
+  // Better Auth 1.6.23 prefixes the production cookie with `__Secure-` for
+  // HTTPS base URLs and its own parser prefers that name when both are sent.
+  // Keep the cache identity aligned with the session decoder: otherwise the
+  // production cache is inert, or a stale legacy cookie can alias two secure
+  // sessions that happen to arrive in the same header.
+  const cookiePairs = cookie.split(';').map((c) => c.trim())
+  const sessionCookie = [
+    '__Secure-better-auth.session_token=',
+    'better-auth.session_token=',
+  ]
+    .map((prefix) => cookiePairs.find((pair) => pair.startsWith(prefix)))
+    .find((pair) => pair !== undefined && pair.slice(pair.indexOf('=') + 1) !== '')
   // Combine with the active org so an org switch resolves under a fresh key.
   return sessionCookie ? `${sessionCookie}|${activeOrgId}` : null
 }
