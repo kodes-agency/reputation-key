@@ -89,6 +89,7 @@ export default defineConfig({
           include: [
             'src/**/*.test.ts',
             'services/**/*.test.ts',
+            '.railway/**/*.test.ts',
             'scripts/review/**/*.test.ts',
             'e2e/fixtures/**/*.test.ts',
             // The e2e HELPERS are ordinary Node modules with no browser

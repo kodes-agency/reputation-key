@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [".railway/**/*.ts", "services/**/*.ts", "src/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".output", "dist-worker", "drizzle"],
+  "compilerOptions": { "types": ["node", "vitest/globals"] }
+}

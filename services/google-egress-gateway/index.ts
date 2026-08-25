@@ -13,8 +13,11 @@ import {
   createGoogleEgressPeerIdentityResolver,
   parseGoogleEgressCallerIdentities,
 } from '../google-peer-identities'
+import { assertGoogleGatewayRequiredEnvironment } from './environment'
 
 declare const __REPKEY_GOOGLE_LOCAL_SANDBOX__: boolean
+
+assertGoogleGatewayRequiredEnvironment(process.env)
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
