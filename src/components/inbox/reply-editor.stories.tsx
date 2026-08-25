@@ -4,7 +4,8 @@
 // rather than fetching via getReply. Stories supply a reply fixture / loading
 // flag directly — no mock server fn needed.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { useState } from 'react'
+import { expect, userEvent, within } from 'storybook/test'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 import { ReplyEditor } from './reply-editor'
 import type { ReplyData } from './reply-form'
@@ -44,6 +45,33 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
 }
 
 const pendingReply = makeReply({ status: 'pending_approval' })
+const approvedReply = makeReply({ status: 'approved' })
+const publishedReply = makeReply({
+  status: 'published',
+  approvedAt: NOW,
+  publishedAt: NOW,
+  publicationState: 'published',
+})
+
+function ServerRefreshHarness() {
+  const [reply, setReply] = useState<Reply>(approvedReply)
+  return (
+    <div className="space-y-4">
+      <button type="button" onClick={() => setReply(publishedReply)}>
+        Apply server refresh
+      </button>
+      <ReplyEditor
+        propertyId={PROPERTY_ID}
+        reviewId={REVIEW_ID}
+        initialReply={reply}
+        loading={false}
+        propertyDefaultReplyLanguage="en-Latn"
+        reviewReplyLanguage={null}
+        canDetectReviewLanguage
+      />
+    </div>
+  )
+}
 
 const meta: Meta<typeof ReplyEditor> = {
   title: 'Inbox/ReplyEditor',
@@ -86,5 +114,21 @@ export const NoReply: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByPlaceholderText(/write a reply/i)).toBeInTheDocument()
+  },
+}
+
+// The polling query is authoritative: when it observes provider publication,
+// the editor must leave the transient publishing state without remounting.
+export const FollowsServerRefresh: Story = {
+  args: { loading: false, initialReply: approvedReply },
+  render: () => <ServerRefreshHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Publishing...')).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Apply server refresh' }))
+
+    expect(await canvas.findByText('Published')).toBeVisible()
+    expect(canvas.queryByText('Publishing...')).not.toBeInTheDocument()
   },
 }
