@@ -9,6 +9,7 @@ import {
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createGoogleImportV2Store } from './google-import-v2-store'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
@@ -21,6 +22,8 @@ const PROPERTY_ID = '10000000-0000-4000-8000-000000000004'
 const OUTBOX_ID = '10000000-0000-4000-8000-000000000005'
 const RETRY_REQUEST_ID = '10000000-0000-4000-8000-000000000010'
 const RETRY_OUTBOX_ID = '10000000-0000-4000-8000-000000000011'
+
+registerAllEventSchemas()
 
 const matchesDigest =
   (expected: Readonly<{ keyVersion: string; digest: string }>) =>
@@ -579,6 +582,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       organizationId: ORG_ID,
       payload: {
         organizationId: ORG_ID,
+        importJobId: REQUEST_ID,
         idempotencyKeys: [ITEM_ID],
       },
     })

@@ -6,7 +6,8 @@ import {
   gbpImportRequests,
 } from '#/shared/db/schema/google-import-v2.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { organizationId } from '#/shared/domain/ids'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION,
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
@@ -23,6 +24,10 @@ import {
   type GoogleImportV2Store,
 } from '../application/ports/google-import-v2-store.port'
 import { reduceGoogleImportParent } from '../application/google-import-v2-reducer'
+import type {
+  IntegrationPropertyImportRequested,
+  IntegrationPropertyImportRetentionReleased,
+} from '../domain/events'
 
 const ACTIVE_STATUSES = new Set(['queued', 'processing'])
 
@@ -81,31 +86,25 @@ function assertLifecycleSweepLimit(limit: number): void {
   }
 }
 
-function requestedOutboxPayload(
+function requestedEvent(
   input: Readonly<{
     eventId: string
     organizationId: string
     importJobId: string
     now: Date
   }>,
-) {
+): IntegrationPropertyImportRequested {
   return {
-    id: input.eventId,
-    eventType: 'integration.property_import.requested',
-    eventVersion: 1,
-    payload: {
-      organizationId: input.organizationId,
-      importJobId: input.importJobId,
-    },
-    organizationId: input.organizationId,
-    sourceContext: 'integration',
-    propertyId: null,
-    sourceAggregateId: input.importJobId,
-    createdAt: input.now,
+    _tag: 'integration.property_import.requested',
+    eventId: input.eventId,
+    organizationId: organizationId(input.organizationId),
+    importJobId: input.importJobId,
+    occurredAt: input.now,
+    correlationId: null,
   }
 }
 
-function retentionReleasedOutboxPayload(
+function retentionReleasedEvent(
   input: Readonly<{
     eventId: string
     organizationId: string
@@ -113,20 +112,15 @@ function retentionReleasedOutboxPayload(
     itemIds: readonly string[]
     now: Date
   }>,
-) {
+): IntegrationPropertyImportRetentionReleased {
   return {
-    id: input.eventId,
-    eventType: PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
-    eventVersion: 1,
-    payload: {
-      organizationId: input.organizationId,
-      idempotencyKeys: input.itemIds,
-    },
-    organizationId: input.organizationId,
-    sourceContext: 'integration',
-    propertyId: null,
-    sourceAggregateId: input.importJobId,
-    createdAt: input.now,
+    _tag: PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
+    eventId: input.eventId,
+    organizationId: organizationId(input.organizationId),
+    importJobId: input.importJobId,
+    idempotencyKeys: input.itemIds,
+    occurredAt: input.now,
+    correlationId: null,
   }
 }
 
@@ -412,13 +406,15 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
               }
             }),
           )
-          await tx.insert(outboxEvents).values(
-            requestedOutboxPayload({
+          await insertOutboxRow(
+            tx,
+            requestedEvent({
               eventId: intent.outboxEventId,
               organizationId: intent.organizationId,
               importJobId: intent.id,
               now: intent.now,
             }),
+            { recordedAt: intent.now },
           )
         })
         return 'committed' as const
@@ -621,13 +617,15 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
               eq(gbpImportRequests.id, row.importJobId),
             ),
           )
-        await tx.insert(outboxEvents).values(
-          requestedOutboxPayload({
+        await insertOutboxRow(
+          tx,
+          requestedEvent({
             eventId: input.outboxEventId,
             organizationId: input.organizationId,
             importJobId: row.importJobId,
             now: input.now,
           }),
+          { recordedAt: input.now },
         )
         return {
           kind: 'accepted',
@@ -1469,14 +1467,16 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
         if (!fenced) return 'lost' as const
 
         const itemIds = itemRows.map((row) => row.itemId)
-        await tx.insert(outboxEvents).values(
-          retentionReleasedOutboxPayload({
+        await insertOutboxRow(
+          tx,
+          retentionReleasedEvent({
             eventId: input.outboxEventId,
             organizationId: input.organizationId,
             importJobId: input.importJobId,
             itemIds,
             now: input.now,
           }),
+          { recordedAt: input.now },
         )
         const [deleted] = await tx
           .delete(gbpImportRequests)

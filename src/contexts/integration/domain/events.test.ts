@@ -133,12 +133,14 @@ describe('integrationPropertyImportRetentionReleased', () => {
     const idempotencyKeys = ['40000000-0000-4000-8000-000000000001']
     const event = integrationPropertyImportRetentionReleased({
       organizationId: organizationId('org-1'),
+      importJobId: '40000000-0000-4000-8000-000000000000',
       idempotencyKeys,
       occurredAt: now,
     })
     expect(event).toMatchObject({
       _tag: 'integration.property_import.retention_released',
       organizationId: 'org-1',
+      importJobId: '40000000-0000-4000-8000-000000000000',
       idempotencyKeys,
       occurredAt: now,
       correlationId: null,
@@ -149,6 +151,7 @@ describe('integrationPropertyImportRetentionReleased', () => {
     expect(() =>
       integrationPropertyImportRetentionReleased({
         organizationId: organizationId('org-1'),
+        importJobId: '40000000-0000-4000-8000-000000000000',
         idempotencyKeys: ['same', 'same'],
         occurredAt: now,
       }),
@@ -156,6 +159,7 @@ describe('integrationPropertyImportRetentionReleased', () => {
     expect(() =>
       integrationPropertyImportRetentionReleased({
         organizationId: organizationId('org-1'),
+        importJobId: '40000000-0000-4000-8000-000000000000',
         idempotencyKeys: Array.from({ length: 101 }, (_, index) => `key-${index}`),
         occurredAt: now,
       }),

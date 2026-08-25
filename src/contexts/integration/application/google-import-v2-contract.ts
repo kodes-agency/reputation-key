@@ -15,6 +15,8 @@ export type IntegrationPropertyImportRequestedV1 = Readonly<{
 
 export type IntegrationPropertyImportRetentionReleasedV1 = Readonly<{
   organizationId: string
+  /** Added compatibly during ARC-01; absent only on pre-cutover v1 facts. */
+  importJobId?: string
   idempotencyKeys: readonly string[]
 }>
 

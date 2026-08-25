@@ -5,12 +5,14 @@ import {
 } from '#/shared/db/schema/google-import-v2.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createGoogleImportV2Store,
   googleImportProgressPollAfterMs,
 } from './google-import-v2-store'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
+registerAllEventSchemas()
 const INTENT: GoogleImportV2Intent = {
   id: '00000000-0000-4000-8000-000000000001',
   organizationId: 'org-1',
@@ -141,6 +143,7 @@ describe('Google import v2 store', () => {
       payload: {
         organizationId: INTENT.organizationId,
         importJobId: INTENT.id,
+        correlationId: null,
       },
       organizationId: INTENT.organizationId,
       sourceContext: 'integration',

@@ -98,12 +98,13 @@ describe('BQC-3.5: atomic family outbox producers', () => {
     expect(src).toContain('durable row retained')
   })
 
-  it('active AI producers use the master fact union and validated commit helper', () => {
-    const aiProducers = [
+  it('active supplemental producers use the master fact union and validated commit helper', () => {
+    const supplementalProducers = [
       'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
       'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts',
+      'src/contexts/integration/infrastructure/google-import-v2-store.ts',
     ]
-    for (const file of aiProducers) {
+    for (const file of supplementalProducers) {
       const src = readFileSync(join(ROOT, file), 'utf-8')
       expect(src, `${file} must use the shared validated outbox commit`).toContain(
         'insertOutboxRow',

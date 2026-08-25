@@ -95,6 +95,7 @@ export type IntegrationPropertyImportRetentionReleased = Readonly<{
   _tag: 'integration.property_import.retention_released'
   eventId: string
   organizationId: OrganizationId
+  importJobId: string
   idempotencyKeys: readonly string[]
   occurredAt: Date
   correlationId: string | null
@@ -107,6 +108,7 @@ export const integrationPropertyImportRetentionReleased = (
   >,
 ): IntegrationPropertyImportRetentionReleased => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.importJobId !== '', 'importJobId required')
   assert(
     args.idempotencyKeys.length >= 1 &&
       args.idempotencyKeys.length <= 100 &&

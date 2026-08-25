@@ -259,11 +259,16 @@ const integrationPropertyImportRetentionReleasedSchema = z
     correlationId: z.string().nullable().optional(),
     occurredAt: z.string().optional(),
     organizationId: z.string(),
+    // Optional for v1 compatibility with already-enqueued release facts.
+    // Every new producer supplies it so the durable envelope has a stable
+    // import aggregate rather than falling back to the event ID.
+    importJobId: z.uuid().optional(),
     idempotencyKeys: z.array(z.uuid()).min(1).max(100),
   })
   .strict()
-  .transform(({ organizationId, idempotencyKeys }) => ({
+  .transform(({ organizationId, importJobId, idempotencyKeys }) => ({
     organizationId,
+    ...(importJobId ? { importJobId } : {}),
     idempotencyKeys,
   }))
 const aiPropertyTrendGenerationRequestedSchema = z.object({
