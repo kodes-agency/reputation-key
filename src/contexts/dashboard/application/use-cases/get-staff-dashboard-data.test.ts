@@ -181,7 +181,7 @@ describe('getStaffDashboardData (use case)', () => {
     expect(result.kpis.scans.value).toBe(0)
   })
 
-  it('passes same prior dates for "all" time range', async () => {
+  it('does not present all-time KPI self-comparisons as real trends', async () => {
     const repo = createInMemoryDashboardRepository()
     const resolver = createTestStaffPortalResolver()
     resolver.setPortals([PORTAL_A])
@@ -207,9 +207,13 @@ describe('getStaffDashboardData (use case)', () => {
     )
 
     expect(result.hasAssignments).toBe(true)
-    // In-memory repo returns default KPIs regardless of date params.
-    // The key test: getKPIsForPortals was called (use case didn't short-circuit).
     expect(repo.calls).toContain('getKPIsForPortals')
     expect(result.kpis.reviews.value).toBeGreaterThan(0)
+    expect(Object.values(result.kpis).map((kpi) => kpi.trend)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ])
   })
 })

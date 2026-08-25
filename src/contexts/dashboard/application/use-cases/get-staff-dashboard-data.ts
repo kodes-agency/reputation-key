@@ -69,15 +69,7 @@ export const getStaffDashboardData =
       return { kpis: { ...emptyKPIs }, hasAssignments: assignedPortals.length > 0 }
     }
 
-    // priorPeriodDates returns null for 'all' (no prior window). getKPIsForPortals
-    // requires concrete bounds, so this path keeps the historical
-    // self-comparison until PortalKPIQuery admits an absent prior period —
-    // same defect class as the portal-analytics fix.
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
-      timeRange,
-      startDate,
-      endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
 
     const kpis = await deps.repo.getKPIsForPortals({
       organizationId,
@@ -85,8 +77,7 @@ export const getStaffDashboardData =
       portalIds,
       startDate,
       endDate,
-      priorStartDate,
-      priorEndDate,
+      comparisonPeriod,
     })
 
     return { kpis, hasAssignments: true }

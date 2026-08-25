@@ -26,6 +26,10 @@ export type DashboardKPIQuery = Readonly<{
   portalId?: PortalId
   startDate: Date
   endDate: Date
+  comparisonPeriod: DashboardComparisonPeriod | null
+}>
+
+export type DashboardComparisonPeriod = Readonly<{
   priorStartDate: Date
   priorEndDate: Date
 }>
@@ -46,8 +50,7 @@ export type DashboardKPIsForPortalsQuery = Readonly<{
   portalIds: ReadonlyArray<PortalId>
   startDate: Date
   endDate: Date
-  priorStartDate: Date
-  priorEndDate: Date
+  comparisonPeriod: DashboardComparisonPeriod | null
 }>
 
 /** Query for recent reviews (no date range — always last N). */

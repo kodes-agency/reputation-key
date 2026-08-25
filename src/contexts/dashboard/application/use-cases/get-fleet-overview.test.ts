@@ -174,6 +174,26 @@ describe('getFleetOverview (use case)', () => {
     expect(result.totals.totalAttention).toBe(1)
   })
 
+  it('does not infer an all-time trend or rating-drop attention signal', async () => {
+    const getFleet = getFleetOverview({
+      projection: projection([row(PROP_A, { avgRating: 4, priorAvgRating: 4.4 })]),
+      resolveAccessiblePropertyIds,
+      clock: () => NOW,
+    })
+
+    const result = await getFleet({
+      ...baseInput,
+      startDate: new Date(0),
+      timeRange: 'all',
+    })
+
+    expect(result.entries[0]).toMatchObject({
+      avgRatingTrend: null,
+      attentionSignals: { ratingDrop: false },
+      totalAttention: 0,
+    })
+  })
+
   it('excludes zero-rated properties from the overall average', async () => {
     const getFleet = getFleetOverview({
       projection: projection([

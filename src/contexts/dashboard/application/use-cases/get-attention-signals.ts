@@ -35,16 +35,9 @@ export const getAttentionSignals =
   async (input) => {
     const { organizationId, propertyId, slaHours, startDate, endDate, timeRange } = input
 
-    // Prior period mirrors getDashboardData so the rating-drop flag is consistent
-    // with the KPI strip shown alongside the band. priorPeriodDates returns null
-    // for 'all'; repo.getKPIs requires concrete bounds, so this path keeps the
-    // historical self-comparison (isRatingDrop is inert on it: priorAvg equals
-    // currentAvg, so the ≥0.3 drop never trips).
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
-      timeRange,
-      startDate,
-      endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+    // Keep the attention band aligned with the KPI strip. An all-time window
+    // has no meaningful predecessor, so the repository receives no comparison.
+    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
 
     const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] = await Promise.all(
       [
@@ -57,8 +50,7 @@ export const getAttentionSignals =
           propertyId,
           startDate,
           endDate,
-          priorStartDate,
-          priorEndDate,
+          comparisonPeriod,
         }),
       ],
     )

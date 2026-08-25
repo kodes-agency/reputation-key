@@ -2,11 +2,13 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation is NON-NEGOTIABLE.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { Pool } from 'pg'
 import { createDashboardRepository } from '../../infrastructure/repositories/dashboard.repository'
 import { createServingStats } from '#/contexts/review/infrastructure/serving-stats'
 import { createMetricStatsAdapter } from '../../infrastructure/adapters/metric-stats.adapter'
+import type { ReviewStatsPort } from '../../application/ports/review-stats.port'
+import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
 import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
@@ -304,6 +306,43 @@ describe('dashboardRepository (integration)', () => {
   })
 
   describe('getKPIs', () => {
+    it('skips prior reads and marks trends unavailable without a comparison period', async () => {
+      const getPeriodStats = vi.fn().mockResolvedValue({ count: 2, avgRating: 4.5 })
+      const getSumsByPeriod = vi.fn().mockResolvedValue([
+        { metricKey: 'portal.scan', total: 3 },
+        { metricKey: 'portal.feedback', total: 1 },
+      ])
+      const repo = createDashboardRepository(
+        {
+          getPeriodStats,
+          getRatingDistribution: vi.fn(),
+          getRatingTrend: vi.fn(),
+          getReviewVolume: vi.fn(),
+          getReplyPerformance: vi.fn(),
+          getRecentReviews: vi.fn(),
+        } as unknown as ReviewStatsPort,
+        {
+          getSumsByPeriod,
+          getSumsByPortal: vi.fn(),
+          getSumsByPortals: vi.fn(),
+          getCountsByPortal: vi.fn(),
+        } as unknown as MetricStatsPort,
+      )
+
+      const result = await repo.getKPIs({
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        startDate: new Date(0),
+        endDate: new Date(),
+        comparisonPeriod: null,
+      })
+
+      expect(getPeriodStats).toHaveBeenCalledOnce()
+      expect(getSumsByPeriod).toHaveBeenCalledOnce()
+      expect(result.reviews).toEqual({ value: 2, priorValue: 0, trend: null })
+      expect(result.scans).toEqual({ value: 3, priorValue: 0, trend: null })
+    })
+
     it('returns review count, avg rating, scan count, and feedback count with prior period trend', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
@@ -346,8 +385,10 @@ describe('dashboardRepository (integration)', () => {
         propertyId: PROP_A,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
-        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        comparisonPeriod: {
+          priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+          priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        },
       })
 
       // Reviews: 2 current, 1 prior → +100%
@@ -395,8 +436,10 @@ describe('dashboardRepository (integration)', () => {
         propertyId: PROP_A,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
-        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        comparisonPeriod: {
+          priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+          priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        },
       })
 
       expect(result.reviews.value).toBe(1)
@@ -682,8 +725,10 @@ describe('dashboardRepository (integration)', () => {
         propertyId: PROP_A,
         startDate: new Date(now.getTime() - 7 * MS_PER_DAY),
         endDate: now,
-        priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
-        priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        comparisonPeriod: {
+          priorStartDate: new Date(now.getTime() - 14 * MS_PER_DAY),
+          priorEndDate: new Date(now.getTime() - 7 * MS_PER_DAY),
+        },
       })
 
       // Only 1 scan from ORG_A

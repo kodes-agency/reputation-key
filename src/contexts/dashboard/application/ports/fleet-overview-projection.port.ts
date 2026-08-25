@@ -1,5 +1,6 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { FleetMetricEvidence } from '../../domain/types'
+import type { DashboardComparisonPeriod } from './dashboard.repository'
 
 export const FLEET_PAGE_SIZE = 50
 
@@ -21,8 +22,7 @@ export type FleetOverviewProjectionInput = Readonly<{
   cursor: FleetCursorAnchor | null
   startDate: Date
   endDate: Date
-  priorStartDate: Date
-  priorEndDate: Date
+  comparisonPeriod: DashboardComparisonPeriod | null
   now: Date
   slaCutoff: Date
 }>

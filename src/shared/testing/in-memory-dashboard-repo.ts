@@ -26,14 +26,24 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
     engagementFunnelOverride?: EngagementFunnel
   } = {}
 
+  const withoutComparison = (kpis: KPIs): KPIs =>
+    Object.fromEntries(
+      Object.entries(kpis).map(([key, value]) => [
+        key,
+        { ...value, priorValue: 0, trend: null },
+      ]),
+    ) as KPIs
+
   const repo: DashboardRepository = {
-    async getKPIs() {
+    async getKPIs(input) {
       calls.push('getKPIs')
-      return state.kpisOverride ?? defaultKPIs
+      const kpis = state.kpisOverride ?? defaultKPIs
+      return input.comparisonPeriod ? kpis : withoutComparison(kpis)
     },
-    async getKPIsForPortals() {
+    async getKPIsForPortals(input) {
       calls.push('getKPIsForPortals')
-      return state.kpisOverride ?? defaultKPIs
+      const kpis = state.kpisOverride ?? defaultKPIs
+      return input.comparisonPeriod ? kpis : withoutComparison(kpis)
     },
     async getRatingDistribution() {
       calls.push('getRatingDistribution')

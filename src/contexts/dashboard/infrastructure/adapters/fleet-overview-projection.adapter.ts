@@ -118,6 +118,10 @@ export const createFleetOverviewProjectionAdapter = (
   async read(input) {
     const cursorName = input.cursor?.lowerName ?? null
     const cursorId = input.cursor?.propertyId ?? null
+    const comparisonAvailable = input.comparisonPeriod !== null
+    const candidateStartDate = input.comparisonPeriod?.priorStartDate ?? input.startDate
+    const priorStartDate = input.comparisonPeriod?.priorStartDate ?? input.startDate
+    const priorEndDate = input.comparisonPeriod?.priorEndDate ?? input.startDate
     const accessFilter =
       input.accessiblePropertyIds === null
         ? sql`TRUE`
@@ -192,7 +196,7 @@ export const createFleetOverviewProjectionAdapter = (
                 ${METRIC_VERSION_IDS.portalScanAnalytics},
                 ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
               )
-              AND metric_readings.event_at BETWEEN ${input.priorStartDate} AND ${input.endDate}
+              AND metric_readings.event_at BETWEEN ${candidateStartDate} AND ${input.endDate}
           ), correction_history AS MATERIALIZED (
             SELECT metric_corrections.reading_id, count(*) AS correction_count
             FROM metric_corrections
@@ -250,7 +254,8 @@ export const createFleetOverviewProjectionAdapter = (
               ) AS review_total_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.priorStartDate} AND ${input.priorEndDate}
+                  AND ${comparisonAvailable}
+                  AND event_at BETWEEN ${priorStartDate} AND ${priorEndDate}
                   AND eligible
               ) AS prior_review_count,
               avg(effective_value) FILTER (
@@ -260,7 +265,8 @@ export const createFleetOverviewProjectionAdapter = (
               ) AS avg_rating,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.priorStartDate} AND ${input.priorEndDate}
+                  AND ${comparisonAvailable}
+                  AND event_at BETWEEN ${priorStartDate} AND ${priorEndDate}
                   AND eligible
               ) AS prior_avg_rating,
               max(recorded_at) FILTER (

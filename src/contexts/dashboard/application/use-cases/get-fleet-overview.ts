@@ -79,15 +79,7 @@ export const getFleetOverview =
       timeRange,
     } = input
     const now = deps.clock()
-    // priorPeriodDates returns null for 'all' (no prior window). The fleet
-    // projection port requires concrete bounds, so this path keeps the
-    // historical self-comparison until FleetOverviewQuery admits an absent
-    // prior period — same defect class as the portal-analytics fix.
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
-      timeRange,
-      startDate,
-      endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
       organizationId,
       scope,
@@ -100,14 +92,15 @@ export const getFleetOverview =
       cursor: decodeFleetCursor(input.cursor),
       startDate,
       endDate,
-      priorStartDate,
-      priorEndDate,
+      comparisonPeriod,
       now,
       slaCutoff: slaCutoff(now, slaHours),
     })
 
     const entries: FleetEntry[] = projection.rows.map((row) => {
-      const ratingDrop = isRatingDrop(row.avgRating, row.priorAvgRating)
+      const ratingDrop = comparisonPeriod
+        ? isRatingDrop(row.avgRating, row.priorAvgRating)
+        : false
       const attentionSignals: AttentionSignals = {
         unanswered: row.unanswered,
         newFeedback: row.newFeedback,
@@ -121,7 +114,9 @@ export const getFleetOverview =
         slug: row.slug,
         timezone: row.timezone,
         avgRating: row.avgRating,
-        avgRatingTrend: computeTrend(row.avgRating, row.priorAvgRating),
+        avgRatingTrend: comparisonPeriod
+          ? computeTrend(row.avgRating, row.priorAvgRating)
+          : null,
         reviewCount: row.reviewCount,
         feedbackCount: row.feedbackCount,
         scanCount: row.scanCount,

@@ -35,22 +35,23 @@ import { computeTrend, DEFAULT_RECENT_REVIEWS_LIMIT } from '../../application/ut
  */
 function computeKpis(input: {
   currentReviews: ReviewPeriodStats
-  priorReviews: ReviewPeriodStats
+  priorReviews: ReviewPeriodStats | null
   currentMetrics: readonly MetricSumRow[]
-  priorMetrics: readonly MetricSumRow[]
+  priorMetrics: readonly MetricSumRow[] | null
 }): KPIs {
   const { currentReviews, priorReviews, currentMetrics, priorMetrics } = input
+  const comparisonAvailable = priorReviews !== null && priorMetrics !== null
 
   const curReviewCount = currentReviews.count
-  const priorReviewCount = priorReviews.count
+  const priorReviewCount = priorReviews?.count ?? 0
   const curAvgRating = currentReviews.avgRating
-  const priorAvgRating = priorReviews.avgRating
+  const priorAvgRating = priorReviews?.avgRating ?? 0
 
   const toMap = (rows: readonly MetricSumRow[]) =>
     new Map(rows.map((r) => [r.metricKey, r.total]))
 
   const curMetricsMap = toMap(currentMetrics)
-  const priorMetricsMap = toMap(priorMetrics)
+  const priorMetricsMap = toMap(priorMetrics ?? [])
 
   const curScans = curMetricsMap.get('portal.scan') ?? 0
   const priorScans = priorMetricsMap.get('portal.scan') ?? 0
@@ -61,22 +62,22 @@ function computeKpis(input: {
     reviews: {
       value: curReviewCount,
       priorValue: priorReviewCount,
-      trend: computeTrend(curReviewCount, priorReviewCount),
+      trend: comparisonAvailable ? computeTrend(curReviewCount, priorReviewCount) : null,
     },
     avgRating: {
       value: curAvgRating,
       priorValue: priorAvgRating,
-      trend: computeTrend(curAvgRating, priorAvgRating),
+      trend: comparisonAvailable ? computeTrend(curAvgRating, priorAvgRating) : null,
     },
     scans: {
       value: curScans,
       priorValue: priorScans,
-      trend: computeTrend(curScans, priorScans),
+      trend: comparisonAvailable ? computeTrend(curScans, priorScans) : null,
     },
     feedback: {
       value: curFeedback,
       priorValue: priorFeedback,
-      trend: computeTrend(curFeedback, priorFeedback),
+      trend: comparisonAvailable ? computeTrend(curFeedback, priorFeedback) : null,
     },
   }
 }
@@ -106,24 +107,19 @@ export const createDashboardRepository = (
 
   async getKPIs(input): Promise<KPIs> {
     return trace('dashboard.getKPIs', async () => {
-      const {
-        organizationId,
-        propertyId,
-        startDate,
-        endDate,
-        priorStartDate,
-        priorEndDate,
-      } = input
+      const { organizationId, propertyId, startDate, endDate, comparisonPeriod } = input
 
       // Review stats for current and prior periods (parallel)
       const [currentReviews, priorReviews] = await Promise.all([
         reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
-        reviewStats.getPeriodStats(
-          organizationId,
-          propertyId,
-          priorStartDate,
-          priorEndDate,
-        ),
+        comparisonPeriod
+          ? reviewStats.getPeriodStats(
+              organizationId,
+              propertyId,
+              comparisonPeriod.priorStartDate,
+              comparisonPeriod.priorEndDate,
+            )
+          : Promise.resolve(null),
       ])
 
       // Metric sums for current and prior periods (parallel)
@@ -136,7 +132,14 @@ export const createDashboardRepository = (
 
       const [currentMetrics, priorMetrics] = await Promise.all([
         metricQuery(organizationId, propertyId, startDate, endDate),
-        metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
+        comparisonPeriod
+          ? metricQuery(
+              organizationId,
+              propertyId,
+              comparisonPeriod.priorStartDate,
+              comparisonPeriod.priorEndDate,
+            )
+          : Promise.resolve(null),
       ])
 
       return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
@@ -150,20 +153,21 @@ export const createDashboardRepository = (
         portalIds,
         startDate,
         endDate,
-        priorStartDate,
-        priorEndDate,
+        comparisonPeriod,
       } = input
 
       // F054 NOTE: Review stats are property-level (no portalId filter on reviews).
       // This is correct — reviews are property-scoped. Metric stats are portal-scoped below.
       const [currentReviews, priorReviews] = await Promise.all([
         reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
-        reviewStats.getPeriodStats(
-          organizationId,
-          propertyId,
-          priorStartDate,
-          priorEndDate,
-        ),
+        comparisonPeriod
+          ? reviewStats.getPeriodStats(
+              organizationId,
+              propertyId,
+              comparisonPeriod.priorStartDate,
+              comparisonPeriod.priorEndDate,
+            )
+          : Promise.resolve(null),
       ])
 
       // Metric sums for current and prior periods across all assigned portals
@@ -179,7 +183,14 @@ export const createDashboardRepository = (
 
       const [currentMetrics, priorMetrics] = await Promise.all([
         metricQuery(organizationId, propertyId, startDate, endDate),
-        metricQuery(organizationId, propertyId, priorStartDate, priorEndDate),
+        comparisonPeriod
+          ? metricQuery(
+              organizationId,
+              propertyId,
+              comparisonPeriod.priorStartDate,
+              comparisonPeriod.priorEndDate,
+            )
+          : Promise.resolve(null),
       ])
 
       return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
