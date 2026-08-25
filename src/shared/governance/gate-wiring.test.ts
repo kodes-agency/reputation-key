@@ -110,7 +110,7 @@ describe('coverage and changed-code gates', () => {
   it('caches the grype vulnerability DB for every image scan', () => {
     // The first scan otherwise spends ~50s downloading and loading the DB.
     const scans = ciWorkflow.match(/grype-version: v0\.116\.1\n\s+cache-db: true/g)
-    expect(scans).toHaveLength(3)
+    expect(scans).toHaveLength(7)
   })
 })
 

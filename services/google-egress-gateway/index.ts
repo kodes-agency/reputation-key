@@ -14,6 +14,8 @@ import {
   parseGoogleEgressCallerIdentities,
 } from '../google-peer-identities'
 
+declare const __REPKEY_GOOGLE_LOCAL_SANDBOX__: boolean
+
 function requiredEnv(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`required egress-gateway setting is missing: ${name}`)
@@ -39,7 +41,7 @@ function allowedCallerIdentities(): ReadonlySet<string> {
 function routeTargetFromEnv() {
   const profile = requiredEnv('GOOGLE_PROVIDER_ROUTE_PROFILE')
   if (profile === 'production') return Object.freeze({ kind: 'production' as const })
-  if (profile === 'local_sandbox') {
+  if (profile === 'local_sandbox' && __REPKEY_GOOGLE_LOCAL_SANDBOX__) {
     return Object.freeze({
       kind: 'local_sandbox' as const,
       simulatorOrigin: requiredEnv('GOOGLE_PROVIDER_SIMULATOR_ORIGIN'),

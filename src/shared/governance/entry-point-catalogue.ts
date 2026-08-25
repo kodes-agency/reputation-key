@@ -3253,6 +3253,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/verify-google-runtime-bundle.mjs',
+    'scripts/verify-google-runtime-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving each Google sidecar is a self-contained single-entry production bundle with no local/operator surfaces',
+    },
+  ),
+  ops(
     'scripts/check-google-provider-identifiers.mjs',
     'scripts/check-google-provider-identifiers.mjs',
     'none',

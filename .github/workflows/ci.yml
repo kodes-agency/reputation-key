@@ -218,16 +218,33 @@ jobs:
       - name: Worker build
         run: pnpm build:worker
 
-      - name: Production artifact boundary
-        run: pnpm check:production-artifacts .output dist-worker
-
       - name: AI execution admission build
         run: pnpm build:ai-execution-admission
       - name: AI egress gateway build
         run: pnpm build:ai-egress-gateway
 
+      - name: Google execution admission build
+        run: |
+          pnpm build:google-execution-admission
+          pnpm check:google-runtime-bundle admission
+
+      - name: Google egress gateway build
+        run: |
+          pnpm build:google-egress-gateway
+          pnpm check:google-runtime-bundle gateway
+
       - name: Google import compatibility build
         run: pnpm build:google-import-compatibility
+
+      - name: Production artifact boundary
+        run: >-
+          pnpm check:production-artifacts
+          .output
+          dist-worker
+          dist-ai-execution-admission
+          dist-ai-egress-gateway
+          dist-google-execution-admission
+          dist-google-egress-gateway
 
       - name: Google import artifact boundary
         run: |
@@ -241,12 +258,14 @@ jobs:
         run: |
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
             .output dist-worker dist-ai-execution-admission dist-ai-egress-gateway \
+            dist-google-execution-admission dist-google-egress-gateway \
+            dist-google-import-compatibility \
             | gzip -n > /tmp/artifact.tgz
           DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
-          echo "sha256:$DIGEST  (.output + dist-worker + dist-ai-execution-admission + dist-ai-egress-gateway)"
+          echo "sha256:$DIGEST  (all deploy artifacts)"
           {
             echo "### Build artifact digest"
-            echo "\`sha256:$DIGEST\` — .output + dist-worker + dist-ai-execution-admission + dist-ai-egress-gateway (deterministic tar)"
+            echo "\`sha256:$DIGEST\` — all deploy artifacts (deterministic tar)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       # BQC-7.1: source SBOM (SPDX JSON) retained as a build artifact.
@@ -308,18 +327,23 @@ jobs:
       # compose-tagged images, so the shared build is ~210s of critical path
       # that both consumers then wait on.
       - name: Build web image
-        run: docker build -f Dockerfile -t repkey-web:ci .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile -t repkey-web:ci .
 
       - name: Build worker image
-        run: docker build -f Dockerfile.worker -t repkey-worker:ci .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.worker -t repkey-worker:ci .
 
       - name: Build AI execution admission image
-        run: docker build -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
       - name: Build AI egress gateway image
-        run: docker build -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
+
+      - name: Build Google execution admission image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-execution-admission -t repkey-google-execution-admission:ci .
+      - name: Build Google egress gateway image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-egress-gateway -t repkey-google-egress-gateway:ci .
 
       - name: Build rollout-only Google import compatibility image
-        run: docker build -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
 
       - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
@@ -328,6 +352,8 @@ jobs:
           docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+          docker run --rm --entrypoint node repkey-google-execution-admission:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+          docker run --rm --entrypoint node repkey-google-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
           # The runtime egress probe is a separately deployed bundle with its own
           # directory and Railway start command, so it is NOT under the gateway dist.
           for governed_entry in index.js canary.js; do
@@ -348,6 +374,17 @@ jobs:
           done
           test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{json .Config.Cmd}}')" = '["node","dist-google-execution-admission/index.js"]'
+          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{json .Config.Cmd}}')" = '["node","dist-google-egress-gateway/index.js"]'
+          for img in repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
+            docker run --rm --entrypoint test "$img" ! -e /app/node_modules
+            docker run --rm --entrypoint test "$img" ! -e /app/package.json
+            test "$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          done
+          docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
+          docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
           docker run --rm --entrypoint node \
             -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
             repkey-ai-execution-admission:ci /tmp/verify-ai-runtime-image.mjs admission
@@ -369,7 +406,7 @@ jobs:
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'
           {
             echo "### Governed image digests"
-            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci; do
+            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
               echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -390,6 +427,34 @@ jobs:
           image: repkey-worker:ci
           format: spdx-json
           output-file: sbom-worker.spdx.json
+
+      - name: SBOM AI execution admission image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-ai-execution-admission:ci
+          format: spdx-json
+          output-file: sbom-ai-execution-admission.spdx.json
+
+      - name: SBOM AI egress gateway image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-ai-egress-gateway:ci
+          format: spdx-json
+          output-file: sbom-ai-egress-gateway.spdx.json
+
+      - name: SBOM Google execution admission image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-google-execution-admission:ci
+          format: spdx-json
+          output-file: sbom-google-execution-admission.spdx.json
+
+      - name: SBOM Google egress gateway image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-google-egress-gateway:ci
+          format: spdx-json
+          output-file: sbom-google-egress-gateway.spdx.json
 
       - name: SBOM Google import compatibility image
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -425,7 +490,8 @@ jobs:
       # symbol-capturing SBOMs AND a match-count comparison against main.
       #
       # cache-db: true — measured, and it is a modest steady-state win with a
-      # cold-start penalty, not a free one. Three scans, same commit:
+      # cold-start penalty, not a free one. Three scans in the original
+      # measurement, same commit:
       #   no cache      57s + 15s + 14s = 86s
       #   cold cache   62s + 24s + 24s = 110s  (nothing to restore, pays the save)
       #   warm cache   23s + 21s + 22s = 66s   (-23% vs no cache)
@@ -445,6 +511,42 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: repkey-worker:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan AI execution admission image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-ai-execution-admission:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan AI egress gateway image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-ai-egress-gateway:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan Google execution admission image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-google-execution-admission:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan Google egress gateway image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-google-egress-gateway:ci
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1

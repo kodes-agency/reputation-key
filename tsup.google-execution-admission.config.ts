@@ -8,11 +8,17 @@ export default defineConfig({
   format: ['esm'],
   target: 'node22',
   splitting: false,
-  sourcemap: true,
+  sourcemap: false,
   clean: true,
-  noExternal: [/^#/],
-  external: ['pg', 'ioredis', 'zod'],
+  noExternal: [/.*/],
+  external: ['pg-native', 'pg-cloudflare'],
   env: {
     NODE_ENV: process.env.NODE_ENV ?? 'production',
+  },
+  banner: {
+    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+  },
+  esbuildOptions(options) {
+    options.mainFields = ['main', 'module']
   },
 })

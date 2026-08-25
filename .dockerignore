@@ -9,6 +9,7 @@ dist-local-tools
 dist-google-import-compatibility
 dist-google-execution-admission
 dist-google-egress-gateway
+dist-google-egress-gateway-local
 dist-provider-services
 storybook-static
 coverage

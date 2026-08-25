@@ -17,20 +17,27 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN NODE_ENV=production pnpm build:google-egress-gateway
+RUN NODE_ENV=production pnpm build:google-egress-gateway \
+    && node scripts/verify-google-runtime-bundle.mjs gateway \
+    && pnpm build:google-egress-gateway-local
 
-FROM base AS prod-deps
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts
-
-FROM base AS runtime
+FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS runtime
 ARG SOURCE_REVISION
 ENV NODE_ENV=production \
     IMAGE_SOURCE_REVISION=$SOURCE_REVISION
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+WORKDIR /app
+RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
+RUN rm -rf /opt/corepack /pnpm \
+    /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=build /app/dist-google-egress-gateway ./dist-google-egress-gateway
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY package.json ./
 USER node
+EXPOSE 8443
 CMD ["node", "dist-google-egress-gateway/index.js"]
+
+FROM runtime AS local-tools
+COPY --from=build --chown=node:node /app/dist-google-egress-gateway-local ./dist-google-egress-gateway
+
+FROM runtime AS production

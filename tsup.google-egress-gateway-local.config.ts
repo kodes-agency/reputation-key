@@ -3,8 +3,10 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: {
     index: 'services/google-egress-gateway/index.ts',
+    'control-proxy': 'services/google-egress-gateway/control-proxy.ts',
+    'tcp-relay': 'services/google-egress-gateway/tcp-relay.ts',
   },
-  outDir: 'dist-google-egress-gateway',
+  outDir: 'dist-google-egress-gateway-local',
   format: ['esm'],
   target: 'node22',
   splitting: false,
@@ -12,12 +14,9 @@ export default defineConfig({
   clean: true,
   noExternal: [/.*/],
   env: {
-    NODE_ENV: process.env.NODE_ENV ?? 'production',
+    NODE_ENV: 'development',
   },
   define: {
-    __REPKEY_GOOGLE_LOCAL_SANDBOX__: 'false',
-  },
-  esbuildOptions(options) {
-    options.minifySyntax = true
+    __REPKEY_GOOGLE_LOCAL_SANDBOX__: 'true',
   },
 })
