@@ -32,10 +32,7 @@ routes/
           index.tsx, new.tsx, $goalId.tsx
         portals/
           index.tsx, new.tsx, $portalId.tsx
-        teams/
-          $teamId.tsx, $teamId/index.tsx, $teamId/members.tsx
     leaderboard.tsx
-    team.tsx
     progress.tsx
   login.tsx                           unauthenticated
   register.tsx                        registration

@@ -2,7 +2,10 @@
 
 ## Architecture
 
-Layered hexagonal (clean architecture). Sixteen bounded contexts in `src/contexts/`, shared infrastructure in `src/shared/`, React frontend in `src/components/` and `src/routes/`.
+Layered hexagonal (clean architecture). Seventeen bounded-context packages live in
+`src/contexts/`; Team is retained as a quarantined migration package rather than an
+active beta product context. Shared infrastructure is in `src/shared/`, with the
+React frontend in `src/components/` and `src/routes/`.
 
 ```
 routes/ → contexts/<ctx>/server/ → contexts/<ctx>/application/ → contexts/<ctx>/domain/
@@ -23,24 +26,25 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-|     | Context      | Responsibility                                                                          | Key Entities                            |
-| --- | ------------ | --------------------------------------------------------------------------------------- | --------------------------------------- |
-|     | Identity     | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation  |
-|     | Property     | Properties (hotels/restaurants) owned by organizations                                  | Property                                |
-|     | Portal       | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup |
-|     | Guest        | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                        |
-|     | Team         | Staff teams and shift management                                                        | Team                                    |
-|     | Staff        | Staff assignments to properties                                                         | StaffAssignment                         |
-|     | Integration  | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                        |
-|     | Review       | External platform reviews (Google), sync, replies                                       | Review                                  |
-|     | Inbox        | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                    |
-|     | Metric       | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                           |
-|     | Goal         | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                      |
-|     | Badge        | Recognition awards earned by portals or portal groups from metric-driven criteria       | BadgeDefinition, BadgeAward             |
-|     | Leaderboard  | Read-only ranking of portals and portal groups using composite and per-metric scores    | LeaderboardEntry, LeaderboardSnapshot   |
-|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                       |
-|     | Notification | User-facing in-app/email notifications                                                  | —                                       |
-|     | Activity     | Immutable audit log                                                                     | —                                       |
+|     | Context      | Responsibility                                                                          | Key Entities                             |
+| --- | ------------ | --------------------------------------------------------------------------------------- | ---------------------------------------- |
+|     | Identity     | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation   |
+|     | Property     | Properties (hotels/restaurants) owned by organizations                                  | Property                                 |
+|     | Portal       | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup  |
+|     | Guest        | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                         |
+|     | Team         | Quarantined historical Team data and reconciliation; no beta surface                    | Team, TeamMembership                     |
+|     | Staff        | Staff Participants, Property participation, and Portal performance attribution          | StaffParticipation, PortalResponsibility |
+|     | Integration  | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                         |
+|     | Review       | External platform reviews (Google), sync, replies                                       | Review                                   |
+|     | AI           | Governed review analysis, reply drafting, and Property trends                           | AiOperation, AiReviewAnalysis            |
+|     | Inbox        | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                     |
+|     | Metric       | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                            |
+|     | Goal         | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                       |
+|     | Badge        | Recognition awards earned by portals or portal groups from metric-driven criteria       | BadgeDefinition, BadgeAward              |
+|     | Leaderboard  | Read-only ranking of portals and portal groups using composite and per-metric scores    | LeaderboardEntry, LeaderboardSnapshot    |
+|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                        |
+|     | Notification | User-facing in-app/email notifications                                                  | —                                        |
+|     | Activity     | Immutable audit log                                                                     | —                                        |
 
 ## Glossary
 
@@ -49,12 +53,12 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | Term                       | Definition                                                                                                                        |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **Role**                   | A named set of permissions assigned to an organization member. Org-wide — not per-property.                                       |
-| **AccountAdmin**           | Organization owner. Full permissions including role management (`ac.*`). Created when the org is created.                         |
-| **PropertyManager**        | Can manage properties, portals, members, teams. Cannot delete resources or manage roles.                                          |
-| **Staff**                  | Read-only access. Can view reviews.                                                                                               |
+| **AccountAdmin**           | Organization owner. Receives all active built-in beta permissions, including policy administration. Team remains excluded.        |
+| **PropertyManager**        | Manager role whose Property actions are limited by current PropertyAccessGrant. Team is not a beta permission.                    |
+| **Staff**                  | Retained login role for existing records; Staff User activation/login is deferred for beta.                                       |
 | **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                              |
 | **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback. |
-| **Staff Assignment**       | Links a member to a specific property. Controls which properties a PropertyManager can manage.                                    |
+| **Staff Assignment**       | Legacy combined row retained for reconciliation only; it is not an access or Portal-attribution authority.                        |
 
 ### Auth Architecture
 
@@ -67,10 +71,20 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ### Property Access
 
-| Term                    | Definition                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Property Assignment** | A `staff_assignment` record linking a user to a property. PropertyManagers only manage assigned properties.  |
-| **Org-wide role**       | A member's role applies across the entire organization, but property-level actions are scoped by assignment. |
+| Term                    | Definition                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PropertyAccessGrant** | Identity-owned explicit Property scope for an interactive manager. It never implies Staff participation, attribution, or notification responsibility. |
+| **Org-wide role**       | AccountAdmin is Organization-wide; PropertyManager actions are scoped by current PropertyAccessGrant.                                                 |
+
+### People, Attribution, and Responsibility
+
+| Term                             | Definition                                                                                                                          |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Staff Participant**            | Manager-maintained person/business profile; the canonical model does not require a login.                                           |
+| **Staff Participation**          | Effective-dated relationship between a Staff Participant and a Property. It does not grant access.                                  |
+| **Portal Responsibility**        | Effective-dated Staff performance attribution to a Portal. Primary and supporting attribution never choose notification recipients. |
+| **Portal Responsible Manager**   | One of multiple eligible managers explicitly assigned to Portal workflow/notifications; the eligible creator is the default.        |
+| **Property Responsible Manager** | Explicit manager responsibility for Property-wide Google/import/sync/health workflow.                                               |
 
 ### Portal Groups
 
@@ -202,27 +216,29 @@ Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` 
 
 See `docs/adr/` for formal ADRs. Key ADRs:
 
-|| ADR | Title | Context |
-|| ---- | -------------------------------------- | -------------------------------- |
-|| 0001 | Dynamic Access Control via Better-auth | Identity & Authorization |
-|| 0002 | Section-Based Navigation | Navigation Architecture |
-|| 0003 | Review as a Separate Bounded Context | Reviews, Google Integration |
-|| 0004 | Inbox as a Separate Bounded Context | Unified Inbox, Reviews, Feedback |
-|| 0005 | GBP Review API Path and Error Model Fix | Google Integration, Error Model |
-|| 0006 | Staff as a Separate Bounded Context | Identity, Staff Management |
-|| 0007 | Dashboard as a Read-Only Aggregation | Dashboard, Read Models |
-|| 0008 | Cross-Context Data Access Rules | Architecture, Bounded Context Boundaries |
-|| 0009 | Permission Model | Architecture, Authorization |
-|| 0010 | Activity Context: BullMQ Event Delivery | Activity Context, Event Delivery |
-|| 0011 | Notification Context: BullMQ Event Delivery | Notification Context, Event Delivery |
-|| 0012 | Nitro Vite Plugin — Dev-Mode Exclusion | Dev Tooling, Vite Config, TanStack Start |
-|| 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes | Goal Scoping, Portal Groups |
-|| 0014 | Badges and Leaderboards as Separate Recognition Contexts | Badges, Leaderboards, Recognition |
-|| 0015 | Import Protection — Server-Only Code Leak | Dev Tooling, Client/Server Boundary |
-|| 0016 | Active Property URL Query Param | Navigation, Property Context |
-|| 0017 | Injectable Clock | Testability, Time-Dependent Logic |
-|| 0018 | Injectable Container | Testability, Simulation Isolation |
-|| 0019 | Simulation Harness & Deterministic Backends | Testability, Simulation |
+| ADR  | Title                                                                 | Context                                      |
+| ---- | --------------------------------------------------------------------- | -------------------------------------------- |
+| 0001 | Dynamic Access Control via Better-auth                                | Identity & Authorization                     |
+| 0002 | Section-Based Navigation                                              | Navigation Architecture                      |
+| 0003 | Review as a Separate Bounded Context                                  | Reviews, Google Integration                  |
+| 0004 | Inbox as a Separate Bounded Context                                   | Unified Inbox, Reviews, Feedback             |
+| 0005 | GBP Review API Path and Error Model Fix                               | Google Integration, Error Model              |
+| 0006 | Staff as a Separate Bounded Context                                   | Identity, Staff Management                   |
+| 0007 | Dashboard as a Read-Only Aggregation                                  | Dashboard, Read Models                       |
+| 0008 | Cross-Context Data Access Rules                                       | Architecture, Bounded Context Boundaries     |
+| 0009 | Permission Model                                                      | Architecture, Authorization                  |
+| 0010 | Activity Context: BullMQ Event Delivery                               | Activity Context, Event Delivery             |
+| 0011 | Notification Context: BullMQ Event Delivery                           | Notification Context, Event Delivery         |
+| 0012 | Nitro Vite Plugin — Dev-Mode Exclusion                                | Dev Tooling, Vite Config, TanStack Start     |
+| 0013 | Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes       | Goal Scoping, Portal Groups                  |
+| 0014 | Badges and Leaderboards as Separate Recognition Contexts              | Badges, Leaderboards, Recognition            |
+| 0015 | Import Protection — Server-Only Code Leak                             | Dev Tooling, Client/Server Boundary          |
+| 0016 | Active Property URL Query Param                                       | Navigation, Property Context                 |
+| 0017 | Injectable Clock                                                      | Testability, Time-Dependent Logic            |
+| 0018 | Injectable Container                                                  | Testability, Simulation Isolation            |
+| 0019 | Simulation Harness & Deterministic Backends                           | Testability, Simulation                      |
+| 0039 | People, Access, and Attribution Are Separate Effective-Dated Concepts | People, Access, Attribution                  |
+| 0052 | Beta People, Access, Attribution, and Manager Responsibility          | Canonical Beta People Model, Team Quarantine |
 
 ## Key Files
 

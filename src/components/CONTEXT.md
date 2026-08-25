@@ -17,7 +17,6 @@ components/
     portal/        link-tree/, portal-analytics/, portal-detail/, portal-form/, portal-preview/, portal-settings/, portal-share/
     property/      property-detail/, property-form/
     staff/         (flat)
-    team/          team-form/, team-members/
     integration/   (flat — Google connection management)
     settings/      (flat — preferences, profile, security, organization)
 ```
