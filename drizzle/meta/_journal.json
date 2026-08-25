@@ -568,6 +568,13 @@
       "when": 1787634000001,
       "tag": "0080_guest-abuse-pseudonym-redaction",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1787634000002,
+      "tag": "0081_immutable_notification_digest_batches",
+      "breakpoints": true
     }
   ]
 }

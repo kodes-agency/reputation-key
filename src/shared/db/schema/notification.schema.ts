@@ -17,10 +17,12 @@ import {
   integer,
   timestamp,
   time,
+  date,
   index,
   uniqueIndex,
   foreignKey,
   check,
+  primaryKey,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { properties } from './property.schema'
@@ -125,11 +127,129 @@ export const notificationEmailQueue = pgTable(
       t.idempotencyKey,
     ),
     uniqueIndex('email_queue_notification_unique').on(t.notificationId),
+    uniqueIndex('email_queue_id_tenant_recipient_unique').on(
+      t.id,
+      t.organizationId,
+      t.userId,
+    ),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
       name: 'notification_email_queue_property_tenant_fk',
     }).onDelete('cascade'),
+  ],
+)
+
+// ── Immutable daily-digest attempts ────────────────────────────────
+
+/**
+ * A provider idempotency key belongs to one immutable recipient batch. Open
+ * batches survive worker crashes; retries reconstruct only their persisted
+ * members and verify the provider-visible content digest before sending.
+ */
+export const notificationDigestBatches = pgTable(
+  'notification_digest_batches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    localDate: date('local_date').notNull(),
+    sequence: integer('sequence').notNull(),
+    memberDigest: varchar('member_digest', { length: 64 }).notNull(),
+    contentDigest: varchar('content_digest', { length: 64 }).notNull(),
+    providerIdempotencyKey: varchar('provider_idempotency_key', {
+      length: 96,
+    }).notNull(),
+    state: varchar('state', { length: 16 }).notNull().default('prepared'),
+    providerMessageId: varchar('provider_message_id', { length: 255 }),
+    outcomeClass: varchar('outcome_class', { length: 24 }),
+    terminalReason: varchar('terminal_reason', { length: 64 }),
+    retryCount: integer('retry_count').notNull().default(0),
+    attemptedAt: timestamp('attempted_at', { withTimezone: true }),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('notification_digest_batches_sequence_unique').on(
+      t.organizationId,
+      t.userId,
+      t.localDate,
+      t.sequence,
+    ),
+    uniqueIndex('notification_digest_batches_provider_key_unique').on(
+      t.providerIdempotencyKey,
+    ),
+    uniqueIndex('notification_digest_batches_id_tenant_recipient_unique').on(
+      t.id,
+      t.organizationId,
+      t.userId,
+    ),
+    uniqueIndex('notification_digest_batches_open_unique')
+      .on(t.organizationId, t.userId)
+      .where(sql`state IN ('prepared', 'retryable')`),
+    index('notification_digest_batches_retention_idx').on(t.state, t.updatedAt),
+    check(
+      'notification_digest_batches_state_valid',
+      sql`${t.state} IN ('prepared', 'retryable', 'accepted', 'terminal')`,
+    ),
+    check('notification_digest_batches_sequence_positive', sql`${t.sequence} > 0`),
+    check(
+      'notification_digest_batches_member_digest_valid',
+      sql`${t.memberDigest} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'notification_digest_batches_content_digest_valid',
+      sql`${t.contentDigest} ~ '^[a-f0-9]{64}$'`,
+    ),
+  ],
+)
+
+export const notificationDigestBatchMembers = pgTable(
+  'notification_digest_batch_members',
+  {
+    batchId: uuid('batch_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    notificationEmailId: uuid('notification_email_id').notNull(),
+    sortIndex: integer('sort_index').notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.batchId, t.notificationEmailId],
+      name: 'notification_digest_batch_members_pk',
+    }),
+    uniqueIndex('notification_digest_batch_members_email_unique').on(
+      t.notificationEmailId,
+    ),
+    uniqueIndex('notification_digest_batch_members_order_unique').on(
+      t.batchId,
+      t.sortIndex,
+    ),
+    foreignKey({
+      columns: [t.batchId, t.organizationId, t.userId],
+      foreignColumns: [
+        notificationDigestBatches.id,
+        notificationDigestBatches.organizationId,
+        notificationDigestBatches.userId,
+      ],
+      name: 'notification_digest_batch_members_batch_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.notificationEmailId, t.organizationId, t.userId],
+      foreignColumns: [
+        notificationEmailQueue.id,
+        notificationEmailQueue.organizationId,
+        notificationEmailQueue.userId,
+      ],
+      name: 'notification_digest_batch_members_email_tenant_fk',
+    }).onDelete('cascade'),
+    check(
+      'notification_digest_batch_members_sort_index_nonnegative',
+      sql`${t.sortIndex} >= 0`,
+    ),
   ],
 )
 

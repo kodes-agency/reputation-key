@@ -317,6 +317,27 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
+  it('retains open digest batches and purges only terminal evidence after 90 days', () => {
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'notification_digest_batches'),
+    ).toMatchObject({
+      table: 'notification_digest_batches',
+      keyColumns: ['id'],
+      tsColumn: 'updated_at',
+      olderThanMs: 90 * 24 * 60 * 60 * 1000,
+      extraWhere: "state IN ('accepted', 'terminal')",
+    })
+  })
+
+  it('uses the queue state machine terminal names for email retention', () => {
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'notification_email_queue'),
+    ).toMatchObject({
+      extraWhere:
+        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+    })
+  })
+
   it('covers the audit-evidence tables at the 365d beta audit horizon (BQC-7.8)', () => {
     const audit = RETENTION_RULES.find((r) => r.subject === 'policy_decision_audit')
     expect(audit).toMatchObject({

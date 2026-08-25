@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  digestIdempotencyKey,
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
   groupItemsByProperty,
   type DigestItem,
 } from './digest-assembly'
@@ -9,36 +11,55 @@ import { buildDigestItem } from './test-fixtures'
 const url = (path: string, search: Readonly<Record<string, string>>) =>
   `https://app.test${path}${Object.keys(search).length > 0 ? `?${new URLSearchParams(search)}` : ''}`
 
-describe('digest idempotency key (ADR 0046 r.5)', () => {
-  it('is stable across retries within the same recipient local date', () => {
-    // Same (org, user, local date) at 08:00 and at a 23:59 retry.
-    expect(digestIdempotencyKey('org-1', 'user-1', '2026-08-21')).toBe(
-      digestIdempotencyKey('org-1', 'user-1', '2026-08-21'),
+describe('immutable digest batch fingerprints (ADR 0046 r.5)', () => {
+  const members = ['email-b', 'email-a'] as const
+  const memberDigest = digestMemberSet(members)
+  const keyFor = (
+    overrides: Partial<Parameters<typeof digestBatchIdempotencyKey>[0]> = {},
+  ) =>
+    digestBatchIdempotencyKey({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      localDate: '2026-08-21',
+      batchId: '11111111-1111-4111-8111-111111111111',
+      memberDigest,
+      ...overrides,
+    })
+
+  it('fingerprints the exact member set independent of read order', () => {
+    expect(digestMemberSet(['email-a', 'email-b'])).toBe(memberDigest)
+    expect(digestMemberSet(['email-a', 'email-c'])).not.toBe(memberDigest)
+  })
+
+  it('is stable only for the same persisted batch identity', () => {
+    expect(keyFor()).toBe(keyFor())
+    expect(keyFor()).toMatch(/^rk-digest-v2:[a-f0-9]{64}$/)
+    expect(keyFor({ batchId: '22222222-2222-4222-8222-222222222222' })).not.toBe(keyFor())
+    expect(keyFor({ memberDigest: digestMemberSet(['email-a']) })).not.toBe(keyFor())
+  })
+
+  it('separates organizations, recipients, and local dates', () => {
+    expect(keyFor({ organizationId: 'org-2' })).not.toBe(keyFor())
+    expect(keyFor({ userId: 'user-2' })).not.toBe(keyFor())
+    expect(keyFor({ localDate: '2026-08-22' })).not.toBe(keyFor())
+  })
+
+  it('fingerprints every provider-visible field with canonical header ordering', () => {
+    const request = {
+      to: 'manager@example.com',
+      subject: 'Two updates',
+      html: '<p>Two updates</p>',
+      text: 'Two updates',
+      headers: { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click', Z: 'last' },
+    }
+    expect(digestProviderRequest(request)).toBe(
+      digestProviderRequest({
+        ...request,
+        headers: { Z: 'last', 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+      }),
     )
-  })
-
-  it('carries no timestamp, so it outlives the provider 24h dedupe window', () => {
-    const key = digestIdempotencyKey('org-1', 'user-1', '2026-08-21')
-
-    expect(key).toBe('digest:org-1:user-1:2026-08-21')
-    // A clock-derived component would make a retry a fresh send.
-    expect(key).not.toMatch(/\d{2}:\d{2}/)
-    expect(key).not.toMatch(/T\d/)
-  })
-
-  it('is keyed on the user, never on the property (ADR 0046 r.4)', () => {
-    const key = digestIdempotencyKey('org-1', 'user-1', '2026-08-21')
-
-    expect(key).not.toContain('prop')
-    expect(key.split(':')).toHaveLength(4)
-  })
-
-  it('separates recipients and dates', () => {
-    expect(digestIdempotencyKey('org-1', 'user-1', '2026-08-21')).not.toBe(
-      digestIdempotencyKey('org-1', 'user-2', '2026-08-21'),
-    )
-    expect(digestIdempotencyKey('org-1', 'user-1', '2026-08-21')).not.toBe(
-      digestIdempotencyKey('org-1', 'user-1', '2026-08-22'),
+    expect(digestProviderRequest({ ...request, subject: 'Three updates' })).not.toBe(
+      digestProviderRequest(request),
     )
   })
 })

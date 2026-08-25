@@ -5,6 +5,7 @@
 // grouping, "no Google content in a heading" — are testable without a pool, a
 // queue, or a clock.
 
+import { createHash } from 'node:crypto'
 import type { Notification, NotificationEmail } from '../../domain/types'
 import type { RenderedNotification } from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
@@ -21,30 +22,63 @@ export type DigestGroup = Readonly<{
   items: ReadonlyArray<Readonly<{ rendered: RenderedNotification; actionUrl: string }>>
 }>
 
+const sha256 = (domain: string, values: readonly string[]): string => {
+  const hash = createHash('sha256')
+  hash.update(`${domain}\0`)
+  for (const value of values)
+    hash.update(`${Buffer.byteLength(value, 'utf8')}:`).update(value)
+  return hash.digest('hex')
+}
+
+/** Content-free fingerprint of the exact queue rows owned by one batch. */
+export function digestMemberSet(emailIds: readonly string[]): string {
+  return sha256('reputation-key/digest-members/v1', [...emailIds].sort())
+}
+
 /**
- * ADR 0046 r.5 — the application idempotency key must outlive the provider's
- * 24-hour dedupe window.
- *
- * Two properties matter and both are structural, not incidental:
- *   1. It contains NO timestamp, only the recipient's LOCAL DATE. A retry an
- *      hour later, a day later, or after a worker restart recomputes the exact
- *      same key, so the provider collapses the duplicate even if our own state
- *      write was the thing that failed.
- *   2. It is keyed on (organization, user, local date) and NOT on property.
- *      ADR 0046 r.4 is one digest per user; keying on property is precisely the
- *      bug that produced one digest per property.
- *
- * Beyond 24h the provider forgets, which is why the durable guard is the queue
- * row status: an accepted row is no longer "due", so a later sweep finds
- * nothing to send. The key handles the fast retry, the status handles the slow
- * one.
+ * Fingerprint every provider-visible field except the idempotency key itself.
+ * A retry may reuse a provider key only when this value still matches the
+ * durable batch record.
  */
-export function digestIdempotencyKey(
-  organizationId: string,
-  userId: string,
-  localDate: string,
-): string {
-  return `digest:${organizationId}:${userId}:${localDate}`
+export function digestProviderRequest(input: {
+  to: string
+  subject: string
+  html: string
+  text: string
+  headers?: Readonly<Record<string, string>>
+}): string {
+  const headers = Object.entries(input.headers ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  )
+  return sha256('reputation-key/digest-provider-request/v1', [
+    input.to,
+    input.subject,
+    input.html,
+    input.text,
+    ...headers.flatMap(([name, value]) => [name, value]),
+  ])
+}
+
+/**
+ * ADR 0046 r.5 — bind the provider key to an immutable batch rather than the
+ * mutable set of rows that happen to be due on a local date. The digest keeps
+ * the key within provider limits even when tenant/user identifiers are long.
+ */
+export function digestBatchIdempotencyKey(input: {
+  organizationId: string
+  userId: string
+  localDate: string
+  batchId: string
+  memberDigest: string
+}): string {
+  const digest = sha256('reputation-key/digest-idempotency/v2', [
+    input.organizationId,
+    input.userId,
+    input.localDate,
+    input.batchId,
+    input.memberDigest,
+  ])
+  return `rk-digest-v2:${digest}`
 }
 
 /**

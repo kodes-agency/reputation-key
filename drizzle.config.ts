@@ -5,7 +5,7 @@ import * as migratable from './src/shared/db/schema/migratable'
 
 config({ path: ['.env.local', '.env'] })
 
-// The migratable barrel IS the boundary: all 60 app-owned tables. Auth
+// The migratable barrel IS the boundary: all 138 app-owned tables. Auth
 // tables (user, session, account, verification, organization, member,
 // invitation, organizationRole) are excluded by the barrel and managed by
 // `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the

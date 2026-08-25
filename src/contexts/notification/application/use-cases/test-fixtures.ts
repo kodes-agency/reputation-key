@@ -54,6 +54,12 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findDueByUser: vi.fn(async () => []),
       suppressRecipient: vi.fn(async () => 0),
       isRecipientSuppressed: vi.fn(async () => false),
+      findOpenDigestBatch: vi.fn(async () => null),
+      findDigestBatchEntries: vi.fn(async () => []),
+      prepareDigestBatch: vi.fn(async () => {
+        throw new Error('prepareDigestBatch is outside this fixture scope')
+      }),
+      settleDigestBatch: vi.fn(async () => false),
     },
     preferenceRepo: {
       findForDelivery: vi.fn(async () => null),

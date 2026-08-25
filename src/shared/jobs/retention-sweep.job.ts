@@ -123,12 +123,21 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 90 * DAY_MS,
   },
   {
+    subject: 'notification_digest_batches',
+    table: 'notification_digest_batches',
+    keyColumns: ['id'],
+    tsColumn: 'updated_at',
+    olderThanMs: 90 * DAY_MS,
+    extraWhere: "state IN ('accepted', 'terminal')",
+  },
+  {
     subject: 'notification_email_queue',
     table: 'notification_email_queue',
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
-    extraWhere: "status IN ('sent', 'failed', 'cancelled', 'suppressed')",
+    extraWhere:
+      "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
   },
   {
     subject: 'activity_log',

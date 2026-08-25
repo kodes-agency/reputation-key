@@ -95,6 +95,8 @@ const EXPECTED_TABLES = [
   'activity_log',
   'notifications',
   'notification_email_queue',
+  'notification_digest_batches',
+  'notification_digest_batch_members',
   'notification_preferences',
 ] as const
 

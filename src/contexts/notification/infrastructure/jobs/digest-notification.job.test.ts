@@ -13,6 +13,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { Notification, NotificationEmail } from '../../domain/types'
+import type { NotificationDigestBatch } from '../../application/ports/notification-email-repository.port'
 import type { EmailSendRequest } from '../../application/ports/email-sender.port'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
 
@@ -58,6 +59,8 @@ type Options = Readonly<{
   userTimezone?: string | null
   orgTimezone?: string | null
   immediateOrphans?: readonly NotificationEmail[]
+  openBatch?: NotificationDigestBatch | null
+  batchEntries?: readonly NotificationEmail[]
 }>
 
 function baseDeps(options: Options = {}) {
@@ -90,6 +93,26 @@ function baseDeps(options: Options = {}) {
       markAccepted: vi.fn(async (_id: string) => {}),
       markFailed: vi.fn(async () => {}),
       isRecipientSuppressed: vi.fn(async () => false),
+      findOpenDigestBatch: vi.fn(async () => options.openBatch ?? null),
+      findDigestBatchEntries: vi.fn(async () => options.batchEntries ?? due),
+      prepareDigestBatch: vi.fn(async (input) => ({
+        batch: {
+          id: input.id,
+          organizationId: input.organizationId,
+          userId: input.userId,
+          localDate: input.localDate,
+          sequence: 1,
+          memberDigest: input.memberDigest,
+          contentDigest: input.contentDigest,
+          providerIdempotencyKey: input.providerIdempotencyKey,
+          state: 'prepared' as const,
+          retryCount: 0,
+          createdAt: input.preparedAt,
+          updatedAt: input.preparedAt,
+        },
+        created: true,
+      })),
+      settleDigestBatch: vi.fn(async () => true),
     },
     preferenceRepo: {
       findForDelivery: vi.fn(async () => ({
@@ -265,40 +288,107 @@ describe('digest subject and body', () => {
 })
 
 describe('digest idempotency (ADR 0046 r.5)', () => {
-  it('keys on (organization, user, local date) — never on property', async () => {
+  it('uses a bounded opaque key bound to the immutable batch', async () => {
     const deps = baseDeps()
 
     await runHandler(deps)
 
     const { idempotencyKey } = deps.emailSender.send.mock.calls[0]![0]
-    expect(idempotencyKey).toBe(`digest:${ORG}:${USER}:2026-07-11`)
+    expect(idempotencyKey).toMatch(/^rk-digest-v2:[a-f0-9]{64}$/)
     expect(idempotencyKey).not.toContain(PROP_A)
     expect(idempotencyKey).not.toContain(PROP_B)
   })
 
-  it('recomputes the identical key on a retry hours later, outliving the provider 24h window', async () => {
-    const first = baseDeps({ now: new Date('2026-07-11T08:00:00.000Z') })
-    const retry = baseDeps({ now: new Date('2026-07-11T08:59:00.000Z') })
+  it('reuses the persisted key and exact membership on a retry', async () => {
+    const first = baseDeps()
 
     await runHandler(first)
+    const prepared = first.emailRepo.prepareDigestBatch.mock.calls[0]![0]
+    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const late = entryFor('33333333-3333-4333-8333-333333333333')
+    const retry = baseDeps({
+      now: new Date('2026-07-11T08:59:00.000Z'),
+      dueByUser: [entryFor(PROP_A), entryFor(PROP_B), late],
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
     await runHandler(retry)
 
     expect(first.emailSender.send.mock.calls[0]![0].idempotencyKey).toBe(
       retry.emailSender.send.mock.calls[0]![0].idempotencyKey,
     )
+    expect(retry.emailRepo.findDueByUser).not.toHaveBeenCalled()
+    expect(retry.emailRepo.findDigestBatchEntries).toHaveBeenCalledWith(
+      prepared.id,
+      organizationId(ORG),
+      userId(USER),
+    )
   })
 
-  it('accepted rows leave the due set, so the durable guard survives past 24h', async () => {
-    // The key covers the provider's dedupe window; `markAccepted` covers the
-    // rest, because an accepted row is no longer returned by findDueByUser.
+  it('settles the batch and every exact member in one repository transaction', async () => {
     const deps = baseDeps()
 
     await runHandler(deps)
 
-    expect(deps.emailRepo.markAccepted).toHaveBeenCalledTimes(2)
-    for (const call of deps.emailRepo.markAccepted.mock.calls) {
-      expect(call[0]).toMatch(/^email-/)
-    }
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledTimes(1)
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({ kind: 'accepted' }),
+      }),
+    )
+    expect(deps.emailRepo.markAccepted).not.toHaveBeenCalled()
+  })
+
+  it('fails closed instead of reusing a provider key when retry content changes', async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const retry = baseDeps({
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.userLookup.getName.mockResolvedValue('A different recipient name')
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({ kind: 'content_mismatch' }),
+      }),
+    )
+    expect(retry.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: openBatch.id }),
+      'Digest retry blocked because provider-visible content changed',
+    )
+  })
+
+  it('terminates an open batch when a member loses delivery authorization', async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const retry = baseDeps({
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+    retry.authorizeScope.mockImplementation(async (_org, property) => property === PROP_A)
+
+    await runHandler(retry)
+
+    expect(retry.emailSender.send).not.toHaveBeenCalled()
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        batchId: openBatch.id,
+        settlement: expect.objectContaining({
+          kind: 'invalidated',
+          reason: 'digest_authorization_changed',
+        }),
+      }),
+    )
   })
 })
 
@@ -359,8 +449,8 @@ describe('digest timing in the recipient timezone (ADR 0046 r.3)', () => {
 
     await runHandler(deps)
 
-    expect(deps.emailSender.send.mock.calls[0]![0].idempotencyKey).toBe(
-      `digest:${ORG}:${USER}:2026-07-11`,
+    expect(deps.emailRepo.prepareDigestBatch.mock.calls[0]![0].localDate).toBe(
+      '2026-07-11',
     )
   })
 
@@ -458,7 +548,15 @@ describe('digest suppression and failure visibility (ADR 0046 r.6)', () => {
       expect.objectContaining({ entries: 2 }),
       'Daily digest provider call failed',
     )
-    expect(deps.emailRepo.markFailed).toHaveBeenCalledTimes(2)
+    expect(deps.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settlement: expect.objectContaining({
+          kind: 'rejected',
+          classification: 'transient',
+        }),
+      }),
+    )
+    expect(deps.emailRepo.markFailed).not.toHaveBeenCalled()
   })
 
   it('logs a provider rejection instead of treating it as a send', async () => {

@@ -153,6 +153,7 @@ quarantine-ttl-sweep offset 4h).
 | `review_refresh_runs`                    | `review_refresh_runs`                              | 30d                                                                                                                                                                                 | retention-sweep                                                                           |
 | `inbound_webhook_receipts`               | `inbound_webhook_receipts`                         | 30d                                                                                                                                                                                 | retention-sweep                                                                           |
 | `notifications`                          | `notifications`                                    | 90d                                                                                                                                                                                 | retention-sweep                                                                           |
+| `notification_digest_batches`            | immutable digest batch + member rows               | 90d after accepted/terminal; open retry evidence is retained                                                                                                                        | retention-sweep; member rows cascade with batch                                           |
 | `notification_email_queue`               | `notification_email_queue`                         | 90d, terminal states only                                                                                                                                                           | retention-sweep                                                                           |
 | `activity_log`                           | `activity_log`                                     | 90d                                                                                                                                                                                 | retention-sweep                                                                           |
 | `gbp_cache.expired`                      | `gbp_cache`                                        | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                           |
@@ -166,7 +167,8 @@ Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 `quarantine.ttl`, Google import lifecycle evidence, and `retention_runs`
 documented indefinite-by-design; v3 adds independently counted 24-hour Guest
 session-pseudonym and 7-day network-abuse-pseudonym redaction while preserving
-the de-identified managerial facts.
+the de-identified managerial facts; v4 adds 90-day terminal notification-digest
+batch evidence while retaining open retry batches.
 
 ## 6. Evidence retention
 

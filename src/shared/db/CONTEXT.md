@@ -7,8 +7,9 @@
 **The migration SQL track is the schema authority.** Three owned tracks make
 up the deployed schema:
 
-1. **Drizzle journal track** — `drizzle/0000_init.sql` … `0016_region-moves.sql`
-   with `drizzle/meta/_journal.json` (17 entries). Creates all 60 app-owned
+1. **Drizzle journal track** — `drizzle/0000_init.sql` …
+   `0081_immutable_notification_digest_batches.sql` with
+   `drizzle/meta/_journal.json` (82 entries). Creates all 138 app-owned
    tables. Managed by `pnpm db:generate` / `pnpm db:migrate`.
 2. **Better Auth CLI track** — `pnpm auth:migrate`
    (`src/shared/auth/auth-cli.ts`). Owns the 8 auth tables (`user`, `session`,

@@ -76,15 +76,16 @@
 
 ### 6. Operational Metadata (non-PII)
 
-| Field                | Table                      | Purpose                 | Retention                                        |
-| -------------------- | -------------------------- | ----------------------- | ------------------------------------------------ |
-| Outbox events        | `outbox_events`            | Event delivery tracking | 30 days (published), 7 days (unpublished errors) |
-| Consumer receipts    | `event_consumer_receipts`  | Idempotency             | 30 days                                          |
-| Sync state           | `review_sync_state`        | Incremental sync cursor | Property lifetime                                |
-| Sync run history     | `review_sync_runs`         | Operational audit       | 30 days                                          |
-| Webhook receipts     | `inbound_webhook_receipts` | Dedup                   | 30 days                                          |
-| Rollup watermarks    | `_rollup_watermarks`       | Incremental refresh     | Permanent                                        |
-| Capability decisions | (env vars)                 | Feature gating          | Not persisted in DB                              |
+| Field                 | Table                                   | Purpose                                                                                         | Retention                                        |
+| --------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Outbox events         | `outbox_events`                         | Event delivery tracking                                                                         | 30 days (published), 7 days (unpublished errors) |
+| Consumer receipts     | `event_consumer_receipts`               | Idempotency                                                                                     | 30 days                                          |
+| Sync state            | `review_sync_state`                     | Incremental sync cursor                                                                         | Property lifetime                                |
+| Sync run history      | `review_sync_runs`                      | Operational audit                                                                               | 30 days                                          |
+| Webhook receipts      | `inbound_webhook_receipts`              | Dedup                                                                                           | 30 days                                          |
+| Digest batch evidence | `notification_digest_batches` / members | Exact email membership, idempotency and outcome (identifiers/digests only; no rendered content) | 90 days after terminal outcome                   |
+| Rollup watermarks     | `_rollup_watermarks`                    | Incremental refresh                                                                             | Permanent                                        |
+| Capability decisions  | (env vars)                              | Feature gating                                                                                  | Not persisted in DB                              |
 
 ### 7. Cached Google API Responses
 

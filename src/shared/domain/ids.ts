@@ -118,6 +118,11 @@ export function notificationEmailId(id: string): NotificationEmailId {
   return id as NotificationEmailId
 }
 
+export type NotificationDigestBatchId = Brand<string, 'NotificationDigestBatchId'>
+export function notificationDigestBatchId(id: string): NotificationDigestBatchId {
+  return id as NotificationDigestBatchId
+}
+
 export type NotificationPreferenceId = Brand<string, 'NotificationPreferenceId'>
 export function notificationPreferenceId(id: string): NotificationPreferenceId {
   return id as NotificationPreferenceId
