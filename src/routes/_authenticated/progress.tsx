@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useQuery } from '@tanstack/react-query'
+import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { listGoalPrograms } from '#/contexts/goal/server/goal-programs'
 import { goalKeys } from '#/shared/queries/query-keys'
@@ -48,11 +48,6 @@ export const Route = createFileRoute('/_authenticated/progress')({
 
 function StaffProgressPage() {
   const { propertyId: searchPropertyId } = Route.useSearch()
-  const { data } = useQuery({
-    ...staffGoalsQuery(searchPropertyId ?? '00000000-0000-4000-8000-000000000000'),
-    enabled: searchPropertyId !== undefined,
-  })
-  const goals = data?.programs ?? []
   // No property selected — the sidebar defaults ?propertyId= on first load.
   if (!searchPropertyId) {
     return (
@@ -66,10 +61,16 @@ function StaffProgressPage() {
     )
   }
 
+  return <ScopedStaffProgress propertyId={searchPropertyId} />
+}
+
+function ScopedStaffProgress({ propertyId }: Readonly<{ propertyId: string }>) {
+  const { data } = useSuspenseQuery(staffGoalsQuery(propertyId))
+
   return (
     <PageShell>
       <PageHeader title="Progress" description="Where you are and where you're going." />
-      <StaffGoalList goals={goals} />
+      <StaffGoalList goals={data.programs} />
     </PageShell>
   )
 }
