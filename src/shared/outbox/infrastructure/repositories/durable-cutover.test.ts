@@ -288,8 +288,9 @@ function makeReviewSourceLookup(): ReviewSourceLookupPort {
 function makeReplyLookup() {
   const replyRepo = createReplyRepository(db)
   return createReplyLookupAdapter({
-    findInternalByReviewId: (id, orgId) => replyRepo.findInternalByReviewId(id, orgId),
     findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
+    findMilestonesByReviewIds: (ids, orgId) =>
+      replyRepo.findMilestonesByReviewIds(ids, orgId),
   })
 }
 

@@ -3,9 +3,13 @@
 // internal-only lookup used to hide — otherwise the panel renders a compose
 // box over an existing Google-visible reply.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { createReplyLookupAdapter } from './reply-lookup.adapter'
-import type { ReplyView } from '../../application/ports/reply-lookup.port'
+import type {
+  ReplyLookupPort,
+  ReplyView,
+} from '../../application/ports/reply-lookup.port'
+import type { ReplyLookupSource } from '../../application/ports/lookup-sources.port'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 
 const ORG = organizationId('org-1')
@@ -42,9 +46,8 @@ function makeReply(overrides: Partial<ReplyView> = {}): ReplyView {
 
 const setup = (replies: ReadonlyArray<ReplyView>) =>
   createReplyLookupAdapter({
-    findInternalByReviewId: async () =>
-      replies.find((r) => r.source === 'internal') ?? null,
     findByReviewId: async () => replies,
+    findMilestonesByReviewIds: async () => [],
   })
 
 describe('getEffectiveReplyByReviewId', () => {
@@ -74,5 +77,46 @@ describe('getEffectiveReplyByReviewId', () => {
     const adapter = setup([])
 
     await expect(adapter.getEffectiveReplyByReviewId(REVIEW, ORG)).resolves.toBeNull()
+  })
+})
+
+describe('getReplyMilestonesByReviewIds', () => {
+  it('delegates the whole batch to one content-free source read', async () => {
+    const secondReview = reviewId('d4000000-0000-4000-8000-000000000011')
+    const firstSubmittedAt = new Date('2026-07-18T10:00:00Z')
+    const firstPublishedAt = new Date('2026-07-19T10:00:00Z')
+    const findMilestonesByReviewIds = vi.fn(async () => [
+      {
+        reviewId: REVIEW,
+        firstSubmittedAt,
+        firstPublishedAt,
+      },
+    ])
+    const findByReviewId = vi.fn(async () => [])
+    const source = {
+      findByReviewId,
+      findMilestonesByReviewIds,
+    } as unknown as ReplyLookupSource
+    const adapter = createReplyLookupAdapter(source) as ReplyLookupPort
+
+    const result = await adapter.getReplyMilestonesByReviewIds(
+      [REVIEW, secondReview],
+      ORG,
+    )
+
+    expect(findMilestonesByReviewIds).toHaveBeenCalledOnce()
+    expect(findMilestonesByReviewIds).toHaveBeenCalledWith([REVIEW, secondReview], ORG)
+    expect(findByReviewId).not.toHaveBeenCalled()
+    expect(result).toEqual(
+      new Map([
+        [
+          REVIEW,
+          {
+            firstSubmittedAt,
+            firstPublishedAt,
+          },
+        ],
+      ]),
+    )
   })
 })

@@ -8,6 +8,13 @@ import type {
 } from '../../domain/reply-publication-workflow'
 import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
 
+/** Content-free reply lifecycle projection used by foreign read models. */
+export type ReplyMilestoneRow = Readonly<{
+  reviewId: ReviewId
+  firstSubmittedAt: Date | null
+  firstPublishedAt: Date | null
+}>
+
 export type ConditionalReplyUpdate = Readonly<{
   status?: ReplyStatus
   text?: string
@@ -36,6 +43,14 @@ export type ReplyRepository = Readonly<{
     reviewId: ReviewId,
     organizationId: OrganizationId,
   ): Promise<Reply | null>
+  /**
+   * Earliest lifecycle timestamps for a bounded review set. The repository
+   * aggregates in one query and never exposes reply text to projection repair.
+   */
+  findMilestonesByReviewIds(
+    reviewIds: ReadonlyArray<ReviewId>,
+    organizationId: OrganizationId,
+  ): Promise<ReadonlyArray<ReplyMilestoneRow>>
   findGoogleSyncByReviewId(
     reviewId: ReviewId,
     organizationId: OrganizationId,

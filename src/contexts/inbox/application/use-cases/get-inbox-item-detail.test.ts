@@ -142,10 +142,6 @@ const setup = (
         : null,
   }
   const replyLookup: ReplyLookupPort = {
-    getReplyByReviewId: async (id) => {
-      replyCalls.push(id)
-      return reply
-    },
     getEffectiveReplyByReviewId: async (id) => {
       replyCalls.push(id)
       return reply

@@ -61,9 +61,6 @@ export type ReplyView = Readonly<{
 }>
 
 export type ReplyLookupPort = Readonly<{
-  /** Returns the staff-authored (internal) reply for a review, or null.
-   *  Mirrors review context's getReply semantics (findInternalByReviewId). */
-  getReplyByReviewId(id: ReviewId, orgId: OrganizationId): Promise<ReplyView | null>
   /** Returns the EFFECTIVE reply for a review: the internal reply when present,
    *  otherwise the google_sync mirror (a reply published via the GBP UI or
    *  synced in). The inbox detail needs this — without it, mirror-only replies

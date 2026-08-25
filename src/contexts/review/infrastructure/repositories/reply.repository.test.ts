@@ -168,6 +168,66 @@ describe.sequential('replyRepository (integration)', () => {
     })
   })
 
+  describe('findMilestonesByReviewIds', () => {
+    it('aggregates the earliest timestamps for a tenant in one content-free row per review', async () => {
+      const db = getDb()
+      const firstReview = await seedReview(db)
+      const secondReview = await seedReview(db, {
+        id: reviewId('3a000000-0000-0000-0000-000000000002'),
+        externalId: 'rpl-ext-002',
+      })
+      const repo = createReplyRepository(db)
+      const earlySubmission = new Date('2025-05-30T09:00:00Z')
+      const laterSubmission = new Date('2025-05-31T09:00:00Z')
+      const publication = new Date('2025-06-01T09:00:00Z')
+
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000011',
+          reviewId: firstReview.id,
+          source: 'internal',
+          submittedAt: laterSubmission,
+          publishedAt: null,
+        }),
+      )
+      await repo.upsert(
+        makeReply({
+          id: '2a000000-0000-0000-0000-000000000012',
+          reviewId: firstReview.id,
+          source: 'google_sync',
+          submittedAt: earlySubmission,
+          publishedAt: publication,
+        }),
+      )
+      const milestones = await repo.findMilestonesByReviewIds(
+        [firstReview.id, secondReview.id],
+        ORG_A,
+      )
+
+      expect(milestones).toEqual([
+        {
+          reviewId: firstReview.id,
+          firstSubmittedAt: earlySubmission,
+          firstPublishedAt: publication,
+        },
+      ])
+      expect(Object.keys(milestones[0]!)).toEqual([
+        'reviewId',
+        'firstSubmittedAt',
+        'firstPublishedAt',
+      ])
+      await expect(
+        repo.findMilestonesByReviewIds([firstReview.id], ORG_B),
+      ).resolves.toEqual([])
+    })
+
+    it('does not query for an empty review scope', async () => {
+      const repo = createReplyRepository(getDb())
+
+      await expect(repo.findMilestonesByReviewIds([], ORG_A)).resolves.toEqual([])
+    })
+  })
+
   describe('findGoogleSyncByReviewId', () => {
     it('finds google_sync reply by review id', async () => {
       const db = getDb()

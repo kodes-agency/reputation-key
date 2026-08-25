@@ -6,7 +6,12 @@ import type { Database } from '#/shared/db'
 import { replies } from '#/shared/db/schema/review.schema'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
-import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
+import {
+  reviewId as toReviewId,
+  type OrganizationId,
+  type ReplyId,
+  type ReviewId,
+} from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { buildReplySetClause } from '../reply-set-clause'
 import { reviewError } from '../../domain/errors'
@@ -49,6 +54,35 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
         )
         .limit(1)
       return rows[0] ? replyFromRow(rows[0]) : null
+    })
+  },
+
+  findMilestonesByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findMilestonesByReviewIds', async () => {
+      if (reviewIds.length === 0) return []
+      const rows = await db
+        .select({
+          reviewId: replies.reviewId,
+          firstSubmittedAt: sql<string | null>`min(${replies.submittedAt})`.as(
+            'first_submitted_at',
+          ),
+          firstPublishedAt: sql<string | null>`min(${replies.publishedAt})`.as(
+            'first_published_at',
+          ),
+        })
+        .from(replies)
+        .where(
+          and(
+            eq(replies.organizationId, organizationId),
+            sql`${replies.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+          ),
+        )
+        .groupBy(replies.reviewId)
+      return rows.map((row) => ({
+        reviewId: toReviewId(row.reviewId),
+        firstSubmittedAt: row.firstSubmittedAt ? new Date(row.firstSubmittedAt) : null,
+        firstPublishedAt: row.firstPublishedAt ? new Date(row.firstPublishedAt) : null,
+      }))
     })
   },
 

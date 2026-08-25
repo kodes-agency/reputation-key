@@ -11,7 +11,7 @@ import type {
   PropertyId,
   ReviewId,
 } from '#/shared/domain/ids'
-import type { ReplyView } from './reply-lookup.port'
+import type { ReplyMilestones, ReplyView } from './reply-lookup.port'
 import type { FeedbackContentFilter } from './feedback-lookup.port'
 
 /**
@@ -73,18 +73,16 @@ export type PropertyLookupSource = Readonly<{
 
 /** Review-owned reply reads (satisfied by the reply repository). */
 export type ReplyLookupSource = Readonly<{
-  /** Returns the internal reply for a review. The review repo's
-   *  findInternalByReviewId returns its own Reply type, which is structurally
-   *  identical to ReplyView — so no mapping is needed. */
-  findInternalByReviewId: (
-    id: ReviewId,
-    orgId: OrganizationId,
-  ) => Promise<ReplyView | null>
   /** Returns ALL replies for a review (internal + google_sync). */
   findByReviewId: (
     id: ReviewId,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<ReplyView>>
+  /** Content-free, one-query lifecycle aggregation for projection repair. */
+  findMilestonesByReviewIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<Readonly<{ reviewId: ReviewId } & ReplyMilestones>>>
 }>
 
 /** Structural shape the review repository rows satisfy (metadata only). */
