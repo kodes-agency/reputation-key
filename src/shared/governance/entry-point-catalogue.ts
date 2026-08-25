@@ -1291,6 +1291,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'notification preferences settings route' },
     ),
     sf(
+      'muteNotificationCategoryFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.update',
+      'notification.in_app',
+      'organization',
+      { notes: 'notification-row action; mutes only the selected in-app category' },
+    ),
+    sf(
       'getNotificationUserSettingsFn',
       `${NOTIFICATION}/notifications.ts`,
       'notification.read',
