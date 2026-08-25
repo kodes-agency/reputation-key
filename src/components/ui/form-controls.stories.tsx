@@ -44,6 +44,7 @@ export const Showcase: StoryObj<{ disabled?: boolean }> = {
 
 // Per-control stories — typed StoryObj per real control so Args infer real props.
 type InputStory = StoryObj<typeof Input>
+type TextareaStory = StoryObj<typeof Textarea>
 type SwitchStory = StoryObj<typeof Switch>
 type CheckboxStory = StoryObj<typeof Checkbox>
 
@@ -61,6 +62,20 @@ export const InputDisabled: InputStory = {
 export const InputInvalid: InputStory = {
   render: (args) => <Input {...args} />,
   args: { placeholder: 'Acme Hotel', 'aria-invalid': true },
+}
+
+// --- Textarea ---
+export const TextareaInvalid: TextareaStory = {
+  render: (args) => <Textarea {...args} aria-label="Description" />,
+  args: { placeholder: 'Describe the issue', 'aria-invalid': true },
+  play: async ({ canvasElement }) => {
+    const textarea = within(canvasElement).getByRole('textbox', {
+      name: 'Description',
+    })
+    expect(textarea).toHaveAttribute('data-slot', 'textarea')
+    expect(textarea.className).toContain('aria-invalid:border-destructive')
+    expect(textarea.className).toContain('aria-invalid:ring-destructive/20')
+  },
 }
 
 // --- Switch ---
