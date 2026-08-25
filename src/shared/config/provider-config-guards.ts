@@ -26,17 +26,27 @@
 export const GOOGLE_EGRESS_CONFIG_FIELDS = [
   'GOOGLE_EGRESS_GATEWAY_ORIGIN',
   'GOOGLE_EGRESS_GATEWAY_SERVER_NAME',
+  'GOOGLE_INTERNAL_MTLS_CA_B64',
+  'GOOGLE_INTERNAL_MTLS_CERT_B64',
+  'GOOGLE_INTERNAL_MTLS_KEY_B64',
+  'GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS',
+] as const
+
+/** Temporary expand/cutover compatibility for runtimes with mounted files. */
+export const GOOGLE_EGRESS_LEGACY_PATH_FIELDS = [
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
   'GOOGLE_INTERNAL_MTLS_CERT_PATH',
   'GOOGLE_INTERNAL_MTLS_KEY_PATH',
-  'GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS',
 ] as const
 
 export type GoogleEgressConfigField = (typeof GOOGLE_EGRESS_CONFIG_FIELDS)[number]
 
 export type DirectProviderEgressEnv = Readonly<
   { NODE_ENV?: string; GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS?: boolean } & Partial<
-    Record<GoogleEgressConfigField, string>
+    Record<
+      GoogleEgressConfigField | (typeof GOOGLE_EGRESS_LEGACY_PATH_FIELDS)[number],
+      string
+    >
   >
 >
 
@@ -124,7 +134,30 @@ export function assertReviewProviderSubjectKeysConfigured(
  */
 export function missingGoogleEgressConfig(
   env: DirectProviderEgressEnv,
-): readonly GoogleEgressConfigField[] {
+): readonly string[] {
+  const coreFields = [
+    'GOOGLE_EGRESS_GATEWAY_ORIGIN',
+    'GOOGLE_EGRESS_GATEWAY_SERVER_NAME',
+    'GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS',
+  ] as const
+  const base64Fields = GOOGLE_EGRESS_CONFIG_FIELDS.filter((field) =>
+    field.endsWith('_B64'),
+  )
+  const missingCore = coreFields.filter((field) => !env[field])
+  const configuredBase64 = base64Fields.filter((field) => env[field]).length
+  const configuredPaths = GOOGLE_EGRESS_LEGACY_PATH_FIELDS.filter(
+    (field) => env[field],
+  ).length
+
+  if (configuredBase64 > 0) {
+    return [...missingCore, ...base64Fields.filter((field) => !env[field])]
+  }
+  if (configuredPaths > 0) {
+    return [
+      ...missingCore,
+      ...GOOGLE_EGRESS_LEGACY_PATH_FIELDS.filter((field) => !env[field]),
+    ]
+  }
   return GOOGLE_EGRESS_CONFIG_FIELDS.filter((field) => !env[field])
 }
 

@@ -11,7 +11,10 @@ import { createRedisGoogleAdmissionGrantStore } from '../../src/shared/google-pr
 import { createGoogleExecutionAdmissionService } from './service'
 import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 import { handleGoogleExecutionAdmissionRequest } from './http-api'
-import { createInternalMtlsWebServer, loadInternalMtlsMaterial } from '../internal-mtls'
+import {
+  createInternalMtlsWebServer,
+  loadInternalMtlsMaterialFromOneSource,
+} from '../internal-mtls'
 import {
   assertGoogleEgressGatewayIdentity,
   createGoogleAdmissionPeerIdentityResolver,
@@ -140,10 +143,19 @@ const service = createGoogleExecutionAdmissionService({
   inFlightForPolicy: (policyId) => inFlightCoordinators.get(policyId) ?? null,
 })
 
-const tls = loadInternalMtlsMaterial({
-  caPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CA_PATH'),
-  certPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CERT_PATH'),
-  keyPath: requiredEnv('GOOGLE_INTERNAL_MTLS_KEY_PATH'),
+const base64Tls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_B64,
+] as const
+const pathTls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
+] as const
+const tls = loadInternalMtlsMaterialFromOneSource({
+  base64: { ca: base64Tls[0], cert: base64Tls[1], key: base64Tls[2] },
+  path: { ca: pathTls[0], cert: pathTls[1], key: pathTls[2] },
 })
 const server = createInternalMtlsWebServer({
   host: process.env.HOST ?? '0.0.0.0',

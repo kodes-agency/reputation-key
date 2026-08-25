@@ -8,7 +8,7 @@ import {
 } from './environment'
 
 function environment(): Record<string, string> {
-  return {
+  const values: Record<string, string> = {
     ...Object.fromEntries(
       GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.map((name) => [name, 'masked']),
     ),
@@ -17,6 +17,10 @@ function environment(): Record<string, string> {
     RELEASE_SHA: 'a'.repeat(40),
     IMAGE_SOURCE_REVISION: 'a'.repeat(40),
   }
+  delete values.GOOGLE_INTERNAL_MTLS_CA_PATH
+  delete values.GOOGLE_INTERNAL_MTLS_CERT_PATH
+  delete values.GOOGLE_INTERNAL_MTLS_KEY_PATH
+  return values
 }
 
 function composeEnvironmentNames(): string[] {
@@ -84,10 +88,23 @@ describe('Google execution-admission startup isolation', () => {
   })
 
   it('keeps the compose inventory equal to the process-owned names', () => {
-    expect(composeEnvironmentNames().sort()).toEqual(
-      GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.filter(
-        (name) => name !== 'IMAGE_SOURCE_REVISION',
-      ).sort(),
+    const names = composeEnvironmentNames()
+    expect(names).toContain('GOOGLE_INTERNAL_MTLS_CA_PATH')
+    expect(names).toContain('GOOGLE_INTERNAL_MTLS_CERT_PATH')
+    expect(names).toContain('GOOGLE_INTERNAL_MTLS_KEY_PATH')
+    expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_CA_B64')
+    expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_CERT_B64')
+    expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_KEY_B64')
+    expect(names.sort()).toEqual(
+      [
+        ...GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.filter(
+          (name) =>
+            name !== 'IMAGE_SOURCE_REVISION' && !name.startsWith('GOOGLE_INTERNAL_MTLS_'),
+        ),
+        'GOOGLE_INTERNAL_MTLS_CA_PATH',
+        'GOOGLE_INTERNAL_MTLS_CERT_PATH',
+        'GOOGLE_INTERNAL_MTLS_KEY_PATH',
+      ].sort(),
     )
   })
 

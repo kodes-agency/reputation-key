@@ -166,6 +166,15 @@ const baseEnvSchema = z.object({
   GOOGLE_INTERNAL_MTLS_CA_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
+  // Railway and other variable-only runtimes cannot mount secret files. The
+  // base64 triplet is the no-disk equivalent of the legacy path triplet above.
+  // Composition accepts exactly one complete triplet and rejects partial or
+  // mixed configuration. The path form remains during the deployment
+  // expand/cutover window and can be contracted after every environment has
+  // moved to the variable-only form.
+  GOOGLE_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
   // Explicit operator opt-out for UNGOVERNED direct Google provider egress.
   // The review adapter falls back to a direct `fetch` whenever the egress

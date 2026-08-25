@@ -109,6 +109,47 @@ export function loadInternalMtlsMaterialFromBase64(
   }
 }
 
+/**
+ * Expand/cutover resolver for platforms that supply secrets either as mounted
+ * files or variables. Exactly one complete representation is accepted; a
+ * partial or mixed triplet fails before any protected listener is opened.
+ */
+export function loadInternalMtlsMaterialFromOneSource(
+  input: Readonly<{
+    path: Readonly<{
+      ca?: string
+      cert?: string
+      key?: string
+    }>
+    base64: Readonly<{
+      ca?: string
+      cert?: string
+      key?: string
+    }>
+  }>,
+): InternalMtlsMaterial {
+  const path = [input.path.ca, input.path.cert, input.path.key]
+  const base64 = [input.base64.ca, input.base64.cert, input.base64.key]
+  const configuredPaths = path.filter((value): value is string => !!value)
+  const configuredBase64 = base64.filter((value): value is string => !!value)
+
+  if (configuredBase64.length === 3 && configuredPaths.length === 0) {
+    return loadInternalMtlsMaterialFromBase64({
+      ca: configuredBase64[0]!,
+      cert: configuredBase64[1]!,
+      key: configuredBase64[2]!,
+    })
+  }
+  if (configuredPaths.length === 3 && configuredBase64.length === 0) {
+    return loadInternalMtlsMaterial({
+      caPath: configuredPaths[0]!,
+      certPath: configuredPaths[1]!,
+      keyPath: configuredPaths[2]!,
+    })
+  }
+  throw new Error('internal mTLS material must use exactly one complete source')
+}
+
 export function createExactSpiffePeerIdentityResolver(
   input: Readonly<{
     uri: string

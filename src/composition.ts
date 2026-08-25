@@ -59,8 +59,8 @@ import { createGoogleCredentialBinder } from '#/shared/google-provider-control/c
 import { createGoogleEgressGatewayHttpClient } from '../services/google-egress-gateway/http-api'
 import {
   createInternalMtlsJsonTransport,
-  loadInternalMtlsMaterial,
   loadInternalMtlsMaterialFromBase64,
+  loadInternalMtlsMaterialFromOneSource,
 } from '../services/internal-mtls'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import {
@@ -943,17 +943,54 @@ export function createContainer(options?: {
   const gatewayConfig = [
     env.GOOGLE_EGRESS_GATEWAY_ORIGIN,
     env.GOOGLE_EGRESS_GATEWAY_SERVER_NAME,
+    env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS,
+  ] as const
+  const gatewayBase64Tls = [
+    env.GOOGLE_INTERNAL_MTLS_CA_B64,
+    env.GOOGLE_INTERNAL_MTLS_CERT_B64,
+    env.GOOGLE_INTERNAL_MTLS_KEY_B64,
+  ] as const
+  const gatewayPathTls = [
     env.GOOGLE_INTERNAL_MTLS_CA_PATH,
     env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
     env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
-    env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS,
   ] as const
   const configuredGatewayValues = gatewayConfig.filter(
+    (value): value is string => value !== undefined,
+  )
+  const configuredBase64Tls = gatewayBase64Tls.filter(
+    (value): value is string => value !== undefined,
+  )
+  const configuredPathTls = gatewayPathTls.filter(
     (value): value is string => value !== undefined,
   )
   if (
     configuredGatewayValues.length !== 0 &&
     configuredGatewayValues.length !== gatewayConfig.length
+  ) {
+    throw new Error('Google egress gateway transport configuration is incomplete')
+  }
+  if (
+    configuredBase64Tls.length !== 0 &&
+    configuredBase64Tls.length !== gatewayBase64Tls.length
+  ) {
+    throw new Error('Google egress gateway base64 mTLS configuration is incomplete')
+  }
+  if (
+    configuredPathTls.length !== 0 &&
+    configuredPathTls.length !== gatewayPathTls.length
+  ) {
+    throw new Error('Google egress gateway path mTLS configuration is incomplete')
+  }
+  if (configuredBase64Tls.length > 0 && configuredPathTls.length > 0) {
+    throw new Error('Google egress gateway mTLS configuration is ambiguous')
+  }
+  if (
+    (configuredGatewayValues.length > 0 &&
+      configuredBase64Tls.length === 0 &&
+      configuredPathTls.length === 0) ||
+    (configuredGatewayValues.length === 0 &&
+      (configuredBase64Tls.length > 0 || configuredPathTls.length > 0))
   ) {
     throw new Error('Google egress gateway transport configuration is incomplete')
   }
@@ -963,14 +1000,8 @@ export function createContainer(options?: {
     if (!googleContentAuthority || !googleContentRuntimeBindings) {
       throw new Error('Google egress gateway requires Google Content runtime approval')
     }
-    const [
-      gatewayOrigin,
-      gatewayServerName,
-      caPath,
-      certPath,
-      keyPath,
-      credentialBindingKeys,
-    ] = configuredGatewayValues
+    const [gatewayOrigin, gatewayServerName, credentialBindingKeys] =
+      configuredGatewayValues
     const bindCredential = createGoogleCredentialBinder(
       createVersionedHmacKeyring(credentialBindingKeys),
     )
@@ -978,7 +1009,18 @@ export function createContainer(options?: {
       createInternalMtlsJsonTransport({
         origin: gatewayOrigin,
         serverName: gatewayServerName,
-        tls: loadInternalMtlsMaterial({ caPath, certPath, keyPath }),
+        tls: loadInternalMtlsMaterialFromOneSource({
+          base64: {
+            ca: configuredBase64Tls[0],
+            cert: configuredBase64Tls[1],
+            key: configuredBase64Tls[2],
+          },
+          path: {
+            ca: configuredPathTls[0],
+            cert: configuredPathTls[1],
+            key: configuredPathTls[2],
+          },
+        }),
         peerIdentityPolicy: {
           uri: 'spiffe://repkey.internal/google-egress-gateway',
           dnsName: gatewayServerName,

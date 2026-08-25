@@ -6,7 +6,7 @@ import { handleGoogleEgressGatewayRequest } from './http-api'
 import {
   createInternalMtlsJsonTransport,
   createInternalMtlsWebServer,
-  loadInternalMtlsMaterial,
+  loadInternalMtlsMaterialFromOneSource,
 } from '../internal-mtls'
 import {
   assertGoogleEgressGatewayIdentity,
@@ -50,10 +50,19 @@ function routeTargetFromEnv() {
   throw new Error('egress-gateway route profile is invalid')
 }
 
-const tls = loadInternalMtlsMaterial({
-  caPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CA_PATH'),
-  certPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CERT_PATH'),
-  keyPath: requiredEnv('GOOGLE_INTERNAL_MTLS_KEY_PATH'),
+const base64Tls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_B64,
+] as const
+const pathTls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
+] as const
+const tls = loadInternalMtlsMaterialFromOneSource({
+  base64: { ca: base64Tls[0], cert: base64Tls[1], key: base64Tls[2] },
+  path: { ca: pathTls[0], cert: pathTls[1], key: pathTls[2] },
 })
 const admissionTransport = createInternalMtlsJsonTransport({
   origin: requiredEnv('GOOGLE_EXECUTION_ADMISSION_ORIGIN'),

@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   GOOGLE_EGRESS_CONFIG_FIELDS,
+  GOOGLE_EGRESS_LEGACY_PATH_FIELDS,
   type ProviderConfigError,
   assertDirectProviderEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
@@ -102,8 +103,20 @@ describe('missingGoogleEgressConfig', () => {
   })
 
   it('reports only the gaps in a partial configuration', () => {
-    const partial = { ...CONFIGURED_EGRESS, GOOGLE_INTERNAL_MTLS_KEY_PATH: '' }
-    expect(missingGoogleEgressConfig(partial)).toEqual(['GOOGLE_INTERNAL_MTLS_KEY_PATH'])
+    const partial = { ...CONFIGURED_EGRESS, GOOGLE_INTERNAL_MTLS_KEY_B64: '' }
+    expect(missingGoogleEgressConfig(partial)).toEqual(['GOOGLE_INTERNAL_MTLS_KEY_B64'])
+  })
+
+  it('accepts the complete legacy path triplet during the cutover window', () => {
+    const legacy = {
+      GOOGLE_EGRESS_GATEWAY_ORIGIN: 'https://gateway.internal:8443',
+      GOOGLE_EGRESS_GATEWAY_SERVER_NAME: 'gateway.internal',
+      GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: 'v1:key',
+      ...Object.fromEntries(
+        GOOGLE_EGRESS_LEGACY_PATH_FIELDS.map((field) => [field, `/run/${field}`]),
+      ),
+    }
+    expect(missingGoogleEgressConfig(legacy)).toEqual([])
   })
 })
 

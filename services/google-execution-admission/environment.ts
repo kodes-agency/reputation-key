@@ -46,11 +46,16 @@ const OWNED_NAMES = Object.freeze([
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
   'GOOGLE_INTERNAL_MTLS_CERT_PATH',
   'GOOGLE_INTERNAL_MTLS_KEY_PATH',
+  'GOOGLE_INTERNAL_MTLS_CA_B64',
+  'GOOGLE_INTERNAL_MTLS_CERT_B64',
+  'GOOGLE_INTERNAL_MTLS_KEY_B64',
   'RELEASE_SHA',
   'IMAGE_SOURCE_REVISION',
 ] as const)
 
-export const GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = OWNED_NAMES
+export const GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
+  OWNED_NAMES.filter((name) => !name.endsWith('_PATH')),
+)
 const ALLOWED_NAMES = new Set<string>([...RUNTIME_METADATA_NAMES, ...OWNED_NAMES])
 
 function normalized(
@@ -82,10 +87,29 @@ export function assertGoogleAdmissionRequiredEnvironment(
 ): void {
   const values = normalized(environment)
   assertGoogleAdmissionEnvironmentIsIsolated(values)
-  for (const name of OWNED_NAMES) {
+  for (const name of OWNED_NAMES.filter(
+    (name) => !name.startsWith('GOOGLE_INTERNAL_MTLS_'),
+  )) {
     if (!values[name]) {
       throw new Error(`required Google admission setting is missing: ${name}`)
     }
+  }
+  const base64Tls = [
+    values.GOOGLE_INTERNAL_MTLS_CA_B64,
+    values.GOOGLE_INTERNAL_MTLS_CERT_B64,
+    values.GOOGLE_INTERNAL_MTLS_KEY_B64,
+  ].filter(Boolean).length
+  const pathTls = [
+    values.GOOGLE_INTERNAL_MTLS_CA_PATH,
+    values.GOOGLE_INTERNAL_MTLS_CERT_PATH,
+    values.GOOGLE_INTERNAL_MTLS_KEY_PATH,
+  ].filter(Boolean).length
+  if (
+    (base64Tls !== 0 && base64Tls !== 3) ||
+    (pathTls !== 0 && pathTls !== 3) ||
+    base64Tls === pathTls
+  ) {
+    throw new Error('Google admission mTLS configuration is invalid')
   }
   if (values.HOST !== '0.0.0.0' || values.PORT !== '8443') {
     throw new Error('Google admission bind address is invalid')
