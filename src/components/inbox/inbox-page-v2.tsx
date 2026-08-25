@@ -157,7 +157,7 @@ export function InboxPageV2({
               </SheetDescription>
             </SheetHeader>
             <InboxSidebar
-              propertyId={effectivePropertyId}
+              propertyId={activePropertyId ?? search.propertyId}
               properties={properties}
               onPropertyChange={(id) => {
                 handlePropertyChange(id)

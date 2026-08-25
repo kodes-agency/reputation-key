@@ -439,6 +439,13 @@ export const MobileViewport: Story = {
   parameters: {
     viewport: { defaultViewport: 'mobileStaff' },
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Open folders' }))
+    await expect(
+      await screen.findByRole('combobox', { name: 'Filter by property' }),
+    ).toBeVisible()
+  },
 }
 
 // BQC-6.8 content robustness: 300-char reviewer name, emoji-dense snippet,
