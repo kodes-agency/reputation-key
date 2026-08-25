@@ -22,10 +22,12 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 - Property slugs must be unique within an organization.
 - Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`). The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
 - Canonical GBP location suffixes must be unique within an organization.
+- `dataCellId` is assigned from the signed Data Cell catalogue and cannot be
+  cleared or changed outside the audited operator move workflow.
 
 ## Events produced
 
-- **`property.created`** — propertyId, organizationId, name, slug, processingRegion, processingRegionSource, occurredAt.
+- **`property.created`** — propertyId, organizationId, name, slug, dataCellId (when resolved), legacy processingRegion, occurredAt.
 - **`property.updated`** — propertyId, organizationId, name, slug, occurredAt.
 - **`property.deleted`** — propertyId, organizationId, occurredAt.
 

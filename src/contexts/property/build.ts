@@ -33,11 +33,12 @@ import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consu
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
+import { ACCEPTING_DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
 
 /**
- * BQC-4.5 region-move wiring. approvedCells defaults to the beta set — 'us'
- * is the ONLY approved cell (ADR 0048); widening requires an explicit
- * decision record. queues binds the cell's property-scoped queues for the
+ * BQC-4.5 region-move wiring. approvedCells defaults to the catalogue's
+ * accepting set; widening therefore requires a reviewed catalogue state
+ * transition. queues binds the cell's property-scoped queues for the
  * stepper's pause/drain/resume (BQC-0.4 primitive + BQC-3.7 depth reader).
  */
 export type RegionMoveContextDeps = Readonly<{
@@ -123,7 +124,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     requestRegionMove: requestRegionMove({
       propertyRepo: deps.repo,
       moveStore: regionMoveStore,
-      approvedCells: deps.regionMove.approvedCells ?? new Set(['us']),
+      approvedCells: deps.regionMove.approvedCells ?? new Set(ACCEPTING_DATA_CELL_IDS),
       writeOperatorAudit: deps.regionMove.writeOperatorAudit,
       idGen: () => randomUUID(),
       clock: deps.clock,
@@ -191,13 +192,11 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     // sync asserts an approved cell before any external effect).
     getProcessingRegion: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
-      return p?.processingRegion ?? null
+      return p?.dataCellId ?? null
     },
     getProcessingScope: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
-      return p
-        ? { processingRegion: p.processingRegion, sourceEpoch: p.sourceEpoch }
-        : null
+      return p ? { processingRegion: p.dataCellId, sourceEpoch: p.sourceEpoch } : null
     },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,

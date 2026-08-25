@@ -23,6 +23,7 @@ import type { ProcessingRegion } from '#/shared/domain/processing-profile'
 import {
   DATA_CELL_IDS,
   dataCellById,
+  resolvePersistedDataCellId,
   resolveDataCellTarget,
   type DataCellId,
   type DataCellWorkload,
@@ -104,8 +105,11 @@ export type RoutingEnvelope = Readonly<{
   routingPolicyVersion: number
 }>
 
-/** The routing facts persisted on the property (migration 0006). */
+/** Property routing facts during the migration 0089 expand phase. */
 export type PropertyRoutingRecord = Readonly<{
+  /** Expand-phase canonical assignment. Required after the contract migration. */
+  dataCellId?: string | null
+  /** Legacy compatibility fact; removed after every row and caller migrate. */
   processingRegion: string | null
   routingPolicyVersion: number
 }>
@@ -181,9 +185,20 @@ function resolveRecord(
   workloadClass: WorkloadClass,
 ): ProcessingDecision {
   if (!record) return { kind: 'blocked', reason: missingReason, region: null }
-  const region = record.processingRegion
-  if (region == null || region === 'unresolved') {
-    return { kind: 'blocked', reason: 'region_unresolved', region: region ?? null }
+  const legacyRegion = record.processingRegion
+  const region = resolvePersistedDataCellId(
+    'dataCellId' in record ? record.dataCellId : undefined,
+    legacyRegion,
+  )
+  if (region == null) {
+    return {
+      kind: 'blocked',
+      reason:
+        legacyRegion == null || legacyRegion === 'unresolved'
+          ? 'region_unresolved'
+          : 'region_denied',
+      region: legacyRegion ?? null,
+    }
   }
   const cell = dataCellById(region)
   if (

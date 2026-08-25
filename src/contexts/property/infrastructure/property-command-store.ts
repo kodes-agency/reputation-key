@@ -59,6 +59,7 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   if (patch.timezoneResolvedAt !== undefined)
     set.timezoneResolvedAt = patch.timezoneResolvedAt
   if (patch.processingRegion !== undefined) set.processingRegion = patch.processingRegion
+  if (patch.dataCellId !== undefined) set.dataCellId = patch.dataCellId
   if (patch.processingRegionSource !== undefined)
     set.processingRegionSource = patch.processingRegionSource
   if (patch.routingPolicyVersion !== undefined)

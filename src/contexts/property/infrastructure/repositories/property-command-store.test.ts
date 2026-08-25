@@ -56,6 +56,7 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     timezoneSource: 'legacy',
     timezoneResolvedAt: null,
     processingRegion: 'unresolved',
+    dataCellId: null,
     processingRegionSource: 'country_default',
     routingPolicyVersion: 1,
     processingRegionResolvedAt: null,

@@ -42,6 +42,7 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   timezoneSource: 'legacy',
   timezoneResolvedAt: null,
   processingRegion: 'unresolved',
+  dataCellId: null,
   processingRegionSource: 'country_default',
   routingPolicyVersion: 1,
   processingRegionResolvedAt: null,
@@ -87,6 +88,7 @@ describe('propertyFromRow', () => {
     expect(property.updatedAt).toBe(FIXED_TIME)
     expect(property.deletedAt).toBeNull()
     expect(property.lifecycleState).toBe('active')
+    expect(property.dataCellId).toBeNull()
   })
 
   it('maps a null canonical location ID correctly', () => {
@@ -118,6 +120,22 @@ describe('propertyFromRow', () => {
 
     expect(property.lifecycleState).toBe('archived')
   })
+
+  it('reads a valid legacy region during the expand phase', () => {
+    const property = propertyFromRow(
+      makePropertyRow({ dataCellId: null, processingRegion: 'us' }),
+    )
+
+    expect(property.dataCellId).toBe('us')
+  })
+
+  it('fails closed on conflicting canonical and legacy assignments', () => {
+    const property = propertyFromRow(
+      makePropertyRow({ dataCellId: 'us', processingRegion: 'europe' }),
+    )
+
+    expect(property.dataCellId).toBeNull()
+  })
 })
 
 describe('propertyToRow', () => {
@@ -133,6 +151,7 @@ describe('propertyToRow', () => {
     expect(row.defaultReplyLanguage).toBeNull()
     expect(row.gbpLocationId).toBe('ChIJ123')
     expect(row.lifecycleState).toBe('active')
+    expect(row.dataCellId).toBeNull()
   })
 
   it('maps a null canonical location ID to both compatibility columns', () => {
@@ -166,5 +185,6 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.updatedAt).toBe(original.updatedAt)
     expect(restored.deletedAt).toBe(original.deletedAt)
     expect(restored.lifecycleState).toBe(original.lifecycleState)
+    expect(restored.dataCellId).toBe(original.dataCellId)
   })
 })

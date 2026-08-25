@@ -65,6 +65,9 @@ export const properties = pgTable(
     timezoneSource: text('timezone_source').default('legacy'),
     timezoneResolvedAt: timestamp('timezone_resolved_at', { withTimezone: true }),
     processingRegion: text('processing_region').default('unresolved'),
+    // REG-01 expand phase: canonical immutable Data Cell assignment. Nullable
+    // only for unresolved and pre-backfill rows; new application writes set it.
+    dataCellId: text('data_cell_id'),
     processingRegionSource: text('processing_region_source').default('country_default'),
     routingPolicyVersion: integer('routing_policy_version').notNull().default(1),
     processingRegionResolvedAt: timestamp('processing_region_resolved_at', {
@@ -132,6 +135,10 @@ export const properties = pgTable(
     lifecycleStateCheck: check(
       'properties_lifecycle_state_valid',
       sql`${t.lifecycleState} IN ('active', 'suspended', 'archived', 'disconnecting', 'purge_pending', 'purging', 'purged')`,
+    ),
+    dataCellIdCheck: check(
+      'properties_data_cell_id_valid',
+      sql`${t.dataCellId} IS NULL OR ${t.dataCellId} IN ('us', 'europe', 'global')`,
     ),
   }),
 )

@@ -23,23 +23,20 @@
 // migration 0016) carries the state; the application-layer stepper
 // (advance-region-move) executes the per-state effects.
 //
-// Beta reality: 'us' is the ONLY approved cell, so every real move request
-// resolves to a typed denial (request-region-move). The full lifecycle below
-// is proven against a simulated approved target in the rehearsal test.
+// A move target must be in the catalogue's accepting set. The full lifecycle
+// is proven against a simulated approved target in the rehearsal test while
+// Europe/Global remain provisioning.
 
 import { propertyError } from './errors'
+import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
 
 /**
  * Region identifiers that can name a move target. 'unresolved' is the absence
- * of a region — never a target. Approval is a SEPARATE question (ADR 0048:
- * 'us' only for beta); a known-but-denied identifier denies
+ * of a region — never a target. Activation is a SEPARATE catalogue question;
+ * a known-but-non-accepting identifier denies
  * target_cell_not_approved, an unknown one denies region_unresolved.
  */
-export const KNOWN_REGION_IDENTIFIERS: ReadonlySet<string> = new Set([
-  'us',
-  'europe',
-  'global',
-])
+export const KNOWN_REGION_IDENTIFIERS: ReadonlySet<string> = new Set(DATA_CELL_IDS)
 
 export type RegionMoveState =
   | 'requested' // operator request accepted — nothing paused yet
@@ -47,7 +44,7 @@ export type RegionMoveState =
   | 'queues_drained' // queue depths verified at zero
   | 'data_copied' // policy gate (real copy lands with the second cell — BQC-7)
   | 'verified' // policy gate (real verification lands with the second cell)
-  | 'target_activated' // properties.processing_region swapped — target authoritative
+  | 'target_activated' // properties.data_cell_id swapped — target authoritative
   | 'source_erased' // point of no return (record-only while there is one cell)
   | 'completed' // terminal — the move finished
   | 'failed' // operator-recorded failure (before erasure only)

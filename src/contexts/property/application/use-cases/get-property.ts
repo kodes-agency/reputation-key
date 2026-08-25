@@ -9,8 +9,8 @@ import { propertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import {
+  dataCellBlockedReason,
   isRegionProcessable,
-  regionBlockedReason,
   type RegionBlockedReason,
 } from '../../domain/processing-routing'
 
@@ -63,8 +63,11 @@ export const getProperty =
     }
     return {
       ...property,
-      regionProcessable: isRegionProcessable(property.processingRegion),
-      regionBlockedReason: regionBlockedReason(property.processingRegion),
+      regionProcessable: isRegionProcessable(property.dataCellId),
+      regionBlockedReason: dataCellBlockedReason(
+        property.dataCellId,
+        property.processingRegion,
+      ),
     }
   }
 

@@ -21,6 +21,7 @@ import {
   type RegionMoveState,
 } from '../../domain/region-move-workflow'
 import { propertyError } from '../../domain/errors'
+import { dataCellById } from '#/shared/domain/data-cell-catalogue'
 
 /** Terminal states derived from the machine — the single definition of
  * "in flight" (any non-terminal state) for the active-move lookup. */
@@ -59,10 +60,19 @@ async function guardedRegionSwap(
     resolvedAt: Date
   },
 ): Promise<RegionSwapResult> {
+  const expectedCell = dataCellById(input.expectedRegion)?.id
+  const nextCell = dataCellById(input.nextRegion)?.id
+  if (!expectedCell || !nextCell) {
+    throw propertyError(
+      'region_move_conflict',
+      'region move contains a Data Cell absent from the signed catalogue',
+    )
+  }
   const updated = await db
     .update(properties)
     .set({
-      processingRegion: input.nextRegion,
+      processingRegion: nextCell,
+      dataCellId: nextCell,
       processingRegionSource: 'organization_override',
       routingPolicyVersion: sql`${properties.routingPolicyVersion} + 1`,
       processingRegionResolvedAt: input.resolvedAt,
@@ -72,7 +82,8 @@ async function guardedRegionSwap(
       and(
         eq(properties.id, input.propertyId),
         eq(properties.organizationId, input.orgId),
-        eq(properties.processingRegion, input.expectedRegion),
+        eq(properties.processingRegion, expectedCell),
+        eq(properties.dataCellId, expectedCell),
         isNull(properties.deletedAt),
       ),
     )
@@ -81,7 +92,7 @@ async function guardedRegionSwap(
 
   // Idempotent retry of a crashed step: already sitting at the target.
   const current = await db
-    .select({ region: properties.processingRegion })
+    .select({ region: properties.dataCellId })
     .from(properties)
     .where(
       and(
@@ -90,7 +101,7 @@ async function guardedRegionSwap(
       ),
     )
     .limit(1)
-  if (current[0]?.region === input.nextRegion) return 'already_active'
+  if (current[0]?.region === nextCell) return 'already_active'
   throw propertyError(
     'region_move_conflict',
     'property processing region drifted under the move — aborting the authority change',

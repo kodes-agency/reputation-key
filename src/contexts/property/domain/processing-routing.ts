@@ -24,6 +24,7 @@ export type PropertyRoutingFields = Pick<
   | 'timezoneSource'
   | 'timezoneResolvedAt'
   | 'processingRegion'
+  | 'dataCellId'
   | 'processingRegionSource'
   | 'routingPolicyVersion'
   | 'processingRegionResolvedAt'
@@ -58,12 +59,14 @@ export function resolvePropertyRouting(args: {
     }
   }
 
+  const region = resolveRegion(code)
   return {
     countryCode: code,
     countrySource: args.countrySource,
     timezoneSource: args.timezoneSource ?? DEFAULT_PROPERTY_ROUTING.timezoneSource,
     timezoneResolvedAt: args.timezoneResolvedAt ?? null,
-    processingRegion: resolveRegion(code),
+    processingRegion: region,
+    dataCellId: region === 'unresolved' ? null : region,
     processingRegionSource: 'country_default',
     routingPolicyVersion: ROUTING_POLICY_VERSION,
     processingRegionResolvedAt: args.now,
@@ -107,18 +110,32 @@ export function regionBlockedReason(region: string | null): RegionBlockedReason 
 }
 
 /**
+ * Expand-phase reason for a canonical assignment plus its legacy diagnostic
+ * fact. A missing canonical assignment is unresolved only when the legacy row
+ * is also absent/unresolved; any other disagreement is denied.
+ */
+export function dataCellBlockedReason(
+  dataCellId: string | null,
+  legacyProcessingRegion: string | null,
+): RegionBlockedReason | null {
+  if (isRegionProcessable(dataCellId)) return null
+  if (dataCellId !== null) return 'region_denied'
+  return legacyProcessingRegion == null || legacyProcessingRegion === 'unresolved'
+    ? 'region_unresolved'
+    : 'region_denied'
+}
+
+/**
  * Assert that the property's processing region resolves into an approved
  * cell. Throws `region_unresolved` PropertyError otherwise — every
  * property-scoped protected workload fails closed on this (BQC-4.1).
  */
-export function assertRegionResolved(property: {
-  processingRegion: string | null
-}): void {
-  if (!isRegionProcessable(property.processingRegion)) {
+export function assertRegionResolved(property: { dataCellId: string | null }): void {
+  if (!isRegionProcessable(property.dataCellId)) {
     throw propertyError(
       'region_unresolved',
-      'property processing region is not resolved into an approved cell',
-      { processingRegion: property.processingRegion },
+      'property is not assigned to an accepting Data Cell',
+      { dataCellId: property.dataCellId },
     )
   }
 }

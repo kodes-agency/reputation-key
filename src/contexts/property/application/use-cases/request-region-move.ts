@@ -1,11 +1,11 @@
 // Property context — request region move use case (BQC-4.5 / ADR 0048).
 //
 // Operator-only (the policy.admin gate lives at the SERVER layer, mirroring
-// BQC-2.7). Beta reality: 'us' is the ONLY approved cell, so every real move
-// request resolves to a TYPED DENIAL — denied requests never create a
+// BQC-2.7). A target must be in the catalogue's accepting set; denied requests
+// never create a
 // region_moves row; the operator audit (content-free, mirroring the BQC-4.4
-// diagnostic audit) is the evidence. When the target IS approved (a future
-// Europe cell — tests inject a stubbed approved-cell set) the move row is
+// diagnostic audit) is the evidence. When the target is accepting (tests use
+// an injected future policy) the move row is
 // created in state 'requested' and the stepper (advance-region-move) drives
 // it from there.
 //
@@ -90,8 +90,8 @@ export const requestRegionMove =
     )
     if (!property) return deny('property_missing')
 
-    const fromRegion = property.processingRegion
-    if (!fromRegion || fromRegion === 'unresolved') return deny('region_unresolved')
+    const fromRegion = property.dataCellId
+    if (!fromRegion) return deny('region_unresolved')
     if (!KNOWN_REGION_IDENTIFIERS.has(input.toRegion)) return deny('region_unresolved')
     if (input.toRegion === fromRegion) return deny('already_in_cell')
     if (!deps.approvedCells.has(input.toRegion)) return deny('target_cell_not_approved')

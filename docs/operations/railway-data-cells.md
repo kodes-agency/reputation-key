@@ -157,8 +157,9 @@ A fourth cell is not added by copying an environment in the dashboard:
 ## Known blockers before live apply
 
 - The authoritative catalogue and fail-closed router have landed. Europe and
-  Global remain in `provisioning` until immutable Property assignment,
-  wrong-cell storage/worker fences, and recovery drills are proven.
+  Global remain in `provisioning`. Property assignment is now canonical and
+  database-guarded; wrong-cell storage/worker fences and recovery drills still
+  must be proven before either cell can accept work.
 - The current release script uploads the working tree with `railway up`.
   `REG-03` must replace it with digest promotion before production cutover.
 - Railway project/environment tokens for PR drift checks are not yet installed.

@@ -128,6 +128,7 @@ export const createProperty =
         slug: property.slug,
         // BQC-4.1: content-free routing fact travels with the creation fact.
         processingRegion: property.processingRegion ?? undefined,
+        dataCellId: property.dataCellId ?? undefined,
         occurredAt: property.createdAt,
       }),
     })

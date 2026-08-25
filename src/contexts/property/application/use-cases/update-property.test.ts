@@ -250,6 +250,7 @@ describe('updateProperty', () => {
 
     expect(updated.countryCode).toBe('US')
     expect(updated.processingRegion).toBe('us')
+    expect(updated.dataCellId).toBe('us')
     expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
 
@@ -285,6 +286,7 @@ describe('updateProperty', () => {
 
     expect(updated.countryCode).toBe('PR')
     expect(updated.processingRegion).toBe('us')
+    expect(updated.dataCellId).toBe('us')
   })
 
   it('locks even a same-region country edit while a region move is in flight (BQC-4.5)', async () => {

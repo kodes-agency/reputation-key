@@ -41,7 +41,8 @@ beforeAll(async () => {
   propUs = await insertProperty('routing-us')
   await db.execute(sql`
     UPDATE properties
-    SET processing_region = 'us', processing_region_source = 'country_default',
+    SET processing_region = 'us', data_cell_id = 'us',
+        processing_region_source = 'country_default',
         routing_policy_version = 2, processing_region_resolved_at = now(),
         country_code = 'US', country_source = 'google_address'
     WHERE id = ${propUs}
@@ -62,13 +63,18 @@ describe('createPropertyRoutingLoader (BQC-4.2)', () => {
   it('loads processing_region + routing_policy_version for a resolved property', async () => {
     const record = await loadPropertyRouting(propUs)
 
-    expect(record).toEqual({ processingRegion: 'us', routingPolicyVersion: 2 })
+    expect(record).toEqual({
+      dataCellId: 'us',
+      processingRegion: 'us',
+      routingPolicyVersion: 2,
+    })
   })
 
   it('loads the unresolved default state for an unreconciled property', async () => {
     const record = await loadPropertyRouting(propUnresolved)
 
     expect(record).toEqual({
+      dataCellId: null,
       processingRegion: 'unresolved',
       routingPolicyVersion: 1,
     })

@@ -11,6 +11,7 @@ import { propertyFromRow, propertyToRow } from '../mappers/property.mapper'
 import { propertyError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 import { propertyId, type GoogleConnectionId } from '#/shared/domain/ids'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Property fields.
  *  Single source (BQC-5.9 E22) — the command store imports it so the update
@@ -38,6 +39,7 @@ export type PropertySetValues = {
   timezoneSource?: string | null
   timezoneResolvedAt?: Date | null
   processingRegion?: string | null
+  dataCellId?: DataCellId | null
   processingRegionSource?: string | null
   routingPolicyVersion?: number
   processingRegionResolvedAt?: Date | null
@@ -123,6 +125,7 @@ export const createPropertyRepository = (db: Database): PropertyRepository => ({
         setValues.timezoneResolvedAt = patch.timezoneResolvedAt
       if (patch.processingRegion !== undefined)
         setValues.processingRegion = patch.processingRegion
+      if (patch.dataCellId !== undefined) setValues.dataCellId = patch.dataCellId
       if (patch.processingRegionSource !== undefined)
         setValues.processingRegionSource = patch.processingRegionSource
       if (patch.routingPolicyVersion !== undefined)

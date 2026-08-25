@@ -8,8 +8,7 @@
 //   missing    — no property-level country (stays unresolved; operator action)
 //   conflict   — resolved region disagrees with the stored country
 //                (NEVER auto-converted)
-//   ambiguous  — country maps to the denied 'global' placeholder (operator
-//                must decide; NEVER auto-converted)
+//   ambiguous  — country is absent from the signed catalogue (NEVER inferred)
 // --apply converts only `resolvable` rows and is idempotent.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -49,7 +48,15 @@ async function insertProperty(
   }
   if (extras.processingRegion !== undefined) {
     await db.execute(
-      sql`UPDATE properties SET processing_region = ${extras.processingRegion}, processing_region_resolved_at = now() WHERE id = ${id}`,
+      sql`UPDATE properties
+          SET processing_region = ${extras.processingRegion},
+              data_cell_id = CASE
+                WHEN ${extras.processingRegion} IN ('us', 'europe', 'global')
+                THEN ${extras.processingRegion}
+                ELSE NULL
+              END,
+              processing_region_resolved_at = now()
+          WHERE id = ${id}`,
     )
   }
   return id
@@ -57,12 +64,13 @@ async function insertProperty(
 
 async function regionRow(id: string) {
   const rows = await db.execute(sql`
-    SELECT processing_region, processing_region_source, routing_policy_version,
+    SELECT processing_region, data_cell_id, processing_region_source, routing_policy_version,
            processing_region_resolved_at
     FROM properties WHERE id = ${id}
   `)
   return rows.rows[0] as {
     processing_region: string
+    data_cell_id: string | null
     processing_region_source: string
     routing_policy_version: number
     processing_region_resolved_at: Date | null
@@ -96,7 +104,7 @@ beforeAll(async () => {
     countryCode: 'DE',
     processingRegion: 'us',
   })
-  // ambiguous: country maps to the denied 'global' placeholder
+  // Global is a deterministic catalogue assignment even while provisioning.
   propAmbiguous = await insertProperty('recon-ambiguous', {
     countryCode: 'JP',
   })
@@ -130,7 +138,7 @@ describe('region reconciliation report (BQC-4.1)', () => {
     expect(byId.get(propResolvableEurope)?.classification).toBe('resolvable')
     expect(byId.get(propMissing)?.classification).toBe('missing')
     expect(byId.get(propConflictStored)?.classification).toBe('conflict')
-    expect(byId.get(propAmbiguous)?.classification).toBe('ambiguous')
+    expect(byId.get(propAmbiguous)?.classification).toBe('resolvable')
     expect(byId.get(propResolved)?.classification).toBe('resolved')
     // soft-deleted properties are never reported
     expect(byId.has(propDeleted)).toBe(false)
@@ -143,17 +151,17 @@ describe('region reconciliation report (BQC-4.1)', () => {
       organizationId: ORG,
       properties: 6,
       resolved: 1,
-      resolvable: 2,
+      resolvable: 3,
       missing: 1,
       conflicts: 1,
-      ambiguous: 1,
+      ambiguous: 0,
     })
   })
 
   it('separates operator-review rows (missing/conflict/ambiguous)', async () => {
     const report = await buildRegionReconcileReport(db, SCOPE)
     const reviewIds = report.reviewRows.map((r) => r.propertyId).sort()
-    expect(reviewIds).toEqual([propMissing, propConflictStored, propAmbiguous].sort())
+    expect(reviewIds).toEqual([propMissing, propConflictStored].sort())
     for (const row of report.reviewRows) {
       expect(row.detail.length).toBeGreaterThan(0)
     }
@@ -172,26 +180,29 @@ describe('region reconciliation apply (BQC-4.1)', () => {
   it('applies only resolvable rows and is idempotent', async () => {
     const report = await buildRegionReconcileReport(db, SCOPE)
     const first = await applyRegionReconciliation(db, report, { scope: SCOPE })
-    expect(first.applied).toBe(2)
+    expect(first.applied).toBe(3)
 
     const us = await regionRow(propResolvableUs)
     expect(us.processing_region).toBe('us')
+    expect(us.data_cell_id).toBe('us')
     expect(us.processing_region_source).toBe('country_default')
     expect(us.routing_policy_version).toBe(2)
     expect(us.processing_region_resolved_at).not.toBeNull()
 
     const europe = await regionRow(propResolvableEurope)
     expect(europe.processing_region).toBe('europe')
+    expect(europe.data_cell_id).toBe('europe')
     expect(europe.routing_policy_version).toBe(2)
+
+    const global = await regionRow(propAmbiguous)
+    expect(global.processing_region).toBe('global')
+    expect(global.data_cell_id).toBe('global')
 
     // Operator-review rows are NEVER auto-converted
     expect((await regionRow(propMissing)).processing_region).toBe('unresolved')
     expect((await regionRow(propMissing)).routing_policy_version).toBe(1)
     expect((await regionRow(propConflictStored)).processing_region).toBe('us')
     expect((await regionRow(propConflictStored)).routing_policy_version).toBe(1)
-    expect((await regionRow(propAmbiguous)).processing_region).toBe('unresolved')
-    expect((await regionRow(propAmbiguous)).routing_policy_version).toBe(1)
-
     // Already-resolved rows are untouched
     expect((await regionRow(propResolved)).routing_policy_version).toBe(1)
 

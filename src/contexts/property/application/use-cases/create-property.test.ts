@@ -42,6 +42,7 @@ describe('createProperty', () => {
     expect(property.timezone).toBe('America/New_York')
     expect(property.gbpLocationId).toBeNull()
     expect(property.processingRegion).toBe('unresolved')
+    expect(property.dataCellId).toBeNull()
     expect(propertyRepo.all()).toHaveLength(1)
   })
 
@@ -56,6 +57,7 @@ describe('createProperty', () => {
 
     expect(property.countryCode).toBe('US')
     expect(property.processingRegion).toBe('us')
+    expect(property.dataCellId).toBe('us')
     expect(property.countrySource).toBe('manual')
     expect(property.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
@@ -73,6 +75,7 @@ describe('createProperty', () => {
     )
 
     expect(property.processingRegion).toBe('unresolved')
+    expect(property.dataCellId).toBeNull()
     expect(property.processingRegionResolvedAt).toBeNull()
     try {
       assertRegionResolved(property)
@@ -145,11 +148,12 @@ describe('createProperty', () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+    await useCase({ name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' }, ctx)
 
     const emitted = events.capturedByTag('property.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].name).toBe('Grand Hotel')
+    expect(emitted[0].dataCellId).toBe('us')
   })
 
   it('rejects invalid timezone', async () => {

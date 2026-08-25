@@ -46,6 +46,20 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'guard_property_data_cell_assignment_v1',
+    kind: 'function',
+    owner: 'property',
+    source: 'drizzle/0089_property-data-cell-expand.sql',
+    reason: `${NO_TRIGGER_DSL}; makes the canonical Property Data Cell assignment immutable except at an audited operator-move activation or rollback state.`,
+  },
+  {
+    name: 'properties_data_cell_assignment_guard',
+    kind: 'trigger',
+    owner: 'property',
+    source: 'drizzle/0089_property-data-cell-expand.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
     name: 'organization_role_org_role_lower_unique',
     kind: 'expression-index',
     owner: 'identity',

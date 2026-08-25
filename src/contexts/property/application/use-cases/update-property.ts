@@ -84,12 +84,12 @@ function resolveRoutingUpdate(
   const countryResult = normalizeCountryCode(countryCodeInput)
   if (countryResult.isErr()) throw countryResult.error
   const countryCode = countryResult.value
-  if (wouldChangeResolvedRegion(existing.processingRegion, countryCode)) {
+  if (wouldChangeResolvedRegion(existing.dataCellId, countryCode)) {
     throw propertyError(
       'region_locked',
       'processing region cannot change after it has been resolved',
       {
-        currentRegion: existing.processingRegion,
+        currentRegion: existing.dataCellId,
         attemptedCountry: countryCode,
       },
     )

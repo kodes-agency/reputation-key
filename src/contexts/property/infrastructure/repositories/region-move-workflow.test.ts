@@ -1,7 +1,7 @@
 // BQC-4.5 — region move rehearsal (real PostgreSQL + real Redis).
 //
 // The synthetic proof that the move machine works end to end while beta has
-// ONE approved cell ('us' — ADR 0048):
+// one accepting cell (`us`) while Europe remains a simulated target:
 //   (a) full lifecycle against a STUBBED approved target ('europe' injected
 //       into the use-case dep): requested → … → completed; the property's
 //       region swaps exactly once; ONE region_moves row carries the history.
@@ -124,23 +124,27 @@ async function seedProperty(id: string): Promise<void> {
   await db.execute(sql`
     INSERT INTO properties
       (id, organization_id, name, slug, timezone, country_code, country_source,
-       processing_region, processing_region_source, routing_policy_version,
+       processing_region, data_cell_id, processing_region_source, routing_policy_version,
        processing_region_resolved_at)
     VALUES (${id}, ${ORG}, ${'move-prop-' + id.slice(-2)}, ${'move-prop-' + id.slice(-2)},
-            'UTC', 'US', 'manual', 'us', 'country_default', 1, now())
+            'UTC', 'US', 'manual', 'us', 'us', 'country_default', 2, now())
   `)
 }
 
-async function propertyRegion(
-  id: string,
-): Promise<{ region: string | null; version: number; source: string | null }> {
+async function propertyRegion(id: string): Promise<{
+  region: string | null
+  dataCellId: string | null
+  version: number
+  source: string | null
+}> {
   const rows = await db.execute(
-    sql`SELECT processing_region, routing_policy_version, processing_region_source
+    sql`SELECT processing_region, data_cell_id, routing_policy_version, processing_region_source
         FROM properties WHERE id = ${id}`,
   )
   const row = rows.rows[0] as Record<string, unknown> | undefined
   return {
     region: (row?.processing_region as string | null) ?? null,
+    dataCellId: (row?.data_cell_id as string | null) ?? null,
     version: row?.routing_policy_version as number,
     source: (row?.processing_region_source as string | null) ?? null,
   }
@@ -265,14 +269,14 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
 
     // The region swapped exactly once, at target_activated.
     expect(observed.map((o) => `${o.state}:${o.region}@v${o.version}`)).toEqual([
-      'requested:us@v1',
-      'writes_paused:us@v1',
-      'queues_drained:us@v1',
-      'data_copied:us@v1',
-      'verified:us@v1',
-      'target_activated:europe@v2',
-      'source_erased:europe@v2',
-      'completed:europe@v2',
+      'requested:us@v2',
+      'writes_paused:us@v2',
+      'queues_drained:us@v2',
+      'data_copied:us@v2',
+      'verified:us@v2',
+      'target_activated:europe@v3',
+      'source_erased:europe@v3',
+      'completed:europe@v3',
     ])
 
     // ONE row carries the full history; state_changed_at advanced every step.
@@ -293,6 +297,7 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     // Final authority: the target cell, and the machine agrees with the row.
     const final = await propertyRegion(PROP_LIFECYCLE)
     expect(final.source).toBe('organization_override')
+    expect(final.dataCellId).toBe('europe')
     expect(authoritativeCellFor('completed', 'us', 'europe')).toBe(final.region)
   }, 30_000)
 
@@ -386,7 +391,7 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     expect(authorities).toEqual(['us', 'us', 'us'])
     const { region, version } = await propertyRegion(PROP_ROLLBACK)
     expect(region).toBe('us')
-    expect(version).toBe(1)
+    expect(version).toBe(2)
 
     const rows = await moveRowsFor(PROP_ROLLBACK)
     expect(rows).toHaveLength(1)

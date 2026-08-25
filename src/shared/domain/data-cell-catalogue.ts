@@ -169,6 +169,11 @@ export const DATA_CELL_CATALOGUE = Object.freeze({
   }),
 } as const satisfies Record<DataCellId, DataCellDefinition>)
 
+/** Cell ids eligible for new execution/move targets in the current policy. */
+export const ACCEPTING_DATA_CELL_IDS = Object.freeze(
+  DATA_CELL_IDS.filter((cellId) => DATA_CELL_CATALOGUE[cellId].state === 'accepting'),
+)
+
 const COUNTRY_TO_CELL = new Map<CountryCode, DataCellId>()
 for (const cell of Object.values(DATA_CELL_CATALOGUE)) {
   for (const country of cell.allowedCountryCodes) {
@@ -196,6 +201,26 @@ export type DataCellTargetResult =
 /** Resolve a persisted cell identifier. No default/fallback is permitted. */
 export function dataCellById(value: string): DataCellDefinition | null {
   return value in DATA_CELL_CATALOGUE ? DATA_CELL_CATALOGUE[value as DataCellId] : null
+}
+
+/**
+ * Expand-phase read compatibility for Property routing rows. The canonical
+ * assignment wins only when it is valid and does not disagree with a valid
+ * legacy region. Until every deployment dual-writes `data_cell_id`, a null
+ * canonical value may be read from a valid legacy region. Invalid or
+ * conflicting persisted facts fail closed instead of selecting a fallback.
+ */
+export function resolvePersistedDataCellId(
+  dataCellId: string | null | undefined,
+  legacyProcessingRegion: string | null | undefined,
+): DataCellId | null {
+  const canonical = dataCellId ? dataCellById(dataCellId)?.id : undefined
+  const legacy = legacyProcessingRegion
+    ? dataCellById(legacyProcessingRegion)?.id
+    : undefined
+  if (dataCellId && !canonical) return null
+  if (canonical && legacy && canonical !== legacy) return null
+  return canonical ?? legacy ?? null
 }
 
 /** Country allocation for new/imported Properties; invalid codes stop for review. */

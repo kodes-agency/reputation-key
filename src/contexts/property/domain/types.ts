@@ -5,6 +5,7 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyLifecycleState } from './property-lifecycle'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /** Property entity — the organizational unit everything else lives under. */
 export type Property = Readonly<{
@@ -40,6 +41,8 @@ export type Property = Readonly<{
   timezoneSource: string | null
   timezoneResolvedAt: Date | null
   processingRegion: string | null
+  /** Canonical Property execution/residency assignment; null until resolved. */
+  dataCellId: DataCellId | null
   processingRegionSource: string | null
   routingPolicyVersion: number
   processingRegionResolvedAt: Date | null
@@ -53,6 +56,7 @@ export const DEFAULT_PROPERTY_ROUTING = {
   timezoneSource: 'legacy',
   timezoneResolvedAt: null,
   processingRegion: 'unresolved',
+  dataCellId: null,
   processingRegionSource: 'country_default',
   routingPolicyVersion: 1,
   processingRegionResolvedAt: null,
@@ -64,6 +68,7 @@ export const DEFAULT_PROPERTY_ROUTING = {
   | 'timezoneSource'
   | 'timezoneResolvedAt'
   | 'processingRegion'
+  | 'dataCellId'
   | 'processingRegionSource'
   | 'routingPolicyVersion'
   | 'processingRegionResolvedAt'

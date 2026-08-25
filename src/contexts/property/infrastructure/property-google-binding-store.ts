@@ -31,6 +31,7 @@ import {
 } from '../application/ports/property-google-binding.port'
 import { propertyGoogleBindingChanged } from '../domain/events'
 import { propertyToRow } from './mappers/property.mapper'
+import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -103,7 +104,7 @@ function internalFromRow(
     address: row.address,
     countryCode: row.countryCode,
     timezone: row.timezone,
-    processingRegion: row.processingRegion,
+    processingRegion: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
     lifecycleState: row.lifecycleState,
   }
 }

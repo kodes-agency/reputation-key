@@ -41,6 +41,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
         'timezone_source',
         'timezone_resolved_at',
         'processing_region',
+        'data_cell_id',
         'processing_region_source',
         'routing_policy_version',
         'processing_region_resolved_at',

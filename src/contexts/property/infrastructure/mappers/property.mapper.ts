@@ -6,9 +6,17 @@ import type { Property } from '../../domain/types'
 import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
+import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
-type PropertyRow = Omit<typeof properties.$inferSelect, 'defaultReplyLanguage'> &
-  Readonly<{ defaultReplyLanguage?: string | null }>
+type PropertyRow = Omit<
+  typeof properties.$inferSelect,
+  'defaultReplyLanguage' | 'dataCellId'
+> &
+  Readonly<{
+    defaultReplyLanguage?: string | null
+    /** Optional only for tests and expand-phase row fixtures. */
+    dataCellId?: string | null
+  }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
 export const propertyFromRow = (row: PropertyRow): Property => ({
@@ -42,6 +50,7 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   timezoneSource: row.timezoneSource ?? null,
   timezoneResolvedAt: row.timezoneResolvedAt ?? null,
   processingRegion: row.processingRegion ?? null,
+  dataCellId: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
   processingRegionSource: row.processingRegionSource ?? null,
   routingPolicyVersion: row.routingPolicyVersion ?? 1,
   processingRegionResolvedAt: row.processingRegionResolvedAt ?? null,
@@ -78,6 +87,7 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   timezoneSource: property.timezoneSource,
   timezoneResolvedAt: property.timezoneResolvedAt,
   processingRegion: property.processingRegion,
+  dataCellId: property.dataCellId,
   processingRegionSource: property.processingRegionSource,
   routingPolicyVersion: property.routingPolicyVersion,
   processingRegionResolvedAt: property.processingRegionResolvedAt,

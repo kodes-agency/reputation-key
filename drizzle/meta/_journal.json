@@ -624,6 +624,13 @@
       "when": 1787639237210,
       "tag": "0088_allow-ending-scheduled-goal-programs",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1787642946393,
+      "tag": "0089_property-data-cell-expand",
+      "breakpoints": true
     }
   ]
 }

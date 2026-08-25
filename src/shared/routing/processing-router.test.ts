@@ -3,9 +3,9 @@
 // Phase BQC-4 §4/§4.2 + ADR 0048: the router is the ONE routing decision
 // model — it resolves (propertyId, workloadClass) to a typed ProcessingTarget
 // containing only approved execution references plus the routing-policy
-// version, or to a typed blocked decision. One approved beta cell serves all
-// three processable regions ('us','europe','global'); an unknown region,
-// 'unresolved', a missing region and a missing property all fail closed.
+// version, or to a typed blocked decision. US is accepting; Europe/Global are
+// known provisioning cells. Unknown, unresolved, conflicting, missing, and
+// future-version facts all fail closed.
 //
 // The property-routing loader is a port: production wires a drizzle adapter
 // (property context infrastructure); these tests use a deterministic stub.
@@ -23,6 +23,7 @@ function stubLoader(records: Record<string, PropertyRoutingRecord | null>) {
 }
 
 const US_PROPERTY: PropertyRoutingRecord = {
+  dataCellId: 'us',
   processingRegion: 'us',
   routingPolicyVersion: 2,
 }
@@ -50,7 +51,7 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     expect(loadPropertyRouting).toHaveBeenCalledWith('prop-1')
   })
 
-  it('gives every property-scoped workload class a queue from the router map (one cell today)', async () => {
+  it('gives every property-scoped workload class an explicit catalogue queue', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({ 'prop-1': US_PROPERTY }),
       cell: 'us',
@@ -102,6 +103,27 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     await expect(
       router.resolve({ kind: 'property', propertyId: 'prop-1' }, 'review.sync'),
     ).resolves.toEqual({ kind: 'blocked', reason: 'region_denied', region: 'us' })
+  })
+
+  it('fails closed when canonical and legacy assignments disagree', async () => {
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({
+        'prop-1': {
+          dataCellId: 'us',
+          processingRegion: 'europe',
+          routingPolicyVersion: 2,
+        },
+      }),
+      cell: 'us',
+    })
+
+    await expect(
+      router.resolve({ kind: 'property', propertyId: 'prop-1' }, 'review.sync'),
+    ).resolves.toEqual({
+      kind: 'blocked',
+      reason: 'region_denied',
+      region: 'europe',
+    })
   })
 
   it.each(['ap-southeast-2', 'eu', 'US', ''])(

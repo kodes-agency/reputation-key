@@ -26,6 +26,7 @@ import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import { googleConnectionId } from '#/shared/domain/ids'
+import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -75,6 +76,9 @@ export function buildTestProperty(
     : 'a0000000-0000-0000-0000-000000000001'
   const id = propertyId(idStr)
   const { id: _ignored, ...rest } = overrides
+  const inferredDataCellId = Object.hasOwn(overrides, 'dataCellId')
+    ? (overrides.dataCellId ?? null)
+    : resolvePersistedDataCellId(null, overrides.processingRegion)
   return {
     id,
     organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
@@ -94,6 +98,7 @@ export function buildTestProperty(
     lifecycleInitiatedBy: null,
     ...DEFAULT_PROPERTY_ROUTING,
     ...rest,
+    dataCellId: inferredDataCellId,
   } as Property
 }
 

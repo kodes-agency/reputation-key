@@ -4,9 +4,11 @@ import {
   DATA_CELL_CATALOGUE,
   DATA_CELL_CATALOGUE_POLICY_VERSION,
   DATA_CELL_IDS,
+  ACCEPTING_DATA_CELL_IDS,
   dataCellById,
   dataCellIdForCountry,
   isDataCellAccepting,
+  resolvePersistedDataCellId,
   resolveDataCellTarget,
 } from './data-cell-catalogue'
 
@@ -45,6 +47,14 @@ describe('Data Cell catalogue', () => {
     expect(dataCellById('')).toBeNull()
   })
 
+  it('reads expand-phase assignments without masking invalid or conflicting facts', () => {
+    expect(resolvePersistedDataCellId('us', 'us')).toBe('us')
+    expect(resolvePersistedDataCellId(null, 'europe')).toBe('europe')
+    expect(resolvePersistedDataCellId(null, 'unresolved')).toBeNull()
+    expect(resolvePersistedDataCellId('unknown', 'us')).toBeNull()
+    expect(resolvePersistedDataCellId('us', 'europe')).toBeNull()
+  })
+
   it('routes only an accepting cell and hides provider/queue selection', () => {
     expect(resolveDataCellTarget('us', 'review.sync')).toEqual({
       kind: 'target',
@@ -70,6 +80,7 @@ describe('Data Cell catalogue', () => {
   })
 
   it('reports activation state without treating known provisioning cells as live', () => {
+    expect(ACCEPTING_DATA_CELL_IDS).toEqual(['us'])
     expect(isDataCellAccepting('us')).toBe(true)
     expect(isDataCellAccepting('europe')).toBe(false)
     expect(isDataCellAccepting('global')).toBe(false)

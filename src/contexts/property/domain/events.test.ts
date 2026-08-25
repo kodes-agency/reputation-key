@@ -19,10 +19,13 @@ describe('property events', () => {
       organizationId: ORG_ID,
       name: 'Test Property',
       slug: 'test',
+      processingRegion: 'us',
+      dataCellId: 'us',
       occurredAt: NOW,
     })
     expect(event.eventId).toBeDefined()
     expect(event._tag).toBe('property.created')
+    expect(event.dataCellId).toBe('us')
   })
 
   it('propertyUpdated works', () => {
