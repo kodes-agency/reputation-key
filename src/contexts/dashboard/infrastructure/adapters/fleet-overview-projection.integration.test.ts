@@ -63,6 +63,9 @@ beforeAll(async () => {
       properties.map((property) => property.slug),
     ],
   )
+  await pool.query(`UPDATE properties SET timezone = 'America/New_York' WHERE id = $1`, [
+    properties[1]!.propertyId,
+  ])
 
   const first = properties[0]!
   const reviews = [
@@ -134,6 +137,34 @@ beforeAll(async () => {
       properties[1]!.propertyId,
       9,
       '2026-08-01T12:00:00Z',
+    ],
+    [
+      5,
+      METRIC_VERSION_IDS.propertyReviewDashboard,
+      properties[1]!.propertyId,
+      2,
+      '2026-02-18T16:30:00Z',
+    ],
+    [
+      6,
+      METRIC_VERSION_IDS.propertyReviewDashboard,
+      properties[2]!.propertyId,
+      3,
+      '2026-02-18T16:30:00Z',
+    ],
+    [
+      7,
+      METRIC_VERSION_IDS.propertyReviewDashboard,
+      properties[1]!.propertyId,
+      1,
+      '2026-02-18T17:30:00Z',
+    ],
+    [
+      8,
+      METRIC_VERSION_IDS.propertyReviewDashboard,
+      properties[2]!.propertyId,
+      5,
+      '2026-02-18T18:00:00Z',
     ],
   ] as const) {
     await pool.query(
@@ -208,8 +239,6 @@ describe('fleet overview projection integration', () => {
       portalReadEnabled: true,
       goalReadEnabled: true,
       slaHours: 48,
-      startDate: new Date('2026-07-10T12:00:00.000Z'),
-      endDate: NOW,
       timeRange: '30d' as const,
     }
 
@@ -249,7 +278,7 @@ describe('fleet overview projection integration', () => {
     expect(firstPage.entries[0]).toMatchObject({
       reviewCount: 1,
       avgRating: 4.5,
-      avgRatingTrend: -10,
+      avgRatingComparison: null,
       scanCount: 7,
       reviewEvidence: {
         definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
@@ -263,8 +292,8 @@ describe('fleet overview projection integration', () => {
         completeness: 1,
         correctionCount: 0,
       },
-      attentionSignals: { unanswered: 1, ratingDrop: true },
-      totalAttention: 2,
+      attentionSignals: { unanswered: 1, ratingDrop: false },
+      totalAttention: 1,
     })
     expect(firstPage.entries[1]).toMatchObject({
       scanCount: 0,
@@ -273,6 +302,51 @@ describe('fleet overview projection integration', () => {
       feedbackEvidence: null,
     })
   }, 30_000)
+
+  it('derives each Fleet row window from that Property timezone', async () => {
+    const getFleet = getFleetOverview({
+      projection: createFleetOverviewProjectionAdapter(db),
+      resolveAccessiblePropertyIds: async () => null,
+      clock: () => new Date('2026-03-20T16:00:00.000Z'),
+    })
+
+    const result = await getFleet({
+      organizationId: ORG,
+      scope: {
+        userId: userId('fleet-projection-timezone-reader'),
+        organizationWide: true,
+      },
+      portalReadEnabled: true,
+      goalReadEnabled: true,
+      slaHours: 48,
+      timeRange: '30d',
+    })
+
+    expect(result.entries[1]).toMatchObject({
+      timezone: 'America/New_York',
+      reviewCount: 1,
+      avgRating: 1,
+      reviewEvidence: {
+        periodStart: new Date('2026-02-18T17:00:00.000Z'),
+        periodEnd: new Date('2026-03-20T16:00:00.000Z'),
+        timezone: 'America/New_York',
+      },
+    })
+    expect(result.entries[2]).toMatchObject({
+      timezone: 'UTC',
+      reviewCount: 2,
+      avgRating: 4,
+      reviewEvidence: {
+        periodStart: new Date('2026-02-18T16:00:00.000Z'),
+        periodEnd: new Date('2026-03-20T16:00:00.000Z'),
+        timezone: 'UTC',
+      },
+    })
+    expect(result.totals).toMatchObject({
+      ratingSampleCount: 3,
+      overallAvgRating: 3,
+    })
+  })
 
   it('applies a singleton property-access scope without widening it', async () => {
     const scopedProperty = properties[0]!
@@ -291,8 +365,6 @@ describe('fleet overview projection integration', () => {
       portalReadEnabled: true,
       goalReadEnabled: true,
       slaHours: 48,
-      startDate: new Date('2026-07-10T12:00:00.000Z'),
-      endDate: NOW,
       timeRange: '30d',
     })
 

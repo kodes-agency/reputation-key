@@ -10,6 +10,7 @@ const reviewEvidence = {
   definitionVersionId: '10000000-0000-4000-8000-000000000004',
   periodStart: new Date('2026-07-01T00:00:00Z'),
   periodEnd: new Date('2026-08-01T00:00:00Z'),
+  timezone: 'UTC',
   sourcePolicies: ['google_property_derivative'],
   watermark: new Date('2026-07-31T18:00:00Z'),
   freshness: 'fresh' as const,
@@ -33,7 +34,7 @@ export const entries: readonly FleetEntry[] = [
     slug: 'meridian-grand',
     timezone: 'America/New_York',
     avgRating: 4.2,
-    avgRatingTrend: 0.3, // improving
+    avgRatingComparison: 0.3, // improving
     reviewCount: 312,
     feedbackCount: 48,
     scanCount: 6,
@@ -55,7 +56,7 @@ export const entries: readonly FleetEntry[] = [
     slug: 'harborline-suites',
     timezone: 'America/Los_Angeles',
     avgRating: 3.4,
-    avgRatingTrend: -0.8, // declining — drives ratingDrop below
+    avgRatingComparison: -0.8, // declining — drives ratingDrop below
     reviewCount: 189,
     feedbackCount: 31,
     scanCount: 4,
@@ -77,7 +78,7 @@ export const entries: readonly FleetEntry[] = [
     slug: 'northgate-inn',
     timezone: 'America/Chicago',
     avgRating: 4.7,
-    avgRatingTrend: 0.1,
+    avgRatingComparison: 0.1,
     reviewCount: 521,
     feedbackCount: 22,
     scanCount: 3,
@@ -99,7 +100,7 @@ export const entries: readonly FleetEntry[] = [
     slug: 'cedar-vine',
     timezone: 'America/Denver',
     avgRating: 0, // new property, no ratings yet
-    avgRatingTrend: null, // no prior period
+    avgRatingComparison: null, // no prior period
     reviewCount: 0,
     feedbackCount: 3,
     scanCount: 1,
@@ -124,11 +125,11 @@ export const entries: readonly FleetEntry[] = [
 
 export const populatedData: FleetOverviewData = {
   entries,
-  // Mean of rated properties (Cedar & Vine's 0 is excluded): (4.2 + 3.4 + 4.7) / 3.
   totals: {
     propertyCount: entries.length,
+    ratingSampleCount: entries.reduce((sum, entry) => sum + entry.reviewCount, 0),
     totalAttention: entries.reduce((sum, e) => sum + e.totalAttention, 0),
-    overallAvgRating: 4.1,
+    overallAvgRating: 4.3,
   },
   nextCursor: null,
 }

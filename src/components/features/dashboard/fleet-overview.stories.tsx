@@ -74,8 +74,9 @@ export const MinimumFleet: Story = {
       entries: entries.slice(0, 2),
       totals: {
         propertyCount: 2,
+        ratingSampleCount: 501,
         totalAttention: 8 + 17,
-        overallAvgRating: (4.2 + 3.4) / 2,
+        overallAvgRating: 3.9,
       },
       nextCursor: null,
     },
@@ -87,7 +88,12 @@ export const AllClear: Story = {
   args: {
     data: {
       entries: [entries[2]],
-      totals: { propertyCount: 1, totalAttention: 0, overallAvgRating: 4.7 },
+      totals: {
+        propertyCount: 1,
+        ratingSampleCount: 521,
+        totalAttention: 0,
+        overallAvgRating: 4.7,
+      },
       nextCursor: null,
     },
   },
@@ -135,7 +141,12 @@ export const SameTotalDifferentUrgency: Story = {
           totalAttention: 4,
         },
       ],
-      totals: { propertyCount: 2, totalAttention: 8, overallAvgRating: 4.2 },
+      totals: {
+        propertyCount: 2,
+        ratingSampleCount: 624,
+        totalAttention: 8,
+        overallAvgRating: 4.2,
+      },
       nextCursor: null,
     },
   },
@@ -168,7 +179,12 @@ export const LongPropertyName: Story = {
             'Islands Hospitality Group International',
         },
       ],
-      totals: { propertyCount: 1, totalAttention: 8, overallAvgRating: 4.2 },
+      totals: {
+        propertyCount: 1,
+        ratingSampleCount: 312,
+        totalAttention: 8,
+        overallAvgRating: 4.2,
+      },
       nextCursor: null,
     },
   },

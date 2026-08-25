@@ -34,6 +34,7 @@ function mainRows(items: readonly FleetProperty[], total: number) {
       {
         property_id: null,
         property_count: '0',
+        rating_sample_count: '0',
         overall_avg_rating: '0',
         rating_drop_total: '0',
         has_more: false,
@@ -46,6 +47,8 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     cursor_lower_name: item.name.toLowerCase(),
     slug: item.slug,
     timezone: item.timezone,
+    period_start: new Date('2026-07-10T12:00:00Z'),
+    period_end: NOW,
     review_count: '2',
     prior_review_count: '1',
     avg_rating: '4.5',
@@ -53,6 +56,7 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     scan_count: '3',
     feedback_count: '1',
     property_count: String(total),
+    rating_sample_count: String(total * 2),
     overall_avg_rating: '4.5',
     rating_drop_total: '0',
     has_more: total > 50,
@@ -107,8 +111,6 @@ const input = {
   portalReadEnabled: true,
   goalReadEnabled: true,
   slaHours: 48,
-  startDate: new Date('2026-07-10T12:00:00Z'),
-  endDate: NOW,
   timeRange: '30d' as const,
 }
 const resolveAccessiblePropertyIds = async (
@@ -175,7 +177,12 @@ describe('fleet overview bulk projection', () => {
 
     expect(result).toEqual({
       entries: [],
-      totals: { propertyCount: 0, totalAttention: 0, overallAvgRating: 0 },
+      totals: {
+        propertyCount: 0,
+        ratingSampleCount: 0,
+        totalAttention: 0,
+        overallAvgRating: 0,
+      },
       nextCursor: null,
     })
     expect(fake.calls()).toBe(2)

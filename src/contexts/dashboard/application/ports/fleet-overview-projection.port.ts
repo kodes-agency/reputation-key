@@ -1,6 +1,5 @@
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { FleetMetricEvidence } from '../../domain/types'
-import type { DashboardComparisonPeriod } from './dashboard.repository'
 
 export const FLEET_PAGE_SIZE = 50
 
@@ -20,9 +19,8 @@ export type FleetOverviewProjectionInput = Readonly<{
   portalReadEnabled: boolean
   goalReadEnabled: boolean
   cursor: FleetCursorAnchor | null
-  startDate: Date
-  endDate: Date
-  comparisonPeriod: DashboardComparisonPeriod | null
+  /** Null means the unbounded All Time period; otherwise local calendar days. */
+  periodDays: number | null
   now: Date
   slaCutoff: Date
 }>
@@ -51,6 +49,7 @@ export type FleetOverviewProjectionResult = Readonly<{
   rows: readonly FleetOverviewProjectionRow[]
   summary: Readonly<{
     propertyCount: number
+    ratingSampleCount: number
     overallAvgRating: number
     totalAttention: number
   }>

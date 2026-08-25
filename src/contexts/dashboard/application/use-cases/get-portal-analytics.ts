@@ -14,10 +14,8 @@ import type {
   PortalMetricSumRow,
 } from '../ports/portal-metrics.port'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { computeTrend, priorPeriodDates } from '../utils'
+import { computeTrend, priorPeriodDates, ratingComparison } from '../utils'
 import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
-
-const MIN_RATING_COMPARISON_SAMPLE = 10
 
 function roundedRating(value: number): number {
   return Math.round(value * 10) / 10
@@ -196,13 +194,9 @@ export const getPortalAnalytics =
       priorRatingReady && priorRating && priorRatingCount > 0
         ? roundedRating(priorRating.total / priorRatingCount)
         : null
-    const ratingComparison =
-      timeRange !== 'all' &&
-      curAvgRating !== null &&
-      priorAvgRating !== null &&
-      curRatingCount >= MIN_RATING_COMPARISON_SAMPLE &&
-      priorRatingCount >= MIN_RATING_COMPARISON_SAMPLE
-        ? roundedRating(curAvgRating - priorAvgRating)
+    const privateRatingComparison =
+      timeRange !== 'all' && curAvgRating !== null && priorAvgRating !== null
+        ? ratingComparison(curAvgRating, curRatingCount, priorAvgRating, priorRatingCount)
         : null
 
     const kpis: PortalKPIs = {
@@ -215,7 +209,7 @@ export const getPortalAnalytics =
       avgRating: {
         value: curAvgRating,
         priorValue: priorAvgRating,
-        comparison: ratingComparison,
+        comparison: privateRatingComparison,
         sampleCount: curRatingCount,
         priorSampleCount: priorRatingCount,
         evidence: metricEvidence(currentEvidence.privateRatings, curRatingCount, true),

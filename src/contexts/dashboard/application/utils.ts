@@ -15,6 +15,10 @@ function presetDays(preset: Exclude<TimeRangePreset, 'all'>): number {
   return preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
 }
 
+export function timeRangeDays(preset: TimeRangePreset): number | null {
+  return preset === 'all' ? null : presetDays(preset)
+}
+
 export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
   if (preset === 'all') {
     // No start bound — epoch captures all data
@@ -34,13 +38,31 @@ export function computeTrend(current: number, prior: number): number | null {
   return Number.isFinite(result) ? Math.round(result) : null
 }
 
+const MIN_RATING_COMPARISON_SAMPLE = 10
+
+/** Absolute star delta, available only for statistically usable periods. */
+export function ratingComparison(
+  currentAverage: number,
+  currentCount: number,
+  priorAverage: number,
+  priorCount: number,
+): number | null {
+  if (
+    currentCount < MIN_RATING_COMPARISON_SAMPLE ||
+    priorCount < MIN_RATING_COMPARISON_SAMPLE
+  ) {
+    return null
+  }
+  return Math.round((currentAverage - priorAverage) * 10) / 10
+}
+
 // ── BQC-5.5: consolidated read-policy helpers (were inline copies ×5/×2) ──
 
 /** Default bound for the recent-reviews list read — the dashboard's one
  *  bounded list. Named here so the use case and the repo share it. */
 export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
 
-/** Prior period: the same duration immediately before the current period.
+/** Prior period: the same number of local calendar days before the current period.
  *  Returns null for 'all' — an unbounded window has no prior window, and the
  *  previous behaviour (returning the CURRENT window) made callers compare the
  *  period against itself: computeTrend(x, x) is 0, not null, because the

@@ -31,6 +31,8 @@ type MainRow = Readonly<{
   cursor_lower_name: string | null
   slug: string | null
   timezone: string | null
+  period_start: Date | string | null
+  period_end: Date | string | null
   review_count: string | number | null
   prior_review_count: string | number | null
   avg_rating: string | number | null
@@ -38,6 +40,7 @@ type MainRow = Readonly<{
   scan_count: string | number | null
   feedback_count: string | number | null
   property_count: string | number
+  rating_sample_count: string | number
   overall_avg_rating: string | number
   rating_drop_total: string | number
   has_more: boolean
@@ -75,6 +78,12 @@ function dateValue(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+function requiredDateValue(value: Date | string | null | undefined): Date {
+  const date = dateValue(value)
+  if (!date) throw new Error('Fleet projection returned an invalid period boundary')
+  return date
+}
+
 function freshness(
   eligibleCount: number,
   watermark: Date | null,
@@ -88,6 +97,7 @@ function evidence(input: {
   definitionVersionId: string
   periodStart: Date
   periodEnd: Date
+  timezone: string
   sourcePolicies: readonly string[] | null
   watermark: Date | string | null
   eligibleCount: number
@@ -100,6 +110,7 @@ function evidence(input: {
     definitionVersionId: input.definitionVersionId,
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
+    timezone: input.timezone,
     sourcePolicies: [...(input.sourcePolicies ?? [])].sort(),
     watermark,
     freshness: freshness(input.eligibleCount, watermark, input.now),
@@ -118,10 +129,8 @@ export const createFleetOverviewProjectionAdapter = (
   async read(input) {
     const cursorName = input.cursor?.lowerName ?? null
     const cursorId = input.cursor?.propertyId ?? null
-    const comparisonAvailable = input.comparisonPeriod !== null
-    const candidateStartDate = input.comparisonPeriod?.priorStartDate ?? input.startDate
-    const priorStartDate = input.comparisonPeriod?.priorStartDate ?? input.startDate
-    const priorEndDate = input.comparisonPeriod?.priorEndDate ?? input.startDate
+    const comparisonAvailable = input.periodDays !== null
+    const candidateWindowDays = input.periodDays === null ? null : input.periodDays * 2
     const accessFilter =
       input.accessiblePropertyIds === null
         ? sql`TRUE`
@@ -137,15 +146,34 @@ export const createFleetOverviewProjectionAdapter = (
       DASHBOARD_READ_BUDGET_MS,
       async (tx) => {
         const mainResult = await tx.execute(sql`
-          WITH scoped AS MATERIALIZED (
+          WITH scoped_properties AS MATERIALIZED (
             SELECT properties.id AS property_id,
               properties.name,
               properties.slug,
-              properties.timezone
+              properties.timezone,
+              CASE WHEN ${input.periodDays}::integer IS NULL
+                THEN to_timestamp(0)
+                ELSE (
+                  (${input.now}::timestamptz AT TIME ZONE properties.timezone)
+                  - make_interval(days => ${input.periodDays}::integer)
+                ) AT TIME ZONE properties.timezone
+              END AS period_start,
+              ${input.now}::timestamptz AS period_end,
+              CASE WHEN ${candidateWindowDays}::integer IS NULL
+                THEN to_timestamp(0)
+                ELSE (
+                  (${input.now}::timestamptz AT TIME ZONE properties.timezone)
+                  - make_interval(days => ${candidateWindowDays}::integer)
+                ) AT TIME ZONE properties.timezone
+              END AS prior_start
             FROM properties
             WHERE properties.organization_id = ${input.organizationId}
               AND properties.deleted_at IS NULL
               AND ${accessFilter}
+          ), scoped AS MATERIALIZED (
+            SELECT scoped_properties.*,
+              scoped_properties.period_start AS prior_end
+            FROM scoped_properties
           ), policy AS MATERIALIZED (
             SELECT scoped.property_id,
               ${input.portalReadEnabled}
@@ -174,6 +202,8 @@ export const createFleetOverviewProjectionAdapter = (
           ), candidate_readings AS MATERIALIZED (
             SELECT metric_readings.*
             FROM metric_readings
+            JOIN scoped
+              ON scoped.property_id = metric_readings.property_id
             JOIN metric_definition_versions
               ON metric_definition_versions.id = metric_readings.definition_version_id
               AND (
@@ -190,14 +220,13 @@ export const createFleetOverviewProjectionAdapter = (
                 )
               )
             WHERE metric_readings.organization_id = ${input.organizationId}
-              AND metric_readings.property_id IN (SELECT property_id FROM scoped)
               AND metric_readings.definition_version_id IN (
                 ${METRIC_VERSION_IDS.propertyReviewDashboard},
                 ${METRIC_VERSION_IDS.portalScanAnalytics},
                 ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
               )
-              AND metric_readings.event_at >= ${candidateStartDate}
-              AND metric_readings.event_at < ${input.endDate}
+              AND metric_readings.event_at >= scoped.prior_start
+              AND metric_readings.event_at < scoped.period_end
           ), correction_history AS MATERIALIZED (
             SELECT metric_corrections.reading_id, count(*) AS correction_count
             FROM metric_corrections
@@ -246,105 +275,110 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT effective_readings.property_id,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS review_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ) AS review_total_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at >= ${priorStartDate} AND event_at < ${priorEndDate}
+                  AND event_at >= scoped.prior_start AND event_at < scoped.prior_end
                   AND eligible
               ) AS prior_review_count,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS avg_rating,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at >= ${priorStartDate} AND event_at < ${priorEndDate}
+                  AND event_at >= scoped.prior_start AND event_at < scoped.prior_end
                   AND eligible
               ) AS prior_avg_rating,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS review_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ), 0) AS review_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS review_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ), 0) AS scan_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS scan_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ) AS scan_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS scan_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ), 0) AS scan_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS scan_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ), 0) AS feedback_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS feedback_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ) AS feedback_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
               ) AS feedback_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
               ), 0) AS feedback_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
+                  AND event_at >= scoped.period_start AND event_at < scoped.period_end
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS feedback_source_policies
             FROM effective_readings
-            GROUP BY effective_readings.property_id
+            JOIN scoped USING (property_id)
+            GROUP BY effective_readings.property_id,
+              scoped.period_start,
+              scoped.period_end,
+              scoped.prior_start,
+              scoped.prior_end
           ), enriched AS MATERIALIZED (
             SELECT scoped.*,
               policy.portal_enabled,
@@ -373,24 +407,26 @@ export const createFleetOverviewProjectionAdapter = (
             LEFT JOIN readings USING (property_id)
           ), summary AS MATERIALIZED (
             SELECT count(*) AS property_count,
-              coalesce(avg(avg_rating) FILTER (WHERE avg_rating > 0), 0) AS overall_avg_rating,
+              coalesce(sum(review_count), 0) AS rating_sample_count,
+              coalesce(
+                sum(avg_rating * review_count) / nullif(sum(review_count), 0),
+                0
+              ) AS overall_avg_rating,
               count(*) FILTER (
-                WHERE prior_avg_rating > 0
+                WHERE review_count >= 10
+                  AND prior_review_count >= 10
                   AND prior_avg_rating - avg_rating >= 0.3
               ) AS rating_drop_total
             FROM enriched
           ), page_scope AS MATERIALIZED (
-            SELECT properties.id AS property_id
-            FROM properties
-            WHERE properties.organization_id = ${input.organizationId}
-              AND properties.deleted_at IS NULL
-              AND ${accessFilter}
-              AND (
+            SELECT scoped.property_id
+            FROM scoped
+            WHERE (
                 ${cursorName}::text IS NULL
-                OR (lower(properties.name), properties.id) >
+                OR (lower(scoped.name), scoped.property_id) >
                   (${cursorName}::text, ${cursorId}::uuid)
               )
-            ORDER BY lower(properties.name), properties.id
+            ORDER BY lower(scoped.name), scoped.property_id
             LIMIT ${FLEET_PAGE_SIZE + 1}
           ), ordered AS MATERIALIZED (
             SELECT enriched.*
@@ -494,6 +530,8 @@ export const createFleetOverviewProjectionAdapter = (
             lower(page.name) AS cursor_lower_name,
             page.slug,
             page.timezone,
+            page.period_start,
+            page.period_end,
             page.review_count,
             page.prior_review_count,
             page.avg_rating,
@@ -524,6 +562,7 @@ export const createFleetOverviewProjectionAdapter = (
             totals.total_escalated,
             totals.total_goals_behind_pace,
             summary.property_count,
+            summary.rating_sample_count,
             summary.overall_avg_rating,
             summary.rating_drop_total,
             (SELECT count(*) > ${FLEET_PAGE_SIZE} FROM ordered) AS has_more
@@ -558,6 +597,8 @@ export const createFleetOverviewProjectionAdapter = (
 
     const rows: FleetOverviewProjectionRow[] = page.map((row) => {
       const portalEnabled = row.portal_enabled === true
+      const periodStart = requiredDateValue(row.period_start)
+      const periodEnd = requiredDateValue(row.period_end)
       return {
         propertyId: propertyId(row.property_id),
         name: row.name,
@@ -575,8 +616,9 @@ export const createFleetOverviewProjectionAdapter = (
         goalsBehindPace: numeric(row.goals_behind_pace),
         reviewEvidence: evidence({
           definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
-          periodStart: input.startDate,
-          periodEnd: input.endDate,
+          periodStart,
+          periodEnd,
+          timezone: row.timezone,
           sourcePolicies: row.review_source_policies,
           watermark: row.review_watermark,
           eligibleCount: numeric(row.review_count),
@@ -587,8 +629,9 @@ export const createFleetOverviewProjectionAdapter = (
         scanEvidence: portalEnabled
           ? evidence({
               definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
-              periodStart: input.startDate,
-              periodEnd: input.endDate,
+              periodStart,
+              periodEnd,
+              timezone: row.timezone,
               sourcePolicies: row.scan_source_policies,
               watermark: row.scan_watermark,
               eligibleCount: numeric(row.scan_eligible_count),
@@ -600,8 +643,9 @@ export const createFleetOverviewProjectionAdapter = (
         feedbackEvidence: portalEnabled
           ? evidence({
               definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
-              periodStart: input.startDate,
-              periodEnd: input.endDate,
+              periodStart,
+              periodEnd,
+              timezone: row.timezone,
               sourcePolicies: row.feedback_source_policies,
               watermark: row.feedback_watermark,
               eligibleCount: numeric(row.feedback_eligible_count),
@@ -642,6 +686,7 @@ export const createFleetOverviewProjectionAdapter = (
       rows,
       summary: {
         propertyCount,
+        ratingSampleCount: numeric(head?.rating_sample_count),
         overallAvgRating: numeric(head?.overall_avg_rating),
         totalAttention,
       },

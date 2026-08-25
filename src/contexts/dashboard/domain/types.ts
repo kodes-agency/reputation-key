@@ -199,6 +199,7 @@ export type FleetMetricEvidence = Readonly<{
   definitionVersionId: string
   periodStart: Date
   periodEnd: Date
+  timezone: string
   sourcePolicies: readonly string[]
   watermark: Date | null
   freshness: FleetMetricFreshness
@@ -214,8 +215,8 @@ export type FleetEntry = Readonly<{
   slug: string
   timezone: string
   avgRating: number
-  /** Percentage change in avg rating vs prior period. Null when no prior data. */
-  avgRatingTrend: number | null
+  /** Absolute star delta vs prior period. Null when either sample is insufficient. */
+  avgRatingComparison: number | null
   reviewCount: number
   feedbackCount: number
   scanCount: number
@@ -231,8 +232,10 @@ export type FleetEntry = Readonly<{
 /** Org-total summary shown in the fleet overview strip. */
 export type FleetTotals = Readonly<{
   propertyCount: number
+  /** Eligible reviews contributing to the rating-weighted fleet average. */
+  ratingSampleCount: number
   totalAttention: number
-  /** Mean of per-property avg ratings (properties with 0 rating excluded). */
+  /** Review-count-weighted mean across eligible property ratings. */
   overallAvgRating: number
 }>
 

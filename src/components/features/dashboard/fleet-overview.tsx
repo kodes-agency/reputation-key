@@ -17,7 +17,6 @@ import { LoadingState, ErrorState } from '#/components/layout/page-states'
 import {
   Stars,
   TrendIndicator,
-  formatTrend,
 } from '#/components/features/property/property-dashboard-helpers'
 import type {
   FleetEntry,
@@ -37,6 +36,8 @@ function Shell({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 const formatRating = (r: number): string => (r > 0 ? r.toFixed(1) : '—')
+const formatRatingComparison = (comparison: number | null): string =>
+  comparison === null ? '—' : `${comparison > 0 ? '+' : ''}${comparison.toFixed(1)} stars`
 
 export function FleetOverviewLoading() {
   return (
@@ -116,6 +117,7 @@ export function FleetOverview({
           icon={Star}
           label="Avg rating"
           value={formatRating(totals.overallAvgRating)}
+          hint={`${totals.ratingSampleCount} eligible reviews`}
         />
       </div>
 
@@ -143,6 +145,7 @@ function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
     `Definition ${evidence.definitionVersionId}`,
     `Completeness ${completeness}%`,
     `Watermark ${watermark}`,
+    `Timezone ${evidence.timezone}`,
     `Corrections ${evidence.correctionCount}`,
     `Sources ${sources}`,
   ].join(' · ')
@@ -184,8 +187,8 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
             {entry.reviewCount} reviews
           </span>
           <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-            <TrendIndicator trend={entry.avgRatingTrend} />
-            {formatTrend(entry.avgRatingTrend)}
+            <TrendIndicator trend={entry.avgRatingComparison} />
+            {formatRatingComparison(entry.avgRatingComparison)}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

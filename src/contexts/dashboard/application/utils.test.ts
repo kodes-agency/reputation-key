@@ -7,6 +7,7 @@ import {
   timeRangeToDates,
   computeTrend,
   priorPeriodDates,
+  ratingComparison,
   slaCutoff,
   MS_PER_DAY,
 } from './utils'
@@ -69,6 +70,17 @@ describe('computeTrend', () => {
 
   it('returns null when result is not finite', () => {
     expect(computeTrend(Infinity, 1)).toBeNull()
+  })
+})
+
+describe('ratingComparison', () => {
+  it('returns an absolute one-decimal star delta with sufficient samples', () => {
+    expect(ratingComparison(4.4, 12, 4, 10)).toBe(0.4)
+  })
+
+  it('withholds a comparison when either period has fewer than ten ratings', () => {
+    expect(ratingComparison(4.4, 9, 4, 10)).toBeNull()
+    expect(ratingComparison(4.4, 10, 4, 9)).toBeNull()
   })
 })
 

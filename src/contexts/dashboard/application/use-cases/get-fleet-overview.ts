@@ -7,7 +7,7 @@ import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../doma
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { computeTrend, isRatingDrop, priorPeriodDates, slaCutoff } from '../utils'
+import { ratingComparison, slaCutoff, timeRangeDays } from '../utils'
 import { dashboardError } from '../../domain/errors'
 
 export type GetFleetOverviewInput = Readonly<{
@@ -16,8 +16,6 @@ export type GetFleetOverviewInput = Readonly<{
   portalReadEnabled: boolean
   goalReadEnabled: boolean
   slaHours: number
-  startDate: Date
-  endDate: Date
   timeRange: TimeRangePreset
   cursor?: string
 }>
@@ -74,12 +72,10 @@ export const getFleetOverview =
       portalReadEnabled,
       goalReadEnabled,
       slaHours,
-      startDate,
-      endDate,
       timeRange,
     } = input
     const now = deps.clock()
-    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
+    const periodDays = timeRangeDays(timeRange)
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
       organizationId,
       scope,
@@ -90,17 +86,22 @@ export const getFleetOverview =
       portalReadEnabled,
       goalReadEnabled,
       cursor: decodeFleetCursor(input.cursor),
-      startDate,
-      endDate,
-      comparisonPeriod,
+      periodDays,
       now,
       slaCutoff: slaCutoff(now, slaHours),
     })
 
     const entries: FleetEntry[] = projection.rows.map((row) => {
-      const ratingDrop = comparisonPeriod
-        ? isRatingDrop(row.avgRating, row.priorAvgRating)
-        : false
+      const avgRatingComparison =
+        periodDays === null
+          ? null
+          : ratingComparison(
+              row.avgRating,
+              row.reviewCount,
+              row.priorAvgRating,
+              row.priorReviewCount,
+            )
+      const ratingDrop = avgRatingComparison !== null && avgRatingComparison <= -0.3
       const attentionSignals: AttentionSignals = {
         unanswered: row.unanswered,
         newFeedback: row.newFeedback,
@@ -114,9 +115,7 @@ export const getFleetOverview =
         slug: row.slug,
         timezone: row.timezone,
         avgRating: row.avgRating,
-        avgRatingTrend: comparisonPeriod
-          ? computeTrend(row.avgRating, row.priorAvgRating)
-          : null,
+        avgRatingComparison,
         reviewCount: row.reviewCount,
         feedbackCount: row.feedbackCount,
         scanCount: row.scanCount,

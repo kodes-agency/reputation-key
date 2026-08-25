@@ -9,10 +9,17 @@ type StripStatProps = Readonly<{
   icon: typeof Building2
   label: string
   value: string
+  hint?: string
   destructive?: boolean
 }>
 
-export function StripStat({ icon: Icon, label, value, destructive }: StripStatProps) {
+export function StripStat({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  destructive,
+}: StripStatProps) {
   return (
     <div className="rounded-lg border p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -24,6 +31,7 @@ export function StripStat({ icon: Icon, label, value, destructive }: StripStatPr
       >
         {value}
       </p>
+      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

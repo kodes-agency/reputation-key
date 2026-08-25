@@ -22,7 +22,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 - **StaffPortalResolverPort** — Facade port for resolving which portals a staff user has access to. Used to scope staff dashboard queries.
 - **AttentionSignalsPort** — Facade port for the property attention-band counts (unanswered reviews past SLA, new feedback, escalated inbox items, goals behind pace).
 - **AttentionSignals** — The five compact signal counts shown in a property's attention band.
-- **FleetEntry** — One property row in the cross-property fleet overview: identity + KPI summary + attention signals + total.
+- **FleetEntry** — One property row in the cross-property fleet overview: identity + Property-local period evidence + KPI summary + attention signals + total.
 - **FleetOverviewData** — The fleet overview response: attention-sorted `FleetEntry[]` + an org-total `FleetTotals` strip.
 - **StaffDashboardData** — Staff-scoped dashboard response: filtered to the portals assigned to a staff user.
 
@@ -39,6 +39,7 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 
 - Read-only: no mutations, no events produced, no event handlers.
 - Single-Property dated presets are rolling Property-local calendar windows ending at the injected current instant. Their preceding comparison has the same number of Property-local days and ends exactly at the current-period start; DST does not shift the local wall-clock boundary. All Time is unbounded and non-comparative.
+- Fleet derives the same rolling and preceding boundaries independently for every row from that Property's trusted timezone. A Fleet average is weighted by eligible rating count, exposes its total sample, and its per-row comparison is an absolute star delta only when both periods have at least ten eligible ratings.
 - Engagement funnel returns `null` when no portal is selected (property dashboard).
 - Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
 - Dashboard never queries other contexts' tables directly — only through facade ports.
@@ -124,4 +125,4 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 
 Review stats, governed Portal metrics, and Guest integrity counts arrive through composition-wired owner APIs. The remaining legacy Metric/Inbox/Goal projection adapters are constructed inside `buildDashboardContext()` and remain explicit MET-01 migration work. All remaining direct SQL reads compose the `read-facade.ts` scope builders and run under its statement timeout (`DASHBOARD_READ_BUDGET_MS`); cache policy is deliberately NONE server-side (client TanStack Query staleTimes are the cache policy — a server cache would be a second read model beside the authoritative query path).
 
-The cross-Property Fleet request cannot apply one trusted timezone to every row. Its current shared UTC window is explicit remaining MET-01 work; it must move period derivation into the bounded projection per Property before Gate D rather than borrowing any selected or organization-wide timezone.
+The cross-Property Fleet request never applies one selected or organization-wide timezone to every row. Its bounded projection derives each row's period from the trusted timezone already selected with that Property.

@@ -14,7 +14,6 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
-import { timeRangeToDates } from '../application/utils'
 import { isDashboardError } from '../domain/errors'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { scopeForPermission } from '#/shared/domain/permissions'
@@ -48,8 +47,7 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           const org = await auth.api.getFullOrganization({ headers })
           const slaHours = extractResponseSlaHours(org)
 
-          const { useCases, clock } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
+          const { useCases } = getContainer()
 
           const capabilityScope = { organizationId: ctx.organizationId }
           return await useCases.getFleetOverview({
@@ -63,8 +61,6 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
               .allowed,
             goalReadEnabled: checkScopedCapability(capabilityScope, 'goal.use').allowed,
             slaHours,
-            startDate,
-            endDate,
             timeRange: data.timeRange,
             cursor: data.cursor,
           })
