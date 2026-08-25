@@ -252,4 +252,12 @@ describe('guest response server-fn gates', () => {
       expect(slice(fnName)).toContain("capability: 'portal.guest_response'")
     }
   })
+
+  it('keeps portal.guest_text on private-feedback submit and withdrawal', () => {
+    for (const fnName of ['submitPrivateFeedbackFn', 'withdrawPrivateFeedbackFn']) {
+      expect(slice(fnName)).toContain("capability: 'portal.guest_text'")
+    }
+    expect(slice('submitPrivateFeedbackFn')).toContain("'feedback',")
+    expect(slice('withdrawPrivateFeedbackFn')).toContain("'feedback_withdraw',")
+  })
 })

@@ -11,7 +11,10 @@ import {
   handleInboxReplyPublished,
   type InboxConsumerDeps,
 } from './outbox-consumers'
-import { handleInboxGuestFeedbackSubmitted } from './guest-feedback-outbox-consumers'
+import {
+  handleInboxGuestFeedbackRetracted,
+  handleInboxGuestFeedbackSubmitted,
+} from './guest-feedback-outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -179,6 +182,7 @@ function makeDeps(overrides: {
   const guestDeps = {
     commandStore,
     feedbackLookup,
+    inboxRepo: repo,
     idGen: () => INBOX,
     clock: () => NOW,
   }
@@ -268,6 +272,67 @@ describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
       'attribution',
     )
     expect(guestDeps.feedbackLookup.getFeedbackSnippetById).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleInboxGuestFeedbackRetracted (durable private feedback)', () => {
+  it('closes an open feedback item and co-commits the status fact and receipt', async () => {
+    const item = makeItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId('feedback-1'),
+      platform: null,
+    })
+    const { guestDeps, repo, events, receipts } = makeDeps({ item })
+
+    const result = await handleInboxGuestFeedbackRetracted(
+      guestDeps,
+      makeEvent('guest.feedback.retracted', {
+        feedbackId: 'feedback-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        supersedesSourceEventId: 'source-event-1',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]).toMatchObject({ status: 'closed', closedAt: NOW })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toMatchObject([
+      { oldStatus: 'open', newStatus: 'closed' },
+    ])
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-guest-feedback-retracted',
+        status: 'applied',
+      },
+    ])
+  })
+
+  it('records an applied no-op when the item was never projected', async () => {
+    const { guestDeps, receipts } = makeDeps({ item: null })
+
+    await expect(
+      handleInboxGuestFeedbackRetracted(
+        guestDeps,
+        makeEvent('guest.feedback.retracted', {
+          feedbackId: 'feedback-1',
+          organizationId: 'org-1',
+          propertyId: 'prop-1',
+          portalId: 'portal-1',
+          supersedesSourceEventId: 'source-event-1',
+          occurredAt: NOW.toISOString(),
+        }),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-guest-feedback-retracted',
+        status: 'applied',
+      },
+    ])
   })
 })
 

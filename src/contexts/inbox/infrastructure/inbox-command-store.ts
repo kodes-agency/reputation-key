@@ -352,6 +352,19 @@ export function createAtomicInboxCommandStore(
         { eventId: command.eventId, consumerName: command.consumerName },
       ),
 
+    applySourceWithdrawnOnce: (command) =>
+      applyGuarded(
+        'inbox.commandStore.applySourceWithdrawnOnce',
+        command.item,
+        {
+          status: command.fact.newStatus,
+          closedAt: command.now,
+          updatedAt: command.now,
+        },
+        command.fact,
+        { eventId: command.eventId, consumerName: command.consumerName },
+      ),
+
     applyReviewUpdatedOnce: async (command) => {
       return trace('inbox.commandStore.applyReviewUpdatedOnce', async () => {
         await db.transaction(async (tx) => {

@@ -194,6 +194,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     registerGuestFeedbackConsumer({
       commandStore,
       feedbackLookup,
+      inboxRepo,
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
     })

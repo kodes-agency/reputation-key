@@ -95,6 +95,8 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).toContain("consumerName: 'inbox.on-reply-published'")
     expect(guestSrc).toContain("eventType: 'guest.feedback.submitted'")
     expect(guestSrc).toContain("consumerName: 'inbox.on-guest-feedback-submitted'")
+    expect(guestSrc).toContain("eventType: 'guest.feedback.retracted'")
+    expect(guestSrc).toContain("consumerName: 'inbox.on-guest-feedback-retracted'")
   })
 
   it('listRegisteredConsumers is empty after clear', () => {
@@ -124,6 +126,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).toContain('handleInboxReplyPublished')
     expect(src).toContain('applySourceCreatedOnce')
     expect(guestSrc).toContain('applySourceCreatedOnce')
+    expect(guestSrc).toContain('applySourceWithdrawnOnce')
     expect(src).toContain('applyReviewExpiredOnce')
     expect(src).toContain('applyReviewUpdatedOnce')
     expect(src).toContain('applyReplyPublishedOnce')

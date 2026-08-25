@@ -58,6 +58,7 @@ export type {
   GuestScanRecorded,
   GuestRatingSubmitted,
   GuestFeedbackSubmitted,
+  GuestFeedbackRetracted,
   GuestReviewLinkClicked,
 } from '#/contexts/guest/domain/events'
 

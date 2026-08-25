@@ -52,6 +52,7 @@ function response(): GuestResponse {
     submittedAt: NOW,
     correctedAt: null,
     feedbackSubmittedAt: NOW,
+    feedbackWithdrawnAt: null,
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: new Date('2026-11-23T12:00:00.000Z'),
@@ -199,6 +200,7 @@ describe.sequential('atomic Guest response submission', () => {
       textConsent: false,
       feedbackSourceEventId: null,
       feedbackSubmittedAt: null,
+      feedbackWithdrawnAt: null,
     }
     await store.commitSubmitted(ratingOnly, [ratingFact])
 
@@ -216,6 +218,7 @@ describe.sequential('atomic Guest response submission', () => {
       text: 'Please contact the front desk.',
       textConsent: true,
       feedbackSubmittedAt: NOW,
+      feedbackWithdrawnAt: null,
     }
 
     await expect(store.commitFeedbackAdded(withFeedback, feedbackFact)).resolves.toBe(
@@ -238,6 +241,65 @@ describe.sequential('atomic Guest response submission', () => {
     ])
   })
 
+  it('purges private feedback and records its retraction without changing the rating', async () => {
+    const events = createCapturingEventBus()
+    const store = createAtomicGuestResponseCommandStore(db, events)
+    const [ratingFact, feedbackFact] = facts()
+    await store.commitSubmitted(response(), [ratingFact, feedbackFact])
+    const previous: GuestResponse = {
+      ...response(),
+      ratingSourceEventId: ratingFact.eventId,
+      feedbackSourceEventId: feedbackFact.eventId,
+    }
+    const withdrawnAt = new Date('2026-08-25T12:30:00.000Z')
+    const retraction = guestFeedbackRetracted({
+      feedbackId: feedbackId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      supersedesSourceEventId: feedbackFact.eventId,
+      occurredAt: withdrawnAt,
+    })
+    const withdrawn: GuestResponse = {
+      ...previous,
+      text: null,
+      textConsent: false,
+      feedbackWithdrawnAt: withdrawnAt,
+    }
+
+    await expect(
+      store.commitFeedbackWithdrawn(previous, withdrawn, retraction),
+    ).resolves.toBe('applied')
+    await expect(
+      store.commitFeedbackWithdrawn(previous, withdrawn, retraction),
+    ).resolves.toBe('conflict')
+
+    const rows = await db.execute(sql`
+      SELECT status, rating, response_text, text_consent,
+             rating_source_event_id, feedback_source_event_id,
+             feedback_submitted_at, feedback_withdrawn_at
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toHaveLength(1)
+    expect(rows.rows[0]).toMatchObject({
+      status: 'submitted',
+      rating: 2,
+      response_text: null,
+      text_consent: false,
+      rating_source_event_id: ratingFact.eventId,
+      feedback_source_event_id: null,
+    })
+    expect(new Date(String(rows.rows[0]!.feedback_submitted_at))).toEqual(NOW)
+    expect(new Date(String(rows.rows[0]!.feedback_withdrawn_at))).toEqual(withdrawnAt)
+    const outbox = await db.execute(sql`
+      SELECT event_type FROM outbox_events
+      WHERE organization_id = ${ORG}
+        AND event_type = 'guest.feedback.retracted'
+    `)
+    expect(outbox.rows).toEqual([{ event_type: 'guest.feedback.retracted' }])
+    expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
   it('does not let a stale rating correction erase concurrently added feedback', async () => {
     const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
     const [ratingFact] = facts()
@@ -247,6 +309,7 @@ describe.sequential('atomic Guest response submission', () => {
       textConsent: false,
       feedbackSourceEventId: null,
       feedbackSubmittedAt: null,
+      feedbackWithdrawnAt: null,
     }
     await store.commitSubmitted(ratingOnly, [ratingFact])
     const previouslyRead: GuestResponse = {
@@ -268,6 +331,7 @@ describe.sequential('atomic Guest response submission', () => {
         text: 'A concurrently committed private note.',
         textConsent: true,
         feedbackSubmittedAt: NOW,
+        feedbackWithdrawnAt: null,
       },
       feedbackFact,
     )

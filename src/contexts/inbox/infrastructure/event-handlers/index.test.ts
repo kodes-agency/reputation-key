@@ -39,6 +39,7 @@ function depsFor(
 const ALL_TAGS = [
   'review.created',
   'guest.feedback.submitted',
+  'guest.feedback.retracted',
   'review.reply.published',
   'review.reply.submitted',
   'review.expired',
@@ -67,6 +68,7 @@ describe('registerInboxHandlers cutover wiring (BQC-3.9)', () => {
     )
     expect(registrations.map((r) => r.tag)).toEqual([
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'review.reply.published',
       'review.reply.submitted',
       'review.expired',
@@ -79,6 +81,7 @@ describe('registerInboxHandlers cutover wiring (BQC-3.9)', () => {
     registerInboxHandlers(depsFor(events, () => 'switch'))
     expect(registrations.map((r) => r.tag)).toEqual([
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'review.reply.submitted',
     ])
   })
@@ -95,6 +98,7 @@ describe('registerInboxHandlers cutover wiring (BQC-3.9)', () => {
     expect(registrations.map((r) => r.tag)).toEqual([
       'review.created',
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'review.reply.published',
       'review.reply.submitted',
     ])

@@ -902,6 +902,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     })
     expect(registrations).toEqual([
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'review.reply.published',
       'review.reply.submitted',
       'review.expired',

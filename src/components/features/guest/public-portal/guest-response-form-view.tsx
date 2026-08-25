@@ -2,6 +2,8 @@ import type { FormEvent, ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { Honeypot, RatingChoices } from './guest-response-fields'
 import { GuestPrivateFeedbackForm } from './guest-private-feedback-form'
+import { GuestPrivateFeedbackReceipt } from './guest-private-feedback-receipt'
+import { GuestResponseWithdrawal } from './guest-response-withdrawal'
 
 type FormHandler = (event: FormEvent<HTMLFormElement>) => void
 
@@ -23,6 +25,7 @@ type GuestResponseFormViewProps = Readonly<{
   onSubmitFeedback: FormHandler
   onGoogleReview: () => void
   onStartCorrection: () => void
+  onWithdrawFeedback: () => void
   onWithdraw: () => void
 }>
 
@@ -119,21 +122,17 @@ function RatedResponseView(
           onSubmit={props.onSubmitFeedback}
         />
       )}
-      {response.hasPrivateFeedback && (
-        <p role="status" className="rounded-lg border p-4 text-sm">
-          Your private feedback was sent to the property team. Its text is not shown again
-          on this device.
-        </p>
-      )}
+      <GuestPrivateFeedbackReceipt
+        response={response}
+        pending={props.pending}
+        onWithdraw={props.onWithdrawFeedback}
+      />
       {response.status === 'submitted' && <RatingCorrection {...props} />}
-      <button
-        type="button"
-        disabled={props.pending}
-        onClick={props.onWithdraw}
-        className="text-sm underline disabled:opacity-50"
-      >
-        Withdraw my response
-      </button>
+      <GuestResponseWithdrawal
+        response={response}
+        pending={props.pending}
+        onWithdraw={props.onWithdraw}
+      />
       <p className="text-sm" aria-live="polite">
         {props.message}
       </p>

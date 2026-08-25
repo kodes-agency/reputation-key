@@ -20,6 +20,7 @@ import type { GuestResponseScope } from '../application/ports/guest-response.rep
 import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
+  RESPONSE_WITHDRAWAL_WINDOW_MS,
   type GuestResponseInput,
   type GuestResponseView,
 } from '../application/use-cases/guest-response-lifecycle'
@@ -110,6 +111,10 @@ function lifecycleFailure(error: unknown): never {
   const conflict: Record<string, true> = {
     already_submitted: true,
     correction_window_expired: true,
+    feedback_withdrawal_expired: true,
+    feedback_not_found: true,
+    response_not_submitted: true,
+    response_withdrawal_expired: true,
     already_deleted: true,
   }
   const hidden: Record<string, true> = {
@@ -126,7 +131,8 @@ function lifecycleFailure(error: unknown): never {
 }
 
 async function rateLimit(
-  action: 'submit' | 'correct' | 'feedback' | 'google' | 'secondary',
+  action:
+    'submit' | 'correct' | 'feedback' | 'feedback_withdraw' | 'google' | 'secondary',
   sessionId: string,
   portalId: string,
   headers: Headers,
@@ -140,7 +146,7 @@ async function rateLimit(
           session: { maxRequests: 2, windowSeconds: 60 * 60 },
           networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
         }
-      : action === 'correct' || action === 'feedback'
+      : action === 'correct' || action === 'feedback' || action === 'feedback_withdraw'
         ? {
             // The aggregate enforces one successful correction/feedback. A
             // small attempt budget still permits retry after a transient fault
@@ -206,18 +212,21 @@ function decoyView(
 ): GuestResponseView {
   const now = new Date()
   return {
-    id: crypto.randomUUID(),
     status: 'submitted',
-    responseConsent: true,
-    textConsent: true,
     rating: input.rating ?? null,
-    category: null,
     hasPrivateFeedback: Boolean(input.text?.trim()),
     privateFeedbackEligible: false,
-    mediaConsent: false,
     submittedAt: now.toISOString(),
     correctedAt: null,
     correctionDeadline: new Date(now.getTime() + CORRECTION_WINDOW_MS).toISOString(),
+    responseWithdrawalDeadline: new Date(
+      now.getTime() + RESPONSE_WITHDRAWAL_WINDOW_MS,
+    ).toISOString(),
+    responseWithdrawalAvailable: true,
+    feedbackSubmittedAt: null,
+    feedbackWithdrawalDeadline: null,
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: null,
     deletedAt: null,
   }
 }
@@ -329,6 +338,44 @@ export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.response.private_feedback.submit',
+    ),
+  )
+
+export const withdrawPrivateFeedbackFn = createServerFn({ method: 'POST' })
+  .inputValidator(baseMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.text.withdraw',
+          capability: 'portal.guest_text',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: true,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: ['response', 'freeText'],
+        })
+        await rateLimit(
+          'feedback_withdraw',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.withdrawPrivateFeedback(
+            bound.scope,
+            bound.session.sessionId,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.private_feedback.withdraw',
     ),
   )
 

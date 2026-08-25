@@ -32,6 +32,12 @@ export type GuestResponseCommandStore = Readonly<{
     response: GuestResponse,
     fact: GuestFeedbackSubmitted,
   ): Promise<'applied' | 'conflict'>
+  /** Purge private feedback while preserving the response's effective rating. */
+  commitFeedbackWithdrawn(
+    previous: GuestResponse,
+    response: GuestResponse,
+    fact: GuestFeedbackRetracted,
+  ): Promise<'applied' | 'conflict'>
   /** Withdraw content, queue media purge, and retract every effective fact atomically. */
   commitWithdrawn(
     response: GuestResponse,

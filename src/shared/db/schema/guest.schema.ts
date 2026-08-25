@@ -115,6 +115,7 @@ export const guestResponses = pgTable(
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     correctedAt: timestamp('corrected_at', { withTimezone: true }),
     feedbackSubmittedAt: timestamp('feedback_submitted_at', { withTimezone: true }),
+    feedbackWithdrawnAt: timestamp('feedback_withdrawn_at', { withTimezone: true }),
     moderatedAt: timestamp('moderated_at', { withTimezone: true }),
     retentionDeadline: timestamp('retention_deadline', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
@@ -165,6 +166,10 @@ export const guestResponses = pgTable(
     privateFeedbackThresholdCheck: check(
       'guest_responses_private_feedback_threshold_valid',
       sql`${t.privateFeedbackThreshold} IS NULL OR ${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
+    ),
+    feedbackWithdrawalCheck: check(
+      'guest_responses_feedback_withdrawal_valid',
+      sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.responseText} IS NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
     ),
   }),
 )

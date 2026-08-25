@@ -157,6 +157,47 @@ export function createAtomicGuestResponseCommandStore(
         return outcome
       }),
 
+    commitFeedbackWithdrawn: (previous, response, fact) =>
+      trace('guest.commandStore.commitFeedbackWithdrawn', async () => {
+        const outcome = await db.transaction(async (tx) => {
+          const updated = await tx
+            .update(guestResponses)
+            .set({
+              responseText: null,
+              textConsent: false,
+              feedbackSourceEventId: null,
+              feedbackWithdrawnAt: response.feedbackWithdrawnAt,
+              updatedAt: response.feedbackWithdrawnAt ?? new Date(),
+            })
+            .where(
+              and(
+                eq(guestResponses.organizationId, previous.organizationId),
+                eq(guestResponses.propertyId, previous.propertyId),
+                eq(guestResponses.portalId, previous.portalId),
+                eq(guestResponses.sessionId, previous.sessionId),
+                eq(guestResponses.id, previous.id),
+                eq(guestResponses.status, previous.status),
+                eq(guestResponses.rating, previous.rating!),
+                eq(guestResponses.correctionCount, previous.correctionCount),
+                previous.ratingSourceEventId
+                  ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
+                  : isNull(guestResponses.ratingSourceEventId),
+                eq(guestResponses.feedbackSourceEventId, previous.feedbackSourceEventId!),
+                eq(guestResponses.responseText, previous.text!),
+                eq(guestResponses.textConsent, true),
+                isNull(guestResponses.feedbackWithdrawnAt),
+                isNull(guestResponses.deletedAt),
+              ),
+            )
+            .returning({ id: guestResponses.id })
+          if (!updated[0]) return 'conflict' as const
+          await insertOutboxRow(tx, fact)
+          return 'applied' as const
+        })
+        if (outcome === 'applied') await emitAfterCommit(events, fact)
+        return outcome
+      }),
+
     commitWithdrawn: (response, facts) =>
       trace('guest.commandStore.commitWithdrawn', async () => {
         const committed = await db.transaction(async (tx) => {

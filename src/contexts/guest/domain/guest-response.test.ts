@@ -4,6 +4,8 @@ import {
   createResponse,
   submitResponse,
   submitPrivateFeedback,
+  withdrawPrivateFeedback,
+  withdrawResponse,
   correctResponse,
   moderateResponse,
   deleteResponse,
@@ -68,6 +70,78 @@ describe('GuestResponse', () => {
           NOW,
         ),
       ).toEqual({ code: 'feedback_not_eligible' })
+    })
+
+    it('withdraws only feedback during the 24-hour window and keeps the rating', () => {
+      const rated = submitResponse(
+        createResponse(baseParams),
+        { rating: 2 },
+        NOW,
+      ) as GuestResponse
+      const feedback = submitPrivateFeedback(
+        rated,
+        { text: 'Please follow up.', textConsent: true },
+        NOW,
+      ) as GuestResponse
+      const persisted = { ...feedback, feedbackSourceEventId: 'feedback-event-1' }
+      const withdrawnAt = new Date('2026-01-16T11:59:59Z')
+
+      expect(withdrawPrivateFeedback(persisted, withdrawnAt)).toMatchObject({
+        status: 'submitted',
+        rating: 2,
+        responseConsent: true,
+        text: null,
+        textConsent: false,
+        contactConsent: false,
+        contactDetails: null,
+        feedbackSubmittedAt: NOW,
+        feedbackWithdrawnAt: withdrawnAt,
+      })
+    })
+
+    it('rejects feedback withdrawal after 24 hours', () => {
+      const rated = submitResponse(
+        createResponse(baseParams),
+        { rating: 2 },
+        NOW,
+      ) as GuestResponse
+      const feedback = submitPrivateFeedback(
+        rated,
+        { text: 'Please follow up.', textConsent: true },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        withdrawPrivateFeedback(
+          { ...feedback, feedbackSourceEventId: 'feedback-event-1' },
+          new Date('2026-01-16T12:00:00.001Z'),
+        ),
+      ).toEqual({ code: 'feedback_withdrawal_expired' })
+    })
+
+    it('does not permit withdrawn private feedback to be submitted again', () => {
+      const rated = submitResponse(
+        createResponse(baseParams),
+        { rating: 2 },
+        NOW,
+      ) as GuestResponse
+      const feedback = submitPrivateFeedback(
+        rated,
+        { text: 'Please follow up.', textConsent: true },
+        NOW,
+      ) as GuestResponse
+      const withdrawn = withdrawPrivateFeedback(
+        { ...feedback, feedbackSourceEventId: 'feedback-event-1' },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        submitPrivateFeedback(
+          { ...withdrawn, feedbackSourceEventId: null },
+          { text: 'A second note.', textConsent: true },
+          NOW,
+        ),
+      ).toEqual({ code: 'feedback_already_submitted' })
     })
   })
 
@@ -253,6 +327,35 @@ describe('GuestResponse', () => {
       const r = deleteResponse(createResponse(baseParams), NOW) as GuestResponse
       const result = deleteResponse(r, NOW)
       expect(result).toHaveProperty('code', 'already_deleted')
+    })
+  })
+
+  describe('withdrawResponse', () => {
+    it('withdraws the complete response at the 24-hour boundary', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 4 },
+        NOW,
+      ) as GuestResponse
+      const boundary = new Date('2026-01-16T12:00:00.000Z')
+
+      expect(withdrawResponse(submitted, boundary)).toMatchObject({
+        status: 'deleted',
+        rating: null,
+        deletedAt: boundary,
+      })
+    })
+
+    it('rejects complete withdrawal after 24 hours', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 4 },
+        NOW,
+      ) as GuestResponse
+
+      expect(withdrawResponse(submitted, new Date('2026-01-16T12:00:00.001Z'))).toEqual({
+        code: 'response_withdrawal_expired',
+      })
     })
   })
 })

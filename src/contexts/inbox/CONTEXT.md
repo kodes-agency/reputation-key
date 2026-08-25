@@ -57,14 +57,15 @@ Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note tex
 
 ## Events consumed
 
-| Tag                        | Source context | Handler action                                                                                          |
-| -------------------------- | -------------- | ------------------------------------------------------------------------------------------------------- |
-| `review.created`           | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt) |
-| `review.updated`           | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)               |
-| `guest.feedback.submitted` | guest          | Create inbox item for new feedback (bus only — dark context)                                            |
-| `review.reply.published`   | review         | Stamp `firstReplyPublishedAt`; auto-transition open → closed (bus + durable `inbox.on-reply-published`) |
-| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                        |
-| `review.expired`           | review         | Close open inbox item when its source review is purged (bus + durable `inbox.on-review-expired`)        |
+| Tag                        | Source context | Handler action                                                                                           |
+| -------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| `review.created`           | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt)  |
+| `review.updated`           | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)                |
+| `guest.feedback.submitted` | guest          | Create metadata-only feedback item (bus + durable `inbox.on-guest-feedback-submitted`)                   |
+| `guest.feedback.retracted` | guest          | Close open feedback work after Guest purges the body (bus + durable `inbox.on-guest-feedback-retracted`) |
+| `review.reply.published`   | review         | Stamp `firstReplyPublishedAt`; auto-transition open → closed (bus + durable `inbox.on-reply-published`)  |
+| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                         |
+| `review.expired`           | review         | Close open inbox item when its source review is purged (bus + durable `inbox.on-review-expired`)         |
 
 ## Architecture layers
 

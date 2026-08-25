@@ -8,6 +8,7 @@ import {
   selectGoogleReviewFn,
   submitPrivateFeedbackFn,
   submitGuestResponseFn,
+  withdrawPrivateFeedbackFn,
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
@@ -148,6 +149,7 @@ function PublicPortalView({
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
   const correctResponse = useAction(useServerFn(correctGuestResponseFn))
   const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
+  const withdrawPrivateFeedback = useAction(useServerFn(withdrawPrivateFeedbackFn))
   const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
   const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
   const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
@@ -183,6 +185,7 @@ function PublicPortalView({
           submitPrivateFeedback,
           selectGoogleReview,
           withdrawResponse,
+          withdrawPrivateFeedback,
         }}
       />
     </>

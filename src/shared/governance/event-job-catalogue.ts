@@ -1339,15 +1339,17 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
+        bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('inbox.on-guest-feedback-retracted', INBOX_GUEST_FEEDBACK_OUTBOX),
         durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'inbox',
       notes:
-        'identifier-only private-feedback count retraction; text/contact never enter the payload or Metric context',
+        'identifier-only private-feedback retraction; Inbox closes the work item and Metric corrects the count without receiving text/contact',
     },
   ),
   ev(

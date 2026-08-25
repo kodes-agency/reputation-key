@@ -44,6 +44,10 @@ export type GuestResponseFormProps = Readonly<{
     { token: string; csrfNonce: string },
     GuestResponseView
   >
+  withdrawPrivateFeedback: GuestResponseAction<
+    { token: string; csrfNonce: string },
+    GuestResponseView
+  >
 }>
 
 export function GuestResponseForm({
@@ -58,6 +62,7 @@ export function GuestResponseForm({
   submitPrivateFeedback,
   selectGoogleReview,
   withdrawResponse,
+  withdrawPrivateFeedback,
 }: GuestResponseFormProps) {
   const [response, setResponse] = useState(initialResponse)
   const [rating, setRating] = useState<number | null>(initialResponse?.rating ?? null)
@@ -149,6 +154,21 @@ export function GuestResponseForm({
     }
   }
 
+  const withdrawFeedback = async () => {
+    setPending(true)
+    setMessage('')
+    try {
+      setResponse(await withdrawPrivateFeedback({ data: { token, csrfNonce } }))
+      setMessage(
+        'Your private feedback was withdrawn. Your private rating remains saved.',
+      )
+    } catch {
+      setMessage('Your private feedback could not be withdrawn. Please try again.')
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <GuestResponseFormView
       availability={availability}
@@ -168,6 +188,7 @@ export function GuestResponseForm({
       onSubmitFeedback={submitFeedback}
       onGoogleReview={() => void openGoogleReview()}
       onStartCorrection={() => setCorrecting(true)}
+      onWithdrawFeedback={() => void withdrawFeedback()}
       onWithdraw={() => void withdraw()}
     />
   )

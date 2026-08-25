@@ -56,6 +56,15 @@ export type ApplyReviewExpiredCommand = Readonly<{
   fact: InboxItemStatusChanged
 }>
 
+/** Source withdrawal: guarded close + status fact + consumer receipt. */
+export type ApplySourceWithdrawnCommand = Readonly<{
+  eventId: string
+  consumerName: string
+  item: InboxItem
+  now: Date
+  fact: InboxItemStatusChanged
+}>
+
 /**
  * review.updated apply command: metadata-only refresh of the projection's
  * sourceDate/platform + receipt — one transaction. No fact: a metadata
@@ -180,6 +189,8 @@ export type InboxCommandStore = Readonly<{
   ): Promise<'applied' | 'duplicate'>
   /** review.expired: guarded close + status_changed fact + receipt. */
   applyReviewExpiredOnce(command: ApplyReviewExpiredCommand): Promise<'applied'>
+  /** Guest feedback withdrawal: close its metadata-only work item. */
+  applySourceWithdrawnOnce(command: ApplySourceWithdrawnCommand): Promise<'applied'>
   /** review.updated: metadata-only sourceDate/platform refresh + receipt. */
   applyReviewUpdatedOnce(command: ApplyReviewUpdatedCommand): Promise<'applied'>
   /** review.reply.published: milestone stamp + guarded close + fact + receipt. */

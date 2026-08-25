@@ -1,22 +1,23 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { GuestResponseForm } from './guest-response-form'
 import type { GuestResponseFormProps } from './guest-response-form'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 
 const submitted: GuestResponseView = {
-  id: '00000000-0000-4000-8000-000000000001',
-  responseConsent: true,
-  textConsent: false,
   status: 'submitted',
   rating: 5,
-  category: null,
   hasPrivateFeedback: false,
   privateFeedbackEligible: false,
-  mediaConsent: false,
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
+  responseWithdrawalDeadline: '2026-08-10T12:00:00.000Z',
+  responseWithdrawalAvailable: true,
+  feedbackSubmittedAt: null,
+  feedbackWithdrawalDeadline: null,
+  feedbackWithdrawalAvailable: false,
+  feedbackWithdrawnAt: null,
   deletedAt: null,
 }
 
@@ -33,6 +34,7 @@ const actions: Pick<
   | 'submitPrivateFeedback'
   | 'selectGoogleReview'
   | 'withdrawResponse'
+  | 'withdrawPrivateFeedback'
 > = {
   submitResponse: async ({ data }) => ({
     ...submitted,
@@ -50,14 +52,26 @@ const actions: Pick<
     ...lowRating,
     hasPrivateFeedback: true,
     privateFeedbackEligible: false,
-    textConsent: true,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: true,
   }),
   selectGoogleReview: async () => ({ url: 'https://www.google.com/' }),
   withdrawResponse: async () => ({
     ...submitted,
     status: 'deleted',
     rating: null,
+    responseWithdrawalAvailable: false,
     deletedAt: '2026-08-09T12:30:00.000Z',
+  }),
+  withdrawPrivateFeedback: async () => ({
+    ...lowRating,
+    hasPrivateFeedback: false,
+    privateFeedbackEligible: false,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: '2026-08-09T12:30:00.000Z',
   }),
 }
 
@@ -119,8 +133,22 @@ export const FeedbackReceipt: Story = {
       ...lowRating,
       hasPrivateFeedback: true,
       privateFeedbackEligible: false,
-      textConsent: true,
+      feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+      feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+      feedbackWithdrawalAvailable: true,
     },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Withdraw only my private feedback' }),
+    )
+    await expect(
+      canvas.getAllByText(
+        'Your private feedback was withdrawn. Your private rating remains saved.',
+      )[0],
+    ).toBeVisible()
+    await expect(canvas.getByText('You rated this experience 2/5.')).toBeVisible()
   },
 }
 export const Unavailable: Story = { args: { availability: 'error' } }

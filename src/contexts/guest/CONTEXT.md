@@ -34,7 +34,9 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - Session cookie (24h `HttpOnly`, `guest_session`) prevents duplicate ratings within the same session.
 - **Anti-discouragement**: after a durable rating, Google is always first and identical for values 1–5. Private feedback is additive, never an alternative, prerequisite, delay, or replacement for Google.
 - If the Property-owned Google destination degrades after publication, the same first post-rating position shows gentle unavailable copy for every rating. Private feedback and secondary links remain usable, and no stale Google URI reaches the browser.
-- The guest-facing response view is a receipt: private feedback text is never returned to the browser after submission.
+- The guest-facing response view is a receipt: private feedback text, canonical response/session IDs, tenant/provider IDs, category IDs, and internal consent fields are never returned to the browser after submission.
+- For 24 hours after private-feedback submission, the same signed session may withdraw only that feedback. The command purges text/contact, emits `guest.feedback.retracted`, and leaves the private rating and its lineage intact. A content-free withdrawal tombstone prevents resubmission.
+- For 24 hours after the initial rating, the same signed session may instead withdraw the entire response. That terminal command retracts rating and any still-effective feedback, purges content, and schedules media deletion.
 - The first action per signed session, Portal, kind, and destination commits a 24-hour dedupe receipt and content-free durable fact atomically. Duplicate/replayed actions emit no second fact; Redis is abuse control, not correctness authority.
 - Guest media is hard-blocked for the first beta cohort and has no public issuance or confirmation entry point. Existing rows remain available only for audit/purge compatibility.
 - IP hash (SHA-256 with daily-rotating salt) is used for abuse detection only — not for identity.
@@ -45,7 +47,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share a rating.
 - **`guest.rating.retracted`** — ratingId, scope identifiers, superseded source-event id, and occurredAt. Produced atomically when a correction removes consent/value or the guest withdraws the response.
 - **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt. Produced by the separate eligible private-feedback command without consuming the one rating correction.
-- **`guest.feedback.retracted`** — feedbackId, scope identifiers, superseded source-event id, and occurredAt. It corrects the feedback-count projection without carrying text.
+- **`guest.feedback.retracted`** — feedbackId, scope identifiers, superseded source-event id, and occurredAt. It corrects the feedback-count projection and closes related Inbox work without carrying text/contact.
 
 The canonical response stores the currently effective rating/feedback source-event ids. Corrections and withdrawals commit their state transition and every replacement/retraction fact in one transaction. Missing historical lineage fails closed rather than adding a second reading or leaving a stale one.
 
@@ -80,7 +82,7 @@ guest/
 ## Use cases
 
 - **`recordScan`** — Record a scan event (no referral attribution).
-- **`responseLifecycle`** — Submit the required private rating, add eligible private feedback, correct the rating once, and withdraw/moderate the aggregate. State and content-free facts commit atomically.
+- **`responseLifecycle`** — Submit the required private rating, add eligible private feedback, withdraw only that feedback within 24 hours, correct the rating once, and withdraw/moderate the aggregate. State and content-free facts commit atomically.
 - **`trackReviewLinkClick`** — Atomically commit the short-lived classified action receipt and `guest.review_link.clicked`; persistence failure is reported but never blocks an approved navigation.
 - **`resolveLinkAndTrack`** — Resolve a token-owned Portal link. It tracks only when the explicit POST edge supplies a qualified signed session; calls from the redirect GET resolve without analytics.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.
@@ -97,7 +99,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`public.ts`** — Guest-facing origin/CSRF/signed-session mutations for rating, feedback, Google selection, secondary-link selection, correction, and withdrawal.
+- **`public.ts`** — Guest-facing origin/CSRF/signed-session mutations for rating, feedback submission/withdrawal, Google selection, secondary-link selection, rating correction, and whole-response withdrawal.
 - **`guest-scans.ts`** — Visit recording, public Portal read, and the navigation-only secondary-link resolver.
 
 ## Permissions

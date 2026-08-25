@@ -24,6 +24,7 @@ import type { CreateInboxItem } from '../../application/use-cases/create-inbox-i
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
+import { onFeedbackRetracted } from './on-feedback-retracted'
 import { onReplyPublished } from './on-reply-published'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReviewExpired } from './on-review-expired'
@@ -61,6 +62,12 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
       createInboxItem: deps.createInboxItem,
     }),
 
+    { consumer: 'inbox.event-handlers' },
+  )
+
+  deps.events.on(
+    'guest.feedback.retracted',
+    onFeedbackRetracted({ repo: deps.repo, events: deps.events }),
     { consumer: 'inbox.event-handlers' },
   )
 

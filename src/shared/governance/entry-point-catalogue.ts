@@ -75,6 +75,7 @@ export type SystemAction =
   | 'public:portal.response.submit'
   | 'public:portal.response.correct'
   | 'public:portal.response.text.submit'
+  | 'public:portal.response.text.withdraw'
   | 'public:portal.google_review.select'
   | 'public:portal.secondary_link.select'
   | 'public:portal.response.withdraw'
@@ -1806,6 +1807,18 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
+      'withdrawPrivateFeedbackFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.text.withdraw',
+      'portal.guest_text',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session; purges private text within 24 hours while preserving the private rating',
+      },
+    ),
+    sfPublic(
       'selectGoogleReviewFn',
       `${GUEST}/public.ts`,
       'public:portal.google_review.select',
@@ -2681,7 +2694,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:inbox.project_guest_feedback',
     'portal.read',
     'organization',
-    ['guest.feedback.submitted'],
+    ['guest.feedback.submitted', 'guest.feedback.retracted'],
     {
       notes:
         'durable metadata-only private-feedback projection with source existence check',
@@ -2945,6 +2958,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     [
       'review.created',
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'review.reply.published',
       'review.reply.submitted',
       'review.expired',

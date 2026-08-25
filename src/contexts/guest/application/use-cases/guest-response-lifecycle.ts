@@ -15,10 +15,13 @@ import {
 import {
   correctResponse,
   createResponse,
-  deleteResponse,
+  DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
   moderateResponse,
   submitPrivateFeedback,
   submitResponse,
+  withdrawPrivateFeedback,
+  withdrawResponse,
   type GuestResponse,
   type ResponseError,
 } from '../../domain/guest-response'
@@ -51,18 +54,19 @@ export type GuestResponseInput = Readonly<{
 }>
 
 export type GuestResponseView = Readonly<{
-  id: string
   status: GuestResponse['status']
-  responseConsent: boolean
-  textConsent: boolean
   rating: number | null
-  category: string | null
   hasPrivateFeedback: boolean
   privateFeedbackEligible: boolean
-  mediaConsent: boolean
   submittedAt: string | null
   correctedAt: string | null
   correctionDeadline: string | null
+  responseWithdrawalDeadline: string | null
+  responseWithdrawalAvailable: boolean
+  feedbackSubmittedAt: string | null
+  feedbackWithdrawalDeadline: string | null
+  feedbackWithdrawalAvailable: boolean
+  feedbackWithdrawnAt: string | null
   deletedAt: string | null
 }>
 
@@ -75,31 +79,49 @@ export class GuestResponseLifecycleError extends Error {
 
 /** Exported for the server boundary, which mirrors a submitted view's shape. */
 export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
+export const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
+export const RESPONSE_WITHDRAWAL_WINDOW_MS = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS
 const retentionMs = 90 * 24 * 60 * 60 * 1000
 
-function toView(response: GuestResponse): GuestResponseView {
+function toView(response: GuestResponse, now: Date): GuestResponseView {
+  const feedbackWithdrawalDeadline = response.feedbackSubmittedAt
+    ? new Date(response.feedbackSubmittedAt.getTime() + FEEDBACK_WITHDRAWAL_WINDOW_MS)
+    : null
+  const responseWithdrawalDeadline = response.submittedAt
+    ? new Date(response.submittedAt.getTime() + RESPONSE_WITHDRAWAL_WINDOW_MS)
+    : null
   return {
-    id: response.id,
     status: response.status,
     rating: response.rating,
-    category: response.category,
     // Receipt-only public projection: feedback content never returns to the
     // browser or a shared device after submission. It is absent from the type,
     // rather than represented as a nullable field that a future mapper might fill.
     hasPrivateFeedback: response.text !== null,
     privateFeedbackEligible:
       response.text === null &&
+      response.feedbackSubmittedAt === null &&
+      response.feedbackWithdrawnAt === null &&
       response.rating !== null &&
       response.privateFeedbackThreshold !== null &&
       response.rating <= response.privateFeedbackThreshold,
-    mediaConsent: response.mediaConsent,
-    responseConsent: response.responseConsent,
-    textConsent: response.textConsent,
     submittedAt: response.submittedAt?.toISOString() ?? null,
     correctedAt: response.correctedAt?.toISOString() ?? null,
     correctionDeadline: response.submittedAt
       ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS).toISOString()
       : null,
+    responseWithdrawalDeadline: responseWithdrawalDeadline?.toISOString() ?? null,
+    responseWithdrawalAvailable:
+      response.status !== 'deleted' &&
+      responseWithdrawalDeadline !== null &&
+      now.getTime() <= responseWithdrawalDeadline.getTime(),
+    feedbackSubmittedAt: response.feedbackSubmittedAt?.toISOString() ?? null,
+    feedbackWithdrawalDeadline: feedbackWithdrawalDeadline?.toISOString() ?? null,
+    feedbackWithdrawalAvailable:
+      response.text !== null &&
+      response.feedbackWithdrawnAt === null &&
+      feedbackWithdrawalDeadline !== null &&
+      now.getTime() <= feedbackWithdrawalDeadline.getTime(),
+    feedbackWithdrawnAt: response.feedbackWithdrawnAt?.toISOString() ?? null,
     deletedAt: response.deletedAt?.toISOString() ?? null,
   }
 }
@@ -120,7 +142,7 @@ export function guestResponseLifecycle(
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
     const response = await deps.repo.findForSession(scope, sessionId)
-    return response ? toView(response) : null
+    return response ? toView(response, deps.clock()) : null
   }
 
   const removeObjects = async (
@@ -340,7 +362,7 @@ export function guestResponseLifecycle(
       privateFeedbackThreshold = 3,
     ): Promise<GuestResponseView> => {
       const existing = await deps.repo.findForSession(scope, sessionId)
-      if (existing) return toView(existing)
+      if (existing) return toView(existing, deps.clock())
       if (input.rating === null || input.rating === undefined) {
         throw new GuestResponseLifecycleError('rating_required')
       }
@@ -376,11 +398,11 @@ export function guestResponseLifecycle(
       ) {
         // Only the winning insert emits: the `existing`/`raced` paths return an
         // already-counted response, so a refresh or a lost race adds no facts.
-        return toView(submitted)
+        return toView(submitted, deps.clock())
       }
       const raced = await deps.repo.findForSession(scope, sessionId)
       if (!raced) throw new GuestResponseLifecycleError('response_unavailable')
-      return toView(raced)
+      return toView(raced, deps.clock())
     },
 
     addPrivateFeedback: async (
@@ -405,7 +427,36 @@ export function guestResponseLifecycle(
       ) {
         throw new GuestResponseLifecycleError('feedback_already_submitted')
       }
-      return toView(feedbackAdded)
+      return toView(feedbackAdded, deps.clock())
+    },
+
+    withdrawPrivateFeedback: async (
+      scope: GuestResponseScope,
+      sessionId: string,
+    ): Promise<GuestResponseView> => {
+      const current = await deps.repo.findForSession(scope, sessionId)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (current.feedbackWithdrawnAt !== null) return toView(current, deps.clock())
+      requireKnownFactLineage(current)
+      const now = deps.clock()
+      const withdrawn = unwrap(
+        withdrawPrivateFeedback(current, now, FEEDBACK_WITHDRAWAL_WINDOW_MS),
+      )
+      const fact = guestFeedbackRetracted({
+        feedbackId: feedbackId(withdrawn.id),
+        organizationId: organizationId(withdrawn.organizationId),
+        portalId: portalId(withdrawn.portalId),
+        propertyId: propertyId(withdrawn.propertyId),
+        supersedesSourceEventId: current.feedbackSourceEventId!,
+        occurredAt: withdrawn.feedbackWithdrawnAt ?? now,
+      })
+      if (
+        (await deps.commandStore.commitFeedbackWithdrawn(current, withdrawn, fact)) !==
+        'applied'
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return toView(withdrawn, deps.clock())
     },
 
     // The response revision and every replacement/retraction fact share one
@@ -434,7 +485,7 @@ export function guestResponseLifecycle(
       ) {
         throw new GuestResponseLifecycleError('already_submitted')
       }
-      return toView(corrected)
+      return toView(corrected, deps.clock())
     },
 
     withdraw: async (
@@ -443,9 +494,11 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      if (current.status === 'deleted') return toView(current)
+      if (current.status === 'deleted') return toView(current, deps.clock())
       requireKnownFactLineage(current)
-      const deleted = unwrap(deleteResponse(current, deps.clock()))
+      const deleted = unwrap(
+        withdrawResponse(current, deps.clock(), RESPONSE_WITHDRAWAL_WINDOW_MS),
+      )
       const committed = await deps.commandStore.commitWithdrawn(
         deleted,
         withdrawalFacts(current),
@@ -454,7 +507,7 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('response_unavailable')
       }
       await removeObjects(scope, committed.objectKeys)
-      return toView(deleted)
+      return toView(deleted, deps.clock())
     },
 
     moderate: async (
@@ -472,7 +525,7 @@ export function guestResponseLifecycle(
       if (!(await deps.repo.saveModeration(moderated))) {
         throw new GuestResponseLifecycleError('response_not_found')
       }
-      return toView(moderated)
+      return toView(moderated, deps.clock())
     },
 
     issueMedia: async (

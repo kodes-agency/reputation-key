@@ -170,6 +170,25 @@ export function createSequentialInboxCommandStore(deps: {
       return 'applied'
     },
 
+    applySourceWithdrawnOnce: async (command) => {
+      const current = await deps.repo.findById(
+        command.item.id,
+        command.item.organizationId,
+      )
+      if (current && current.status === command.item.status) {
+        await deps.repo.updateStatus(
+          command.item.id,
+          command.item.organizationId,
+          command.fact.newStatus,
+          { closedAt: command.now },
+          command.now,
+        )
+        await recordAndEmit(command.fact)
+      }
+      await receipt(command.eventId, command.consumerName, 'applied')
+      return 'applied'
+    },
+
     applyReviewUpdatedOnce: async (command) => {
       await deps.repo.updateSourceMeta(
         command.item.id,

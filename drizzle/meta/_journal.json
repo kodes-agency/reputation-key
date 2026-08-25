@@ -694,6 +694,20 @@
       "when": 1787673600000,
       "tag": "0098_guest-destination-action-receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1787760000000,
+      "tag": "0099_guest_feedback_withdrawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1787846400000,
+      "tag": "0100_guest_feedback_submission_backfill",
+      "breakpoints": true
     }
   ]
 }

@@ -540,6 +540,35 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
 
   // ── guest (dark; user-authored, non-Google) ─────────────────────────
   {
+    relation: 'guest_responses',
+    kind: 'table',
+    field: 'response_text',
+    classification: 'local_operational_fact',
+    owner: 'guest',
+    purpose: 'Canonical guest-authored private feedback text',
+    creationPath: 'origin/CSRF/signed-session private-feedback mutation',
+    readPath: 'tenant-scoped Guest lookup used by authorized Inbox views',
+    refreshRule: 'immutable after submission; never returned to the guest browser',
+    deletionMechanism:
+      'immediate feedback/response withdrawal or retention-sweep guest_responses.private_text at 90 days',
+    mustEliminate: false,
+  },
+  {
+    relation: 'guest_responses',
+    kind: 'table',
+    field: 'session_id',
+    classification: 'local_operational_fact',
+    owner: 'guest',
+    purpose:
+      'Canonical signed-session pseudonym for response recovery and mutation integrity',
+    creationPath: 'first private rating submission',
+    readPath: 'signed-session-bound Guest response mutations only',
+    refreshRule: 'never rotated on the canonical row today',
+    deletionMechanism:
+      'whole-response/property lifecycle today; GST-01 must move this binding to independent 24-hour storage',
+    mustEliminate: false,
+  },
+  {
     relation: 'feedback',
     kind: 'table',
     field: 'comment',

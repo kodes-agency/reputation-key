@@ -24,7 +24,9 @@ import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
   inboxItemId,
+  feedbackId,
   organizationId,
+  portalId,
   propertyId,
   reviewId,
   replyId,
@@ -34,6 +36,7 @@ import type { InboxItem } from '../../domain/types'
 import type { Reply, Review } from '#/contexts/review/domain/types'
 import { inboxItemCreated, inboxItemStatusChanged } from '../../domain/events'
 import { reviewCreated } from '#/contexts/review/domain/events'
+import { guestFeedbackRetracted } from '#/contexts/guest/domain/events'
 import { createInboxRepository } from './inbox.repository'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
@@ -55,6 +58,8 @@ const USER_A = userId('user-inbox-cmd-aaaa-1111111111')
 const USER_B = userId('user-inbox-cmd-bbbb-2222222222')
 const REVIEW_A = reviewId('4d000000-0000-0000-0000-000000000010')
 const ITEM_A = inboxItemId('4d000000-0000-0000-0000-000000000020')
+const FEEDBACK_A = feedbackId('4d000000-0000-0000-0000-000000000030')
+const PORTAL_A = portalId('4d000000-0000-0000-0000-000000000040')
 const NOW = new Date('2026-06-01T12:00:00.000Z')
 const CONSUMER = 'inbox.on-review-created'
 
@@ -504,6 +509,61 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     )
     expect(receipts.rows).toEqual([
       { consumer_name: 'inbox.on-review-expired', status: 'applied' },
+    ])
+  })
+
+  it('applySourceWithdrawnOnce closes feedback work with fact + receipt atomically', async () => {
+    const repo = createInboxRepository(db, stubPorts)
+    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const item = makeItem({
+      sourceType: 'feedback',
+      sourceId: FEEDBACK_A,
+      platform: null,
+    })
+    await repo.create(item, ORG_A)
+    const source = guestFeedbackRetracted({
+      feedbackId: FEEDBACK_A,
+      organizationId: ORG_A,
+      propertyId: PROP_A,
+      portalId: PORTAL_A,
+      supersedesSourceEventId: crypto.randomUUID(),
+      occurredAt: NOW,
+    })
+    await insertSourceEvent(source)
+    const fact = inboxItemStatusChanged({
+      inboxItemId: ITEM_A,
+      organizationId: ORG_A,
+      propertyId: PROP_A,
+      oldStatus: 'open',
+      newStatus: 'closed',
+      occurredAt: NOW,
+    })
+
+    await expect(
+      store.applySourceWithdrawnOnce({
+        eventId: source.eventId,
+        consumerName: 'inbox.on-guest-feedback-retracted',
+        item,
+        now: NOW,
+        fact,
+      }),
+    ).resolves.toBe('applied')
+
+    const rows = await pool.query(
+      'SELECT status, closed_at FROM inbox_items WHERE id = $1',
+      [ITEM_A],
+    )
+    expect(rows.rows).toEqual([{ status: 'closed', closed_at: NOW }])
+    const facts = await pool.query(`SELECT id FROM outbox_events WHERE id = $1`, [
+      fact.eventId,
+    ])
+    expect(facts.rows).toHaveLength(1)
+    const receipts = await pool.query(
+      `SELECT consumer_name, status FROM event_consumer_receipts WHERE event_id = $1`,
+      [source.eventId],
+    )
+    expect(receipts.rows).toEqual([
+      { consumer_name: 'inbox.on-guest-feedback-retracted', status: 'applied' },
     ])
   })
 })

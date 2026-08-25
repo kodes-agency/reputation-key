@@ -36,6 +36,8 @@ export interface GuestResponse {
   readonly submittedAt: Date | null
   readonly correctedAt: Date | null
   readonly feedbackSubmittedAt: Date | null
+  /** Content-free tombstone that prevents a withdrawn feedback body being resubmitted. */
+  readonly feedbackWithdrawnAt: Date | null
   readonly moderatedAt: Date | null
   readonly deletedAt: Date | null
   readonly retentionDeadline: Date
@@ -52,11 +54,17 @@ export type ResponseError =
   | { code: 'contact_without_consent' }
   | { code: 'feedback_not_eligible' }
   | { code: 'feedback_already_submitted' }
+  | { code: 'feedback_not_found' }
+  | { code: 'feedback_withdrawal_expired' }
+  | { code: 'response_not_submitted' }
+  | { code: 'response_withdrawal_expired' }
 
 export const MAX_TEXT_LENGTH = 2000
 export const MAX_RATING = 5
 export const MIN_RATING = 1
 const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+export const DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
+export const DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
 
 export function createResponse(params: {
   id: string
@@ -89,6 +97,7 @@ export function createResponse(params: {
     submittedAt: null,
     correctedAt: null,
     feedbackSubmittedAt: null,
+    feedbackWithdrawnAt: null,
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: params.retentionDeadline,
@@ -110,7 +119,12 @@ export function submitPrivateFeedback(
   if (response.status !== 'submitted' && response.status !== 'corrected') {
     return { code: 'already_submitted' }
   }
-  if (response.text !== null || response.feedbackSourceEventId !== null) {
+  if (
+    response.text !== null ||
+    response.feedbackSourceEventId !== null ||
+    response.feedbackSubmittedAt !== null ||
+    response.feedbackWithdrawnAt !== null
+  ) {
     return { code: 'feedback_already_submitted' }
   }
   if (
@@ -133,6 +147,52 @@ export function submitPrivateFeedback(
     textConsent: true,
     feedbackSubmittedAt: now,
   }
+}
+
+/**
+ * Withdraw only the private written feedback. The private rating remains the
+ * effective managerial reading. A content-free tombstone prevents the same
+ * signed session from creating a second feedback item after withdrawal.
+ */
+export function withdrawPrivateFeedback(
+  response: GuestResponse,
+  now: Date,
+  withdrawalWindowMs: number = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
+): GuestResponse | ResponseError {
+  if (response.status === 'deleted') return { code: 'already_deleted' }
+  if (
+    response.text === null ||
+    response.feedbackSubmittedAt === null ||
+    response.feedbackSourceEventId === null
+  ) {
+    return { code: 'feedback_not_found' }
+  }
+  if (now.getTime() - response.feedbackSubmittedAt.getTime() > withdrawalWindowMs) {
+    return { code: 'feedback_withdrawal_expired' }
+  }
+  return {
+    ...response,
+    text: null,
+    textConsent: false,
+    feedbackSourceEventId: null,
+    contactConsent: false,
+    contactDetails: null,
+    feedbackWithdrawnAt: now,
+  }
+}
+
+/** Guest-owned whole-response withdrawal, bounded from initial rating submission. */
+export function withdrawResponse(
+  response: GuestResponse,
+  now: Date,
+  withdrawalWindowMs: number = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
+): GuestResponse | ResponseError {
+  if (response.status === 'deleted') return { code: 'already_deleted' }
+  if (response.submittedAt === null) return { code: 'response_not_submitted' }
+  if (now.getTime() - response.submittedAt.getTime() > withdrawalWindowMs) {
+    return { code: 'response_withdrawal_expired' }
+  }
+  return deleteResponse(response, now)
 }
 
 /**

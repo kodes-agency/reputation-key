@@ -7,26 +7,35 @@ import {
 } from '#/shared/outbox/dispatcher'
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
+import type { InboxRepository } from '../application/ports/inbox.repository'
 import { createInboxItem as buildInboxItem } from '../domain/constructors'
-import { inboxItemCreated } from '../domain/events'
+import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
+import { validateTransition } from '../domain/rules'
 
 export type GuestFeedbackConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
   feedbackLookup: FeedbackLookupPort
+  inboxRepo: InboxRepository
   idGen: () => InboxItemId
   clock: () => Date
 }>
 
 const CONSUMER_NAME = 'inbox.on-guest-feedback-submitted'
+const RETRACTION_CONSUMER_NAME = 'inbox.on-guest-feedback-retracted'
 
-type GuestFeedbackPayload = Readonly<{
+type GuestFeedbackScopePayload = Readonly<{
   feedbackId: string
-  ratingId: string | null
   organizationId: string
   propertyId: string
   portalId: string
   occurredAt: string
 }>
+
+type GuestFeedbackPayload = GuestFeedbackScopePayload &
+  Readonly<{ ratingId: string | null }>
+
+type GuestFeedbackRetractionPayload = GuestFeedbackScopePayload &
+  Readonly<{ supersedesSourceEventId: string }>
 
 /** Durable, metadata-only private-feedback projection into manager Inbox. */
 export async function handleInboxGuestFeedbackSubmitted(
@@ -86,11 +95,60 @@ export async function handleInboxGuestFeedbackSubmitted(
   return { status: outcome }
 }
 
+/** Close manager work after Guest has purged its private feedback body. */
+export async function handleInboxGuestFeedbackRetracted(
+  deps: GuestFeedbackConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = event.payload as GuestFeedbackRetractionPayload
+  if (
+    payload.organizationId !== event.organizationId ||
+    payload.propertyId !== event.propertyId
+  ) {
+    throw new Error('Guest feedback envelope attribution does not match its payload')
+  }
+  const occurredAt = new Date(payload.occurredAt)
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error('Guest feedback occurredAt is invalid')
+  }
+  const orgId = organizationId(payload.organizationId)
+  const item = await deps.inboxRepo.findBySource('feedback', payload.feedbackId, orgId)
+  if (!item || validateTransition(item.status, 'closed').isErr()) {
+    await deps.commandStore.recordReceipt(
+      event.eventId,
+      RETRACTION_CONSUMER_NAME,
+      'applied',
+    )
+    return { status: 'applied' }
+  }
+  await deps.commandStore.applySourceWithdrawnOnce({
+    eventId: event.eventId,
+    consumerName: RETRACTION_CONSUMER_NAME,
+    item,
+    now: occurredAt,
+    fact: inboxItemStatusChanged({
+      inboxItemId: item.id,
+      organizationId: item.organizationId,
+      propertyId: item.propertyId,
+      oldStatus: item.status,
+      newStatus: 'closed',
+      occurredAt,
+    }),
+  })
+  return { status: 'applied' }
+}
+
 export function registerGuestFeedbackConsumer(deps: GuestFeedbackConsumerDeps): void {
   registerConsumer({
     eventType: 'guest.feedback.submitted',
     consumerName: 'inbox.on-guest-feedback-submitted',
     module: 'inbox.guest-feedback',
     handler: (event) => handleInboxGuestFeedbackSubmitted(deps, event),
+  })
+  registerConsumer({
+    eventType: 'guest.feedback.retracted',
+    consumerName: 'inbox.on-guest-feedback-retracted',
+    module: 'inbox.guest-feedback',
+    handler: (event) => handleInboxGuestFeedbackRetracted(deps, event),
   })
 }

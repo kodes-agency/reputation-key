@@ -26,18 +26,19 @@ const reviewGateway = {
   googleReview: { status: 'available' as const, uri: 'https://www.google.com/' },
 }
 const submitted: GuestResponseView = {
-  id: '00000000-0000-4000-8000-000000000030',
-  responseConsent: true,
-  textConsent: false,
   status: 'submitted',
   rating: 2,
-  category: null,
   hasPrivateFeedback: false,
   privateFeedbackEligible: true,
-  mediaConsent: false,
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
+  responseWithdrawalDeadline: '2026-08-10T12:00:00.000Z',
+  responseWithdrawalAvailable: true,
+  feedbackSubmittedAt: null,
+  feedbackWithdrawalDeadline: null,
+  feedbackWithdrawalAvailable: false,
+  feedbackWithdrawnAt: null,
   deletedAt: null,
 }
 
@@ -59,14 +60,26 @@ const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
     ...submitted,
     hasPrivateFeedback: true,
     privateFeedbackEligible: false,
-    textConsent: true,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: true,
   }),
   selectGoogleReview: async () => ({ url: reviewGateway.googleReview.uri }),
   withdrawResponse: async () => ({
     ...submitted,
     status: 'deleted',
     rating: null,
+    responseWithdrawalAvailable: false,
     deletedAt: '2026-08-09T12:30:00.000Z',
+  }),
+  withdrawPrivateFeedback: async () => ({
+    ...submitted,
+    hasPrivateFeedback: false,
+    privateFeedbackEligible: false,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: '2026-08-09T12:30:00.000Z',
   }),
 }
 
