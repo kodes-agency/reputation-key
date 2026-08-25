@@ -9,6 +9,7 @@ export type BuildGoogleImportedPropertyInput = Readonly<{
   connectionId: GoogleConnectionId
   accountId: string
   locationId: string
+  googleReviewUri?: string | null
   name: string
   address: string | null
   countryCode: string
@@ -34,6 +35,7 @@ export function buildGoogleImportedProperty(
     gbpLocationId: input.locationId,
     gbpAccountId: input.accountId,
     googleConnectionId: input.connectionId,
+    googleReviewUri: input.googleReviewUri ?? null,
     profileConfirmedAt: input.now,
     profileConfirmedBy: input.confirmedBy,
     countryCode: input.countryCode,

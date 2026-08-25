@@ -21,6 +21,7 @@ import {
 } from './rules'
 import { resolvePropertyRouting } from './processing-routing'
 import { isGoogleResourceSuffix } from './google-binding-contract'
+import { verifiedGoogleReviewDestination } from './google-review-destination'
 
 export type BuildPropertyInput = Readonly<{
   id: PropertyId
@@ -35,6 +36,7 @@ export type BuildPropertyInput = Readonly<{
   googleConnectionId?: GoogleConnectionId | null
   profileConfirmedAt?: Date | null
   profileConfirmedBy?: string | null
+  googleReviewUri?: string | null
   /** Optional ISO country; when set, processing region is resolved (BQR-3.5). */
   countryCode?: string | null
   countrySource?: string
@@ -68,6 +70,19 @@ export const buildProperty = (
         'invalid_transition',
         'Google binding requires canonical bare account/location suffixes',
       ),
+    )
+  }
+  const googleReviewDestination = input.googleReviewUri
+    ? verifiedGoogleReviewDestination({
+        uri: input.googleReviewUri,
+        retrievedAt: input.now,
+        sourceEpoch: 0,
+        profileVersion: 1,
+      })
+    : DEFAULT_PROPERTY_GOOGLE_PROFILE.googleReviewDestination
+  if (!googleReviewDestination) {
+    return err(
+      propertyError('invalid_transition', 'Google review destination is invalid'),
     )
   }
 
@@ -105,6 +120,7 @@ export const buildProperty = (
             : 'legacy',
         profileConfirmedAt: input.profileConfirmedAt ?? null,
         profileConfirmedBy: input.profileConfirmedBy ?? null,
+        googleReviewDestination,
         createdAt: input.now,
         updatedAt: input.now,
         deletedAt: null,

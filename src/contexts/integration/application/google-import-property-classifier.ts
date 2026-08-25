@@ -50,6 +50,7 @@ function resultBase(candidate: GbpLocationCandidate) {
     address: candidate.address,
     primaryCategory: candidate.primaryCategory,
     countryCode: candidate.countryCode,
+    googleReviewUri: candidate.googleReviewUri ?? null,
   }
 }
 

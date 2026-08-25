@@ -44,6 +44,20 @@ export const properties = pgTable(
     googleBindingState: varchar('google_binding_state', { length: 40 })
       .notNull()
       .default('unbound'),
+    googleReviewUri: varchar('google_review_uri', { length: 2048 }),
+    googleReviewDestinationState: varchar('google_review_destination_state', {
+      length: 32,
+    })
+      .notNull()
+      .default('unavailable'),
+    googleReviewDestinationRetrievedAt: timestamp(
+      'google_review_destination_retrieved_at',
+      { withTimezone: true },
+    ),
+    googleReviewDestinationSourceEpoch: integer('google_review_destination_source_epoch'),
+    googleReviewDestinationProfileVersion: integer(
+      'google_review_destination_profile_version',
+    ),
     profileSource: varchar('profile_source', { length: 32 }).notNull().default('legacy'),
     profileConfirmedAt: timestamp('profile_confirmed_at', { withTimezone: true }),
     profileConfirmedBy: varchar('profile_confirmed_by', { length: 255 }),
@@ -126,6 +140,26 @@ export const properties = pgTable(
     googleProfileVersionCheck: check(
       'properties_google_profile_version_valid',
       sql`${t.profileVersion} >= 1`,
+    ),
+    googleReviewDestinationCheck: check(
+      'properties_google_review_destination_valid',
+      sql`(
+        (
+          ${t.googleReviewDestinationState} IN ('verified', 'awaiting_refresh')
+          AND ${t.googleReviewUri} IS NOT NULL
+          AND ${t.googleReviewUri} ~ '^https://'
+          AND ${t.googleReviewDestinationRetrievedAt} IS NOT NULL
+          AND ${t.googleReviewDestinationSourceEpoch} >= 0
+          AND ${t.googleReviewDestinationProfileVersion} >= 1
+        )
+        OR (
+          ${t.googleReviewDestinationState} = 'unavailable'
+          AND ${t.googleReviewUri} IS NULL
+          AND ${t.googleReviewDestinationRetrievedAt} IS NULL
+          AND ${t.googleReviewDestinationSourceEpoch} IS NULL
+          AND ${t.googleReviewDestinationProfileVersion} IS NULL
+        )
+      )`,
     ),
     defaultReplyLanguageCheck: check(
       'properties_default_reply_language_valid',

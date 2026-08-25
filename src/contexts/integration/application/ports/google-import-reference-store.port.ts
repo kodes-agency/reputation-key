@@ -32,6 +32,7 @@ export type ImportDiscoveryCandidate = Readonly<{
   address: string | null
   primaryCategory: string | null
   countryCode: string | null
+  googleReviewUri?: string | null
   eligibility: ImportCandidateEligibility
   expectedSourceEpoch?: number | null
   expectedProfileVersion?: number | null

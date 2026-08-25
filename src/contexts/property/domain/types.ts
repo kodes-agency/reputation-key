@@ -6,6 +6,7 @@
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyLifecycleState } from './property-lifecycle'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
+import type { PropertyGoogleReviewDestination } from './google-review-destination'
 
 /** Property entity — the organizational unit everything else lives under. */
 export type Property = Readonly<{
@@ -23,6 +24,8 @@ export type Property = Readonly<{
   profileVersion: number
   googleBindingState:
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  /** Optional only during the expand/cutover window; constructors always set it. */
+  googleReviewDestination?: PropertyGoogleReviewDestination
   profileSource: 'legacy' | 'tenant_confirmed'
   profileConfirmedAt: Date | null
   profileConfirmedBy: string | null
@@ -86,6 +89,13 @@ export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
   profileSource: 'legacy',
   profileConfirmedAt: null,
   profileConfirmedBy: null,
+  googleReviewDestination: {
+    state: 'unavailable',
+    uri: null,
+    retrievedAt: null,
+    sourceEpoch: null,
+    profileVersion: null,
+  },
 } as const satisfies Pick<
   Property,
   | 'address'
@@ -95,6 +105,7 @@ export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
   | 'profileSource'
   | 'profileConfirmedAt'
   | 'profileConfirmedBy'
+  | 'googleReviewDestination'
 >
 
 /** Re-export PropertyId from shared for convenience */

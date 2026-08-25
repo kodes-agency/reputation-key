@@ -14,6 +14,11 @@ type PropertyRow = Omit<
   | 'dataCellId'
   | 'responsibleManagerRevision'
   | 'responsibilityNeededSince'
+  | 'googleReviewUri'
+  | 'googleReviewDestinationState'
+  | 'googleReviewDestinationRetrievedAt'
+  | 'googleReviewDestinationSourceEpoch'
+  | 'googleReviewDestinationProfileVersion'
 > &
   Readonly<{
     defaultReplyLanguage?: string | null
@@ -22,6 +27,11 @@ type PropertyRow = Omit<
     /** Optional only for pre-expand fixtures. */
     responsibleManagerRevision?: number
     responsibilityNeededSince?: Date | null
+    googleReviewUri?: string | null
+    googleReviewDestinationState?: string
+    googleReviewDestinationRetrievedAt?: Date | null
+    googleReviewDestinationSourceEpoch?: number | null
+    googleReviewDestinationProfileVersion?: number | null
   }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
@@ -40,6 +50,15 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
     : null,
   profileVersion: row.profileVersion,
   googleBindingState: row.googleBindingState as Property['googleBindingState'],
+  googleReviewDestination: {
+    state: (row.googleReviewDestinationState ?? 'unavailable') as NonNullable<
+      Property['googleReviewDestination']
+    >['state'],
+    uri: row.googleReviewUri ?? null,
+    retrievedAt: row.googleReviewDestinationRetrievedAt ?? null,
+    sourceEpoch: row.googleReviewDestinationSourceEpoch ?? null,
+    profileVersion: row.googleReviewDestinationProfileVersion ?? null,
+  },
   profileSource: row.profileSource as Property['profileSource'],
   profileConfirmedAt: row.profileConfirmedAt,
   profileConfirmedBy: row.profileConfirmedBy,
@@ -79,6 +98,14 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
     property.googleConnectionId != null ? unbrand(property.googleConnectionId) : null,
   profileVersion: property.profileVersion,
   googleBindingState: property.googleBindingState,
+  googleReviewUri: property.googleReviewDestination?.uri ?? null,
+  googleReviewDestinationState: property.googleReviewDestination?.state ?? 'unavailable',
+  googleReviewDestinationRetrievedAt:
+    property.googleReviewDestination?.retrievedAt ?? null,
+  googleReviewDestinationSourceEpoch:
+    property.googleReviewDestination?.sourceEpoch ?? null,
+  googleReviewDestinationProfileVersion:
+    property.googleReviewDestination?.profileVersion ?? null,
   profileSource: property.profileSource,
   profileConfirmedAt: property.profileConfirmedAt,
   profileConfirmedBy: property.profileConfirmedBy,

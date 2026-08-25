@@ -59,6 +59,8 @@ describe('buildProperty', () => {
       gbpLocationId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
       gbpAccountId: '123456789',
       googleConnectionId: googleConnectionId('connection-1'),
+      googleReviewUri:
+        'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
       now: FIXED_TIME,
     })
 
@@ -67,6 +69,13 @@ describe('buildProperty', () => {
       expect(result.value.gbpLocationId).toBe('ChIJN1t_tDeuEmsRUsoyG83frY4')
       expect(result.value.gbpAccountId).toBe('123456789')
       expect(result.value.googleBindingState).toBe('active')
+      expect(result.value.googleReviewDestination).toEqual({
+        state: 'verified',
+        uri: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
+        retrievedAt: FIXED_TIME,
+        sourceEpoch: 0,
+        profileVersion: 1,
+      })
     }
   })
 

@@ -10,6 +10,7 @@ import type {
   PropertyProcessingScopePublicApi,
   PropertyPublicApi,
   PropertyResponsibleManagerPublicApi,
+  PropertyGoogleReviewDestinationPublicApi,
   PropertyReplyLanguagePublicApi,
 } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -185,6 +186,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     PropertyFactsPublicApi &
     PropertyProcessingScopePublicApi &
     PropertyReplyLanguagePublicApi &
+    PropertyGoogleReviewDestinationPublicApi &
     PropertyResponsibleManagerPublicApi = {
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
@@ -201,6 +203,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getPropertyTimezone: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p?.timezone ?? null
+    },
+    getGoogleReviewDestination: async (orgId: OrganizationId, pid: PropertyId) => {
+      const property = await deps.repo.findById(orgId, pid)
+      return property?.googleReviewDestination ?? null
     },
     getPropertyNames: async (
       orgId: OrganizationId,

@@ -41,7 +41,7 @@ describe('Google provider route catalogue', () => {
     )
 
     expect(compiled.url).toBe(
-      'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/123%2Funsafe/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories',
+      'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/123%2Funsafe/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories%2Cmetadata',
     )
     expect(compiled.method).toBe('GET')
   })
@@ -143,7 +143,7 @@ describe('Google provider route catalogue', () => {
     )
 
     expect(compiled.url).toBe(
-      'https://google-provider-simulator:9443/v1/accounts/account-1/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories',
+      'https://google-provider-simulator:9443/v1/accounts/account-1/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories%2Cmetadata',
     )
     expect(compiled.admission.requestBindingSha256).toMatch(/^[a-f0-9]{64}$/)
   })

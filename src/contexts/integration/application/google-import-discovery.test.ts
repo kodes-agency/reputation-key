@@ -70,6 +70,7 @@ function setup(
         address: candidate.address,
         primaryCategory: candidate.primaryCategory,
         countryCode: candidate.countryCode,
+        googleReviewUri: candidate.googleReviewUri ?? null,
         eligibility: { kind: 'create' as const },
         expectedSourceEpoch: null,
         expectedProfileVersion: null,

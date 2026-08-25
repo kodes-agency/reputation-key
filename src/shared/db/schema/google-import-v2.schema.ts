@@ -168,6 +168,7 @@ export const gbpImportRequestItems = pgTable(
     destinationPropertyId: uuid('destination_property_id'),
     providerAccountSuffix: varchar('provider_account_suffix', { length: 255 }),
     providerLocationSuffix: varchar('provider_location_suffix', { length: 255 }),
+    googleReviewUri: varchar('google_review_uri', { length: 2048 }),
     expectedConnectionLifecycleVersion: integer('expected_connection_lifecycle_version'),
     expectedConnectionAccessVersion: integer('expected_connection_access_version'),
     expectedCredentialGeneration: integer('expected_credential_generation'),
@@ -356,6 +357,10 @@ export const gbpImportRequestItems = pgTable(
         (${t.providerAccountSuffix} IS NULL OR ${t.providerAccountSuffix} !~ '[/?#[:space:][:cntrl:]]')
         AND (${t.providerLocationSuffix} IS NULL OR ${t.providerLocationSuffix} !~ '[/?#[:space:][:cntrl:]]')
       )`,
+    ),
+    googleReviewUriCheck: check(
+      'gbp_import_request_items_google_review_uri_valid',
+      sql`${t.googleReviewUri} IS NULL OR ${t.googleReviewUri} ~ '^https://'`,
     ),
   }),
 )

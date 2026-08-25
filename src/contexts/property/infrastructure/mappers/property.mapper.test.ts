@@ -26,6 +26,11 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   gbpLocationId: 'ChIJ123',
   profileVersion: 1,
   googleBindingState: 'unbound',
+  googleReviewUri: null,
+  googleReviewDestinationState: 'unavailable',
+  googleReviewDestinationRetrievedAt: null,
+  googleReviewDestinationSourceEpoch: null,
+  googleReviewDestinationProfileVersion: null,
   profileSource: 'legacy',
   profileConfirmedAt: null,
   profileConfirmedBy: null,
@@ -93,6 +98,13 @@ describe('propertyFromRow', () => {
     expect(property.deletedAt).toBeNull()
     expect(property.lifecycleState).toBe('active')
     expect(property.dataCellId).toBeNull()
+    expect(property.googleReviewDestination).toEqual({
+      state: 'unavailable',
+      uri: null,
+      retrievedAt: null,
+      sourceEpoch: null,
+      profileVersion: null,
+    })
   })
 
   it('maps a null canonical location ID correctly', () => {
@@ -156,6 +168,7 @@ describe('propertyToRow', () => {
     expect(row.gbpLocationId).toBe('ChIJ123')
     expect(row.lifecycleState).toBe('active')
     expect(row.dataCellId).toBeNull()
+    expect(row.googleReviewDestinationState).toBe('unavailable')
   })
 
   it('maps a null canonical location ID to both compatibility columns', () => {

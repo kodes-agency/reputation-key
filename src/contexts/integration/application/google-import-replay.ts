@@ -24,6 +24,7 @@ export type GoogleImportSemanticItem = Readonly<{
   connectionId: string
   accountId: string
   locationId: string
+  googleReviewUri?: string | null
   existingPropertyId: string | null
   expectedConnectionLifecycleVersion: number
   expectedConnectionAccessVersion: number
@@ -161,6 +162,7 @@ export function canonicalizeGoogleImportSemanticRequest(
       expectedProfileVersion: item.expectedProfileVersion,
       expectedSourceEpoch: item.expectedSourceEpoch,
       locationId: item.locationId,
+      googleReviewUri: item.googleReviewUri ?? null,
       profile: {
         address: item.profile.address,
         countryCode: item.profile.countryCode,

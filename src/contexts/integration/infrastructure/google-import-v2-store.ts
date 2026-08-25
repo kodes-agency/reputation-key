@@ -455,6 +455,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
             providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
             providerLocationSuffix: gbpImportRequestItems.providerLocationSuffix,
+            googleReviewUri: gbpImportRequestItems.googleReviewUri,
             status: gbpImportRequestItems.status,
             outcomeCode: gbpImportRequestItems.outcomeCode,
             retryRevision: gbpImportRequestItems.retryRevision,
@@ -647,6 +648,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             destinationPropertyId: gbpImportRequestItems.destinationPropertyId,
             providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
             providerLocationSuffix: gbpImportRequestItems.providerLocationSuffix,
+            googleReviewUri: gbpImportRequestItems.googleReviewUri,
             expectedConnectionLifecycleVersion:
               gbpImportRequestItems.expectedConnectionLifecycleVersion,
             expectedConnectionAccessVersion:
@@ -779,6 +781,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             destinationPropertyId: row.destinationPropertyId,
             providerAccountSuffix: row.providerAccountSuffix,
             providerLocationSuffix: row.providerLocationSuffix,
+            googleReviewUri: row.googleReviewUri,
             authorization,
             attemptOrdinal: input.attemptOrdinal,
             claimFence: input.claimFence,
@@ -927,6 +930,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             expectedCredentialGeneration: null,
             providerAccountSuffix: null,
             providerLocationSuffix: null,
+            googleReviewUri: null,
             approvalBindingId: null,
             expectedExecutionPolicyVersion: null,
             expectedGoogleContentPolicyVersion: null,
@@ -1023,6 +1027,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             expectedCredentialGeneration: input.retainProtectedRouting ? undefined : null,
             providerAccountSuffix: input.retainProtectedRouting ? undefined : null,
             providerLocationSuffix: input.retainProtectedRouting ? undefined : null,
+            googleReviewUri: input.retainProtectedRouting ? undefined : null,
             approvalBindingId: input.retainProtectedRouting ? undefined : null,
             expectedExecutionPolicyVersion: input.retainProtectedRouting
               ? undefined
@@ -1150,6 +1155,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             expectedCredentialGeneration: input.retainProtectedRouting ? undefined : null,
             providerAccountSuffix: input.retainProtectedRouting ? undefined : null,
             providerLocationSuffix: input.retainProtectedRouting ? undefined : null,
+            googleReviewUri: input.retainProtectedRouting ? undefined : null,
             approvalBindingId: input.retainProtectedRouting ? undefined : null,
             expectedExecutionPolicyVersion: input.retainProtectedRouting
               ? undefined
@@ -1585,6 +1591,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           destinationPropertyId: null,
           providerAccountSuffix: null,
           providerLocationSuffix: null,
+          googleReviewUri: null,
           expectedConnectionLifecycleVersion: null,
           expectedConnectionAccessVersion: null,
           expectedCredentialGeneration: null,

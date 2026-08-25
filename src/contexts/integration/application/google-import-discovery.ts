@@ -212,7 +212,8 @@ function classificationsMatch(
       result.businessName === candidate.businessName &&
       result.address === candidate.address &&
       result.primaryCategory === candidate.primaryCategory &&
-      result.countryCode === candidate.countryCode
+      result.countryCode === candidate.countryCode &&
+      result.googleReviewUri === (candidate.googleReviewUri ?? null)
     )
   })
 }

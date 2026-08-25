@@ -10,6 +10,7 @@ import {
   parseGoogleProviderResourceSuffix,
   validateGoogleProviderSuffix,
 } from './google-resource-suffix'
+import { normalizeGoogleReviewDestination } from '#/shared/domain/google-review-destination'
 
 const boundedDisplayField = z.string().min(1).max(4_096)
 const storefrontAddressSchema = z
@@ -37,6 +38,10 @@ const locationSchema = z
           .passthrough()
           .optional(),
       })
+      .passthrough()
+      .optional(),
+    metadata: z
+      .object({ newReviewUri: z.string().min(1).max(2_048).optional() })
       .passthrough()
       .optional(),
   })
@@ -69,6 +74,10 @@ function parseLocation(
 ): GbpLocationCandidate | null {
   const locationId = parseGoogleProviderResourceSuffix(raw.name, 'locations/')
   if (!locationId) return null
+  const googleReviewUri = raw.metadata?.newReviewUri
+    ? normalizeGoogleReviewDestination(raw.metadata.newReviewUri)
+    : null
+  if (raw.metadata?.newReviewUri && !googleReviewUri) return null
   return Object.freeze({
     binding: Object.freeze({ accountId, locationId }),
     accountDisplayName,
@@ -76,6 +85,7 @@ function parseLocation(
     address: addressFrom(raw.storefrontAddress),
     primaryCategory: raw.categories?.primaryCategory?.displayName ?? null,
     countryCode: raw.storefrontAddress?.regionCode?.toUpperCase() ?? null,
+    googleReviewUri,
   })
 }
 

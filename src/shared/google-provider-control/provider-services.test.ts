@@ -323,7 +323,7 @@ describe('Google egress gateway', () => {
     expect(fixture.fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fixture.fetchMock.mock.calls[0]!
     expect(url).toBe(
-      'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/account%2Fprovider-id/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories&pageToken=next-page-token',
+      'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/account%2Fprovider-id/locations?pageSize=100&readMask=name%2Ctitle%2CstorefrontAddress%2Ccategories%2Cmetadata&pageToken=next-page-token',
     )
     expect(init).toMatchObject({
       method: 'GET',

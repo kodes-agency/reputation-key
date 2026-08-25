@@ -384,7 +384,7 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
           `https://mybusinessbusinessinformation.googleapis.com/v1/accounts/${encodeURIComponent(accountId)}/locations`,
           [
             ['pageSize', '100'],
-            ['readMask', 'name,title,storefrontAddress,categories'],
+            ['readMask', 'name,title,storefrontAddress,categories,metadata'],
             ['pageToken', optionalPageToken(descriptor.pageToken)],
           ],
         ),

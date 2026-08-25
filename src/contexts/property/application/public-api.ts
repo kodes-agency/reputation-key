@@ -51,6 +51,16 @@ export type PropertyProcessingScopePublicApi = Readonly<{
 /** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */
 export type PropertyGoogleBindingPublicApi = PropertyGoogleBindingStore
 
+export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
+  /** Safe Property-owned snapshot. A non-verified URI must never be rendered. */
+  getGoogleReviewDestination: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<
+    import('../domain/google-review-destination').PropertyGoogleReviewDestination | null
+  >
+}>
+
 export type PropertyPublicApi = Readonly<{
   /**
    * Check whether a property exists within an organization.

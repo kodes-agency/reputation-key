@@ -11,6 +11,7 @@ export type GoogleImportV2ItemIntent = Readonly<{
   existingPropertyId: string | null
   providerAccountSuffix: string
   providerLocationSuffix: string
+  googleReviewUri?: string | null
   expectedConnectionLifecycleVersion: number
   expectedConnectionAccessVersion: number
   expectedCredentialGeneration: number
@@ -48,6 +49,7 @@ export type GoogleImportV2ClaimedItem = Readonly<{
   destinationPropertyId: string
   providerAccountSuffix: string
   providerLocationSuffix: string
+  googleReviewUri: string | null
   expectedConnectionLifecycleVersion: number
   expectedConnectionAccessVersion: number
   expectedCredentialGeneration: number

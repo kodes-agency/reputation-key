@@ -6,7 +6,8 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 
 ## Glossary
 
-- **Property** — The organizational unit everything else lives under. Belongs to an organization. Has name, slug, timezone, optional GBP place ID and Google connection reference.
+- **Property** — The organizational unit everything else lives under. Belongs to an organization. Has name, slug, timezone, optional GBP binding, and the Property-owned Google review destination snapshot used by its Portals.
+- **Google review destination** — A validated snapshot of Google's output-only review URI, pinned to the Property binding source epoch and profile version. Only `verified` destinations may be rendered; `awaiting_refresh` and `unavailable` fail closed.
 - **PropertyPublicApi** — Application-level API for cross-context consumption. Provides slug lookups, GBP place ID lookups, import, and connection cleanup.
 - **Responsible Manager** — An explicitly selected AccountAdmin or eligible PropertyManager who receives property-wide workflow notifications. This is notification-routing responsibility, not authorization or participation.
 
@@ -24,6 +25,8 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 - Property slugs must be unique within an organization.
 - Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`). The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
 - Canonical GBP location suffixes must be unique within an organization.
+- A Google review destination is accepted only from the provider discovery/import path, is restricted to approved HTTPS Google hosts, and is pinned to the Property binding generation that produced it.
+- Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
 - `dataCellId` is assigned from the signed Data Cell catalogue and cannot be
   cleared or changed outside the audited operator move workflow.
 - Responsible Managers are explicit and may be multiple. Property creation never infers one from the creator.
@@ -73,7 +76,7 @@ property/
 
 Exported from `application/public-api.ts`:
 
-- Types: `PropertySlugLookupResult`, `PropertyLookupResult`, `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`
+- Types: `PropertySlugLookupResult`, `PropertyLookupResult`, `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`, `PropertyGoogleReviewDestinationPublicApi`
 - Binding contract: `GOOGLE_BINDING_STATES`, `PROPERTY_GOOGLE_BINDING_CHANGED_EVENT`, `isGoogleBindingState`
 
 ## Server functions

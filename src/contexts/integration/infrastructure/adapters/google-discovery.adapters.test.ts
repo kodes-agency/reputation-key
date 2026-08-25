@@ -456,6 +456,10 @@ describe('Google Business Information adapter', () => {
           categories: {
             primaryCategory: { displayName: 'Restaurant' },
           },
+          metadata: {
+            newReviewUri:
+              'https://search.google.com/local/writereview?placeid=location-1',
+          },
         },
       ],
       nextPageToken: 'next-location-page',
@@ -484,6 +488,8 @@ describe('Google Business Information adapter', () => {
           address: '123 Main Street, Suite 4, Sofia, Sofia City, 1000',
           primaryCategory: 'Restaurant',
           countryCode: 'BG',
+          googleReviewUri:
+            'https://search.google.com/local/writereview?placeid=location-1',
         },
       ],
       nextPageToken: 'next-location-page',
@@ -496,6 +502,31 @@ describe('Google Business Information adapter', () => {
         pageToken: 'location-page-token',
       },
       { authorization, deadlineMs: 15_000, signal: expect.any(AbortSignal) },
+    )
+  })
+
+  it('rejects an unsafe provider review destination', async () => {
+    const adapter = createGoogleBusinessInformationAdapter({
+      executor: executorReturning({
+        locations: [
+          {
+            name: 'locations/location-1',
+            title: 'Acme Diner',
+            metadata: { newReviewUri: 'https://google.com.evil.example/review' },
+          },
+        ],
+      }),
+    })
+
+    await expect(
+      adapter.listLocations({
+        accessToken: 'access-token',
+        authorization,
+        accountId: 'account-1',
+        accountDisplayName: 'Acme Group',
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
     )
   })
 

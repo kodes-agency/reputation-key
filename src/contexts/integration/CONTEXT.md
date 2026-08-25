@@ -9,7 +9,7 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 - **GoogleConnection** — tenant-owned OAuth credentials keyed by the verified Google OIDC subject. Credentials and the subject are cleared on disconnect.
 - **Opaque import reference** — short-lived browser handle whose provider routing data exists only in the provider-ephemeral store.
 - **Import request/item** — durable tenant-scoped v2 intent and per-location work. Pending work keeps protected routing suffixes; terminal retention follows the v2 lifecycle.
-- **Property Google binding** — Property-owned account/location suffixes, connection, lifecycle state, source epoch, and confirmed profile.
+- **Property Google binding** — Property-owned account/location suffixes, connection, lifecycle state, source epoch, confirmed profile, and validated Google review destination snapshot.
 - **Performance report** — live property-scoped Google Business Profile daily metrics, returned with source and retrieval metadata and never persisted.
 - **Token encryption** — access and refresh tokens are encrypted at rest through `TokenEncryptionPort`.
 
@@ -20,6 +20,7 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 - Import discovery data is bounded, short-lived, and stored only in provider-ephemeral Redis.
 - Durable import requests are tenant-scoped, idempotent, fenced per item, and converge through the v2 reducer.
 - Property create/relink effects use `PropertyGoogleBindingPublicApi`; Integration does not construct or insert Property entities directly.
+- Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, carries it through opaque/durable import state, and hands it to the Property binding effect. It is never manually entered by an administrator.
 - Performance data is live-only and property-scoped; the base Dashboard does not depend on provider availability.
 - Access tokens are encrypted at rest and never logged.
 

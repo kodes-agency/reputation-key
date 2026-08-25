@@ -73,6 +73,8 @@ export type GbpLocationCandidate = Readonly<{
   address: string | null
   primaryCategory: string | null
   countryCode: string | null
+  /** Output-only provider destination; absent metadata is represented as null. */
+  googleReviewUri?: string | null
 }>
 
 export type GoogleBusinessInformationPort = Readonly<{
