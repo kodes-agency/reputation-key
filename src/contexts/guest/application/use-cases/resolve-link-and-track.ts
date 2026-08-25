@@ -10,8 +10,13 @@ import type { PublicPortalLookup } from '../ports/public-portal-lookup.port'
 export type ResolveLinkAndTrackInput = Readonly<{
   token: string
   linkId: PortalLinkId
-  /** Request-edge qualifier; a denial suppresses analytics, never navigation. */
-  qualifyObservation?: (scope: ResolvedLinkObservationScope) => Promise<boolean>
+  /**
+   * Explicit POST-edge qualification. Its absence is the navigation-only GET
+   * path and must never increment product analytics.
+   */
+  qualifyObservation?: (
+    scope: ResolvedLinkObservationScope,
+  ) => Promise<ResolvedLinkObservationSession | null>
 }>
 
 export type ResolvedLinkObservationScope = Readonly<{
@@ -19,6 +24,11 @@ export type ResolvedLinkObservationScope = Readonly<{
   organizationId: string
   portalId: string
   propertyId: string
+}>
+
+export type ResolvedLinkObservationSession = Readonly<{
+  sessionId: string
+  sessionExpiresAt: Date
 }>
 
 export type ResolveLinkAndTrackDeps = Readonly<{
@@ -49,17 +59,25 @@ export const resolveLinkAndTrack =
       portalId: portalId(portal.portal.id),
       propertyId: propertyId(portal.propertyId),
     }
-    let qualified: boolean
+    let qualified: ResolvedLinkObservationSession | null
     try {
       qualified = input.qualifyObservation
         ? await input.qualifyObservation(observation)
-        : true
+        : null
     } catch (error) {
-      qualified = false
+      qualified = null
       deps.reportObservationFailure?.(error)
     }
     if (qualified) {
-      await deps.trackClick(observation)
+      try {
+        await deps.trackClick({
+          ...observation,
+          ...qualified,
+          destinationKind: 'secondary_link',
+        })
+      } catch (error) {
+        deps.reportObservationFailure?.(error)
+      }
     }
 
     return { url: link.url }

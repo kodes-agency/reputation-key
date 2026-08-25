@@ -63,14 +63,15 @@
 
 ### 5. Pseudonymous Identifiers
 
-| Field               | Table                    | Purpose                   | Hashing                   | Retention                |
-| ------------------- | ------------------------ | ------------------------- | ------------------------- | ------------------------ |
-| Guest IP hash       | `scan_events.ip_hash`    | Abuse prevention          | Daily rotating keyed hash | 7 days (then redacted)   |
-| Guest session ID    | `scan_events.session_id` | Visit integrity           | Random UUID               | 24 hours (then redacted) |
-| Rating IP hash      | `ratings.ip_hash`        | Legacy dedup              | Daily rotating keyed hash | 7 days (then redacted)   |
-| Rating session ID   | `ratings.session_id`     | Legacy response integrity | Random UUID               | 24 hours (then redacted) |
-| Feedback IP hash    | `feedback.ip_hash`       | Legacy abuse prevention   | Daily rotating keyed hash | 7 days (then redacted)   |
-| Feedback session ID | `feedback.session_id`    | Legacy response integrity | Random UUID               | 24 hours (then redacted) |
+| Field                         | Table                                          | Purpose                   | Hashing                    | Retention                                               |
+| ----------------------------- | ---------------------------------------------- | ------------------------- | -------------------------- | ------------------------------------------------------- |
+| Guest IP hash                 | `scan_events.ip_hash`                          | Abuse prevention          | Daily rotating keyed hash  | 7 days (then redacted)                                  |
+| Guest session ID              | `scan_events.session_id`                       | Visit integrity           | Random UUID                | 24 hours (then redacted)                                |
+| Rating IP hash                | `ratings.ip_hash`                              | Legacy dedup              | Daily rotating keyed hash  | 7 days (then redacted)                                  |
+| Rating session ID             | `ratings.session_id`                           | Legacy response integrity | Random UUID                | 24 hours (then redacted)                                |
+| Feedback IP hash              | `feedback.ip_hash`                             | Legacy abuse prevention   | Daily rotating keyed hash  | 7 days (then redacted)                                  |
+| Feedback session ID           | `feedback.session_id`                          | Legacy response integrity | Random UUID                | 24 hours (then redacted)                                |
+| Destination action session ID | `guest_destination_action_receipts.session_id` | First-action integrity    | Random signed-session UUID | Until signed-session expiry (max 24 hours; row deleted) |
 
 **Note:** Raw guest IP addresses are never stored. Guest hashing uses the rotating `GUEST_SESSION_SALT` derivation; the resulting abuse pseudonym is scrubbed independently so the managerial visit/rating/feedback fact remains. Audit log IP addresses (`audit_logs.ip_address`) store the derived client IP for security audit — these are operator-accessible only.
 

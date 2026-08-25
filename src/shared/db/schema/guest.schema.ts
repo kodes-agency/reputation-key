@@ -170,6 +170,49 @@ export const guestResponses = pgTable(
 )
 
 /**
+ * Short-lived correctness receipt for qualified destination actions. The
+ * content-free outbox fact is retained independently; this session pseudonym
+ * exists only for the signed-session dedupe window.
+ */
+export const guestDestinationActionReceipts = pgTable(
+  'guest_destination_action_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    destinationId: varchar('destination_id', { length: 255 }).notNull(),
+    destinationKind: varchar('destination_kind', { length: 24 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    destinationDedupe: uniqueIndex('guest_destination_action_receipts_dedupe').on(
+      t.organizationId,
+      t.portalId,
+      t.sessionId,
+      t.destinationKind,
+      t.destinationId,
+    ),
+    expiryIdx: index('guest_destination_action_receipts_expiry_idx').on(t.expiresAt),
+    portalTenantFk: foreignKey({
+      name: 'guest_destination_action_receipts_portal_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    destinationKindCheck: check(
+      'guest_destination_action_receipts_kind_valid',
+      sql`${t.destinationKind} IN ('google_review', 'secondary_link')`,
+    ),
+    liveWindowCheck: check(
+      'guest_destination_action_receipts_live_window',
+      sql`${t.expiresAt} > ${t.createdAt}`,
+    ),
+  }),
+)
+
+/**
  * One durable row per media upload issuance. State transitions use a processing
  * lease so withdrawal/moderation deletion wins races with object confirmation.
  */

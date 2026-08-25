@@ -207,7 +207,30 @@ describe('guest response server-fn gates', () => {
     expect(ratingGate).toBeGreaterThan(receipt)
     expect(metric).toBeGreaterThan(ratingGate)
     expect(fn).toContain("destinationKind: 'google_review'")
+    expect(fn).toContain('sessionExpiresAt: bound.session.expiresAt')
     expect(fn).toContain('bound.portal.reviewGateway.googleReviewUri')
+  })
+
+  it('records secondary destinations only through a rated explicit mutation', () => {
+    const fn = slice('selectSecondaryLinkFn')
+    const receipt = fn.indexOf('responseLifecycle.getState')
+    const ratingGate = fn.indexOf('if (!response?.rating')
+    const selection = fn.indexOf('resolveLinkAndTrack')
+    expect(receipt).toBeGreaterThan(-1)
+    expect(ratingGate).toBeGreaterThan(receipt)
+    expect(selection).toBeGreaterThan(ratingGate)
+    expect(fn).toContain("action: 'public:portal.secondary_link.select'")
+    expect(fn).toContain('sessionExpiresAt: bound.session.expiresAt')
+  })
+
+  it('keeps the public GET redirect navigation-only', () => {
+    const scans = readFileSync(new URL('./guest-scans.ts', import.meta.url), 'utf8')
+    const start = scans.indexOf('export const resolvePublicPortalLink =')
+    expect(start).toBeGreaterThan(-1)
+    const fn = scans.slice(start)
+    expect(fn).toContain('useCases.resolveLinkAndTrack')
+    expect(fn).not.toContain('qualifyObservation')
+    expect(fn).not.toContain('trackReviewLinkClick')
   })
 
   it('gates staff moderation on portal.write, not the guest collection capability', () => {

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolveLinkAndTrack: vi.fn(),
+  resolvePublicPortalLink: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
 }))
 
 vi.mock('#/contexts/guest/server/guest-scans', () => ({
-  resolveLinkAndTrack: mocks.resolveLinkAndTrack,
+  resolvePublicPortalLink: mocks.resolvePublicPortalLink,
 }))
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: vi.fn(() => ({ warn: mocks.warn, error: mocks.error })),
@@ -19,14 +19,16 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('binds the opaque token and link ID before redirecting to the stored HTTPS URL', async () => {
-    mocks.resolveLinkAndTrack.mockResolvedValue({ url: 'https://reviews.example.com/r' })
+    mocks.resolvePublicPortalLink.mockResolvedValue({
+      url: 'https://reviews.example.com/r',
+    })
 
     const response = await handlePublicPortalClick({
       token: 'token-p1',
       linkId: 'link-p1',
     })
 
-    expect(mocks.resolveLinkAndTrack).toHaveBeenCalledWith({
+    expect(mocks.resolvePublicPortalLink).toHaveBeenCalledWith({
       data: { token: 'token-p1', linkId: 'link-p1' },
     })
     expect(response.status).toBe(302)
@@ -35,7 +37,7 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
   })
 
   it('returns an inert non-enumerating response for a forged cross-property link', async () => {
-    mocks.resolveLinkAndTrack.mockResolvedValue(null)
+    mocks.resolvePublicPortalLink.mockResolvedValue(null)
 
     const response = await handlePublicPortalClick({
       token: 'token-p2',
@@ -47,7 +49,7 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
   })
 
   it('does not disclose a retired token in logs or redirect effects', async () => {
-    mocks.resolveLinkAndTrack.mockRejectedValue(new Error('token unavailable'))
+    mocks.resolvePublicPortalLink.mockRejectedValue(new Error('token unavailable'))
 
     const response = await handlePublicPortalClick({
       token: 'raw-secret-token',

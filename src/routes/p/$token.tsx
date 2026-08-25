@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { z } from 'zod/v4'
 import {
   correctGuestResponseFn,
+  selectSecondaryLinkFn,
   selectGoogleReviewFn,
   submitPrivateFeedbackFn,
   submitGuestResponseFn,
@@ -149,6 +150,7 @@ function PublicPortalView({
   const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
   const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
   const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
+  const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 
@@ -171,6 +173,7 @@ function PublicPortalView({
         categories={data.categories}
         links={data.links}
         reviewGateway={data.reviewGateway}
+        selectSecondaryLink={selectSecondaryLink}
         responseForm={{
           csrfNonce,
           initialResponse: data.response,

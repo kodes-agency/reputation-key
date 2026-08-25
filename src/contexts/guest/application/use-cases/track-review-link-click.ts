@@ -17,6 +17,8 @@ export type TrackReviewLinkClickDeps = Readonly<{
 export type TrackReviewLinkClickInput = Readonly<{
   linkId: PortalLinkId
   destinationKind?: 'google_review' | 'secondary_link'
+  sessionId: string
+  sessionExpiresAt: Date
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
@@ -27,15 +29,27 @@ export const trackReviewLinkClick =
   async (input: TrackReviewLinkClickInput): Promise<void> => {
     try {
       const now = deps.clock()
+      const destinationKind = input.destinationKind ?? 'secondary_link'
+      const fact = guestReviewLinkClicked({
+        linkId: input.linkId,
+        destinationKind,
+        organizationId: input.organizationId,
+        portalId: input.portalId,
+        propertyId: input.propertyId,
+        occurredAt: now,
+      })
       await deps.observationStore.commitReviewLinkClick(
-        guestReviewLinkClicked({
-          linkId: input.linkId,
-          destinationKind: input.destinationKind ?? 'secondary_link',
+        {
           organizationId: input.organizationId,
-          portalId: input.portalId,
           propertyId: input.propertyId,
+          portalId: input.portalId,
+          sessionId: input.sessionId,
+          destinationId: input.linkId,
+          destinationKind,
           occurredAt: now,
-        }),
+          expiresAt: input.sessionExpiresAt,
+        },
+        fact,
       )
     } catch (e) {
       // Silent failure — click tracking is analytics

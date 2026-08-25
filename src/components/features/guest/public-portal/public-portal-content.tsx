@@ -1,16 +1,15 @@
-import { GuestResponseForm, type GuestResponseFormProps } from './guest-response-form'
+import {
+  GuestResponseForm,
+  type GuestResponseAction,
+  type GuestResponseFormProps,
+} from './guest-response-form'
+import {
+  PortalSecondaryLinks,
+  type PortalCategory,
+  type PortalLinkItem,
+} from './portal-secondary-links'
 
-export type PortalCategory = {
-  id: string
-  title: string
-}
-
-export type PortalLinkItem = {
-  id: string
-  label: string
-  url: string
-  categoryId: string | null
-}
+export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
 export type PublicPortalContentProps = Readonly<{
   /** Omitted only by authenticated manager previews. Public pages must supply it. */
@@ -29,22 +28,12 @@ export type PublicPortalContentProps = Readonly<{
     privateFeedbackThreshold: number
     googleReviewUri: string
   }>
+  selectSecondaryLink?: GuestResponseAction<
+    { token: string; csrfNonce: string; linkId: string },
+    { url: string }
+  >
   responseForm?: Omit<GuestResponseFormProps, 'token' | 'googleReviewUri'>
 }>
-
-// `--portal-primary` is the manager's accent: it is the only colour the settings
-// UI has ever let them change, and until now nothing on this page read it. It
-// drives the section headings, the destination rules and the focus ring below.
-const DESTINATION_CLASS =
-  'block rounded-lg border border-l-4 p-3 transition-colors hover:[background-color:var(--portal-accent-soft)] focus-visible:ring-2 focus-visible:ring-[color:var(--portal-primary)] focus-visible:outline-none'
-
-const DESTINATION_STYLE = {
-  borderColor: 'var(--portal-accent-border)',
-  borderLeftColor: 'var(--portal-primary)',
-  color: 'inherit',
-}
-
-const HEADING_STYLE = { color: 'var(--portal-primary)' }
 
 /** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
 const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
@@ -55,6 +44,7 @@ export function PublicPortalContent({
   categories,
   links,
   reviewGateway,
+  selectSecondaryLink,
   responseForm,
 }: PublicPortalContentProps) {
   // The stored theme is an open JSON record, so each colour is narrowed rather
@@ -85,66 +75,16 @@ export function PublicPortalContent({
     '--portal-text-muted': `color-mix(in srgb, ${textColor} 72%, ${backgroundColor})`,
   }
 
-  const uncategorizedLinks = links.filter((link) => link.categoryId === null)
   const secondaryLinks =
     links.length > 0 ? (
-      <nav aria-label="More links" className="space-y-6">
-        <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-          More from {portal.organizationName}
-        </h2>
-        {categories.map((category) => {
-          const categoryLinks = links.filter((link) => link.categoryId === category.id)
-          if (categoryLinks.length === 0) return null
-          return (
-            <section key={category.id} className="space-y-2">
-              <h3 className="text-lg font-semibold" style={HEADING_STYLE}>
-                {category.title}
-              </h3>
-              <div className="space-y-2">
-                {categoryLinks.map((link) => (
-                  <a
-                    key={link.id}
-                    href={
-                      token
-                        ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                        : link.url
-                    }
-                    rel="noreferrer"
-                    className={DESTINATION_CLASS}
-                    style={DESTINATION_STYLE}
-                  >
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            </section>
-          )
-        })}
-        {uncategorizedLinks.length > 0 && (
-          <section className="space-y-2">
-            <h3 className="text-lg font-semibold" style={HEADING_STYLE}>
-              More destinations
-            </h3>
-            <div className="space-y-2">
-              {uncategorizedLinks.map((link) => (
-                <a
-                  key={link.id}
-                  href={
-                    token
-                      ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                      : link.url
-                  }
-                  rel="noreferrer"
-                  className={DESTINATION_CLASS}
-                  style={DESTINATION_STYLE}
-                >
-                  {link.label}
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
-      </nav>
+      <PortalSecondaryLinks
+        token={token}
+        csrfNonce={responseForm?.csrfNonce}
+        organizationName={portal.organizationName}
+        categories={categories}
+        links={links}
+        selectSecondaryLink={selectSecondaryLink}
+      />
     ) : null
 
   const isPublicPortal = token !== undefined

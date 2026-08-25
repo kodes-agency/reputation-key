@@ -60,6 +60,15 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     operation: 'redact',
     redactColumns: ['response_text'],
   },
+  {
+    // The content-free destination fact survives, but the signed-session
+    // pseudonym used to enforce first-action semantics does not.
+    subject: 'guest_destination_action_receipts.expired',
+    table: 'guest_destination_action_receipts',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
   ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
     subject: `${table}.abuse_pseudonym`,
     table,

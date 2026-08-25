@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { resolveLinkAndTrack } from '#/contexts/guest/server/guest-scans'
+import { resolvePublicPortalLink } from '#/contexts/guest/server/guest-scans'
 import { isValidExternalUrl } from '#/contexts/portal/application/public-api'
 import { getLogger } from '#/shared/observability/logger'
 
@@ -20,7 +20,7 @@ export async function handlePublicPortalClick(
 ): Promise<Response> {
   const logger = getLogger()
   try {
-    const result = await resolveLinkAndTrack({
+    const result = await resolvePublicPortalLink({
       data: { token: params.token, linkId: params.linkId },
     })
     if (!result || !isValidExternalUrl(result.url)) {

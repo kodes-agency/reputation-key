@@ -12,7 +12,7 @@
 //
 // Targets (background queue, bounded internally by the sweeps themselves):
 //   reviews    — purge-expired-reviews (daily; atomic delete + evidence per review)
-//   retention  — retention-sweep (daily; 9 rules, evidence in retention_runs)
+//   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
 // Requires REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
 // (decision row) and re-authorized by the BQC-3 dispatch gate at execution.

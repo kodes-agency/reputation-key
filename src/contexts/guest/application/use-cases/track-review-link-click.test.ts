@@ -4,12 +4,14 @@ import { createMockLogger } from '#/shared/testing/mock-logger'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 
+const SESSION_EXPIRES_AT = new Date('2026-05-02T12:00:00Z')
+
 describe('trackReviewLinkClick', () => {
   it('commits the durable observation before its fast-path event', async () => {
     const events = createCapturingEventBus()
     const store: GuestObservationStore = {
       commitScan: async () => 'applied',
-      commitReviewLinkClick: async (fact) => {
+      commitReviewLinkClick: async (_action, fact) => {
         await events.emit(fact)
         return 'applied'
       },
@@ -22,6 +24,8 @@ describe('trackReviewLinkClick', () => {
 
     await useCase({
       linkId: portalLinkId('link-123'),
+      sessionId: '00000000-0000-4000-8000-000000000100',
+      sessionExpiresAt: SESSION_EXPIRES_AT,
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
@@ -36,7 +40,7 @@ describe('trackReviewLinkClick', () => {
     const events = createCapturingEventBus()
     const store: GuestObservationStore = {
       commitScan: async () => 'applied',
-      commitReviewLinkClick: async (fact) => {
+      commitReviewLinkClick: async (_action, fact) => {
         await events.emit(fact)
         return 'applied'
       },
@@ -50,6 +54,8 @@ describe('trackReviewLinkClick', () => {
     await useCase({
       linkId: portalLinkId('google-review'),
       destinationKind: 'google_review',
+      sessionId: '00000000-0000-4000-8000-000000000101',
+      sessionExpiresAt: SESSION_EXPIRES_AT,
       organizationId: organizationId('org-1'),
       portalId: portalId('portal-1'),
       propertyId: propertyId('prop-1'),
@@ -76,6 +82,8 @@ describe('trackReviewLinkClick', () => {
     await expect(
       useCase({
         linkId: portalLinkId('link-123'),
+        sessionId: '00000000-0000-4000-8000-000000000102',
+        sessionExpiresAt: SESSION_EXPIRES_AT,
         organizationId: organizationId('org-1'),
         portalId: portalId('portal-1'),
         propertyId: propertyId('prop-1'),

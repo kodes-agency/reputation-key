@@ -14,6 +14,7 @@ import {
 import { guestReviewLinkClicked, guestScanRecorded } from '../../domain/events'
 import type { ScanEvent } from '../../domain/types'
 import type { GuestScanRecorded } from '../../domain/events'
+import type { GuestReviewLinkClicked } from '../../domain/events'
 import { createAtomicGuestObservationStore } from '../guest-observation-store'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
@@ -23,6 +24,7 @@ const ORG = organizationId('org-guest-observation-store')
 const PROPERTY = propertyId('52000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('52000000-0000-4000-8000-000000000002')
 const SESSION = 'guest-observation-session'
+const ACTION_SESSION = '52000000-0000-4000-8000-000000000003'
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 
 function scan(index: number): ScanEvent {
@@ -74,11 +76,17 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  await db.execute(
+    sql`DELETE FROM guest_destination_action_receipts WHERE organization_id = ${ORG}`,
+  )
   await db.execute(sql`DELETE FROM scan_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
 })
 
 afterAll(async () => {
+  await db.execute(
+    sql`DELETE FROM guest_destination_action_receipts WHERE organization_id = ${ORG}`,
+  )
   await db.execute(sql`DELETE FROM scan_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
@@ -184,7 +192,7 @@ describe.sequential('atomic Guest observations', () => {
     expect(scans.rows).toHaveLength(0)
   })
 
-  it('commits a link-action fact before emitting the fast path', async () => {
+  it('serializes a session/destination action to one receipt and one fact', async () => {
     const events = createCapturingEventBus()
     const store = createAtomicGuestObservationStore(db, events)
     const fact = guestReviewLinkClicked({
@@ -196,13 +204,113 @@ describe.sequential('atomic Guest observations', () => {
       occurredAt: NOW,
     })
 
-    await expect(store.commitReviewLinkClick(fact)).resolves.toBe('applied')
+    const action = {
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      sessionId: ACTION_SESSION,
+      destinationId: fact.linkId,
+      destinationKind: fact.destinationKind,
+      occurredAt: NOW,
+      expiresAt: new Date('2026-08-26T12:00:00.000Z'),
+    } as const
+
+    const outcomes = await Promise.all(
+      Array.from({ length: 8 }, () => store.commitReviewLinkClick(action, fact)),
+    )
+
+    expect(outcomes.filter((outcome) => outcome === 'applied')).toHaveLength(1)
+    expect(outcomes.filter((outcome) => outcome === 'duplicate')).toHaveLength(7)
 
     const outbox = await db.execute(sql`
       SELECT id FROM outbox_events
       WHERE organization_id = ${ORG} AND event_type = 'guest.review_link.clicked'
     `)
+    const receipts = await db.execute(sql`
+      SELECT id FROM guest_destination_action_receipts
+      WHERE organization_id = ${ORG}
+    `)
     expect(outbox.rows).toHaveLength(1)
+    expect(receipts.rows).toHaveLength(1)
     expect(events.capturedByTag('guest.review_link.clicked')).toHaveLength(1)
+  })
+
+  it('purges the expired session receipt without deleting the action fact', async () => {
+    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const fact = guestReviewLinkClicked({
+      linkId: portalLinkId('52000000-0000-4000-8000-000000000031'),
+      destinationKind: 'google_review',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: NOW,
+    })
+    await store.commitReviewLinkClick(
+      {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        sessionId: ACTION_SESSION,
+        destinationId: fact.linkId,
+        destinationKind: fact.destinationKind,
+        occurredAt: NOW,
+        expiresAt: new Date('2026-08-26T12:00:00.000Z'),
+      },
+      fact,
+    )
+    const rule = RETENTION_RULES.find(
+      (candidate) => candidate.subject === 'guest_destination_action_receipts.expired',
+    )!
+
+    await expect(
+      executeRetentionRule(db, rule, {
+        cutoff: new Date('2026-08-26T12:00:00.001Z'),
+        batchSize: 10,
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 1 })
+
+    const facts = await db.execute(sql`
+      SELECT id FROM outbox_events
+      WHERE organization_id = ${ORG} AND event_type = 'guest.review_link.clicked'
+    `)
+    expect(facts.rows).toHaveLength(1)
+  })
+
+  it('rolls back the action receipt when its durable fact is invalid', async () => {
+    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const valid = guestReviewLinkClicked({
+      linkId: portalLinkId('52000000-0000-4000-8000-000000000032'),
+      destinationKind: 'secondary_link',
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: NOW,
+    })
+    const invalid = {
+      ...valid,
+      _tag: 'guest.destination.unregistered',
+    } as unknown as GuestReviewLinkClicked
+
+    await expect(
+      store.commitReviewLinkClick(
+        {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          sessionId: ACTION_SESSION,
+          destinationId: valid.linkId,
+          destinationKind: valid.destinationKind,
+          occurredAt: NOW,
+          expiresAt: new Date('2026-08-26T12:00:00.000Z'),
+        },
+        invalid,
+      ),
+    ).rejects.toThrow('is not registered for the outbox')
+
+    const receipts = await db.execute(sql`
+      SELECT id FROM guest_destination_action_receipts
+      WHERE organization_id = ${ORG}
+    `)
+    expect(receipts.rows).toHaveLength(0)
   })
 })

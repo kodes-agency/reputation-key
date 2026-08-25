@@ -649,6 +649,20 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
       'retention-sweep scan_events.abuse_pseudonym redacts ip_hash after 7 days',
     mustEliminate: false,
   },
+  {
+    relation: 'guest_destination_action_receipts',
+    kind: 'table',
+    field: 'session_id',
+    classification: 'local_operational_fact',
+    owner: 'guest',
+    purpose: 'Signed-session pseudonym for once-per-destination action integrity',
+    creationPath: 'qualified origin/CSRF-bound destination selection mutation',
+    readPath: 'unique-index conflict check only; never exposed to product UI or facts',
+    refreshRule: 'fixed to the signed session expiry; never extended',
+    deletionMechanism:
+      'retention-sweep guest_destination_action_receipts.expired deletes the row at expiry',
+    mustEliminate: false,
+  },
 
   // ── event payload fields (outbox-registered types) ──────────────────
   // BQC-1.2: review.created/updated no longer carry rating (identifier-only).

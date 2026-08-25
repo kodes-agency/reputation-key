@@ -76,6 +76,7 @@ export type SystemAction =
   | 'public:portal.response.correct'
   | 'public:portal.response.text.submit'
   | 'public:portal.google_review.select'
+  | 'public:portal.secondary_link.select'
   | 'public:portal.response.withdraw'
   | 'public:portal.media.issue'
   | 'public:portal.media.confirm'
@@ -1818,6 +1819,19 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
+      'selectSecondaryLinkFn',
+      `${GUEST}/public.ts`,
+      'public:portal.secondary_link.select',
+      'portal.public_read',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes:
+          'signed rated session; explicit mutation records the first session/destination action and returns the approved URL',
+      },
+    ),
+    sfPublic(
       'withdrawGuestResponseFn',
       `${GUEST}/public.ts`,
       'public:portal.response.withdraw',
@@ -1863,15 +1877,15 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
-      'resolveLinkAndTrack',
+      'resolvePublicPortalLink',
       `${GUEST}/guest-scans.ts`,
-      'system:guest.click_track',
-      'portal.read',
+      'public:portal.read',
+      'portal.public_read',
       'property',
       {
         canonicalOnly: true,
         notes:
-          'opaque token resolves through Portal public policy; signed-session/link dedupe and network/Portal limiting qualify analytics without blocking navigation',
+          'navigation-only no-JavaScript/failure fallback; opaque token resolves through Portal public policy and GET never records analytics',
       },
     ),
   ],

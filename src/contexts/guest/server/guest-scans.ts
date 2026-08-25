@@ -216,45 +216,25 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── resolveLinkAndTrack ───────────────────────────────────────────
-// Resolves a portal link to its redirect URL and tracks the click.
-// Used by the public click-tracking API route.
+// ── resolvePublicPortalLink ───────────────────────────────────────
+// Navigation-only fallback for no-JavaScript and failed mutation paths. A GET
+// deliberately never creates the Qualified Link Action product metric.
 
 const resolveLinkSchema = z.object({
   token: z.string().min(1).max(256),
   linkId: z.string().min(1),
 })
 
-export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
+export const resolvePublicPortalLink = createServerFn({ method: 'GET' })
   .inputValidator(resolveLinkSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases, rateLimiter } = getContainer()
-        const headers = (await headersFromContext()) ?? new Headers()
+        const { useCases } = getContainer()
         try {
           return await useCases.resolveLinkAndTrack({
             token: data.token,
             linkId: portalLinkId(data.linkId),
-            qualifyObservation: async (scope) => {
-              const session = useCases.guestSessions.verify(
-                headers.get('cookie') ?? '',
-                scope,
-              )
-              if (!session) return false
-              const result = await checkLayeredGuestRateLimit({
-                rateLimiter,
-                keys: guestRateLimitKeys(
-                  'click',
-                  `${session.sessionId}:${data.linkId}`,
-                  hashIp(clientIpFromHeaders(headers)),
-                  scope.portalId,
-                ),
-                sessionLimits: { maxRequests: 1, windowSeconds: 24 * 60 * 60 },
-                networkPortalLimits: { maxRequests: 20, windowSeconds: 60 * 60 },
-              })
-              return result.allowed
-            },
           })
         } catch (e) {
           if (isGuestError(e))
@@ -263,6 +243,6 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'guest.resolveLinkAndTrack',
+      'guest.resolvePublicPortalLink',
     ),
   )

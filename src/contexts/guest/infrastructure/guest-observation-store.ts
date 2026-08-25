@@ -1,6 +1,9 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { scanEvents } from '#/shared/db/schema/guest.schema'
+import {
+  guestDestinationActionReceipts,
+  scanEvents,
+} from '#/shared/db/schema/guest.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -46,11 +49,53 @@ export function createAtomicGuestObservationStore(
         return outcome
       }),
 
-    commitReviewLinkClick: (fact) =>
+    commitReviewLinkClick: (action, fact) =>
       trace('guest.observationStore.commitReviewLinkClick', async () => {
-        await db.transaction((tx) => insertOutboxRow(tx, fact))
-        await emitAfterCommit(events, fact)
-        return 'applied' as const
+        if (
+          action.sessionId.trim().length === 0 ||
+          action.expiresAt.getTime() <= action.occurredAt.getTime()
+        ) {
+          throw new Error('qualified destination action requires a live session')
+        }
+        if (
+          action.organizationId !== fact.organizationId ||
+          action.propertyId !== fact.propertyId ||
+          action.portalId !== fact.portalId ||
+          action.destinationId !== fact.linkId ||
+          action.destinationKind !== fact.destinationKind ||
+          action.occurredAt.getTime() !== fact.occurredAt.getTime()
+        ) {
+          throw new Error('qualified destination action does not match its fact')
+        }
+        const outcome = await db.transaction(async (tx) => {
+          const inserted = await tx
+            .insert(guestDestinationActionReceipts)
+            .values({
+              organizationId: action.organizationId,
+              propertyId: action.propertyId,
+              portalId: action.portalId,
+              sessionId: action.sessionId,
+              destinationId: action.destinationId,
+              destinationKind: action.destinationKind,
+              expiresAt: action.expiresAt,
+              createdAt: action.occurredAt,
+            })
+            .onConflictDoNothing({
+              target: [
+                guestDestinationActionReceipts.organizationId,
+                guestDestinationActionReceipts.portalId,
+                guestDestinationActionReceipts.sessionId,
+                guestDestinationActionReceipts.destinationKind,
+                guestDestinationActionReceipts.destinationId,
+              ],
+            })
+            .returning({ id: guestDestinationActionReceipts.id })
+          if (inserted.length === 0) return 'duplicate' as const
+          await insertOutboxRow(tx, fact, { recordedAt: action.occurredAt })
+          return 'applied' as const
+        })
+        if (outcome === 'applied') await emitAfterCommit(events, fact)
+        return outcome
       }),
   }
 }

@@ -51,6 +51,10 @@ const privateFeedbackMutationSchema = baseMutationSchema.extend({
   honeypot: z.string().max(256).optional(),
 })
 
+const secondaryLinkMutationSchema = baseMutationSchema.extend({
+  linkId: z.string().min(1).max(255),
+})
+
 const denyWithoutEnumeration = (): never =>
   throwContextError(
     'GuestResponseError',
@@ -122,10 +126,11 @@ function lifecycleFailure(error: unknown): never {
 }
 
 async function rateLimit(
-  action: 'submit' | 'correct' | 'feedback' | 'google',
+  action: 'submit' | 'correct' | 'feedback' | 'google' | 'secondary',
   sessionId: string,
   portalId: string,
   headers: Headers,
+  destinationKey?: string,
 ): Promise<void> {
   const { rateLimiter } = getContainer()
   const limits =
@@ -142,22 +147,22 @@ async function rateLimit(
             session: { maxRequests: 3, windowSeconds: 60 * 60 },
             networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
           }
-        : action === 'google'
+        : action === 'google' || action === 'secondary'
           ? {
-              // One qualified Google action per signed response session. A
-              // repeat is still navigable through the client fail-open path,
-              // but cannot inflate the selection fact.
-              session: { maxRequests: 1, windowSeconds: 24 * 60 * 60 },
+              // PostgreSQL owns exact once-per-session/destination semantics.
+              // This small abuse budget allows a retry after transient
+              // observation loss while the navigation itself remains fail-open.
+              session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
               networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
             }
           : {
               session: { maxRequests: 10, windowSeconds: 60 * 60 },
               networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
             }
-  const keyKind = action === 'google' ? 'click' : 'response'
+  const keyKind = action === 'google' || action === 'secondary' ? 'click' : 'response'
   const ipHash = hashIp(clientIpFromHeaders(headers))
   let result = await rateLimiter.check(
-    `${guestRateLimitKey(keyKind, sessionId, ipHash)}:${action}`,
+    `${guestRateLimitKey(keyKind, sessionId, ipHash)}:${action}${destinationKey ? `:${destinationKey}` : ''}`,
     limits.session,
   )
   if (result.allowed) {
@@ -363,6 +368,8 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
         await bound.useCases.trackReviewLinkClick({
           linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
           destinationKind: 'google_review',
+          sessionId: bound.session.sessionId,
+          sessionExpiresAt: bound.session.expiresAt,
           organizationId: organizationId(bound.scope.organizationId),
           portalId: portalId(bound.scope.portalId),
           propertyId: propertyId(bound.scope.propertyId),
@@ -371,6 +378,63 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.google_review.select',
+    ),
+  )
+
+/**
+ * Qualified secondary-link action. The GET redirect remains a navigation-only
+ * fallback; only this origin/CSRF/session-bound mutation may create analytics.
+ */
+export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
+  .inputValidator(secondaryLinkMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.secondary_link.select',
+          capability: 'portal.public_read',
+          assertions: {
+            analytics: true,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        await rateLimit(
+          'secondary',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+          data.linkId,
+        )
+        const result = await bound.useCases.resolveLinkAndTrack({
+          token: data.token,
+          linkId: portalLinkId(data.linkId),
+          qualifyObservation: async (scope) =>
+            scope.organizationId === bound.scope.organizationId &&
+            scope.propertyId === bound.scope.propertyId &&
+            scope.portalId === bound.scope.portalId
+              ? {
+                  sessionId: bound.session.sessionId,
+                  sessionExpiresAt: bound.session.expiresAt,
+                }
+              : null,
+        })
+        if (!result) return denyWithoutEnumeration()
+        return result
+      },
+      'POST',
+      'guest.secondary_link.select',
     ),
   )
 

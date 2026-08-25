@@ -274,6 +274,19 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
+  it('deletes destination-action session receipts at their exact expiry', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_destination_action_receipts.expired',
+      ),
+    ).toMatchObject({
+      table: 'guest_destination_action_receipts',
+      keyColumns: ['id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+  })
+
   it('redacts every legacy guest abuse pseudonym after seven days', () => {
     for (const table of ['scan_events', 'ratings', 'feedback']) {
       expect(
