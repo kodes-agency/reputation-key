@@ -24,7 +24,6 @@ import { PortalResponseIntegritySummary } from './portal-response-integrity-summ
 type Props = Readonly<{
   portalId: string
   propertyId: string
-  propertyTimezone: string
   getPortalAnalytics: typeof getPortalAnalyticsFn
 }>
 
@@ -46,12 +45,7 @@ function readStoredTimeRange(): TimeRangePreset {
   }
 }
 
-export function PortalAnalyticsTab({
-  portalId,
-  propertyId,
-  propertyTimezone,
-  getPortalAnalytics,
-}: Props) {
+export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
 
   useEffect(() => {
@@ -109,6 +103,7 @@ export function PortalAnalyticsTab({
   }
 
   if (!data) return null
+  const propertyTimezone = data.period.timezone
 
   const hasData =
     (data.kpis.scans.value ?? 0) > 0 ||

@@ -6,6 +6,13 @@
 // - Calendar generation is tested across DST gaps/folds, leap days, month ends.
 // - A property timezone change affects future periods only.
 
+import {
+  daysInGregorianMonth,
+  propertyWallClockAt,
+  propertyWallClockToInstant,
+  type PropertyWallClock,
+} from '#/shared/domain/property-calendar'
+
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface RecurrenceRule {
@@ -69,7 +76,7 @@ export function periodContaining(
   rule: RecurrenceRule,
   timezone: string,
 ): PeriodBounds {
-  const local = wallClockAt(reference, timezone)
+  const local = propertyWallClockAt(reference, timezone)
   let year = local.year
   let month = local.month
   let day = local.day
@@ -78,7 +85,7 @@ export function periodContaining(
     const boundaryWeekday = rule.dayOfWeek ?? 1
     day -= (weekday - boundaryWeekday + 7) % 7
   } else if (rule.frequency === 'monthly') {
-    const boundaryDay = Math.min(rule.dayOfMonth ?? 1, daysInMonth(year, month))
+    const boundaryDay = Math.min(rule.dayOfMonth ?? 1, daysInGregorianMonth(year, month))
     if (day < boundaryDay) {
       month--
       if (month === 0) {
@@ -86,7 +93,7 @@ export function periodContaining(
         year--
       }
     }
-    day = Math.min(rule.dayOfMonth ?? 1, daysInMonth(year, month))
+    day = Math.min(rule.dayOfMonth ?? 1, daysInGregorianMonth(year, month))
   } else if (rule.frequency === 'quarterly') {
     month = Math.floor((month - 1) / 3) * 3 + 1
     day = 1
@@ -94,10 +101,10 @@ export function periodContaining(
     const boundaryMonth = rule.monthOfYear ?? 1
     if (month < boundaryMonth) year--
     month = boundaryMonth
-    day = Math.min(rule.dayOfMonth ?? 1, daysInMonth(year, month))
+    day = Math.min(rule.dayOfMonth ?? 1, daysInGregorianMonth(year, month))
   }
   const normalized = new Date(Date.UTC(year, month - 1, day))
-  const start = wallClockToInstant(
+  const start = propertyWallClockToInstant(
     {
       year: normalized.getUTCFullYear(),
       month: normalized.getUTCMonth() + 1,
@@ -105,6 +112,7 @@ export function periodContaining(
       hour: 0,
       minute: 0,
       second: 0,
+      millisecond: 0,
     },
     timezone,
   )
@@ -119,58 +127,11 @@ export function periodContaining(
  * Operates on local wall-clock components, not absolute timestamps,
  * so DST transitions don't shift the wall-clock time.
  */
-type WallClock = Readonly<{
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
-}>
-
-function wallClockAt(date: Date, timezone: string): WallClock {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hourCycle: 'h23',
-  }).formatToParts(date)
-  const value = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(parts.find((part) => part.type === type)?.value ?? '0')
-  return {
-    year: value('year'),
-    month: value('month'),
-    day: value('day'),
-    hour: value('hour') % 24,
-    minute: value('minute'),
-    second: value('second'),
-  }
-}
-
-function sameWallClock(left: WallClock, right: WallClock): boolean {
-  return (
-    left.year === right.year &&
-    left.month === right.month &&
-    left.day === right.day &&
-    left.hour === right.hour &&
-    left.minute === right.minute &&
-    left.second === right.second
-  )
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
-}
-
 function normalizedWallClock(
-  current: WallClock,
+  current: PropertyWallClock,
   rule: RecurrenceRule,
   multiplier: number,
-): WallClock {
+): PropertyWallClock {
   if (rule.frequency === 'daily' || rule.frequency === 'weekly') {
     const days = multiplier * (rule.frequency === 'weekly' ? 7 : 1)
     const normalized = new Date(
@@ -190,6 +151,7 @@ function normalizedWallClock(
       hour: normalized.getUTCHours(),
       minute: normalized.getUTCMinutes(),
       second: normalized.getUTCSeconds(),
+      millisecond: normalized.getUTCMilliseconds(),
     }
   }
 
@@ -206,71 +168,12 @@ function normalizedWallClock(
   return {
     year,
     month,
-    day: Math.min(requestedDay, daysInMonth(year, month)),
+    day: Math.min(requestedDay, daysInGregorianMonth(year, month)),
     hour: current.hour,
     minute: current.minute,
     second: current.second,
+    millisecond: current.millisecond,
   }
-}
-
-function exactInstantsForWallClock(target: WallClock, timezone: string): Date[] {
-  const localEpoch = Date.UTC(
-    target.year,
-    target.month - 1,
-    target.day,
-    target.hour,
-    target.minute,
-    target.second,
-  )
-  const offsets = new Set<number>()
-  for (const delta of [-36, 0, 36]) {
-    const sample = new Date(localEpoch + delta * 3_600_000)
-    const local = wallClockAt(sample, timezone)
-    offsets.add(
-      Date.UTC(
-        local.year,
-        local.month - 1,
-        local.day,
-        local.hour,
-        local.minute,
-        local.second,
-      ) - sample.getTime(),
-    )
-  }
-
-  return [...offsets]
-    .map((offset) => new Date(localEpoch - offset))
-    .filter((candidate) => sameWallClock(wallClockAt(candidate, timezone), target))
-    .sort((left, right) => left.getTime() - right.getTime())
-}
-
-function wallClockToInstant(target: WallClock, timezone: string): Date {
-  const exact = exactInstantsForWallClock(target, timezone)
-  if (exact[0]) return exact[0] // deterministic fold policy: earlier occurrence
-
-  const localEpoch = Date.UTC(
-    target.year,
-    target.month - 1,
-    target.day,
-    target.hour,
-    target.minute,
-    target.second,
-  )
-  // Deterministic gap policy: advance to the first representable local minute.
-  for (let minute = 1; minute <= 180; minute++) {
-    const shifted = new Date(localEpoch + minute * 60_000)
-    const candidate: WallClock = {
-      year: shifted.getUTCFullYear(),
-      month: shifted.getUTCMonth() + 1,
-      day: shifted.getUTCDate(),
-      hour: shifted.getUTCHours(),
-      minute: shifted.getUTCMinutes(),
-      second: shifted.getUTCSeconds(),
-    }
-    const instants = exactInstantsForWallClock(candidate, timezone)
-    if (instants[0]) return instants[0]
-  }
-  throw new RangeError(`Unable to resolve wall clock in timezone ${timezone}`)
 }
 
 function shiftDate(
@@ -279,8 +182,11 @@ function shiftDate(
   timezone: string,
   multiplier: number,
 ): Date {
-  const current = wallClockAt(date, timezone)
-  return wallClockToInstant(normalizedWallClock(current, rule, multiplier), timezone)
+  const current = propertyWallClockAt(date, timezone)
+  return propertyWallClockToInstant(
+    normalizedWallClock(current, rule, multiplier),
+    timezone,
+  )
 }
 
 /**

@@ -17,6 +17,7 @@ export type GetAttentionSignalsInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetAttentionSignalsDeps = Readonly<{
@@ -33,11 +34,24 @@ export type GetAttentionSignals = (
 export const getAttentionSignals =
   (deps: GetAttentionSignalsDeps): GetAttentionSignals =>
   async (input) => {
-    const { organizationId, propertyId, slaHours, startDate, endDate, timeRange } = input
+    const {
+      organizationId,
+      propertyId,
+      slaHours,
+      startDate,
+      endDate,
+      timeRange,
+      propertyTimezone,
+    } = input
 
     // Keep the attention band aligned with the KPI strip. An all-time window
     // has no meaningful predecessor, so the repository receives no comparison.
-    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
+    const comparisonPeriod = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+      propertyTimezone,
+    )
 
     const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] = await Promise.all(
       [

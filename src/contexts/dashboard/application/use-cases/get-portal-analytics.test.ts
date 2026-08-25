@@ -119,6 +119,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: start,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     // KPIs have correct values from fake data
@@ -131,6 +132,11 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.evidence).toMatchObject({
       state: 'ready',
       sampleCount: 5,
+    })
+    expect(result.period).toEqual({
+      startAt: start,
+      endAt: now,
+      timezone: 'UTC',
     })
 
     expect(result.engagementFunnel).toEqual({
@@ -173,6 +179,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date(0),
       endDate: now,
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.kpis.scans.value).toBe(0)
@@ -222,6 +229,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: start,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     // Trend: (200-100)/100 * 100 = 100%
@@ -235,6 +243,36 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.sampleCount).toBe(10)
     expect(result.kpis.avgRating.priorSampleCount).toBe(10)
     expect(result.kpis.avgRating.comparison).toBe(0.5)
+  })
+
+  it('reads the prior window in the Property-local calendar', async () => {
+    const metrics = createFakePortalMetrics()
+    const getPortalKpiSums = vi.fn(metrics.getPortalKpiSums)
+    const analytics = getPortalAnalytics({
+      portalMetrics: { ...metrics, getPortalKpiSums },
+      responseIntegrity: createFakeResponseIntegrity(),
+    })
+    const startDate = new Date('2026-02-18T17:00:00.000Z')
+    const endDate = new Date('2026-03-20T16:00:00.000Z')
+
+    await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate,
+      endDate,
+      timeRange: '30d',
+      propertyTimezone: 'America/New_York',
+    })
+
+    expect(getPortalKpiSums).toHaveBeenNthCalledWith(
+      2,
+      ORG,
+      PROP,
+      PORT,
+      new Date('2026-01-19T17:00:00.000Z'),
+      startDate,
+    )
   })
 
   it('skips the prior-period query for "all" and reports no trend', async () => {
@@ -251,6 +289,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date(0),
       endDate: new Date(),
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
     // ONE kpi-sums query: 'all' scans from epoch, and the prior call used to
@@ -283,6 +322,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date(0),
       endDate: now,
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.engagementFunnel).toEqual({
@@ -325,6 +365,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date('2025-05-16T12:00:00Z'),
       endDate: new Date('2025-06-15T12:00:00Z'),
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.kpis.scans.value).toBeNull()

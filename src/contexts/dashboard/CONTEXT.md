@@ -7,7 +7,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 ## Glossary
 
 - **DashboardData** — The full property dashboard response: KPIs, rating distribution, trends, reply performance, engagement funnel, recent reviews.
-- **PortalAnalyticsData** — Portal-scoped analytics: portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
+- **PortalAnalyticsData** — Portal-scoped analytics: the trusted Property-local period/timezone, portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
 - **KPIValue** — A metric with current value, prior value, and trend percentage. Used for the KPI strip.
 - **PortalRatingKPIValue** — A private-rating average with eligible sample counts, source evidence, and an absolute star comparison. No eligible sample renders as `null`/`—`, never zero stars.
 - **PortalCountKPIValue** — A Portal count plus source evidence. Its value is nullable while the governed projection cannot safely prove a count, so incomplete data is never presented as zero.
@@ -38,12 +38,12 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 ## Invariants
 
 - Read-only: no mutations, no events produced, no event handlers.
-- Prior period is computed as `same duration immediately before current period`.
+- Single-Property dated presets are rolling Property-local calendar windows ending at the injected current instant. Their preceding comparison has the same number of Property-local days and ends exactly at the current-period start; DST does not shift the local wall-clock boundary. All Time is unbounded and non-comparative.
 - Engagement funnel returns `null` when no portal is selected (property dashboard).
 - Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
 - Dashboard never queries other contexts' tables directly — only through facade ports.
 - Portal analytics says **Portal responses**, not unique guests. Accepted responses feed private-rating figures; filtered/under-review counts remain visible as gentle methodology, and the UI exposes no rating-exclusion action.
-- Analytics periods are half-open (`start <= business time < end`). Prior/current periods share one boundary without overlap or a millisecond gap.
+- Analytics periods are half-open (`start <= business time < end`). Prior/current periods share one boundary without overlap or a millisecond gap. Server functions resolve the IANA timezone from the trusted Property public API; browser input cannot select analytics time semantics.
 - Portal private-rating averages show one decimal and the eligible sample count. The comparison is an absolute star delta only when both bounded periods have at least ten eligible ratings; All Time has no comparison and no-rating renders `—`.
 - Portal KPI, distribution, and trend reads use immutable governed definition versions, allowed source policy, exact quality, and the current correction tip; retracted or invalid star values cannot remain in one chart after disappearing from another.
 - Portal metric families are independently `Ready`, `Updating`, `Insufficient data` (private ratings only), or `Temporarily unavailable`. A complete quiet period is Ready with zero; pending, quarantined, obsolete, or invalid governed evidence cannot silently become zero.
@@ -74,19 +74,19 @@ dashboard/
                        eligibility predicate, statement timeout, cache policy (none)
     adapters/          metric-stats.adapter.ts, attention-signals.adapter.ts, staff-portal-resolver.adapter.ts
     repositories/      dashboard.repository.ts (composition only — no direct table reads)
-  server/              dashboard.ts, portal-analytics.ts, staff-dashboard.ts, attention-signals.ts, fleet-overview.ts
+  server/              dashboard.ts, portal-analytics.ts, staff-dashboard.ts, attention-signals.ts, fleet-overview.ts, resolve-property-period.ts
   build.ts             composition root
 ```
 
 ## Use cases
 
-| Use case                | Input                                                     | Output                | Description                                                                                                                                                                                       |
-| ----------------------- | --------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set                                                                                                 |
-| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, private-rating charts, and response-integrity methodology counts. No review/reply data.                                                                    |
-| `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange  | `StaffDashboardData`  | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                  |
-| `getAttentionSignals`   | organizationId, propertyId, slaHours, timeRange           | `AttentionSignals`    | The five attention-band signal counts for a property (unanswered, new feedback, goals behind pace, rating drop, escalated).                                                                       |
-| `getFleetOverview`      | organizationId, properties[], slaHours, timeRange         | `FleetOverviewData`   | Cross-property aggregation: per-property attention + KPI summary, attention-sorted, with an org-total strip. Property identities are resolved server-side (role-aware) at the server-fn boundary. |
+| Use case                | Input                                                                       | Output                | Description                                                                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate, propertyTimezone | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set                                                                                                 |
+| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate, propertyTimezone  | `PortalAnalyticsData` | Portal-scoped analytics: trusted period/timezone, KPIs, funnel, private-rating charts, and response-integrity methodology counts. No review/reply data.                                           |
+| `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange, propertyTimezone  | `StaffDashboardData`  | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                  |
+| `getAttentionSignals`   | organizationId, propertyId, slaHours, timeRange, propertyTimezone           | `AttentionSignals`    | The five attention-band signal counts for a property (unanswered, new feedback, goals behind pace, rating drop, escalated).                                                                       |
+| `getFleetOverview`      | organizationId, properties[], slaHours, timeRange                           | `FleetOverviewData`   | Cross-property aggregation: per-property attention + KPI summary, attention-sorted, with an org-total strip. Property identities are resolved server-side (role-aware) at the server-fn boundary. |
 
 ## Public API
 
@@ -123,3 +123,5 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 - **AttentionSignalsPort** — unanswered-review (past SLA), new/escalated inbox-item, and goals-behind-pace counts per property. Implemented by attention-signals.adapter.ts (its review count applies the same ADR 0031 eligibility predicate — dashboard-side copy pinned equivalent to the review rule by an integration test).
 
 Review stats, governed Portal metrics, and Guest integrity counts arrive through composition-wired owner APIs. The remaining legacy Metric/Inbox/Goal projection adapters are constructed inside `buildDashboardContext()` and remain explicit MET-01 migration work. All remaining direct SQL reads compose the `read-facade.ts` scope builders and run under its statement timeout (`DASHBOARD_READ_BUDGET_MS`); cache policy is deliberately NONE server-side (client TanStack Query staleTimes are the cache policy — a server cache would be a second read model beside the authoritative query path).
+
+The cross-Property Fleet request cannot apply one trusted timezone to every row. Its current shared UTC window is explicit remaining MET-01 work; it must move period derivation into the bounded projection per Property before Gate D rather than borrowing any selected or organization-wide timezone.

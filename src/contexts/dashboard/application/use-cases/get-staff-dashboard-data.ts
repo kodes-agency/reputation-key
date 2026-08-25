@@ -20,6 +20,7 @@ export type GetStaffDashboardDataInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetStaffDashboardDataDeps = Readonly<{
@@ -54,6 +55,7 @@ export const getStaffDashboardData =
       startDate,
       endDate,
       timeRange,
+      propertyTimezone,
     } = input
 
     // Resolve assigned portals via the port (cross-context call to staff)
@@ -69,7 +71,12 @@ export const getStaffDashboardData =
       return { kpis: { ...emptyKPIs }, hasAssignments: assignedPortals.length > 0 }
     }
 
-    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
+    const comparisonPeriod = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+      propertyTimezone,
+    )
 
     const kpis = await deps.repo.getKPIsForPortals({
       organizationId,

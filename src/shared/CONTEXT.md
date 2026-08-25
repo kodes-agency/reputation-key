@@ -6,7 +6,7 @@
 
 ```
 shared/
-  domain/        brand, ids, result, errors, auth-context, roles, permissions, timezones
+  domain/        brand, ids, result, errors, auth-context, roles, permissions, timezones, Property-local calendar primitives
   events/        event bus, master DomainEvent union
   db/            Drizzle client factory, pool, columns, schema/ (auth, property, team, staff-assignment, portal, audit), migrations
   auth/          better-auth config, client, headers, middleware, permissions, server session helpers, emails, server-errors
@@ -46,6 +46,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`result.ts`** — neverthrow `Result` re-exports
 - **`brand.ts`** — branded type helpers for nominal typing
 - **`timezones.ts`** — timezone list and utilities
+- **`property-calendar.ts`** — deterministic IANA wall-clock resolution and Property-local day shifting shared by Dashboard windows and Goal recurrence. DST folds choose the earlier instant; gaps advance to the first representable local minute.
 - **`slug.ts`** — slug validation and normalization utilities
 
 ## Observability (`shared/observability/`)

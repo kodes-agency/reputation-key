@@ -47,6 +47,14 @@ describe('timeRangeToDates', () => {
     const b = timeRangeToDates('30d', now)
     expect(a).toEqual(b)
   })
+
+  it('subtracts Property-local calendar days across DST', () => {
+    const dstNow = new Date('2026-03-20T16:00:00.000Z') // noon in New York
+    const { startDate, endDate } = timeRangeToDates('30d', dstNow, 'America/New_York')
+
+    expect(startDate).toEqual(new Date('2026-02-18T17:00:00.000Z'))
+    expect(endDate).toEqual(dstNow)
+  })
 })
 
 describe('computeTrend', () => {
@@ -96,6 +104,16 @@ describe('priorPeriodDates', () => {
       expect(prior!.priorEndDate).toEqual(startDate)
     },
   )
+
+  it('keeps the preceding period on the same Property-local wall clock', () => {
+    const endDate = new Date('2026-03-20T16:00:00.000Z')
+    const startDate = new Date('2026-02-18T17:00:00.000Z')
+
+    expect(priorPeriodDates('30d', startDate, endDate, 'America/New_York')).toEqual({
+      priorStartDate: new Date('2026-01-19T17:00:00.000Z'),
+      priorEndDate: startDate,
+    })
+  })
 })
 
 describe('slaCutoff', () => {

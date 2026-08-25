@@ -35,8 +35,6 @@ export type PortalDetailPortal = Readonly<{
 export type PortalDetailResources = Readonly<{
   portal: PortalDetailPortal
   propertyId: string
-  /** IANA timezone used for every business-time analytics timestamp. */
-  propertyTimezone: string
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
   updateMutation: Action<UpdatePortalVariables>

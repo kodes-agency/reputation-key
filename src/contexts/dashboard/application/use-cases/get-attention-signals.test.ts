@@ -33,6 +33,7 @@ describe('getAttentionSignals', () => {
       startDate: new Date(0),
       endDate: NOW,
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.ratingDrop).toBe(false)

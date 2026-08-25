@@ -1,5 +1,6 @@
 // Dashboard context — shared utilities for server and repository layers
 import type { TimeRangePreset } from './dto/dashboard.dto'
+import { shiftPropertyLocalDays } from '#/shared/domain/property-calendar'
 export const MS_PER_DAY = 86_400_000
 const MS_PER_HOUR = 3_600_000
 
@@ -10,14 +11,18 @@ export const slaCutoff = (now: Date, slaHours: number): Date =>
 
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
  *  `now` is injected so callers can fast-forward time (ADR 0017). */
-export function timeRangeToDates(preset: TimeRangePreset, now: Date) {
+function presetDays(preset: Exclude<TimeRangePreset, 'all'>): number {
+  return preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+}
+
+export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
   if (preset === 'all') {
     // No start bound — epoch captures all data
     return { startDate: new Date(0), endDate: now }
   }
-  const days = preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+  const days = presetDays(preset)
   return {
-    startDate: new Date(now.getTime() - days * MS_PER_DAY),
+    startDate: shiftPropertyLocalDays(now, -days, timezone),
     endDate: now,
   }
 }
@@ -46,13 +51,12 @@ export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
 export function priorPeriodDates(
   preset: TimeRangePreset,
   startDate: Date,
-  endDate: Date,
+  _endDate: Date,
+  timezone = 'UTC',
 ): { priorStartDate: Date; priorEndDate: Date } | null {
   if (preset === 'all') return null
   return {
-    priorStartDate: new Date(
-      startDate.getTime() - (endDate.getTime() - startDate.getTime()),
-    ),
+    priorStartDate: shiftPropertyLocalDays(startDate, -presetDays(preset), timezone),
     priorEndDate: new Date(startDate),
   }
 }

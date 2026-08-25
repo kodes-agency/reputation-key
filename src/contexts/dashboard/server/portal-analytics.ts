@@ -12,11 +12,11 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getPortalAnalyticsDto } from '../application/dto/dashboard.dto'
 export type { PortalAnalyticsData } from '../domain/types'
-import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
+import { resolvePropertyPeriod } from './resolve-property-period'
 
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
   .inputValidator(getPortalAnalyticsDto)
@@ -31,18 +31,28 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock, staffPublicApi } = getContainer()
+          const { useCases, clock, staffPublicApi, propertyProcessingScopeApi } =
+            getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
-          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
+            { propertyFacts: propertyProcessingScopeApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: data.timeRange,
+            },
+          )
 
           return await useCases.getPortalAnalytics({
             organizationId: ctx.organizationId,
-            propertyId: propertyId(data.propertyId),
+            propertyId: pid,
             portalId: portalId(data.portalId),
             startDate,
             endDate,
             timeRange: data.timeRange,
+            propertyTimezone,
           })
         } catch (e) {
           if (isDashboardError(e))

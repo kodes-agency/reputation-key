@@ -49,6 +49,7 @@ export type GetPortalAnalyticsInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetPortalAnalyticsDeps = Readonly<{
@@ -64,13 +65,21 @@ export const getPortalAnalytics =
   // its line (dupe removal), re-registering the finding.
   // fallow-ignore-next-line complexity
   async (input: GetPortalAnalyticsInput): Promise<PortalAnalyticsData> => {
-    const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
+    const {
+      organizationId,
+      propertyId,
+      portalId,
+      startDate,
+      endDate,
+      timeRange,
+      propertyTimezone,
+    } = input
 
     // 'all' is unbounded, so there is no prior window: priorPeriodDates returns
     // null and the second getPortalKpiSums call is skipped entirely. Passing the
     // current window as its own prior (the old behaviour) both duplicated a
     // scan-from-epoch on every page load and fabricated a 0% trend.
-    const priorPeriod = priorPeriodDates(timeRange, startDate, endDate)
+    const priorPeriod = priorPeriodDates(timeRange, startDate, endDate, propertyTimezone)
 
     // Fetch governed current/prior values and evidence in parallel. The owner
     // API proves whether a zero is complete before Dashboard can render it.
@@ -237,6 +246,7 @@ export const getPortalAnalytics =
         : null
 
     return {
+      period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
       kpis,
       engagementFunnel,
       ratingDistribution: curRatingReady ? ratingDistribution : [],

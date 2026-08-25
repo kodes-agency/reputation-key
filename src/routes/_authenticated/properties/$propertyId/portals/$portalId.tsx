@@ -349,7 +349,6 @@ function PortalDetailRoute() {
         portal={portal}
         tokenStatus={tokenStatus}
         propertyId={propertyId}
-        propertyTimezone={property.timezone}
         categories={categories}
         links={links}
         activeTab={tab}

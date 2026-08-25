@@ -58,6 +58,7 @@ describe('getStaffDashboardData (use case)', () => {
         startDate: new Date(now.getTime() - 30 * MS_PER_DAY),
         endDate: now,
         timeRange: '30d',
+        propertyTimezone: 'UTC',
       },
       ctx,
     )
@@ -92,6 +93,7 @@ describe('getStaffDashboardData (use case)', () => {
         startDate: new Date(now.getTime() - 30 * MS_PER_DAY),
         endDate: now,
         timeRange: '30d',
+        propertyTimezone: 'UTC',
       },
       ctx,
     )
@@ -139,6 +141,7 @@ describe('getStaffDashboardData (use case)', () => {
         startDate: new Date(now.getTime() - 30 * MS_PER_DAY),
         endDate: now,
         timeRange: '30d',
+        propertyTimezone: 'UTC',
       },
       ctx,
     )
@@ -171,6 +174,7 @@ describe('getStaffDashboardData (use case)', () => {
         startDate: new Date(now.getTime() - 30 * MS_PER_DAY),
         endDate: now,
         timeRange: '30d',
+        propertyTimezone: 'UTC',
       },
       ctx,
     )
@@ -202,6 +206,7 @@ describe('getStaffDashboardData (use case)', () => {
         startDate: new Date(0),
         endDate: now,
         timeRange: 'all',
+        propertyTimezone: 'UTC',
       },
       ctx,
     )

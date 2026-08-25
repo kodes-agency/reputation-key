@@ -16,7 +16,7 @@ import { isDashboardError } from '../domain/errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
 
-import { timeRangeToDates } from '../application/utils'
+import { resolvePropertyPeriod } from './resolve-property-period'
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
   .inputValidator(getDashboardDataDto)
@@ -31,18 +31,28 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock, staffPublicApi } = getContainer()
+          const { useCases, clock, staffPublicApi, propertyProcessingScopeApi } =
+            getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
-          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
+            { propertyFacts: propertyProcessingScopeApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: data.timeRange,
+            },
+          )
 
           const dashboard = await useCases.getDashboardData({
             organizationId: ctx.organizationId,
-            propertyId: propertyId(data.propertyId),
+            propertyId: pid,
             portalId: data.portalId ? portalId(data.portalId) : null,
             startDate,
             endDate,
             timeRange: data.timeRange,
+            propertyTimezone,
           })
 
           // §9: reply-derived fields (replyPerformance aggregates + per-review

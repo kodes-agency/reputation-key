@@ -160,6 +160,7 @@ export type PortalResponseIntegritySummary = Readonly<{
 }>
 
 export type PortalAnalyticsData = Readonly<{
+  period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
   kpis: PortalKPIs
   engagementFunnel: EngagementFunnel | null
   ratingDistribution: RatingDistribution

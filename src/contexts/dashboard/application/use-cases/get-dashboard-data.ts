@@ -15,6 +15,7 @@ export type GetDashboardDataInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetDashboardDataDeps = Readonly<{
@@ -26,9 +27,22 @@ export type GetDashboardData = ReturnType<typeof getDashboardData>
 export const getDashboardData =
   (deps: GetDashboardDataDeps) =>
   async (input: GetDashboardDataInput): Promise<DashboardData> => {
-    const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
+    const {
+      organizationId,
+      propertyId,
+      portalId,
+      startDate,
+      endDate,
+      timeRange,
+      propertyTimezone,
+    } = input
 
-    const comparisonPeriod = priorPeriodDates(timeRange, startDate, endDate)
+    const comparisonPeriod = priorPeriodDates(
+      timeRange,
+      startDate,
+      endDate,
+      propertyTimezone,
+    )
 
     const { repo } = deps
 
