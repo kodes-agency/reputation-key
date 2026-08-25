@@ -10,7 +10,7 @@ import {
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from './portal-analytics-time-range-picker'
 import { KPICard } from '#/components/features/property/property-dashboard-helpers'
-import { ScanLine, Star, MessageCircle, MousePointerClick, BarChart3 } from 'lucide-react'
+import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'
 import {
   ChartCard,
   PortalRatingDistributionChart,
@@ -21,6 +21,7 @@ import {
   portalResponseIntegrityCopy,
   type PortalResponseIntegritySummaryView,
 } from './portal-response-integrity-copy'
+import { PortalRatingCard } from './portal-rating-card'
 
 type Props = Readonly<{
   portalId: string
@@ -151,7 +152,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     data.kpis.scans.value > 0 ||
     data.kpis.feedback.value > 0 ||
     data.kpis.reviewLinkClicks.value > 0 ||
-    data.kpis.avgRating.value > 0 ||
+    data.kpis.avgRating.sampleCount > 0 ||
     data.responseIntegrity.total > 0
 
   if (!hasData) {
@@ -183,14 +184,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           no fabricated 0%, nothing to correct at this call site. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Scans" kpi={data.kpis.scans} icon={ScanLine} />
-        <KPICard
-          label="Private rating avg"
-          kpi={data.kpis.avgRating}
-          icon={Star}
-          // The scale belongs on the number: "4.3" alone asks the reader to
-          // guess whether ratings run to 5 or to 10.
-          formatValue={(v: number) => `${v.toFixed(1)} / 5`}
-        />
+        <PortalRatingCard rating={data.kpis.avgRating} timeRange={timeRange} />
         <KPICard label="Feedback" kpi={data.kpis.feedback} icon={MessageCircle} />
         <KPICard
           label="Review Clicks"

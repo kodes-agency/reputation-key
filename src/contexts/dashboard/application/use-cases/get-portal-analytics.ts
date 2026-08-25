@@ -10,6 +10,12 @@ import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates } from '../utils'
 import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
 
+const MIN_RATING_COMPARISON_SAMPLE = 10
+
+function roundedRating(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
 export type GetPortalAnalyticsInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -116,11 +122,24 @@ export const getPortalAnalytics =
     const curReviewLink = cur.get('portal.review_link_click')
     const priorReviewLink = prior.get('portal.review_link_click')
 
-    // avgRating: total / count (0 if no ratings)
-    const curAvgRating = curRating ? curRating.total / Math.max(1, curRating.count) : 0
-    const priorAvgRating = priorRating
-      ? priorRating.total / Math.max(1, priorRating.count)
-      : 0
+    const curRatingCount = curRating?.count ?? 0
+    const priorRatingCount = priorRating?.count ?? 0
+    const curAvgRating =
+      curRating && curRatingCount > 0
+        ? roundedRating(curRating.total / curRatingCount)
+        : null
+    const priorAvgRating =
+      priorRating && priorRatingCount > 0
+        ? roundedRating(priorRating.total / priorRatingCount)
+        : null
+    const ratingComparison =
+      timeRange !== 'all' &&
+      curAvgRating !== null &&
+      priorAvgRating !== null &&
+      curRatingCount >= MIN_RATING_COMPARISON_SAMPLE &&
+      priorRatingCount >= MIN_RATING_COMPARISON_SAMPLE
+        ? roundedRating(curAvgRating - priorAvgRating)
+        : null
 
     const kpis: PortalKPIs = {
       scans: {
@@ -129,9 +148,11 @@ export const getPortalAnalytics =
         trend: computeTrend(curScans?.total ?? 0, priorScans?.total ?? 0),
       },
       avgRating: {
-        value: Math.round(curAvgRating * 10) / 10,
-        priorValue: Math.round(priorAvgRating * 10) / 10,
-        trend: computeTrend(curAvgRating, priorAvgRating),
+        value: curAvgRating,
+        priorValue: priorAvgRating,
+        comparison: ratingComparison,
+        sampleCount: curRatingCount,
+        priorSampleCount: priorRatingCount,
       },
       feedback: {
         value: curFeedback?.total ?? 0,

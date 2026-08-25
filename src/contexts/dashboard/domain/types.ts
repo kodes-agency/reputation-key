@@ -113,9 +113,19 @@ export type DashboardData = Readonly<{
 
 export type PortalKPIs = Readonly<{
   scans: KPIValue
-  avgRating: KPIValue
+  avgRating: PortalRatingKPIValue
   feedback: KPIValue
   reviewLinkClicks: KPIValue
+}>
+
+export type PortalRatingKPIValue = Readonly<{
+  /** Eligible private-rating average. Null means there is no eligible sample. */
+  value: number | null
+  priorValue: number | null
+  /** Absolute star difference; shown only when both bounded periods have 10+ ratings. */
+  comparison: number | null
+  sampleCount: number
+  priorSampleCount: number
 }>
 
 export type PortalResponseIntegritySummary = Readonly<{

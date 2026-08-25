@@ -20,7 +20,7 @@
 //   second read model beside the authoritative query path (BQC-5.5
 //   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
 
-import { and, eq, gte, gt, lte, inArray, isNotNull, sql, sum, count } from 'drizzle-orm'
+import { and, eq, gte, gt, lt, inArray, isNotNull, sql, sum, count } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { metricReadings, inboxItems, goals, reviews } from '#/shared/db/schema'
@@ -58,7 +58,7 @@ export function metricPeriodWhere(
     eq(metricReadings.organizationId, organizationId),
     eq(metricReadings.propertyId, propertyId),
     gte(metricReadings.eventAt, startDate),
-    lte(metricReadings.eventAt, endDate),
+    lt(metricReadings.eventAt, endDate),
   )
 }
 

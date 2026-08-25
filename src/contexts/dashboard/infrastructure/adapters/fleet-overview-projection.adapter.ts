@@ -196,7 +196,8 @@ export const createFleetOverviewProjectionAdapter = (
                 ${METRIC_VERSION_IDS.portalScanAnalytics},
                 ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
               )
-              AND metric_readings.event_at BETWEEN ${candidateStartDate} AND ${input.endDate}
+              AND metric_readings.event_at >= ${candidateStartDate}
+              AND metric_readings.event_at < ${input.endDate}
           ), correction_history AS MATERIALIZED (
             SELECT metric_corrections.reading_id, count(*) AS correction_count
             FROM metric_corrections
@@ -245,100 +246,100 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT effective_readings.property_id,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS review_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ) AS review_total_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at BETWEEN ${priorStartDate} AND ${priorEndDate}
+                  AND event_at >= ${priorStartDate} AND event_at < ${priorEndDate}
                   AND eligible
               ) AS prior_review_count,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS avg_rating,
               avg(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
                   AND ${comparisonAvailable}
-                  AND event_at BETWEEN ${priorStartDate} AND ${priorEndDate}
+                  AND event_at >= ${priorStartDate} AND event_at < ${priorEndDate}
                   AND eligible
               ) AS prior_avg_rating,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS review_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ), 0) AS review_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS review_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ), 0) AS scan_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS scan_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ) AS scan_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS scan_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ), 0) AS scan_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalScanAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS scan_source_policies,
               coalesce(sum(effective_value) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ), 0) AS feedback_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS feedback_eligible_count,
               count(*) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ) AS feedback_total_count,
               max(recorded_at) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
               ) AS feedback_watermark,
               coalesce(sum(correction_count) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
               ), 0) AS feedback_correction_count,
               coalesce(array_agg(DISTINCT source_policy) FILTER (
                 WHERE definition_version_id = ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
-                  AND event_at BETWEEN ${input.startDate} AND ${input.endDate}
+                  AND event_at >= ${input.startDate} AND event_at < ${input.endDate}
                   AND eligible
                   AND source_policy IS NOT NULL
               ), '{}'::varchar[]) AS feedback_source_policies

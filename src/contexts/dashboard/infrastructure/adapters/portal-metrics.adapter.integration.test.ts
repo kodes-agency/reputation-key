@@ -26,16 +26,16 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/domain/metric-registry'
+import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 import { createPortalMetricsAdapter } from './portal-metrics.adapter'
 
 const ORG = organizationId('org-portal-metrics-integration')
 const PROP = propertyId('c1000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('c2000000-0000-4000-8000-000000000001')
 
-// June 2026, inclusive bounds, expressed in UTC.
+// June 2026, half-open bounds, expressed in UTC.
 const WINDOW_START = new Date('2026-06-01T00:00:00.000Z')
-const WINDOW_END = new Date('2026-06-30T23:59:59.999Z')
+const WINDOW_END = new Date('2026-07-01T00:00:00.000Z')
 
 type Reading = Readonly<{
   sourceEventId: string
@@ -94,6 +94,14 @@ const READINGS: readonly Reading[] = [
     recordedAt: '2026-05-15T18:00:02.000Z',
     propertyLocalDate: '2026-05-15',
   },
+  // Exactly at the exclusive end — belongs to the next period.
+  {
+    sourceEventId: 'portal-metrics-6',
+    value: 2,
+    eventAt: '2026-07-01T00:00:00.000Z',
+    recordedAt: '2026-07-01T00:00:01.000Z',
+    propertyLocalDate: '2026-06-30',
+  },
 ]
 
 let pool: Pool
@@ -101,6 +109,13 @@ let db: Database
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (
+       SELECT id FROM metric_readings WHERE organization_id = $1
+     )`,
+    [ORG],
+  )
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
@@ -151,10 +166,30 @@ beforeAll(async () => {
     )
   }
 
+  // The current correction tip retracts the 3-star reading. Portal analytics
+  // must use effective governed values everywhere, not the immutable raw row.
+  await pool.query(
+    `INSERT INTO metric_corrections (
+       reading_id, source_event_id, kind, reason, actor_type, actor_id, event_at
+     )
+     SELECT id, 'portal-metrics-retract-2', 'retract', 'integrity review',
+       'system', 'portal-metrics-test', '2026-06-12T00:00:00.000Z'
+     FROM metric_readings
+     WHERE organization_id = $1 AND source_event_id = 'portal-metrics-2'`,
+    [ORG],
+  )
+
   db = drizzle(pool, { schema }) as unknown as Database
 })
 
 afterAll(async () => {
+  await pool.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (
+       SELECT id FROM metric_readings WHERE organization_id = $1
+     )`,
+    [ORG],
+  )
   await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
@@ -174,12 +209,12 @@ describe('portal metrics adapter (integration)', () => {
       WINDOW_END,
     )
 
-    // 2026-06-01: the 20:00Z and the 02:00Z-next-day readings are the SAME
-    // local day in America/Los_Angeles → one bucket, avg (5+3)/2.
+    // 2026-06-01: both source rows share the same local day, but the 3-star
+    // row's current correction tip retracts it, leaving the effective 5-star row.
     // 2026-06-10: the late-ingested reading is inside the window on event time.
     // 2026-06-20: excluded — value 7 is outside the 1..5 rating domain.
     expect(trend).toEqual([
-      { date: '2026-06-01', avgRating: 4 },
+      { date: '2026-06-01', avgRating: 5 },
       { date: '2026-06-10', avgRating: 4 },
     ])
   })
@@ -195,9 +230,10 @@ describe('portal metrics adapter (integration)', () => {
       WINDOW_END,
     )
 
-    // 4 of the 5 readings have event_at in June; the May one does not. Filtering
-    // on recorded_at would have dropped portal-metrics-3 (ingested in July).
-    expect(sums).toEqual([{ metricKey: 'portal.rating', total: 19, count: 4 }])
+    // Only governed, in-range, currently effective readings count. The 7-star
+    // invalid row and retracted 3-star row are excluded; the late-ingested
+    // 4-star row remains because the period is bound to business event time.
+    expect(sums).toEqual([{ metricKey: 'portal.rating', total: 9, count: 2 }])
   })
 
   it('constrains the rating distribution to 1..5 stars', async () => {
@@ -213,7 +249,6 @@ describe('portal metrics adapter (integration)', () => {
 
     // No 7★ bucket, and the pre-window 1★ reading stays out on event time.
     expect(distribution).toEqual([
-      { stars: 3, count: 1 },
       { stars: 4, count: 1 },
       { stars: 5, count: 1 },
     ])

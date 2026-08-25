@@ -88,13 +88,12 @@ describe('priorPeriodDates', () => {
       const prior = priorPeriodDates(preset, startDate, endDate)
 
       expect(prior).not.toBeNull()
-      // Equal duration immediately before, and 1ms before start so inclusive
-      // bounds on both windows cannot double-count the boundary instant.
+      // Equal duration immediately before. Both readers use [start, end), so
+      // the shared boundary is contiguous without being double-counted.
       expect(prior!.priorStartDate).toEqual(
         new Date(startDate.getTime() - days * MS_PER_DAY),
       )
-      expect(prior!.priorEndDate).toEqual(new Date(startDate.getTime() - 1))
-      expect(prior!.priorEndDate.getTime()).toBeLessThan(startDate.getTime())
+      expect(prior!.priorEndDate).toEqual(startDate)
     },
   )
 })

@@ -5,7 +5,7 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/domain/metric-registry'
+import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
 import {
   createFleetOverviewProjectionAdapter,

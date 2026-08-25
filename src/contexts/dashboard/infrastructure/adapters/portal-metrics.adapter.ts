@@ -1,15 +1,20 @@
 // Dashboard context — Drizzle adapter implementing PortalMetricsPort
 // SQL queries against metric_readings table.
 // This is the ONLY place dashboard infrastructure touches metric_readings for portal analytics.
-// BQC-5.5: scope predicates, the aggregate skeleton, and the statement
-// timeout come from the read facade — methods are scope→skeleton wiring.
+// Scope predicates and the statement timeout come from the read facade. This
+// adapter additionally pins immutable Portal-analytics definition versions,
+// registry consumer/source policy, exact quality, and current correction tips.
 // TRAP: `metricReadings.occurredAt` is the INGESTION column (`recorded_at`);
 // the guest-action time is `metricReadings.eventAt`. metricPortalWhere bounds
 // the window on event time — see the note on metricPeriodWhere in read-facade.
 
 import type { Database } from '#/shared/db'
-import { metricReadings } from '#/shared/db/schema'
-import { and, eq, sql, count, avg, isNotNull } from 'drizzle-orm'
+import {
+  metricCorrections,
+  metricDefinitionVersions,
+  metricReadings,
+} from '#/shared/db/schema'
+import { and, eq, sql, count, avg, isNotNull, inArray } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalMetricsPort,
@@ -20,24 +25,66 @@ import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 import {
   DASHBOARD_READ_BUDGET_MS,
   metricPortalWhere,
-  readMetricAggregates,
   withStatementTimeout,
 } from '../read-facade'
+import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 
 const PORTAL_RATING_KEY = 'portal.rating'
+const PORTAL_ANALYTICS_VERSION_IDS = [
+  METRIC_VERSION_IDS.portalScanAnalytics,
+  METRIC_VERSION_IDS.portalRatingAnalytics,
+  METRIC_VERSION_IDS.portalFeedbackAnalytics,
+  METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+] as const
 
-/** The star bucket for a portal.rating reading. */
-const RATING_STARS = sql<number>`CAST(${metricReadings.value} AS INTEGER)`
+function currentCorrectionTips(db: Database) {
+  return db
+    .select({
+      readingId: metricCorrections.readingId,
+      kind: metricCorrections.kind,
+      exactDelta: metricCorrections.exactDelta,
+      replacementValue: metricCorrections.replacementValue,
+    })
+    .from(metricCorrections)
+    .where(
+      sql`NOT EXISTS (
+        SELECT 1
+        FROM metric_corrections AS successor
+        WHERE successor.supersedes_correction_id = ${metricCorrections.id}
+      )`,
+    )
+    .as('portal_metric_correction_tips')
+}
 
-/** `value` is a `real` column with NO DB-level 1..5 guard — only the writer's
- *  zod schema (z.number().int().min(1).max(5)) keeps it in range today. Both
- *  rating reads constrain it explicitly so a future writer cannot grow a
- *  0★/7★ distribution bucket or push the trend line outside the chart's
- *  fixed 0-5 domain. Constraining the raw value (not the CAST) also keeps a
- *  hypothetical 5.4 out of the average. */
-const RATING_VALUE_IN_RANGE = sql`
-  ${metricReadings.value} >= 1 AND ${metricReadings.value} <= 5
-`
+type CorrectionTips = ReturnType<typeof currentCorrectionTips>
+
+function effectiveValue(correctionTips: CorrectionTips) {
+  return sql<number>`CASE
+    WHEN ${correctionTips.kind} = 'retract' THEN NULL
+    WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
+    WHEN ${correctionTips.kind} = 'adjust'
+      THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
+    ELSE ${metricReadings.exactValue}
+  END`
+}
+
+function governedPortalWhere(scope: ReturnType<typeof metricPortalWhere>) {
+  return and(
+    scope,
+    inArray(metricReadings.definitionVersionId, PORTAL_ANALYTICS_VERSION_IDS),
+    isNotNull(metricReadings.exactValue),
+    eq(metricReadings.dataQuality, 'exact'),
+    sql`${metricReadings.attributionQuality} <> 'unresolved'`,
+    sql`${metricDefinitionVersions.permittedConsumers} @> '["portal_analytics"]'::jsonb`,
+    sql`EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements_text(
+        ${metricDefinitionVersions.sourcePolicyAllowlist}
+      ) AS allowed_policy(value)
+      WHERE allowed_policy.value = ${metricReadings.sourcePolicy}
+    )`,
+  )
+}
 
 export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => ({
   async getPortalKpiSums(
@@ -47,12 +94,40 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     startDate: Date,
     endDate: Date,
   ) {
-    return trace('dashboard.portalMetrics.getPortalKpiSums', () =>
-      readMetricAggregates(
-        db,
+    return trace('dashboard.portalMetrics.getPortalKpiSums', async () => {
+      const correctionTips = currentCorrectionTips(db)
+      const value = effectiveValue(correctionTips)
+      const scope = governedPortalWhere(
         metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
-      ),
-    )
+      )
+      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
+        tx
+          .select({
+            metricKey: metricReadings.metricKey,
+            total: sql<number>`SUM(${value})`,
+            count: count(value),
+          })
+          .from(metricReadings)
+          .innerJoin(
+            metricDefinitionVersions,
+            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
+          )
+          .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
+          .where(
+            and(
+              scope,
+              sql`(${metricReadings.metricKey} <> ${PORTAL_RATING_KEY}
+                OR (${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})))`,
+            ),
+          )
+          .groupBy(metricReadings.metricKey),
+      )
+      return rows.map((row) => ({
+        metricKey: row.metricKey,
+        total: Number(row.total ?? 0),
+        count: Number(row.count ?? 0),
+      }))
+    })
   },
 
   async getPortalRatingDistribution(
@@ -63,22 +138,38 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     endDate: Date,
   ): Promise<readonly PortalRatingBucket[]> {
     return trace('dashboard.portalMetrics.getPortalRatingDistribution', async () => {
+      const correctionTips = currentCorrectionTips(db)
+      const value = effectiveValue(correctionTips)
+      const ratingStars = sql<number>`CAST(${value} AS INTEGER)`
       const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
         tx
           .select({
-            stars: RATING_STARS,
+            stars: ratingStars,
             count: count(),
           })
           .from(metricReadings)
+          .innerJoin(
+            metricDefinitionVersions,
+            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
+          )
+          .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
           .where(
             and(
-              metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+              governedPortalWhere(
+                metricPortalWhere(
+                  organizationId,
+                  propertyId,
+                  portalId,
+                  startDate,
+                  endDate,
+                ),
+              ),
               eq(metricReadings.metricKey, PORTAL_RATING_KEY),
-              RATING_VALUE_IN_RANGE,
+              sql`${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})`,
             ),
           )
-          .groupBy(RATING_STARS)
-          .orderBy(RATING_STARS),
+          .groupBy(ratingStars)
+          .orderBy(ratingStars),
       )
 
       return rows.map((r) => ({
@@ -96,6 +187,8 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     endDate: Date,
   ): Promise<readonly PortalRatingTrendPoint[]> {
     return trace('dashboard.portalMetrics.getPortalRatingTrend', async () => {
+      const correctionTips = currentCorrectionTips(db)
+      const value = effectiveValue(correctionTips)
       const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
         tx
           .select({
@@ -107,15 +200,28 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
             // e.g. America/Los_Angeles every action from 17:00 local onward landed
             // on the next day.
             date: metricReadings.propertyLocalDate,
-            avgRating: sql<number>`ROUND(${avg(metricReadings.value)}::NUMERIC, 1)`,
+            avgRating: sql<number>`ROUND(${avg(value)}::NUMERIC, 1)`,
           })
           .from(metricReadings)
+          .innerJoin(
+            metricDefinitionVersions,
+            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
+          )
+          .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
           .where(
             and(
-              metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+              governedPortalWhere(
+                metricPortalWhere(
+                  organizationId,
+                  propertyId,
+                  portalId,
+                  startDate,
+                  endDate,
+                ),
+              ),
               eq(metricReadings.metricKey, PORTAL_RATING_KEY),
               isNotNull(metricReadings.propertyLocalDate),
-              RATING_VALUE_IN_RANGE,
+              sql`${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})`,
             ),
           )
           .groupBy(metricReadings.propertyLocalDate)

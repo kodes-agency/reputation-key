@@ -10,6 +10,7 @@ export type {
   DashboardReplyStatus,
   DashboardData,
   PortalKPIs,
+  PortalRatingKPIValue,
   PortalAnalyticsData,
   PortalResponseIntegritySummary,
   StaffDashboardData,

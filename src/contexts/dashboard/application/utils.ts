@@ -41,8 +41,8 @@ export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
  *  period against itself: computeTrend(x, x) is 0, not null, because the
  *  `prior === 0` guard never binds. Every user saw a fabricated 0% on first
  *  load ('all' is the default preset). Pure function of its inputs (ADR 0017).
- *  Dated presets keep contiguous, non-overlapping windows against inclusive
- *  bounds: priorEnd is 1ms before start. */
+ *  Dated presets keep contiguous, non-overlapping half-open windows: the
+ *  prior period ends exactly where the current period starts. */
 export function priorPeriodDates(
   preset: TimeRangePreset,
   startDate: Date,
@@ -53,7 +53,7 @@ export function priorPeriodDates(
     priorStartDate: new Date(
       startDate.getTime() - (endDate.getTime() - startDate.getTime()),
     ),
-    priorEndDate: new Date(startDate.getTime() - 1),
+    priorEndDate: new Date(startDate),
   }
 }
 

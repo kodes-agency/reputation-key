@@ -26,6 +26,7 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 
 ## Invariants
 
+- Period-serving reads use half-open business-time bounds (`start <= reviewedAt < end`) so adjacent Dashboard periods are contiguous and never double-count a boundary review.
 - Unique constraint: `(platform, external_id, organization_id)` — same Google review can exist for multiple orgs.
 - `google_sync` reply: at most one per review per org (unique on `(review_id, source, organization_id)`).
 - `internal` reply: at most one per review per org (same unique constraint, different source value).

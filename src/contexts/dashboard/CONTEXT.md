@@ -9,6 +9,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 - **DashboardData** — The full property dashboard response: KPIs, rating distribution, trends, reply performance, engagement funnel, recent reviews.
 - **PortalAnalyticsData** — Portal-scoped analytics: portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
 - **KPIValue** — A metric with current value, prior value, and trend percentage. Used for the KPI strip.
+- **PortalRatingKPIValue** — A private-rating average with eligible sample counts and an absolute star comparison. No eligible rating is `null`, never zero.
 - **PortalKPIs** — Portal-scoped KPIs: scans, avg rating, feedback, review link clicks.
 - **DashboardReplyStatus** — Simplified reply status for the dashboard: `'none'`, `'draft'`, `'published'`.
 - **EngagementFunnel** — Scans → ratings → review link clicks. Portal-scoped; only available when a portal is selected.
@@ -40,6 +41,9 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 - Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
 - Dashboard never queries other contexts' tables directly — only through facade ports.
 - Portal analytics says **Portal responses**, not unique guests. Accepted responses feed private-rating figures; filtered/under-review counts remain visible as gentle methodology, and the UI exposes no rating-exclusion action.
+- Analytics periods are half-open (`start <= business time < end`). Prior/current periods share one boundary without overlap or a millisecond gap.
+- Portal private-rating averages show one decimal and the eligible sample count. The comparison is an absolute star delta only when both bounded periods have at least ten eligible ratings; All Time has no comparison and no-rating renders `—`.
+- Portal KPI, distribution, and trend reads use immutable governed definition versions, allowed source policy, exact quality, and the current correction tip; retracted or invalid star values cannot remain in one chart after disappearing from another.
 - When `portalId` is provided to `getKPIs`, metric queries (scans, feedback) are portal-scoped. Review KPIs (reviews, avgRating) remain property-scoped.
 
 ## Events produced
@@ -83,7 +87,7 @@ dashboard/
 
 Exported from `application/public-api.ts`:
 
-- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalKPIs`, `PortalAnalyticsData`, `StaffDashboardData`, `PortalRatingTrendPoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetTotals`
+- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalKPIs`, `PortalRatingKPIValue`, `PortalAnalyticsData`, `StaffDashboardData`, `PortalRatingTrendPoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetTotals`
 - Error types: `DashboardErrorCode`, `DashboardError`, `isDashboardError`
 
 ## Server functions

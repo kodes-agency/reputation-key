@@ -16,7 +16,7 @@
 
 import type { Database } from '#/shared/db'
 import { reviews, replies } from '#/shared/db/schema'
-import { and, count, avg, eq, gte, gt, lte, desc, isNotNull, sql } from 'drizzle-orm'
+import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { Clock } from '#/shared/domain/clock'
@@ -43,7 +43,7 @@ function servingPeriodWhere(
     eq(reviews.organizationId, organizationId),
     eq(reviews.propertyId, propertyId),
     gte(reviews.reviewedAt, startDate),
-    lte(reviews.reviewedAt, endDate),
+    lt(reviews.reviewedAt, endDate),
     contentEligible(now),
   )
 }
@@ -191,7 +191,7 @@ export const createServingStats = (deps: {
               eq(reviews.propertyId, propertyId),
               eq(replies.status, 'published'),
               gte(reviews.reviewedAt, startDate),
-              lte(reviews.reviewedAt, endDate),
+              lt(reviews.reviewedAt, endDate),
               sql`replies.published_at IS NOT NULL`,
               // BQC-5.5: a reply of an expired review is not servable.
               contentEligible(now),

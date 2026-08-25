@@ -102,6 +102,8 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.scans.priorValue).toBe(100) // Same fake data for prior
     expect(result.kpis.feedback.value).toBe(20)
     expect(result.kpis.avgRating.value).toBe(4.4) // 22/5 = 4.4
+    expect(result.kpis.avgRating.sampleCount).toBe(5)
+    expect(result.kpis.avgRating.comparison).toBeNull()
 
     // Engagement funnel from repo
     expect(result.engagementFunnel.scans).toBe(100)
@@ -148,7 +150,8 @@ describe('getPortalAnalytics (use case)', () => {
 
     expect(result.kpis.scans.value).toBe(0)
     expect(result.kpis.scans.trend).toBeNull() // prior is 0 → null trend
-    expect(result.kpis.avgRating.value).toBe(0)
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.sampleCount).toBe(0)
   })
 
   it('computes trends when prior period has different values', async () => {
@@ -172,7 +175,7 @@ describe('getPortalAnalytics (use case)', () => {
         return [
           { metricKey: 'portal.scan', total: 100, count: 10 },
           { metricKey: 'portal.feedback', total: 20, count: 5 },
-          { metricKey: 'portal.rating', total: 20, count: 5 },
+          { metricKey: 'portal.rating', total: 40, count: 10 },
           { metricKey: 'portal.review_link_click', total: 8, count: 3 },
         ]
       },
@@ -201,10 +204,12 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.scans.priorValue).toBe(100)
     expect(result.kpis.scans.trend).toBe(100)
 
-    // Trend: (4.5 - 4.0) / 4.0 * 100 = 12.5 → 13
+    // Private-rating comparison is an absolute star delta, never a percentage.
     expect(result.kpis.avgRating.value).toBe(4.5)
     expect(result.kpis.avgRating.priorValue).toBe(4)
-    expect(result.kpis.avgRating.trend).toBe(13)
+    expect(result.kpis.avgRating.sampleCount).toBe(10)
+    expect(result.kpis.avgRating.priorSampleCount).toBe(10)
+    expect(result.kpis.avgRating.comparison).toBe(0.5)
   })
 
   it('skips the prior-period query for "all" and reports no trend', async () => {
@@ -232,7 +237,7 @@ describe('getPortalAnalytics (use case)', () => {
 
     // Every trend is null (an em dash in the cards), never a fabricated 0%.
     expect(result.kpis.scans.trend).toBeNull()
-    expect(result.kpis.avgRating.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
     expect(result.kpis.feedback.trend).toBeNull()
     expect(result.kpis.reviewLinkClicks.trend).toBeNull()
 
