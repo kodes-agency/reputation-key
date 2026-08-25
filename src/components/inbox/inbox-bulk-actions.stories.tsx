@@ -12,8 +12,8 @@ const items = [
 ]
 
 const feedbackItems = [
-  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'open' }),
-  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'open' }),
+  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'closed' }),
+  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'closed' }),
 ]
 
 type BulkInput = { data: { inboxItemIds: string[]; status: string } }
@@ -46,6 +46,11 @@ export const ThreeSelected: Story = {
     onClearSelection: fn(),
     bulkUpdateFn,
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: /^close$/i })).toBeNull()
+    expect(canvas.getByRole('button', { name: /^reopen$/i })).toBeDisabled()
+  },
 }
 
 export const OnlyReviewsSelected: Story = {
@@ -55,7 +60,7 @@ export const OnlyReviewsSelected: Story = {
   },
 }
 
-// All selected items are feedback; the same open → closed transition applies.
+// Closed feedback remains eligible for the one beta bulk transition: reopen.
 export const AllFeedback: Story = {
   args: {
     selectedIds: ['fb-1', 'fb-2'],
@@ -79,48 +84,66 @@ export const Empty: Story = {
 }
 
 // never-settling impl → after a click the mutation stays pending and the
-// toolbar's action buttons lock (disabled) until it resolves.
+// reopen action locks until it resolves.
 const pendingBulkFn = mockServerFn(
   async (): Promise<BulkResult> => Promise.withResolvers<BulkResult>().promise,
 ) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const Pending: Story = {
   args: {
-    ...ThreeSelected.args,
+    ...AllFeedback.args,
     bulkUpdateFn: pendingBulkFn,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Bulk toolbar is open ⇄ closed only (ADR 0023); no bulk escalate.
-    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
     await waitFor(() => {
-      expect(canvas.getByRole('button', { name: /^close$/i })).toBeDisabled()
+      expect(canvas.getByRole('button', { name: /^reopen$/i })).toBeDisabled()
     })
   },
 }
 
-// Close invokes the bulk fn with status 'closed'.
-const closeSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
+// Reopen invokes the bulk fn with the only accepted beta target, `open`.
+const reopenSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
   success: true,
   updatedIds: input.data.inboxItemIds,
 }))
-const closeBulkFn = mockServerFn(closeSpy) as unknown as typeof bulkUpdateInboxStatusFn
+const reopenBulkFn = mockServerFn(reopenSpy) as unknown as typeof bulkUpdateInboxStatusFn
 
-export const MarkClosed: Story = {
+export const ReopenClosed: Story = {
   args: {
-    ...ThreeSelected.args,
-    bulkUpdateFn: closeBulkFn,
+    ...AllFeedback.args,
+    bulkUpdateFn: reopenBulkFn,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
+    expect(canvas.queryByRole('button', { name: /^close$/i })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
     await waitFor(() => {
-      expect(closeSpy).toHaveBeenCalledWith(
+      expect(reopenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'closed' }),
+          data: expect.objectContaining({ status: 'open' }),
         }),
       )
     })
+  },
+}
+
+const failingBulkFn = mockServerFn(async (): Promise<BulkResult> => {
+  throw new Error('The selected items changed. Reload and try again.')
+}) as unknown as typeof bulkUpdateInboxStatusFn
+
+export const ReopenError: Story = {
+  args: {
+    ...AllFeedback.args,
+    bulkUpdateFn: failingBulkFn,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
+    expect(
+      await canvas.findByText(/selected items changed\. reload and try again/i),
+    ).toBeVisible()
   },
 }
 

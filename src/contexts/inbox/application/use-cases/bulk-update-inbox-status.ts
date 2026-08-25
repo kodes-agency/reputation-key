@@ -1,11 +1,12 @@
 // Inbox context — bulk update inbox status use case
-// Batch status change for multiple inbox items (open ⇄ closed per ADR 0023).
+// Initial-beta bulk reopen for multiple inbox items. Bulk Close is intentionally
+// absent until it has cycle compatibility preview and revision fencing.
 // No source-type guards; escalation is orthogonal and handled separately.
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
-import type { InboxItem, InboxStatus } from '../../domain/types'
+import type { InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { validateTransition } from '../../domain/rules'
@@ -20,7 +21,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
-  newStatus: InboxStatus
+  newStatus: 'open'
 }>
 
 export type BulkUpdateInboxStatusDeps = Readonly<{
@@ -73,7 +74,7 @@ const resolveAccessiblePropertyIds = async (
 const selectValidBulkItems = (
   items: ReadonlyArray<InboxItem>,
   ids: ReadonlyArray<InboxItemId>,
-  newStatus: InboxStatus,
+  newStatus: BulkUpdateInboxStatusInput['newStatus'],
   accessible: ReadonlyArray<PropertyId> | null,
 ): InboxItem[] => {
   const itemMap = new Map(items.map((item) => [item.id as string, item]))

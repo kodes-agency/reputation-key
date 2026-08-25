@@ -130,7 +130,7 @@ Exported from `application/public-api.ts`:
 | ------------------------- | ------ | ------------- | --------------------------------- |
 | `getInboxItemsFn`         | GET    | `inbox.read`  | Paginated inbox list with filters |
 | `updateInboxStatusFn`     | POST   | `inbox.write` | Update single item status         |
-| `bulkUpdateInboxStatusFn` | POST   | `inbox.write` | Bulk status update                |
+| `bulkUpdateInboxStatusFn` | POST   | `inbox.write` | Bulk reopen only; Bulk Close is unavailable in initial beta |
 | `assignInboxItemFn`       | POST   | `inbox.write` | Assign/unassign item              |
 | `addInboxNoteFn`          | POST   | `inbox.write` | Add internal note                 |
 | `getNewCountFn`           | GET    | `inbox.read`  | New badge count                   |

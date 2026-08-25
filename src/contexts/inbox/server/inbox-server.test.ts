@@ -59,7 +59,7 @@ describe('getInboxItemsDto', () => {
 describe('bulkUpdateStatusDto', () => {
   const validInput = {
     inboxItemIds: ['550e8400-e29b-41d4-a716-446655440000'],
-    status: 'closed' as const,
+    status: 'open' as const,
   }
 
   it('parses valid input', () => {
@@ -89,6 +89,12 @@ describe('bulkUpdateStatusDto', () => {
     expect(bulkUpdateStatusDto.safeParse({ ...validInput, status: 'read' }).success).toBe(
       false,
     )
+  })
+
+  it('rejects bulk close while that workflow is unavailable in beta', () => {
+    expect(
+      bulkUpdateStatusDto.safeParse({ ...validInput, status: 'closed' }).success,
+    ).toBe(false)
   })
 })
 

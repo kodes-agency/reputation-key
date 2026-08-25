@@ -42,10 +42,11 @@ export const updateStatusDto = z.object({
   status: z.enum(['open', 'closed']),
 })
 
-// POST bulk update status
+// POST bulk reopen. Bulk Close is deliberately unavailable for the initial
+// beta because it needs per-cycle compatibility preview and revision fencing.
 export const bulkUpdateStatusDto = z.object({
   inboxItemIds: z.array(z.string().uuid()).min(1).max(INBOX_BULK_LIMIT),
-  status: z.enum(['open', 'closed']),
+  status: z.literal('open'),
 })
 
 // POST escalate inbox item (set escalation flag)
