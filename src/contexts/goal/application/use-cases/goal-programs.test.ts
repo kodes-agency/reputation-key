@@ -176,6 +176,9 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       getPortalKpiSums: vi.fn(async () => []),
       getPortalRatingDistribution: vi.fn(async () => []),
       getPortalRatingTrend: vi.fn(async () => []),
+      getPortalMetricEvidence: vi.fn(async () => {
+        throw new Error('Portal analytics is not used by the Goal test')
+      }),
     },
     getApprovedGoalVersion: vi.fn(async (versionId) =>
       governedVersion(

@@ -19,6 +19,9 @@ export type {
   PortalMetricSumRow,
   PortalRatingBucket,
   PortalRatingTrendPoint,
+  PortalMetricEvidence,
+  PortalMetricEvidenceSet,
+  PortalMetricFamily,
 } from './ports/portal-analytics.repository'
 
 /**

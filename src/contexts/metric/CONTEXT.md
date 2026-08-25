@@ -8,7 +8,8 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 - **MetricKey** — Enum of known metric identifiers: `portal.scan`, `portal.rating`, `portal.feedback`, `portal.review_link_click`, `property.review`.
 - **MetricReading** — A single raw metric data point. Has `metricKey`, `value`, `organizationId`, `propertyId`, optional `portalId`, optional `groupId`, `occurredAt`.
-- **MetricPublicApi** — Application-level API for cross-context consumption. Provides the legacy `queryAggregate`, version-pinned `queryGoalMetric`, and governed correction-aware `portalAnalytics` reads.
+- **MetricPublicApi** — Application-level API for cross-context consumption. Provides the legacy `queryAggregate`, version-pinned `queryGoalMetric`, and governed correction-aware `portalAnalytics` values and availability evidence.
+- **PortalMetricEvidence** — Per-family proof for a requested Portal period: immutable definition version, availability, completeness, correction head, and distinct Verified Through, Latest Activity, and Computed At timestamps.
 
 ## Relationships
 
@@ -24,6 +25,8 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 - Rating averages are weighted from eligible samples and require ten ratings. Missing or undersampled averages are never converted to zero.
 - `portal.qualified_scan` stays explicitly unavailable until signed Access Artifact provenance has a server-verified producer. The client-provided `qr`/`nfc`/`direct` label is not qualification evidence.
 - Portal analytics reads pin immutable versions, permitted consumer/source policy, exact quality, current correction tips, and half-open event time. Distribution, KPI average, and daily trend therefore select the same effective rating population.
+- Portal availability is proven independently for scans, private ratings, private feedback, and review-link selections. Unreceived projection receipts are `updating`; unresolved quarantine, obsolete source facts, or invalid governed readings are `unavailable`. A quiet period with no source facts is complete and may safely return zero.
+- `Verified Through` is pipeline-completeness time, `Latest Activity` is the newest business fact in the period, and `Computed At` is the evidence calculation time. A quiet Portal can be current even when Latest Activity is absent or old.
 
 ## Events produced
 
@@ -62,13 +65,13 @@ metric/
 ## Use cases
 
 - **`recordMetric`** — Validates metric key, inserts raw reading + records the `metric.recorded` fact atomically via the metric command store (BQC-3.5: one transaction, post-commit bus emit).
-- **`queryPortalAnalytics`** — Validates the half-open period and exposes Metric-owned governed Portal KPI/distribution/trend reads to Dashboard.
+- **`queryPortalAnalytics`** — Validates the half-open period and exposes Metric-owned governed Portal KPI/distribution/trend reads plus per-family availability evidence to Dashboard.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`, `PortalMetricSumRow`, `PortalRatingBucket`, `PortalRatingTrendPoint`
+- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`, `PortalMetricSumRow`, `PortalRatingBucket`, `PortalRatingTrendPoint`, `PortalMetricEvidence`, `PortalMetricEvidenceSet`
 - Event types: `MetricRecorded`, `MetricEvent`
 
 ## Server functions

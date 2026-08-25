@@ -18,6 +18,24 @@ export type PortalMetricSumRow = Readonly<{
   count: number
 }>
 
+export type PortalMetricEvidence = Readonly<{
+  definitionVersionId: string
+  state: 'ready' | 'updating' | 'unavailable'
+  verifiedThrough: Date | null
+  latestActivity: Date | null
+  computedAt: Date
+  completeness: number
+  availabilityReason: string | null
+  correctionHead: Date | null
+}>
+
+export type PortalMetricEvidenceSet = Readonly<{
+  scans: PortalMetricEvidence
+  privateRatings: PortalMetricEvidence
+  privateFeedback: PortalMetricEvidence
+  reviewLinkClicks: PortalMetricEvidence
+}>
+
 export type PortalMetricsPort = Readonly<{
   /** Summed metric values grouped by metricKey for a portal+period. */
   getPortalKpiSums(
@@ -45,4 +63,12 @@ export type PortalMetricsPort = Readonly<{
     startDate: Date,
     endDate: Date,
   ): Promise<readonly PortalRatingTrendPoint[]>
+
+  getPortalMetricEvidence(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<PortalMetricEvidenceSet>
 }>

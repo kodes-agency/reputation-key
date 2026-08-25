@@ -50,7 +50,9 @@ export type MetricContextApi = Readonly<{
 export const buildMetricContext = (input: MetricContextBuildInput): MetricContextApi => {
   const metricRepo = createMetricRepository(input.db, input.clock)
   const registry = createMetricRegistryRepository(input.db)
-  const portalAnalytics = queryPortalAnalytics(createPortalAnalyticsRepository(input.db))
+  const portalAnalytics = queryPortalAnalytics(
+    createPortalAnalyticsRepository(input.db, input.clock),
+  )
   // BQC-3.5: every metric state mutation + fact commits atomically here.
   const commandStore = createAtomicMetricCommandStore(input.db, input.events)
   const readGoalMetric = queryGoalMetric({

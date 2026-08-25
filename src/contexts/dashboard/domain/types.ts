@@ -112,10 +112,33 @@ export type DashboardData = Readonly<{
 // ─── Portal Analytics ───
 
 export type PortalKPIs = Readonly<{
-  scans: KPIValue
+  scans: PortalCountKPIValue
   avgRating: PortalRatingKPIValue
-  feedback: KPIValue
-  reviewLinkClicks: KPIValue
+  feedback: PortalCountKPIValue
+  reviewLinkClicks: PortalCountKPIValue
+}>
+
+export type PortalMetricDataState =
+  'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
+
+export type PortalMetricEvidence = Readonly<{
+  definitionVersionId: string
+  state: PortalMetricDataState
+  verifiedThrough: Date | null
+  latestActivity: Date | null
+  computedAt: Date
+  completeness: number
+  availabilityReason: string | null
+  correctionHead: Date | null
+  sampleCount: number
+}>
+
+export type PortalCountKPIValue = Readonly<{
+  /** Null while the governed projection is not safe to serve. */
+  value: number | null
+  priorValue: number | null
+  trend: number | null
+  evidence: PortalMetricEvidence
 }>
 
 export type PortalRatingKPIValue = Readonly<{
@@ -126,6 +149,7 @@ export type PortalRatingKPIValue = Readonly<{
   comparison: number | null
   sampleCount: number
   priorSampleCount: number
+  evidence: PortalMetricEvidence
 }>
 
 export type PortalResponseIntegritySummary = Readonly<{
@@ -137,7 +161,7 @@ export type PortalResponseIntegritySummary = Readonly<{
 
 export type PortalAnalyticsData = Readonly<{
   kpis: PortalKPIs
-  engagementFunnel: EngagementFunnel
+  engagementFunnel: EngagementFunnel | null
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
   responseIntegrity: PortalResponseIntegritySummary

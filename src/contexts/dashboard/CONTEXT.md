@@ -9,7 +9,9 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 - **DashboardData** — The full property dashboard response: KPIs, rating distribution, trends, reply performance, engagement funnel, recent reviews.
 - **PortalAnalyticsData** — Portal-scoped analytics: portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
 - **KPIValue** — A metric with current value, prior value, and trend percentage. Used for the KPI strip.
-- **PortalRatingKPIValue** — A private-rating average with eligible sample counts and an absolute star comparison. No eligible rating is `null`, never zero.
+- **PortalRatingKPIValue** — A private-rating average with eligible sample counts, source evidence, and an absolute star comparison. No eligible sample renders as `null`/`—`, never zero stars.
+- **PortalCountKPIValue** — A Portal count plus source evidence. Its value is nullable while the governed projection cannot safely prove a count, so incomplete data is never presented as zero.
+- **PortalMetricEvidence** — Per-family availability evidence: definition version, state, completeness, correction head, and distinct Verified Through, Latest Activity, and Computed At timestamps.
 - **PortalKPIs** — Portal-scoped KPIs: scans, avg rating, feedback, review link clicks.
 - **DashboardReplyStatus** — Simplified reply status for the dashboard: `'none'`, `'draft'`, `'published'`.
 - **EngagementFunnel** — Scans → ratings → review link clicks. Portal-scoped; only available when a portal is selected.
@@ -44,6 +46,9 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 - Analytics periods are half-open (`start <= business time < end`). Prior/current periods share one boundary without overlap or a millisecond gap.
 - Portal private-rating averages show one decimal and the eligible sample count. The comparison is an absolute star delta only when both bounded periods have at least ten eligible ratings; All Time has no comparison and no-rating renders `—`.
 - Portal KPI, distribution, and trend reads use immutable governed definition versions, allowed source policy, exact quality, and the current correction tip; retracted or invalid star values cannot remain in one chart after disappearing from another.
+- Portal metric families are independently `Ready`, `Updating`, `Insufficient data` (private ratings only), or `Temporarily unavailable`. A complete quiet period is Ready with zero; pending, quarantined, obsolete, or invalid governed evidence cannot silently become zero.
+- `Verified Through` describes durable pipeline completeness, `Latest Activity` describes the newest business fact, and `Computed At` describes query assembly. These timestamps are not interchangeable.
+- The Portal engagement funnel is derived from the same governed, correction-aware KPI population and is withheld if any required metric family is not Ready.
 - When `portalId` is provided to `getKPIs`, metric queries (scans, feedback) are portal-scoped. Review KPIs (reviews, avgRating) remain property-scoped.
 
 ## Events produced
@@ -112,7 +117,7 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 
 - **MetricStatsPort** — sums of metric readings by period/portal, implemented by metric-stats.adapter.ts.
 - **ReviewStatsPort** — review counts, rating distribution, reply performance, recent reviews. BQC-5.5: supplied by the REVIEW context's governed `ReviewServingStats` (composition wires `review.internal.servingStats`) — ADR 0031 source eligibility is enforced at the owner on every review-content read, aggregates included. The dashboard-owned SQL adapter is deleted.
-- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Structurally implemented by Metric's governed `portalAnalytics` public API and wired at composition; Dashboard owns no Portal analytics SQL.
+- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, rating trend, and per-family availability evidence. Structurally implemented by Metric's governed `portalAnalytics` public API and wired at composition; Dashboard owns no Portal analytics SQL.
 - **PortalResponseIntegrityPort** — current content-free Guest response-integrity counts. Implemented by the Guest context public API wired at composition.
 - **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
 - **AttentionSignalsPort** — unanswered-review (past SLA), new/escalated inbox-item, and goals-behind-pace counts per property. Implemented by attention-signals.adapter.ts (its review count applies the same ADR 0031 eligibility predicate — dashboard-side copy pinned equivalent to the review rule by an integration test).

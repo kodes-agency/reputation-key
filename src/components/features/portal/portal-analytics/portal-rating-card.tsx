@@ -4,13 +4,19 @@ import {
   portalRatingPresentation,
   type PortalRatingPresentationInput,
 } from './portal-rating-presentation'
+import {
+  portalMetricEvidenceLine,
+  type PortalMetricEvidenceView,
+} from './portal-metric-evidence-presentation'
 
 export function PortalRatingCard({
   rating,
   timeRange,
+  timeZone,
 }: {
-  rating: PortalRatingPresentationInput
+  rating: PortalRatingPresentationInput & Readonly<{ evidence: PortalMetricEvidenceView }>
   timeRange: TimeRangePreset
+  timeZone: string
 }) {
   const presentation = portalRatingPresentation(rating, timeRange)
   const ComparisonIcon =
@@ -43,7 +49,12 @@ export function PortalRatingCard({
           {presentation.comparison}
         </span>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{presentation.evidence}</p>
+      {rating.evidence.state === 'ready' && (
+        <p className="mt-1 text-xs text-muted-foreground">{presentation.evidence}</p>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">
+        {portalMetricEvidenceLine(rating.evidence, undefined, timeZone)}
+      </p>
     </div>
   )
 }

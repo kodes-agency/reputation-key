@@ -36,6 +36,13 @@ const PORTAL = portalId('c2000000-0000-4000-8000-000000000001')
 // June 2026, half-open bounds, expressed in UTC.
 const WINDOW_START = new Date('2026-06-01T00:00:00.000Z')
 const WINDOW_END = new Date('2026-07-01T00:00:00.000Z')
+const COMPUTED_AT = new Date('2026-07-01T00:05:00.000Z')
+const SOURCE_EVENTS = {
+  scanPending: 'c3000000-0000-4000-8000-000000000001',
+  ratingApplied: 'c3000000-0000-4000-8000-000000000002',
+  feedbackObsolete: 'c3000000-0000-4000-8000-000000000003',
+  clickAppliedWithoutProjection: 'c3000000-0000-4000-8000-000000000004',
+} as const
 
 type Reading = Readonly<{
   sourceEventId: string
@@ -109,12 +116,55 @@ let db: Database
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query(
     `DELETE FROM metric_corrections
      WHERE reading_id IN (
        SELECT id FROM metric_readings WHERE organization_id = $1
      )`,
     [ORG],
+  )
+
+  for (const source of [
+    [SOURCE_EVENTS.scanPending, 'guest.scan.recorded', '2026-06-11T10:00:00.000Z'],
+    [SOURCE_EVENTS.ratingApplied, 'guest.rating.submitted', '2026-06-12T10:00:00.000Z'],
+    [
+      SOURCE_EVENTS.feedbackObsolete,
+      'guest.feedback.submitted',
+      '2026-06-13T10:00:00.000Z',
+    ],
+    [
+      SOURCE_EVENTS.clickAppliedWithoutProjection,
+      'guest.review_link.clicked',
+      '2026-06-14T10:00:00.000Z',
+    ],
+  ] as const) {
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id, created_at, published_at
+       ) VALUES (
+         $1, $2, 1, jsonb_build_object(
+           'organizationId', $3::text,
+           'propertyId', $4::text,
+           'portalId', $5::text,
+           'occurredAt', $6::text
+         ), $3, $4, 'guest', $5, $6::timestamptz, $6::timestamptz
+       )`,
+      [source[0], source[1], ORG, PROP, PORTAL, source[2]],
+    )
+  }
+  await pool.query(
+    `INSERT INTO event_consumer_receipts (event_id, consumer_name, status)
+     VALUES
+       ($1, 'metric.guest-analytics', 'applied'),
+       ($2, 'metric.guest-analytics', 'obsolete'),
+       ($3, 'metric.guest-analytics', 'applied')`,
+    [
+      SOURCE_EVENTS.ratingApplied,
+      SOURCE_EVENTS.feedbackObsolete,
+      SOURCE_EVENTS.clickAppliedWithoutProjection,
+    ],
   )
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
@@ -191,6 +241,7 @@ afterAll(async () => {
     [ORG],
   )
   await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
@@ -199,7 +250,7 @@ afterAll(async () => {
 
 describe('governed Portal analytics repository (integration)', () => {
   it('buckets the daily trend on property_local_date, not the UTC ingestion day', async () => {
-    const adapter = createPortalAnalyticsRepository(db)
+    const adapter = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
 
     const trend = await adapter.getPortalRatingTrend(
       ORG,
@@ -220,7 +271,7 @@ describe('governed Portal analytics repository (integration)', () => {
   })
 
   it('includes a late-ingested reading and excludes one that truly predates the window', async () => {
-    const adapter = createPortalAnalyticsRepository(db)
+    const adapter = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
 
     const sums = await adapter.getPortalKpiSums(
       ORG,
@@ -237,7 +288,7 @@ describe('governed Portal analytics repository (integration)', () => {
   })
 
   it('constrains the rating distribution to 1..5 stars', async () => {
-    const adapter = createPortalAnalyticsRepository(db)
+    const adapter = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
 
     const distribution = await adapter.getPortalRatingDistribution(
       ORG,
@@ -252,5 +303,67 @@ describe('governed Portal analytics repository (integration)', () => {
       { stars: 4, count: 1 },
       { stars: 5, count: 1 },
     ])
+  })
+
+  it('distinguishes ready, updating, and unavailable evidence without fabricating zero', async () => {
+    const evidence = await createPortalAnalyticsRepository(
+      db,
+      () => COMPUTED_AT,
+    ).getPortalMetricEvidence(ORG, PROP, PORTAL, WINDOW_START, WINDOW_END)
+
+    expect(evidence.scans).toMatchObject({
+      definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+      state: 'updating',
+      completeness: 0,
+      verifiedThrough: null,
+      latestActivity: new Date('2026-06-11T10:00:00.000Z'),
+      computedAt: COMPUTED_AT,
+      availabilityReason: 'consumer_receipt_pending',
+    })
+    expect(evidence.privateRatings).toMatchObject({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+      state: 'unavailable',
+      verifiedThrough: null,
+      availabilityReason: 'invalid_governed_reading',
+    })
+    expect(evidence.privateRatings.correctionHead).toBeInstanceOf(Date)
+    expect(evidence.privateFeedback).toMatchObject({
+      definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+      state: 'unavailable',
+      completeness: 0,
+      availabilityReason: 'source_fact_obsolete',
+    })
+    expect(evidence.reviewLinkClicks).toMatchObject({
+      definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+      state: 'unavailable',
+      verifiedThrough: null,
+      latestActivity: new Date('2026-06-14T10:00:00.000Z'),
+      computedAt: COMPUTED_AT,
+      completeness: 1,
+      availabilityReason: 'projection_missing',
+    })
+  })
+
+  it('treats a quiet period with no source facts as complete', async () => {
+    const evidence = await createPortalAnalyticsRepository(
+      db,
+      () => COMPUTED_AT,
+    ).getPortalMetricEvidence(
+      ORG,
+      PROP,
+      PORTAL,
+      new Date('2027-01-01T00:00:00.000Z'),
+      new Date('2027-02-01T00:00:00.000Z'),
+    )
+
+    for (const family of Object.values(evidence)) {
+      expect(family).toMatchObject({
+        state: 'ready',
+        verifiedThrough: COMPUTED_AT,
+        latestActivity: null,
+        completeness: 1,
+        availabilityReason: null,
+      })
+    }
   })
 })

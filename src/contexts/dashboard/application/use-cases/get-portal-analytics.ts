@@ -2,10 +2,17 @@
 // Orchestrates portal-scoped queries into a single PortalAnalyticsData response.
 // Authorization is enforced at the router/loader level (property ownership). No auth logic here.
 
-import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import type { PortalAnalyticsData, PortalKPIs } from '../../domain/types'
-import type { PortalMetricsPort, PortalMetricSumRow } from '../ports/portal-metrics.port'
+import type {
+  PortalAnalyticsData,
+  PortalMetricEvidence,
+  PortalKPIs,
+} from '../../domain/types'
+import type {
+  PortalMetricEvidence as SourceMetricEvidence,
+  PortalMetricsPort,
+  PortalMetricSumRow,
+} from '../ports/portal-metrics.port'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates } from '../utils'
 import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
@@ -14,6 +21,25 @@ const MIN_RATING_COMPARISON_SAMPLE = 10
 
 function roundedRating(value: number): number {
   return Math.round(value * 10) / 10
+}
+
+function metricEvidence(
+  source: SourceMetricEvidence,
+  sampleCount: number,
+  insufficientWhenEmpty = false,
+): PortalMetricEvidence {
+  return {
+    ...source,
+    state:
+      source.state === 'unavailable'
+        ? 'temporarily_unavailable'
+        : source.state === 'updating'
+          ? 'updating'
+          : insufficientWhenEmpty && sampleCount === 0
+            ? 'insufficient_data'
+            : 'ready',
+    sampleCount,
+  }
 }
 
 export type GetPortalAnalyticsInput = Readonly<{
@@ -26,10 +52,8 @@ export type GetPortalAnalyticsInput = Readonly<{
 }>
 
 export type GetPortalAnalyticsDeps = Readonly<{
-  repo: DashboardRepository
   portalMetrics: PortalMetricsPort
   responseIntegrity: PortalResponseIntegrityPort
-  clock: () => Date
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 
@@ -48,14 +72,16 @@ export const getPortalAnalytics =
     // scan-from-epoch on every page load and fabricated a 0% trend.
     const priorPeriod = priorPeriodDates(timeRange, startDate, endDate)
 
-    // Fetch current and prior KPI sums, rating distribution, rating trend, and engagement funnel in parallel
+    // Fetch governed current/prior values and evidence in parallel. The owner
+    // API proves whether a zero is complete before Dashboard can render it.
     const [
       currentSums,
       priorSums,
       ratingDistribution,
       ratingTrend,
-      engagementFunnel,
       responseIntegrity,
+      currentEvidence,
+      priorEvidence,
     ] = await Promise.all([
       deps.portalMetrics.getPortalKpiSums(
         organizationId,
@@ -87,13 +113,6 @@ export const getPortalAnalytics =
         startDate,
         endDate,
       ),
-      deps.repo.getEngagementFunnel({
-        organizationId,
-        propertyId,
-        portalId,
-        startDate,
-        endDate,
-      }),
       deps.responseIntegrity.getPortalResponseIntegritySummary({
         organizationId,
         propertyId,
@@ -101,6 +120,22 @@ export const getPortalAnalytics =
         startAt: startDate,
         endAt: endDate,
       }),
+      deps.portalMetrics.getPortalMetricEvidence(
+        organizationId,
+        propertyId,
+        portalId,
+        startDate,
+        endDate,
+      ),
+      priorPeriod
+        ? deps.portalMetrics.getPortalMetricEvidence(
+            organizationId,
+            propertyId,
+            portalId,
+            priorPeriod.priorStartDate,
+            priorPeriod.priorEndDate,
+          )
+        : Promise.resolve(null),
     ])
 
     const toMap = (
@@ -122,14 +157,34 @@ export const getPortalAnalytics =
     const curReviewLink = cur.get('portal.review_link_click')
     const priorReviewLink = prior.get('portal.review_link_click')
 
+    const countKpi = (
+      current: PortalMetricSumRow | undefined,
+      previous: PortalMetricSumRow | undefined,
+      currentSourceEvidence: SourceMetricEvidence,
+      priorSourceEvidence: SourceMetricEvidence | null,
+    ) => {
+      const value = currentSourceEvidence.state === 'ready' ? (current?.total ?? 0) : null
+      const priorValue =
+        priorSourceEvidence?.state === 'ready' ? (previous?.total ?? 0) : null
+      return {
+        value,
+        priorValue,
+        trend:
+          value !== null && priorValue !== null ? computeTrend(value, priorValue) : null,
+        evidence: metricEvidence(currentSourceEvidence, current?.count ?? 0),
+      }
+    }
+
     const curRatingCount = curRating?.count ?? 0
     const priorRatingCount = priorRating?.count ?? 0
+    const curRatingReady = currentEvidence.privateRatings.state === 'ready'
+    const priorRatingReady = priorEvidence?.privateRatings.state === 'ready'
     const curAvgRating =
-      curRating && curRatingCount > 0
+      curRatingReady && curRating && curRatingCount > 0
         ? roundedRating(curRating.total / curRatingCount)
         : null
     const priorAvgRating =
-      priorRating && priorRatingCount > 0
+      priorRatingReady && priorRating && priorRatingCount > 0
         ? roundedRating(priorRating.total / priorRatingCount)
         : null
     const ratingComparison =
@@ -142,35 +197,50 @@ export const getPortalAnalytics =
         : null
 
     const kpis: PortalKPIs = {
-      scans: {
-        value: curScans?.total ?? 0,
-        priorValue: priorScans?.total ?? 0,
-        trend: computeTrend(curScans?.total ?? 0, priorScans?.total ?? 0),
-      },
+      scans: countKpi(
+        curScans,
+        priorScans,
+        currentEvidence.scans,
+        priorEvidence?.scans ?? null,
+      ),
       avgRating: {
         value: curAvgRating,
         priorValue: priorAvgRating,
         comparison: ratingComparison,
         sampleCount: curRatingCount,
         priorSampleCount: priorRatingCount,
+        evidence: metricEvidence(currentEvidence.privateRatings, curRatingCount, true),
       },
-      feedback: {
-        value: curFeedback?.total ?? 0,
-        priorValue: priorFeedback?.total ?? 0,
-        trend: computeTrend(curFeedback?.total ?? 0, priorFeedback?.total ?? 0),
-      },
-      reviewLinkClicks: {
-        value: curReviewLink?.total ?? 0,
-        priorValue: priorReviewLink?.total ?? 0,
-        trend: computeTrend(curReviewLink?.total ?? 0, priorReviewLink?.total ?? 0),
-      },
+      feedback: countKpi(
+        curFeedback,
+        priorFeedback,
+        currentEvidence.privateFeedback,
+        priorEvidence?.privateFeedback ?? null,
+      ),
+      reviewLinkClicks: countKpi(
+        curReviewLink,
+        priorReviewLink,
+        currentEvidence.reviewLinkClicks,
+        priorEvidence?.reviewLinkClicks ?? null,
+      ),
     }
+
+    const engagementFunnel =
+      currentEvidence.scans.state === 'ready' &&
+      currentEvidence.privateRatings.state === 'ready' &&
+      currentEvidence.reviewLinkClicks.state === 'ready'
+        ? {
+            scans: curScans?.total ?? 0,
+            ratings: curRatingCount,
+            reviewLinkClicks: curReviewLink?.total ?? 0,
+          }
+        : null
 
     return {
       kpis,
       engagementFunnel,
-      ratingDistribution,
-      ratingTrend: [...ratingTrend],
+      ratingDistribution: curRatingReady ? ratingDistribution : [],
+      ratingTrend: curRatingReady ? [...ratingTrend] : [],
       responseIntegrity,
     }
   }

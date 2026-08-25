@@ -174,6 +174,9 @@ function createFakeDeps() {
       getPortalKpiSums: async () => [],
       getPortalRatingDistribution: async () => [],
       getPortalRatingTrend: async () => [],
+      getPortalMetricEvidence: async () => {
+        throw new Error('Portal analytics is not used by the Goal job test')
+      },
     },
   }
 

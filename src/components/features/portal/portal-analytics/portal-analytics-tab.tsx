@@ -1,6 +1,6 @@
 // Portal analytics tab — KPI cards + charts for portal-scoped metrics
 
-import { useId, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import {
@@ -9,7 +9,6 @@ import {
 } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from './portal-analytics-time-range-picker'
-import { KPICard } from '#/components/features/property/property-dashboard-helpers'
 import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'
 import {
   ChartCard,
@@ -17,15 +16,15 @@ import {
   RatingTrendChart,
 } from './portal-analytics-charts'
 import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
-import {
-  portalResponseIntegrityCopy,
-  type PortalResponseIntegritySummaryView,
-} from './portal-response-integrity-copy'
 import { PortalRatingCard } from './portal-rating-card'
+import { PortalCountCard } from './portal-count-card'
+import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
+import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
 
 type Props = Readonly<{
   portalId: string
   propertyId: string
+  propertyTimezone: string
   getPortalAnalytics: typeof getPortalAnalyticsFn
 }>
 
@@ -47,49 +46,12 @@ function readStoredTimeRange(): TimeRangePreset {
   }
 }
 
-function ResponseIntegritySummary({
-  summary,
-}: {
-  summary: PortalResponseIntegritySummaryView
-}) {
-  const headingId = useId()
-  return (
-    <section className="rounded-lg border bg-muted/30 p-4" aria-labelledby={headingId}>
-      <h3 id={headingId} className="text-sm font-semibold tracking-tight">
-        Response quality checks
-      </h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Private rating figures use accepted Portal responses, not unique guests. Hiding
-        written feedback does not remove its star rating.
-      </p>
-      <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-muted-foreground">Accepted</dt>
-          <dd className="font-medium tabular-nums">
-            {summary.accepted.toLocaleString()}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Filtered automatically</dt>
-          <dd className="font-medium tabular-nums">
-            {summary.filteredAutomatically.toLocaleString()}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Under review</dt>
-          <dd className="font-medium tabular-nums">
-            {summary.underReview.toLocaleString()}
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-3 text-xs text-muted-foreground">
-        {portalResponseIntegrityCopy(summary)}
-      </p>
-    </section>
-  )
-}
-
-export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
+export function PortalAnalyticsTab({
+  portalId,
+  propertyId,
+  propertyTimezone,
+  getPortalAnalytics,
+}: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
 
   useEffect(() => {
@@ -149,13 +111,20 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   if (!data) return null
 
   const hasData =
-    data.kpis.scans.value > 0 ||
-    data.kpis.feedback.value > 0 ||
-    data.kpis.reviewLinkClicks.value > 0 ||
+    (data.kpis.scans.value ?? 0) > 0 ||
+    (data.kpis.feedback.value ?? 0) > 0 ||
+    (data.kpis.reviewLinkClicks.value ?? 0) > 0 ||
     data.kpis.avgRating.sampleCount > 0 ||
     data.responseIntegrity.total > 0
+  const hasPendingState = [
+    data.kpis.scans.evidence.state,
+    data.kpis.avgRating.evidence.state,
+    data.kpis.feedback.evidence.state,
+    data.kpis.reviewLinkClicks.evidence.state,
+  ].some((state) => state === 'updating' || state === 'temporarily_unavailable')
+  const engagementFunnel = data.engagementFunnel
 
-  if (!hasData) {
+  if (!hasData && !hasPendingState) {
     return (
       <div className="space-y-6">
         <TimeRangePicker
@@ -179,37 +148,61 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
         timeRange={timeRange}
         onChange={(v) => setTimeRange(v as TimeRangePreset)}
       />
-      {/* KPICard renders a null trend (the 'all' range has no prior window, so
-          there is nothing to compare against) as an em dash via formatTrend —
-          no fabricated 0%, nothing to correct at this call site. */}
+      {/* The All Time range has no prior window. Cards render that missing
+          comparison as an em dash instead of fabricating a 0% trend. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KPICard label="Scans" kpi={data.kpis.scans} icon={ScanLine} />
-        <PortalRatingCard rating={data.kpis.avgRating} timeRange={timeRange} />
-        <KPICard label="Feedback" kpi={data.kpis.feedback} icon={MessageCircle} />
-        <KPICard
+        <PortalCountCard
+          label="Scans"
+          kpi={data.kpis.scans}
+          icon={ScanLine}
+          timeZone={propertyTimezone}
+        />
+        <PortalRatingCard
+          rating={data.kpis.avgRating}
+          timeRange={timeRange}
+          timeZone={propertyTimezone}
+        />
+        <PortalCountCard
+          label="Feedback"
+          kpi={data.kpis.feedback}
+          icon={MessageCircle}
+          timeZone={propertyTimezone}
+        />
+        <PortalCountCard
           label="Review Clicks"
           kpi={data.kpis.reviewLinkClicks}
           icon={MousePointerClick}
+          timeZone={propertyTimezone}
         />
       </div>
-      <ResponseIntegritySummary summary={data.responseIntegrity} />
+      <PortalMetricEvidenceSummary
+        entries={[
+          { label: 'Scans', evidence: data.kpis.scans.evidence },
+          { label: 'Private ratings', evidence: data.kpis.avgRating.evidence },
+          { label: 'Private feedback', evidence: data.kpis.feedback.evidence },
+          { label: 'Review clicks', evidence: data.kpis.reviewLinkClicks.evidence },
+        ]}
+        timeZone={propertyTimezone}
+      />
+      <PortalResponseIntegritySummary summary={data.responseIntegrity} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <ChartCard title="Engagement Funnel" className="md:col-span-2">
-          {(headingId) => (
-            <EngagementFunnelChart
-              funnel={data.engagementFunnel}
-              labelledBy={headingId}
-            />
-          )}
-        </ChartCard>
-        <ChartCard title="Private rating distribution">
-          {(headingId) => (
-            <PortalRatingDistributionChart
-              distribution={data.ratingDistribution}
-              labelledBy={headingId}
-            />
-          )}
-        </ChartCard>
+        {engagementFunnel !== null && (
+          <ChartCard title="Engagement Funnel" className="md:col-span-2">
+            {(headingId) => (
+              <EngagementFunnelChart funnel={engagementFunnel} labelledBy={headingId} />
+            )}
+          </ChartCard>
+        )}
+        {data.kpis.avgRating.evidence.state === 'ready' && (
+          <ChartCard title="Private rating distribution">
+            {(headingId) => (
+              <PortalRatingDistributionChart
+                distribution={data.ratingDistribution}
+                labelledBy={headingId}
+              />
+            )}
+          </ChartCard>
+        )}
         {data.ratingTrend.length > 0 && (
           <ChartCard title="Private rating trend">
             {(headingId) => (

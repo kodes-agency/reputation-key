@@ -14,6 +14,25 @@ function repository(): PortalAnalyticsRepository {
     getPortalKpiSums: vi.fn(async () => []),
     getPortalRatingDistribution: vi.fn(async () => []),
     getPortalRatingTrend: vi.fn(async () => []),
+    getPortalMetricEvidence: vi.fn(async () => ({
+      scans: evidence('scan-version'),
+      privateRatings: evidence('rating-version'),
+      privateFeedback: evidence('feedback-version'),
+      reviewLinkClicks: evidence('click-version'),
+    })),
+  }
+}
+
+function evidence(definitionVersionId: string) {
+  return {
+    definitionVersionId,
+    state: 'ready' as const,
+    verifiedThrough: END,
+    latestActivity: null,
+    computedAt: END,
+    completeness: 1,
+    availabilityReason: null,
+    correctionHead: null,
   }
 }
 
@@ -45,5 +64,20 @@ describe('queryPortalAnalytics', () => {
     ).rejects.toThrow('Portal analytics period is invalid')
     expect(repo.getPortalRatingTrend).not.toHaveBeenCalled()
     expect(repo.getPortalRatingDistribution).not.toHaveBeenCalled()
+  })
+
+  it('applies the same validated boundary to availability evidence', async () => {
+    const repo = repository()
+    const queries = queryPortalAnalytics(repo)
+
+    await queries.getPortalMetricEvidence(ORG, PROPERTY, PORTAL, START, END)
+
+    expect(repo.getPortalMetricEvidence).toHaveBeenCalledWith(
+      ORG,
+      PROPERTY,
+      PORTAL,
+      START,
+      END,
+    )
   })
 })

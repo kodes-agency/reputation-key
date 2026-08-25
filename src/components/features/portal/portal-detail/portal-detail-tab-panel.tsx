@@ -144,12 +144,17 @@ function SharePanel({
 function AnalyticsPanel({
   portal,
   propertyId,
+  propertyTimezone,
   getPortalAnalytics,
-}: Pick<PortalDetailResources, 'portal' | 'propertyId' | 'getPortalAnalytics'>) {
+}: Pick<
+  PortalDetailResources,
+  'portal' | 'propertyId' | 'propertyTimezone' | 'getPortalAnalytics'
+>) {
   return (
     <PortalAnalyticsTab
       portalId={portal.id}
       propertyId={propertyId}
+      propertyTimezone={propertyTimezone}
       getPortalAnalytics={getPortalAnalytics}
     />
   )

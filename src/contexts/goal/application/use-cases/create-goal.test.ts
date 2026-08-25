@@ -160,6 +160,9 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fa
       getPortalKpiSums: async () => [],
       getPortalRatingDistribution: async () => [],
       getPortalRatingTrend: async () => [],
+      getPortalMetricEvidence: async () => {
+        throw new Error('Portal analytics is not used by the Goal test')
+      },
     },
     _setAggregate: (agg: MetricReadingsAggregate) => {
       aggregateResponse = agg

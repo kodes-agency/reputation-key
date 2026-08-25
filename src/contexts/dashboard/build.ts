@@ -78,10 +78,8 @@ export const buildDashboardContext = (
   })
 
   const getPortal = getPortalAnalytics({
-    repo: dashboardRepo,
     portalMetrics: input.portalMetrics,
     responseIntegrity: input.guestResponseIntegrity,
-    clock: input.clock,
   })
 
   const getStaffDashboard = getStaffDashboardData({
