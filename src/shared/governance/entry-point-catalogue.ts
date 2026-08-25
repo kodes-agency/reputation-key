@@ -2803,6 +2803,20 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'durable governed Portal workflow metric ingestion' },
   ),
   consumer(
+    'metric.guest-analytics',
+    'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
+    'system:metric.record',
+    'portal.read',
+    'organization',
+    [
+      'guest.scan.recorded',
+      'guest.rating.submitted',
+      'guest.feedback.submitted',
+      'guest.review_link.clicked',
+    ],
+    { notes: 'durable, content-free Guest analytics ingestion' },
+  ),
+  consumer(
     'metric.correction-reconciliation',
     'src/contexts/metric/infrastructure/correction-outbox-consumers.ts',
     'system:metric.record',

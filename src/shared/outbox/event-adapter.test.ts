@@ -6,7 +6,16 @@ import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-r
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { z } from 'zod'
 import type { DomainEvent } from '#/shared/events/events'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  feedbackId,
+  organizationId,
+  portalId,
+  portalLinkId,
+  propertyId,
+  ratingId,
+  reviewId,
+  scanEventId,
+} from '#/shared/domain/ids'
 
 const NOW = new Date('2025-06-01T12:00:00.000Z')
 
@@ -90,6 +99,58 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     expect(row.eventVersion).toBe(2)
     expect(row.payload).toHaveProperty('connectedBy', 'user-1')
     expect(row.payload).not.toHaveProperty('outboxEventVersion')
+  })
+
+  it('registers the emitted Guest vocabulary with content-minimal payloads', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const common = {
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      occurredAt: NOW,
+      correlationId: null,
+    }
+    const rows = [
+      toOutboxEvent({
+        _tag: 'guest.scan.recorded',
+        eventId: 'evt-scan',
+        scanId: scanEventId('scan-1'),
+        source: 'qr',
+        ...common,
+      }),
+      toOutboxEvent({
+        _tag: 'guest.rating.submitted',
+        eventId: 'evt-rating',
+        ratingId: ratingId('rating-1'),
+        value: 3,
+        ...common,
+      }),
+      toOutboxEvent({
+        _tag: 'guest.feedback.submitted',
+        eventId: 'evt-feedback',
+        feedbackId: feedbackId('feedback-1'),
+        ratingId: ratingId('rating-1'),
+        ...common,
+      }),
+      toOutboxEvent({
+        _tag: 'guest.review_link.clicked',
+        eventId: 'evt-click',
+        linkId: portalLinkId('link-1'),
+        ...common,
+      }),
+    ]
+
+    expect(rows.map((row) => row.eventType)).toEqual([
+      'guest.scan.recorded',
+      'guest.rating.submitted',
+      'guest.feedback.submitted',
+      'guest.review_link.clicked',
+    ])
+    expect(rows[1]!.payload).toMatchObject({ ratingId: 'rating-1', value: 3 })
+    for (const row of rows) {
+      expect(JSON.stringify(row.payload)).not.toMatch(/comment|text|ipHash|sessionId/)
+    }
   })
 
   it('throws unregistered for unknown event types', () => {

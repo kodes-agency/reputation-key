@@ -306,23 +306,38 @@ const integrationPropertyImportRequestedSchema = z
 // ── Guest event schemas ─────────────────────────────────────────────
 
 const guestScanSchema = z.object({
+  scanId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   portalId: z.string(),
+  source: z.enum(['qr', 'nfc', 'direct']),
+  occurredAt: z.string(),
 })
 
 const guestRatingSchema = z.object({
+  ratingId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   portalId: z.string(),
-  rating: z.number().int().min(1).max(5),
+  value: z.number().int().min(1).max(5),
+  occurredAt: z.string(),
 })
 
 const guestFeedbackSchema = z.object({
+  feedbackId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   portalId: z.string(),
-  feedbackId: z.string(),
+  ratingId: z.string().nullable(),
+  occurredAt: z.string(),
+})
+
+const guestReviewLinkClickedSchema = z.object({
+  linkId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  portalId: z.string(),
+  occurredAt: z.string(),
 })
 
 // ── Goal event schemas ──────────────────────────────────────────────
@@ -696,21 +711,29 @@ export function registerAllEventSchemas(): void {
     schema: aiReviewAnalysisBackfillRequestedSchema,
   })
 
-  // Guest events (consumed by metric)
+  // Guest events (consumed by metric). Corrected in place at v1: the three
+  // legacy names below were never emitted, while the four domain tags here
+  // were never registered and therefore could not create historical outbox
+  // rows. Payloads contain identifiers and governed numeric facts only.
   registerEventSchema({
-    type: 'guest.scanned',
+    type: 'guest.scan.recorded',
     version: EVENT_VERSION,
     schema: guestScanSchema,
   })
   registerEventSchema({
-    type: 'guest.rated',
+    type: 'guest.rating.submitted',
     version: EVENT_VERSION,
     schema: guestRatingSchema,
   })
   registerEventSchema({
-    type: 'guest.feedback_submitted',
+    type: 'guest.feedback.submitted',
     version: EVENT_VERSION,
     schema: guestFeedbackSchema,
+  })
+  registerEventSchema({
+    type: 'guest.review_link.clicked',
+    version: EVENT_VERSION,
+    schema: guestReviewLinkClickedSchema,
   })
 
   // Goal events

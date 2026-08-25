@@ -61,11 +61,13 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       idGen: () => scanEventId(randomUUID()),
       clock: deps.clock,
       logger: deps.logger,
+      outboxRepo: deps.outboxRepo,
     }),
     trackReviewLinkClick: trackReviewLinkClick({
       events: deps.events,
       clock: deps.clock,
       logger: deps.logger,
+      outboxRepo: deps.outboxRepo,
     }),
     resolveLinkAndTrack: resolveLinkAndTrack({
       publicPortalLookup,
@@ -73,6 +75,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
         events: deps.events,
         clock: deps.clock,
         logger: deps.logger,
+        outboxRepo: deps.outboxRepo,
       }),
     }),
     resolvePortalContext: resolvePortalContext({

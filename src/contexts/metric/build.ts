@@ -18,6 +18,7 @@ import { recordMetric, type RecordMetric } from './application/use-cases/record-
 import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
+import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { metricReadingId } from '#/shared/domain/ids'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 
@@ -94,6 +95,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
       resolveAttribution: resolvePortalWorkflowAttribution,
     }
     registerPortalWorkflowMetricConsumers(portalWorkflowDeps)
+    registerGuestMetricConsumers({ recordMetric: record, findGroupForPortal })
     registerMetricCorrectionConsumer(input.db)
   }
 

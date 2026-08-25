@@ -268,6 +268,7 @@ const NOTIFICATION_HANDLERS =
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
 const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
+const METRIC_GUEST_OUTBOX = 'src/contexts/metric/infrastructure/guest-outbox-consumers.ts'
 const METRIC_CORRECTION_OUTBOX =
   'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
 const GOAL_HANDLERS = 'src/contexts/goal/infrastructure/event-handlers/index.ts'
@@ -1186,15 +1187,18 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.scan',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
       notes:
-        "schema-registrations.ts registers 'guest.scanned' instead — the emitted tag is unregistered and never recorded",
+        'identifier-only v1 schema and durable metric consumer; producer uses best-effort emitAndRecord after the scan write, so source/outbox atomicity remains an ARC-01 command-store migration',
     },
   ),
   ev(
@@ -1204,15 +1208,18 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.rating',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
       notes:
-        "schema-registrations.ts registers 'guest.rated' instead — the emitted tag is unregistered and never recorded",
+        'identifier/numeric-only v1 schema and durable metric consumer; Guest response insert and outbox recording are not yet one transaction (ARC-01)',
     },
   ),
   ev(
@@ -1222,18 +1229,19 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.feedback',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [
         bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'inbox',
       notes:
-        "schema-registrations.ts registers 'guest.feedback_submitted' instead — the emitted tag is unregistered and never recorded",
+        'content-free v1 payload; metric projection is durable, while the Inbox projection and source/outbox atomicity remain owned follow-ups',
     },
   ),
   ev(
@@ -1243,14 +1251,18 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.click_track',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
-      notes: 'no schema registered under any name',
+      notes:
+        'identifier-only v1 schema and durable metric consumer; the click fact has no separate source row and emitAndRecord remains best-effort',
     },
   ),
 ]
@@ -1452,7 +1464,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'portal.upload',
       action: 'system:image.process',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'blocked_capability',
     },
     {
       notes:

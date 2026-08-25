@@ -39,66 +39,69 @@ export type RecordPortalMetricDeps = Readonly<{
   ) => Promise<{ portalGroupId: PortalGroupId } | null>
 }>
 
-export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
+export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
   metricKey: MetricKey
   definitionVersionId: string
   sourcePolicy: SourcePolicyClass
   span: string
   value?: (event: E) => number
-}) {
+}>
+
+async function recordPortalMetric<E extends PortalMetricEvent>(
+  opts: PortalMetricHandlerOptions<E>,
+  deps: RecordPortalMetricDeps,
+  event: E,
+): Promise<void> {
+  let portalGroupId: PortalGroupId | null = null
+  // Portal facts carry portalId on the event itself, so tenant/portal
+  // attribution is exact; portal-group membership is a downstream
+  // ENRICHMENT, not the attribution. 'unresolved' stays reserved for
+  // producers whose attribution really is unknown — record-metric.ts
+  // quarantines that value before the reading is constructed.
+  const attributionQuality: AttributionQuality = 'exact'
+  if (event.portalId) {
+    try {
+      portalGroupId =
+        (
+          await deps.findGroupForPortal(
+            event.organizationId,
+            event.portalId,
+            event.occurredAt,
+          )
+        )?.portalGroupId ?? null
+    } catch (err) {
+      // A group-enrichment outage must not discard an exact portal reading.
+      // The durable consumer still propagates failures from recordMetric.
+      getLogger().warn(
+        { err, event: event._tag, metricKey: opts.metricKey },
+        `metric: portal-group lookup failed — recording ${opts.metricKey} with a null group`,
+      )
+    }
+  }
+  await deps.recordMetric({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: event.portalId,
+    portalGroupId,
+    definitionVersionId: opts.definitionVersionId,
+    sourceEventId: event.eventId,
+    sourcePolicy: opts.sourcePolicy,
+    scope: 'portal',
+    value: opts.value ? opts.value(event) : 1,
+    sampleCount: 1,
+    occurredAt: event.occurredAt,
+    attributionQuality,
+  })
+}
+
+export function makeRecordMetricHandler<E extends PortalMetricEvent>(
+  opts: PortalMetricHandlerOptions<E>,
+) {
   return (deps: RecordPortalMetricDeps) =>
     async (event: E): Promise<void> => {
       return trace(opts.span, async () => {
         try {
-          let portalGroupId: PortalGroupId | null = null
-          // Portal facts carry portalId on the event itself, so tenant/portal
-          // attribution is exact; portal-group membership is a downstream
-          // ENRICHMENT, not the attribution. 'unresolved' stays reserved for
-          // producers whose attribution really is unknown — record-metric.ts
-          // quarantines that value (see 'unresolved_attribution') before the
-          // reading is ever constructed.
-          const attributionQuality: AttributionQuality = 'exact'
-          if (event.portalId) {
-            try {
-              portalGroupId =
-                (
-                  await deps.findGroupForPortal(
-                    event.organizationId,
-                    event.portalId,
-                    event.occurredAt,
-                  )
-                )?.portalGroupId ?? null
-            } catch (err) {
-              // The documented degradation (BQC-5.9 E8): a findGroupForPortal
-              // blip must not block metric recording. Marking the reading
-              // 'unresolved' here did the OPPOSITE — record-metric.ts
-              // quarantined it, so a transient DB failure silently under-counted
-              // analytics. The reading now lands with portalGroupId: null, and
-              // the warn makes the lost group enrichment observable.
-              // Content-free (BQC-7.3): the observability schema bans tenant
-              // identifiers in log objects, so this carries the event tag and
-              // the metric key only. Those are enough to find the affected
-              // handler; the reading itself still records the real portal.
-              getLogger().warn(
-                { err, event: event._tag, metricKey: opts.metricKey },
-                `metric: portal-group lookup failed — recording ${opts.metricKey} with a null group`,
-              )
-            }
-          }
-          await deps.recordMetric({
-            organizationId: event.organizationId,
-            propertyId: event.propertyId,
-            portalId: event.portalId,
-            portalGroupId,
-            definitionVersionId: opts.definitionVersionId,
-            sourceEventId: event.eventId,
-            sourcePolicy: opts.sourcePolicy,
-            scope: 'portal',
-            value: opts.value ? opts.value(event) : 1,
-            sampleCount: 1,
-            occurredAt: event.occurredAt,
-            attributionQuality,
-          })
+          await recordPortalMetric(opts, deps, event)
         } catch (err) {
           getLogger().error(
             {
@@ -110,4 +113,18 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(opts: {
         }
       })
     }
+}
+
+/**
+ * Durable counterpart to the in-process handler. Unlike the bus adapter it
+ * deliberately does not catch persistence failures: the outbox dispatcher
+ * must fail the job so BullMQ can retry it. Both paths converge on the metric
+ * command store's source-event idempotency.
+ */
+export function makeDurableRecordMetricHandler<E extends PortalMetricEvent>(
+  opts: PortalMetricHandlerOptions<E>,
+) {
+  return (deps: RecordPortalMetricDeps) =>
+    async (event: E): Promise<void> =>
+      trace(`${opts.span}.durable`, () => recordPortalMetric(opts, deps, event))
 }
