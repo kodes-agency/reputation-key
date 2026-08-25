@@ -13,7 +13,12 @@ import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
 import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
 import type { StaffPublicApi } from './application/public-api'
-import { portalId, type OrganizationId, type UserId } from '#/shared/domain/ids'
+import {
+  portalId,
+  type OrganizationId,
+  type PropertyId,
+  type UserId,
+} from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   createStaffAssignment,
@@ -66,6 +71,26 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     assignmentRepo: deps.repo,
   })
 
+  const responsibilityLookup = {
+    listAssignedPortalIds: async (
+      organizationId: OrganizationId,
+      userId: UserId,
+      propertyId: PropertyId,
+    ) => {
+      const participation = await participationRepo.findActiveByUser(
+        organizationId,
+        propertyId,
+        userId,
+      )
+      if (!participation) return []
+      const responsibilities = await participationRepo.listActiveResponsibilities(
+        organizationId,
+        participation.id,
+      )
+      return responsibilities.map((responsibility) => portalId(responsibility.portalId))
+    },
+  } as const
+
   // Build publicApi first so it can be passed to use cases that need
   // property-access scoping (create/update staff assignments).
   const publicApi: StaffPublicApi = {
@@ -85,17 +110,11 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       )
     },
     getAssignedPortals: async (input, ctx) => {
-      const participation = await participationRepo.findActiveByUser(
+      return responsibilityLookup.listAssignedPortalIds(
         ctx.organizationId,
-        input.propertyId,
         input.userId,
+        input.propertyId,
       )
-      if (!participation) return []
-      const responsibilities = await participationRepo.listActiveResponsibilities(
-        ctx.organizationId,
-        participation.id,
-      )
-      return responsibilities.map((responsibility) => portalId(responsibility.portalId))
     },
     countAssignmentsByTeam: async (orgId, teamId) => {
       const assignments = await deps.repo.listByTeam(orgId, teamId)
@@ -136,7 +155,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       idGen,
     }),
     listStaffPortals: listStaffPortals({
-      assignmentRepo: deps.repo,
+      responsibilityLookup,
       portalLookup: deps.portalLookup,
     }),
     createStaffParticipation: createStaffParticipation({

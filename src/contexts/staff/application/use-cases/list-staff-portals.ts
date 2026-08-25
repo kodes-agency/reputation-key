@@ -4,7 +4,7 @@
 // testable independently.
 
 import type { StaffPortalLookupPort } from '../ports/portal-lookup.port'
-import type { StaffAssignmentRepository } from '../ports/staff-assignment.repository'
+import type { PortalResponsibilityLookupPort } from '../ports/portal-responsibility-lookup.port'
 import type { StaffPortalEntry } from '../public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
@@ -12,7 +12,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 
 export type ListStaffPortalsDeps = Readonly<{
-  assignmentRepo: StaffAssignmentRepository
+  responsibilityLookup: PortalResponsibilityLookupPort
   portalLookup: StaffPortalLookupPort
 }>
 
@@ -48,20 +48,23 @@ export const listStaffPortals =
       throw staffError('forbidden', 'No staff assignment read permission')
     }
 
-    // 2. Resolve assigned portal IDs for this staff member
-    const assignments = await deps.assignmentRepo.listByUserAndProperty(
+    // 2. Resolve assigned portal IDs from current Staff attribution. Legacy
+    // staff_assignments is retained only for reconciliation and is not a read
+    // authority for beta behavior.
+    const assignedPortalIds = await deps.responsibilityLookup.listAssignedPortalIds(
       ctx.organizationId,
       input.userId,
       input.propertyId,
     )
 
-    // Extract unique non-null portalIds
+    // Defensive dedupe keeps the public result stable if historical rows are
+    // reconciled more than once.
     const seen = new Set<PortalId>()
     const portalIds: PortalId[] = []
-    for (const a of assignments) {
-      if (a.portalId !== null && !seen.has(a.portalId)) {
-        seen.add(a.portalId)
-        portalIds.push(a.portalId)
+    for (const assignedPortalId of assignedPortalIds) {
+      if (!seen.has(assignedPortalId)) {
+        seen.add(assignedPortalId)
+        portalIds.push(assignedPortalId)
       }
     }
 

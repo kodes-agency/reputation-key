@@ -84,8 +84,8 @@ export function StaffParticipationRow({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Archive staff participation?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {participation.displayName} will no longer be available for new team
-                    or portal responsibilities. Their effective history is preserved.
+                    {participation.displayName} will no longer be available for new Portal
+                    responsibilities. Their effective history is preserved.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

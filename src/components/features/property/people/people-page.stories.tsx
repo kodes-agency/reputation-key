@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { PeoplePage } from './people-page'
-import { AuthRoleDecorator, seededArgs } from './people-page-stories-data'
+import { seededArgs } from './people-page-stories-data'
 
 const meta: Meta<typeof PeoplePage> = {
   title: 'Property/PeoplePage',
@@ -29,8 +29,6 @@ export const Empty: Story = {
     ...seededArgs,
     participations: [],
     responsibilities: [],
-    memberships: [],
-    teams: [],
     portals: [],
     tab: 'staff',
   },
@@ -44,11 +42,11 @@ export const Error: Story = {
   args: {
     ...seededArgs,
     state: 'error',
-    errorMessage: 'People and teams are temporarily unavailable.',
+    errorMessage: 'People are temporarily unavailable.',
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText('People and teams are temporarily unavailable.'),
+      within(canvasElement).getByText('People are temporarily unavailable.'),
     ).toBeInTheDocument()
   },
 }
@@ -68,19 +66,6 @@ export const Directory: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
     await expect(canvas.getByText('bob@acme.com')).toBeInTheDocument()
-  },
-}
-
-export const Teams: Story = {
-  args: { ...seededArgs, tab: 'teams' },
-  decorators: [AuthRoleDecorator],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText('Front Desk')).toBeInTheDocument()
-    await userEvent.click(canvas.getByRole('button', { name: /create team/i }))
-    await expect(
-      await within(document.body).findByText('Create a new team'),
-    ).toBeInTheDocument()
   },
 }
 

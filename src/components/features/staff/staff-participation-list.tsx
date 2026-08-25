@@ -26,8 +26,7 @@ export function StaffParticipationList({
     return (
       <EmptyState icon={UserRoundPlus} title="No staff participate at this property yet">
         <p className="max-w-md text-sm text-muted-foreground">
-          Add an organization member to make them eligible for team membership and portal
-          responsibilities at this property.
+          Add a participant to connect their work with this property's Portals.
         </p>
       </EmptyState>
     )
