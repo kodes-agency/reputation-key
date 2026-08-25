@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
+import { randomUUID } from 'node:crypto'
 import { getEnv } from '#/shared/config/env'
 import { compileGoogleProviderRequest } from './route-catalogue'
 import { createPostgresGoogleAdmissionPermitAuthority } from '../../../services/google-execution-admission/postgres-permit-authority'
 
 const ORGANIZATION_ID = 'org-google-admission-authority-test'
 const CONNECTION_ID = '8e000000-0000-4000-8000-000000000001'
-const APPROVAL_ID = '8a000000-0000-4000-8000-000000000001'
+const APPROVAL_ID = randomUUID()
 const PERMIT_ID = '8d000000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-12T10:00:00.000Z')
 const PROJECT_FINGERPRINT = 'b'.repeat(64)
@@ -33,6 +34,15 @@ const vector = Object.freeze({
 })
 
 let pool: Pool
+let originalControl:
+  | Readonly<{
+      denied: boolean
+      emergency_kill_version: string
+      denied_at: Date | null
+      drained_at: Date | null
+      cleanup_drained_at: Date | null
+    }>
+  | undefined
 
 async function seedApproval(): Promise<void> {
   const client = await pool.connect()
@@ -90,7 +100,10 @@ async function seedPermit(): Promise<void> {
       authorization_vector, state, admitted_at, start_deadline_at
     ) VALUES (
       $1, 'property.import_gbp_v2', $2, $3, 'user-admission-test',
-      'account-discovery', $4, $5, $6, 1, 0, $7, 1, 'full', 'full',
+      'account-discovery', $4, $5, $6,
+      (SELECT version FROM policy_version WHERE scope = 'global'),
+      (SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'),
+      $7, 1, 'full', 'full',
       $8::jsonb, 'admitted', $9, $10
     )`,
     [
@@ -118,10 +131,27 @@ function authority() {
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL })
+  const control = await pool.query<NonNullable<typeof originalControl>>(
+    `SELECT denied, emergency_kill_version, denied_at, drained_at, cleanup_drained_at
+       FROM capability_execution_control
+      WHERE capability = 'property.import_gbp_v2'`,
+  )
+  originalControl = control.rows[0]
   await seedApproval()
 })
 
 beforeEach(async () => {
+  await pool.query(
+    `UPDATE capability_execution_control
+        SET denied = false,
+            emergency_kill_version = (
+              SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
+            ),
+            denied_at = NULL,
+            drained_at = NULL,
+            cleanup_drained_at = NULL
+      WHERE capability = 'property.import_gbp_v2'`,
+  )
   await pool.query(
     'DELETE FROM authorization_execution_permits WHERE organization_id = $1',
     [ORGANIZATION_ID],
@@ -134,6 +164,24 @@ afterAll(async () => {
     'DELETE FROM authorization_execution_permits WHERE organization_id = $1',
     [ORGANIZATION_ID],
   )
+  if (originalControl) {
+    await pool.query(
+      `UPDATE capability_execution_control
+          SET denied = $1,
+              emergency_kill_version = $2,
+              denied_at = $3,
+              drained_at = $4,
+              cleanup_drained_at = $5
+        WHERE capability = 'property.import_gbp_v2'`,
+      [
+        originalControl.denied,
+        originalControl.emergency_kill_version,
+        originalControl.denied_at,
+        originalControl.drained_at,
+        originalControl.cleanup_drained_at,
+      ],
+    )
+  }
   await pool.end()
 })
 
@@ -180,6 +228,28 @@ describe('Postgres Google admission permit authority', () => {
       [PERMIT_ID],
     )
     expect(result.rows[0]?.state).toBe('admitted')
+  })
+
+  it('fences a permit when the live capability control is denied after load', async () => {
+    const adapter = authority()
+    const snapshot = await adapter.load(PERMIT_ID)
+    if (!snapshot) throw new Error('expected permit snapshot')
+    await pool.query(
+      `UPDATE capability_execution_control
+          SET denied = true, denied_at = $1
+        WHERE capability = 'property.import_gbp_v2'`,
+      [NOW],
+    )
+
+    await expect(adapter.start(snapshot)).resolves.toBe('changed')
+    const result = await pool.query(
+      'SELECT state, correlation_id FROM authorization_execution_permits WHERE id = $1',
+      [PERMIT_ID],
+    )
+    expect(result.rows[0]).toEqual({
+      state: 'fenced',
+      correlation_id: 'authorization_changed',
+    })
   })
 
   it('does not fence a newer generation through stale failure cleanup', async () => {

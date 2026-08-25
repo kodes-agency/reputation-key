@@ -18,12 +18,14 @@ const SAFE_REVISION = /^[A-Za-z0-9._:@/-]{1,255}$/
 
 type PermitRow = Readonly<{
   id: string
+  capability: string
   route_key: string
   route_catalog_version: string
   quota_policy_id: string
   permit_generation: string | number
   policy_version: string | number
   emergency_kill_version: string | number
+  approval_binding_id: string
   authorization_vector: unknown
   state: string
   start_deadline_at: Date
@@ -94,6 +96,8 @@ function revisionFor(row: PermitRow): string | null {
         policyVersion,
         emergencyKillVersion,
         row.route_key,
+        row.capability,
+        row.approval_binding_id,
         row.route_catalog_version,
         row.quota_policy_id,
         row.authorization_vector,
@@ -183,9 +187,9 @@ async function selectPermit(
   forUpdate = false,
 ): Promise<PermitRow | null> {
   const result = await client.query<PermitRow>(
-    `SELECT id, route_key, route_catalog_version, quota_policy_id,
+    `SELECT id, capability, route_key, route_catalog_version, quota_policy_id,
             permit_generation, policy_version, emergency_kill_version,
-            authorization_vector, state, start_deadline_at,
+            approval_binding_id, authorization_vector, state, start_deadline_at,
             organization_id, property_id, connection_id, initiator_user_id
        FROM authorization_execution_permits
       WHERE id = $1
@@ -220,21 +224,83 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     start: async (permit) => {
       const now = deps.now()
       const operationDeadlineAt = new Date(now.getTime() + operationTimeoutMs)
-      const result = await deps.pool.query(
-        `UPDATE authorization_execution_permits
-            SET state = 'started',
-                started_at = $2,
-                operation_deadline_at = $3
-          WHERE id = $1
-            AND state = 'admitted'
-            AND start_deadline_at > $2
-            AND permit_generation = $4
-            AND policy_version = $5
-            AND emergency_kill_version = $6
-            AND route_key = $7
-            AND route_catalog_version = $8
-            AND quota_policy_id = $9
-            AND authorization_vector @> $10::jsonb`,
+      const result = await deps.pool.query<{ outcome: string }>(
+        `WITH candidate AS MATERIALIZED (
+           SELECT permit.*,
+                  CASE
+                    WHEN permit.state <> 'admitted' THEN 'changed'
+                    WHEN permit.start_deadline_at <= $2 THEN 'expired'
+                    WHEN EXISTS (
+                      SELECT 1
+                        FROM policy_version AS policy
+                        INNER JOIN capability_execution_control AS control
+                          ON control.capability = permit.capability
+                        INNER JOIN capability_compliance_approvals AS approval
+                          ON approval.id = permit.approval_binding_id
+                         AND approval.capability = permit.capability
+                       WHERE policy.scope = 'global'
+                         AND policy.version = permit.policy_version
+                         AND policy.emergency_kill_version = permit.emergency_kill_version
+                         AND control.denied = false
+                         AND control.emergency_kill_version = policy.emergency_kill_version
+                         AND approval.status = 'approved'
+                         AND approval.approved_at <= $2
+                         AND approval.expires_at > $2
+                         AND (
+                           approval.target_phase <> 'railway_closed_beta'
+                           OR approval.railway_closed_beta_cohort @>
+                             to_jsonb(ARRAY[permit.organization_id]::text[])
+                         )
+                         AND NOT EXISTS (
+                           SELECT 1
+                             FROM capability_compliance_approvals AS newer
+                            WHERE newer.capability = approval.capability
+                              AND newer.target_phase = approval.target_phase
+                              AND newer.environment_profile = approval.environment_profile
+                              AND newer.binding_version > approval.binding_version
+                         )
+                    ) THEN 'started'
+                    ELSE 'changed'
+                  END AS outcome
+             FROM authorization_execution_permits AS permit
+            WHERE permit.id = $1
+            FOR UPDATE OF permit
+         ), transition AS (
+           UPDATE authorization_execution_permits AS permit
+              SET state = CASE WHEN candidate.outcome = 'started'
+                                 THEN 'started'::authorization_execution_permit_state
+                               ELSE 'fenced'::authorization_execution_permit_state END,
+                  started_at = CASE WHEN candidate.outcome = 'started'
+                                      THEN $2 ELSE permit.started_at END,
+                  operation_deadline_at = CASE WHEN candidate.outcome = 'started'
+                                                 THEN $3
+                                                 ELSE permit.operation_deadline_at END,
+                  fenced_at = CASE WHEN candidate.outcome = 'started'
+                                     THEN permit.fenced_at ELSE $2 END,
+                  correlation_id = CASE WHEN candidate.outcome = 'started'
+                                          THEN permit.correlation_id
+                                        WHEN candidate.outcome = 'expired'
+                                          THEN 'start_deadline_elapsed'
+                                        ELSE 'authorization_changed' END
+             FROM candidate
+            WHERE permit.id = candidate.id
+              AND candidate.state = 'admitted'
+              AND candidate.permit_generation = $4
+              AND candidate.policy_version = $5
+              AND candidate.emergency_kill_version = $6
+              AND candidate.route_key = $7
+              AND candidate.route_catalog_version = $8
+              AND candidate.quota_policy_id = $9
+              AND candidate.authorization_vector @> $10::jsonb
+           RETURNING candidate.outcome
+         )
+         SELECT transition.outcome FROM transition
+         UNION ALL
+         SELECT CASE WHEN candidate.start_deadline_at <= $2
+                       THEN 'expired' ELSE 'changed' END AS outcome
+           FROM candidate
+          WHERE NOT EXISTS (SELECT 1 FROM transition)
+         LIMIT 1`,
         [
           permit.permitId,
           now,
@@ -254,11 +320,8 @@ export function createPostgresGoogleAdmissionPermitAuthority(
           }),
         ],
       )
-      if ((result.rowCount ?? 0) === 1) return 'started'
-      const current = await selectPermit(deps.pool, permit.permitId)
-      if (!current) return 'changed'
-      if (current.start_deadline_at.getTime() <= now.getTime()) return 'expired'
-      return 'changed'
+      const outcome = result.rows[0]?.outcome
+      return outcome === 'started' || outcome === 'expired' ? outcome : 'changed'
     },
     failStarted: async (permit, code) => {
       await deps.pool.query(
