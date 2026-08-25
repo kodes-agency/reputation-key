@@ -11,7 +11,7 @@ import { Plus } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
-import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -66,9 +66,9 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
       context.queryClient.ensureQueryData(invitationsQuery),
     ])
     // An inviter may only assign roles at or below their own privilege level.
-    const allowedRoles: ReadonlyArray<Role> = hasRole(role, 'AccountAdmin')
-      ? ['AccountAdmin', 'PropertyManager', 'Staff']
-      : ['PropertyManager', 'Staff']
+    const allowedRoles: ReadonlyArray<BetaInteractiveRole> = hasRole(role, 'AccountAdmin')
+      ? ['AccountAdmin', 'PropertyManager']
+      : ['PropertyManager']
     return {
       members: memberResult.members,
       invitations: invitationsResult.invitations,
@@ -86,7 +86,7 @@ function MembersSettingsRoute() {
   const { data: invitationsResult } = useSuspenseQuery(invitationsQuery)
   const members = memberResult.members
   const invitations = invitationsResult.invitations
-  const { user } = authRoute.useRouteContext()
+  const { user, role } = authRoute.useRouteContext()
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   const properties = propsData.properties
   const { can: canDo } = usePermissions()
@@ -121,7 +121,7 @@ function MembersSettingsRoute() {
         description="Invite people to your organization and manage their roles."
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members' }]}
         actions={
-          canDo('invitation.create') ? (
+          canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
               <DialogTrigger asChild>
                 <Button>

@@ -125,7 +125,7 @@ function createMockDb(opts: {
         from: vi.fn(() => ({
           where: vi.fn(() => whereResult),
           innerJoin: vi.fn(() => ({
-            where: vi.fn(() => ({ limit: vi.fn(async () => rows) })),
+            where: vi.fn(() => whereResult),
           })),
         })),
       }
@@ -195,7 +195,7 @@ const invitedEvent = () =>
   identityMemberInvited({
     organizationId: ORG_ID,
     email: 'invitee@test.com',
-    role: 'Staff',
+    role: 'PropertyManager',
     userId: INVITER,
     invitationId: INV_ID,
     occurredAt: NOW,
@@ -205,7 +205,7 @@ const pendingInvitationRow = (overrides: Record<string, unknown> = {}) => ({
   id: INV_ID as string,
   organizationId: ORG_ID as string,
   email: 'invitee@test.com',
-  role: 'member',
+  role: 'admin',
   status: 'pending',
   expiresAt: new Date('2027-01-01T00:00:00.000Z'),
   propertyIds: JSON.stringify(['prop-a', 'prop-b']),
@@ -227,7 +227,7 @@ describe('createAtomicIdentityCommandStore', () => {
       invitationId: INV_ID,
       organizationId: ORG_ID,
       email: 'Invitee@Test.com',
-      role: 'member',
+      role: 'admin',
       inviterId: INVITER,
       propertyIds: ['prop-a', 'prop-b'],
       now: NOW,
@@ -241,7 +241,7 @@ describe('createAtomicIdentityCommandStore', () => {
       const executedRows: Array<{ text: string; params: unknown[] }> = []
       const { db } = createMockDb({
         order,
-        selectQueue: [[], []],
+        selectQueue: [[], [], []],
         outboxRows,
         executedRows,
       })
@@ -253,6 +253,8 @@ describe('createAtomicIdentityCommandStore', () => {
 
       expect(order).toEqual([
         'tx.start',
+        'tx.lock',
+        'tx.read',
         'tx.read',
         'tx.read',
         'tx.state',
@@ -266,7 +268,7 @@ describe('createAtomicIdentityCommandStore', () => {
         INV_ID as string,
         ORG_ID as string,
         'invitee@test.com',
-        'member',
+        'admin',
         EXPIRES,
         JSON.stringify(['prop-a', 'prop-b']),
         INVITER as string,
@@ -282,7 +284,7 @@ describe('createAtomicIdentityCommandStore', () => {
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        selectQueue: [[{ id: 'member-existing' }]],
+        selectQueue: [[{ organizationId: ORG_ID as string }]],
         outboxRows,
       })
       const events = makeEvents(order)
@@ -293,7 +295,7 @@ describe('createAtomicIdentityCommandStore', () => {
       )
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()
-      expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
+      expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.rollback'])
     })
 
     it('throws already_exists when a pending invitation exists for the email', async () => {
@@ -301,7 +303,7 @@ describe('createAtomicIdentityCommandStore', () => {
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        selectQueue: [[], [{ id: 'inv-pending' }]],
+        selectQueue: [[], [{ organizationId: ORG_ID as string }]],
         outboxRows,
       })
       const events = makeEvents(order)
@@ -312,7 +314,52 @@ describe('createAtomicIdentityCommandStore', () => {
       )
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()
-      expect(order).toEqual(['tx.start', 'tx.read', 'tx.read', 'tx.rollback'])
+      expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.read', 'tx.rollback'])
+    })
+
+    it('rejects an existing membership or pending invitation from another Organization', async () => {
+      const otherOrganizationId = 'org-other-beta'
+      for (const selectQueue of [
+        [[{ organizationId: otherOrganizationId }]],
+        [[], [{ organizationId: otherOrganizationId }]],
+      ]) {
+        const order: string[] = []
+        const outboxRows: Array<Record<string, unknown>> = []
+        const { db } = createMockDb({ order, selectQueue, outboxRows })
+        const events = makeEvents(order)
+        const store = createAtomicIdentityCommandStore(db, events)
+
+        await expect(store.inviteMember(command())).rejects.toSatisfy(
+          (error: unknown) =>
+            isIdentityError(error) && error.code === 'organization_conflict',
+        )
+        expect(outboxRows).toHaveLength(0)
+        expect(events.emit).not.toHaveBeenCalled()
+      }
+    })
+
+    it('rejects an existing user binding to another Organization', async () => {
+      const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({
+        order,
+        selectQueue: [
+          [],
+          [],
+          [{ id: 'user-existing' }],
+          [{ organizationId: 'org-other-beta', state: 'active' }],
+        ],
+        outboxRows,
+      })
+      const events = makeEvents(order)
+      const store = createAtomicIdentityCommandStore(db, events)
+
+      await expect(store.inviteMember(command())).rejects.toSatisfy(
+        (error: unknown) =>
+          isIdentityError(error) && error.code === 'organization_conflict',
+      )
+      expect(outboxRows).toHaveLength(0)
+      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -368,7 +415,7 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(insertedRows[1]).toMatchObject({
         organizationId: ORG_ID as string,
         userId: 'user-acceptor-00000000000001',
-        role: 'member',
+        role: 'admin',
       })
       expect(updateSets).toEqual([{ status: 'accepted' }])
       expect(outboxRows).toHaveLength(1)
@@ -377,6 +424,7 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.start',
         'tx.read',
         'tx.lock',
+        'tx.read',
         'tx.read',
         'tx.state',
         'tx.state',
@@ -406,24 +454,14 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
     })
 
-    it('rejects an invitation into a second Organization before membership or consumption', async () => {
+    it('rejects an existing membership in another Organization before consumption', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        selectQueue: [
-          [pendingInvitationRow()],
-          [
-            {
-              userId: 'user-acceptor-00000000000001',
-              organizationId: 'org-other',
-              state: 'active',
-              version: 1,
-            },
-          ],
-        ],
+        selectQueue: [[pendingInvitationRow()], [{ organizationId: 'org-other' }]],
         outboxRows,
         insertedRows,
         updateSets,
@@ -439,6 +477,46 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(updateSets).toEqual([])
       expect(outboxRows).toEqual([])
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.lock', 'tx.read', 'tx.rollback'])
+    })
+
+    it('rejects a conflicting binding even when no membership row remains', async () => {
+      const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
+      const insertedRows: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({
+        order,
+        selectQueue: [
+          [pendingInvitationRow()],
+          [],
+          [
+            {
+              userId: 'user-acceptor-00000000000001',
+              organizationId: 'org-other',
+              state: 'active',
+              version: 1,
+            },
+          ],
+        ],
+        outboxRows,
+        insertedRows,
+      })
+      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+
+      await expect(store.acceptInvitation(command())).rejects.toSatisfy(
+        (error: unknown) =>
+          isIdentityError(error) && error.code === 'organization_conflict',
+      )
+
+      expect(insertedRows).toEqual([])
+      expect(outboxRows).toEqual([])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.read',
+        'tx.lock',
+        'tx.read',
+        'tx.read',
+        'tx.rollback',
+      ])
     })
 
     it('rejects an expired invitation — no fact', async () => {
@@ -471,14 +549,13 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
     })
 
-    it('marks the invitation rejected when the custom role vanished — no fact', async () => {
+    it('commits rejection when an invitation role is not beta-interactive', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        // invitation row (custom role), then role-definition lookup, then policy lookup
-        selectQueue: [[pendingInvitationRow({ role: 'content-manager' })], [], []],
+        selectQueue: [[pendingInvitationRow({ role: 'content-manager' })]],
         outboxRows,
         updateSets,
       })
@@ -491,14 +568,7 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(updateSets).toEqual([{ status: 'rejected' }])
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()
-      expect(order).toEqual([
-        'tx.start',
-        'tx.read',
-        'tx.read',
-        'tx.read',
-        'tx.state',
-        'tx.rollback',
-      ])
+      expect(order).toEqual(['tx.start', 'tx.read', 'tx.state', 'tx.commit'])
     })
   })
 
@@ -739,6 +809,7 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.state',
         'tx.lock',
+        'tx.read',
         'tx.read',
         'tx.state',
         'tx.outbox',

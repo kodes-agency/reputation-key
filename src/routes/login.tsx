@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { getSession, ensureActiveOrg } from '#/shared/auth/auth.functions'
-import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
+import { AuthCard } from '#/components/layout/auth-layout'
 import { LoginForm } from '#/components/features/identity'
 import { signInUser } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
@@ -50,11 +50,6 @@ function LoginPage() {
           Forgot password?
         </Link>
       </div>
-      <AuthFooterLink
-        message="Don't have an account?"
-        linkText="Create one"
-        to="/register"
-      />
     </AuthCard>
   )
 }

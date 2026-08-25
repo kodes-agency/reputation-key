@@ -12,6 +12,7 @@ import {
   isCoreCapability,
   isBlockedCapability,
   isCapabilityJobEnabled,
+  listAllCapabilities,
   checkGlobalCapability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
@@ -283,15 +284,15 @@ describe('BetaCapabilities', () => {
       expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
     })
 
-    it('enables listed non-core capabilities via BETA_E2E_GLOBAL_CAPABILITIES', () => {
+    it('enables listed promotable capabilities via BETA_E2E_GLOBAL_CAPABILITIES', () => {
       const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'identity.register,organization.create,team.use',
+        BETA_E2E_GLOBAL_CAPABILITIES: 'goal.use,badge.use,identity.register',
       })
-      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('organization.create')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('team.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('badge.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
       // Unlisted non-core stay off
-      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('leaderboard.use')).toBe(false)
     })
 
     it('enables promotable email but never permanent prohibitions via E2E override', () => {
@@ -335,6 +336,11 @@ describe('BetaCapabilities', () => {
   })
 
   describe('capability metadata', () => {
+    it('publishes each capability exactly once', () => {
+      const capabilities = listAllCapabilities()
+      expect(new Set(capabilities).size).toBe(capabilities.length)
+    })
+
     it('identifies core capabilities', () => {
       expect(isCoreCapability('identity.invite')).toBe(true)
       expect(isCoreCapability('goal.use')).toBe(false)
@@ -347,6 +353,9 @@ describe('BetaCapabilities', () => {
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('portal.write')).toBe(false)
       expect(isBlockedCapability('portal.upload')).toBe(true)
+      expect(isBlockedCapability('identity.register')).toBe(true)
+      expect(isBlockedCapability('organization.create')).toBe(true)
+      expect(isBlockedCapability('team.use')).toBe(true)
       expect(isBlockedCapability('notification.send_email')).toBe(false)
     })
   })
@@ -361,7 +370,7 @@ describe('BetaCapabilities', () => {
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
       expect(isCapabilityJobEnabled('badge.use')).toBe(true)
       expect(isCapabilityJobEnabled('leaderboard.use')).toBe(true)
-      expect(isCapabilityJobEnabled('team.use')).toBe(true)
+      expect(isCapabilityJobEnabled('team.use')).toBe(false)
       expect(isCapabilityJobEnabled('portal.read')).toBe(true)
     })
 

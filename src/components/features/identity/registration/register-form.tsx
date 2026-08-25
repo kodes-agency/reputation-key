@@ -32,8 +32,18 @@ const joinFormSchema = registerMemberInputSchema
     path: ['confirmPassword'],
   })
 
-type RegisterFormValues = z.infer<typeof registerFormSchema>
-type JoinFormValues = z.infer<typeof joinFormSchema>
+const registrationFormSchema = z.discriminatedUnion('mode', [
+  registerFormSchema.extend({
+    mode: z.literal('register'),
+    invitationId: z.string(),
+  }),
+  joinFormSchema.extend({
+    mode: z.literal('join'),
+    organizationName: z.string(),
+  }),
+])
+
+type RegistrationFormValues = z.infer<typeof registrationFormSchema>
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -45,37 +55,34 @@ import type { AnyAction } from '#/components/hooks/use-action'
 type Props = Readonly<{
   mode: 'register' | 'join'
   mutation: AnyAction
+  invitationId?: string
 }>
 
 // ── Component ────────────────────────────────────────────────────────
 
-export function RegisterForm({ mode, mutation }: Props) {
+export function RegisterForm({ mode, mutation, invitationId }: Props) {
   const isJoinMode = mode === 'join'
 
   const form = useForm({
-    defaultValues: isJoinMode
-      ? ({
-          name: '',
-          email: '',
-          password: '',
-          confirmPassword: '',
-        } satisfies JoinFormValues)
-      : ({
-          name: '',
-          email: '',
-          password: '',
-          confirmPassword: '',
-          organizationName: '',
-        } satisfies RegisterFormValues),
+    defaultValues: {
+      mode,
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      organizationName: '',
+      invitationId: invitationId ?? '',
+    } satisfies RegistrationFormValues,
     validators: {
-      onSubmit: isJoinMode ? joinFormSchema : registerFormSchema,
+      onSubmit: registrationFormSchema,
     },
-    onSubmit: async ({ value }: { value: RegisterFormValues | JoinFormValues }) => {
-      const { confirmPassword: _, ...rest } = value
-      if (isJoinMode) {
-        await mutation({ data: rest as JoinVariables })
+    onSubmit: async ({ value }) => {
+      if (value.mode === 'join') {
+        const { confirmPassword: _, organizationName: __, mode: ___, ...input } = value
+        await mutation({ data: input satisfies JoinVariables })
       } else {
-        await mutation({ data: rest as RegisterVariables })
+        const { confirmPassword: _, invitationId: __, mode: ___, ...input } = value
+        await mutation({ data: input satisfies RegisterVariables })
       }
     },
   })

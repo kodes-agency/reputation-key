@@ -33,7 +33,7 @@ const DARK: ReadonlyArray<
   { capability: 'portal.write', reason: 'org_not_allowlisted', label: 'Portals' },
   { capability: 'portal.upload', reason: 'capability_blocked', label: 'Portals' },
   { capability: 'portal.read', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'team.use', reason: 'org_not_allowlisted', label: 'Teams' },
+  { capability: 'team.use', reason: 'capability_blocked', label: 'Teams' },
   { capability: 'goal.use', reason: 'org_not_allowlisted', label: 'Goals' },
   { capability: 'badge.use', reason: 'org_not_allowlisted', label: 'Recognition' },
   { capability: 'leaderboard.use', reason: 'org_not_allowlisted', label: 'Leaderboard' },

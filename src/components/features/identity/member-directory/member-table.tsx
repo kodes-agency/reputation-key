@@ -18,6 +18,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { Contact } from 'lucide-react'
 import { RemoveMemberDialog } from './remove-member-dialog'
 import { RoleSelect } from './role-select'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 export interface MemberRow {
   id: string
@@ -34,7 +35,7 @@ type Props = Readonly<{
   updateRoleAction: Action<{
     data: {
       memberId: string
-      role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
+      role: BetaInteractiveRole
     }
   }>
   removeMemberAction: Action<{ data: { memberId: string } }>

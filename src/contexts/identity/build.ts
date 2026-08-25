@@ -31,6 +31,7 @@ import {
   type RegisterUserAndOrgLogger,
 } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
+import { registerInvitedUser } from './application/use-cases/register-invited-user'
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { getLogger } from '#/shared/observability/logger'
@@ -381,6 +382,18 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
         } satisfies RegisterUserAndOrgLogger),
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
+    registerInvitedUser: registerInvitedUser({
+      commandStore,
+      signUp: deps.identityPort.signUp,
+      deleteUser: deps.identityPort.deleteUser,
+      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
+      clock: deps.clock,
+      logger:
+        deps.logger ??
+        ({
+          error: (obj: object, msg?: string) => getLogger().error(obj, msg),
+        } satisfies RegisterUserAndOrgLogger),
+    }),
     updateOrganization: updateOrganization({
       updateOrg: deps.updateOrg,
     }),

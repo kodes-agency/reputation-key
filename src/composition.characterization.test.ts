@@ -195,6 +195,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'recordScan',
   'redeemGoogleOAuthState',
   'refreshGoogleToken',
+  'registerInvitedUser',
   'registerUser',
   'registerUserAndOrg',
   'rejectReply',

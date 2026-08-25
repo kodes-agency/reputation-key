@@ -11,6 +11,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { checkUserOrganizationBinding } from '#/shared/auth/user-organization-binding-authority'
 import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getContainer } from '#/composition'
+import { invitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import {
   assertGlobalCapability,
@@ -55,9 +56,9 @@ export const registerMember = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // B0.6: Public registration is a non-core capability — disabled by
-        // default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
-        assertGlobalCapability('identity.register')
+        // This is the sole beta account-creation route. The use case requires
+        // and consumes an exact email-bound manager invitation; the separate
+        // public-registration capability remains permanently blocked.
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)
         const { rateLimiter: rl } = getContainer()
@@ -71,7 +72,10 @@ export const registerMember = createServerFn({ method: 'POST' })
         }
         try {
           const { useCases } = getContainer()
-          await useCases.registerUser(data)
+          await useCases.registerInvitedUser({
+            ...data,
+            invitationId: invitationId(data.invitationId),
+          })
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -88,8 +92,8 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // B0.6: Self-service org creation is a non-core capability — disabled
-        // by default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
+        // Self-service org creation is a permanently blocked beta capability.
+        // The dormant implementation stays behind this server-side boundary.
         assertGlobalCapability('organization.create')
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)

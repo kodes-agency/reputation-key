@@ -435,9 +435,13 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'registerMember',
       `${IDENTITY}/organizations.registration.ts`,
       'system:identity.register',
-      'identity.register',
       'none',
-      { notes: 'public unauthenticated; IP rate-limited' },
+      'none',
+      {
+        canonicalOnly: true,
+        notes:
+          'public; IP rate-limited; exact pending manager invitation preflight + atomic acceptance + failed-signup compensation',
+      },
     ),
     sfPublic(
       'registerUserAndOrg',
@@ -445,7 +449,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:identity.register',
       'organization.create',
       'none',
-      { notes: 'public; creates org; IP rate-limited' },
+      {
+        notes:
+          'dormant in beta; permanently blocked organization.create capability; creates org when reactivated',
+      },
     ),
     sfPublic(
       'signInUser',
@@ -461,7 +468,11 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:session.mutate',
       'none',
       'none',
-      { canonicalOnly: true, notes: 'session-only, no permission assert' },
+      {
+        canonicalOnly: true,
+        notes:
+          'session-only; may only reassert the exact active beta Organization binding',
+      },
     ),
     sf(
       'listUserInvitations',
@@ -562,7 +573,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:identity.create_organization',
       'organization.create',
       'organization',
-      { notes: 'F045 closed in BQC-2.4: assertGlobalCapability(organization.create)' },
+      {
+        notes:
+          'self-service path is dormant in beta; permanently blocked organization.create capability',
+      },
     ),
     sf(
       'updateOrganization',

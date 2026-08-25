@@ -87,7 +87,7 @@ describe('local stack controller', () => {
     expect(env.POSTGRES_PASSWORD).not.toContain('password')
   })
 
-  it('sets only account-bootstrap overrides on the permissive E2E web', () => {
+  it('sets no product capability overrides on the E2E web', () => {
     const env = buildLocalStackEnv({
       mode: 'e2e',
       revision: 'b'.repeat(40),

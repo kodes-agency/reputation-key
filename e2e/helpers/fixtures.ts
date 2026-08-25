@@ -956,6 +956,12 @@ export async function cleanupE2eData(input: {
     [like],
   )
   await dbQuery(
+    `DELETE FROM user_organization_bindings
+      WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)`,
+    [like],
+  )
+  await dbQuery('DELETE FROM invitation WHERE email LIKE $1', [like])
+  await dbQuery(
     `DELETE FROM property_operation_receipts
      WHERE organization_id = $1 AND destination_property_id IN (
        SELECT p.id
@@ -979,7 +985,14 @@ export async function cleanupE2eData(input: {
     'DELETE FROM google_connections WHERE organization_id = $1 AND google_subject LIKE $2',
     [input.organizationId, like],
   )
-  // staff users (account/member cascade from "user")
+  // Better Auth mirrors do not declare cross-track FKs in application code;
+  // remove fixture memberships explicitly before the account row.
+  await dbQuery(
+    `DELETE FROM member
+      WHERE "userId" IN (SELECT id FROM "user" WHERE email LIKE $1)`,
+    [like],
+  )
+  // fixture users (account/session rows cascade from "user")
   await dbQuery('DELETE FROM "user" WHERE email LIKE $1', [like])
 }
 

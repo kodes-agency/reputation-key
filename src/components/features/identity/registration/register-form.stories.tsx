@@ -37,7 +37,11 @@ export const RegisterIdle: Story = {
 
 export const JoinIdle: Story = {
   name: 'Join (idle)',
-  args: { mode: 'join', mutation: resolvingAction },
+  args: {
+    mode: 'join',
+    mutation: resolvingAction,
+    invitationId: 'inv-story-manager',
+  },
 }
 
 export const Submitting: Story = {

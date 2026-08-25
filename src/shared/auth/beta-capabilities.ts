@@ -27,7 +27,7 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-3'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-4'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -109,6 +109,9 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * organization/property policy.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  'identity.register',
+  'organization.create',
+  'team.use',
   'portal.upload',
   'gbp.reply.auto_publish',
   'gbp.ai.cross_property_summary',
@@ -575,7 +578,7 @@ export function listAllCapabilities(): ReadonlyArray<Capability> {
     'ai.generate_reply',
     'ai.detect_trends',
   ]
-  return [...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore].sort()
+  return [...new Set([...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore])].sort()
 }
 
 /**

@@ -75,15 +75,15 @@ describe('persisted policy store (BQC-2.2)', () => {
             suspendedReason: 't-1',
           },
         ],
-        orgCapabilities: [{ organizationId: 'org-ok', capability: 'team.use' }],
+        orgCapabilities: [{ organizationId: 'org-ok', capability: 'goal.use' }],
       }),
     )
     const store = createPersistedPolicyStore(l)
     await store.refresh()
     expect(store.currentVersion()).toBe(7)
     expect(store.isOrgSuspended('org-sus')).toBe(true)
-    expect(store.isOrgAllowlisted('org-ok', 'team.use')).toBe(true)
-    expect(store.isOrgAllowlisted('org-ok', 'goal.use')).toBe(false)
+    expect(store.isOrgAllowlisted('org-ok', 'goal.use')).toBe(true)
+    expect(store.isOrgAllowlisted('org-ok', 'badge.use')).toBe(false)
     expect(l.loadSnapshot).toHaveBeenCalledTimes(1)
   })
 
@@ -124,7 +124,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     const l = loader(snapshot())
     const store = createPersistedPolicyStore({ ...l, initialSnapshot: seeded })
     // Before any refresh, env semantics hold (no fail-closed window on web boot).
-    expect(store.isOrgAllowlisted('org-a', 'team.use')).toBe(true)
+    expect(store.isOrgAllowlisted('org-a', 'goal.use')).toBe(true)
     expect(store.isOrgAllowlisted('org-b', 'portal.read')).toBe(true)
     expect(store.isOrgSuspended('org-z')).toBe(true)
     expect(store.isOrgSuspended('org-a')).toBe(false)
@@ -149,7 +149,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     // DB row honored…
     expect(store.isOrgAllowlisted('org-db', 'goal.use')).toBe(true)
     // …and the env seed is NOT lost (union semantics).
-    expect(store.isOrgAllowlisted('org-env', 'team.use')).toBe(true)
+    expect(store.isOrgAllowlisted('org-env', 'goal.use')).toBe(true)
   })
 
   it('refreshes on the polling interval until stopped', async () => {
@@ -188,12 +188,12 @@ describe('composite policy store (BQC-2.2)', () => {
 
   it('delegates global posture to env and tenant state to the persisted store', async () => {
     const env = createEnvCapabilityPolicyStore({
-      BETA_CAPABILITIES_OFF: 'team.use', // kill switch stays env-authoritative
+      BETA_CAPABILITIES_OFF: 'goal.use', // kill switch stays env-authoritative
     })
     const l = loader(
       snapshot({
         version: 1,
-        orgCapabilities: [{ organizationId: 'org-1', capability: 'team.use' }],
+        orgCapabilities: [{ organizationId: 'org-1', capability: 'goal.use' }],
         orgPolicies: [
           {
             organizationId: 'org-2',
@@ -209,12 +209,12 @@ describe('composite policy store (BQC-2.2)', () => {
 
     const store = createCompositePolicyStore({ globalStore: env, tenantStore: persisted })
     // Kill switch wins over a DB allowlist row.
-    expect(store.isCapabilityGloballyEnabled('team.use')).toBe(false)
+    expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
     // Core still on via env; blocked still off.
     expect(store.isCapabilityGloballyEnabled('property.create')).toBe(true)
     expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(false)
     // Tenant state from the persisted snapshot.
-    expect(store.isOrgAllowlisted('org-1', 'team.use')).toBe(true)
+    expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(true)
     expect(store.isOrgSuspended('org-2')).toBe(true)
     expect(store.isOrgSuspended('org-1')).toBe(false)
   })

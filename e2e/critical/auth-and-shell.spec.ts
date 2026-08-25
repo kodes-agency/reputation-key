@@ -2,10 +2,8 @@
 // Auth bootstrap + authenticated shell for beta-enabled manager surfaces.
 //
 // Scope notes:
-// - Self-service registration is a non-core capability (OFF in real beta).
-//   Critical only asserts the capability surface opens under
-//   BETA_E2E_GLOBAL_CAPABILITIES. Full register→sign-in lives in residual
-//   e2e/auth.spec.ts (soft until green).
+// - Self-service registration is permanently blocked in beta. The positive
+//   invitation→registration→sign-in journey lives in e2e/auth.spec.ts.
 // - Property people/teams UI stays residual until loader is green under CI seed.
 // - Property/inbox/members use seed-state deep-links (no UI property create).
 
@@ -32,18 +30,15 @@ test.describe('Critical: authentication', () => {
     await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)
   })
 
-  test('registration form is reachable when e2e capabilities are on', async ({
+  test('public registration stays closed and /join requires an invitation', async ({
     page,
   }) => {
     await page.goto('/register')
-    await page.waitForLoadState('domcontentloaded')
-    // Capability off → redirect to /login. Capability on → create-account form.
-    // AuthCard titles are divs (not heading roles).
-    await expect(page).not.toHaveURL(/\/login/)
-    await expect(page.getByText(/create your account/i)).toBeVisible()
-    await expect(page.getByLabel('Email')).toBeVisible()
-    await expect(page.getByLabel('Organization name')).toBeVisible()
-    await expect(page.getByRole('button', { name: /create account/i })).toBeVisible()
+    await expect(page).toHaveURL(/\/login/)
+
+    await page.goto('/join')
+    await expect(page.getByText(/invitation required/i)).toBeVisible()
+    await expect(page.locator('form')).toHaveCount(0)
   })
 })
 

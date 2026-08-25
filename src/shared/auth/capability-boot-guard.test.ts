@@ -50,7 +50,7 @@ function makeLogger() {
   }
 }
 
-const OVERRIDE = 'identity.register,organization.create'
+const OVERRIDE = 'goal.use,badge.use'
 
 describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
   afterEach(() => {
@@ -156,7 +156,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       expect(manifest.blockedCapabilities).toContain('gbp.reply.auto_publish')
       expect(manifest.blockedCapabilities).toContain('gbp.ai.cross_property_summary')
       expect(manifest.e2eGlobalOverrides).toEqual(
-        expect.arrayContaining(['identity.register', 'organization.create']),
+        expect.arrayContaining(['goal.use', 'badge.use']),
       )
       expect(manifest.e2eExecutionIdentity).toBe('playwright-e2e')
     })
@@ -167,7 +167,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
         BETA_E2E_GLOBAL_CAPABILITIES:
           'gbp.reply.auto_publish,portal.write,portal.upload,team.use',
       })
-      expect(manifest.e2eGlobalOverrides).toEqual(['portal.write', 'team.use'])
+      expect(manifest.e2eGlobalOverrides).toEqual(['portal.write'])
     })
 
     it('records no tenant identifiers', () => {
@@ -195,7 +195,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
         logger,
       )
       // Store is live without a lazy first-use fallback.
-      expect(checkGlobalCapability('identity.register').allowed).toBe(true)
+      expect(checkGlobalCapability('goal.use').allowed).toBe(true)
       expect(checkGlobalCapability('portal.write').allowed).toBe(false)
       expect(logger.entries.length).toBeGreaterThan(0)
       expect(JSON.stringify(logger.entries[0].obj)).toContain('policyVersion')
@@ -263,7 +263,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
         },
         () => {
           resetCapabilityPolicyStore()
-          expect(checkGlobalCapability('identity.register').allowed).toBe(true)
+          expect(checkGlobalCapability('goal.use').allowed).toBe(true)
           expect(checkGlobalCapability('portal.write').allowed).toBe(false)
         },
       )

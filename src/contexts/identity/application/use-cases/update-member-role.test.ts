@@ -121,7 +121,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-staff', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -141,7 +141,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-pm', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-pm', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -160,7 +160,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
-      useCase({ memberId: 'nonexistent', role: 'Staff' }, ctx),
+      useCase({ memberId: 'nonexistent', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'member_not_found')
   })
 
@@ -186,7 +186,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
-      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-admin', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
     // The admin was not demoted (neither read-side nor write-side).
@@ -207,7 +207,7 @@ describe('updateMemberRole', () => {
     // hierarchy already blocks; its reject branch is exercised by the
     // "forbids demoting the last AccountAdmin" test above.
     await expect(
-      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-admin', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
     const still = await identity.getMember(ctx, 'member-admin')
@@ -235,7 +235,7 @@ describe('updateMemberRole', () => {
     // Demoting the sole multi-role owner must be blocked — the guard fires via
     // isOwnerToken(rawRole) even though the built-in role is null.
     await expect(
-      useCase({ memberId: 'multi-owner', role: 'Staff' }, ctx),
+      useCase({ memberId: 'multi-owner', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 })

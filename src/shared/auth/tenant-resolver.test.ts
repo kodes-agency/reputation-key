@@ -177,7 +177,7 @@ describe('resolveTenant', () => {
     expect(ctx.role).toBe('PropertyManager')
   })
 
-  it('maps member role to Staff', async () => {
+  it('rejects a Staff login because Staff users are inactive in beta', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
@@ -185,11 +185,13 @@ describe('resolveTenant', () => {
     })
     mockGetActiveMember.mockResolvedValue({ role: 'member' })
 
-    // Act
-    const ctx = await resolveTenant(makeHeaders())
-
-    // Assert
-    expect(ctx.role).toBe('Staff')
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
   })
 
   it('throws AuthError unauthorized when no session', async () => {
@@ -275,7 +277,7 @@ describe('resolveTenant', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.name === 'AuthError' &&
-        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
@@ -293,7 +295,7 @@ describe('resolveTenant', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.name === 'AuthError' &&
-        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
@@ -305,43 +307,21 @@ describe('resolveTenant role strategy (ENABLE_CUSTOM_ROLES on)', () => {
     resetEnv()
   })
 
-  it('resolves a custom role via the dynamic resolver', async () => {
+  it('rejects a custom login role even when dynamic roles are configured', async () => {
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },
     })
     mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
 
-    // fetchPermissionVersion + fetchRoleDefinitions run selects distinguished by the
-    // selected columns: {version} → permission_version, {permission} → organizationRole,
-    // {dataScope} → organization_role_policy. The where() result is a thenable that also
-    // supports .limit() (drizzle chains synchronously before await).
-    mockDbSelect.mockImplementation((cols: Record<string, unknown>) => {
-      const rows =
-        'version' in cols
-          ? [{ version: 1 }]
-          : 'permission' in cols
-            ? [
-                {
-                  role: 'content-manager',
-                  permission: JSON.stringify({ portal: ['read', 'update'] }),
-                },
-              ]
-            : [{ role: 'content-manager', dataScope: 'assigned-properties' }]
-      const chainable = {
-        limit: () => chainable,
-        then: (resolve: (v: unknown) => void) => Promise.resolve(rows).then(resolve),
-      }
-      return { from: () => ({ where: () => chainable }) }
-    })
-
-    const ctx = await resolveTenant(makeHeaders())
-
-    // Custom-only member → Staff placeholder; the scope map is authoritative.
-    expect(ctx.role).toBe('Staff')
-    expect(ctx.effectivePermissions?.has('portal.read')).toBe(true)
-    expect(ctx.effectivePermissions?.has('portal.update')).toBe(true)
-    expect(ctx.scopeByPermission?.get('portal.read')).toBe('assigned-properties')
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
+    expect(mockDbSelect).not.toHaveBeenCalled()
   })
 
   it('fails closed with 503 when the dynamic resolver throws', async () => {
@@ -349,7 +329,7 @@ describe('resolveTenant role strategy (ENABLE_CUSTOM_ROLES on)', () => {
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },
     })
-    mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
     mockDbSelect.mockImplementation(() => {
       // where().limit() must be chainable; route the rejection through then() so the
       // promise is awaited (not left as a floating unhandled rejection).
@@ -492,12 +472,12 @@ describe('resolveTenant cache', () => {
     })
     mockGetActiveMember.mockResolvedValueOnce({ role: 'owner' })
 
-    // Second resolution: same cookie, active org switched to org-B (member).
+    // Second resolution: same cookie, active org switched to org-B (manager).
     mockGetSession.mockResolvedValueOnce({
       session: { id: 'sess-1', activeOrganizationId: 'org-B' },
       user: { id: 'u1' },
     })
-    mockGetActiveMember.mockResolvedValueOnce({ role: 'member' })
+    mockGetActiveMember.mockResolvedValueOnce({ role: 'admin' })
 
     // Act
     const ctxA = await resolveTenant(headers)
@@ -507,7 +487,7 @@ describe('resolveTenant cache', () => {
     expect(ctxA.organizationId).toBe('org-A')
     expect(ctxB.organizationId).toBe('org-B')
     expect(ctxA.role).toBe('AccountAdmin')
-    expect(ctxB.role).toBe('Staff')
+    expect(ctxB.role).toBe('PropertyManager')
     // A fresh getActiveMember ran for the switched org (cache key differs by orgId).
     expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })

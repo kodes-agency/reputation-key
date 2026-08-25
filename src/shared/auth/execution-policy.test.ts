@@ -118,7 +118,7 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
   it('denies a non-core capability without an org allowlist row', async () => {
     const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(
-      request({ action: 'team.read', capability: 'team.use' }),
+      request({ action: 'goal.read', capability: 'goal.use' }),
     )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('org_not_allowlisted')
@@ -487,10 +487,10 @@ describe('operator principal (BQC-7.5)', () => {
   it('global scope (no org) evaluates the global capability gate only', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const deny = await policy.decide(
-      operatorRequest({ organizationId: undefined, capability: 'team.use' }),
+      operatorRequest({ organizationId: undefined, capability: 'goal.use' }),
     )
     expect(deny.allowed).toBe(false)
-    // team.use is non-core → globally off without an e2e override.
+    // goal.use is non-core → globally off without an e2e override.
     expect(deny.reason).toBe('capability_disabled')
 
     const allow = await policy.decide(

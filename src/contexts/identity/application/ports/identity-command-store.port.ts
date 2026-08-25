@@ -25,6 +25,13 @@ export type AcceptedInvitation = Readonly<{
   propertyIds: ReadonlyArray<string>
 }>
 
+/** Read-only invitation preflight before an account is created. */
+export type ValidateInvitationRegistrationCommand = Readonly<{
+  invitationId: InvitationId
+  email: string
+  now: Date
+}>
+
 /**
  * Invite a member: invitation row insert + member.invited fact in one
  * transaction. Guards (matching better-auth's createInvitation semantics):
@@ -35,7 +42,7 @@ export type InviteMemberCommand = Readonly<{
   invitationId: InvitationId
   organizationId: OrganizationId
   email: string
-  /** Better-auth role string persisted on the invitation ('owner'|'admin'|'member'). */
+  /** Beta interactive Better Auth role persisted on the invitation ('owner'|'admin'). */
   role: string
   inviterId: UserId
   propertyIds: ReadonlyArray<string>
@@ -92,7 +99,7 @@ export type RemoveMemberCommand = Readonly<{
 export type ChangeMemberRoleCommand = Readonly<{
   organizationId: OrganizationId
   memberId: string
-  /** Better-auth role string persisted on the member row ('owner'|'admin'|'member'). */
+  /** Beta interactive Better Auth role persisted on the member row ('owner'|'admin'). */
   newRole: string
   event: IdentityMemberRoleChanged
 }>
@@ -112,6 +119,9 @@ export type RegisterOrganizationCommand = Readonly<{
 }>
 
 export type IdentityCommandStore = Readonly<{
+  validateInvitationRegistration(
+    command: ValidateInvitationRegistrationCommand,
+  ): Promise<void>
   inviteMember(command: InviteMemberCommand): Promise<void>
   acceptInvitation(command: AcceptInvitationCommand): Promise<AcceptedInvitation>
   cancelInvitation(command: CancelInvitationCommand): Promise<void>

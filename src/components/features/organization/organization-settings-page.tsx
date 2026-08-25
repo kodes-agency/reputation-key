@@ -1,14 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAction, type Action } from '#/components/hooks/use-action'
 import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { OrganizationSettingsForm } from './organization-settings-form'
-import { OrganizationSwitchList } from './organization-switch-list'
 import { ResponseSlaCard } from './response-sla-card'
 import type {
   updateOrganization,
@@ -16,7 +13,6 @@ import type {
   finalizeOrgLogoUpload,
   setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
-import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 
 type OrgData = Readonly<{
   id: string
@@ -47,22 +43,16 @@ type Props = Readonly<{
 
 export function OrganizationSettingsPage({
   organization,
-  organizations,
-  activeOrganizationId,
   responseSlaHours,
   updateResponseSla,
   updateOrganizationFn,
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
-  setActiveOrganizationFn,
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const updateOrg = useAction(useServerFn(updateOrganizationFn))
   const requestUpload = useServerFn(requestOrgLogoUploadFn)
   const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
-  const switchOrg = useAction(useServerFn(setActiveOrganizationFn))
 
   return (
     <div className="space-y-6">
@@ -113,18 +103,6 @@ export function OrganizationSettingsPage({
       <ResponseSlaCard
         responseSlaHours={responseSlaHours}
         updateSla={updateResponseSla}
-      />
-
-      <OrganizationSwitchList
-        organizations={organizations}
-        activeOrganizationId={activeOrganizationId}
-        onSwitch={async (orgId) => {
-          await switchOrg({ data: { organizationId: orgId } })
-          await clearTenantCacheBeforeNavigation(queryClient, () =>
-            navigate({ to: '/properties' }),
-          )
-        }}
-        isPending={switchOrg.isPending}
       />
     </div>
   )

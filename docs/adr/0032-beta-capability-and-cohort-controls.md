@@ -16,14 +16,15 @@ Capabilities are categorized into three sets (aligned with [BQR master plan §4]
    - `review.use`, `inbox.use`, `dashboard.use`, `staff.use`, `integration.use`
    - `activity.use`, `notification.in_app`, `metric.internal`
 2. **Non-core** — off by default, allowlistable per organization:
-   - `identity.register`, `organization.create`
-   - `team.use`, `goal.use`, `badge.use`, `leaderboard.use`
+   - `goal.use`, `badge.use`, `leaderboard.use`
    - `portal.read` (**not** core — BQR-0 removed portal from core; portal and guest are default-deny, promotable through persisted policy)
    - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
 3. **Blocked** — always off, cannot be allowlisted:
+   - `identity.register`, `organization.create`, `team.use`
+   - `portal.upload` until the issuance-bound upload implementation and adversarial evidence are complete
    - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
 
-`notification.send_email`, `portal.write` and `portal.upload` appeared in this blocked list in an earlier draft. The code (`src/shared/auth/beta-capabilities.ts`) blocks exactly the three capabilities above; those three are non-core — off by default, allowlistable through persisted policy.
+Public registration, self-service secondary Organization creation, and Team are beta-disabled product decisions and cannot be reopened by an environment allowlist. `notification.send_email`, `portal.write`, and the approved Portal/Guest capabilities remain non-core and require persisted policy; `portal.upload` remains temporarily blocked by the public-edge safety gate.
 
 The decision function consumes authenticated user, organization, property, environment cohort, and operator overrides. It returns a typed `CapabilityDecision` with a stable reason code.
 
@@ -31,7 +32,7 @@ Mutations and external side effects fail closed: unknown capability, missing pol
 
 Emergency kill switches (`BETA_CAPABILITIES_OFF` env var) stop new effects immediately while preserving canonical data. Queued jobs re-check capability before side-effect execution so a kill switch affects already-enqueued work.
 
-**Supersedes** any prior listing of `portal.read` as core (including earlier drafts of this ADR).
+**Supersedes** any prior listing of `portal.read` as core and the earlier allowlistable posture for public registration, self-service Organization creation, or Team. The 2026-08-25 comprehensive beta product contract is the approving authority for this amendment.
 
 ## Implementation
 

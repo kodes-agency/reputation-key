@@ -39,6 +39,7 @@ import {
 } from '#/shared/db/role-definitions'
 import { getDb, type Database } from '#/shared/db'
 import { checkUserOrganizationBinding } from './user-organization-binding-authority'
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 
 import {
   recordTenantCacheEviction,
@@ -426,6 +427,16 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   const member = await getAuth().api.getActiveMember({ headers })
   if (!member) {
     throwAuthError('forbidden', 'Not a member of the active organization')
+  }
+  if (!isBetaInteractiveMemberRoleToken(member.role)) {
+    getLogger().warn(
+      { memberRole: member.role },
+      'auth.beta_role_inactive: account has no active beta manager role',
+    )
+    throwAuthError(
+      'beta_role_inactive',
+      'This account is not enabled for beta manager access',
+    )
   }
   const resolved = await resolveMemberAuthContext({
     memberRole: member.role,

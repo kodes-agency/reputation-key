@@ -37,9 +37,12 @@ export const Route = createFileRoute('/accept-invitation')({
   beforeLoad: async ({ location }) => {
     const session = await getSession()
     if (!session) {
+      const invitationId = new URL(location.href, 'http://repkey.local').searchParams.get(
+        'id',
+      )
       throw redirect({
         to: '/join',
-        search: { redirect: location.href },
+        search: { invitationId: invitationId ?? undefined },
       })
     }
   },

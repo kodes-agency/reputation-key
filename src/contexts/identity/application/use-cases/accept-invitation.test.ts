@@ -35,7 +35,7 @@ describe('acceptInvitation', () => {
       id: invId as string,
       organizationId: orgId as string,
       email: 'joiner@test.com',
-      role: 'member',
+      role: 'admin',
       status: 'pending',
       expiresAt: new Date(Date.now() + 86_400_000),
       propertyIds: JSON.stringify(['prop-a', 'prop-b']),

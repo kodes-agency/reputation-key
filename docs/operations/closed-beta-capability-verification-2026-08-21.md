@@ -95,9 +95,12 @@ returns `404 {"message":"Not found"}` and writes no row; the invariant is pinned
 by `src/routes/api/auth/-$.test.ts`.
 
 `emailAndPassword` stays enabled in `src/shared/auth/auth.ts` — clearing it
-would have disabled sign-in and password reset too. Invitation onboarding is
-unaffected: it runs through the app-owned services (`registerUserAndOrg` →
-`auth.api.signUpEmail` server-side), not this route.
+would have disabled sign-in and password reset too. As of 2026-08-25,
+invitation onboarding uses the app-owned `registerMember` path: it preflights
+the exact email-bound manager invitation, creates the auth user server-side,
+then atomically accepts that same invitation. A failed authoritative accept
+compensates the newly created user. Public registration and Organization
+creation remain permanently blocked beta capabilities.
 
 ## Verification footprint
 

@@ -7,10 +7,11 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 type Props = Readonly<{
   role: Role | null
-  onRoleChange: (role: 'AccountAdmin' | 'PropertyManager' | 'Staff') => void
+  onRoleChange: (role: BetaInteractiveRole) => void
   isPending: boolean
   /**
    * Accessible name context (the member's name). BQC-6.8: the trigger has no
@@ -23,7 +24,11 @@ type Props = Readonly<{
 
 export function RoleSelect({ role, onRoleChange, isPending, memberName }: Props) {
   return (
-    <Select value={role ?? undefined} onValueChange={onRoleChange} disabled={isPending}>
+    <Select
+      value={role ?? undefined}
+      onValueChange={(value) => onRoleChange(value as BetaInteractiveRole)}
+      disabled={isPending}
+    >
       <SelectTrigger className="w-[160px]" aria-label={`Role for ${memberName}`}>
         <SelectValue placeholder="Custom role" />
       </SelectTrigger>
@@ -31,7 +36,11 @@ export function RoleSelect({ role, onRoleChange, isPending, memberName }: Props)
         <SelectGroup>
           <SelectItem value="AccountAdmin">Account Admin</SelectItem>
           <SelectItem value="PropertyManager">Property Manager</SelectItem>
-          <SelectItem value="Staff">Staff</SelectItem>
+          {role === 'Staff' && (
+            <SelectItem value="Staff" disabled>
+              Staff user (inactive in beta)
+            </SelectItem>
+          )}
         </SelectGroup>
       </SelectContent>
     </Select>

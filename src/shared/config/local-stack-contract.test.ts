@@ -39,8 +39,6 @@ describe('local beta stack contract', () => {
         'portal.guest_response',
         'portal.guest_text',
         'portal.guest_contact',
-        'portal.guest_media',
-        'team.use',
         'goal.use',
         'badge.use',
         'leaderboard.use',
@@ -52,6 +50,10 @@ describe('local beta stack contract', () => {
     expect(LOCAL_BETA_CAPABILITIES).not.toEqual(
       expect.arrayContaining([
         'portal.upload',
+        'portal.guest_media',
+        'team.use',
+        'identity.register',
+        'organization.create',
         'gbp.reply.auto_publish',
         'gbp.ai.cross_property_summary',
         'gbp.review_solicitation_gamification',
@@ -59,16 +61,9 @@ describe('local beta stack contract', () => {
     )
   })
 
-  it('limits the permissive E2E override to account bootstrap', () => {
-    expect(LOCAL_E2E_BOOTSTRAP_CAPABILITIES).toEqual([
-      'identity.register',
-      'organization.create',
-    ])
-    expect(localStackEnvironment('e2e').E2E_WEB_CAPABILITY_OVERRIDE).toBe(
-      LOCAL_E2E_BOOTSTRAP_CAPABILITIES.join(','),
-    )
-    // beta-acceptance exists to prove real capability gating, so beta resolves
-    // every capability through persisted tenant policy. perf likewise.
+  it('uses no process-wide E2E capability override', () => {
+    expect(LOCAL_E2E_BOOTSTRAP_CAPABILITIES).toEqual([])
+    expect(localStackEnvironment('e2e').E2E_WEB_CAPABILITY_OVERRIDE).toBe('')
     expect(localStackEnvironment('beta').E2E_WEB_CAPABILITY_OVERRIDE).toBe('')
     expect(localStackEnvironment('perf').E2E_WEB_CAPABILITY_OVERRIDE).toBe('')
   })
@@ -104,13 +99,12 @@ describe('local beta stack contract', () => {
     }
     expect(() => assertE2EOverrideIdentity(beta)).not.toThrow()
 
-    // e2e is the only mode where the same identity also carries the override.
+    // e2e carries the rate-limit identity but no capability override.
     const e2e = webEnvironment('e2e')
     expect(isE2ERateLimitBypassAuthorized(e2e)).toBe(true)
     const e2eStore = createEnvCapabilityPolicyStore(e2e)
-    for (const capability of LOCAL_E2E_BOOTSTRAP_CAPABILITIES) {
-      expect(e2eStore.isCapabilityGloballyEnabled(capability)).toBe(true)
-    }
+    expect(e2eStore.isCapabilityGloballyEnabled('identity.register')).toBe(false)
+    expect(e2eStore.isCapabilityGloballyEnabled('organization.create')).toBe(false)
 
     // perf claims the hatch without an identity: refused, both limiters stay
     // ON, and the claim refuses boot wherever the capability guard runs.

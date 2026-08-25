@@ -38,9 +38,8 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         await requireAuth(headers)
-        // organization.create is non-core (ADR 0032): creating another org
-        // while authenticated follows the same global posture as
-        // registerUserAndOrg — previously unchecked (F045).
+        // organization.create is permanently blocked for beta. Keep the
+        // dormant implementation behind this server-side boundary.
         assertGlobalCapability('organization.create')
         const auth = getAuth()
 

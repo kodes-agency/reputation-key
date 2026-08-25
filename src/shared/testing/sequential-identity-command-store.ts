@@ -13,6 +13,7 @@ import type { DomainEvent } from '#/shared/events/events'
 import { getLogger } from '#/shared/observability/logger'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { identityError } from '#/contexts/identity/domain/errors'
 import type {
   AcceptedInvitation,
@@ -108,29 +109,64 @@ export function createSequentialIdentityCommandStore(deps: {
     ).length
 
   return {
+    validateInvitationRegistration: async (command) => {
+      const inv = invitations.get(command.invitationId as string)
+      if (!inv || inv.status !== 'pending' || inv.expiresAt <= command.now) {
+        throw identityError('invitation_not_found', 'Invitation is not available')
+      }
+      if (inv.email.toLowerCase() !== command.email.toLowerCase()) {
+        throw identityError('forbidden', 'Invitation is not addressed to this email')
+      }
+      if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
+        throw identityError(
+          'forbidden',
+          'This invitation is not eligible for beta manager access',
+        )
+      }
+    },
+
     inviteMember: async (command) => {
+      if (!isBetaInteractiveMemberRoleToken(command.role)) {
+        throw identityError(
+          'forbidden',
+          'Only beta manager roles can receive an account invitation',
+        )
+      }
       const email = command.email.toLowerCase()
-      const alreadyMember = [...members.values()].some(
-        (m) =>
-          m.organizationId === (command.organizationId as string) &&
-          m.email.toLowerCase() === email,
+      const memberships = [...members.values()].filter(
+        (m) => m.email.toLowerCase() === email,
       )
-      if (alreadyMember) {
+      if (
+        memberships.some((m) => m.organizationId === (command.organizationId as string))
+      ) {
         throw identityError(
           'already_exists',
           'User is already a member of this organization',
         )
       }
-      const alreadyInvited = [...invitations.values()].some(
-        (i) =>
-          i.organizationId === (command.organizationId as string) &&
-          i.email === email &&
-          i.status === 'pending',
+      if (memberships.length > 0) {
+        throw identityError(
+          'organization_conflict',
+          'This account already belongs to another Organization',
+        )
+      }
+      const pendingInvitations = [...invitations.values()].filter(
+        (i) => i.email.toLowerCase() === email && i.status === 'pending',
       )
-      if (alreadyInvited) {
+      if (
+        pendingInvitations.some(
+          (i) => i.organizationId === (command.organizationId as string),
+        )
+      ) {
         throw identityError(
           'already_exists',
           'User is already invited to this organization',
+        )
+      }
+      if (pendingInvitations.length > 0) {
+        throw identityError(
+          'organization_conflict',
+          'This email already has a pending invitation from another Organization',
         )
       }
       invitations.set(command.invitationId as string, {
@@ -166,9 +202,31 @@ export function createSequentialIdentityCommandStore(deps: {
         throw identityError('invitation_not_found', 'Invitation has expired')
       }
       const role = (inv.role ?? 'member').trim().toLowerCase()
-      if (!['owner', 'admin', 'member'].includes(role) && !customRoles.has(role)) {
+      if (!isBetaInteractiveMemberRoleToken(role)) {
         invitations.set(inv.id, { ...inv, status: 'rejected' })
-        throw identityError('forbidden', 'Invitation role is no longer available')
+        throw identityError(
+          'forbidden',
+          'This invitation is not eligible for beta manager access',
+        )
+      }
+      const existingMemberships = [...members.values()].filter(
+        (candidate) => candidate.userId === (command.acceptorUserId as string),
+      )
+      if (
+        existingMemberships.some(
+          (candidate) => candidate.organizationId !== inv.organizationId,
+        )
+      ) {
+        throw identityError(
+          'organization_conflict',
+          'This account already belongs to another Organization',
+        )
+      }
+      if (existingMemberships.length > 0) {
+        throw identityError(
+          'already_exists',
+          'User is already a member of this Organization',
+        )
       }
       members.set(`member-${command.acceptorUserId as string}`, {
         id: `member-${command.acceptorUserId as string}`,
@@ -216,6 +274,12 @@ export function createSequentialIdentityCommandStore(deps: {
     },
 
     changeMemberRole: async (command) => {
+      if (!isBetaInteractiveMemberRoleToken(command.newRole)) {
+        throw identityError(
+          'forbidden',
+          'Only beta manager roles can be assigned to login accounts',
+        )
+      }
       const target = members.get(command.memberId)
       if (!target || target.organizationId !== (command.organizationId as string)) {
         throw identityError('member_not_found', 'Member not found in this organization')

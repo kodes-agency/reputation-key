@@ -35,17 +35,18 @@ const setup = () => {
 }
 
 describe('inviteMember', () => {
-  it('allows PropertyManager to invite a Staff member', async () => {
+  it('rejects PropertyManager invitations during the manager-only beta', async () => {
     const { useCase, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
+    await expect(
+      useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
-    expect(events.capturedEvents).toHaveLength(1)
-    expect(events.capturedEvents[0]._tag).toBe('identity.member.invited')
+    expect(events.capturedEvents).toHaveLength(0)
   })
 
-  it('allows AccountAdmin to invite with any role', async () => {
+  it('allows AccountAdmin to invite another beta manager', async () => {
     const { useCase, commandStore, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -69,7 +70,7 @@ describe('inviteMember', () => {
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
     await expect(
-      useCase({ email: 'any@test.com', role: 'Staff', propertyIds: [] }, ctx),
+      useCase({ email: 'any@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -84,7 +85,7 @@ describe('inviteMember', () => {
 
   it('rejects when a pending invitation already exists for the email', async () => {
     const { useCase, commandStore, events, sendEmail } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     commandStore.seedInvitation({
       id: 'inv-existing',
       organizationId: ctx.organizationId as string,
@@ -98,8 +99,34 @@ describe('inviteMember', () => {
     })
 
     await expect(
-      useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx),
+      useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'already_exists')
+
+    expect(events.capturedEvents).toHaveLength(0)
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not email an invite that conflicts with another Organization', async () => {
+    const { useCase, commandStore, events, sendEmail } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    commandStore.seedInvitation({
+      id: 'inv-other-org',
+      organizationId: 'org-other',
+      email: 'new@test.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date('2027-01-01'),
+      propertyIds: null,
+      inviterId: 'user-other',
+      createdAt: FIXED_TIME,
+    })
+
+    await expect(
+      useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) && error.code === 'organization_conflict',
+    )
 
     expect(events.capturedEvents).toHaveLength(0)
     expect(sendEmail).not.toHaveBeenCalled()
@@ -107,22 +134,28 @@ describe('inviteMember', () => {
 
   it('emits member.invited event with correct data', async () => {
     const { useCase, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
+    await useCase(
+      { email: 'new@test.com', role: 'PropertyManager', propertyIds: [] },
+      ctx,
+    )
 
     const emitted = events.capturedByTag('identity.member.invited')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].email).toBe('new@test.com')
-    expect(emitted[0].role).toBe('Staff')
+    expect(emitted[0].role).toBe('PropertyManager')
     expect(emitted[0].organizationId).toBe(ctx.organizationId)
   })
 
   it('sends the invitation email after the atomic commit (BA parity)', async () => {
     const { useCase, sendEmail } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ email: 'new@test.com', role: 'Staff', propertyIds: [] }, ctx)
+    await useCase(
+      { email: 'new@test.com', role: 'PropertyManager', propertyIds: [] },
+      ctx,
+    )
 
     expect(sendEmail).toHaveBeenCalledWith({
       email: 'new@test.com',

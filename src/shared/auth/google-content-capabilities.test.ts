@@ -29,7 +29,7 @@ describe('Google Content capability foundation', () => {
   })
 
   it('versions capability posture independently from execution semantics', () => {
-    expect(CAPABILITY_POLICY_VERSION).toBe('beta-local-3')
+    expect(CAPABILITY_POLICY_VERSION).toBe('beta-local-4')
     expect(EXECUTION_POLICY_VERSION).toBe('beta-local-2')
   })
 

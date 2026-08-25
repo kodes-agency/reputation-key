@@ -11,7 +11,7 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { inviteMemberInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
-import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { z } from 'zod/v4'
 import { RoleSelector } from './role-selector'
 import { PropertyAssignmentSelector } from './property-assignment-selector'
@@ -29,7 +29,7 @@ type PropertyOption = Readonly<{
 
 type InviteVariables = {
   email: string
-  role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
+  role: BetaInteractiveRole
   propertyIds: string[]
 }
 
@@ -37,7 +37,7 @@ import type { AnyAction } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
   mutation: AnyAction
-  allowedRoles: ReadonlyArray<Role>
+  allowedRoles: ReadonlyArray<BetaInteractiveRole>
   properties: ReadonlyArray<PropertyOption>
 }>
 
@@ -45,7 +45,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
   const form = useForm({
     defaultValues: {
       email: '',
-      role: (allowedRoles[0] ?? 'Staff') as Role,
+      role: allowedRoles[0] ?? 'PropertyManager',
       propertyIds: [] as string[],
     } satisfies InviteVariables,
     validators: {

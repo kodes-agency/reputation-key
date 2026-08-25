@@ -9,7 +9,7 @@ up the deployed schema:
 
 1. **Drizzle journal track** — `drizzle/0000_init.sql` …
    `0082_user_organization_binding.sql` with
-   `drizzle/meta/_journal.json` (83 entries). Creates all 139 app-owned
+   `drizzle/meta/_journal.json` (84 entries). Creates all 139 app-owned
    tables. Managed by `pnpm db:generate` / `pnpm db:migrate`.
 2. **Better Auth CLI track** — `pnpm auth:migrate`
    (`src/shared/auth/auth-cli.ts`). Owns the 8 auth tables (`user`, `session`,
