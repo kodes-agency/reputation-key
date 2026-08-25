@@ -170,6 +170,11 @@ function createFakeDeps() {
     queryGoalMetric: async () => {
       throw new Error('canonical GoalMetric read is not used by the legacy Goal job')
     },
+    portalAnalytics: {
+      getPortalKpiSums: async () => [],
+      getPortalRatingDistribution: async () => [],
+      getPortalRatingTrend: async () => [],
+    },
   }
 
   const events: EventBus = {

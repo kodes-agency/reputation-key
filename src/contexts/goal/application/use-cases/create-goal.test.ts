@@ -31,6 +31,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 interface FakeMetricRepo {
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
   queryGoalMetric: MetricPublicApi['queryGoalMetric']
+  portalAnalytics: MetricPublicApi['portalAnalytics']
   _setAggregate: (agg: MetricReadingsAggregate) => void
   _getQueries: () => MetricReadingsQuery[]
 }
@@ -154,6 +155,11 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fa
     },
     queryGoalMetric: async () => {
       throw new Error('canonical GoalMetric read is not used by the legacy Goal test')
+    },
+    portalAnalytics: {
+      getPortalKpiSums: async () => [],
+      getPortalRatingDistribution: async () => [],
+      getPortalRatingTrend: async () => [],
     },
     _setAggregate: (agg: MetricReadingsAggregate) => {
       aggregateResponse = agg

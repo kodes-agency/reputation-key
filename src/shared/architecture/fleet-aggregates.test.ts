@@ -67,7 +67,7 @@ const FLEET_PATH_FILES = [
 const AGGREGATE_QUERY_FILES = [
   'src/contexts/dashboard/infrastructure/adapters/attention-signals.adapter.ts',
   'src/contexts/dashboard/infrastructure/adapters/metric-stats.adapter.ts',
-  'src/contexts/dashboard/infrastructure/adapters/portal-metrics.adapter.ts',
+  'src/contexts/metric/infrastructure/repositories/portal-analytics.repository.ts',
   'src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts',
 ]
 

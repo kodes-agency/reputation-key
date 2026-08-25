@@ -172,6 +172,11 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       sourceCompleteThrough: null,
       reason: 'source_reconciling',
     })),
+    portalAnalytics: {
+      getPortalKpiSums: vi.fn(async () => []),
+      getPortalRatingDistribution: vi.fn(async () => []),
+      getPortalRatingTrend: vi.fn(async () => []),
+    },
     getApprovedGoalVersion: vi.fn(async (versionId) =>
       governedVersion(
         versionId,

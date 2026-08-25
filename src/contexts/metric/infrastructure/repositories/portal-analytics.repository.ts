@@ -1,12 +1,10 @@
-// Dashboard context — Drizzle adapter implementing PortalMetricsPort
-// SQL queries against metric_readings table.
-// This is the ONLY place dashboard infrastructure touches metric_readings for portal analytics.
-// Scope predicates and the statement timeout come from the read facade. This
-// adapter additionally pins immutable Portal-analytics definition versions,
-// registry consumer/source policy, exact quality, and current correction tips.
+// Metric context — governed Portal analytics repository.
+// This owner pins immutable definition versions, registry consumer/source
+// policy, exact quality, current correction tips, half-open business time,
+// tenant scope, and a statement-level budget.
 // TRAP: `metricReadings.occurredAt` is the INGESTION column (`recorded_at`);
-// the guest-action time is `metricReadings.eventAt`. metricPortalWhere bounds
-// the window on event time — see the note on metricPeriodWhere in read-facade.
+// the guest-action time is `metricReadings.eventAt`; every period below is
+// bounded on that business timestamp.
 
 import type { Database } from '#/shared/db'
 import {
@@ -14,20 +12,45 @@ import {
   metricDefinitionVersions,
   metricReadings,
 } from '#/shared/db/schema'
-import { and, eq, sql, count, avg, isNotNull, inArray } from 'drizzle-orm'
+import { and, avg, count, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type {
-  PortalMetricsPort,
+  PortalAnalyticsRepository,
   PortalRatingBucket,
   PortalRatingTrendPoint,
-} from '../../application/ports/portal-metrics.port'
+} from '../../application/ports/portal-analytics.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import {
-  DASHBOARD_READ_BUDGET_MS,
-  metricPortalWhere,
-  withStatementTimeout,
-} from '../read-facade'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+
+const METRIC_PORTAL_READ_BUDGET_MS = 5_000
+
+function metricPortalWhere(
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  portalId: PortalId,
+  startDate: Date,
+  endDate: Date,
+) {
+  return and(
+    eq(metricReadings.organizationId, organizationId),
+    eq(metricReadings.propertyId, propertyId),
+    eq(metricReadings.portalId, portalId),
+    gte(metricReadings.eventAt, startDate),
+    lt(metricReadings.eventAt, endDate),
+  )
+}
+
+async function withStatementTimeout<T>(
+  db: Database,
+  read: (tx: Database) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT set_config('statement_timeout', ${String(METRIC_PORTAL_READ_BUDGET_MS)}, true)`,
+    )
+    return read(tx as unknown as Database)
+  })
+}
 
 const PORTAL_RATING_KEY = 'portal.rating'
 const PORTAL_ANALYTICS_VERSION_IDS = [
@@ -86,7 +109,9 @@ function governedPortalWhere(scope: ReturnType<typeof metricPortalWhere>) {
   )
 }
 
-export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => ({
+export const createPortalAnalyticsRepository = (
+  db: Database,
+): PortalAnalyticsRepository => ({
   async getPortalKpiSums(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -94,13 +119,13 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     startDate: Date,
     endDate: Date,
   ) {
-    return trace('dashboard.portalMetrics.getPortalKpiSums', async () => {
+    return trace('metric.portalAnalytics.getPortalKpiSums', async () => {
       const correctionTips = currentCorrectionTips(db)
       const value = effectiveValue(correctionTips)
       const scope = governedPortalWhere(
         metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
       )
-      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
+      const rows = await withStatementTimeout(db, (tx) =>
         tx
           .select({
             metricKey: metricReadings.metricKey,
@@ -137,11 +162,11 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     startDate: Date,
     endDate: Date,
   ): Promise<readonly PortalRatingBucket[]> {
-    return trace('dashboard.portalMetrics.getPortalRatingDistribution', async () => {
+    return trace('metric.portalAnalytics.getPortalRatingDistribution', async () => {
       const correctionTips = currentCorrectionTips(db)
       const value = effectiveValue(correctionTips)
       const ratingStars = sql<number>`CAST(${value} AS INTEGER)`
-      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
+      const rows = await withStatementTimeout(db, (tx) =>
         tx
           .select({
             stars: ratingStars,
@@ -186,10 +211,10 @@ export const createPortalMetricsAdapter = (db: Database): PortalMetricsPort => (
     startDate: Date,
     endDate: Date,
   ): Promise<readonly PortalRatingTrendPoint[]> {
-    return trace('dashboard.portalMetrics.getPortalRatingTrend', async () => {
+    return trace('metric.portalAnalytics.getPortalRatingTrend', async () => {
       const correctionTips = currentCorrectionTips(db)
       const value = effectiveValue(correctionTips)
-      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
+      const rows = await withStatementTimeout(db, (tx) =>
         tx
           .select({
             // property_local_date is computed per row from properties.timezone

@@ -11,9 +11,15 @@ import type {
   GovernedGoalMetricQuery,
   GovernedGoalMetricResult,
 } from './use-cases/query-goal-metric'
+import type { PortalAnalyticsQueries } from './use-cases/query-portal-analytics'
 
 export type { MetricReadingsQuery, MetricReadingsAggregate }
 export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
+export type {
+  PortalMetricSumRow,
+  PortalRatingBucket,
+  PortalRatingTrendPoint,
+} from './ports/portal-analytics.repository'
 
 /**
  * Application-level API for the Metric context.
@@ -32,6 +38,8 @@ export type MetricPublicApi = Readonly<{
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
   /** Version-pinned, half-open monthly read with durable source completeness. */
   queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
+  /** Governed, correction-aware Portal analytics reads. */
+  portalAnalytics: PortalAnalyticsQueries
   /** Resolve one immutable, approved version for a governed Goal definition. */
   getApprovedGoalVersion?: (
     definitionVersionId: string,

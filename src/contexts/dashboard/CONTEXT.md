@@ -67,7 +67,7 @@ dashboard/
   infrastructure/
     read-facade.ts     BQC-5.5 governed read policy: scope where-builders, attention
                        eligibility predicate, statement timeout, cache policy (none)
-    adapters/          metric-stats.adapter.ts, portal-metrics.adapter.ts, attention-signals.adapter.ts, staff-portal-resolver.adapter.ts
+    adapters/          metric-stats.adapter.ts, attention-signals.adapter.ts, staff-portal-resolver.adapter.ts
     repositories/      dashboard.repository.ts (composition only — no direct table reads)
   server/              dashboard.ts, portal-analytics.ts, staff-dashboard.ts, attention-signals.ts, fleet-overview.ts
   build.ts             composition root
@@ -112,9 +112,9 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 
 - **MetricStatsPort** — sums of metric readings by period/portal, implemented by metric-stats.adapter.ts.
 - **ReviewStatsPort** — review counts, rating distribution, reply performance, recent reviews. BQC-5.5: supplied by the REVIEW context's governed `ReviewServingStats` (composition wires `review.internal.servingStats`) — ADR 0031 source eligibility is enforced at the owner on every review-content read, aggregates included. The dashboard-owned SQL adapter is deleted.
-- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Implemented by portal-metrics.adapter.ts.
+- **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Structurally implemented by Metric's governed `portalAnalytics` public API and wired at composition; Dashboard owns no Portal analytics SQL.
 - **PortalResponseIntegrityPort** — current content-free Guest response-integrity counts. Implemented by the Guest context public API wired at composition.
 - **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
 - **AttentionSignalsPort** — unanswered-review (past SLA), new/escalated inbox-item, and goals-behind-pace counts per property. Implemented by attention-signals.adapter.ts (its review count applies the same ADR 0031 eligibility predicate — dashboard-side copy pinned equivalent to the review rule by an integration test).
 
-Review stats arrive via the composition-wired `reviewServingStats` dep (BQC-5.5); the remaining ports are constructed inside `buildDashboardContext()` (BQC-5.2) from the injected db/clock/staffPublicApi — the composition root does not wire individual dashboard adapters. All direct SQL reads compose the `read-facade.ts` scope builders and run under its statement timeout (`DASHBOARD_READ_BUDGET_MS`); cache policy is deliberately NONE server-side (client TanStack Query staleTimes are the cache policy — a server cache would be a second read model beside the authoritative query path).
+Review stats, governed Portal metrics, and Guest integrity counts arrive through composition-wired owner APIs. The remaining legacy Metric/Inbox/Goal projection adapters are constructed inside `buildDashboardContext()` and remain explicit MET-01 migration work. All remaining direct SQL reads compose the `read-facade.ts` scope builders and run under its statement timeout (`DASHBOARD_READ_BUDGET_MS`); cache policy is deliberately NONE server-side (client TanStack Query staleTimes are the cache policy — a server cache would be a second read model beside the authoritative query path).

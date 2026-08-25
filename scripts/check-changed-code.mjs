@@ -124,6 +124,10 @@ const directTestOwners = () => {
   if (tests.status !== 0) return new Map()
   const owners = new Map()
   for (const testFile of tests.stdout.split('\0').filter(Boolean)) {
+    // `git ls-files -c` includes tracked paths deleted or moved in the worktree.
+    // They cannot own current code and attempting to read them makes the gate
+    // crash before it can evaluate the actual change.
+    if (!existsSync(join(ROOT, testFile))) continue
     const source = ts.createSourceFile(
       testFile,
       readFileSync(join(ROOT, testFile), 'utf8'),

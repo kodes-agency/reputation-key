@@ -11,7 +11,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { ReviewServingStats } from '#/contexts/review/application/public-api'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
-import { createPortalMetricsAdapter } from './infrastructure/adapters/portal-metrics.adapter'
 import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
 import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
 import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
@@ -23,6 +22,7 @@ import type { GetAttentionSignals } from './application/use-cases/get-attention-
 import { getFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
+import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
 
 export type DashboardContextBuildInput = Readonly<{
   db: Database
@@ -35,6 +35,8 @@ export type DashboardContextBuildInput = Readonly<{
    */
   reviewServingStats: ReviewServingStats
   guestResponseIntegrity: PortalResponseIntegrityPort
+  /** Metric-owned governed Portal analytics public API. */
+  portalMetrics: PortalMetricsPort
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -60,11 +62,10 @@ export type DashboardContextApi = Readonly<{
 export const buildDashboardContext = (
   input: DashboardContextBuildInput,
 ): DashboardContextApi => {
-  // Facade ports per ADR-0007 — review stats arrive governed from the review
-  // context (BQC-5.5); the remaining SQL adapters are dashboard-owned
-  // infrastructure; the repo only composes.
+  // Facade ports per ADR-0007 — review and Portal metrics arrive governed from
+  // their owning contexts; remaining Dashboard-owned adapters only read
+  // Dashboard-owned projections.
   const metricStats = createMetricStatsAdapter(input.db)
-  const portalMetrics = createPortalMetricsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
   const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
@@ -78,7 +79,7 @@ export const buildDashboardContext = (
 
   const getPortal = getPortalAnalytics({
     repo: dashboardRepo,
-    portalMetrics,
+    portalMetrics: input.portalMetrics,
     responseIntegrity: input.guestResponseIntegrity,
     clock: input.clock,
   })

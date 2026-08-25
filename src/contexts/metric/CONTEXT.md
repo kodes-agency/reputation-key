@@ -8,7 +8,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 - **MetricKey** — Enum of known metric identifiers: `portal.scan`, `portal.rating`, `portal.feedback`, `portal.review_link_click`, `property.review`.
 - **MetricReading** — A single raw metric data point. Has `metricKey`, `value`, `organizationId`, `propertyId`, optional `portalId`, optional `groupId`, `occurredAt`.
-- **MetricPublicApi** — Application-level API for cross-context consumption. Provides the legacy `queryAggregate` and the version-pinned `queryGoalMetric` governed read.
+- **MetricPublicApi** — Application-level API for cross-context consumption. Provides the legacy `queryAggregate`, version-pinned `queryGoalMetric`, and governed correction-aware `portalAnalytics` reads.
 
 ## Relationships
 
@@ -23,6 +23,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 - A zero count is eligible only after the 24-hour late-arrival window and exact durable proof that every relevant Guest fact has an applied/duplicate `metric.guest-analytics` receipt, the expected projection/correction, no quarantine, and correct event-time attribution. A latest-seen timestamp is not completeness proof.
 - Rating averages are weighted from eligible samples and require ten ratings. Missing or undersampled averages are never converted to zero.
 - `portal.qualified_scan` stays explicitly unavailable until signed Access Artifact provenance has a server-verified producer. The client-provided `qr`/`nfc`/`direct` label is not qualification evidence.
+- Portal analytics reads pin immutable versions, permitted consumer/source policy, exact quality, current correction tips, and half-open event time. Distribution, KPI average, and daily trend therefore select the same effective rating population.
 
 ## Events produced
 
@@ -44,12 +45,14 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 metric/
   domain/              types.ts, constructors.ts, events.ts, errors.ts
   application/
-    ports/             metric.repository.ts, metric-command-store.port.ts
-    use-cases/         record-metric.ts
+    ports/             metric.repository.ts, metric-command-store.port.ts,
+                       portal-analytics.repository.ts
+    use-cases/         record-metric.ts, query-goal-metric.ts,
+                       query-portal-analytics.ts
     public-api.ts      re-exports query types, MetricPublicApi, event types
   infrastructure/
     metric-command-store.ts (atomic reading + outbox fact, BQC-3.5)
-    repositories/      metric.repository.ts (Drizzle)
+    repositories/      metric.repository.ts, portal-analytics.repository.ts (Drizzle)
     event-handlers/    on-review-created.ts, on-scan-recorded.ts, on-rating-submitted.ts,
                        on-feedback-submitted.ts, on-review-link-clicked.ts, index.ts
     jobs/              refresh-materialized-view.job.ts
@@ -59,12 +62,13 @@ metric/
 ## Use cases
 
 - **`recordMetric`** — Validates metric key, inserts raw reading + records the `metric.recorded` fact atomically via the metric command store (BQC-3.5: one transaction, post-commit bus emit).
+- **`queryPortalAnalytics`** — Validates the half-open period and exposes Metric-owned governed Portal KPI/distribution/trend reads to Dashboard.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`
+- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`, `PortalMetricSumRow`, `PortalRatingBucket`, `PortalRatingTrendPoint`
 - Event types: `MetricRecorded`, `MetricEvent`
 
 ## Server functions

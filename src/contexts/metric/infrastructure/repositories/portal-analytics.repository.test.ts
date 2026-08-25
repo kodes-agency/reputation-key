@@ -26,8 +26,8 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
-import { createPortalMetricsAdapter } from './portal-metrics.adapter'
+import { METRIC_VERSION_IDS } from '../../application/public-api'
+import { createPortalAnalyticsRepository } from './portal-analytics.repository'
 
 const ORG = organizationId('org-portal-metrics-integration')
 const PROP = propertyId('c1000000-0000-4000-8000-000000000001')
@@ -197,9 +197,9 @@ afterAll(async () => {
   await pool.end()
 })
 
-describe('portal metrics adapter (integration)', () => {
+describe('governed Portal analytics repository (integration)', () => {
   it('buckets the daily trend on property_local_date, not the UTC ingestion day', async () => {
-    const adapter = createPortalMetricsAdapter(db)
+    const adapter = createPortalAnalyticsRepository(db)
 
     const trend = await adapter.getPortalRatingTrend(
       ORG,
@@ -220,7 +220,7 @@ describe('portal metrics adapter (integration)', () => {
   })
 
   it('includes a late-ingested reading and excludes one that truly predates the window', async () => {
-    const adapter = createPortalMetricsAdapter(db)
+    const adapter = createPortalAnalyticsRepository(db)
 
     const sums = await adapter.getPortalKpiSums(
       ORG,
@@ -237,7 +237,7 @@ describe('portal metrics adapter (integration)', () => {
   })
 
   it('constrains the rating distribution to 1..5 stars', async () => {
-    const adapter = createPortalMetricsAdapter(db)
+    const adapter = createPortalAnalyticsRepository(db)
 
     const distribution = await adapter.getPortalRatingDistribution(
       ORG,

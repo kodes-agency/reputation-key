@@ -1504,16 +1504,16 @@ export function createContainer(options?: {
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────
-  // Dashboard never queries review/reply/metric tables directly. BQC-5.5:
-  // review-content reads cross the review-owned governed serving interface
-  // (eligibility enforced at the owner, ADR 0031); the dashboard build
-  // constructs only its remaining direct-read SQL adapters internally.
+  // Review content and Portal analytics cross owner-governed serving APIs.
+  // Dashboard retains only the explicitly tracked legacy property/fleet
+  // projection adapters pending the remaining MET-01 cutover.
   const dashboard = buildDashboardContext({
     db,
     staffPublicApi: staff.publicApi,
     clock,
     reviewServingStats: review.internal.servingStats,
     guestResponseIntegrity: guest.publicApi,
+    portalMetrics: metricApi.publicApi.portalAnalytics,
   })
 
   // ── Activity context ────────────────────────────────────────────

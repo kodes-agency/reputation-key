@@ -24,6 +24,8 @@ import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-cons
 import { metricReadingId } from '#/shared/domain/ids'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
+import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
+import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -48,6 +50,7 @@ export type MetricContextApi = Readonly<{
 export const buildMetricContext = (input: MetricContextBuildInput): MetricContextApi => {
   const metricRepo = createMetricRepository(input.db, input.clock)
   const registry = createMetricRegistryRepository(input.db)
+  const portalAnalytics = queryPortalAnalytics(createPortalAnalyticsRepository(input.db))
   // BQC-3.5: every metric state mutation + fact commits atomically here.
   const commandStore = createAtomicMetricCommandStore(input.db, input.events)
   const readGoalMetric = queryGoalMetric({
@@ -134,6 +137,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   const publicApi: MetricPublicApi = {
     queryAggregate: (query) => metricRepo.queryAggregate(query),
     queryGoalMetric: readGoalMetric,
+    portalAnalytics,
     getApprovedGoalVersion: async (definitionVersionId) => {
       const governed = await registry.findVersionById(definitionVersionId)
       if (
