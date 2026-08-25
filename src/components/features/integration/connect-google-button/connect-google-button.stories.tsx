@@ -1,7 +1,6 @@
 // Connect Google Account button — kicks off the OAuth handshake.
-// The button owns a local pending/error state around the `getAuthUrl` callback
-// (NOT an Action wrapper), so stories feed controllable async fns directly and
-// reach every state without a live OAuth round-trip.
+// Stories feed controllable async fns into the shared Action-backed component
+// and reach every state without a live OAuth round-trip.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { ConnectGoogleButton } from './connect-google-button'
