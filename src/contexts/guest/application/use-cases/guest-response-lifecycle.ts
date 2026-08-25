@@ -22,6 +22,10 @@ import {
   type ResponseError,
 } from '../../domain/guest-response'
 import { guestFeedbackSubmitted, guestRatingSubmitted } from '../../domain/events'
+import type {
+  GuestResponseCommandStore,
+  GuestSubmissionFact,
+} from '../ports/guest-response-command-store.port'
 import {
   feedbackId,
   organizationId,
@@ -29,8 +33,6 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
-import type { EventBus } from '#/shared/events/event-bus'
 
 export type GuestResponseInput = Readonly<{
   rating?: number | null
@@ -97,8 +99,7 @@ export function guestResponseLifecycle(
     storage: StoragePort
     clock: () => Date
     idGen: () => string
-    events: EventBus
-    outboxRepo?: OutboxRepository
+    commandStore: GuestResponseCommandStore
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
@@ -179,7 +180,8 @@ export function guestResponseLifecycle(
   // The aggregate row id is the identity of both facts: one submit yields at
   // most one rating and one feedback, and inbox keys its item on feedbackId,
   // so a replayed emission is idempotent rather than duplicated.
-  const emitSubmissionFacts = async (response: GuestResponse) => {
+  const submissionFacts = (response: GuestResponse): GuestSubmissionFact[] => {
+    const facts: GuestSubmissionFact[] = []
     const scopeIds = {
       organizationId: organizationId(response.organizationId),
       portalId: portalId(response.portalId),
@@ -187,9 +189,7 @@ export function guestResponseLifecycle(
     }
     const occurredAt = response.submittedAt ?? deps.clock()
     if (response.rating !== null && response.responseConsent) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
+      facts.push(
         guestRatingSubmitted({
           ratingId: ratingId(response.id),
           ...scopeIds,
@@ -199,9 +199,7 @@ export function guestResponseLifecycle(
       )
     }
     if (response.text !== null && response.textConsent) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
+      facts.push(
         guestFeedbackSubmitted({
           feedbackId: feedbackId(response.id),
           ...scopeIds,
@@ -210,6 +208,7 @@ export function guestResponseLifecycle(
         }),
       )
     }
+    return facts
   }
 
   return {
@@ -235,10 +234,14 @@ export function guestResponseLifecycle(
           now,
         ),
       )
-      if (await deps.repo.insertSubmitted(submitted)) {
+      if (
+        (await deps.commandStore.commitSubmitted(
+          submitted,
+          submissionFacts(submitted),
+        )) === 'applied'
+      ) {
         // Only the winning insert emits: the `existing`/`raced` paths return an
         // already-counted response, so a refresh or a lost race adds no facts.
-        await emitSubmissionFacts(submitted)
         return toView(submitted)
       }
       const raced = await deps.repo.findForSession(scope, sessionId)

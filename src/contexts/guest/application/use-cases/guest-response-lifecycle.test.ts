@@ -49,20 +49,6 @@ function memoryRepo(): GuestResponseRepository & {
     },
     findSnippetsForOrg: async () => [],
     findEligibleSnippetIdsForOrg: async () => [],
-    insertSubmitted: async (response) => {
-      if (
-        responses.some(
-          (row) =>
-            row.organizationId === response.organizationId &&
-            row.portalId === response.portalId &&
-            row.sessionId === response.sessionId,
-        )
-      ) {
-        return false
-      }
-      responses.push(response)
-      return true
-    },
     saveCorrection: async (response) => {
       const index = responses.findIndex(
         (row) => row.id === response.id && row.status === 'submitted',
@@ -201,12 +187,34 @@ function harness() {
     putObject: async () => {},
   }
   const events = createCapturingEventBus()
+  const commandStore = {
+    commitSubmitted: async (
+      response: GuestResponse,
+      facts: Parameters<
+        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitSubmitted']
+      >[1],
+    ) => {
+      if (
+        repo.responses.some(
+          (row) =>
+            row.organizationId === response.organizationId &&
+            row.portalId === response.portalId &&
+            row.sessionId === response.sessionId,
+        )
+      ) {
+        return 'duplicate' as const
+      }
+      repo.responses.push(response)
+      for (const fact of facts) await events.emit(fact)
+      return 'applied' as const
+    },
+  }
   const lifecycle = guestResponseLifecycle({
     repo,
     storage,
     clock: () => new Date('2026-08-09T12:00:00Z'),
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
-    events,
+    commandStore,
   })
   return {
     repo,

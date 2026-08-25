@@ -53,7 +53,6 @@ export type GuestResponseRepository = Readonly<{
     organizationId: string,
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<string>>
-  insertSubmitted(response: GuestResponse): Promise<boolean>
   saveCorrection(response: GuestResponse): Promise<boolean>
   saveModeration(response: GuestResponse): Promise<boolean>
   deleteAndQueueMediaPurge(response: GuestResponse): Promise<ReadonlyArray<string>>

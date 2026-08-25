@@ -4,6 +4,7 @@ import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
+import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
 import { recordScan } from './application/use-cases/record-scan'
@@ -32,6 +33,10 @@ type GuestContextDeps = Readonly<{
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
   const guestResponseRepo = createGuestResponseRepository(deps.db)
+  const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
+    deps.db,
+    deps.events,
+  )
   const sessionSecret =
     deps.sessionSecret ??
     (process.env.NODE_ENV === 'production' ? null : 'dev-test-guest-session-secret')
@@ -48,8 +53,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     storage: deps.storage,
     clock: deps.clock,
     idGen: randomUUID,
-    events: deps.events,
-    outboxRepo: deps.outboxRepo,
+    commandStore: guestResponseCommandStore,
   })
   const portalContextResolver = createPortalContextResolver(deps.portalApi)
   const publicPortalLookup = createPublicPortalLookup(deps.portalApi)
@@ -92,7 +96,12 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       resolvePortalContext: useCases.resolvePortalContext,
     },
     internal: {
-      repos: { guestRepo, guestResponseRepo, portalContextResolver },
+      repos: {
+        guestRepo,
+        guestResponseRepo,
+        guestResponseCommandStore,
+        portalContextResolver,
+      },
       useCases,
     },
   } as const

@@ -7,36 +7,9 @@ import type {
   GuestMediaContentType,
   GuestMediaStatus,
 } from '../../domain/guest-media'
-import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
+import { guestResponseFromRow } from '../mappers/guest-response.mapper'
 
-type ResponseRow = typeof guestResponses.$inferSelect
 type MediaRow = typeof guestResponseMedia.$inferSelect
-
-function responseFromRow(row: ResponseRow): GuestResponse {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    propertyId: row.propertyId,
-    portalId: row.portalId,
-    sessionId: row.sessionId,
-    status: row.status as GuestResponseStatus,
-    rating: row.rating,
-    category: row.categoryId,
-    text: row.responseText,
-    responseConsent: row.responseConsent,
-    textConsent: row.textConsent,
-    mediaConsent: row.mediaConsent,
-    contactConsent: false,
-    contactDetails: null,
-    correctionCount: row.correctionCount === 1 ? 1 : 0,
-    submittedAt: row.submittedAt,
-    correctedAt: row.correctedAt,
-    moderatedAt: row.moderatedAt,
-    deletedAt: row.deletedAt,
-    retentionDeadline: row.retentionDeadline,
-    schemaVersion: 1,
-  }
-}
 
 function mediaFromRow(row: MediaRow): GuestMedia {
   return {
@@ -75,7 +48,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? responseFromRow(row) : null
+      return row ? guestResponseFromRow(row) : null
     },
 
     findById: async (scope, responseId) => {
@@ -91,7 +64,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? responseFromRow(row) : null
+      return row ? guestResponseFromRow(row) : null
     },
 
     // Org-scoped by design (see the port comment): an inbox item knows only its
@@ -177,35 +150,6 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         .from(guestResponses)
         .where(and(...conditions))
       return rows.map((row) => row.id)
-    },
-
-    insertSubmitted: async (response) => {
-      const inserted = await db
-        .insert(guestResponses)
-        .values({
-          id: response.id,
-          organizationId: response.organizationId,
-          propertyId: response.propertyId,
-          portalId: response.portalId,
-          sessionId: response.sessionId,
-          status: response.status,
-          rating: response.rating,
-          categoryId: response.category,
-          responseText: response.text,
-          responseConsent: response.responseConsent,
-          textConsent: response.textConsent,
-          mediaConsent: response.mediaConsent,
-          correctionCount: response.correctionCount,
-          submittedAt: response.submittedAt,
-          correctedAt: response.correctedAt,
-          moderatedAt: response.moderatedAt,
-          retentionDeadline: response.retentionDeadline,
-          deletedAt: response.deletedAt,
-          updatedAt: response.submittedAt ?? new Date(),
-        })
-        .onConflictDoNothing()
-        .returning({ id: guestResponses.id })
-      return inserted.length === 1
     },
 
     saveCorrection: async (response) => {

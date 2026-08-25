@@ -1221,7 +1221,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'metric',
       notes:
-        'identifier/numeric-only v1 schema and durable metric consumer; Guest response insert and outbox recording are not yet one transaction (ARC-01)',
+        'identifier/numeric-only v1 schema; canonical Guest response and fact commit atomically through GuestResponseCommandStore; durable metric consumer is recovery authority',
     },
   ),
   ev(
@@ -1244,7 +1244,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'inbox',
       notes:
-        'content-free v1 payload with durable Inbox and metric projections; Guest response insert and source outbox recording are not yet one transaction (ARC-01)',
+        'content-free v1 payload committed atomically with the canonical Guest response; durable Inbox and metric projections recover independently',
     },
   ),
   ev(
