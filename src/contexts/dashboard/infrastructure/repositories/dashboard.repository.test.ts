@@ -541,11 +541,15 @@ describe('dashboardRepository (integration)', () => {
         createReviewStats(db),
         createMetricStatsAdapter(db),
       )
+      // The repository's period end is exclusive. Advance by one millisecond
+      // so the newest fixture is strictly inside the window even when the
+      // JavaScript clock has not ticked since seedReview captured Date.now().
+      const endDate = new Date(Date.now() + 1)
       const result = await repo.getRatingTrend({
         organizationId: ORG_A,
         propertyId: PROP_A,
         startDate: new Date(Date.now() - 5 * MS_PER_DAY),
-        endDate: new Date(),
+        endDate,
       })
 
       expect(result.length).toBeGreaterThanOrEqual(3)
@@ -576,11 +580,14 @@ describe('dashboardRepository (integration)', () => {
         createReviewStats(db),
         createMetricStatsAdapter(db),
       )
+      // The repository's period end is exclusive; keep the newest fixture
+      // strictly inside the window when both timestamps share a millisecond.
+      const endDate = new Date(Date.now() + 1)
       const result = await repo.getReviewVolume({
         organizationId: ORG_A,
         propertyId: PROP_A,
         startDate: new Date(Date.now() - 5 * MS_PER_DAY),
-        endDate: new Date(),
+        endDate,
       })
 
       expect(result.length).toBeGreaterThanOrEqual(3)

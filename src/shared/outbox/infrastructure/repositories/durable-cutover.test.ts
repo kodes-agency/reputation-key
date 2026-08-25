@@ -459,6 +459,18 @@ beforeAll(async () => {
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [ORG])
+  // The production relay intentionally claims globally. Integration files
+  // share this guarded scratch database, however, so an unpublished fact from
+  // another file would become accidental input to this closed-world proof.
+  // Remove only pending facts before this suite creates its own backlog.
+  await pool.query('DELETE FROM outbox_events WHERE published_at IS NULL')
+  // A crashed prior run can leave rows created while such foreign facts were
+  // dispatched. This UUID prefix is reserved by idGen above, so it is safe to
+  // clean across organizations without touching another fixture namespace.
+  await pool.query(
+    `DELETE FROM inbox_items
+      WHERE id::text LIKE '4e000000-0000-4000-8000-0000000002%'`,
+  )
 
   // BQC-6.1: lease-guarded Redis — refuses remote/managed hosts; skips cleanly
   // when the local Redis is unavailable. Obliterates suite-unique queues only.
