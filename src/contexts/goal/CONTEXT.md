@@ -2,13 +2,45 @@
 
 ## Bounded context
 
-Property-scoped goals with progress tracking driven by metric events.
+Property-owned, subject-assigned monthly Goal Programs evaluated from governed,
+version-pinned Metric reads.
+
+## Canonical beta model (authority)
+
+The beta runtime uses `goal_programs` → immutable `goal_program_versions` →
+`goal_subject_assignments` → `goal_monthly_results` → append-only
+`goal_result_revisions`. The older `goals`/`goal_progress` and
+`goal_definitions`/`goal_periods` families are migration sources only. New beta
+features must not write new business behavior against either older family.
+
+- A Goal Program belongs to one Property and targets one governed metric version.
+- A version may be assigned to any number of Property, Portal Group, or Portal
+  subjects owned by that Property. Person and Team are not Goal subjects.
+- Portal Groups are optional; standalone Portals remain first-class subjects.
+- The only beta metrics are qualified scans, private rating count, and private
+  rating average. They are analytics/management aids and are never eligible for
+  employment decisions.
+- Every result covers exactly one full Property-local calendar month. Changes
+  start with the next complete month and never redefine a month in progress.
+- Rating average requires at least 10 eligible ratings. Count metrics may close
+  at a verified zero; missing or incomplete data is never coerced to zero.
+- Result lifecycle is `open` → `reconciling` → `closed`, with a 24-hour
+  late-arrival window and exact durable source completeness. Closed rows are
+  immutable; later corrections append a direct, serialized result revision.
+- Program lifecycle is `scheduled` → `active` ↔ `paused` → `ended` (with no
+  transition out of `ended`). An inactive metric source may be configured but
+  cannot activate or create results until its producer becomes ready.
 
 ## Glossary
 
 | Term | Definition |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
-| **Goal** | A property-scoped target (e.g. "reach 4.5 average Google rating", "collect 50 reviews"). Belongs to an organization and is scoped to a property, portal, or portal group. Property scope only supports `property.review`. Portal-level metrics (scans, private ratings) are only available for portal and portal_group scopes. |
+| **Goal Program** | Canonical beta aggregate: a named, Property-owned, versioned monthly target for one governed metric, assignable to multiple Property, Portal Group, or Portal subjects. |
+| **Goal Program Version** | Immutable target, governed metric-version pin, Property timezone snapshot, and effective window. A material target/metric/subject change creates a new version beginning next complete month. |
+| **Goal Subject Assignment** | Half-open effective assignment of one Program version to one Property, Portal Group, or Portal. The database rejects overlap for the same subject and metric, even across Programs. |
+| **Goal Monthly Result** | One Property-local calendar-month result with an ordered Open/Reconciliation/Closed lifecycle and exact source-completeness evidence. |
+| **Goal Result Revision** | Append-only correction to a closed monthly result. Revisions form direct serialized lineage; the closed base result never changes. |
+| **Goal (legacy)** | Pre-beta aggregate stored in `goals`/`goal_progress`. Retained only for compatibility and migration until the route/UI cutover. |
 | **GoalType** | `'open'`, `'one_shot'`, `'rolling'`, or `'recurring'`. Determines how time periods and progress are computed. |
 | **GoalStatus** | Lifecycle: `active` → `completed`, `expired`, or `cancelled`. Only `active` goals accept progress updates. |
 | **GoalProgress** | Current numeric progress toward a goal's target. Tracks `currentValue`, `currentSum`, `currentCount`, and `computedSource`. One-to-one with a Goal. |
@@ -69,12 +101,12 @@ Property-scoped goals with progress tracking driven by metric events.
 goal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, progress-strategy.ts
   application/
-    ports/             goal.repository.ts
+    ports/             goal.repository.ts, goal-program.repository.ts
     dto/               goal.dto.ts (Zod schemas)
     use-cases/         create-goal.ts, update-goal.ts, cancel-goal.ts, list-goals.ts, get-goal.ts
     public-api.ts      re-exports DTO types, port types, event types/constructors
   infrastructure/
-    repositories/      goal.repository.ts (Drizzle)
+    repositories/      goal.repository.ts, goal-program.repository.ts (Drizzle)
     mappers/           goal.mapper.ts
     event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              spawn-recurring-instances.job.ts, reconcile-goal-progress.job.ts
@@ -176,7 +208,7 @@ New reusable components live under `src/components/goals/` (GoalProgressRing, Go
 | Permission    | AccountAdmin | PropertyManager | Staff |
 | ------------- | ------------ | --------------- | ----- |
 | `goal.read`   | ✓            | ✓               | ✓     |
-| `goal.create` | ✓            | ✓               | ✓     |
+| `goal.create` | ✓            | ✓               | —     |
 | `goal.update` | ✓            | ✓               | —     |
 | `goal.cancel` | ✓            | ✓               | —     |
 
@@ -184,3 +216,7 @@ New reusable components live under `src/components/goals/` (GoalProgressRing, Go
 
 - **spawn-recurring-instances** — creates child Goal instances from recurring templates at each period boundary.
 - **reconcile-goal-progress** — recomputes progress from raw metric readings for all active goals (computedSource = `reconciliation`).
+
+The two jobs above are legacy-only. Canonical scheduling/reconciliation must use
+the Goal Program service and the governed `MetricPublicApi.queryGoalMetric`
+reader; it must not reconstruct results from raw readings or mutable metric keys.

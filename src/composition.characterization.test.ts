@@ -110,6 +110,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'connectGoogleAccount',
   'createCustomRole',
   'createGoal',
+  'createGoalProgramService',
   'createGovernedGoalService',
   'createInboxItem',
   'createLink',

@@ -1320,6 +1320,7 @@ export function createContainer(options?: {
     idGen: () => crypto.randomUUID(),
     getLogger,
     portalGroupApi: portal.publicApi.portalGroup,
+    portalApi: portal.publicApi.portal,
   })
 
   // ── Dashboard context (facade ports per ADR-0007) ────────────────

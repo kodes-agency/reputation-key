@@ -8,7 +8,10 @@
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
+import type {
+  PortalGroupPublicApi,
+  PortalPublicApi,
+} from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from './application/ports/goal.repository'
 import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -22,6 +25,13 @@ import {
 } from './application/use-cases/governed-goals'
 import type { GovernedGoalRepository } from './application/ports/governed-goal.repository'
 import { createGovernedGoalPropertyReader } from './infrastructure/adapters/governed-goal-property-reader'
+import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
+import { createGoalProgramRepository } from './infrastructure/repositories/goal-program.repository'
+import {
+  createGoalProgramService,
+  type GoalProgramService,
+} from './application/use-cases/goal-programs'
+import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import { createGoal } from './application/use-cases/create-goal'
 import { updateGoal } from './application/use-cases/update-goal'
 import { cancelGoal } from './application/use-cases/cancel-goal'
@@ -45,6 +55,8 @@ export type GoalContextBuildInput = Readonly<{
   getLogger: typeof getLoggerType
   /** Portal group resolution for staff-goal visibility. */
   portalGroupApi: PortalGroupPublicApi
+  /** Tenant-bound Portal validation for canonical Goal Program subjects. */
+  portalApi: PortalPublicApi
 }>
 
 export type GoalContextApi = Readonly<{
@@ -59,6 +71,7 @@ export type GoalContextApi = Readonly<{
     repos: Readonly<{
       goalRepo: GoalRepository
       governedGoalRepo: GovernedGoalRepository
+      goalProgramRepo: GoalProgramRepository
     }>
     useCases: Readonly<{
       createGoal: ReturnType<typeof createGoal>
@@ -68,6 +81,7 @@ export type GoalContextApi = Readonly<{
       getGoal: ReturnType<typeof getGoal>
       listStaffGoals: ListStaffGoals
       createGovernedGoalService: (policy: GoalExecutionPolicy) => GovernedGoalService
+      createGoalProgramService: (policy: GoalExecutionPolicy) => GoalProgramService
     }>
     events: EventBus
   }>
@@ -76,6 +90,7 @@ export type GoalContextApi = Readonly<{
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
   const goalRepo = createGoalRepository(input.db)
   const governedGoalRepo = createGovernedGoalRepository(input.db)
+  const goalProgramRepo = createGoalProgramRepository(input.db)
 
   // Resolve portal group IDs for a batch of portal IDs (staff goals visibility).
   const portalGroupLookup: PortalGroupLookupPort = {
@@ -123,6 +138,11 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
     input.propertyApi,
     input.portalGroupApi,
   )
+  const goalProgramSubjects = createGoalProgramSubjectReader(
+    input.propertyApi,
+    input.portalApi,
+    input.portalGroupApi,
+  )
 
   const buildGovernedService = (policy: GoalExecutionPolicy) =>
     createGovernedGoalService({
@@ -150,6 +170,16 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
       now: input.clock,
     })
 
+  const buildGoalPrograms = (policy: GoalExecutionPolicy) =>
+    createGoalProgramService({
+      repository: goalProgramRepo,
+      policy,
+      subjects: goalProgramSubjects,
+      metrics: input.metricApi,
+      id: input.idGen,
+      now: input.clock,
+    })
+
   return {
     publicApi: {
       createGoal: _createGoal,
@@ -159,7 +189,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
       getGoal: _getGoal,
     },
     internal: {
-      repos: { goalRepo, governedGoalRepo },
+      repos: { goalRepo, governedGoalRepo, goalProgramRepo },
       useCases: {
         createGoal: _createGoal,
         updateGoal: _updateGoal,
@@ -168,6 +198,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
         getGoal: _getGoal,
         listStaffGoals: _listStaffGoals,
         createGovernedGoalService: buildGovernedService,
+        createGoalProgramService: buildGoalPrograms,
       },
       events: input.events,
     },
