@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -17,6 +17,7 @@ import {
   updateOrgResponseSlaFn,
 } from '#/contexts/identity/server/organizations.response-sla'
 import { OrganizationSettingsPage } from '#/components/features/organization'
+import { organizationCachePolicy } from '#/components/features/organization/organization-cache-policy'
 import { identityKeys } from '#/shared/queries/query-keys'
 
 const activeOrgQuery = queryOptions({
@@ -63,6 +64,7 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 })
 
 function OrganizationSettingsRoute() {
+  const queryClient = useQueryClient()
   const { data: orgResult } = useSuspenseQuery(activeOrgQuery)
   const { data: orgsResult } = useSuspenseQuery(organizationsQuery)
   const { data: slaResult } = useSuspenseQuery(responseSlaQuery)
@@ -73,6 +75,9 @@ function OrganizationSettingsRoute() {
   const updateResponseSla = useActionMutation(updateOrgResponseSlaFn, {
     successMessage: 'Response SLA updated',
     invalidateKeys: [identityKeys.responseSla(), identityKeys.activeOrg()],
+  })
+  const updateOrganizationAction = useActionMutation(updateOrganization, {
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
 
   return (
@@ -89,7 +94,7 @@ function OrganizationSettingsRoute() {
           activeOrganizationId={activeOrganizationId}
           responseSlaHours={responseSlaHours}
           updateResponseSla={updateResponseSla}
-          updateOrganizationFn={updateOrganization}
+          updateOrganization={updateOrganizationAction}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
           finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
           setActiveOrganizationFn={setActiveOrganization}

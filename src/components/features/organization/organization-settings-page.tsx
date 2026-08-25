@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
-import { useAction, type Action } from '#/components/hooks/use-action'
+import type { Action } from '#/components/hooks/use-action'
 import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
@@ -35,7 +35,10 @@ type Props = Readonly<{
     Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
     { responseSlaHours: number }
   >
-  updateOrganizationFn: typeof updateOrganization
+  updateOrganization: Action<
+    Parameters<typeof updateOrganization>[0],
+    Awaited<ReturnType<typeof updateOrganization>>
+  >
   requestOrgLogoUploadFn: typeof requestOrgLogoUpload
   finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
   setActiveOrganizationFn: typeof setActiveOrganization
@@ -45,12 +48,11 @@ export function OrganizationSettingsPage({
   organization,
   responseSlaHours,
   updateResponseSla,
-  updateOrganizationFn,
+  updateOrganization,
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
 }: Props) {
   const [logoUrl, setLogoUrl] = useState(organization.logo)
-  const updateOrg = useAction(useServerFn(updateOrganizationFn))
   const requestUpload = useServerFn(requestOrgLogoUploadFn)
   const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
 
@@ -63,7 +65,7 @@ export function OrganizationSettingsPage({
             setLogoUrl(url)
             // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
             if (url === null) {
-              updateOrg({ data: { logo: null } }).catch(() => {
+              updateOrganization({ data: { logo: null } }).catch(() => {
                 toast.error('Failed to remove logo')
                 setLogoUrl(organization.logo)
               })
@@ -80,7 +82,7 @@ export function OrganizationSettingsPage({
           variant="circle"
           emptyLabel="Upload logo"
           maxFileSize={5 * 1024 * 1024}
-          disabled={updateOrg.isPending}
+          disabled={updateOrganization.isPending}
         />
         <div>
           <h1 className="text-xl font-semibold tracking-tight display-title">
@@ -95,10 +97,10 @@ export function OrganizationSettingsPage({
       <OrganizationSettingsForm
         organization={organization}
         onSubmit={async (values) => {
-          await updateOrg({ data: values })
+          await updateOrganization({ data: values })
         }}
-        isPending={updateOrg.isPending}
-        error={updateOrg.error}
+        isPending={updateOrganization.isPending}
+        error={updateOrganization.error}
       />
       <ResponseSlaCard
         responseSlaHours={responseSlaHours}
