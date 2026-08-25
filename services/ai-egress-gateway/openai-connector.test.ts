@@ -27,6 +27,7 @@ import {
   createOpenAiConnector,
   createPinnedOpenAiRequestFetch,
   createRestrictedOpenAiLookup,
+  PINNED_OPENAI_DISPATCHER_LIMITS,
 } from './openai-connector'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { OPENAI_RESPONSES_URL, type ClosedJsonSchemaFormat } from './contracts'
@@ -401,6 +402,15 @@ describe('one-shot OpenAI fetch boundary', () => {
 })
 
 describe('pinned OpenAI request transport', () => {
+  it('refuses HTTP/2 so the one-request HTTP/1 isolation controls remain effective', () => {
+    expect(PINNED_OPENAI_DISPATCHER_LIMITS).toMatchObject({
+      allowH2: false,
+      connections: 1,
+      pipelining: 0,
+      maxRequestsPerClient: 1,
+    })
+  })
+
   it('does not add Accept-Encoding to the actual socket request', async () => {
     let observedHeaders: Readonly<Record<string, string | string[] | undefined>> | null =
       null

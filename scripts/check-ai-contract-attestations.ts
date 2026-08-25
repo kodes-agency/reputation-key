@@ -13,6 +13,10 @@ import {
 const ROOT = resolve(import.meta.dirname, '..')
 const encoder = new TextEncoder()
 const SHA256 = /^[0-9a-f]{64}$/u
+const PINNED_PROVIDER_DEPENDENCIES = Object.freeze({
+  openai: '7.4.0',
+  undici: '8.10.0',
+} as const)
 
 export const AI_SOURCE_ATTESTATION_MEMBERS_V1 = Object.freeze([
   'src/shared/ai-review-source-contract.ts',
@@ -107,6 +111,20 @@ export const REVIEW_PROVIDER_SUBJECT_CANONICALIZER_DIGEST_V1 =
 
 function fail(message: string): never {
   throw new Error(`AI canonicalizer attestation check failed: ${message}`)
+}
+
+export function assertPinnedProviderDependencyVersions(
+  root: string = ROOT,
+): Readonly<Record<keyof typeof PINNED_PROVIDER_DEPENDENCIES, string>> {
+  const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
+    dependencies?: Record<string, unknown>
+  }
+  for (const [name, expected] of Object.entries(PINNED_PROVIDER_DEPENDENCIES)) {
+    if (manifest.dependencies?.[name] !== expected) {
+      fail(`${name} dependency must be pinned exactly to ${expected}`)
+    }
+  }
+  return PINNED_PROVIDER_DEPENDENCIES
 }
 
 function assertLfUtf8(bytes: Uint8Array, path: string): string {
@@ -495,6 +513,7 @@ export function checkCanonicalizerAttestations(root: string = ROOT): Readonly<{
 
 const invokedPath = process.argv[1] === undefined ? null : resolve(process.argv[1])
 if (invokedPath !== null && fileURLToPath(import.meta.url) === invokedPath) {
+  assertPinnedProviderDependencyVersions()
   const result = checkCanonicalizerAttestations()
   process.stdout.write(`${JSON.stringify(result)}\n`)
 }
