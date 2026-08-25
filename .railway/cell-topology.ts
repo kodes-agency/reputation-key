@@ -1,62 +1,48 @@
-export const RAILWAY_SERVICE_REGIONS = [
-  'us-west2',
-  'europe-west4-drams3a',
-  'asia-southeast1-eqsg3a',
-] as const
+import {
+  DATA_CELL_CATALOGUE,
+  DATA_CELL_IDS,
+  type DataCellDefinition,
+  type DataCellId,
+} from '../src/shared/domain/data-cell-catalogue'
 
-export const RAILWAY_BUCKET_REGIONS = ['sjc', 'ams', 'sin'] as const
-
-export type DataCellId = 'us' | 'europe' | 'global'
+export type { DataCellId }
 export type RailwayCellEnvironment = `cell-${DataCellId}`
 
 export type CellTopology = Readonly<{
   cellId: DataCellId
   environment: RailwayCellEnvironment
-  serviceRegion: (typeof RAILWAY_SERVICE_REGIONS)[number]
-  bucketRegion: (typeof RAILWAY_BUCKET_REGIONS)[number]
+  serviceRegion: DataCellDefinition['railway']['serviceRegion']
+  bucketRegion: DataCellDefinition['railway']['bucketRegion']
   publicDomain: string
-  providerProfile: 'gbp-production-fixed'
+  providerProfile: DataCellDefinition['providerProfile']
 }>
 
 /**
- * One signed-off logical-to-physical placement table for both the production
- * project and its separate non-production mirror. The two projects use the
- * same environment names and graph so a mirror is not a special topology.
- *
- * Bucket placement codes are Railway's storage-specific identifiers; service
- * and database placement use Railway deployment region identifiers. They are
- * intentionally separate types so a valid code from one API cannot leak into
- * the other.
+ * Railway consumes the domain catalogue rather than maintaining a second
+ * logical-to-physical map. Both the production project and its separately
+ * permissioned mirror render this same graph.
  */
-export const CELL_TOPOLOGIES = Object.freeze({
-  'cell-us': Object.freeze({
-    cellId: 'us',
-    environment: 'cell-us',
-    serviceRegion: 'us-west2',
-    bucketRegion: 'sjc',
-    publicDomain: 'us.reputationkey.app',
-    providerProfile: 'gbp-production-fixed',
-  }),
-  'cell-europe': Object.freeze({
-    cellId: 'europe',
-    environment: 'cell-europe',
-    serviceRegion: 'europe-west4-drams3a',
-    bucketRegion: 'ams',
-    publicDomain: 'eu.reputationkey.app',
-    providerProfile: 'gbp-production-fixed',
-  }),
-  'cell-global': Object.freeze({
-    cellId: 'global',
-    environment: 'cell-global',
-    serviceRegion: 'asia-southeast1-eqsg3a',
-    bucketRegion: 'sin',
-    publicDomain: 'global.reputationkey.app',
-    providerProfile: 'gbp-production-fixed',
-  }),
-} as const satisfies Record<RailwayCellEnvironment, CellTopology>)
+export const CELL_TOPOLOGIES = Object.freeze(
+  Object.fromEntries(
+    DATA_CELL_IDS.map((cellId) => {
+      const cell = DATA_CELL_CATALOGUE[cellId]
+      return [
+        cell.railway.environment,
+        Object.freeze({
+          cellId,
+          environment: cell.railway.environment,
+          serviceRegion: cell.railway.serviceRegion,
+          bucketRegion: cell.railway.bucketRegion,
+          publicDomain: cell.domain,
+          providerProfile: cell.providerProfile,
+        }),
+      ]
+    }),
+  ) as Record<RailwayCellEnvironment, CellTopology>,
+)
 
 export const RAILWAY_CELL_ENVIRONMENTS = Object.freeze(
-  Object.keys(CELL_TOPOLOGIES) as RailwayCellEnvironment[],
+  DATA_CELL_IDS.map((cellId) => DATA_CELL_CATALOGUE[cellId].railway.environment),
 )
 
 export function resolveCellTopology(environment: string | undefined): CellTopology {

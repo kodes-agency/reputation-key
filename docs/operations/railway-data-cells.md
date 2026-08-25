@@ -156,11 +156,9 @@ A fourth cell is not added by copying an environment in the dashboard:
 
 ## Known blockers before live apply
 
-- `REG-01` still has the historical single-cell router: Europe and Global are
-  mapped to US at runtime. Applying three environments before replacing that
-  contract would either process in the wrong cell or quarantine legitimate
-  work. No non-US cell may accept traffic until the router and persisted
-  `dataCellId` contract land.
+- The authoritative catalogue and fail-closed router have landed. Europe and
+  Global remain in `provisioning` until immutable Property assignment,
+  wrong-cell storage/worker fences, and recovery drills are proven.
 - The current release script uploads the working tree with `railway up`.
   `REG-03` must replace it with digest promotion before production cutover.
 - Railway project/environment tokens for PR drift checks are not yet installed.

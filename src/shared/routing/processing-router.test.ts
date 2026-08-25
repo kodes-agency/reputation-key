@@ -69,8 +69,8 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     }
   })
 
-  it.each(['us', 'europe', 'global'])(
-    "routes the processable '%s' region to the approved cell",
+  it.each(['europe', 'global'])(
+    "never falls the provisioning '%s' cell back to US",
     async (region) => {
       const router = createProcessingRouter({
         loadPropertyRouting: stubLoader({
@@ -85,15 +85,24 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       )
 
       expect(decision).toEqual({
-        kind: 'target',
-        cell: 'us',
+        kind: 'blocked',
+        reason: 'region_denied',
         region,
-        queue: 'default',
-        provider: 'gbp-default',
-        routingPolicyVersion: 1,
       })
     },
   )
+
+  it('blocks a routing-policy version newer than the signed catalogue', async () => {
+    const router = createProcessingRouter({
+      loadPropertyRouting: stubLoader({
+        'prop-1': { processingRegion: 'us', routingPolicyVersion: 999 },
+      }),
+      cell: 'us',
+    })
+    await expect(
+      router.resolve({ kind: 'property', propertyId: 'prop-1' }, 'review.sync'),
+    ).resolves.toEqual({ kind: 'blocked', reason: 'region_denied', region: 'us' })
+  })
 
   it.each(['ap-southeast-2', 'eu', 'US', ''])(
     "blocks the unknown '%s' region with region_denied",
@@ -260,12 +269,15 @@ describe('workloadClassForJob (BQC-4.2)', () => {
 })
 
 describe('providerRefForCell (BQC-4.3)', () => {
-  it("returns the approved cell's logical provider reference", () => {
-    expect(providerRefForCell('us')).toBe('gbp-default')
-  })
+  it.each(['us', 'europe', 'global'])(
+    "returns the known %s cell's logical provider reference",
+    (cell) => {
+      expect(providerRefForCell(cell)).toBe('gbp-default')
+    },
+  )
 
-  it.each(['europe', 'global', 'unresolved', 'ap-southeast-2', ''])(
-    "returns undefined for the non-approved cell '%s' (no provider to fall back to)",
+  it.each(['unresolved', 'ap-southeast-2', ''])(
+    "returns undefined for the unknown cell '%s' (no provider fallback)",
     (cell) => {
       expect(providerRefForCell(cell)).toBeUndefined()
     },

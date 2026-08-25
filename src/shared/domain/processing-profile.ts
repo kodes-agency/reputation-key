@@ -11,13 +11,18 @@
 // Based on: PRE17B plan §2.2 and Google policy response §4-5.
 
 import type { PropertyId } from './ids'
+import {
+  DATA_CELL_IDS,
+  dataCellIdForCountry,
+  type DataCellId,
+} from './data-cell-catalogue'
 
-/** Every provider-neutral processing region, enumerable so the domain
- * predicate and the router's target table can be checked against each other. */
-export const ALL_PROCESSING_REGIONS = ['us', 'europe', 'global'] as const
+/** Every stable Data Cell id. Retained under the legacy name during expansion. */
+export const ALL_PROCESSING_REGIONS = DATA_CELL_IDS
 
 /** Provider-neutral processing region. */
-export type ProcessingRegion = (typeof ALL_PROCESSING_REGIONS)[number]
+/** @deprecated Persist and route `DataCellId`; retained during expand migration. */
+export type ProcessingRegion = DataCellId
 
 /** How the processing region was determined. */
 export type RegionSource =
@@ -56,65 +61,12 @@ export type ProcessingAvailability =
 /**
  * Resolve a processing region from a country code.
  *
- * The initial Europe set must be explicitly reviewed and should cover the
- * EEA plus any separately approved UK/Swiss routing policy. It must not
- * be inferred from a string prefix.
+ * Country allocation is delegated to the versioned authoritative catalogue;
+ * it must never be inferred from string prefixes or deployment location.
  */
-const EUROPEAN_COUNTRIES: ReadonlySet<string> = new Set([
-  // EEA member states
-  'AT',
-  'BE',
-  'BG',
-  'HR',
-  'CY',
-  'CZ',
-  'DK',
-  'EE',
-  'FI',
-  'FR',
-  'DE',
-  'GR',
-  'HU',
-  'IS',
-  'IE',
-  'IT',
-  'LV',
-  'LI',
-  'LT',
-  'LU',
-  'MT',
-  'NL',
-  'NO',
-  'PL',
-  'PT',
-  'RO',
-  'SK',
-  'SI',
-  'ES',
-  'SE',
-  // UK (separately approved)
-  'GB',
-  // Switzerland (separately approved)
-  'CH',
-])
-
-const US_TERRITORY_CODES: ReadonlySet<string> = new Set([
-  'US',
-  'PR',
-  'GU',
-  'VI',
-  'MP',
-  'AS',
-])
-
 export function resolveRegion(countryCode: string): ProcessingRegion | 'unresolved' {
-  const code = countryCode.toUpperCase()
-  if (US_TERRITORY_CODES.has(code)) return 'us'
-  if (EUROPEAN_COUNTRIES_CODES.has(code)) return 'europe'
-  return 'global'
+  return dataCellIdForCountry(countryCode)
 }
-
-const EUROPEAN_COUNTRIES_CODES = EUROPEAN_COUNTRIES
 
 /**
  * Check whether a processing profile is available for AI operations.

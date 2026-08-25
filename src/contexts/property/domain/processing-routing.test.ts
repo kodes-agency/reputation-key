@@ -86,23 +86,23 @@ describe('wouldChangeResolvedRegion', () => {
   })
 })
 
-// Private-beta execution is globally available for properties with a resolved
-// country-derived cell. A genuinely unresolved property still fails closed.
+// Cell identity and activation are separate: a known provisioning cell is a
+// valid allocation target but not yet executable.
 describe('isRegionProcessable', () => {
-  it.each(['us', 'europe', 'global'])('allows the resolved %s cell', (region) => {
-    expect(isRegionProcessable(region)).toBe(true)
+  it('allows the existing accepting US cell', () => {
+    expect(isRegionProcessable('us')).toBe(true)
   })
 
-  it('is false for unresolved or missing regions', () => {
-    expect(isRegionProcessable('unresolved')).toBe(false)
-    expect(isRegionProcessable(null)).toBe(false)
-  })
+  it.each(['europe', 'global', 'unresolved', null])(
+    'fails closed for the non-accepting or unresolved cell %s',
+    (region) => {
+      expect(isRegionProcessable(region)).toBe(false)
+    },
+  )
 })
 
-// The domain predicate and the router's target table are one decision written
-// twice. A region that is processable here but absent from CELL_TARGETS is
-// accepted at import time and then quarantined at dispatch with no terminal
-// state — a silent, unbounded retry loop. Keep them in lockstep.
+// The domain predicate and router both consume the authoritative catalogue.
+// Only cells in `accepting` state are processable and dispatchable.
 describe('processable regions vs routed regions (contract)', () => {
   it('every processable region has a routing target', () => {
     const unrouted = ALL_PROCESSING_REGIONS.filter(
@@ -111,19 +111,24 @@ describe('processable regions vs routed regions (contract)', () => {
     expect(unrouted).toEqual([])
   })
 
-  it('every routed region is processable', () => {
-    const unprocessable = [...ROUTED_REGIONS].filter(
-      (region) => !isRegionProcessable(region),
-    )
-    expect(unprocessable).toEqual([])
+  it('keeps known provisioning cells routable but non-executable', () => {
+    expect(ROUTED_REGIONS).toEqual(new Set(['us', 'europe', 'global']))
+    expect([...ROUTED_REGIONS].filter((region) => !isRegionProcessable(region))).toEqual([
+      'europe',
+      'global',
+    ])
   })
 })
 
 describe('assertRegionResolved', () => {
-  it.each(['us', 'europe', 'global'])(
-    'does not throw for the resolved %s cell',
+  it('does not throw for the accepting US cell', () => {
+    expect(() => assertRegionResolved({ processingRegion: 'us' })).not.toThrow()
+  })
+
+  it.each(['europe', 'global'])(
+    'fails closed while the known %s cell is provisioning',
     (region) => {
-      expect(() => assertRegionResolved({ processingRegion: region })).not.toThrow()
+      expect(() => assertRegionResolved({ processingRegion: region })).toThrow()
     },
   )
 
@@ -142,9 +147,16 @@ describe('assertRegionResolved', () => {
 // detail DTO, operator diagnostic). Mirrors the ProcessingRouter's blocked
 // reasons — 'unresolved'/missing vs denied cell/placeholder.
 describe('regionBlockedReason', () => {
-  it.each(['us', 'europe', 'global'])('is null for the available %s cell', (region) => {
-    expect(regionBlockedReason(region)).toBeNull()
+  it('is null for the accepting US cell', () => {
+    expect(regionBlockedReason('us')).toBeNull()
   })
+
+  it.each(['europe', 'global'])(
+    'reports region_denied while the known %s cell is provisioning',
+    (region) => {
+      expect(regionBlockedReason(region)).toBe('region_denied')
+    },
+  )
 
   it('is region_unresolved for unresolved or missing regions', () => {
     expect(regionBlockedReason('unresolved')).toBe('region_unresolved')

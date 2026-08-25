@@ -121,7 +121,7 @@ describe('getProperty', () => {
   })
 
   it.each(['europe', 'global'] as const)(
-    'reports the resolved %s processing cell as processable',
+    'reports the provisioning %s processing cell as unavailable',
     async (region) => {
       const { useCase, propertyRepo } = setup()
       const ctx = buildTestAuthContext()
@@ -130,8 +130,8 @@ describe('getProperty', () => {
 
       const result = await useCase({ propertyId: prop.id }, ctx)
 
-      expect(result.regionProcessable).toBe(true)
-      expect(result.regionBlockedReason).toBeNull()
+      expect(result.regionProcessable).toBe(false)
+      expect(result.regionBlockedReason).toBe('region_denied')
     },
   )
 

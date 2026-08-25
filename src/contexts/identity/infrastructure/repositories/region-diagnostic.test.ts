@@ -191,22 +191,23 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
     expect(unresolved.blockedReason).toBe('region_unresolved')
     expect(unresolved.processingRegionSource).toBe('organization_default')
 
-    // The single approved cell serves every processable region.
+    // Catalogue entries are not processable until their own cells pass the
+    // deployment and recovery gates and transition to accepting.
     const europe = await ops.getRegionDiagnostic({
       organizationId: ORG,
       propertyId: PROP_EUROPE,
       actorUserId: ADMIN,
     })
-    expect(europe.processable).toBe(true)
-    expect(europe.blockedReason).toBeNull()
+    expect(europe.processable).toBe(false)
+    expect(europe.blockedReason).toBe('region_denied')
 
     const globalProp = await ops.getRegionDiagnostic({
       organizationId: ORG,
       propertyId: PROP_GLOBAL,
       actorUserId: ADMIN,
     })
-    expect(globalProp.processable).toBe(true)
-    expect(globalProp.blockedReason).toBeNull()
+    expect(globalProp.processable).toBe(false)
+    expect(globalProp.blockedReason).toBe('region_denied')
     expect(globalProp.routingPolicyVersion).toBe(3)
 
     // A region with no routing target still fails closed.
@@ -259,7 +260,7 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
     expect(byProperty).toContain(
       `${PROP_UNRESOLVED}:region diagnostic: region_unresolved`,
     )
-    expect(byProperty).toContain(`${PROP_EUROPE}:region diagnostic: processable`)
+    expect(byProperty).toContain(`${PROP_EUROPE}:region diagnostic: region_denied`)
     expect(byProperty).toContain(`${PROP_DENIED}:region diagnostic: region_denied`)
   })
 })

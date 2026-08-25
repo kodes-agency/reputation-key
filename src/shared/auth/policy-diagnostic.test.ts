@@ -87,12 +87,12 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
     expect(result.blockedReason).toBe('region_unresolved')
   })
 
-  it.each(['us', 'europe', 'global'])('reports %s as processable', async (region) => {
+  it('reports the accepting us cell as processable', async () => {
     const { getRegionDiagnostic } = setup({
       [PROP]: {
-        processingRegion: region,
+        processingRegion: 'us',
         processingRegionSource: 'google_address',
-        routingPolicyVersion: 1,
+        routingPolicyVersion: 2,
       },
     })
 
@@ -101,6 +101,24 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
     expect(result.processable).toBe(true)
     expect(result.blockedReason).toBeNull()
   })
+
+  it.each(['europe', 'global'])(
+    'reports provisioning %s as region_denied',
+    async (region) => {
+      const { getRegionDiagnostic } = setup({
+        [PROP]: {
+          processingRegion: region,
+          processingRegionSource: 'google_address',
+          routingPolicyVersion: 2,
+        },
+      })
+
+      const result = await getRegionDiagnostic({ organizationId: ORG, propertyId: PROP })
+
+      expect(result.processable).toBe(false)
+      expect(result.blockedReason).toBe('region_denied')
+    },
+  )
 
   it.each(['ap-southeast-2', 'eu'])('reports %s as region_denied', async (region) => {
     const { getRegionDiagnostic } = setup({

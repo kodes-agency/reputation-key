@@ -130,7 +130,7 @@ describe('Google import Property candidate classifier', () => {
       { kind: 'active_binding_conflict' },
       { kind: 'unavailable' },
       { kind: 'unavailable' },
-      { kind: 'create' },
+      { kind: 'region_unavailable' },
       { kind: 'region_unavailable' },
     ])
     expect(result[2]).toMatchObject({

@@ -3,15 +3,19 @@
 // Pure helpers: country → provider-neutral processing region with provenance.
 // No silent region change after a property is already resolved.
 //
-// Private beta executes for every resolved country-derived cell. A genuinely
-// unresolved property remains denied because no routing fact exists.
+// Private beta executes only in catalogue cells whose lifecycle state is
+// `accepting`. Provisioning or unresolved cells fail closed.
 
 import { resolveRegion } from '#/shared/domain/processing-profile'
+import {
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+  isDataCellAccepting,
+} from '#/shared/domain/data-cell-catalogue'
 import { propertyError } from './errors'
 import { DEFAULT_PROPERTY_ROUTING, type Property } from './types'
 
 /** Version of the country → region map stored on each property. */
-export const ROUTING_POLICY_VERSION = 1
+export const ROUTING_POLICY_VERSION = DATA_CELL_CATALOGUE_POLICY_VERSION
 
 export type PropertyRoutingFields = Pick<
   Property,
@@ -80,17 +84,11 @@ export function wouldChangeResolvedRegion(
 }
 
 /**
- * Resolved processing cells available to the global private beta.
- * `unresolved` is intentionally absent and continues to fail closed.
- */
-const PROCESSABLE_REGIONS: ReadonlySet<string> = new Set(['us', 'europe', 'global'])
-
-/**
- * True when the property has a resolved processing cell. Missing and
- * `unresolved` routing facts fail closed.
+ * True when the property has a resolved, accepting Data Cell. A known cell in
+ * provisioning/draining/denied state is not executable and fails closed.
  */
 export function isRegionProcessable(region: string | null): boolean {
-  return region != null && PROCESSABLE_REGIONS.has(region)
+  return isDataCellAccepting(region)
 }
 
 /**
