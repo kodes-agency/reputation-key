@@ -125,6 +125,46 @@ describe('rebuildInboxProjection', () => {
     expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(0)
   })
 
+  it('creates a missing expired review directly in the closed state', async () => {
+    const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
+    const { useCase, repo, events } = setup({ sources: [src] })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 1 })
+    expect(repo.items[0]).toMatchObject({
+      sourceId: src.id,
+      status: 'closed',
+      closedAt: NOW,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+  })
+
+  it('creates a missing review with its reply milestones and closed outcome', async () => {
+    const src = makeSource()
+    const publishedAt = new Date('2026-06-06T12:00:00Z')
+    const milestones: ReadonlyMap<string, ReplyMilestones> = new Map([
+      [
+        src.id as string,
+        {
+          firstSubmittedAt: new Date('2026-06-05T12:00:00Z'),
+          firstPublishedAt: publishedAt,
+        },
+      ],
+    ])
+    const { useCase, repo } = setup({ sources: [src], milestones })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 1, milestones: 1 })
+    expect(repo.items[0]).toMatchObject({
+      status: 'closed',
+      closedAt: publishedAt,
+      firstReplySubmittedAt: new Date('2026-06-05T12:00:00Z'),
+      firstReplyPublishedAt: publishedAt,
+    })
+  })
+
   it('closes an open item whose review row is gone (purged)', async () => {
     const item = makeItem({ status: 'open' })
     const { useCase, repo, events } = setup({ items: [item], sources: [] })

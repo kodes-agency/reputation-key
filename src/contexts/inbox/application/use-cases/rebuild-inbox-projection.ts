@@ -7,9 +7,10 @@
 // - reply milestones (first submitted/published) via the reply lookup port.
 //
 // Reconciles:
-// - missing items created (idempotent create — creation-during-rebuild does
-//   NOT re-emit created facts: rebuild is repair, not new information; the
-//   durable record is the report);
+// - missing items created directly in their canonical open/closed state with
+//   reply milestones (idempotent create — creation-during-rebuild does NOT
+//   re-emit created facts: rebuild is repair, not new information; the durable
+//   record is the report);
 // - expired-but-open items closed (with the status_changed fact — mirrors
 //   the review.expired purge end state);
 // - missing reply milestones stamped (no fact — milestones have no event
@@ -51,7 +52,7 @@ export type RebuildInboxProjectionReport = Readonly<{
   scanned: number
   /** Items created for canonical reviews that had none. */
   created: number
-  /** Open items closed (purged/expired source, or published reply). */
+  /** Items repaired or initially materialized in the closed state. */
   closed: number
   /** Items that received a missing reply milestone stamp. */
   milestones: number
@@ -233,33 +234,70 @@ export const rebuildInboxProjection =
       if (batch.length < batchSize) break
     }
 
-    // Pass B — canonical reviews with no inbox item.
-    for (const src of sources) {
-      counters.scanned += 1
-      if (seenSourceIds.has(src.id as string)) continue
-      const built = buildInboxItem({
-        id: deps.idGen(),
-        organizationId: input.organizationId,
-        propertyId: src.propertyId,
-        sourceType: 'review',
-        sourceId: src.id,
-        sourceDate: src.sourceDate,
-        platform: src.platform,
-        assignedTo: null,
-        clock: deps.clock,
-      })
-      if (built.isErr()) {
-        deps.logger.warn(
-          { err: built.error },
-          'rebuildInboxProjection: skipping review — item construction failed',
+    // Pass B — canonical reviews with no inbox item. Resolve reply milestones
+    // in bounded chunks, then materialize the FINAL state in one pass. Creating
+    // every missing source as open forced expired/published reviews to wait for
+    // a second rebuild before the projection converged.
+    counters.scanned += sources.length
+    const missingSources = sources.filter(
+      (source) => !seenSourceIds.has(source.id as string),
+    )
+    for (let offset = 0; offset < missingSources.length; offset += batchSize) {
+      const batch = missingSources.slice(offset, offset + batchSize)
+      const liveIds = batch
+        .filter(
+          (source) => source.contentExpiresAt === null || source.contentExpiresAt > now,
         )
-        continue
-      }
-      counters.created += 1
-      if (!input.dryRun) {
-        // Idempotent create, NO created fact — rebuild is repair, not new
-        // information; the durable record is this report.
-        await deps.commandStore.createItem(built.value, null)
+        .map((source) => source.id)
+      const milestones =
+        liveIds.length > 0
+          ? await deps.replyLookup.getReplyMilestonesByReviewIds(
+              liveIds,
+              input.organizationId,
+            )
+          : new Map<string, ReplyMilestones>()
+
+      for (const src of batch) {
+        const built = buildInboxItem({
+          id: deps.idGen(),
+          organizationId: input.organizationId,
+          propertyId: src.propertyId,
+          sourceType: 'review',
+          sourceId: src.id,
+          sourceDate: src.sourceDate,
+          platform: src.platform,
+          assignedTo: null,
+          clock: deps.clock,
+        })
+        if (built.isErr()) {
+          deps.logger.warn(
+            { err: built.error },
+            'rebuildInboxProjection: skipping review — item construction failed',
+          )
+          continue
+        }
+
+        const reply = milestones.get(src.id as string)
+        const expired = src.contentExpiresAt !== null && src.contentExpiresAt <= now
+        const closeAt = expired ? now : (reply?.firstPublishedAt ?? null)
+        const item: InboxItem = {
+          ...built.value,
+          status: closeAt ? 'closed' : 'open',
+          closedAt: closeAt,
+          firstReplySubmittedAt: reply?.firstSubmittedAt ?? null,
+          firstReplyPublishedAt: reply?.firstPublishedAt ?? null,
+        }
+
+        counters.created += 1
+        if (closeAt) counters.closed += 1
+        if (item.firstReplySubmittedAt ?? item.firstReplyPublishedAt) {
+          counters.milestones += 1
+        }
+        if (!input.dryRun) {
+          // Idempotent create, NO created/status fact — rebuild is repair, not
+          // new information; the durable record is this report.
+          await deps.commandStore.createItem(item, null)
+        }
       }
     }
 
