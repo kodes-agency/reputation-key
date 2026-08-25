@@ -11,6 +11,7 @@ const PROPERTY_B = 'db000000-0000-4000-8000-000000000002'
 const PARTICIPATION = 'db000000-0000-4000-8000-000000000011'
 const PORTAL_A = 'db000000-0000-4000-8000-000000000021'
 const PORTAL_B = 'db000000-0000-4000-8000-000000000022'
+const PORTAL_C = 'db000000-0000-4000-8000-000000000023'
 const START = new Date('2026-08-07T12:00:00.000Z')
 const CHANGE = new Date('2026-08-08T12:00:00.000Z')
 
@@ -69,9 +70,10 @@ beforeEach(async () => {
   ])
   await pool.query(
     `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, created_at, updated_at)
-     VALUES ($1, $3, $4::uuid, 'property', $4::uuid::text, 'Portal A', 'staff-portal-a', NOW(), NOW()),
-            ($2, $5, $6::uuid, 'property', $6::uuid::text, 'Portal B', 'staff-portal-b', NOW(), NOW())`,
-    [PORTAL_A, PORTAL_B, ORG_A, PROPERTY_A, ORG_B, PROPERTY_B],
+     VALUES ($1, $4, $5::uuid, 'property', $5::uuid::text, 'Portal A', 'staff-portal-a', NOW(), NOW()),
+            ($2, $6, $7::uuid, 'property', $7::uuid::text, 'Portal B', 'staff-portal-b', NOW(), NOW()),
+            ($3, $4, $5::uuid, 'property', $5::uuid::text, 'Portal C', 'staff-portal-c', NOW(), NOW())`,
+    [PORTAL_A, PORTAL_B, PORTAL_C, ORG_A, PROPERTY_A, ORG_B, PROPERTY_B],
   )
 })
 
@@ -127,6 +129,51 @@ describe('staff participation repository', () => {
     await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual(
       first,
     )
+  })
+
+  it('preserves unchanged responsibility intervals during a partial edit', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await repo.create(participation())
+    const [original] = await repo.replaceResponsibilities({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      staffParticipationId: PARTICIPATION,
+      selections: [{ portalId: PORTAL_A, kind: 'primary' }],
+      actorId: 'owner',
+      at: START,
+    })
+
+    const changed = await repo.replaceResponsibilities({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      staffParticipationId: PARTICIPATION,
+      selections: [
+        { portalId: PORTAL_A, kind: 'primary' },
+        { portalId: PORTAL_C, kind: 'supporting' },
+      ],
+      actorId: 'manager',
+      at: CHANGE,
+    })
+
+    expect(changed.find((row) => row.portalId === PORTAL_A)).toMatchObject({
+      id: original.id,
+      effectiveFrom: START,
+      createdBy: 'owner',
+    })
+    expect(changed.find((row) => row.portalId === PORTAL_C)).toMatchObject({
+      effectiveFrom: CHANGE,
+      createdBy: 'manager',
+    })
+
+    const unchangedHistory = await pool.query(
+      `SELECT effective_from, effective_to
+       FROM portal_responsibilities
+       WHERE staff_participation_id = $1 AND portal_id = $2`,
+      [PARTICIPATION, PORTAL_A],
+    )
+    expect(unchangedHistory.rows).toHaveLength(1)
+    expect(new Date(unchangedHistory.rows[0].effective_from)).toEqual(START)
+    expect(unchangedHistory.rows[0].effective_to).toBeNull()
   })
 
   it('archives participation and closes responsibility history transactionally', async () => {

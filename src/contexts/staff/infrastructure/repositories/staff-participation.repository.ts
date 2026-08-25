@@ -254,34 +254,41 @@ export const createStaffParticipationRepository = (
             isNull(portalResponsibilities.effectiveTo),
           ),
         )
-        .orderBy(asc(portalResponsibilities.portalId), asc(portalResponsibilities.kind))
-      const currentKey = currentRows.map((row) => `${row.portalId}:${row.kind}`).sort()
-      const desiredKey = input.selections
-        .map((selection) => `${selection.portalId}:${selection.kind}`)
-        .sort()
-      if (
-        currentKey.length === desiredKey.length &&
-        currentKey.every((value, index) => value === desiredKey[index])
-      ) {
+        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+      const keyFor = (value: { portalId: string; kind: string }) =>
+        `${value.portalId}:${value.kind}`
+      const currentByKey = new Map(currentRows.map((row) => [keyFor(row), row]))
+      const desiredByKey = new Map(
+        input.selections.map((selection) => [keyFor(selection), selection]),
+      )
+      const idsToEnd = currentRows
+        .filter((row) => !desiredByKey.has(keyFor(row)))
+        .map((row) => row.id)
+      const selectionsToInsert = [...desiredByKey.entries()]
+        .filter(([key]) => !currentByKey.has(key))
+        .map(([, selection]) => selection)
+
+      if (idsToEnd.length === 0 && selectionsToInsert.length === 0) {
         return currentRows.map(responsibilityFromRow)
       }
 
-      await tx
-        .update(portalResponsibilities)
-        .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
-        .where(
-          and(
-            eq(portalResponsibilities.organizationId, input.organizationId),
-            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
-            isNull(portalResponsibilities.effectiveTo),
-          ),
-        )
-      if (input.selections.length === 0) return []
+      if (idsToEnd.length > 0) {
+        await tx
+          .update(portalResponsibilities)
+          .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
+          .where(
+            and(
+              eq(portalResponsibilities.organizationId, input.organizationId),
+              eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+              inArray(portalResponsibilities.id, idsToEnd),
+              isNull(portalResponsibilities.effectiveTo),
+            ),
+          )
+      }
 
-      const inserted = await tx
-        .insert(portalResponsibilities)
-        .values(
-          input.selections.map((selection) => ({
+      if (selectionsToInsert.length > 0) {
+        await tx.insert(portalResponsibilities).values(
+          selectionsToInsert.map((selection) => ({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             portalId: selection.portalId,
@@ -291,7 +298,19 @@ export const createStaffParticipationRepository = (
             createdBy: input.actorId,
           })),
         )
-        .returning()
-      return inserted.map(responsibilityFromRow)
+      }
+
+      const activeRows = await tx
+        .select()
+        .from(portalResponsibilities)
+        .where(
+          and(
+            eq(portalResponsibilities.organizationId, input.organizationId),
+            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+            isNull(portalResponsibilities.effectiveTo),
+          ),
+        )
+        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+      return activeRows.map(responsibilityFromRow)
     }),
 })
