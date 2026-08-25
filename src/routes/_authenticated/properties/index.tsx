@@ -8,7 +8,7 @@ import { PropertyListPage } from '#/components/features/property/property-list-p
 import { deleteProperty } from '#/contexts/property/server/properties'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { propertyKeys } from '#/shared/queries/query-keys'
 
 export const Route = createFileRoute('/_authenticated/properties/')({
   beforeLoad: ({ context }) => {
@@ -23,7 +23,7 @@ function PropertyListRoute() {
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   const properties = propsData.properties
   const deleteAction = useActionMutation(deleteProperty, {
-    invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
+    invalidateKeys: [propertyKeys.list()],
   })
   return <PropertyListPage properties={properties} deleteAction={deleteAction} />
 }

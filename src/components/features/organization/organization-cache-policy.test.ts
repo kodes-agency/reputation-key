@@ -4,7 +4,7 @@ import { identityKeys } from '#/shared/queries/query-keys'
 import { organizationCachePolicy } from './organization-cache-policy'
 
 describe('organizationCachePolicy.onOrganizationUpdated', () => {
-  it('refreshes both the active organization and the shell organization list', async () => {
+  it('refreshes the active beta organization', async () => {
     const invalidated: ReadonlyArray<unknown>[] = []
     const queryClient = {
       invalidateQueries: (filters: { queryKey: ReadonlyArray<unknown> }) => {
@@ -15,6 +15,6 @@ describe('organizationCachePolicy.onOrganizationUpdated', () => {
 
     await organizationCachePolicy.onOrganizationUpdated(queryClient)
 
-    expect(invalidated).toEqual([identityKeys.activeOrg(), identityKeys.organizations()])
+    expect(invalidated).toEqual([identityKeys.activeOrg()])
   })
 })

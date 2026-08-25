@@ -69,7 +69,6 @@ export const notificationKeys = {
 // ── Identity / organization context ────────────────────────────────────
 export const identityKeys = {
   all: ['identity'] as const,
-  organizations: () => [...identityKeys.all, 'organizations'] as const,
   activeOrg: () => [...identityKeys.all, 'active-org'] as const,
   responseSla: () => [...identityKeys.all, 'response-sla'] as const,
   members: () => [...identityKeys.all, 'members'] as const,

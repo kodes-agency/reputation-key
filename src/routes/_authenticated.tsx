@@ -9,10 +9,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import { getSession } from '#/shared/auth/auth.functions'
-import {
-  getActiveOrganization,
-  setActiveOrganization,
-} from '#/contexts/identity/server/organizations'
+import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
@@ -31,9 +28,7 @@ import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { organizationsQuery, propertiesQuery } from '#/routes/-queries/route-queries'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -163,31 +158,19 @@ export const Route = createFileRoute('/_authenticated')({
     } satisfies AuthRouteContext
   },
   loader: async ({ context }) => {
-    const [orgs, props] = await Promise.all([
-      context.queryClient.ensureQueryData(organizationsQuery),
-      context.queryClient.ensureQueryData(propertiesQuery),
-    ])
-    return {
-      organizations: orgs.organizations,
-      properties: props.properties,
-    }
+    const props = await context.queryClient.ensureQueryData(propertiesQuery)
+    return { properties: props.properties }
   },
-  // Structural data (orgs, properties) rarely changes. Cached via Query
-  // (organizationsQuery/propertiesQuery, 5-min staleTime); refetched by
-  // targeted key invalidation after org-switching mutations.
+  // The property list rarely changes. It is cached via Query and refetched by
+  // targeted invalidation after property mutations.
   staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
   component: AuthenticatedLayout,
 })
 
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
-  const { data: orgsData } = useSuspenseQuery(organizationsQuery)
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const organizations = orgsData.organizations
   const properties = propsData.properties
-  const setActiveOrganizationFn = useActionMutation(setActiveOrganization, {
-    invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
-  })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
   const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
@@ -199,12 +182,7 @@ function AuthenticatedLayout() {
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
       ) : (
-        <StaffSidebar
-          organizations={organizations}
-          properties={properties}
-          activeOrganization={ctx.activeOrganization}
-          setActiveOrganization={setActiveOrganizationFn}
-        />
+        <StaffSidebar properties={properties} />
       )}
       {/*
         BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the

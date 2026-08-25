@@ -6,11 +6,9 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   getActiveOrganization,
-  listUserOrganizations,
   updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
-  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 import {
   getOrgResponseSlaFn,
@@ -23,12 +21,6 @@ import { identityKeys } from '#/shared/queries/query-keys'
 const activeOrgQuery = queryOptions({
   queryKey: identityKeys.activeOrg(),
   queryFn: () => getActiveOrganization(),
-  staleTime: 60_000,
-})
-
-const organizationsQuery = queryOptions({
-  queryKey: identityKeys.organizations(),
-  queryFn: () => listUserOrganizations(),
   staleTime: 60_000,
 })
 
@@ -46,15 +38,12 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
     }
   },
   loader: async ({ context }) => {
-    const [orgResult, orgsResult, slaResult] = await Promise.all([
+    const [orgResult, slaResult] = await Promise.all([
       context.queryClient.ensureQueryData(activeOrgQuery),
-      context.queryClient.ensureQueryData(organizationsQuery),
       context.queryClient.ensureQueryData(responseSlaQuery),
     ])
     return {
       organization: orgResult.organization,
-      organizations: orgsResult.organizations,
-      activeOrganizationId: orgResult.organization?.id ?? null,
       responseSlaHours: slaResult.responseSlaHours,
     }
   },
@@ -66,11 +55,8 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 function OrganizationSettingsRoute() {
   const queryClient = useQueryClient()
   const { data: orgResult } = useSuspenseQuery(activeOrgQuery)
-  const { data: orgsResult } = useSuspenseQuery(organizationsQuery)
   const { data: slaResult } = useSuspenseQuery(responseSlaQuery)
   const organization = orgResult.organization
-  const organizations = orgsResult.organizations
-  const activeOrganizationId = organization?.id ?? null
   const responseSlaHours = slaResult.responseSlaHours
   const updateResponseSla = useActionMutation(updateOrgResponseSlaFn, {
     successMessage: 'Response SLA updated',
@@ -90,14 +76,11 @@ function OrganizationSettingsRoute() {
       {organization ? (
         <OrganizationSettingsPage
           organization={organization}
-          organizations={organizations}
-          activeOrganizationId={activeOrganizationId}
           responseSlaHours={responseSlaHours}
           updateResponseSla={updateResponseSla}
           updateOrganization={updateOrganizationAction}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
           finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
-          setActiveOrganizationFn={setActiveOrganization}
         />
       ) : (
         <div className="text-center text-sm text-muted-foreground py-12">

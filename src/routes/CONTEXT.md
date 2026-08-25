@@ -77,7 +77,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 
 ### Reading parent layout data
 
-Parent layout data (orgs, properties, property) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`organizationsQuery`, `propertiesQuery`, `propertyQuery(propertyId)`). The parent loaders `ensureQueryData` these (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
+Parent layout data (properties and property detail) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`propertiesQuery`, `propertyQuery(propertyId)`). The beta shell intentionally does not query or expose an Organization switcher. Parent loaders `ensureQueryData` these property queries (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
 
 ```tsx
 import { propertyQuery } from '#/routes/-queries/route-queries'
@@ -87,11 +87,11 @@ const property = data.property
 
 ### StaleTime strategy
 
-| Data type                 | staleTime            | Why                             |
-| ------------------------- | -------------------- | ------------------------------- |
-| Organizations, properties | 5 min (layout level) | Structural data, rarely changes |
-| Property detail           | 60s                  | Moderate freshness needed       |
-| Active sub-routes         | 30s                  | Most dynamic                    |
+| Data type         | staleTime            | Why                             |
+| ----------------- | -------------------- | ------------------------------- |
+| Properties        | 5 min (layout level) | Structural data, rarely changes |
+| Property detail   | 60s                  | Moderate freshness needed       |
+| Active sub-routes | 30s                  | Most dynamic                    |
 
 ### TanStack Query (client server-state cache)
 
@@ -116,7 +116,7 @@ TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouter
 ```tsx
 const deleteAction = useActionMutation(deleteProperty, {
   successMessage: 'Property deleted',
-  invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
+  invalidateKeys: [propertyKeys.list()],
 })
 ```
 

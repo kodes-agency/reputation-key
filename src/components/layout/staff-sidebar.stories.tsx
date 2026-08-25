@@ -5,35 +5,18 @@
 // ADR 0016), defaulting to the first property when none is selected, so nav is
 // usable even on first render.
 //
-// The org switcher renders only when an activeOrganization is present; the
-// property switcher renders only when more than one property is available.
-// Stories vary each axis and assert that deferred Team navigation stays absent.
-//
-// setActiveOrganization is a prop (Phase-1 fn-as-prop channel) wrapped by
-// useAction inside the component; the story passes a plain matching callable.
+// The property switcher renders only when more than one property is available.
+// Stories assert that multi-Organization and deferred Team navigation stay absent.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import { StaffSidebar } from './staff-sidebar'
 
-const organizations = [
-  { id: 'org-acme', name: 'Acme Group' },
-  { id: 'org-globex', name: 'Globex Worldwide' },
-]
-
 const properties = [
   { id: 'prop-acme', name: 'Acme Hotel', slug: 'acme-hotel' },
   { id: 'prop-globex', name: 'Globex HQ', slug: 'globex-hq' },
 ]
-
-// Prop type is a plain callable (not a server-fn brand), so a matching async fn
-// satisfies it directly — no cast needed.
-const setActiveOrganization = async (_input: {
-  data: { organizationId: string }
-}): Promise<void> => {
-  // No-op: org switch is reflected via the activeOrganization prop in real use.
-}
 
 const meta: Meta<typeof StaffSidebar> = {
   title: 'Layout/StaffSidebar',
@@ -51,40 +34,19 @@ const meta: Meta<typeof StaffSidebar> = {
 export default meta
 type Story = StoryObj<typeof StaffSidebar>
 
-// Staff role, two organizations and two properties: beta navigation plus both
-// switchers.
+// Legacy Staff posture with two properties: beta navigation and property scope.
 export const AsStaff: Story = {
   args: {
-    organizations,
     properties,
-    activeOrganization: organizations[0],
-    setActiveOrganization,
-  },
-  decorators: [withRole('Staff')],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    // Org switcher shows the active organization.
-    expect(await canvas.findByText(/acme group/i)).toBeInTheDocument()
-    // Beta Staff navigation renders without deferred product surfaces.
-    expect(canvas.getByText(/^home$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^leaderboard$/i)).toBeInTheDocument()
-    expect(canvas.queryByText(/^team$/i)).toBeNull()
-  },
-}
-
-// No active organization → the org switcher is hidden; nav still renders.
-export const NoOrganization: Story = {
-  args: {
-    organizations,
-    properties,
-    activeOrganization: null,
-    setActiveOrganization,
   },
   decorators: [withRole('Staff')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^home$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/acme group/i)).toBeNull()
+    // Beta Staff navigation renders without deferred product surfaces.
+    expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
+    expect(canvas.getByText(/^leaderboard$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^team$/i)).toBeNull()
   },
 }
@@ -92,10 +54,7 @@ export const NoOrganization: Story = {
 // A single property → the property switcher is hidden (it only renders for >1).
 export const SingleProperty: Story = {
   args: {
-    organizations,
     properties: [properties[0]],
-    activeOrganization: organizations[0],
-    setActiveOrganization,
   },
   decorators: [withRole('Staff')],
   play: async ({ canvasElement }) => {

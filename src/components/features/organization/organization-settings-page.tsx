@@ -11,7 +11,6 @@ import type {
   updateOrganization,
   requestOrgLogoUpload,
   finalizeOrgLogoUpload,
-  setActiveOrganization,
 } from '#/contexts/identity/server/organizations'
 
 type OrgData = Readonly<{
@@ -23,8 +22,6 @@ type OrgData = Readonly<{
 }>
 type Props = Readonly<{
   organization: OrgData
-  organizations: ReadonlyArray<{ id: string; name: string }>
-  activeOrganizationId: string | null
   responseSlaHours: number
   updateResponseSla: Action<
     Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
@@ -36,7 +33,6 @@ type Props = Readonly<{
   >
   requestOrgLogoUploadFn: typeof requestOrgLogoUpload
   finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
-  setActiveOrganizationFn: typeof setActiveOrganization
 }>
 
 export function OrganizationSettingsPage({

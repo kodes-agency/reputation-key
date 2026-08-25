@@ -59,7 +59,7 @@ function AcceptInvitationRoute() {
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
     invalidateKeys: [
-      identityKeys.organizations(),
+      identityKeys.activeOrg(),
       propertyKeys.list(),
       identityKeys.invitations(),
     ],

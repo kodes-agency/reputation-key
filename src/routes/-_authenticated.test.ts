@@ -10,7 +10,6 @@ const { getSession, getActiveOrganization, getCapabilitySet } = vi.hoisted(() =>
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession }))
 vi.mock('#/contexts/identity/server/organizations', () => ({
   getActiveOrganization,
-  setActiveOrganization: vi.fn(),
 }))
 vi.mock('#/contexts/inbox/server/inbox', () => ({ getLastVisitCountFn: vi.fn() }))
 vi.mock('#/routes/-notification-fns', () => ({ notificationFns: {} }))
