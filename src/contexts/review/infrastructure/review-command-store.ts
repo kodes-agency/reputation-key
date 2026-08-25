@@ -120,11 +120,18 @@ export function createAtomicReviewCommandStore(
           `)
           const firstValue = firstSequenceResult.rows[0]
           const firstSequence = Number(firstValue?.analysis_sequence)
-          const occurredAt = firstValue?.occurred_at
+          const occurredAtValue = firstValue?.occurred_at
+          const occurredAt =
+            occurredAtValue instanceof Date
+              ? occurredAtValue
+              : typeof occurredAtValue === 'string'
+                ? new Date(occurredAtValue)
+                : null
           if (
             !Number.isSafeInteger(firstSequence) ||
             firstSequence <= 0 ||
-            !(occurredAt instanceof Date)
+            occurredAt === null ||
+            Number.isNaN(occurredAt.getTime())
           ) {
             throw reviewError(
               'repo_upsert_failed',
@@ -160,7 +167,6 @@ export function createAtomicReviewCommandStore(
             change: 'source_expired',
             occurredAt,
           })
-          await tx.delete(reviews).where(sql`${reviews.id} = ${existing.id}`)
 
           const secondSequenceResult = await tx.execute(sql`
             SELECT lock_review_ai_analysis_head_v1(
@@ -184,14 +190,50 @@ export function createAtomicReviewCommandStore(
             sourceRevision: existing.sourceRevision + 1,
             analysisSequence: secondSequence,
           }
-          const inserted = await tx
-            .insert(reviews)
-            .values(reviewToRow(recreated))
+          const recreatedRow = reviewToRow(recreated)
+          const updated = await tx
+            .update(reviews)
+            .set({
+              propertyId: recreatedRow.propertyId,
+              platform: recreatedRow.platform,
+              externalId: recreatedRow.externalId,
+              externalLocationId: recreatedRow.externalLocationId,
+              googleConnectionId: recreatedRow.googleConnectionId,
+              reviewerName: recreatedRow.reviewerName,
+              reviewerProfilePhotoUrl: recreatedRow.reviewerProfilePhotoUrl,
+              rating: recreatedRow.rating,
+              text: recreatedRow.text,
+              translatedText: recreatedRow.translatedText,
+              languageCode: recreatedRow.languageCode,
+              reviewedAt: recreatedRow.reviewedAt,
+              expiresAt: recreatedRow.expiresAt,
+              sentimentLabel: recreatedRow.sentimentLabel,
+              sentimentScore: recreatedRow.sentimentScore,
+              sourceCreatedAt: recreatedRow.sourceCreatedAt,
+              sourceUpdatedAt: recreatedRow.sourceUpdatedAt,
+              firstFetchedAt: recreatedRow.firstFetchedAt,
+              lastFetchedAt: recreatedRow.lastFetchedAt,
+              contentExpiresAt: recreatedRow.contentExpiresAt,
+              contentHash: recreatedRow.contentHash,
+              sourceSeenGeneration: recreatedRow.sourceSeenGeneration,
+              sourceEpoch: recreatedRow.sourceEpoch,
+              sourceRevision: recreatedRow.sourceRevision,
+              analysisSequence: recreatedRow.analysisSequence,
+              aiSourceByteLength: recreatedRow.aiSourceByteLength,
+              aiSourceDigest: recreatedRow.aiSourceDigest,
+              updatedAt: occurredAt,
+            })
+            .where(
+              sql`${reviews.id} = ${existing.id}
+                AND ${reviews.organizationId} = ${existing.organizationId}
+                AND ${reviews.propertyId} = ${existing.propertyId}
+                AND ${reviews.sourceEpoch} = ${existing.sourceEpoch}`,
+            )
             .returning()
-          if (!inserted[0]) {
+          if (!updated[0]) {
             throw reviewError(
               'repo_upsert_failed',
-              'Re-observed Review insert returned no row',
+              'Re-observed Review update returned no row',
             )
           }
           const createdEvent = reviewCreated({
@@ -207,7 +249,7 @@ export function createAtomicReviewCommandStore(
           await insertOutboxRow(tx, expiredEvent)
           await insertOutboxRow(tx, createdEvent)
           return {
-            review: reviewFromRow(inserted[0]),
+            review: reviewFromRow(updated[0]),
             expiredEvent,
             createdEvent,
           }

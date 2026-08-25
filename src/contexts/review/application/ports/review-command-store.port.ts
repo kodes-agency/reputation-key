@@ -20,7 +20,8 @@ export type ReviewCommandStore = Readonly<{
   ): Promise<Review>
   /**
    * At the database expiry equality boundary, atomically emit the old source
-   * expiry and recreate the same internal Review UUID as a fresh revision.
+   * expiry and advance the same durable Review identity to a fresh revision.
+   * Dependent staff-authored records must remain attached to that identity.
    */
   reobserveExpiredAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
