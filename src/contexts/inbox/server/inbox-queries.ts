@@ -19,6 +19,7 @@ import {
   getInboxFolderCountsDto,
 } from '../application/dto/inbox.dto'
 import { getLogger } from '#/shared/observability/logger'
+import { decodeInboxCursor } from '../application/inbox-cursor'
 
 // ── getInboxItems ──────────────────────────────────────────────────
 
@@ -36,6 +37,11 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
         })
         const { useCases } = getContainer()
         try {
+          const cursor = data.cursor ? decodeInboxCursor(data.cursor) : null
+          if (data.cursor && cursor === null) {
+            // Do not echo the untrusted cursor into logs.
+            getLogger().warn('inbox: malformed cursor, treating as first page')
+          }
           return await useCases.getInboxItems(
             {
               filters: {
@@ -61,34 +67,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                 q: data.q,
                 sort: data.sort,
               },
-              cursor: data.cursor
-                ? (() => {
-                    try {
-                      const parsed = JSON.parse(
-                        Buffer.from(data.cursor, 'base64').toString('utf-8'),
-                      )
-                      // F134: Validate cursor shape — must have sourceDate (string) and id (string)
-                      if (
-                        !parsed ||
-                        typeof parsed.sourceDate !== 'string' ||
-                        typeof parsed.id !== 'string'
-                      ) {
-                        getLogger().warn(
-                          { cursor: data.cursor },
-                          'inbox: malformed cursor shape, treating as first page',
-                        )
-                        return undefined
-                      }
-                      return parsed
-                    } catch {
-                      getLogger().warn(
-                        { cursor: data.cursor },
-                        'inbox: malformed cursor encoding, treating as first page',
-                      )
-                      return undefined
-                    }
-                  })()
-                : undefined,
+              cursor: cursor ?? undefined,
               limit: data.limit,
             },
             ctx,

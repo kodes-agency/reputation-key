@@ -37,6 +37,7 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - Assignee must have a `staff_assignment` record for the item's property.
 - Each inbox item has exactly one source (review or feedback), never both.
 - Feedback inbox items may have a denormalized rating value (from linked `ratings` row), nullable.
+- List cursors are bounded canonical base64 JSON. Their `sourceDate` must be a canonical ISO instant and `id` a UUID; malformed cursors are discarded before repository/SQL access and never echoed into logs.
 
 ## Events produced
 
