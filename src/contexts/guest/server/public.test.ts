@@ -169,12 +169,19 @@ describe('guest response server-fn gates', () => {
     expect(source).toContain('honeypot: z.string().max(256).optional()')
   })
 
-  it('answers a filled honeypot before submit resolves a session or writes', () => {
+  it('binds and rate-limits a filled submit honeypot before automatic filtering', () => {
     const fn = slice('submitGuestResponseFn')
-    const trap = fn.indexOf('if (data.honeypot) return decoyView(data)')
-    expect(trap).toBeGreaterThan(-1)
-    expect(trap).toBeLessThan(fn.indexOf('resolveBoundSession'))
-    expect(trap).toBeLessThan(fn.indexOf('responseLifecycle.submit'))
+    const resolve = fn.indexOf('resolveBoundSession')
+    const limit = fn.indexOf("'submit',")
+    const persist = fn.indexOf('responseLifecycle.submit')
+    const assessment = fn.indexOf('HONEYPOT_INTEGRITY_ASSESSMENT')
+    expect(resolve).toBeGreaterThan(-1)
+    expect(limit).toBeGreaterThan(resolve)
+    expect(persist).toBeGreaterThan(limit)
+    expect(assessment).toBeGreaterThan(persist)
+    expect(fn).toContain('if (trapped) return decoyView(data)')
+    expect(source).toContain("reasonCode: 'honeypot_signal'")
+    expect(source).toContain("outcome: 'filtered_automatically'")
   })
 
   it('answers a filled honeypot before correct resolves a session or writes', () => {

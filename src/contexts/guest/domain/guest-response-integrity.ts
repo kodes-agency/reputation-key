@@ -20,6 +20,20 @@ export type GuestResponseIntegrityDecision = Readonly<{
   decidedAt: Date
 }>
 
+export type GuestResponseInitialIntegrityAssessment = Readonly<{
+  outcome: GuestResponseIntegrityOutcome
+  reasonCode: string
+  source: 'system' | 'automatic'
+  actorId: string
+}>
+
+export const DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT = {
+  outcome: 'accepted',
+  reasonCode: 'initial_submission',
+  source: 'system',
+  actorId: 'guest.gateway',
+} as const satisfies GuestResponseInitialIntegrityAssessment
+
 export type GuestResponseIntegrityError =
   | Readonly<{ code: 'already_deleted' }>
   | Readonly<{ code: 'response_not_submitted' }>
@@ -69,7 +83,17 @@ function isActorId(value: string): boolean {
 
 export function initialGuestResponseIntegrityDecision(
   response: GuestResponse,
+  assessment: GuestResponseInitialIntegrityAssessment = DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
 ): GuestResponseIntegrityDecision {
+  if (
+    response.integrityRevision !== 1 ||
+    response.integrityOutcome !== assessment.outcome ||
+    response.integrityReasonCode !== assessment.reasonCode ||
+    !isReasonCode(assessment.reasonCode) ||
+    !isActorId(assessment.actorId)
+  ) {
+    throw new Error('Guest response initial integrity assessment is invalid')
+  }
   return {
     responseId: response.id,
     organizationId: response.organizationId,
@@ -79,8 +103,8 @@ export function initialGuestResponseIntegrityDecision(
     previousOutcome: null,
     outcome: response.integrityOutcome,
     reasonCode: response.integrityReasonCode,
-    source: 'system',
-    actorId: 'guest.gateway',
+    source: assessment.source,
+    actorId: assessment.actorId,
     decidedAt: response.integrityAssessedAt,
   }
 }

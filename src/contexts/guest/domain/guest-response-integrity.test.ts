@@ -4,6 +4,7 @@ import {
   changeGuestResponseIntegrity,
   initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
+  type GuestResponseInitialIntegrityAssessment,
 } from './guest-response-integrity'
 
 const NOW = new Date('2026-01-15T12:00:00Z')
@@ -47,6 +48,51 @@ describe('Guest Response integrity', () => {
       source: 'system',
       actorId: 'guest.gateway',
       decidedAt: NOW,
+    })
+  })
+
+  it('records a server-owned automatic initial filter without changing the rating', () => {
+    const assessment: GuestResponseInitialIntegrityAssessment = {
+      outcome: 'filtered_automatically',
+      reasonCode: 'honeypot_signal',
+      source: 'automatic',
+      actorId: 'guest-integrity-honeypot-v1',
+    }
+    const filtered = submitResponse(
+      createResponse({
+        id: 'resp-filtered',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        sessionId: 'session-filtered',
+        sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
+        retentionDeadline: new Date('2028-01-15T12:00:00Z'),
+        integrityAssessment: assessment,
+        experienceSnapshot: {
+          portalPublicationState: 'published',
+          portalConfigurationDigest: 'a'.repeat(64),
+          guestLocale: 'en',
+          languagePackVersion: 'guest-ui-en-v1',
+          privateFeedbackThreshold: 3,
+          capturedAt: NOW,
+        },
+      }),
+      { rating: 5 },
+      NOW,
+    ) as GuestResponse
+
+    expect(filtered).toMatchObject({
+      rating: 5,
+      integrityOutcome: 'filtered_automatically',
+      integrityReasonCode: 'honeypot_signal',
+    })
+    expect(isRatingMetricEligible(filtered)).toBe(false)
+    expect(initialGuestResponseIntegrityDecision(filtered, assessment)).toMatchObject({
+      previousOutcome: null,
+      outcome: 'filtered_automatically',
+      reasonCode: 'honeypot_signal',
+      source: 'automatic',
+      actorId: 'guest-integrity-honeypot-v1',
     })
   })
 

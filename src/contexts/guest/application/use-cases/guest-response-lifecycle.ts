@@ -29,7 +29,10 @@ import {
 } from '../../domain/guest-response'
 import {
   changeGuestResponseIntegrity,
+  DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
+  initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
+  type GuestResponseInitialIntegrityAssessment,
   type GuestResponseIntegrityOutcome,
 } from '../../domain/guest-response-integrity'
 import {
@@ -459,6 +462,7 @@ export function guestResponseLifecycle(
       input: GuestResponseInput,
       experience: GuestResponseExperienceInput,
       sessionExpiresAt?: Date,
+      initialIntegrityAssessment: GuestResponseInitialIntegrityAssessment = DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
     ): Promise<GuestResponseView> => {
       const now = deps.clock()
       const bindingExpiresAt =
@@ -487,6 +491,7 @@ export function guestResponseLifecycle(
             sessionExpiresAt: bindingExpiresAt,
             retentionDeadline: factRetentionDeadline(now),
             experienceSnapshot,
+            integrityAssessment: initialIntegrityAssessment,
           }),
           input,
           now,
@@ -496,6 +501,7 @@ export function guestResponseLifecycle(
         (await deps.commandStore.commitSubmitted(
           submitted,
           submissionFacts(submitted),
+          initialGuestResponseIntegrityDecision(submitted, initialIntegrityAssessment),
         )) === 'applied'
       ) {
         // Only the winning insert emits: the `existing`/`raced` paths return an

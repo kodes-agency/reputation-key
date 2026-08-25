@@ -21,6 +21,8 @@ export type GuestResponseCommandStore = Readonly<{
   commitSubmitted(
     response: GuestResponse,
     facts: ReadonlyArray<GuestSubmissionFact>,
+    /** Required for a non-default automatic assessment; omitted means baseline acceptance. */
+    integrityDecision?: GuestResponseIntegrityDecision,
   ): Promise<'applied' | 'duplicate'>
   /** Compare-and-set the one permitted correction and its replacement facts. */
   commitCorrected(

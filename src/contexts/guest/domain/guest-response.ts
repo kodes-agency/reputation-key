@@ -8,7 +8,11 @@
 // After the private rating, Google Review Action visibility/order/prominence is
 // invariant across all five values. Eligible feedback is additive and follows it.
 
-import type { GuestResponseIntegrityOutcome } from './guest-response-integrity'
+import {
+  DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
+  type GuestResponseInitialIntegrityAssessment,
+  type GuestResponseIntegrityOutcome,
+} from './guest-response-integrity'
 
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
@@ -102,7 +106,10 @@ export function createResponse(params: {
   sessionExpiresAt: Date
   retentionDeadline: Date
   experienceSnapshot: GuestResponseExperienceSnapshot
+  integrityAssessment?: GuestResponseInitialIntegrityAssessment
 }): GuestResponse {
+  const integrityAssessment =
+    params.integrityAssessment ?? DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT
   return {
     id: params.id,
     organizationId: params.organizationId,
@@ -111,8 +118,8 @@ export function createResponse(params: {
     sessionId: params.sessionId,
     sessionExpiresAt: params.sessionExpiresAt,
     status: 'pending',
-    integrityOutcome: 'accepted',
-    integrityReasonCode: 'initial_submission',
+    integrityOutcome: integrityAssessment.outcome,
+    integrityReasonCode: integrityAssessment.reasonCode,
     integrityRevision: 1,
     integrityAssessedAt: params.experienceSnapshot.capturedAt,
     rating: null,

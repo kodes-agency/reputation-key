@@ -56,6 +56,13 @@ const secondaryLinkMutationSchema = baseMutationSchema.extend({
   linkId: z.string().min(1).max(255),
 })
 
+const HONEYPOT_INTEGRITY_ASSESSMENT = {
+  outcome: 'filtered_automatically',
+  reasonCode: 'honeypot_signal',
+  source: 'automatic',
+  actorId: 'guest-integrity-honeypot-v1',
+} as const
+
 const denyWithoutEnumeration = (): never =>
   throwContextError(
     'GuestResponseError',
@@ -217,9 +224,11 @@ function assertions(input: GuestResponseInput): PublicConsentAssertions {
 
 /**
  * Honeypot response: a filled trap field is answered with the view a real
- * submit would have produced, and nothing is written. Silent by design — a
- * visible error (or a distinguishable success shape) tells the bot the trap
- * exists, which is the whole value of the trap.
+ * submit would have produced. Silent by design — a visible error (or a
+ * distinguishable success shape) tells the bot the trap exists. Valid,
+ * rate-limited rating submissions are retained under the automatic integrity
+ * outcome; this view remains the fail-closed fallback when binding/persistence
+ * cannot safely happen.
  */
 function decoyView(
   input: Readonly<{ rating?: number | null; text?: string | null }>,
@@ -251,20 +260,26 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        if (data.honeypot) return decoyView(data)
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.response.submit',
-          capability: 'portal.guest_response',
-          assertions: assertions(data),
-          requiredConsents: ['response'],
-        })
-        await rateLimit(
-          'submit',
-          bound.session.sessionId,
-          bound.scope.portalId,
-          bound.headers,
-        )
+        const trapped = Boolean(data.honeypot)
+        let bound: Awaited<ReturnType<typeof resolveBoundSession>>
+        try {
+          bound = await resolveBoundSession({
+            ...data,
+            action: 'public:portal.response.submit',
+            capability: 'portal.guest_response',
+            assertions: assertions(data),
+            requiredConsents: ['response'],
+          })
+          await rateLimit(
+            'submit',
+            bound.session.sessionId,
+            bound.scope.portalId,
+            bound.headers,
+          )
+        } catch (error) {
+          if (trapped) return decoyView(data)
+          throw error
+        }
         try {
           const response = await bound.useCases.responseLifecycle.submit(
             bound.scope,
@@ -279,6 +294,8 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
               privateFeedbackThreshold:
                 bound.portal.responseConfiguration.privateFeedbackThreshold,
             },
+            undefined,
+            trapped ? HONEYPOT_INTEGRITY_ASSESSMENT : undefined,
           )
           if (response.responseWithdrawalDeadline) {
             const renewed = bound.useCases.guestSessions.renewUntil(
@@ -289,6 +306,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
           }
           return response
         } catch (error) {
+          if (trapped) return decoyView(data)
           return lifecycleFailure(error)
         }
       },

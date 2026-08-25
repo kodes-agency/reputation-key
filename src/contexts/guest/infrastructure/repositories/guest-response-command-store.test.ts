@@ -18,7 +18,11 @@ import {
   guestRatingSubmitted,
 } from '../../domain/events'
 import type { GuestResponse } from '../../domain/guest-response'
-import { changeGuestResponseIntegrity } from '../../domain/guest-response-integrity'
+import {
+  changeGuestResponseIntegrity,
+  initialGuestResponseIntegrityDecision,
+  type GuestResponseInitialIntegrityAssessment,
+} from '../../domain/guest-response-integrity'
 import type { GuestSubmissionFact } from '../../application/ports/guest-response-command-store.port'
 import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
 import { createGuestResponseRepository } from './guest-response.repository'
@@ -239,6 +243,63 @@ describe.sequential('atomic Guest response submission', () => {
     `)
     expect(rows.rows).toHaveLength(0)
     expect(outbox.rows).toHaveLength(0)
+  })
+
+  it('retains an automatic initial filter without publishing a rating fact', async () => {
+    const events = createCapturingEventBus()
+    const store = createAtomicGuestResponseCommandStore(db, events)
+    const assessment: GuestResponseInitialIntegrityAssessment = {
+      outcome: 'filtered_automatically',
+      reasonCode: 'honeypot_signal',
+      source: 'automatic',
+      actorId: 'guest-integrity-honeypot-v1',
+    }
+    const filtered: GuestResponse = {
+      ...response(),
+      text: null,
+      textConsent: false,
+      feedbackSubmittedAt: null,
+      integrityOutcome: assessment.outcome,
+      integrityReasonCode: assessment.reasonCode,
+    }
+
+    await expect(
+      store.commitSubmitted(
+        filtered,
+        [],
+        initialGuestResponseIntegrityDecision(filtered, assessment),
+      ),
+    ).resolves.toBe('applied')
+
+    const rows = await db.execute(sql`
+      SELECT rating, integrity_outcome, rating_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        rating: 2,
+        integrity_outcome: 'filtered_automatically',
+        rating_source_event_id: null,
+      },
+    ])
+    const decisions = await db.execute(sql`
+      SELECT outcome, reason_code, source, actor_id
+      FROM guest_response_integrity_decisions
+      WHERE response_id = ${RESPONSE}
+    `)
+    expect(decisions.rows).toEqual([
+      {
+        outcome: 'filtered_automatically',
+        reason_code: 'honeypot_signal',
+        source: 'automatic',
+        actor_id: 'guest-integrity-honeypot-v1',
+      },
+    ])
+    const outbox = await db.execute(sql`
+      SELECT id FROM outbox_events WHERE organization_id = ${ORG}
+    `)
+    expect(outbox.rows).toHaveLength(0)
+    expect(events.capturedEvents).toHaveLength(0)
   })
 
   it('fails closed when a new submission has no experience snapshot', async () => {

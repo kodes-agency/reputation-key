@@ -101,6 +101,25 @@ function integrityFactsMatch(
   )
 }
 
+function initialIntegrityFactsMatch(
+  response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
+  facts: Parameters<GuestResponseCommandStore['commitSubmitted']>[1],
+): boolean {
+  const ratingFacts = facts.filter((fact) => fact._tag === 'guest.rating.submitted')
+  if (!isRatingMetricEligible(response)) return ratingFacts.length === 0
+  if (ratingFacts.length !== 1) return false
+  const fact = ratingFacts[0]!
+  return (
+    fact.ratingId === response.id &&
+    fact.organizationId === response.organizationId &&
+    fact.propertyId === response.propertyId &&
+    fact.portalId === response.portalId &&
+    fact.value === response.rating &&
+    !fact.supersedesSourceEventId &&
+    fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
+  )
+}
+
 /** Atomic canonical response + rating/feedback fact writer. */
 export function createAtomicGuestResponseCommandStore(
   db: Database,
@@ -136,17 +155,29 @@ export function createAtomicGuestResponseCommandStore(
   }
 
   return {
-    commitSubmitted: (response, facts) =>
+    commitSubmitted: (
+      response,
+      facts,
+      initialIntegrity = initialGuestResponseIntegrityDecision(response),
+    ) =>
       trace('guest.commandStore.commitSubmitted', async () => {
         const binding = requireSessionBinding(response)
         if (!binding || !response.submittedAt || !response.experienceSnapshot) {
           throw new Error('Guest response submission snapshot is required')
         }
         if (
-          response.integrityRevision !== 1 ||
-          response.integrityOutcome !== 'accepted' ||
-          response.integrityReasonCode !== 'initial_submission' ||
-          response.integrityAssessedAt.getTime() !== response.submittedAt.getTime()
+          initialIntegrity.responseId !== response.id ||
+          initialIntegrity.organizationId !== response.organizationId ||
+          initialIntegrity.propertyId !== response.propertyId ||
+          initialIntegrity.portalId !== response.portalId ||
+          initialIntegrity.revision !== 1 ||
+          initialIntegrity.previousOutcome !== null ||
+          initialIntegrity.outcome !== response.integrityOutcome ||
+          initialIntegrity.reasonCode !== response.integrityReasonCode ||
+          initialIntegrity.decidedAt.getTime() !== response.submittedAt.getTime() ||
+          initialIntegrity.decidedAt.getTime() !==
+            response.integrityAssessedAt.getTime() ||
+          !initialIntegrityFactsMatch(response, facts)
         ) {
           throw new Error('Guest response initial integrity decision is invalid')
         }
@@ -168,7 +199,6 @@ export function createAtomicGuestResponseCommandStore(
               .onConflictDoNothing()
               .returning({ id: guestResponses.id })
             if (inserted.length === 0) throw new GuestCommandConflict()
-            const initialIntegrity = initialGuestResponseIntegrityDecision(response)
             await tx.insert(guestResponseIntegrityDecisions).values({
               responseId: initialIntegrity.responseId,
               organizationId: initialIntegrity.organizationId,

@@ -455,6 +455,32 @@ describe('guest response lifecycle', () => {
     expect(repo.responses).toHaveLength(0)
   })
 
+  it('retains an automatically filtered submission without emitting a rating fact', async () => {
+    const { rawLifecycle, repo, events } = harness()
+    const receipt = await rawLifecycle.submit(
+      scope,
+      '00000000-0000-4000-8000-000000000003',
+      { rating: 5, responseConsent: true },
+      experience(),
+      undefined,
+      {
+        outcome: 'filtered_automatically',
+        reasonCode: 'honeypot_signal',
+        source: 'automatic',
+        actorId: 'guest-integrity-honeypot-v1',
+      },
+    )
+
+    expect(receipt).toMatchObject({ status: 'submitted', rating: 5 })
+    expect(receipt).not.toHaveProperty('integrityOutcome')
+    expect(repo.responses[0]).toMatchObject({
+      rating: 5,
+      integrityOutcome: 'filtered_automatically',
+      ratingSourceEventId: null,
+    })
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(0)
+  })
+
   it('submits, corrects once, and withdraws only for the same session', async () => {
     const { lifecycle } = harness()
     const submitted = await lifecycle.submit(
