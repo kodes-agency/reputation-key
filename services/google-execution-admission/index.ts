@@ -16,6 +16,7 @@ import {
   assertGoogleEgressGatewayIdentity,
   createGoogleAdmissionPeerIdentityResolver,
 } from '../google-peer-identities'
+import { loadGoogleAdmissionDatabaseTlsConfiguration } from './database-tls'
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
@@ -35,8 +36,13 @@ function portFromEnv(): number {
   return port
 }
 
-const pool = new Pool({
+const databaseTls = loadGoogleAdmissionDatabaseTlsConfiguration({
   connectionString: requiredEnv('DATABASE_URL'),
+  caBase64: requiredEnv('GOOGLE_ADMISSION_DATABASE_CA_B64'),
+})
+const pool = new Pool({
+  connectionString: databaseTls.connectionString,
+  ssl: databaseTls.ssl,
   max: 5,
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 30_000,
@@ -119,8 +125,17 @@ const server = createInternalMtlsWebServer({
       service,
       readiness: async () => {
         try {
-          const [redisReply] = await Promise.all([redis.ping(), pool.query('SELECT 1')])
-          return redisReply === 'PONG'
+          const [redisReply, databaseReply] = await Promise.all([
+            redis.ping(),
+            pool.query<{ ssl: boolean }>(`
+              SELECT COALESCE((
+                SELECT connection.ssl
+                FROM pg_catalog.pg_stat_ssl AS connection
+                WHERE connection.pid = pg_catalog.pg_backend_pid()
+              ), false) AS ssl
+            `),
+          ])
+          return redisReply === 'PONG' && databaseReply.rows[0]?.ssl === true
         } catch {
           return false
         }
@@ -135,7 +150,14 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
   await new Promise<void>((resolve) => server.close(() => resolve()))
-  await Promise.allSettled([redis.quit(), pool.end()])
+  try {
+    await Promise.allSettled([redis.quit(), pool.end()])
+  } finally {
+    databaseTls.dispose()
+    tls.ca.fill(0)
+    tls.cert.fill(0)
+    tls.key.fill(0)
+  }
 }
 
 process.once('SIGTERM', () => {

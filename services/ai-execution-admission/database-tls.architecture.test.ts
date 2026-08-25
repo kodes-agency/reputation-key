@@ -9,7 +9,7 @@ function source(path: string): string {
 describe('AI admission database transport architecture', () => {
   it('uses a dedicated CA, verified TLS pool, and live pg_stat_ssl readiness evidence', () => {
     const index = source('services/ai-execution-admission/index.ts')
-    const tls = source('services/ai-execution-admission/database-tls.ts')
+    const tls = source('services/postgres-database-tls.ts')
     const authority = source(
       'services/ai-execution-admission/postgres-admission-authority.ts',
     )

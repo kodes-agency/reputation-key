@@ -630,10 +630,12 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
   const caCertificate = asset('control-db-ca.crt')
   const serverCertificate = asset('control-db-server.crt')
   const serverKey = asset('control-db-server.key')
+  const tlsProfile = asset('control-database-tls-v2')
   if (
     !existsSync(caCertificate) ||
     !existsSync(serverCertificate) ||
-    !existsSync(serverKey)
+    !existsSync(serverKey) ||
+    !existsSync(tlsProfile)
   ) {
     for (const name of [
       'control-db-ca.crt',
@@ -643,6 +645,7 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
       'control-db-server.csr',
       'control-db-server.key',
       'control-db-server.ext',
+      'control-database-tls-v2',
     ]) {
       rmSync(asset(name), { force: true })
     }
@@ -683,9 +686,11 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
     )
     writeFileSync(
       asset('control-db-server.ext'),
-      ['subjectAltName=DNS:ai-control-postgres', 'extendedKeyUsage=serverAuth', ''].join(
-        '\n',
-      ),
+      [
+        'subjectAltName=DNS:ai-control-postgres,DNS:postgres',
+        'extendedKeyUsage=serverAuth',
+        '',
+      ].join('\n'),
       { mode: 0o600 },
     )
     run(
@@ -718,10 +723,12 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
     ]) {
       rmSync(asset(name), { force: true })
     }
+    writeFileSync(tlsProfile, 'control-database-tls-v2\n', { mode: 0o644 })
   }
   chmodSync(caCertificate, 0o644)
   chmodSync(serverCertificate, 0o644)
   chmodSync(serverKey, 0o640)
+  chmodSync(tlsProfile, 0o644)
 }
 
 type LocalApprovalRoleKeys = Readonly<
