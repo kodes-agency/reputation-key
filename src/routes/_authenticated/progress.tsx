@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { listGovernedGoals } from '#/contexts/goal/server/governed-goals'
+import { listGoalPrograms } from '#/contexts/goal/server/goal-programs'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { StaffGoalList } from '#/components/features/staff/staff-goal-list'
 import { StaffEmptyState } from '#/components/features/staff/staff-empty-state'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import type { GovernedGoalDefinition } from '#/contexts/goal/application/public-api'
+import type { GoalProgramBundle } from '#/contexts/goal/application/public-api'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
 const progressSearch = z.object({
@@ -17,7 +17,7 @@ const progressSearch = z.object({
 const staffGoalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: goalKeys.staff(propertyId),
-    queryFn: () => listGovernedGoals({ data: { propertyId } }),
+    queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: 60 * 1000,
   })
 
@@ -35,13 +35,13 @@ export const Route = createFileRoute('/_authenticated/progress')({
   loaderDeps: ({ search }) => ({ propertyId: search.propertyId }),
   loader: async ({ context, deps: { propertyId } }) => {
     if (!propertyId) {
-      return { goals: [] as GovernedGoalDefinition[] }
+      return { goals: [] as GoalProgramBundle[] }
     }
 
-    const { goals } = await context.queryClient.ensureQueryData(
+    const { programs } = await context.queryClient.ensureQueryData(
       staffGoalsQuery(propertyId),
     )
-    return { goals }
+    return { goals: programs }
   },
   component: StaffProgressPage,
 })
@@ -52,7 +52,7 @@ function StaffProgressPage() {
     ...staffGoalsQuery(searchPropertyId ?? '00000000-0000-4000-8000-000000000000'),
     enabled: searchPropertyId !== undefined,
   })
-  const goals = data?.goals ?? []
+  const goals = data?.programs ?? []
   // No property selected — the sidebar defaults ?propertyId= on first load.
   if (!searchPropertyId) {
     return (

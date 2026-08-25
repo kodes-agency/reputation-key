@@ -232,7 +232,7 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'guard_goal_program_transition_v1',
     kind: 'function',
     owner: 'goal',
-    source: 'drizzle/0087_harden-canonical-goal-programs.sql',
+    source: 'drizzle/0088_allow-ending-scheduled-goal-programs.sql',
     reason: `${NO_TRIGGER_DSL}; enforces the canonical Goal Program lifecycle and monotonic version head.`,
   },
   {

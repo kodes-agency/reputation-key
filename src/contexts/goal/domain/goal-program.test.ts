@@ -159,6 +159,7 @@ describe('canonical Goal Program contract', () => {
   describe('lifecycles', () => {
     it.each([
       ['scheduled', 'active'],
+      ['scheduled', 'ended'],
       ['active', 'paused'],
       ['paused', 'active'],
       ['active', 'ended'],
@@ -169,7 +170,6 @@ describe('canonical Goal Program contract', () => {
 
     it.each([
       ['scheduled', 'paused'],
-      ['scheduled', 'ended'],
       ['ended', 'active'],
       ['active', 'scheduled'],
     ] as const)('denies Goal Program %s → %s', (from, to) => {

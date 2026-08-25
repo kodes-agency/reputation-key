@@ -204,6 +204,51 @@ function openResultFor(
   }
 }
 
+function dueMonthlyPeriods(
+  version: GoalProgramVersion,
+  latestPeriodEnd: Date | null,
+  now: Date,
+): readonly Readonly<{ start: Date; end: Date }>[] {
+  const periods: Readonly<{ start: Date; end: Date }>[] = []
+  let period = firstFullMonthlyPeriodAtOrAfter(
+    latestPeriodEnd ?? version.effectiveFrom,
+    version.propertyTimezone,
+  )
+
+  // A bounded catch-up protects the worker from corrupt temporal data while
+  // still recovering up to a decade of missed monthly schedules. Exceeding
+  // the bound fails visibly so the job cannot silently leave a partial gap.
+  while (period.start <= now) {
+    if (periods.length >= 120) {
+      throw new Error('Goal Program monthly catch-up exceeds safety bound')
+    }
+    if (version.effectiveTo !== null && period.end > version.effectiveTo) break
+    periods.push(period)
+    period = firstFullMonthlyPeriodAtOrAfter(period.end, version.propertyTimezone)
+  }
+  return periods
+}
+
+function openResultsForPeriods(
+  bundle: GoalProgramBundle,
+  periods: readonly Readonly<{ start: Date; end: Date }>[],
+  id: () => string,
+  at: Date,
+): readonly GoalMonthlyResult[] {
+  return periods.flatMap((period) =>
+    bundle.assignments
+      .filter(
+        (assignment) =>
+          assignment.programVersionId === bundle.version.id &&
+          assignment.effectiveFrom <= period.start &&
+          (assignment.effectiveTo === null || assignment.effectiveTo >= period.end),
+      )
+      .map((assignment) =>
+        openResultFor(assignment, period, bundle.version.propertyTimezone, id(), at),
+      ),
+  )
+}
+
 async function validateSubjects(
   deps: GoalProgramDependencies,
   organizationId: string,
@@ -337,12 +382,19 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
           at: now,
         }),
       )
-      const results = sourceInactive
-        ? []
-        : assignments.map((assignment) =>
-            openResultFor(assignment, period, timezone, deps.id(), now),
-          )
-      const bundle: GoalProgramBundle = { program, version, assignments, results }
+      const results =
+        status === 'active'
+          ? assignments.map((assignment) =>
+              openResultFor(assignment, period, timezone, deps.id(), now),
+            )
+          : []
+      const bundle: GoalProgramBundle = {
+        program,
+        version,
+        versions: [version],
+        assignments,
+        results,
+      }
       await deps.repository.create({
         bundle,
         auditAction: 'goal.program.created',
@@ -474,16 +526,10 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
           at: now,
         }),
       )
-      const results = sourceInactive
-        ? []
-        : assignments.map((assignment) =>
-            openResultFor(assignment, period, timezone, deps.id(), now),
-          )
       await deps.repository.revise({
         expectedVersion: current.version,
         version,
         assignments,
-        results,
         actorId: actor.userId,
         at: now,
         outboxEventId: deps.id(),
@@ -491,8 +537,9 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       return {
         program: { ...current.program, currentVersion: version.version, updatedAt: now },
         version,
-        assignments,
-        results,
+        versions: [...current.versions, version],
+        assignments: [...current.assignments, ...assignments],
+        results: current.results,
       }
     },
 
@@ -649,18 +696,16 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
             bundle.program.status === 'scheduled' &&
             bundle.version.effectiveFrom <= now
           ) {
-            const assignment = bundle.assignments[0]
+            const assignment = bundle.assignments.find(
+              (candidate) => candidate.programVersionId === bundle.version.id,
+            )
             if (!assignment) {
               unavailable++
               continue
             }
-            const period = bundle.results[0]
-              ? {
-                  start: bundle.results[0].periodStart,
-                  end: bundle.results[0].periodEnd,
-                }
-              : firstFullMonthlyPeriodAtOrAfter(now, bundle.version.propertyTimezone)
-            if (period.start > now) continue
+            const periods = dueMonthlyPeriods(bundle.version, null, now)
+            const period = periods[0]
+            if (!period) continue
             const readiness = await deps.metrics.queryGoalMetric({
               organizationId: toOrganizationId(bundle.program.organizationId),
               propertyId: toPropertyId(bundle.program.propertyId),
@@ -677,18 +722,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
               unavailable++
               continue
             }
-            const newResults =
-              bundle.results.length === 0
-                ? bundle.assignments.map((candidate) =>
-                    openResultFor(
-                      candidate,
-                      period,
-                      bundle.version.propertyTimezone,
-                      deps.id(),
-                      now,
-                    ),
-                  )
-                : []
+            const newResults = openResultsForPeriods(bundle, periods, deps.id, now)
             const active = await deps.repository.activate({
               bundle,
               results: newResults,
@@ -697,6 +731,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
             })
             if (!active) continue
             activated++
+            scheduledResults += newResults.length
             bundle = {
               ...bundle,
               program: active,
@@ -704,39 +739,29 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
             }
           }
 
-          if (bundle.program.status !== 'active' || bundle.results.length === 0) {
-            continue
+          if (bundle.program.status !== 'active') continue
+          const currentResults = bundle.results.filter(
+            (result) => result.programVersionId === bundle.version.id,
+          )
+          const latestPeriodEnd =
+            currentResults.length === 0
+              ? null
+              : currentResults.reduce(
+                  (latest, result) =>
+                    result.periodEnd > latest ? result.periodEnd : latest,
+                  currentResults[0]!.periodEnd,
+                )
+          const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
+          const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
+          if (nextResults.length > 0) {
+            scheduledResults += await deps.repository.appendResults({
+              program: bundle.program,
+              version: bundle.version,
+              results: nextResults,
+              at: now,
+              outboxEventId: deps.id(),
+            })
           }
-          const latest = bundle.results.reduce((candidate, result) =>
-            result.periodEnd > candidate.periodEnd ? result : candidate,
-          )
-          if (now < latest.periodStart) continue
-          const nextPeriod = firstFullMonthlyPeriodAtOrAfter(
-            latest.periodEnd,
-            bundle.version.propertyTimezone,
-          )
-          const eligibleAssignments = bundle.assignments.filter(
-            (assignment) =>
-              assignment.effectiveFrom <= nextPeriod.start &&
-              (assignment.effectiveTo === null ||
-                assignment.effectiveTo >= nextPeriod.end),
-          )
-          const nextResults = eligibleAssignments.map((assignment) =>
-            openResultFor(
-              assignment,
-              nextPeriod,
-              bundle.version.propertyTimezone,
-              deps.id(),
-              now,
-            ),
-          )
-          scheduledResults += await deps.repository.appendResults({
-            program: bundle.program,
-            version: bundle.version,
-            results: nextResults,
-            at: now,
-            outboxEventId: deps.id(),
-          })
         } catch {
           failed++
         }

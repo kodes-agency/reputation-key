@@ -170,7 +170,7 @@ export function isCompleteMonthlyPeriod(
 const PROGRAM_TRANSITIONS: Readonly<
   Record<GoalProgramStatus, readonly GoalProgramStatus[]>
 > = {
-  scheduled: ['active'],
+  scheduled: ['active', 'ended'],
   active: ['paused', 'ended'],
   paused: ['active', 'ended'],
   ended: [],

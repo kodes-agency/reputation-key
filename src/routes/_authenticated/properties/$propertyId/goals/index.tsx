@@ -4,13 +4,13 @@ import { z } from 'zod/v4'
 import { Plus, Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listGovernedGoals } from '#/contexts/goal/server/governed-goals'
+import { listGoalPrograms } from '#/contexts/goal/server/goal-programs'
+import { goalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import { Card, CardContent } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -19,10 +19,23 @@ const goalsSearchSchema = z.object({
 })
 const goalsQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: ['goals', 'governed', propertyId] as const,
-    queryFn: () => listGovernedGoals({ data: { propertyId } }),
+    queryKey: goalKeys.list({ propertyId, model: 'program' }),
+    queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: 30_000,
   })
+
+const metricLabel = (metric: string) => {
+  switch (metric) {
+    case 'qualified_scans':
+      return 'Qualified scans'
+    case 'portal_rating_count':
+      return 'Private ratings'
+    case 'portal_rating_average':
+      return 'Private rating average'
+    default:
+      return metric
+  }
+}
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
   beforeLoad: ({ context }) => {
@@ -42,15 +55,15 @@ function GoalsRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
-  const goals = data.goals.filter((goal) =>
-    view === 'active' ? goal.status !== 'cancelled' : goal.status === 'cancelled',
+  const goals = data.programs.filter(({ program }) =>
+    view === 'active' ? program.status !== 'ended' : program.status === 'ended',
   )
 
   return (
     <PageShell>
       <PageHeader
         title="Goals"
-        description="Governed property and portal-group targets."
+        description="Monthly targets for this property, its portal groups, and individual portals."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
           { label: propData.property.name, to: `/properties/${propertyId}` },
@@ -92,28 +105,34 @@ function GoalsRoute() {
           title={view === 'active' ? 'No active goals' : 'No goal history'}
         />
       ) : (
-        <div className="grid gap-3">
-          {goals.map((goal) => (
-            <Card key={goal.id}>
-              <CardContent className="flex items-center justify-between gap-4 py-4">
+        <div className="divide-y rounded-lg border">
+          {goals.map(({ program, version, assignments }) => {
+            const currentAssignmentCount = assignments.filter(
+              (assignment) => assignment.programVersionId === version.id,
+            ).length
+            return (
+              <div
+                key={program.id}
+                className="flex min-h-16 items-center justify-between gap-4 px-4 py-3"
+              >
                 <div className="min-w-0">
                   <Link
                     className="font-medium hover:underline"
                     to="/properties/$propertyId/goals/$goalId"
-                    params={{ propertyId, goalId: goal.id }}
+                    params={{ propertyId, goalId: program.id }}
                   >
-                    {goal.name}
+                    {program.name}
                   </Link>
                   <p className="text-sm text-muted-foreground">
-                    {goal.scope.kind === 'property'
-                      ? 'Property goal'
-                      : 'Portal group goal'}
+                    {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
+                    {currentAssignmentCount}{' '}
+                    {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
                   </p>
                 </div>
-                <Badge variant="outline">{goal.status}</Badge>
-              </CardContent>
-            </Card>
-          ))}
+                <Badge variant="outline">{program.status}</Badge>
+              </div>
+            )
+          })}
         </div>
       )}
     </PageShell>

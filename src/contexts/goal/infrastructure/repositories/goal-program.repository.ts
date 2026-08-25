@@ -191,11 +191,15 @@ async function hydrateBundles(
       {
         program: mapProgram(programRow),
         version: mapVersion(versionRow),
+        versions: versions
+          .filter((version) => version.programId === programRow.id)
+          .sort((left, right) => left.version - right.version)
+          .map(mapVersion),
         assignments: assignments
-          .filter((assignment) => assignment.programVersionId === versionRow.id)
+          .filter((assignment) => assignment.programId === programRow.id)
           .map(mapAssignment),
         results: results
-          .filter((result) => result.programVersionId === versionRow.id)
+          .filter((result) => result.programId === programRow.id)
           .map(mapResult),
       },
     ]
@@ -389,7 +393,6 @@ export function createGoalProgramRepository(db: Database): GoalProgramRepository
         await tx
           .insert(goalSubjectAssignments)
           .values(input.assignments.map(assignmentValues))
-        await tx.insert(goalMonthlyResults).values(input.results.map(resultValues))
         await tx.insert(auditLogs).values({
           organizationId: input.version.organizationId,
           userId: input.actorId,

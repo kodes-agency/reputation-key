@@ -30,6 +30,20 @@ export type {
   GovernedGoalPeriod,
   GovernedGoalEvaluation,
 } from './ports/governed-goal.repository'
+export type {
+  GoalProgram,
+  GoalProgramVersion,
+  GoalSubjectAssignment,
+  GoalMonthlyResult,
+  GoalProgramBundle,
+} from './ports/goal-program.repository'
+export type {
+  GoalMetric,
+  GoalSubject,
+  GoalProgramStatus,
+  GoalMonthlyResultStatus,
+  GoalMetricEvaluation,
+} from '../domain/goal-program'
 
 // ── Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type { GoalCompleted, GoalEvent } from '../domain/events'

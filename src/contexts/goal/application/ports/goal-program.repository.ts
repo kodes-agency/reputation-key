@@ -74,8 +74,13 @@ export type GoalMonthlyResult = Readonly<{
 
 export type GoalProgramBundle = Readonly<{
   program: GoalProgram
+  /** Current definition head; historical versions stay addressable by result pins. */
   version: GoalProgramVersion
+  /** Immutable definition-version history used to interpret pinned results. */
+  versions: readonly GoalProgramVersion[]
+  /** Effective-dated assignment history across every version of the Program. */
   assignments: readonly GoalSubjectAssignment[]
+  /** Append-only monthly result history across every version of the Program. */
   results: readonly GoalMonthlyResult[]
 }>
 
@@ -112,7 +117,6 @@ export type GoalProgramRepository = Readonly<{
       expectedVersion: GoalProgramVersion
       version: GoalProgramVersion
       assignments: readonly GoalSubjectAssignment[]
-      results: readonly GoalMonthlyResult[]
       actorId: string
       at: Date
       outboxEventId: string

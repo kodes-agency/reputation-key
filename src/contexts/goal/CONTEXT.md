@@ -27,9 +27,10 @@ features must not write new business behavior against either older family.
 - Result lifecycle is `open` → `reconciling` → `closed`, with a 24-hour
   late-arrival window and exact durable source completeness. Closed rows are
   immutable; later corrections append a direct, serialized result revision.
-- Program lifecycle is `scheduled` → `active` ↔ `paused` → `ended` (with no
-  transition out of `ended`). An inactive metric source may be configured but
-  cannot activate or create results until its producer becomes ready.
+- Program lifecycle is `scheduled` → `active` ↔ `paused` → `ended`, with a
+  direct `scheduled` → `ended` escape and no transition out of `ended`. An
+  inactive metric source may be configured but cannot activate or create
+  results until its producer becomes ready.
 
 ## Glossary
 
@@ -40,7 +41,7 @@ features must not write new business behavior against either older family.
 | **Goal Subject Assignment** | Half-open effective assignment of one Program version to one Property, Portal Group, or Portal. The database rejects overlap for the same subject and metric, even across Programs. |
 | **Goal Monthly Result** | One Property-local calendar-month result with an ordered Open/Reconciliation/Closed lifecycle and exact source-completeness evidence. |
 | **Goal Result Revision** | Append-only correction to a closed monthly result. Revisions form direct serialized lineage; the closed base result never changes. |
-| **Goal (legacy)** | Pre-beta aggregate stored in `goals`/`goal_progress`. Retained only for compatibility and migration until the route/UI cutover. |
+| **Goal (legacy)** | Pre-beta aggregate stored in `goals`/`goal_progress`. Retained only for migration and the temporary staff-home compatibility read; its CRUD server surface was removed at the canonical route/UI cutover. |
 | **GoalType** | `'open'`, `'one_shot'`, `'rolling'`, or `'recurring'`. Determines how time periods and progress are computed. |
 | **GoalStatus** | Lifecycle: `active` → `completed`, `expired`, or `cancelled`. Only `active` goals accept progress updates. |
 | **GoalProgress** | Current numeric progress toward a goal's target. Tracks `currentValue`, `currentSum`, `currentCount`, and `computedSource`. One-to-one with a Goal. |
@@ -110,12 +111,17 @@ goal/
     mappers/           goal.mapper.ts
     event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              goal-program-maintenance.job.ts plus legacy lifecycle jobs
-  server/              goals.ts, staff-goals.ts, staff-goals.test.ts, goals.test.ts
+  server/              goal-programs.ts plus temporary staff-goals.ts compatibility read
   ui/                  helpers.ts (pure UI helper functions)
   build.ts             composition root
 ```
 
 ## Use cases
+
+Canonical beta use cases are `createGoalProgramService().create`, `revise`,
+`changeStatus`, `get`, `list`, `reconcileResult`, and `maintain`. All writes use
+the canonical repository's atomic state + audit/outbox transactions. The table
+below documents migration-era application code, not network-reachable CRUD.
 
 | Use case           | Input                                                                                                                                                                                                            | Output             | Permission    |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------- |
@@ -139,18 +145,33 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-| Function         | Method | Permission    | Route                                     |
-| ---------------- | ------ | ------------- | ----------------------------------------- |
-| `createGoal`     | POST   | `goal.create` | Create a new goal                         |
-| `updateGoal`     | POST   | `goal.update` | Update an active goal                     |
-| `cancelGoal`     | POST   | `goal.cancel` | Cancel an active goal                     |
-| `listGoals`      | GET    | `goal.read`   | List goals with filters                   |
-| `getGoal`        | GET    | `goal.read`   | Get single goal detail                    |
-| `listStaffGoals` | GET    | `goal.read`   | List goals for authenticated staff (stub) |
+| Function                         | Method | Permission    | Purpose                                       |
+| -------------------------------- | ------ | ------------- | --------------------------------------------- |
+| `createGoalProgram`              | POST   | `goal.create` | Create a canonical monthly Program            |
+| `reviseGoalProgram`              | POST   | `goal.update` | Schedule its next-full-month version          |
+| `changeGoalProgramStatus`        | POST   | update/cancel | Pause, resume, or end a Program               |
+| `listGoalPrograms`               | GET    | `goal.read`   | Property-scoped canonical Program list        |
+| `getGoalProgram`                 | GET    | `goal.read`   | Canonical aggregate and monthly result detail |
+| `listStaffGoals` (compatibility) | GET    | `goal.read`   | Pre-beta staff-home read pending its cutover  |
+
+The original `goals.ts` and intermediate `governed-goals.ts` network surfaces
+were deleted at cutover. Their application/storage models remain migration
+sources, but no client can create new records through them.
 
 ## Permissions
 
-## UI Layer (redesign 2026)
+## Canonical beta UI
+
+- Manager list, create, detail, status, and revision flows use Goal Programs.
+- One creation/revision picker supports Property, Portal Group, and standalone
+  Portal subjects; the same subject-to-command mapping is shared by both flows.
+- The only choices are qualified scans, private rating count, and private
+  rating average. Inactive scan attribution is described as scheduled, not as
+  an error or a fabricated zero.
+- Monthly result rows use neutral states such as “Updating”, “More ratings
+  needed”, and “Needs review”; managers are not shown punitive staff language.
+
+## Legacy UI design archive (not beta authority)
 
 ### Glossary additions
 
@@ -217,7 +238,8 @@ New reusable components live under `src/components/goals/` (GoalProgressRing, Go
 - **goal-program.maintain** — canonical, hourly, `goal.use`-gated tenant-cross
   lifecycle sweep.
   It activates due Programs only after the configured metric source is ready,
-  keeps one future full Property-local month materialized, and performs the
+  materializes each Property-local monthly result no earlier than its boundary,
+  catches up missed boundaries without creating future result rows, and performs the
   two-pass governed reconciliation/close flow. The dispatch gate authorizes
   enumeration and the service freshly authorizes each discovered Property;
   repository constraints and compare-and-set writes make repeat/overlap safe.

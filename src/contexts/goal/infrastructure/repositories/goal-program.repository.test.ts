@@ -133,15 +133,9 @@ describe.sequential('Goal Program repository (integration)', () => {
         updatedAt: now,
       },
       version: firstVersion,
+      versions: [firstVersion],
       assignments: [firstAssignment],
-      results: [
-        result(
-          firstAssignment,
-          firstVersion.effectiveFrom,
-          new Date('2026-03-01T00:00:00.000Z'),
-          now,
-        ),
-      ],
+      results: [],
     }
     await repository.create({
       bundle,
@@ -155,7 +149,14 @@ describe.sequential('Goal Program repository (integration)', () => {
     await expect(
       repository.activate({
         bundle,
-        results: [],
+        results: [
+          result(
+            firstAssignment,
+            firstVersion.effectiveFrom,
+            new Date('2026-03-01T00:00:00.000Z'),
+            now,
+          ),
+        ],
         at: new Date('2026-02-01T00:00:00.000Z'),
         outboxEventId: randomUUID(),
       }),
@@ -181,14 +182,6 @@ describe.sequential('Goal Program repository (integration)', () => {
       expectedVersion: firstVersion,
       version: nextVersion,
       assignments: [nextAssignment],
-      results: [
-        result(
-          nextAssignment,
-          nextVersion.effectiveFrom,
-          new Date('2026-04-01T00:00:00.000Z'),
-          nextAt,
-        ),
-      ],
       actorId: 'manager-1',
       at: nextAt,
       outboxEventId: randomUUID(),
@@ -199,11 +192,14 @@ describe.sequential('Goal Program repository (integration)', () => {
       program: { currentVersion: 2, status: 'active' },
       version: { id: nextVersion.id, targetValue: 40 },
     })
+    expect(revised?.assignments).toHaveLength(2)
+    expect(revised?.results).toHaveLength(1)
+    expect(revised?.results[0]?.programVersionId).toBe(firstVersion.id)
 
-    const aprilResult = result(
+    const marchResult = result(
       nextAssignment,
+      new Date('2026-03-01T00:00:00.000Z'),
       new Date('2026-04-01T00:00:00.000Z'),
-      new Date('2026-05-01T00:00:00.000Z'),
       nextAt,
     )
     if (!revised) throw new Error('expected revised Goal Program')
@@ -211,7 +207,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.appendResults({
         program: revised.program,
         version: revised.version,
-        results: [aprilResult],
+        results: [marchResult],
         at: nextAt,
         outboxEventId: randomUUID(),
       }),
@@ -220,7 +216,7 @@ describe.sequential('Goal Program repository (integration)', () => {
       repository.appendResults({
         program: revised.program,
         version: revised.version,
-        results: [aprilResult],
+        results: [marchResult],
         at: nextAt,
         outboxEventId: randomUUID(),
       }),

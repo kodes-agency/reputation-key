@@ -183,6 +183,27 @@ describe('canonical Goal Program database guards', () => {
     ).rejects.toMatchObject({ code: '23503' })
   })
 
+  it('lets a manager end a scheduled program without making it active first', async () => {
+    const programId = randomUUID()
+    await lease.pool.query(
+      `INSERT INTO goal_programs
+         (id, organization_id, property_id, name, status, created_by)
+       VALUES ($1, $2, $3, 'Inactive source goal', 'scheduled', 'test')`,
+      [programId, fixture.organizationId, fixture.propertyId],
+    )
+
+    await expect(
+      lease.pool.query(`UPDATE goal_programs SET status = 'ended' WHERE id = $1`, [
+        programId,
+      ]),
+    ).resolves.toMatchObject({ rowCount: 1 })
+    await expect(
+      lease.pool.query(`UPDATE goal_programs SET status = 'active' WHERE id = $1`, [
+        programId,
+      ]),
+    ).rejects.toMatchObject({ code: '23514' })
+  })
+
   it('enforces full months, ordered closure, immutability, and direct revisions', async () => {
     const assignmentId = await insertAssignment({
       subjectKind: 'portal',

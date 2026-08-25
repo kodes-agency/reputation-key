@@ -1299,73 +1299,69 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
 
   // ── goal (dark) ───────────────────────────────────────────────────
   ...[
-    sf('createGoal', `${GOAL}/goals.ts`, 'goal.create', 'goal.use', 'property'),
-    sf('updateGoal', `${GOAL}/goals.ts`, 'goal.update', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('cancelGoal', `${GOAL}/goals.ts`, 'goal.cancel', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('listGoals', `${GOAL}/goals.ts`, 'goal.read', 'goal.use', 'property'),
-    sf('getGoal', `${GOAL}/goals.ts`, 'goal.read', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property'),
     sf(
-      'createGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'createGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.create',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes:
+          'canonical beta Goal Program writer; policy is injected through the application service',
       },
     ),
     sf(
-      'reviseGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'reviseGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes:
+          'canonical next-full-month revision; policy is injected through the application service',
       },
     ),
     sf(
-      'changeGovernedGoalStatus',
-      `${GOAL}/governed-goals.ts`,
+      'changeGoalProgramStatus',
+      `${GOAL}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        alsoActions: ['goal.cancel'],
+        notes:
+          'canonical Goal Program lifecycle transition; end requests assert goal.update here and goal.cancel inside the service',
       },
     ),
     sf(
-      'getGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'getGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes: 'canonical Goal Program aggregate read',
       },
     ),
     sf(
-      'listGovernedGoals',
-      `${GOAL}/governed-goals.ts`,
+      'listGoalPrograms',
+      `${GOAL}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes: 'canonical Property-scoped Goal Program aggregate list',
       },
     ),
+    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property', {
+      notes:
+        'temporary staff-home compatibility read from the pre-beta model; no legacy Goal writer remains network-reachable',
+    }),
   ],
 
   // ── team (dark) ───────────────────────────────────────────────────

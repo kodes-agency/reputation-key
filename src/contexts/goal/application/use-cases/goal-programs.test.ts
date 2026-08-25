@@ -62,16 +62,40 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   let now = initialNow
   let created: GoalProgramBundle | null = null
   const results = new Map<string, GoalMonthlyResult>()
+  const assignmentHistory = new Map<string, GoalProgramBundle['assignments'][number]>()
+  const versionHistory = new Map<string, GoalProgramBundle['version']>()
   const repository: GoalProgramRepository = {
     create: vi.fn(async ({ bundle }) => {
       created = bundle
       for (const result of bundle.results) results.set(result.id, result)
+      for (const assignment of bundle.assignments) {
+        assignmentHistory.set(assignment.id, assignment)
+      }
+      versionHistory.set(bundle.version.id, bundle.version)
     }),
     get: vi.fn(async () => created),
     list: vi.fn(async () => (created ? [created] : [])),
     listOperational: vi.fn(async () => (created ? [created] : [])),
     changeStatus: vi.fn(async () => null),
-    revise: vi.fn(async () => undefined),
+    revise: vi.fn(async ({ version, assignments, at }) => {
+      if (!created) return
+      const previous = created
+      created = {
+        program: {
+          ...previous.program,
+          currentVersion: version.version,
+          updatedAt: at,
+        },
+        version,
+        versions: [...previous.versions, version],
+        assignments: [...previous.assignments, ...assignments],
+        results: previous.results,
+      }
+      for (const assignment of assignments) {
+        assignmentHistory.set(assignment.id, assignment)
+      }
+      versionHistory.set(version.id, version)
+    }),
     activate: vi.fn(async ({ bundle, results: newResults, at }) => {
       const program = {
         ...bundle.program,
@@ -112,12 +136,13 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       }
       return result
     }),
-    getAssignment: vi.fn(async (_org, _property, assignmentId) => {
-      return (
-        created?.assignments.find((candidate) => candidate.id === assignmentId) ?? null
-      )
-    }),
-    getVersion: vi.fn(async () => created?.version ?? null),
+    getAssignment: vi.fn(
+      async (_org, _property, assignmentId) =>
+        assignmentHistory.get(assignmentId) ?? null,
+    ),
+    getVersion: vi.fn(
+      async (_org, _property, versionId) => versionHistory.get(versionId) ?? null,
+    ),
     updateResult: vi.fn(async ({ result, expectedStatus }) => {
       const current = results.get(result.id)
       if (!current || current.status !== expectedStatus) return null
@@ -312,9 +337,60 @@ describe('canonical Goal Program service', () => {
       metricMinimumSample: 10,
       effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
     })
-    expect(revised.assignments).toHaveLength(2)
-    expect(revised.results).toHaveLength(2)
+    expect(revised.assignments).toHaveLength(3)
+    expect(
+      revised.assignments.filter(
+        (assignment) => assignment.programVersionId === revised.version.id,
+      ),
+    ).toHaveLength(2)
+    expect(revised.results).toHaveLength(1)
     expect(repository.revise).toHaveBeenCalledOnce()
+  })
+
+  it('materializes a revised version only when its effective month starts', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Monthly ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    await service.revise(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        metric: 'portal_rating_average',
+        targetValue: 4.5,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+        reason: 'Use the average next month',
+      },
+      actor,
+    )
+
+    await expect(service.maintain()).resolves.toMatchObject({ scheduledResults: 0 })
+    expect(repository.appendResults).not.toHaveBeenCalled()
+
+    setNow(new Date('2026-04-01T00:00:00.000Z'))
+    await expect(service.maintain()).resolves.toMatchObject({
+      scheduledResults: 1,
+      failed: 0,
+    })
+    expect(repository.appendResults).toHaveBeenCalledOnce()
+    expect(repository.appendResults).toHaveBeenCalledWith(
+      expect.objectContaining({
+        results: [
+          expect.objectContaining({
+            programVersionId: expect.any(String),
+            periodStart: new Date('2026-04-01T00:00:00.000Z'),
+            periodEnd: new Date('2026-05-01T00:00:00.000Z'),
+          }),
+        ],
+      }),
+    )
   })
 
   it('does not activate a scheduled program before its period or source is ready', async () => {
@@ -343,7 +419,7 @@ describe('canonical Goal Program service', () => {
     ).rejects.toMatchObject({ code: 'metric_unavailable' })
   })
 
-  it('activates due programs and idempotently keeps one future month scheduled', async () => {
+  it('activates due programs and materializes only the month that has started', async () => {
     const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
     await service.create(
       {
@@ -368,7 +444,7 @@ describe('canonical Goal Program service', () => {
       failed: 0,
     })
     expect(repository.activate).toHaveBeenCalledOnce()
-    expect(repository.appendResults).toHaveBeenCalledOnce()
+    expect(repository.appendResults).not.toHaveBeenCalled()
   })
 
   it('fails the job after partial infrastructure failure so BullMQ can retry it', async () => {
@@ -384,7 +460,7 @@ describe('canonical Goal Program service', () => {
       actor,
     )
     setNow(new Date('2026-04-01T00:00:00.000Z'))
-    vi.mocked(repository.appendResults).mockRejectedValueOnce(new Error('db down'))
+    vi.mocked(repository.activate).mockRejectedValueOnce(new Error('db down'))
 
     await expect(service.maintain()).rejects.toMatchObject({
       name: 'GoalProgramMaintenanceError',
