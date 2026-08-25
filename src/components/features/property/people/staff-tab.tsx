@@ -143,7 +143,6 @@ export function StaffTab({
           expectedRevision={editingParticipation.revision}
           allPortals={portalOptions}
           updateAction={updateResponsibilitiesMutation}
-          open
           onOpenChange={(open) => {
             if (!open) setEditingParticipationId(null)
           }}

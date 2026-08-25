@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
@@ -29,7 +29,6 @@ type Props = Readonly<{
   expectedRevision: number
   allPortals: ReadonlyArray<PortalOption>
   updateAction: Action<{ data: UpdatePortalResponsibilitiesMutationInput }>
-  open: boolean
   onOpenChange: (open: boolean) => void
 }>
 
@@ -41,19 +40,12 @@ export function PortalResponsibilitiesModal({
   expectedRevision,
   allPortals,
   updateAction,
-  open,
   onOpenChange,
 }: Props) {
   const [primaryPortalId, setPrimaryPortalId] = useState(currentPrimaryPortalId ?? '')
   const [supportingPortalIds, setSupportingPortalIds] = useState<string[]>([
     ...currentSupportingPortalIds,
   ])
-
-  useEffect(() => {
-    if (!open) return
-    setPrimaryPortalId(currentPrimaryPortalId ?? '')
-    setSupportingPortalIds([...currentSupportingPortalIds])
-  }, [currentPrimaryPortalId, currentSupportingPortalIds, open])
 
   const supportingOptions = allPortals.filter((portal) => portal.id !== primaryPortalId)
   const supportingField = useMemo(
@@ -85,7 +77,7 @@ export function PortalResponsibilitiesModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Portal responsibilities — {displayName}</DialogTitle>
