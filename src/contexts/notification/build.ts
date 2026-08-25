@@ -13,10 +13,10 @@ import {
 import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
-import {
-  createDbUserLookupAdapter,
-  type PropertyAccessHolderLookup,
-} from './infrastructure/adapters/db-user-lookup.adapter'
+import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
+import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
+import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
+import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createRecognitionLookupAdapter } from './infrastructure/adapters/recognition-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
@@ -61,12 +61,10 @@ type BuildInput = Readonly<{
   queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort
-  /**
-   * Identity-owned lookup for users holding active access to a property.
-   * `property_access_grant` is authoritative for property-scoped recipients, so
-   * this is required: without it every property-scoped notification is dropped.
-   */
-  propertyAccessHolders: PropertyAccessHolderLookup
+  /** Current, eligibility-filtered Property/Portal notification authorities. */
+  responsibleManagers: ResponsibleManagerLookupPort
+  /** Guest-owned source attribution; Notification never reads Guest tables. */
+  feedbackPortalLookup: FeedbackPortalLookupPort
 }>
 
 export const buildNotificationContext = (input: BuildInput) => {
@@ -74,9 +72,17 @@ export const buildNotificationContext = (input: BuildInput) => {
   const gapRepo = createNotificationGapRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
-  const userLookup = createDbUserLookupAdapter(input.db, input.propertyAccessHolders)
-  const inboxItemLookup = createInboxItemLookupAdapter(input.db)
+  const userLookup = createDbUserLookupAdapter(input.db)
+  const inboxItemLookup = createInboxItemLookupAdapter(
+    input.db,
+    input.feedbackPortalLookup,
+  )
   const recognitionLookup = createRecognitionLookupAdapter(input.db)
+  const authorizeAudience = createNotificationAudienceAuthorizer({
+    userLookup,
+    responsibleManagers: input.responsibleManagers,
+    inboxItemLookup,
+  })
 
   /**
    * The guard every single-notification mutation shares: load the row, prove
@@ -115,6 +121,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       events: input.events,
       queue: policyQueue,
       userLookup,
+      responsibleManagers: input.responsibleManagers,
       inboxItemLookup,
       recognitionLookup,
       clock: input.clock,
@@ -140,6 +147,7 @@ export const buildNotificationContext = (input: BuildInput) => {
     ? {
         queue: policyQueue,
         userLookup,
+        responsibleManagers: input.responsibleManagers,
         inboxItemLookup,
         clock: input.clock,
         logger: input.logger,
@@ -334,6 +342,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       reconcileMissingNotificationsHandler: fanoutDeps
         ? createReconcileMissingNotificationsHandler({ ...fanoutDeps, gapRepo })
         : undefined,
+      authorizeAudience,
     },
   } as const
 }

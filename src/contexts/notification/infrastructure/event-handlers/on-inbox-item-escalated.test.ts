@@ -40,6 +40,7 @@ describe('onInboxItemEscalated (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: EXPECTED_INBOX_PAYLOAD,
+        audience: { kind: 'account_admin' },
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -49,6 +50,7 @@ describe('onInboxItemEscalated (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: EXPECTED_INBOX_PAYLOAD,
+        audience: { kind: 'account_admin' },
       }),
     )
   })

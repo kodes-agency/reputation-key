@@ -1,7 +1,7 @@
 // Notification context — port for resolving inbox-item facts (ADR 0022).
 // Self-contained DTOs: returns branded ids and content-free facts, exposes no
 // inbox internals (mirrors the UserLookupPort convention, ADR 0008).
-import type { ReviewId, OrganizationId, InboxItemId } from '#/shared/domain/ids'
+import type { ReviewId, OrganizationId, InboxItemId, UserId } from '#/shared/domain/ids'
 
 /**
  * The render facts a notification needs about an inbox item (ADR 0046 r.8).
@@ -13,6 +13,10 @@ import type { ReviewId, OrganizationId, InboxItemId } from '#/shared/domain/ids'
  */
 export type InboxItemFacts = Readonly<{
   propertyId: string
+  /** Portal attribution for private feedback; null for Google reviews or missing sources. */
+  portalId: string | null
+  /** Current explicit Inbox assignee, independent from manager responsibility. */
+  assignedTo: UserId | null
   /** Tenant-authored property name. Null when the property row is gone. */
   propertyName: string | null
   /** 1-5 stars as reported by the source, or null for unrated feedback. */

@@ -38,6 +38,7 @@ export const onPropertyResponsibilityNeeded =
             resourceId: event.propertyId,
             eventId: event.eventId,
             payload: {},
+            audience: { kind: 'account_admin' as const },
           },
           { jobId: `${event.eventId}-${recipientId}` },
         ),

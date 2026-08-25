@@ -27,6 +27,13 @@ import {
 import { buildInboxItemPayload } from './event-handlers/payload-facts'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import type { NotificationType } from '../domain/types'
+import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
+import {
+  inboxNotificationAudience,
+  resolveInboxResponsibleRecipients,
+  resolveResponsibleRecipients,
+} from '../application/responsible-recipients'
+import type { NotificationAudience } from '../application/notification-audience'
 
 /**
  * The enqueue surface the fan-out needs. A bullmq `Queue` satisfies it, and so
@@ -40,6 +47,7 @@ export type NotificationJobEnqueuePort = Readonly<{
 export type InboxFanoutDeps = Readonly<{
   queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
   clock: () => Date
   logger: LoggerPort
@@ -84,20 +92,43 @@ export type InboxFanoutOutcome =
   | Readonly<{ kind: 'enqueued'; recipients: number }>
 
 /**
- * Resolve who should hear about this inbox item. Assigned managers first; an
- * unassigned property falls back to the org's AccountAdmins, who can always
- * act org-wide. Without the fallback every review for an unassigned property
- * produced ZERO notifications.
+ * Resolve current source-specific responsibility: Property for Google reviews,
+ * Portal for private feedback. AccountAdmins are recovery only when no eligible
+ * scoped manager remains; access and Staff attribution are never substituted.
  */
 const resolveRecipients = async (
   deps: InboxFanoutDeps,
   orgId: string,
   propertyId: string,
-): Promise<readonly UserId[]> => {
+  inboxItemId: string,
+  sourceType: string,
+): Promise<
+  Readonly<{ recipients: readonly UserId[]; audience: NotificationAudience }>
+> => {
   const org = brandOrganizationId(orgId)
-  const assigned = await deps.userLookup.findAssignedManagers(org, propertyId)
-  if (assigned.length > 0) return assigned
-  return deps.userLookup.findByRole(org, 'AccountAdmin')
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(
+    brandInboxItemId(inboxItemId),
+    org,
+  )
+  if (facts) {
+    return {
+      recipients: await resolveInboxResponsibleRecipients(deps, org, facts),
+      audience: inboxNotificationAudience(facts),
+    }
+  }
+  if (sourceType === 'review') {
+    const scope = { kind: 'property' as const, propertyId }
+    return {
+      recipients: await resolveResponsibleRecipients(deps, org, scope),
+      audience: { kind: 'responsible_scope', scope },
+    }
+  }
+  // Private feedback without a recoverable Portal attribution goes only to
+  // AccountAdmin recovery, never to access holders or arbitrary Property staff.
+  return {
+    recipients: await deps.userLookup.findByRole(org, 'AccountAdmin'),
+    audience: { kind: 'account_admin' },
+  }
 }
 
 /**
@@ -126,7 +157,13 @@ export const fanoutInboxItemNotifications = async (
     return { kind: 'skipped', reason: 'no_property' }
   }
 
-  const recipients = await resolveRecipients(deps, input.organizationId, input.propertyId)
+  const { recipients, audience } = await resolveRecipients(
+    deps,
+    input.organizationId,
+    input.propertyId,
+    input.inboxItemId,
+    input.sourceType,
+  )
   if (recipients.length === 0) {
     deps.logger.warn({ correlationId }, 'inbox notification fan-out: no recipients found')
     return { kind: 'skipped', reason: 'no_recipients' }
@@ -150,6 +187,7 @@ export const fanoutInboxItemNotifications = async (
         resourceId: input.inboxItemId,
         eventId: input.eventId,
         payload,
+        audience,
       }
       // Two-arg enqueue unless a deterministic id was asked for: the catalogue
       // policy wrapper supplies attempts/backoff, and passing an explicit

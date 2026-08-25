@@ -1,6 +1,6 @@
 // Notification context — badge.awarded handler
-// Enqueues one insert-notification job per assigned manager with the
-// correct InsertNotificationJobData payload shape.
+// Enqueues one insert-notification job per current manager responsible for the
+// awarded Portal or Portal Group.
 //
 // This handler used to put the raw badge-definition UUID in the body ("Badge
 // definition: 7f0c…"). It now resolves the badge's catalogue name and the
@@ -15,10 +15,13 @@ import type { BadgeAwarded } from '#/contexts/badge/application/public-api'
 import type { PortalGroupId, PortalId } from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import { buildBadgePayload, type BadgeTarget } from './payload-facts'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
+import { resolveResponsibleRecipients } from '../../application/responsible-recipients'
 
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   recognitionLookup: RecognitionLookupPort
   logger: LoggerPort
 }>
@@ -26,9 +29,14 @@ type Deps = Readonly<{
 export const onBadgeAwarded =
   (deps: Deps) =>
   async (event: BadgeAwarded): Promise<void> => {
-    const managerIds = await deps.userLookup.findAssignedManagers(
+    const scope =
+      event.targetType === 'portal'
+        ? ({ kind: 'portal', portalId: event.targetId } as const)
+        : ({ kind: 'portal_group', portalGroupId: event.targetId } as const)
+    const managerIds = await resolveResponsibleRecipients(
+      deps,
       event.organizationId,
-      event.propertyId,
+      scope,
     )
 
     if (managerIds.length === 0) {
@@ -67,6 +75,7 @@ export const onBadgeAwarded =
             resourceId: event.badgeDefinitionId,
             eventId: event.eventId,
             payload,
+            audience: { kind: 'responsible_scope', scope },
           },
           {
             attempts: 3,

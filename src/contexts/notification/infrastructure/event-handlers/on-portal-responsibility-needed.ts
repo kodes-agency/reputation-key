@@ -44,6 +44,7 @@ export const onPortalResponsibilityNeeded =
             resourceId: event.portalId,
             eventId: event.eventId,
             payload: {},
+            audience: { kind: 'account_admin' as const },
           },
           { jobId: `${event.eventId}-${recipientId}` },
         ),

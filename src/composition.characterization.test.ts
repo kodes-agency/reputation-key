@@ -56,6 +56,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'leaderboardPublicApi',
   'logger',
   'metricPublicApi',
+  'notificationAudienceAuthorizer',
   'notificationEmailRepo',
   'notificationPrefRepo',
   'notificationPublicApi',

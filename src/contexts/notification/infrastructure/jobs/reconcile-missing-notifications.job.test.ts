@@ -142,7 +142,7 @@ const makeHarness = (
   recipients: readonly UserId[] = [NOTIF_TEST_IDS.manager1],
 ): Harness => {
   const fakes = createEventHandlerDeps()
-  fakes.userLookup.findAssignedManagers.mockResolvedValue(recipients)
+  fakes.responsibleManagers.findForProperty.mockResolvedValue(recipients)
   const notified = new Set<string>()
   const gapRepo = fakeGapRepo(items, notified)
 
@@ -161,6 +161,7 @@ const makeHarness = (
   const handler = createReconcileMissingNotificationsHandler({
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
     clock: () => NOW,
     logger: fakes.logger,

@@ -630,12 +630,7 @@ export async function bootstrap(
   const { createResendEmailAdapter } =
     await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
-  const { createPropertyGrantHolderLookup } =
-    await import('#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter')
-  const notifUserLookup = createNotifUserLookup(
-    container.db,
-    createPropertyGrantHolderLookup(container.db),
-  )
+  const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
   // boot with a real key in .env mailed real inboxes, and a boot with the
@@ -694,6 +689,7 @@ export async function bootstrap(
     idGen: () => notificationId(crypto.randomUUID()),
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
+    authorizeAudience: container.notificationAudienceAuthorizer,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
           await container.jobQueue!.add(

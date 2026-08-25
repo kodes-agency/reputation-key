@@ -52,10 +52,11 @@ type Deps = NotificationConsumerDeps & { fakes: FakeEventHandlerDeps }
 
 const makeDeps = (): Deps => {
   const fakes = createEventHandlerDeps()
-  fakes.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
     clock: fakes.clock,
     logger: fakes.logger,
@@ -87,7 +88,7 @@ describe('notification durable outbox consumer', () => {
 
   it('enqueues one insert-notification job per recipient and records an applied receipt', async () => {
     const deps = makeDeps()
-    deps.fakes.userLookup.findAssignedManagers.mockResolvedValue([
+    deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
     ])
@@ -120,11 +121,16 @@ describe('notification durable outbox consumer', () => {
     const deps = makeDeps()
     deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
       propertyId: 'prop-from-item',
+      portalId: 'portal-from-item',
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
       rating: 5,
       sourceType: 'feedback',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })
+    deps.fakes.responsibleManagers.findForPortal.mockResolvedValue([
+      NOTIF_TEST_IDS.manager1,
+    ])
 
     await handleNotificationInboxItemCreated(
       deps,
@@ -164,6 +170,8 @@ describe('notification durable outbox consumer', () => {
     const unknownSource = makeDeps()
     unknownSource.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
       propertyId: unbrand(NOTIF_TEST_IDS.propId),
+      portalId: null,
+      assignedTo: null,
       propertyName: null,
       rating: null,
       sourceType: 'goal',
@@ -182,7 +190,7 @@ describe('notification durable outbox consumer', () => {
     ).resolves.toEqual({ status: 'obsolete' })
 
     const noRecipients = makeDeps()
-    noRecipients.fakes.userLookup.findAssignedManagers.mockResolvedValue([])
+    noRecipients.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
     noRecipients.fakes.userLookup.findByRole.mockResolvedValue([])
     await expect(
       handleNotificationInboxItemCreated(noRecipients, event()),

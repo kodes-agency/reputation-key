@@ -269,6 +269,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         (userId): userId is import('#/shared/domain/ids').UserId => userId !== null,
       )
     },
+    isEligibleResponsibleManagerUserId: async (orgId, pid, managerId) => {
+      if (!(await deps.repo.findById(orgId, pid))) return false
+      return isEligiblePropertyManager(managerEligibility, orgId, pid, managerId)
+    },
   }
 
   return {

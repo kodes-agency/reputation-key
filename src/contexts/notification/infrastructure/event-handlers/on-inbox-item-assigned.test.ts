@@ -52,6 +52,7 @@ describe('onInboxItemAssigned (notification)', () => {
         resourceId: INBOX_ITEM_ID,
         eventId: 'test-event-id',
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM_ID },
       },
     })
   })

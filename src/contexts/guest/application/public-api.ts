@@ -4,6 +4,16 @@
 
 export type { ScanEvent, Rating, Feedback, ScanSource } from '../domain/types'
 
+import type { FeedbackId, OrganizationId, PortalId } from '#/shared/domain/ids'
+
+/** Content-free source attribution for cross-context workflow routing. */
+export type GuestFeedbackAttributionPublicApi = Readonly<{
+  findPortalIdForFeedback: (
+    organizationId: OrganizationId,
+    feedbackId: FeedbackId,
+  ) => Promise<PortalId | null>
+}>
+
 export {
   guestScanRecorded,
   guestRatingSubmitted,

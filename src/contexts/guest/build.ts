@@ -18,6 +18,8 @@ import { createGuestSessionManager } from './server/guest-session'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { scanEventId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
+import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
+import type { GuestFeedbackAttributionPublicApi } from './application/public-api'
 
 type GuestContextDeps = Readonly<{
   db: Database
@@ -38,6 +40,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     deps.events,
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db, deps.events)
+  const findPortalIdForFeedback = createFeedbackPortalAttributionLookup(deps.db)
   const sessionSecret =
     deps.sessionSecret ??
     (process.env.NODE_ENV === 'production' ? null : 'dev-test-guest-session-secret')
@@ -91,12 +94,17 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     responseLifecycle,
     guestSessions,
   } as const
+  const attributionPublicApi: GuestFeedbackAttributionPublicApi = {
+    findPortalIdForFeedback,
+  }
+  const publicApi = {
+    getPublicPortal: useCases.getPublicPortal,
+    resolvePortalContext: useCases.resolvePortalContext,
+    ...attributionPublicApi,
+  }
 
   return {
-    publicApi: {
-      getPublicPortal: useCases.getPublicPortal,
-      resolvePortalContext: useCases.resolvePortalContext,
-    },
+    publicApi,
     internal: {
       repos: {
         guestRepo,

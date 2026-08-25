@@ -1,6 +1,6 @@
 // Notification context — event handler for goal.completed
-// Notifies assigned managers/staff (AccountAdmins, PropertyManagers, Staff)
-// that a goal on their property has been completed — per CONTEXT.md §6.
+// Notifies current managers responsible for the completed goal's exact scope.
+// Staff attribution and broad Property access are never recipient sources.
 //
 // The goal NAME is what makes this recognition legible ("Goal completed:
 // Weekend response time"), and the event carries only the goalId, so the name
@@ -13,10 +13,13 @@ import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import { buildGoalPayload } from './payload-facts'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
+import { resolveResponsibleRecipients } from '../../application/responsible-recipients'
 
 type Deps = Readonly<{
   queue: Queue
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   recognitionLookup: RecognitionLookupPort
   logger: LoggerPort
 }>
@@ -24,9 +27,15 @@ type Deps = Readonly<{
 export const onGoalCompleted =
   (deps: Deps) =>
   async (event: GoalCompleted): Promise<void> => {
-    const recipientIds = await deps.userLookup.findAssignedManagers(
+    const scope = event.portalId
+      ? ({ kind: 'portal', portalId: event.portalId } as const)
+      : event.portalGroupId
+        ? ({ kind: 'portal_group', portalGroupId: event.portalGroupId } as const)
+        : ({ kind: 'property', propertyId: event.propertyId } as const)
+    const recipientIds = await resolveResponsibleRecipients(
+      deps,
       event.organizationId,
-      event.propertyId,
+      scope,
     )
 
     if (recipientIds.length === 0) {
@@ -57,6 +66,7 @@ export const onGoalCompleted =
             resourceId: event.goalId,
             eventId: event.eventId,
             payload,
+            audience: { kind: 'responsible_scope', scope },
           },
           {
             attempts: 3,

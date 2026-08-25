@@ -38,13 +38,15 @@ function makeEvent(overrides?: Partial<BadgeAwarded>): BadgeAwarded {
 
 const payloadOf = (data: unknown): Record<string, unknown> =>
   (data as { payload: Record<string, unknown> }).payload
+const audienceOf = (data: unknown): Record<string, unknown> =>
+  (data as { audience: Record<string, unknown> }).audience
 
 describe('onBadgeAwarded (notification)', () => {
   let deps: FakeEventHandlerDeps
 
   beforeEach(() => {
     deps = createEventHandlerDeps()
-    deps.userLookup.findAssignedManagers.mockResolvedValue(['manager-1', 'manager-2'])
+    deps.responsibleManagers.findForPortal.mockResolvedValue(['manager-1', 'manager-2'])
   })
 
   it('enqueues one notification job per assigned manager', async () => {
@@ -59,6 +61,10 @@ describe('onBadgeAwarded (notification)', () => {
       expect(data.resourceId).toBe(BADGE_DEF_ID)
       expect(data.userId).toBeTruthy()
       expect(data.organizationId).toBe(ORG_ID)
+      expect(data.audience).toEqual({
+        kind: 'responsible_scope',
+        scope: { kind: 'portal', portalId: PORTAL_ID },
+      })
     }
   })
 
@@ -76,6 +82,7 @@ describe('onBadgeAwarded (notification)', () => {
 
   it('resolves the award target from the event targetType', async () => {
     const groupId = portalGroupId('group-1')
+    deps.responsibleManagers.findForPortalGroup.mockResolvedValue(['manager-1'])
     await onBadgeAwarded(deps)(
       makeEvent({ targetType: 'portal_group', targetId: groupId }),
     )
@@ -85,7 +92,15 @@ describe('onBadgeAwarded (notification)', () => {
       target: { kind: 'portal_group', id: groupId },
       orgId: ORG_ID,
     })
+    expect(deps.responsibleManagers.findForPortalGroup).toHaveBeenCalledWith(
+      ORG_ID,
+      groupId,
+    )
     expect(payloadOf(deps.jobs[0]!.data).targetKind).toBe('portal_group')
+    expect(audienceOf(deps.jobs[0]!.data)).toEqual({
+      kind: 'responsible_scope',
+      scope: { kind: 'portal_group', portalGroupId: groupId },
+    })
   })
 
   it('still notifies with the target kind when the lookup finds nothing', async () => {
@@ -97,14 +112,15 @@ describe('onBadgeAwarded (notification)', () => {
     expect(payloadOf(deps.jobs[0]!.data)).toEqual({ targetKind: 'portal' })
   })
 
-  it('queries managers by org and property', async () => {
+  it('queries current responsible managers for the awarded Portal', async () => {
     await onBadgeAwarded(deps)(makeEvent())
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
+    expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledWith(ORG_ID, PORTAL_ID)
   })
 
   it('skips silently when no managers found', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForPortal.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([])
 
     await onBadgeAwarded(deps)(makeEvent())
 

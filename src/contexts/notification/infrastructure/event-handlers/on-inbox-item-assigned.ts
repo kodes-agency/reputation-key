@@ -37,6 +37,10 @@ export const onInboxItemAssigned =
       resourceId: event.inboxItemId,
       eventId: event.eventId,
       payload,
+      audience: {
+        kind: 'inbox_assignee' as const,
+        inboxItemId: event.inboxItemId,
+      },
     }
 
     await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)

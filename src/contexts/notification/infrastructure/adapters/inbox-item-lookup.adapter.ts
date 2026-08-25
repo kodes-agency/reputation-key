@@ -9,15 +9,24 @@ import { and, eq } from 'drizzle-orm'
 import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import {
+  feedbackId,
   inboxItemId,
+  userId,
   unbrand,
   type ReviewId,
   type OrganizationId,
   type InboxItemId,
 } from '#/shared/domain/ids'
-import type { InboxItemFacts } from '../../application/ports/inbox-item-lookup.port'
+import type {
+  InboxItemFacts,
+  InboxItemLookupPort,
+} from '../../application/ports/inbox-item-lookup.port'
+import type { FeedbackPortalLookupPort } from '../../application/ports/feedback-portal-lookup.port'
 
-export const createInboxItemLookupAdapter = (db: Database) => ({
+export const createInboxItemLookupAdapter = (
+  db: Database,
+  feedbackPortalLookup: FeedbackPortalLookupPort,
+): InboxItemLookupPort => ({
   async findInboxItemByReviewId(
     reviewId: ReviewId,
     orgId: OrganizationId,
@@ -48,6 +57,8 @@ export const createInboxItemLookupAdapter = (db: Database) => ({
         propertyId: inboxItems.propertyId,
         rating: inboxItems.rating,
         sourceType: inboxItems.sourceType,
+        sourceId: inboxItems.sourceId,
+        assignedTo: inboxItems.assignedTo,
         createdAt: inboxItems.createdAt,
       })
       .from(inboxItems)
@@ -60,6 +71,11 @@ export const createInboxItemLookupAdapter = (db: Database) => ({
       .limit(1)
     const row = rows[0]
     if (!row) return null
+
+    const sourcePortalId =
+      row.sourceType === 'feedback'
+        ? await feedbackPortalLookup.findPortalId(orgId, feedbackId(row.sourceId))
+        : null
 
     // A missing/deleted property must still yield the rating and the age: copy
     // degrades to "New 2-star review", never to nothing.
@@ -76,6 +92,8 @@ export const createInboxItemLookupAdapter = (db: Database) => ({
 
     return {
       propertyId: row.propertyId,
+      portalId: sourcePortalId,
+      assignedTo: row.assignedTo ? userId(row.assignedTo) : null,
       propertyName: propertyRows[0]?.name ?? null,
       rating: row.rating ?? null,
       sourceType: row.sourceType,

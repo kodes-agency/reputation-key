@@ -1558,7 +1558,30 @@ export function createContainer(options?: {
     queue: infra.jobQueue,
     clock,
     logger,
-    propertyAccessHolders: identity.internal.propertyAccessHolders,
+    responsibleManagers: {
+      findForProperty: (orgId, pid) =>
+        property.publicApi.getResponsibleManagerUserIds(orgId, pid),
+      findForPortal: (orgId, pid) =>
+        portal.publicApi.portal.getResponsibleManagerUserIds(orgId, pid),
+      findForPortalGroup: async (orgId, groupId) => {
+        const portalIds = await portal.publicApi.portalGroup.getGroupPortalIds(
+          orgId,
+          groupId,
+        )
+        const recipients = await Promise.all(
+          portalIds.map((pid) =>
+            portal.publicApi.portal.getResponsibleManagerUserIds(orgId, pid),
+          ),
+        )
+        return [...new Set(recipients.flat())]
+      },
+      isEligibleForProperty: (orgId, pid, managerId) =>
+        property.publicApi.isEligibleResponsibleManagerUserId(orgId, pid, managerId),
+    },
+    feedbackPortalLookup: {
+      findPortalId: (orgId, sourceId) =>
+        guest.publicApi.findPortalIdForFeedback(orgId, sourceId),
+    },
   })
 
   // ── Wire invitation acceptance lifecycle ─────────────────────────
@@ -1706,6 +1729,7 @@ export function createContainer(options?: {
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
     notificationPrefRepo: notification.internal.repos.prefRepo,
+    notificationAudienceAuthorizer: notification.internal.authorizeAudience,
     // The notification-gap healing sweep (registered by bootstrap on the
     // worker path). Undefined when no job queue exists.
     reconcileMissingNotificationsHandler:

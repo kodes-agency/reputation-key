@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { buildPropertyContext } from './build'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { organizationId, propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { buildTestProperty } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
@@ -102,5 +102,42 @@ describe('PropertyPublicApi', () => {
       propertyId('nonexistent'),
     )
     expect(exists).toBe(false)
+  })
+
+  it('revalidates a direct notification recipient and fails closed for a deleted property', async () => {
+    const repo = createInMemoryPropertyRepo()
+    const prop = buildTestProperty({ id: 'prop-1' })
+    repo.seed([prop])
+    const managerId = userId('admin-1')
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      events: createCapturingEventBus(),
+      clock: () => new Date('2025-01-01'),
+      localCell: 'us',
+      staffPublicApi: createStubStaffApi(),
+      identityPublicApi: {
+        listActiveManagers: async () => [
+          { userId: managerId, role: 'AccountAdmin' as const },
+        ],
+      },
+      sourceContentPurge: createStubSourceContentPurge(),
+      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
+    })
+
+    await expect(
+      publicApi.isEligibleResponsibleManagerUserId(
+        prop.organizationId,
+        prop.id,
+        managerId,
+      ),
+    ).resolves.toBe(true)
+    await expect(
+      publicApi.isEligibleResponsibleManagerUserId(
+        prop.organizationId,
+        propertyId('deleted-property'),
+        managerId,
+      ),
+    ).resolves.toBe(false)
   })
 })

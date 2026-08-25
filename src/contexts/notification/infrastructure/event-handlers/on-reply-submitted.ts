@@ -59,6 +59,7 @@ export const onReplySubmitted =
       resourceId: inboxItemId,
       eventId: event.eventId,
       payload,
+      audience: { kind: 'account_admin' as const },
     }))
 
     await Promise.all(

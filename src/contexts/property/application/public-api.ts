@@ -124,6 +124,12 @@ export type PropertyResponsibleManagerPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
+  /** Eligibility check for direct work recipients such as Inbox assignees. */
+  isEligibleResponsibleManagerUserId: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    userId: import('#/shared/domain/ids').UserId,
+  ) => Promise<boolean>
 }>
 
 /** Optional product preference kept separate from the widely mocked core API. */

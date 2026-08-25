@@ -58,6 +58,7 @@ export const onInboxItemEscalated =
           resourceId: event.inboxItemId,
           eventId: event.eventId,
           payload,
+          audience: { kind: 'account_admin' as const },
         }),
       ),
     )

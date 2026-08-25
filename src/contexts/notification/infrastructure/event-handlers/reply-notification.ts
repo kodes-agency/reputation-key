@@ -81,6 +81,7 @@ export function makeReplyNotificationHandler<E extends ReplyNotificationEvent>(o
         resourceId: inboxItemId,
         eventId: event.eventId,
         payload,
+        audience: { kind: 'property_operator' },
       }
 
       await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)

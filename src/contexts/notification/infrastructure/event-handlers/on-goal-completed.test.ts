@@ -4,7 +4,14 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onGoalCompleted } from './on-goal-completed'
 import { createEventHandlerDeps, type FakeEventHandlerDeps } from './test-fixtures'
 import type { GoalCompleted } from '#/contexts/goal/application/public-api'
-import { organizationId, propertyId, goalId, userId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalGroupId,
+  portalId,
+  goalId,
+  userId,
+} from '#/shared/domain/ids'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { UserId, OrganizationId } from '#/shared/domain/ids'
 
@@ -27,7 +34,6 @@ const GOAL_ID = goalId('goal-1')
 const CREATOR_ID = userId('creator-1')
 const MANAGER_1 = userId('mgr-1')
 const MANAGER_2 = userId('mgr-2')
-const STAFF_1 = userId('staff-1')
 const NOW = new Date('2026-06-01T12:00:00Z')
 
 const mockEvent: GoalCompleted = {
@@ -55,37 +61,33 @@ describe('onGoalCompleted (notification)', () => {
 
   beforeEach(() => {
     deps = createEventHandlerDeps()
-    deps.userLookup.findAssignedManagers.mockResolvedValue([
-      MANAGER_1,
-      MANAGER_2,
-      STAFF_1,
-    ])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([MANAGER_1, MANAGER_2])
   })
 
-  it('queries recipients by org and property (managers + staff, not creator)', async () => {
+  it('queries current Property Responsible Managers for a Property goal', async () => {
     await onGoalCompleted(deps)(mockEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(ORG_ID, PROP_ID)
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(ORG_ID, PROP_ID)
   })
 
-  it('enqueues one notification job per assigned manager/staff', async () => {
+  it('enqueues one notification job per responsible manager', async () => {
     await onGoalCompleted(deps)(mockEvent)
 
-    expect(deps.queue.add).toHaveBeenCalledTimes(3)
-    expect(deps.jobs).toHaveLength(3)
+    expect(deps.queue.add).toHaveBeenCalledTimes(2)
+    expect(deps.jobs).toHaveLength(2)
     for (const job of deps.jobs) {
       expect(job.name).toBe(INSERT_NOTIFICATION_JOB_NAME)
     }
   })
 
-  it('sends notifications to assigned managers/staff, NOT the goal creator', async () => {
+  it('never uses Staff attribution or goal creator as a recipient source', async () => {
     await onGoalCompleted(deps)(mockEvent)
 
     const recipientIds = deps.jobs.map((j) => {
       const data = j.data as GoalCompletedJobData
       return data.userId
     })
-    expect(recipientIds).toEqual([MANAGER_1, MANAGER_2, STAFF_1])
+    expect(recipientIds).toEqual([MANAGER_1, MANAGER_2])
     expect(recipientIds).not.toContain(CREATOR_ID)
   })
 
@@ -101,6 +103,10 @@ describe('onGoalCompleted (notification)', () => {
       resourceId: GOAL_ID,
       eventId: 'evt-goal-completed-1',
       payload: { goalName: 'Weekend response time', propertyName: 'Riverside Hotel' },
+      audience: {
+        kind: 'responsible_scope',
+        scope: { kind: 'property', propertyId: PROP_ID },
+      },
     })
   })
 
@@ -115,7 +121,7 @@ describe('onGoalCompleted (notification)', () => {
 
     await onGoalCompleted(deps)(mockEvent)
 
-    expect(deps.jobs).toHaveLength(3)
+    expect(deps.jobs).toHaveLength(2)
     expect((deps.jobs[0]!.data as GoalCompletedJobData).payload).toEqual({})
   })
 
@@ -152,7 +158,8 @@ describe('onGoalCompleted (notification)', () => {
   })
 
   it('skips silently when no recipients found', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
+    deps.userLookup.findByRole.mockResolvedValue([])
 
     await onGoalCompleted(deps)(mockEvent)
 
@@ -167,5 +174,36 @@ describe('onGoalCompleted (notification)', () => {
     deps.addMock.mockRejectedValue(new Error('Queue unavailable'))
 
     await expect(onGoalCompleted(deps)(mockEvent)).rejects.toThrow('Queue unavailable')
+  })
+
+  it('uses Portal responsibility for a Portal goal', async () => {
+    const portal = portalId('portal-1')
+    deps.responsibleManagers.findForPortal.mockResolvedValue([MANAGER_1])
+
+    await onGoalCompleted(deps)({ ...mockEvent, portalId: portal })
+
+    expect(deps.responsibleManagers.findForPortal).toHaveBeenCalledWith(ORG_ID, portal)
+    expect(deps.responsibleManagers.findForProperty).not.toHaveBeenCalled()
+    expect((deps.jobs[0]!.data as Record<string, unknown>).audience).toEqual({
+      kind: 'responsible_scope',
+      scope: { kind: 'portal', portalId: portal },
+    })
+  })
+
+  it('uses deduplicated Portal Group responsibility for a Portal Group goal', async () => {
+    const group = portalGroupId('group-1')
+    deps.responsibleManagers.findForPortalGroup.mockResolvedValue([MANAGER_1])
+
+    await onGoalCompleted(deps)({ ...mockEvent, portalGroupId: group })
+
+    expect(deps.responsibleManagers.findForPortalGroup).toHaveBeenCalledWith(
+      ORG_ID,
+      group,
+    )
+    expect(deps.responsibleManagers.findForProperty).not.toHaveBeenCalled()
+    expect((deps.jobs[0]!.data as Record<string, unknown>).audience).toEqual({
+      kind: 'responsible_scope',
+      scope: { kind: 'portal_group', portalGroupId: group },
+    })
   })
 })

@@ -35,6 +35,7 @@ describe('onReplyRejected (notification)', () => {
           ...EXPECTED_INBOX_PAYLOAD,
           moderationReason: 'Tone too aggressive',
         },
+        audience: { kind: 'property_operator' },
       }),
     )
   })

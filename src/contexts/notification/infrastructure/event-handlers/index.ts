@@ -7,6 +7,7 @@ import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
@@ -24,6 +25,7 @@ export type RegisterNotificationHandlersDeps = Readonly<{
   events: EventBus
   queue: Queue
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
   recognitionLookup: RecognitionLookupPort
   /** Injected — handlers measure a waiting age, and this code never calls Date.now(). */
@@ -34,14 +36,33 @@ export type RegisterNotificationHandlersDeps = Readonly<{
 export const registerNotificationHandlers = (
   deps: RegisterNotificationHandlersDeps,
 ): void => {
-  const { events, queue, userLookup, inboxItemLookup, recognitionLookup, clock, logger } =
-    deps
+  const {
+    events,
+    queue,
+    userLookup,
+    responsibleManagers,
+    inboxItemLookup,
+    recognitionLookup,
+    clock,
+    logger,
+  } = deps
 
   // Every inbox-keyed handler assembles its payload from the same four things:
   // the item facts, the acting user's role, a clock for the waiting age, and a
   // logger for a degraded lookup.
-  const inboxFacts = { userLookup, inboxItemLookup, clock, logger }
-  const recognitionFacts = { userLookup, recognitionLookup, logger }
+  const inboxFacts = {
+    userLookup,
+    responsibleManagers,
+    inboxItemLookup,
+    clock,
+    logger,
+  }
+  const recognitionFacts = {
+    userLookup,
+    responsibleManagers,
+    recognitionLookup,
+    logger,
+  }
 
   // Inbox events (reviews + feedback both arrive via inbox.inbox_item.created)
   events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, ...inboxFacts }), {

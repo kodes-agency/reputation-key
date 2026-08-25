@@ -7,8 +7,10 @@ import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
 import type { NotificationResourceType, NotificationType } from '../../domain/types'
 import type { NotificationPayload } from '../../domain/notification-payload'
+import type { NotificationAudience } from '../../application/notification-audience'
 import {
   organizationId,
   propertyId,
@@ -44,6 +46,7 @@ export type FakeEventHandlerDeps = Readonly<{
   addMock: Mock
   jobs: FakeJob[]
   userLookup: MockedPort<UserLookupPort>
+  responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
   recognitionLookup: MockedPort<RecognitionLookupPort>
   clock: () => Date
@@ -62,12 +65,19 @@ const createFakeQueue = (): Pick<FakeEventHandlerDeps, 'queue' | 'addMock' | 'jo
 /** Fake UserLookupPort — every method starts as an empty/mockable vi.fn(). */
 const createFakeUserLookup = (): MockedPort<UserLookupPort> =>
   ({
-    findAssignedManagers: vi.fn(async () => []),
     findByRole: vi.fn(async () => []),
     getEmail: vi.fn(async () => null),
     getName: vi.fn(async () => null),
     findActorRole: vi.fn(async () => 'property_manager'),
   }) as unknown as MockedPort<UserLookupPort>
+
+const createFakeResponsibleManagers = (): MockedPort<ResponsibleManagerLookupPort> =>
+  ({
+    findForProperty: vi.fn(async () => []),
+    findForPortal: vi.fn(async () => []),
+    findForPortalGroup: vi.fn(async () => []),
+    isEligibleForProperty: vi.fn(async () => false),
+  }) as unknown as MockedPort<ResponsibleManagerLookupPort>
 
 /** Fake LoggerPort. */
 const createFakeLogger = (): MockedPort<LoggerPort> =>
@@ -87,6 +97,8 @@ const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
     findInboxItemByReviewId: vi.fn(async () => inboxItemId('item-1')),
     findInboxItemFacts: vi.fn(async () => ({
       propertyId: 'prop-1',
+      portalId: null,
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
       rating: 2,
       sourceType: 'review',
@@ -111,6 +123,7 @@ const createFakeRecognitionLookup = (): MockedPort<RecognitionLookupPort> =>
 export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
   ...createFakeQueue(),
   userLookup: createFakeUserLookup(),
+  responsibleManagers: createFakeResponsibleManagers(),
   logger: createFakeLogger(),
   inboxItemLookup: createFakeInboxItemLookup(),
   recognitionLookup: createFakeRecognitionLookup(),
@@ -163,7 +176,7 @@ export const buildInboxItemCreatedEvent = (
   inboxItemId: NOTIF_TEST_IDS.inboxItemId,
   organizationId: NOTIF_TEST_IDS.orgId,
   propertyId: NOTIF_TEST_IDS.propId,
-  sourceType: 'feedback',
+  sourceType: 'review',
   sourceId: NOTIF_TEST_IDS.reviewId,
   userId: null,
   source: 'web',
@@ -300,6 +313,7 @@ type ExpectedNotificationJobData = {
   resourceType: NotificationResourceType
   resourceId: string
   payload: NotificationPayload
+  audience: NotificationAudience
 }
 
 export const buildExpectedJob = (
@@ -326,6 +340,7 @@ export const expectJobsEnqueued = (deps: FakeEventHandlerDeps, count: number): v
 
 /** Stub a single manager + a rejecting queue, for "propagates error from queue.add" tests. */
 export const stubManagerForQueueAddError = (deps: FakeEventHandlerDeps): void => {
-  deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  deps.responsibleManagers.findForPortal.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   deps.addMock.mockRejectedValue(new Error('Queue unavailable'))
 }

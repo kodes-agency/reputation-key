@@ -31,6 +31,7 @@ describe('onReplyPublishFailed (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: EXPECTED_INBOX_PAYLOAD,
+        audience: { kind: 'property_operator' },
       }),
     )
   })

@@ -23,6 +23,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Smart Routing** affects the visual emphasis of the **Feedback** form based on the **Rating** value
 - **Anti-Gating** compliance ensures review links are always visible and identically positioned regardless of **Rating**
 - Guest context **depends on** `PortalPublicApi` for portal resolution and public portal data.
+- Notification consumes Guest's content-free `findPortalIdForFeedback` public API; Guest retains ownership of canonical and legacy response attribution.
 
 ## Invariants
 
@@ -64,6 +65,7 @@ guest/
     public-api.ts      re-exports domain types, event types/constructors
   infrastructure/
     repositories/      guest-interaction.repository.ts
+    feedback-portal-attribution.ts  tenant-scoped, content-free source lookup
     mappers/           guest.mapper.ts
     resolvers/         portal-context-resolver.ts, public-portal-lookup.ts
   server/              public.ts, guest-scans.ts
@@ -84,6 +86,7 @@ guest/
 Exported from `application/public-api.ts`:
 
 - Types: `ScanEvent`, `Rating`, `Feedback`, `ScanSource`
+- Cross-context API: `findPortalIdForFeedback(organizationId, feedbackId)` returns only the source `PortalId` (or null), with canonical-response precedence and legacy-read compatibility.
 - Event types: `GuestScanRecorded`, `GuestRatingSubmitted`, `GuestRatingRetracted`, `GuestFeedbackSubmitted`, `GuestFeedbackRetracted`, `GuestReviewLinkClicked`, `GuestEvent`
 - Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestRatingRetracted`, `guestFeedbackSubmitted`, `guestFeedbackRetracted`, `guestReviewLinkClicked`
 
