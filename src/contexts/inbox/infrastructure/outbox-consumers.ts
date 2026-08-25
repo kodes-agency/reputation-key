@@ -144,7 +144,7 @@ export async function handleInboxReviewCreated(
   const item = built.value
 
   // One tx: idempotent create + created fact (only when created) + receipt.
-  const outcome = await deps.commandStore.applyReviewCreatedOnce({
+  const outcome = await deps.commandStore.applySourceCreatedOnce({
     eventId: event.eventId,
     consumerName: ON_REVIEW_CREATED,
     item,

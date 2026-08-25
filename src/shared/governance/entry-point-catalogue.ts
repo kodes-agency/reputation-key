@@ -2650,6 +2650,18 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'inbox.guest-feedback',
+    'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts',
+    'system:inbox.update',
+    'portal.read',
+    'organization',
+    ['guest.feedback.submitted'],
+    {
+      notes:
+        'durable metadata-only private-feedback projection with source existence check',
+    },
+  ),
+  consumer(
     'notification.outbox-consumers',
     'src/contexts/notification/infrastructure/outbox-consumers.ts',
     'system:notification.insert',

@@ -58,7 +58,7 @@ describe('BQC-3.4: atomic inbox outbox producer', () => {
     )
     expect(src).toContain('eventConsumerReceipts')
     expect(src).toContain('onConflictDoNothing')
-    expect(src).toContain('applyReviewCreatedOnce')
+    expect(src).toContain('applySourceCreatedOnce')
     expect(src).toContain('applyReviewExpiredOnce')
     expect(src).toContain('applyReviewUpdatedOnce')
     expect(src).toContain('applyReplyPublishedOnce')

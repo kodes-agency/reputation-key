@@ -134,7 +134,7 @@ export function createSequentialInboxCommandStore(deps: {
       return saved
     },
 
-    applyReviewCreatedOnce: async (command) => {
+    applySourceCreatedOnce: async (command) => {
       const existing = await deps.repo.findBySource(
         command.item.sourceType,
         command.item.sourceId as string,

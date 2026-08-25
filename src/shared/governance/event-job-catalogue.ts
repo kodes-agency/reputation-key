@@ -277,6 +277,8 @@ const LEADERBOARD_HANDLERS =
   'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const INBOX_GUEST_FEEDBACK_OUTBOX =
+  'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const PROPERTY_RETENTION_OUTBOX =
   'src/contexts/property/infrastructure/outbox-consumers.ts'
@@ -1234,6 +1236,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('inbox.on-guest-feedback-submitted', INBOX_GUEST_FEEDBACK_OUTBOX),
         durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
       disposition: 'denied_dark',
@@ -1241,7 +1244,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'inbox',
       notes:
-        'content-free v1 payload; metric projection is durable, while the Inbox projection and source/outbox atomicity remain owned follow-ups',
+        'content-free v1 payload with durable Inbox and metric projections; Guest response insert and source outbox recording are not yet one transaction (ARC-01)',
     },
   ),
   ev(

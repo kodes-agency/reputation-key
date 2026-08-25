@@ -31,11 +31,12 @@ export type ApplyReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
 export type CreateItemResult = Readonly<{ item: InboxItem; created: boolean }>
 
 /**
- * review.created apply command: idempotent item create + created fact (only
- * when the insert wins) + receipt — one transaction.
+ * Source-created projection command: idempotent item create + created fact
+ * (only when the insert wins) + receipt — one transaction. Shared by review
+ * and Guest feedback sources so the atomicity rule has one implementation.
  */
-export type ApplyReviewCreatedCommand = Readonly<{
-  /** The delivered review.created outbox event id (receipt identity). */
+export type ApplySourceCreatedCommand = Readonly<{
+  /** The delivered source event id (receipt identity). */
   eventId: string
   consumerName: string
   item: InboxItem
@@ -159,9 +160,9 @@ export type InboxCommandStore = Readonly<{
   // consumer receipt in ONE transaction — a crash can never lose a fact or
   // duplicate a side effect across redelivery.
 
-  /** review.created: idempotent create + created fact + receipt. */
-  applyReviewCreatedOnce(
-    command: ApplyReviewCreatedCommand,
+  /** Source event: idempotent create + created fact + receipt. */
+  applySourceCreatedOnce(
+    command: ApplySourceCreatedCommand,
   ): Promise<'applied' | 'duplicate'>
   /** review.expired: guarded close + status_changed fact + receipt. */
   applyReviewExpiredOnce(command: ApplyReviewExpiredCommand): Promise<'applied'>

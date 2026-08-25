@@ -249,7 +249,7 @@ describe('row 5 — Inbox (enabled/limited): content-free projection + applyOnce
   it('the command-store port exposes applyOnce and detail enrichment uses the review lookup port', () => {
     expect(
       strippedSource('src/contexts/inbox/application/ports/inbox-command-store.port.ts'),
-    ).toContain('applyReviewCreatedOnce')
+    ).toContain('applySourceCreatedOnce')
     expect(
       strippedSource(
         'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',

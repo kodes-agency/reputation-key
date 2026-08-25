@@ -289,8 +289,8 @@ export function createAtomicInboxCommandStore(
       })
     },
 
-    applyReviewCreatedOnce: async (command) => {
-      return trace('inbox.commandStore.applyReviewCreatedOnce', async () => {
+    applySourceCreatedOnce: async (command) => {
+      return trace('inbox.commandStore.applySourceCreatedOnce', async () => {
         const outcome = await db.transaction(async (tx) => {
           const inserted = await insertItemIdempotent(tx, command.item)
           if (!inserted.created) {

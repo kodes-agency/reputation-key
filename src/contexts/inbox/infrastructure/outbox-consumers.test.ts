@@ -11,6 +11,7 @@ import {
   handleInboxReplyPublished,
   type InboxConsumerDeps,
 } from './outbox-consumers'
+import { handleInboxGuestFeedbackSubmitted } from './guest-feedback-outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
@@ -24,8 +25,18 @@ import type {
   ReviewSourceMeta,
 } from '../application/ports/review-source-lookup.port'
 import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
-import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  feedbackId,
+  inboxItemId,
+  organizationId,
+  propertyId,
+  reviewId,
+} from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
+import type {
+  FeedbackLookupPort,
+  FeedbackSnippet,
+} from '../application/ports/feedback-lookup.port'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -104,6 +115,11 @@ const SOURCE_META: ReviewSourceMeta = {
   contentExpiresAt: null,
 }
 
+const AVAILABLE_FEEDBACK: FeedbackSnippet = {
+  comment: 'Private feedback',
+  ratingValue: 2,
+}
+
 type ReceiptRow = Readonly<{
   eventId: string
   consumerName: string
@@ -114,6 +130,7 @@ function makeDeps(overrides: {
   item?: InboxItem | null
   snippetResult?: ReviewSnippetResult
   sourceMeta?: ReviewSourceMeta | null
+  feedback?: FeedbackSnippet | null
 }) {
   const item = overrides.item === undefined ? makeItem() : overrides.item
   const repo = createInMemoryInboxRepo()
@@ -143,6 +160,14 @@ function makeDeps(overrides: {
     listReviewSources: vi.fn(async () => []),
   } satisfies ReviewSourceLookupPort
 
+  const feedbackLookup = {
+    getFeedbackSnippetById: vi.fn(async () =>
+      overrides.feedback === undefined ? AVAILABLE_FEEDBACK : overrides.feedback,
+    ),
+    getFeedbackSnippetsByIds: vi.fn(async () => new Map()),
+    findEligibleFeedbackIds: vi.fn(async () => []),
+  } satisfies FeedbackLookupPort
+
   const deps: InboxConsumerDeps = {
     commandStore,
     reviewLookup,
@@ -151,8 +176,100 @@ function makeDeps(overrides: {
     idGen: () => INBOX,
     clock: () => NOW,
   }
-  return { deps, repo, events, receipts }
+  const guestDeps = {
+    commandStore,
+    feedbackLookup,
+    idGen: () => INBOX,
+    clock: () => NOW,
+  }
+  return { deps, guestDeps, repo, events, receipts }
 }
+
+describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
+  it('creates a metadata-only feedback item and co-commits its receipt', async () => {
+    const { guestDeps, repo, events, receipts } = makeDeps({ item: null })
+
+    const result = await handleInboxGuestFeedbackSubmitted(
+      guestDeps,
+      makeEvent('guest.feedback.submitted', {
+        feedbackId: 'feedback-1',
+        ratingId: 'rating-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(guestDeps.feedbackLookup.getFeedbackSnippetById).toHaveBeenCalledWith(
+      feedbackId('feedback-1'),
+      ORG,
+    )
+    expect(repo.items).toHaveLength(1)
+    expect(repo.items[0]).toMatchObject({
+      sourceType: 'feedback',
+      sourceId: 'feedback-1',
+      propertyId: PROP,
+      sourceDate: NOW,
+      platform: null,
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-guest-feedback-submitted',
+        status: 'applied',
+      },
+    ])
+  })
+
+  it('records an obsolete receipt when feedback was withdrawn before delivery', async () => {
+    const { guestDeps, repo, receipts } = makeDeps({ item: null, feedback: null })
+
+    const result = await handleInboxGuestFeedbackSubmitted(
+      guestDeps,
+      makeEvent('guest.feedback.submitted', {
+        feedbackId: 'feedback-1',
+        ratingId: null,
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'obsolete' })
+    expect(repo.items).toHaveLength(0)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-guest-feedback-submitted',
+        status: 'obsolete',
+      },
+    ])
+  })
+
+  it('rejects cross-tenant envelope attribution before reading feedback', async () => {
+    const { guestDeps } = makeDeps({ item: null })
+    const event = makeEvent('guest.feedback.submitted', {
+      feedbackId: 'feedback-1',
+      ratingId: null,
+      organizationId: 'other-org',
+      propertyId: 'prop-1',
+      portalId: 'portal-1',
+      occurredAt: NOW.toISOString(),
+    })
+
+    await expect(handleInboxGuestFeedbackSubmitted(guestDeps, event)).rejects.toThrow(
+      'attribution',
+    )
+    expect(guestDeps.feedbackLookup.getFeedbackSnippetById).not.toHaveBeenCalled()
+  })
+})
 
 describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
   beforeEach(() => {

@@ -590,7 +590,7 @@ describe('createAtomicInboxCommandStore', () => {
     })
   })
 
-  describe('applyReviewCreatedOnce', () => {
+  describe('applySourceCreatedOnce', () => {
     it('commits item + created fact + receipt in one tx before emit', async () => {
       const order: string[] = []
       const receiptRows: Array<Record<string, unknown>> = []
@@ -602,7 +602,7 @@ describe('createAtomicInboxCommandStore', () => {
       const events = makeEvents(order)
       const store = createAtomicInboxCommandStore(db, events)
 
-      const outcome = await store.applyReviewCreatedOnce({
+      const outcome = await store.applySourceCreatedOnce({
         eventId: 'evt-review-created-1',
         consumerName: 'inbox.on-review-created',
         item: makeItem(),
@@ -641,7 +641,7 @@ describe('createAtomicInboxCommandStore', () => {
       const events = makeEvents(order)
       const store = createAtomicInboxCommandStore(db, events)
 
-      const outcome = await store.applyReviewCreatedOnce({
+      const outcome = await store.applySourceCreatedOnce({
         eventId: 'evt-review-created-1',
         consumerName: 'inbox.on-review-created',
         item: makeItem(),
@@ -1195,7 +1195,7 @@ describe('createSequentialInboxCommandStore', () => {
     expect(order).toEqual(['outbox', 'emit', 'outbox', 'emit'])
   })
 
-  it('applyReviewCreatedOnce: duplicate source records a duplicate receipt, no fact', async () => {
+  it('applySourceCreatedOnce: duplicate source records a duplicate receipt, no fact', async () => {
     const receipts: Array<readonly [string, string, string]> = []
     const recordOutbox = vi.fn()
     const repo = createInMemoryInboxRepo()
@@ -1209,7 +1209,7 @@ describe('createSequentialInboxCommandStore', () => {
       events: { on: vi.fn(), emit: vi.fn(), clear: vi.fn() },
     })
 
-    const outcome = await store.applyReviewCreatedOnce({
+    const outcome = await store.applySourceCreatedOnce({
       eventId: 'evt-1',
       consumerName: 'inbox.on-review-created',
       item: makeItem({ id: inboxItemId('ii-new') }),

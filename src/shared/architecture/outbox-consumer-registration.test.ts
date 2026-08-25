@@ -70,12 +70,17 @@ describe('BQR-2.2: outbox consumer registration', () => {
     // it without importing the consumer registration itself.
     const inboxBuildSrc = readFileSync(join(ROOT, 'src/contexts/inbox/build.ts'), 'utf-8')
     expect(inboxBuildSrc).toContain('registerInboxConsumers')
+    expect(inboxBuildSrc).toContain('registerGuestFeedbackConsumer')
     expect(compositionSrc).toContain('inbox.internal.registerOutboxConsumers')
   })
 
-  it('inbox outbox-consumers registers the four review→inbox consumers (BQC-3.4)', () => {
+  it('inbox outbox-consumers registers review and Guest feedback projections', () => {
     const src = readFileSync(
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
+      'utf-8',
+    )
+    const guestSrc = readFileSync(
+      join(ROOT, 'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'),
       'utf-8',
     )
     expect(src).toContain("eventType: 'review.created'")
@@ -88,6 +93,8 @@ describe('BQR-2.2: outbox consumer registration', () => {
     // BQC-3.4: durable milestone/auto-close consumer.
     expect(src).toContain("eventType: 'review.reply.published'")
     expect(src).toContain("consumerName: 'inbox.on-reply-published'")
+    expect(guestSrc).toContain("eventType: 'guest.feedback.submitted'")
+    expect(guestSrc).toContain("consumerName: 'inbox.on-guest-feedback-submitted'")
   })
 
   it('listRegisteredConsumers is empty after clear', () => {
@@ -107,11 +114,16 @@ describe('BQR-2.2: outbox consumer registration', () => {
       join(ROOT, 'src/contexts/inbox/infrastructure/outbox-consumers.ts'),
       'utf-8',
     )
+    const guestSrc = readFileSync(
+      join(ROOT, 'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'),
+      'utf-8',
+    )
     expect(src).toContain('handleInboxReviewCreated')
     expect(src).toContain('handleInboxReviewExpired')
     expect(src).toContain('handleInboxReviewUpdated')
     expect(src).toContain('handleInboxReplyPublished')
-    expect(src).toContain('applyReviewCreatedOnce')
+    expect(src).toContain('applySourceCreatedOnce')
+    expect(guestSrc).toContain('applySourceCreatedOnce')
     expect(src).toContain('applyReviewExpiredOnce')
     expect(src).toContain('applyReviewUpdatedOnce')
     expect(src).toContain('applyReplyPublishedOnce')

@@ -1,7 +1,7 @@
 // BQC-3.4 — inbox command store + rebuild integration tests (real Postgres).
 //
 // Crash-boundary proofs on the real database:
-//   1. applyReviewCreatedOnce commits item + created fact + receipt in ONE
+//   1. applySourceCreatedOnce commits item + created fact + receipt in ONE
 //      transaction; a forced outbox failure (unregistered fact type) or a
 //      forced receipt failure (missing source event row → FK violation)
 //      rolls back EVERYTHING — no item row survives.
@@ -249,7 +249,7 @@ beforeEach(async () => {
 })
 
 describe.sequential('inboxCommandStore applyOnce (integration)', () => {
-  it('applyReviewCreatedOnce commits item + fact + receipt in one transaction', async () => {
+  it('applySourceCreatedOnce commits item + fact + receipt in one transaction', async () => {
     const store = createAtomicInboxCommandStore(db, silentEvents)
     const source = reviewCreated({
       reviewId: REVIEW_A,
@@ -265,7 +265,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
     const item = makeItem()
     const fact = createdFact(item)
-    const outcome = await store.applyReviewCreatedOnce({
+    const outcome = await store.applySourceCreatedOnce({
       eventId: source.eventId,
       consumerName: CONSUMER,
       item,
@@ -309,10 +309,10 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const ghost = {
       ...createdFact(makeItem()),
       _tag: 'inbox.inbox_item.ghost',
-    } as unknown as Parameters<typeof store.applyReviewCreatedOnce>[0]['fact']
+    } as unknown as Parameters<typeof store.applySourceCreatedOnce>[0]['fact']
 
     await expect(
-      store.applyReviewCreatedOnce({
+      store.applySourceCreatedOnce({
         eventId: source.eventId,
         consumerName: CONSUMER,
         item: makeItem(),
@@ -341,7 +341,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     const ghostEventId = crypto.randomUUID()
 
     await expect(
-      store.applyReviewCreatedOnce({
+      store.applySourceCreatedOnce({
         eventId: ghostEventId,
         consumerName: CONSUMER,
         item: makeItem(),
@@ -383,14 +383,14 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await insertSourceEvent(source)
 
     const item = makeItem()
-    const first = await store.applyReviewCreatedOnce({
+    const first = await store.applySourceCreatedOnce({
       eventId: source.eventId,
       consumerName: CONSUMER,
       item,
       fact: createdFact(item),
     })
     // Same delivered event again (replay after the receipt pre-check raced).
-    const second = await store.applyReviewCreatedOnce({
+    const second = await store.applySourceCreatedOnce({
       eventId: source.eventId,
       consumerName: CONSUMER,
       item: makeItem({ id: inboxItemId(crypto.randomUUID()) }),

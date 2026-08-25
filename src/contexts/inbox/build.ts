@@ -47,6 +47,7 @@ import { createInboxViewRepository } from './infrastructure/repositories/inbox-v
 import { createAtomicInboxCommandStore } from './infrastructure/inbox-command-store'
 import { registerInboxHandlers } from './infrastructure/event-handlers'
 import { registerInboxConsumers } from './infrastructure/outbox-consumers'
+import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
 import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-lookup.adapter'
 import { createPropertyLookupAdapter } from './infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from './infrastructure/adapters/reply-lookup.adapter'
@@ -187,6 +188,12 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       reviewLookup: input.reviewLookup,
       reviewSourceLookup,
       inboxRepo,
+      idGen: () => inboxItemId(crypto.randomUUID()),
+      clock: input.clock,
+    })
+    registerGuestFeedbackConsumer({
+      commandStore,
+      feedbackLookup,
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
     })
