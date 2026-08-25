@@ -48,6 +48,7 @@ import type { SystemAction } from './entry-point-catalogue'
 export type EventDisposition =
   | 'enabled' // produced and consumed today
   | 'orphan' // produced but never consumed — owned by a later BQC slice
+  | 'quarantined' // retained schema/producer code, but no active runtime producer or consumer
   | 'denied_dark' // belongs to a dark beta context (capability-gated off)
 
 /** How a consumer is wired to the event. */
@@ -107,7 +108,7 @@ export type EventFamilyRow = Readonly<{
   /** Operator repair command. BQC-3.3/3.4 introduced reconcileReplyPublication/rebuildInboxProjection; 'none' elsewhere. */
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
-  /** Owning slice — required when disposition is 'orphan'. */
+  /** Owning slice — required when disposition is 'orphan' or 'quarantined'. */
   ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PPL-01' | 'PR3'
   notes?: string
 }>
@@ -957,7 +958,7 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [],
-      disposition: 'orphan',
+      disposition: 'quarantined',
     },
     {
       ownerSlice: 'PPL-01',
@@ -975,7 +976,7 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [],
-      disposition: 'orphan',
+      disposition: 'quarantined',
     },
     {
       ownerSlice: 'PPL-01',

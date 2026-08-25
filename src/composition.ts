@@ -1432,10 +1432,9 @@ export function createContainer(options?: {
   })
 
   // ── Wire invitation acceptance lifecycle ─────────────────────────
-  // PropertyAccessGrant is the sole authorization input; participation is
-  // separate attribution/profile state. The post-commit hook provisions both
-  // idempotently and never writes the legacy staff_assignments table.
-  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds, displayName }) => {
+  // Invitation property selections explicitly provision access only.
+  // Participation and attribution remain independent manager commands (ADR 0052).
+  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds }) => {
     for (const rawPropertyId of propertyIds) {
       try {
         await identity.internal.grantInvitationPropertyAccess({
@@ -1443,17 +1442,8 @@ export function createContainer(options?: {
           organizationId,
           propertyId: rawPropertyId,
         })
-        await staff.internal.systemStaffParticipation({
-          userId,
-          organizationId,
-          propertyId: rawPropertyId,
-          displayName,
-        })
       } catch (error) {
-        logger.warn(
-          { err: error },
-          'Failed to provision invited property access and participation',
-        )
+        logger.warn({ err: error }, 'Failed to provision invited property access')
       }
     }
   })

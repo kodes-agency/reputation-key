@@ -357,6 +357,10 @@ export const listMyTeam = createServerFn({ method: 'GET' })
     tracedHandler(
       async () => {
         const ctx = await resolveTenantContext(await headersFromContext())
+        // Unlike resource-addressed Team functions, this endpoint has no
+        // property identifier on which to authorize first. Enforce the
+        // unconditionally blocked Team capability before discovering scopes.
+        await requireExecutionAllowed({ actor: ctx, action: 'team.read' })
         const authorizedScopes = await resolveAuthorizedMyTeamScopes(ctx)
         try {
           return await getContainer().useCases.listMyTeam({ authorizedScopes }, ctx)

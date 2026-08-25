@@ -63,6 +63,13 @@ const propertyDisabled = () =>
     'property_disabled',
     403,
   )
+const capabilityBlocked = () =>
+  new ServerFunctionError(
+    'AuthError',
+    'Authorization denied: capability_blocked',
+    'capability_blocked',
+    403,
+  )
 
 describe('Team server property scope', () => {
   beforeEach(() => {
@@ -77,7 +84,7 @@ describe('Team server property scope', () => {
     }))
   })
 
-  it('prevents Staff my-team enumeration from widening P1 into P2', async () => {
+  it('hard-denies my-team before discovering or reading retained Team data', async () => {
     mocks.listActiveTeamScopesByUser.mockResolvedValue([
       {
         organizationId: 'org-a',
@@ -93,13 +100,21 @@ describe('Team server property scope', () => {
       },
     ])
     mocks.listMyTeam.mockResolvedValue({ team: { id: 'team-p1' }, memberships: [] })
+    mocks.requireExecutionAllowed.mockRejectedValueOnce(capabilityBlocked())
 
-    await withStartContext(() => listMyTeam({ data: {} }))
+    await expect(withStartContext(() => listMyTeam({ data: {} }))).rejects.toMatchObject({
+      _tag: 'AuthError',
+      code: 'capability_blocked',
+      status: 403,
+    })
 
-    expect(mocks.listMyTeam).toHaveBeenCalledWith(
-      { authorizedScopes: [{ teamId: 'team-p1', role: 'lead' }] },
-      ACTOR,
-    )
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor: ACTOR,
+      action: 'team.read',
+    })
+    expect(mocks.listActiveTeamScopesByUser).not.toHaveBeenCalled()
+    expect(mocks.decide).not.toHaveBeenCalled()
+    expect(mocks.listMyTeam).not.toHaveBeenCalled()
   })
 
   it('denies a P2 membership mutation before its effect', async () => {

@@ -1402,7 +1402,8 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     }),
     sf('listMyTeam', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
       canonicalOnly: true,
-      notes: 'authorization is applied per assigned scope before team details are read',
+      notes:
+        'hard-denied by team.use before scope discovery; per-scope authorization remains for any future deliberate reactivation',
     }),
   ],
 

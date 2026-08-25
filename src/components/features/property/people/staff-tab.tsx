@@ -107,8 +107,8 @@ export function StaffTab({
             <DialogHeader>
               <DialogTitle>Add staff participation</DialogTitle>
               <DialogDescription>
-                Add organization members to this property. Team membership and portal
-                responsibilities are managed separately.
+                Add organization members to this property. Portal responsibilities are
+                managed separately.
               </DialogDescription>
             </DialogHeader>
             <StaffParticipationForm

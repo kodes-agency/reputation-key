@@ -18,7 +18,7 @@ export const organizationSchema = {
   invitation: {
     additionalFields: {
       // JSON-stringified array of property IDs selected at invite time;
-      // consumed by the afterAcceptInvitation hook to create staff_assignments.
+      // consumed after acceptance to create explicit PropertyAccessGrants.
       propertyIds: {
         type: 'string' as const,
         input: true,

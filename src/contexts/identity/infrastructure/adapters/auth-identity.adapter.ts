@@ -287,20 +287,16 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       userId: string
       organizationId: string
       propertyIds: ReadonlyArray<string>
-      displayName?: string
     }): Promise<void> {
-      // Post-commit side effect — auto-create staff assignments for the invited
-      // properties (replaces BA's afterAcceptInvitation hook, which the
-      // app-owned accept path bypasses).
+      // Post-commit side effect — provision explicit invited-Property access
+      // grants (replaces BA's afterAcceptInvitation hook, which the app-owned
+      // accept path bypasses). Staff participation is deliberately untouched.
       const handler = getOnAcceptInvitation()
       if (!handler || ctx.propertyIds.length === 0) return
       try {
         await handler(ctx)
       } catch (e) {
-        getLogger().warn(
-          { err: e },
-          'Failed to auto-assign property on invitation acceptance',
-        )
+        getLogger().warn({ err: e }, 'Failed to provision invited property access')
       }
     },
 

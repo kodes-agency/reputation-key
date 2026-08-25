@@ -26,7 +26,6 @@ import {
   listStaffParticipations,
   updatePortalResponsibilities,
 } from './application/use-cases/staff-participations'
-import { createParticipation } from './domain/staff-participation'
 import { randomUUID } from 'crypto'
 
 type StaffContextDeps = Readonly<{
@@ -143,26 +142,6 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
   } as const
 
-  const systemStaffParticipation = async (
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      displayName?: string
-    }>,
-  ) =>
-    participationRepo.create(
-      createParticipation({
-        id: idGen(),
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.userId,
-        displayName: input.displayName?.trim() || input.userId,
-        createdBy: `invitation:${input.userId}`,
-        now: deps.clock(),
-      }),
-    )
-
   return {
     publicApi,
     internal: {
@@ -171,7 +150,6 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
         staffParticipationRepo: participationRepo,
       } as const,
       useCases,
-      systemStaffParticipation,
     },
   } as const
 }

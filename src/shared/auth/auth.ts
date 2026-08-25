@@ -28,17 +28,15 @@ import {
   isE2ERateLimitBypassAuthorized,
 } from './beta-capabilities'
 
-// ── Post-acceptance staff assignment hook ──────────────────────────
-// The afterAcceptInvitation hook creates staff_assignments for the
-// properties specified during invitation. Because auth.ts can't import
-// from the composition root (circular dependency), the assignment creator
-// function is injected via setOnAcceptInvitation() from composition.ts.
+// ── Post-acceptance property-access hook ───────────────────────────
+// Property IDs selected explicitly during invitation become access grants.
+// Because auth.ts cannot import the composition root, the grant provisioner
+// is injected via setOnAcceptInvitation(). Staff participation is independent.
 
 type AcceptInvitationContext = Readonly<{
   userId: string
   organizationId: string
   propertyIds: ReadonlyArray<string>
-  displayName?: string
 }>
 
 type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
@@ -46,8 +44,8 @@ type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
 let _onAcceptInvitation: AcceptInvitationHandler | undefined
 
 /** Set the handler called after an invitation is accepted.
- * Called from composition.ts at startup. Injects the staff assignment
- * creator so auth.ts doesn't need to import from the composition root. */
+ * Called from composition.ts at startup. Injects the access-grant
+ * provisioner so auth.ts does not import from the composition root. */
 export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
   _onAcceptInvitation = handler
 }

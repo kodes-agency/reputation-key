@@ -486,7 +486,8 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const badEvents = EVENT_FAMILY_ROWS.filter(
       (r) =>
         (r.disposition === 'enabled' && r.consumers.length === 0) ||
-        (r.disposition === 'orphan' && (r.consumers.length > 0 || !r.ownerSlice)),
+        (r.disposition === 'orphan' && (r.consumers.length > 0 || !r.ownerSlice)) ||
+        (r.disposition === 'quarantined' && (r.consumers.length > 0 || !r.ownerSlice)),
     )
     expect(
       badEvents.map((r) => r.eventType),
@@ -500,6 +501,16 @@ describe('BQC-3.1 event/job family catalogue', () => {
       badJobs.map((r) => r.jobName),
       `enabled jobs not registered in bootstrap.ts: ${badJobs.map((r) => r.jobName).join(', ')}`,
     ).toEqual([])
+  })
+
+  it('marks inactive legacy StaffAssignment facts as quarantined, not runtime orphans', () => {
+    for (const eventType of ['staff.assigned', 'staff.unassigned']) {
+      expect(eventRow(eventType)).toMatchObject({
+        disposition: 'quarantined',
+        consumers: [],
+        ownerSlice: 'PPL-01',
+      })
+    }
   })
 
   it('keeps idempotency/retention consistent with recording and consumers', () => {

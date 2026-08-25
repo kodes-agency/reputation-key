@@ -85,15 +85,15 @@ export type IdentityPort = Readonly<{
   ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
 
   /**
-   * Post-acceptance hook — auto-create staff assignments for the invited
-   * properties (replaces BA's afterAcceptInvitation hook, which the app-owned
-   * accept path bypasses). Failure-isolated inside the adapter.
+   * Post-acceptance hook — provision the explicitly invited Property access
+   * grants (replaces BA's afterAcceptInvitation hook, which the app-owned
+   * accept path bypasses). It never creates Staff participation or attribution.
+   * Failure-isolated inside the adapter.
    */
   runOnAcceptInvitation: (ctx: {
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
-    displayName?: string
   }) => Promise<void>
 
   /**

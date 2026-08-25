@@ -408,6 +408,11 @@ describe('row 11 — Team (quarantined): no executable beta product surface', ()
     const capabilities = strippedSource('src/shared/auth/beta-capabilities.ts')
     expect(capabilities).toContain(`'team.use'`)
     expect(capabilities).toMatch(/BLOCKED_CAPABILITIES[\s\S]*'team\.use'/)
+
+    const server = strippedSource('src/contexts/team/server/teams.ts')
+    expect(server).toMatch(
+      /export const listMyTeam[\s\S]*requireExecutionAllowed\(\{[\s\S]*action:\s*'team\.read'/,
+    )
   })
 })
 

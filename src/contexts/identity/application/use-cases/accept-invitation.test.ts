@@ -69,7 +69,7 @@ describe('acceptInvitation', () => {
     expect(emitted[0].propertyIds).toEqual(['prop-a', 'prop-b'])
     expect(emitted[0].occurredAt).toBe(FIXED_TIME)
 
-    // Post-commit hook: staff assignments for the invited properties
+    // Post-commit hook: explicit Property access for the invited properties.
     expect(identity.acceptInvitationHookCalls).toEqual([
       {
         userId: joiningUserId as string,
