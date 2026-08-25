@@ -9,6 +9,11 @@ import type { PropertyId } from '#/shared/domain/ids'
 import { isTeamError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
+const teamUpdateContext = () =>
+  buildTestAuthContext({
+    role: 'PropertyManager',
+    effectivePermissions: new Set(['team.update']),
+  })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const teamRepo = createInMemoryTeamRepo()
@@ -34,7 +39,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
 describe('updateTeam', () => {
   it('updates team name', async () => {
     const { useCase, teamRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamUpdateContext()
     const existing = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([existing])
 
@@ -49,7 +54,7 @@ describe('updateTeam', () => {
 
   it('updates team description', async () => {
     const { useCase, teamRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamUpdateContext()
     const existing = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([existing])
 
@@ -73,10 +78,10 @@ describe('updateTeam', () => {
   })
 
   it('rejects PropertyManager without assignment to the team property (D6-001)', async () => {
-    // PM passes can('team.update'); isPropertyAccessible must reject before the
+    // An explicitly authorized dormant caller must still pass property scope before the
     // update lands. Guard is reached only after the team is loaded, so seed it.
     const { useCase, teamRepo } = setup([])
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamUpdateContext()
     const existing = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([existing])
 
@@ -87,7 +92,7 @@ describe('updateTeam', () => {
 
   it('rejects when team not found', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamUpdateContext()
 
     await expect(useCase({ teamId: 'nonexistent', name: 'X' }, ctx)).rejects.toSatisfy(
       (e) => isTeamError(e) && e.code === 'team_not_found',
@@ -96,7 +101,7 @@ describe('updateTeam', () => {
 
   it('emits team.updated event', async () => {
     const { useCase, teamRepo, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamUpdateContext()
     const existing = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([existing])
 

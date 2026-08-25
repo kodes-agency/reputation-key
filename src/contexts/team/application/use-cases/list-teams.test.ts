@@ -17,6 +17,9 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 // Must match buildTestAuthContext's default orgId so repo filters work.
 const TEST_ORG_ID = 'org-00000000-0000-0000-0000-000000000001'
 
+const teamReadContext = (role: AuthContext['role']) =>
+  buildTestAuthContext({ role, effectivePermissions: new Set(['team.read']) })
+
 const makeTeam = (
   overrides: { id: string; propertyId: string } & Partial<
     Omit<Team, 'id' | 'propertyId'>
@@ -69,7 +72,7 @@ describe('listTeams', () => {
     ])
     responses.set('AccountAdmin', null) // null = admin access
 
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamReadContext('AccountAdmin')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
@@ -88,7 +91,7 @@ describe('listTeams', () => {
     ])
     responses.set('PropertyManager', [propertyId('prop-1')])
 
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamReadContext('PropertyManager')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
@@ -104,7 +107,7 @@ describe('listTeams', () => {
     teamRepo.seed([makeTeam({ id: 't-1', propertyId: 'prop-1' })])
     responses.set('PropertyManager', [propertyId('prop-other')])
 
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamReadContext('PropertyManager')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
@@ -118,7 +121,7 @@ describe('listTeams', () => {
     const { responses, useCase } = setup()
     responses.set('AccountAdmin', null)
 
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamReadContext('AccountAdmin')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-empty') }, ctx)
@@ -133,7 +136,7 @@ describe('listTeams', () => {
     teamRepo.seed([makeTeam({ id: 't-1', propertyId: 'prop-1' })])
     responses.set('Staff', [])
 
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = teamReadContext('Staff')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
@@ -152,7 +155,7 @@ describe('listTeams', () => {
     ])
     responses.set('PropertyManager', [propertyId('prop-1'), propertyId('prop-2')])
 
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamReadContext('PropertyManager')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-2') }, ctx)
@@ -175,7 +178,7 @@ describe('listTeams', () => {
     ])
     responses.set('AccountAdmin', null)
 
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamReadContext('AccountAdmin')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)
@@ -197,7 +200,7 @@ describe('listTeams', () => {
     teamRepo.seed([ownTeam, otherOrgTeam])
     responses.set('AccountAdmin', null)
 
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamReadContext('AccountAdmin')
 
     // Act
     const result = await useCase({ propertyId: propertyId('prop-1') }, ctx)

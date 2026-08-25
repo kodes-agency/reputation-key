@@ -41,32 +41,14 @@ describe('validateTeamName', () => {
 
 // ── Authorization rules (centralized permission system) ────────────
 
-describe('team.create permission', () => {
-  it('allows PropertyManager and AccountAdmin', () => {
-    expect(can('AccountAdmin', 'team.create')).toBe(true)
-    expect(can('PropertyManager', 'team.create')).toBe(true)
-  })
-
-  it('rejects Staff', () => {
-    expect(can('Staff', 'team.create')).toBe(false)
-  })
-})
-
-describe('team.update permission', () => {
-  it('allows PropertyManager and AccountAdmin', () => {
-    expect(can('AccountAdmin', 'team.update')).toBe(true)
-    expect(can('PropertyManager', 'team.update')).toBe(true)
-  })
-
-  it('rejects Staff', () => {
-    expect(can('Staff', 'team.update')).toBe(false)
-  })
-})
-
-describe('team.delete permission', () => {
-  it('allows only AccountAdmin', () => {
-    expect(can('AccountAdmin', 'team.delete')).toBe(true)
-    expect(can('PropertyManager', 'team.delete')).toBe(false)
-    expect(can('Staff', 'team.delete')).toBe(false)
+describe('quarantined Team permissions', () => {
+  it('grants no Team action to any beta role', () => {
+    for (const role of ['AccountAdmin', 'PropertyManager', 'Staff'] as const) {
+      expect(can(role, 'team.create')).toBe(false)
+      expect(can(role, 'team.update')).toBe(false)
+      expect(can(role, 'team.delete')).toBe(false)
+      expect(can(role, 'team.read')).toBe(false)
+      expect(can(role, 'team.membership.manage')).toBe(false)
+    }
   })
 })
