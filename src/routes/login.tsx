@@ -12,8 +12,15 @@ import { AuthCard } from '#/components/layout/auth-layout'
 import { LoginForm } from '#/components/features/identity'
 import { signInUser } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
+import { safeReturnPath } from '#/shared/auth/safe-return-path'
+import { z } from 'zod/v4'
+
+const loginSearchSchema = z.object({
+  redirect: z.string().optional().catch(undefined).transform(safeReturnPath),
+})
 
 export const Route = createFileRoute('/login')({
+  validateSearch: loginSearchSchema,
   beforeLoad: async () => {
     const session = await getSession()
     if (session) {
@@ -24,7 +31,7 @@ export const Route = createFileRoute('/login')({
 })
 
 function LoginPage() {
-  const search = Route.useSearch() as { redirect?: string }
+  const search = Route.useSearch()
   const navigate = useNavigate()
   const router = useRouter()
   const signIn = useAction(useServerFn(signInUser))
