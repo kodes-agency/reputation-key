@@ -60,13 +60,11 @@ type MainRow = Readonly<{
   feedback_correction_count: string | number | null
   feedback_source_policies: readonly string[] | null
   unanswered: string | number | null
-  new_feedback: string | number | null
+  items_to_triage: string | number | null
   escalated: string | number | null
   goals_behind_pace: string | number | null
-  total_unanswered: string | number
-  total_new_feedback: string | number
-  total_escalated: string | number
-  total_goals_behind_pace: string | number
+  needs_attention: string | number | null
+  total_attention_work: string | number
 }>
 
 const numeric = (value: string | number | null | undefined): number =>
@@ -437,8 +435,8 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT * FROM ordered
             ORDER BY lower(name), property_id
             LIMIT ${FLEET_PAGE_SIZE}
-          ), review_attention AS MATERIALIZED (
-            SELECT reviews.property_id, count(*) AS unanswered
+          ), unanswered_review_items AS MATERIALIZED (
+            SELECT reviews.property_id, reviews.id AS review_id
             FROM reviews
             WHERE reviews.organization_id = ${input.organizationId}
               AND reviews.property_id IN (SELECT property_id FROM scoped)
@@ -451,20 +449,40 @@ export const createFleetOverviewProjectionAdapter = (
                   AND replies.organization_id = ${input.organizationId}
                   AND replies.status = 'published'
               )
-            GROUP BY reviews.property_id
-          ), inbox_attention AS MATERIALIZED (
+          ), review_attention AS MATERIALIZED (
+            SELECT property_id, count(*) AS unanswered
+            FROM unanswered_review_items
+            GROUP BY property_id
+          ), inbox_attention_items AS MATERIALIZED (
             SELECT inbox_items.property_id::uuid AS property_id,
-              count(*) FILTER (WHERE inbox_items.status = 'open') AS new_feedback,
-              count(*) FILTER (
-                WHERE inbox_items.is_escalated = true
-                  AND inbox_items.escalation_resolved_at IS NULL
-              ) AS escalated
+              inbox_items.source_type,
+              inbox_items.source_id,
+              inbox_items.status,
+              inbox_items.is_escalated,
+              inbox_items.escalation_resolved_at
             FROM inbox_items
             WHERE inbox_items.organization_id = ${input.organizationId}
               AND inbox_items.property_id IN (
                 SELECT property_id::text FROM scoped
               )
-            GROUP BY inbox_items.property_id
+              AND (
+                inbox_items.status = 'open'
+                OR (
+                  inbox_items.is_escalated = true
+                  AND inbox_items.escalation_resolved_at IS NULL
+                )
+              )
+          ), inbox_attention AS MATERIALIZED (
+            SELECT inbox_attention_items.property_id,
+              count(*) FILTER (
+                WHERE inbox_attention_items.status = 'open'
+              ) AS items_to_triage,
+              count(*) FILTER (
+                WHERE inbox_attention_items.is_escalated = true
+                  AND inbox_attention_items.escalation_resolved_at IS NULL
+              ) AS escalated
+            FROM inbox_attention_items
+            GROUP BY inbox_attention_items.property_id
           ), current_goal_evaluations AS MATERIALIZED (
             SELECT DISTINCT ON (goal_evaluations.period_id)
               goal_evaluations.period_id,
@@ -481,8 +499,8 @@ export const createFleetOverviewProjectionAdapter = (
             ORDER BY goal_evaluations.period_id,
               goal_evaluations.created_at DESC,
               goal_evaluations.id DESC
-          ), goal_attention AS MATERIALIZED (
-            SELECT goal_periods.property_id, count(*) AS goals_behind_pace
+          ), goal_attention_items AS MATERIALIZED (
+            SELECT goal_periods.property_id, goal_periods.id AS goal_period_id
             FROM goal_periods
             JOIN goal_definitions
               ON goal_definitions.organization_id = goal_periods.organization_id
@@ -517,13 +535,29 @@ export const createFleetOverviewProjectionAdapter = (
                         )
                   )
                 )
-            GROUP BY goal_periods.property_id
+          ), goal_attention AS MATERIALIZED (
+            SELECT property_id, count(*) AS goals_behind_pace
+            FROM goal_attention_items
+            GROUP BY property_id
+          ), attention_work AS MATERIALIZED (
+            SELECT property_id, count(*) AS needs_attention
+            FROM (
+              SELECT property_id, 'review:' || review_id::text AS work_key
+              FROM unanswered_review_items
+              UNION
+              SELECT property_id, source_type::text || ':' || source_id::text
+                AS work_key
+              FROM inbox_attention_items
+              UNION
+              SELECT property_id, 'goal:' || goal_period_id::text AS work_key
+              FROM goal_attention_items
+            ) work
+            GROUP BY property_id
           ), totals AS MATERIALIZED (
-            SELECT
-              coalesce((SELECT sum(unanswered) FROM review_attention), 0) AS total_unanswered,
-              coalesce((SELECT sum(new_feedback) FROM inbox_attention), 0) AS total_new_feedback,
-              coalesce((SELECT sum(escalated) FROM inbox_attention), 0) AS total_escalated,
-              coalesce((SELECT sum(goals_behind_pace) FROM goal_attention), 0) AS total_goals_behind_pace
+            SELECT coalesce(
+              (SELECT sum(needs_attention) FROM attention_work),
+              0
+            ) AS total_attention_work
           )
           SELECT page.property_id::text AS property_id,
             page.name,
@@ -554,13 +588,11 @@ export const createFleetOverviewProjectionAdapter = (
             page.feedback_correction_count,
             page.feedback_source_policies,
             coalesce(review_attention.unanswered, 0) AS unanswered,
-            coalesce(inbox_attention.new_feedback, 0) AS new_feedback,
+            coalesce(inbox_attention.items_to_triage, 0) AS items_to_triage,
             coalesce(inbox_attention.escalated, 0) AS escalated,
             coalesce(goal_attention.goals_behind_pace, 0) AS goals_behind_pace,
-            totals.total_unanswered,
-            totals.total_new_feedback,
-            totals.total_escalated,
-            totals.total_goals_behind_pace,
+            coalesce(attention_work.needs_attention, 0) AS needs_attention,
+            totals.total_attention_work,
             summary.property_count,
             summary.rating_sample_count,
             summary.overall_avg_rating,
@@ -572,6 +604,7 @@ export const createFleetOverviewProjectionAdapter = (
           LEFT JOIN review_attention USING (property_id)
           LEFT JOIN inbox_attention USING (property_id)
           LEFT JOIN goal_attention USING (property_id)
+          LEFT JOIN attention_work USING (property_id)
           ORDER BY lower(page.name), page.property_id
         `)
         return mainResult
@@ -611,9 +644,10 @@ export const createFleetOverviewProjectionAdapter = (
         scanCount: numeric(row.scan_count),
         feedbackCount: numeric(row.feedback_count),
         unanswered: numeric(row.unanswered),
-        newFeedback: numeric(row.new_feedback),
+        itemsToTriage: numeric(row.items_to_triage),
         escalated: numeric(row.escalated),
         goalsBehindPace: numeric(row.goals_behind_pace),
+        needsAttention: numeric(row.needs_attention),
         reviewEvidence: evidence({
           definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
           periodStart,
@@ -659,11 +693,7 @@ export const createFleetOverviewProjectionAdapter = (
 
     const propertyCount = numeric(head?.property_count)
     const totalAttention =
-      numeric(head?.rating_drop_total) +
-      numeric(head?.total_unanswered) +
-      numeric(head?.total_new_feedback) +
-      numeric(head?.total_escalated) +
-      numeric(head?.total_goals_behind_pace)
+      numeric(head?.total_attention_work) + numeric(head?.rating_drop_total)
     const last = page.at(-1)
     const nextAnchor =
       head?.has_more === true && last

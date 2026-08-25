@@ -109,7 +109,7 @@ export function FleetOverview({
         />
         <StripStat
           icon={AlertCircle}
-          label="Needs action"
+          label="Needs attention"
           value={String(totals.totalAttention)}
           destructive={totals.totalAttention > 0}
         />

@@ -46,12 +46,12 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Properties')).toBeVisible()
-    expect(canvas.getByText('Needs action')).toBeVisible()
+    expect(canvas.getByText('Needs attention')).toBeVisible()
     expect(canvas.getByText('Avg rating')).toBeVisible()
     expect(canvas.getByText(String(populatedData.totals.propertyCount))).toBeVisible()
     expect(canvas.getByText('Harborline Suites')).toBeVisible()
     expect(canvas.getByText('All clear')).toBeVisible()
-    // The row used to render only the sum, "17 needing action". The five
+    // The row used to render only the sum, "16 needing attention". The five
     // signals behind it are what a manager actually triages on.
     expect(canvas.getByText('1 escalated')).toBeVisible()
     expect(canvas.getByText('rating dropped')).toBeVisible()
@@ -59,7 +59,7 @@ export const Default: Story = {
     expect(canvas.getByText('4 to triage')).toBeVisible()
     expect(canvas.getByText('2 goals behind')).toBeVisible()
     // The sum stays reachable for assistive tech and for scanning.
-    expect(canvas.getByLabelText('17 needing action')).toBeInTheDocument()
+    expect(canvas.getByLabelText('16 needing attention')).toBeInTheDocument()
     expect(canvas.getByText('6 scans')).toBeVisible()
     expect(canvas.getByText('48 responses')).toBeVisible()
     expect(canvas.getAllByText('Reviews fresh')).toHaveLength(3)
@@ -75,7 +75,7 @@ export const MinimumFleet: Story = {
       totals: {
         propertyCount: 2,
         ratingSampleCount: 501,
-        totalAttention: 8 + 17,
+        totalAttention: 8 + 16,
         overallAvgRating: 3.9,
       },
       nextCursor: null,
@@ -99,7 +99,7 @@ export const AllClear: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Needs action')).toBeVisible()
+    expect(canvas.getByText('Needs attention')).toBeVisible()
     expect(canvas.getByText('0')).toBeVisible()
     expect(canvas.getByText('All clear')).toBeVisible()
   },
@@ -107,7 +107,7 @@ export const AllClear: Story = {
 
 // The whole point of the breakdown: two rows with an IDENTICAL total that
 // demand completely different responses. Under the old single-number badge
-// these were indistinguishable — both read "4 needing action".
+// these were indistinguishable — both read "4 needing attention".
 export const SameTotalDifferentUrgency: Story = {
   args: {
     data: {
@@ -119,10 +119,11 @@ export const SameTotalDifferentUrgency: Story = {
           slug: 'four-escalations',
           attentionSignals: {
             unanswered: 0,
-            newFeedback: 0,
+            itemsToTriage: 0,
             goalsBehindPace: 0,
             ratingDrop: false,
             escalated: 4,
+            needsAttention: 4,
           },
           totalAttention: 4,
         },
@@ -133,10 +134,11 @@ export const SameTotalDifferentUrgency: Story = {
           slug: 'four-stale-goals',
           attentionSignals: {
             unanswered: 0,
-            newFeedback: 0,
+            itemsToTriage: 0,
             goalsBehindPace: 4,
             ratingDrop: false,
             escalated: 0,
+            needsAttention: 4,
           },
           totalAttention: 4,
         },
@@ -155,7 +157,7 @@ export const SameTotalDifferentUrgency: Story = {
     expect(canvas.getByText('4 escalated')).toBeVisible()
     expect(canvas.getByText('4 goals behind')).toBeVisible()
     // Same total on both rows, and it is still exposed.
-    expect(canvas.getAllByLabelText('4 needing action')).toHaveLength(2)
+    expect(canvas.getAllByLabelText('4 needing attention')).toHaveLength(2)
     // Escalations are urgent; stale goals are not. Distinct treatment, not just
     // distinct wording.
     const escalated = canvas.getByText('4 escalated')

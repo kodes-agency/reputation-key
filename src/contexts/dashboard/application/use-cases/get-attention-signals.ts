@@ -1,5 +1,5 @@
 // Dashboard context — getAttentionSignals use case.
-// Aggregates the five attention-band signals for a property into one response.
+// Aggregates the five attention-band reasons plus their distinct work total.
 // Authorization is enforced at the router/loader level (property ownership).
 
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
@@ -53,23 +53,25 @@ export const getAttentionSignals =
       propertyTimezone,
     )
 
-    const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] = await Promise.all(
-      [
-        deps.signals.getUnansweredReviewCount(organizationId, propertyId, slaHours),
-        deps.signals.getNewInboxItemCount(organizationId, propertyId),
-        deps.signals.getEscalatedInboxItemCount(organizationId, propertyId),
-        deps.signals.getGoalsBehindPaceCount(organizationId, propertyId),
-        deps.repo.getKPIs({
-          organizationId,
-          propertyId,
-          startDate,
-          endDate,
-          comparisonPeriod,
-        }),
-      ],
-    )
+    const [counts, kpis] = await Promise.all([
+      deps.signals.getAttentionCounts(organizationId, propertyId, slaHours),
+      deps.repo.getKPIs({
+        organizationId,
+        propertyId,
+        startDate,
+        endDate,
+        comparisonPeriod,
+      }),
+    ])
 
     const ratingDrop = isRatingDrop(kpis.avgRating.value, kpis.avgRating.priorValue)
 
-    return { unanswered, newFeedback, goalsBehindPace, ratingDrop, escalated }
+    return {
+      unanswered: counts.unanswered,
+      itemsToTriage: counts.itemsToTriage,
+      goalsBehindPace: counts.goalsBehindPace,
+      ratingDrop,
+      escalated: counts.escalated,
+      needsAttention: counts.attentionWork + (ratingDrop ? 1 : 0),
+    }
   }

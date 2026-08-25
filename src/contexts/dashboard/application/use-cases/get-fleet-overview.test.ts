@@ -70,9 +70,10 @@ function row(
     scanCount: 100,
     feedbackCount: 20,
     unanswered: 0,
-    newFeedback: 0,
+    itemsToTriage: 0,
     escalated: 0,
     goalsBehindPace: 0,
+    needsAttention: 0,
     reviewEvidence: evidence,
     scanEvidence: evidence,
     feedbackEvidence: evidence,
@@ -93,10 +94,7 @@ function projection(
         totalAttention: rows.reduce(
           (sum, item) =>
             sum +
-            item.unanswered +
-            item.newFeedback +
-            item.escalated +
-            item.goalsBehindPace +
+            item.needsAttention +
             (item.reviewCount >= 10 &&
             item.priorReviewCount >= 10 &&
             item.priorAvgRating - item.avgRating >= 0.3
@@ -120,7 +118,13 @@ describe('getFleetOverview (use case)', () => {
     const getFleet = getFleetOverview({
       projection: projection([
         row(PROP_B),
-        row(PROP_A, { unanswered: 3, newFeedback: 1, goalsBehindPace: 1 }),
+        row(PROP_A, {
+          unanswered: 3,
+          itemsToTriage: 4,
+          escalated: 2,
+          goalsBehindPace: 1,
+          needsAttention: 5,
+        }),
       ]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
@@ -134,6 +138,13 @@ describe('getFleetOverview (use case)', () => {
       { name: 'Bravo', totalAttention: 0 },
       { name: 'Alpha', totalAttention: 5 },
     ])
+    expect(result.entries[1]?.attentionSignals).toMatchObject({
+      unanswered: 3,
+      itemsToTriage: 4,
+      escalated: 2,
+      goalsBehindPace: 1,
+      needsAttention: 5,
+    })
     expect(result.totals).toEqual({
       propertyCount: 2,
       totalAttention: 5,

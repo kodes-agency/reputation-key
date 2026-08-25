@@ -37,9 +37,11 @@ export type FleetOverviewProjectionRow = Readonly<{
   scanCount: number
   feedbackCount: number
   unanswered: number
-  newFeedback: number
+  itemsToTriage: number
   escalated: number
   goalsBehindPace: number
+  /** Distinct unanswered/Inbox/Goal work anchors, before rating-drop signal. */
+  needsAttention: number
   reviewEvidence: FleetMetricEvidence
   scanEvidence: FleetMetricEvidence | null
   feedbackEvidence: FleetMetricEvidence | null

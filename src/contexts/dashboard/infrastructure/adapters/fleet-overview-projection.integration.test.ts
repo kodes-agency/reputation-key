@@ -40,6 +40,7 @@ let db: Database
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
   await pool.query(
     `DELETE FROM metric_corrections
      WHERE source_event_id = 'fleet-correction-1'`,
@@ -99,6 +100,34 @@ beforeAll(async () => {
      VALUES ($1, $2, 'Published', 'published', 'internal')`,
     [REVIEW_IDS[0], ORG],
   )
+  for (const item of [
+    {
+      id: 'f2000000-0000-4000-8000-000000000001',
+      sourceType: 'review',
+      sourceId: REVIEW_IDS[1],
+      status: 'open',
+    },
+    {
+      id: 'f2000000-0000-4000-8000-000000000002',
+      sourceType: 'feedback',
+      sourceId: 'f3000000-0000-4000-8000-000000000001',
+      status: 'open',
+    },
+    {
+      id: 'f2000000-0000-4000-8000-000000000003',
+      sourceType: 'feedback',
+      sourceId: 'f3000000-0000-4000-8000-000000000002',
+      status: 'closed',
+    },
+  ] as const) {
+    await pool.query(
+      `INSERT INTO inbox_items (
+         id, organization_id, property_id, source_type, source_id, status,
+         is_escalated, escalated_at, source_date
+       ) VALUES ($1, $2, $3, $4, $5, $6, true, $7, $7)`,
+      [item.id, ORG, first.propertyId, item.sourceType, item.sourceId, item.status, NOW],
+    )
+  }
   await pool.query(
     `INSERT INTO organization_capability (organization_id, capability)
      VALUES ($1, 'portal.read')`,
@@ -210,6 +239,7 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
   await pool.query(
     `DELETE FROM metric_corrections
      WHERE source_event_id = 'fleet-correction-1'`,
@@ -292,8 +322,14 @@ describe('fleet overview projection integration', () => {
         completeness: 1,
         correctionCount: 0,
       },
-      attentionSignals: { unanswered: 1, ratingDrop: false },
-      totalAttention: 1,
+      attentionSignals: {
+        unanswered: 1,
+        itemsToTriage: 2,
+        escalated: 3,
+        ratingDrop: false,
+        needsAttention: 3,
+      },
+      totalAttention: 3,
     })
     expect(firstPage.entries[1]).toMatchObject({
       scanCount: 0,

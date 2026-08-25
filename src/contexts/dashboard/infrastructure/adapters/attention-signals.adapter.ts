@@ -8,7 +8,7 @@
 
 import type { Database } from '#/shared/db'
 import { reviews, replies, inboxItems, goals, goalProgress } from '#/shared/db/schema'
-import { and, count, eq, sql, lt, isNull } from 'drizzle-orm'
+import { sql, lt } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { AttentionSignalsPort } from '../../application/ports/attention-signals.port'
 import { slaCutoff } from '../../application/utils'
@@ -18,7 +18,6 @@ import {
   eligibleAttentionReviewWhere,
   goalScopeWhere,
   inboxScopeWhere,
-  readInboxItemCount,
   withStatementTimeout,
 } from '../read-facade'
 
@@ -26,89 +25,93 @@ export const createAttentionSignalsAdapter = (
   db: Database,
   clock: Clock,
 ): AttentionSignalsPort => ({
-  async getUnansweredReviewCount(organizationId, propertyId, slaHours) {
-    return trace('dashboard.attention.unansweredReviews', async () => {
-      // Past SLA: reviewed earlier than clock() − slaHours. Clock injected (ADR 0017).
+  async getAttentionCounts(organizationId, propertyId, slaHours) {
+    return trace('dashboard.attention.counts', async () => {
+      // One clock read and one statement keep all overlapping reasons on the
+      // same snapshot while preserving the injected-time rule (ADR 0017).
       const now = clock()
       const cutoff = slaCutoff(now, slaHours)
-      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
-        tx
-          .select({ count: count() })
-          .from(reviews)
-          .where(
-            and(
-              // BQC-5.5: eligible content only (ADR 0031) — expired or
-              // clock-less reviews are not servable, answered or not.
-              eligibleAttentionReviewWhere(organizationId, propertyId, now),
-              lt(reviews.reviewedAt, cutoff),
-              // No published reply yet — the customer has not been answered.
-              sql`NOT EXISTS (
+      const result = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
+        tx.execute(sql`
+          WITH unanswered_review_work AS MATERIALIZED (
+            SELECT 'review:' || ${reviews.id}::text AS work_key
+            FROM ${reviews}
+            WHERE ${eligibleAttentionReviewWhere(organizationId, propertyId, now)}
+              AND ${lt(reviews.reviewedAt, cutoff)}
+              AND NOT EXISTS (
                 SELECT 1 FROM ${replies}
                 WHERE ${replies.reviewId} = ${reviews.id}
                   AND ${replies.organizationId} = ${organizationId}
                   AND ${replies.status} = 'published'
-              )`,
-            ),
-          ),
-      )
-      return Number(rows[0]?.count ?? 0)
-    })
-  },
-
-  async getNewInboxItemCount(organizationId, propertyId) {
-    return trace('dashboard.attention.newInboxItems', () =>
-      readInboxItemCount(
-        db,
-        and(inboxScopeWhere(organizationId, propertyId), eq(inboxItems.status, 'open')),
-      ),
-    )
-  },
-
-  async getEscalatedInboxItemCount(organizationId, propertyId) {
-    return trace('dashboard.attention.escalatedInboxItems', () =>
-      readInboxItemCount(
-        db,
-        and(
-          inboxScopeWhere(organizationId, propertyId),
-          eq(inboxItems.isEscalated, true),
-          isNull(inboxItems.escalationResolvedAt),
-        ),
-      ),
-    )
-  },
-
-  async getGoalsBehindPaceCount(organizationId, propertyId) {
-    return trace('dashboard.attention.goalsBehindPace', async () => {
-      // Behind pace = current value < pro-rated expected value for elapsed time.
-      // Only bounded, active, not-yet-ended goals are pro-ratable.
-      const now = clock()
-      const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
-        tx
-          .select({ count: count() })
-          .from(goals)
-          .leftJoin(
-            goalProgress,
-            and(
-              eq(goalProgress.goalId, goals.id),
-              eq(goalProgress.organizationId, organizationId),
-            ),
-          )
-          .where(
-            and(
-              goalScopeWhere(organizationId, propertyId),
-              eq(goals.status, 'active'),
-              sql`${goals.periodStart} IS NOT NULL`,
-              sql`${goals.periodEnd} IS NOT NULL`,
-              sql`${goals.periodEnd} > ${now}`,
-              sql`COALESCE(${goalProgress.currentValue}, 0) < ${goals.targetValue} *
+              )
+          ), inbox_work AS MATERIALIZED (
+            SELECT ${inboxItems.sourceType}::text || ':' ||
+              ${inboxItems.sourceId}::text AS work_key,
+              ${inboxItems.status} AS status,
+              ${inboxItems.isEscalated} AS is_escalated,
+              ${inboxItems.escalationResolvedAt} AS escalation_resolved_at
+            FROM ${inboxItems}
+            WHERE ${inboxScopeWhere(organizationId, propertyId)}
+              AND (
+                ${inboxItems.status} = 'open'
+                OR (
+                  ${inboxItems.isEscalated} = true
+                  AND ${inboxItems.escalationResolvedAt} IS NULL
+                )
+              )
+          ), goal_work AS MATERIALIZED (
+            SELECT 'goal:' || ${goals.id}::text AS work_key
+            FROM ${goals}
+            LEFT JOIN ${goalProgress}
+              ON ${goalProgress.goalId} = ${goals.id}
+              AND ${goalProgress.organizationId} = ${organizationId}
+            WHERE ${goalScopeWhere(organizationId, propertyId)}
+              AND ${goals.status} = 'active'
+              AND ${goals.periodStart} IS NOT NULL
+              AND ${goals.periodEnd} IS NOT NULL
+              AND ${goals.periodEnd} > ${now}
+              AND COALESCE(${goalProgress.currentValue}, 0) < ${goals.targetValue} *
                 GREATEST(0, LEAST(1,
                   EXTRACT(EPOCH FROM (${now} - ${goals.periodStart}))
-                  / NULLIF(EXTRACT(EPOCH FROM (${goals.periodEnd} - ${goals.periodStart})), 0)
-                ))`,
-            ),
-          ),
+                  / NULLIF(
+                    EXTRACT(EPOCH FROM (${goals.periodEnd} - ${goals.periodStart})),
+                    0
+                  )
+                ))
+          ), attention_work AS MATERIALIZED (
+            SELECT work_key FROM unanswered_review_work
+            UNION
+            SELECT work_key FROM inbox_work
+            UNION
+            SELECT work_key FROM goal_work
+          )
+          SELECT
+            (SELECT count(*) FROM unanswered_review_work) AS unanswered,
+            (SELECT count(*) FROM inbox_work WHERE status = 'open')
+              AS items_to_triage,
+            (SELECT count(*) FROM inbox_work
+              WHERE is_escalated = true AND escalation_resolved_at IS NULL)
+              AS escalated,
+            (SELECT count(*) FROM goal_work) AS goals_behind_pace,
+            (SELECT count(*) FROM attention_work) AS attention_work
+        `),
       )
-      return Number(rows[0]?.count ?? 0)
+      const row = result.rows[0] as
+        | {
+            unanswered?: string | number
+            items_to_triage?: string | number
+            escalated?: string | number
+            goals_behind_pace?: string | number
+            attention_work?: string | number
+          }
+        | undefined
+      return {
+        unanswered: Number(row?.unanswered ?? 0),
+        itemsToTriage: Number(row?.items_to_triage ?? 0),
+        escalated: Number(row?.escalated ?? 0),
+        goalsBehindPace: Number(row?.goals_behind_pace ?? 0),
+        attentionWork: Number(row?.attention_work ?? 0),
+      }
     })
   },
 })

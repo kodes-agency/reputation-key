@@ -104,10 +104,11 @@ export const getFleetOverview =
       const ratingDrop = avgRatingComparison !== null && avgRatingComparison <= -0.3
       const attentionSignals: AttentionSignals = {
         unanswered: row.unanswered,
-        newFeedback: row.newFeedback,
+        itemsToTriage: row.itemsToTriage,
         goalsBehindPace: row.goalsBehindPace,
         ratingDrop,
         escalated: row.escalated,
+        needsAttention: row.needsAttention + (ratingDrop ? 1 : 0),
       }
       return {
         propertyId: row.propertyId,
@@ -123,12 +124,7 @@ export const getFleetOverview =
         scanEvidence: row.scanEvidence,
         feedbackEvidence: row.feedbackEvidence,
         attentionSignals,
-        totalAttention:
-          row.unanswered +
-          row.newFeedback +
-          row.goalsBehindPace +
-          (ratingDrop ? 1 : 0) +
-          row.escalated,
+        totalAttention: row.needsAttention + (ratingDrop ? 1 : 0),
       }
     })
 

@@ -56,10 +56,11 @@ export const populatedDashboard: DashboardData = {
 
 export const activeSignals: AttentionSignals = {
   unanswered: 3,
-  newFeedback: 7,
+  itemsToTriage: 7,
   goalsBehindPace: 1,
   ratingDrop: false,
   escalated: 2,
+  needsAttention: 8,
 }
 
 export const emptyDashboard: DashboardData = {
@@ -79,8 +80,9 @@ export const emptyDashboard: DashboardData = {
 
 export const calmSignals: AttentionSignals = {
   unanswered: 0,
-  newFeedback: 0,
+  itemsToTriage: 0,
   goalsBehindPace: 0,
   ratingDrop: false,
   escalated: 0,
+  needsAttention: 0,
 }

@@ -76,13 +76,11 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     feedback_correction_count: '0',
     feedback_source_policies: ['first_party_workflow'],
     unanswered: '0',
-    new_feedback: '0',
+    items_to_triage: '0',
     escalated: '0',
     goals_behind_pace: '0',
-    total_unanswered: '0',
-    total_new_feedback: '0',
-    total_escalated: '0',
-    total_goals_behind_pace: '0',
+    needs_attention: '0',
+    total_attention_work: '0',
   }))
 }
 

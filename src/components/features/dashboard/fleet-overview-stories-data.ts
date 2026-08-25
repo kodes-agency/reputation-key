@@ -4,8 +4,8 @@ import type {
 } from '#/contexts/dashboard/application/public-api'
 
 // Seed data for fleet-overview.stories.tsx — extracted for line-count compliance.
-// Attention signals sum into totalAttention (ratingDrop counts as 1):
-//   unanswered + newFeedback + goalsBehindPace + escalated + (ratingDrop ? 1 : 0)
+// `needsAttention` is a distinct work-anchor union; overlapping chips do not
+// add twice. A supported rating-drop signal contributes one additional concern.
 const reviewEvidence = {
   definitionVersionId: '10000000-0000-4000-8000-000000000004',
   periodStart: new Date('2026-07-01T00:00:00Z'),
@@ -43,10 +43,11 @@ export const entries: readonly FleetEntry[] = [
     feedbackEvidence,
     attentionSignals: {
       unanswered: 5,
-      newFeedback: 2,
+      itemsToTriage: 2,
       goalsBehindPace: 1,
       ratingDrop: false,
       escalated: 0,
+      needsAttention: 8,
     },
     totalAttention: 8,
   },
@@ -65,12 +66,13 @@ export const entries: readonly FleetEntry[] = [
     feedbackEvidence,
     attentionSignals: {
       unanswered: 9,
-      newFeedback: 4,
+      itemsToTriage: 4,
       goalsBehindPace: 2,
       ratingDrop: true,
       escalated: 1,
+      needsAttention: 16,
     },
-    totalAttention: 17,
+    totalAttention: 16,
   },
   {
     propertyId: 'prop-0003',
@@ -87,10 +89,11 @@ export const entries: readonly FleetEntry[] = [
     feedbackEvidence,
     attentionSignals: {
       unanswered: 0,
-      newFeedback: 0,
+      itemsToTriage: 0,
       goalsBehindPace: 0,
       ratingDrop: false,
       escalated: 0,
+      needsAttention: 0,
     },
     totalAttention: 0,
   },
@@ -114,10 +117,11 @@ export const entries: readonly FleetEntry[] = [
     feedbackEvidence,
     attentionSignals: {
       unanswered: 0,
-      newFeedback: 3,
+      itemsToTriage: 3,
       goalsBehindPace: 0,
       ratingDrop: false,
       escalated: 0,
+      needsAttention: 3,
     },
     totalAttention: 3,
   },

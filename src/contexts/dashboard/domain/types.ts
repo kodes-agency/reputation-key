@@ -181,14 +181,16 @@ export type StaffDashboardData = Readonly<{
 export type AttentionSignals = Readonly<{
   /** Reviews with no published reply past the response SLA. */
   unanswered: number
-  /** Inbox items in 'new' status (unactioned feedback). */
-  newFeedback: number
+  /** Current open Inbox work across Review and Private Feedback sources. */
+  itemsToTriage: number
   /** Active goals whose progress is behind the pro-rated pace. */
   goalsBehindPace: number
   /** Avg rating dropped ≥ 0.3 vs prior period. */
   ratingDrop: boolean
-  /** Inbox items in 'escalated' status. */
+  /** Inbox items with an active escalation, whether open or closed. */
   escalated: number
+  /** Distinct work anchors, plus one when the rating-drop signal is active. */
+  needsAttention: number
 }>
 
 // ─── Fleet Overview ───
@@ -225,7 +227,7 @@ export type FleetEntry = Readonly<{
   scanEvidence: FleetMetricEvidence | null
   feedbackEvidence: FleetMetricEvidence | null
   attentionSignals: AttentionSignals
-  /** Sum of all attention signals (ratingDrop counts as 1 when true). */
+  /** Distinct attention work, never the sum of overlapping signal counts. */
   totalAttention: number
 }>
 
