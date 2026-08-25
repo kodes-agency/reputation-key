@@ -1,0 +1,104 @@
+import { assertReleaseIdentity } from '../../src/shared/config/release-identity'
+
+const RUNTIME_METADATA_NAMES = Object.freeze([
+  '__CF_USER_TEXT_ENCODING',
+  'HOME',
+  'HOSTNAME',
+  'NODE_ENV',
+  'NODE_VERSION',
+  'PATH',
+  'PWD',
+  'SHLVL',
+  'TERM',
+  'TMP',
+  'TMPDIR',
+  'TZ',
+  'YARN_VERSION',
+  'RAILWAY_BETA_ENABLE_RUNTIME_V2',
+  'RAILWAY_DEPLOYMENT_ID',
+  'RAILWAY_ENVIRONMENT',
+  'RAILWAY_ENVIRONMENT_ID',
+  'RAILWAY_ENVIRONMENT_NAME',
+  'RAILWAY_GIT_AUTHOR',
+  'RAILWAY_GIT_BRANCH',
+  'RAILWAY_GIT_COMMIT_MESSAGE',
+  'RAILWAY_GIT_COMMIT_SHA',
+  'RAILWAY_GIT_REPO_NAME',
+  'RAILWAY_GIT_REPO_OWNER',
+  'RAILWAY_PRIVATE_DOMAIN',
+  'RAILWAY_PROJECT_ID',
+  'RAILWAY_PROJECT_NAME',
+  'RAILWAY_REPLICA_ID',
+  'RAILWAY_REPLICA_REGION',
+  'RAILWAY_SERVICE_ID',
+  'RAILWAY_SERVICE_NAME',
+  'RAILWAY_SNAPSHOT_ID',
+] as const)
+
+const OWNED_NAMES = Object.freeze([
+  'HOST',
+  'PORT',
+  'DATABASE_URL',
+  'GOOGLE_ADMISSION_DATABASE_CA_B64',
+  'REDIS_URL',
+  'GOOGLE_EGRESS_GATEWAY_IDENTITY',
+  'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
+  'GOOGLE_INTERNAL_MTLS_CA_PATH',
+  'GOOGLE_INTERNAL_MTLS_CERT_PATH',
+  'GOOGLE_INTERNAL_MTLS_KEY_PATH',
+  'RELEASE_SHA',
+  'IMAGE_SOURCE_REVISION',
+] as const)
+
+export const GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = OWNED_NAMES
+const ALLOWED_NAMES = new Set<string>([...RUNTIME_METADATA_NAMES, ...OWNED_NAMES])
+
+function normalized(
+  environment: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  return {
+    ...environment,
+    HOST: environment.HOST ?? '0.0.0.0',
+    PORT: environment.PORT ?? '8443',
+  }
+}
+
+export function assertGoogleAdmissionEnvironmentIsIsolated(
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  const canonicalNames = new Set<string>()
+  for (const [name, value] of Object.entries(environment)) {
+    if (value === undefined) continue
+    const canonical = name.toUpperCase()
+    if (name !== canonical || canonicalNames.has(canonical) || !ALLOWED_NAMES.has(name)) {
+      throw new Error(`Google admission environment contains forbidden variable ${name}`)
+    }
+    canonicalNames.add(canonical)
+  }
+}
+
+export function assertGoogleAdmissionRequiredEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  const values = normalized(environment)
+  assertGoogleAdmissionEnvironmentIsIsolated(values)
+  for (const name of OWNED_NAMES) {
+    if (!values[name]) {
+      throw new Error(`required Google admission setting is missing: ${name}`)
+    }
+  }
+  if (values.HOST !== '0.0.0.0' || values.PORT !== '8443') {
+    throw new Error('Google admission bind address is invalid')
+  }
+  if (
+    !/^[a-f0-9]{40}$/u.test(values.RELEASE_SHA ?? '') ||
+    !/^[a-f0-9]{40}$/u.test(values.IMAGE_SOURCE_REVISION ?? '')
+  ) {
+    throw new Error('Google admission release identity is invalid')
+  }
+  assertReleaseIdentity({
+    NODE_ENV: 'production',
+    RELEASE_SHA: values.RELEASE_SHA,
+    IMAGE_SOURCE_REVISION: values.IMAGE_SOURCE_REVISION,
+  })
+}

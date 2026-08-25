@@ -17,6 +17,10 @@ import {
   createGoogleAdmissionPeerIdentityResolver,
 } from '../google-peer-identities'
 import { loadGoogleAdmissionDatabaseTlsConfiguration } from './database-tls'
+import { assertGoogleAdmissionRequiredEnvironment } from './environment'
+import { consumeGoogleAdmissionRuntimeSecrets } from './runtime-secrets'
+
+assertGoogleAdmissionRequiredEnvironment(process.env)
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
@@ -36,28 +40,44 @@ function portFromEnv(): number {
   return port
 }
 
-const databaseTls = loadGoogleAdmissionDatabaseTlsConfiguration({
-  connectionString: requiredEnv('DATABASE_URL'),
-  caBase64: requiredEnv('GOOGLE_ADMISSION_DATABASE_CA_B64'),
-})
-const pool = new Pool({
-  connectionString: databaseTls.connectionString,
-  ssl: databaseTls.ssl,
-  max: 5,
-  connectionTimeoutMillis: 10_000,
-  idleTimeoutMillis: 30_000,
-})
+const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntimeSecrets(
+  process.env,
+  (secrets) => {
+    const databaseTls = loadGoogleAdmissionDatabaseTlsConfiguration({
+      connectionString: secrets.DATABASE_URL,
+      caBase64: secrets.GOOGLE_ADMISSION_DATABASE_CA_B64,
+    })
+    try {
+      return {
+        databaseTls,
+        grantKeyring: createVersionedHmacKeyring(
+          secrets.GOOGLE_ADMISSION_GRANT_HMAC_KEYS,
+        ),
+        pool: new Pool({
+          connectionString: databaseTls.connectionString,
+          ssl: databaseTls.ssl,
+          max: 5,
+          connectionTimeoutMillis: 10_000,
+          idleTimeoutMillis: 30_000,
+        }),
+        redis: new Redis(secrets.REDIS_URL, {
+          lazyConnect: true,
+          enableAutoPipelining: false,
+          maxRetriesPerRequest: 1,
+          connectTimeout: 5_000,
+          commandTimeout: 5_000,
+        }),
+      }
+    } catch (error) {
+      databaseTls.dispose()
+      throw error
+    }
+  },
+)
 pool.on('error', () => {
   process.stderr.write('execution_admission_db_idle_error\n')
 })
 
-const redis = new Redis(requiredEnv('REDIS_URL'), {
-  lazyConnect: true,
-  enableAutoPipelining: false,
-  maxRetriesPerRequest: 1,
-  connectTimeout: 5_000,
-  commandTimeout: 5_000,
-})
 redis.on('error', () => {
   process.stderr.write('execution_admission_redis_error\n')
 })
@@ -90,9 +110,6 @@ for (const [policyId, policy] of Object.entries(GOOGLE_QUOTA_POLICIES)) {
   )
 }
 
-const grantKeyring = createVersionedHmacKeyring(
-  requiredEnv('GOOGLE_ADMISSION_GRANT_HMAC_KEYS'),
-)
 const service = createGoogleExecutionAdmissionService({
   nowMs: Date.now,
   admissionId: () => randomBytes(24).toString('base64url'),
@@ -154,6 +171,7 @@ async function shutdown(): Promise<void> {
     await Promise.allSettled([redis.quit(), pool.end()])
   } finally {
     databaseTls.dispose()
+    grantKeyring.dispose()
     tls.ca.fill(0)
     tls.cert.fill(0)
     tls.key.fill(0)
