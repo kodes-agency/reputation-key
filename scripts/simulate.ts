@@ -9,8 +9,9 @@
 // invariant checkers against the combined dataset.
 
 import 'dotenv/config'
-import { execSync } from 'child_process'
+import { execFileSync } from 'node:child_process'
 import { Pool } from 'pg'
+import { buildSimulationInvocation } from './simulation-invocation'
 
 const NEON_API = 'https://console.neon.tech/api/v2'
 
@@ -140,7 +141,9 @@ function runSimulation(connectionUrl: string, orgId: string): void {
   console.log(`Running simulation for org: ${orgId}`)
   console.log('─'.repeat(60))
 
-  execSync(`npx tsx scripts/seed.ts --org=${orgId} --invariants`, {
+  const invocation = buildSimulationInvocation(orgId)
+  execFileSync(invocation.file, [...invocation.args], {
+    ...invocation.options,
     stdio: 'inherit',
     timeout: 240000,
     env: { ...process.env, DATABASE_URL: connectionUrl },
