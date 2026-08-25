@@ -20,6 +20,8 @@ import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import type { AuthRouteContext } from '#/routes/_authenticated'
+import { requireGoogleImportRole } from './-route-access'
 
 const importStatusQuery = (importId: string) =>
   queryOptions({
@@ -38,7 +40,9 @@ const connectionsQuery = queryOptions({
 export const Route = createFileRoute(
   '/_authenticated/properties/import-google/$importId',
 )({
-  beforeLoad: async () => {
+  beforeLoad: async ({ context }) => {
+    const { role } = context as AuthRouteContext
+    requireGoogleImportRole(role)
     await gateControlledRoute({
       data: {
         capability: 'property.import_gbp_v2',

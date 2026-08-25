@@ -1,9 +1,8 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { can } from '#/shared/domain/permissions'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import {
@@ -23,6 +22,7 @@ import { GoogleImportManager } from '#/components/features/integration/google-im
 import { useAction } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { requireGoogleImportRole } from './-route-access'
 
 const importSearchSchema = z.object({
   connectionId: z.uuid().optional().catch(undefined),
@@ -43,7 +43,7 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   validateSearch: importSearchSchema,
   beforeLoad: async ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'property.import_gbp_v2')) throw redirect({ to: '/properties' })
+    requireGoogleImportRole(role)
     await gateControlledRoute({
       data: {
         capability: 'property.import_gbp_v2',
