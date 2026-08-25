@@ -1,4 +1,5 @@
 import type { FormEvent, ReactNode } from 'react'
+import { Button } from '#/components/ui/button'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { Honeypot, RatingChoices } from './guest-response-fields'
 import { GuestPrivateFeedbackForm } from './guest-private-feedback-form'
@@ -83,13 +84,14 @@ function InitialRatingForm(props: GuestResponseFormViewProps) {
           onChange={props.onRatingChange}
         />
         <Honeypot value={props.honeypot} onChange={props.onHoneypotChange} />
-        <button
+        <Button
           type="submit"
+          size="lg"
           disabled={props.pending}
-          className="w-full rounded-lg bg-[color:var(--portal-primary)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+          className="w-full bg-[color:var(--portal-primary)] text-white hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
         >
           {props.pending ? 'Submitting…' : 'Submit private rating'}
-        </button>
+        </Button>
       </form>
       <p className="mt-3 text-sm" aria-live="polite">
         {props.message}
@@ -180,14 +182,15 @@ function GoogleReviewAction({
       <p className="mt-1 text-sm">
         If you would like, you can also leave a public Google review.
       </p>
-      <button
+      <Button
         type="button"
+        size="lg"
         disabled={pending}
         onClick={onSelect}
-        className="mt-4 w-full rounded-lg bg-[color:var(--portal-primary)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+        className="mt-4 w-full bg-[color:var(--portal-primary)] text-white hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
       >
         Continue to Google
-      </button>
+      </Button>
     </div>
   )
 }

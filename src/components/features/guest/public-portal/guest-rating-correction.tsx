@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react'
+import { Button } from '#/components/ui/button'
 import { RatingChoices } from './guest-response-fields'
 
 export function GuestRatingCorrection({
@@ -29,18 +30,19 @@ export function GuestRatingCorrection({
       {correcting ? (
         <form className="space-y-4" onSubmit={onSubmit}>
           <RatingChoices value={rating} disabled={pending} onChange={onRatingChange} />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-lg border border-current px-4 py-2 font-medium disabled:opacity-50"
-          >
+          <Button type="submit" variant="outline" disabled={pending}>
             Save rating correction
-          </button>
+          </Button>
         </form>
       ) : (
-        <button type="button" onClick={onStart} className="text-sm underline">
+        <Button
+          type="button"
+          variant="link"
+          onClick={onStart}
+          className="-ml-4 text-current underline"
+        >
           Change your private rating
-        </button>
+        </Button>
       )}
     </div>
   )

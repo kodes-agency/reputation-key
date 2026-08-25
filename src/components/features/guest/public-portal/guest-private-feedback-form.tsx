@@ -1,4 +1,6 @@
 import type { FormEvent } from 'react'
+import { Button } from '#/components/ui/button'
+import { Textarea } from '#/components/ui/textarea'
 import { Honeypot } from './guest-response-fields'
 
 export function GuestPrivateFeedbackForm({
@@ -26,22 +28,18 @@ export function GuestPrivateFeedbackForm({
       <label htmlFor="private-feedback" className="sr-only">
         Private feedback
       </label>
-      <textarea
+      <Textarea
         id="private-feedback"
         value={feedback}
         maxLength={2000}
         rows={4}
         onChange={(event) => onFeedbackChange(event.target.value)}
-        className="mt-4 w-full rounded-lg border p-3 focus:outline-none focus:ring-2 focus:ring-[color:var(--portal-primary)]"
+        className="mt-4 focus-visible:border-[color:var(--portal-primary)] focus-visible:ring-[color:var(--portal-primary)]"
       />
       <Honeypot value={honeypot} onChange={onHoneypotChange} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="mt-4 rounded-lg border border-current px-4 py-2 font-medium disabled:opacity-50"
-      >
+      <Button type="submit" variant="outline" disabled={pending} className="mt-4">
         {pending ? 'Sending…' : 'Send private feedback'}
-      </button>
+      </Button>
     </form>
   )
 }

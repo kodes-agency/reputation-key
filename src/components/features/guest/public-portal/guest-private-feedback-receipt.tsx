@@ -1,4 +1,5 @@
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import { Button } from '#/components/ui/button'
 
 export function GuestPrivateFeedbackReceipt({
   response,
@@ -30,14 +31,15 @@ export function GuestPrivateFeedbackReceipt({
         </p>
       )}
       {response.feedbackWithdrawalAvailable ? (
-        <button
+        <Button
           type="button"
+          variant="link"
           disabled={pending}
           onClick={onWithdraw}
-          className="mt-3 underline disabled:opacity-50"
+          className="-ml-4 mt-2 text-current underline"
         >
           Withdraw only my private feedback
-        </button>
+        </Button>
       ) : (
         <p className="mt-2">The private-feedback withdrawal window has ended.</p>
       )}

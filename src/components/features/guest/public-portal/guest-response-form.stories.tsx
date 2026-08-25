@@ -98,7 +98,13 @@ export default meta
 
 type Story = StoryObj<typeof GuestResponseForm>
 
-export const RatingFirst: Story = {}
+export const RatingFirst: Story = {
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('button', { name: 'Submit private rating' }),
+    ).toHaveAttribute('data-slot', 'button')
+  },
+}
 export const Loading: Story = { args: { availability: 'loading' } }
 export const HighRatingGoogleNext: Story = {
   args: { initialResponse: submitted },
@@ -115,7 +121,9 @@ export const LowRatingGoogleThenPrivateFeedback: Story = {
     const google = canvas.getByRole('button', { name: 'Continue to Google' })
     const feedback = canvas.getByLabelText('Private feedback')
     await expect(google).toBeVisible()
+    await expect(google).toHaveAttribute('data-slot', 'button')
     await expect(feedback).toBeVisible()
+    await expect(feedback).toHaveAttribute('data-slot', 'textarea')
     expect(
       google.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()

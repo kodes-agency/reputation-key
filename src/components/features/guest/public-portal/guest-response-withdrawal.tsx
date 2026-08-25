@@ -1,4 +1,5 @@
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import { Button } from '#/components/ui/button'
 
 export function GuestResponseWithdrawal({
   response,
@@ -20,14 +21,15 @@ export function GuestResponseWithdrawal({
           {new Date(response.responseWithdrawalDeadline).toLocaleString()}.
         </p>
       )}
-      <button
+      <Button
         type="button"
+        variant="link"
         disabled={pending}
         onClick={onWithdraw}
-        className="mt-2 underline disabled:opacity-50"
+        className="-ml-4 mt-1 text-current underline"
       >
         Withdraw my entire response
-      </button>
+      </Button>
     </div>
   )
 }
