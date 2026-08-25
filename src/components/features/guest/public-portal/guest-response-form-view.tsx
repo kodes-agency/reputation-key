@@ -8,6 +8,7 @@ type FormHandler = (event: FormEvent<HTMLFormElement>) => void
 type GuestResponseFormViewProps = Readonly<{
   availability: 'available' | 'loading' | 'permission_denied' | 'error'
   response: GuestResponseView | null
+  googleReviewAvailable: boolean
   rating: number | null
   feedback: string
   correcting: boolean
@@ -103,7 +104,11 @@ function RatedResponseView(
         </h2>
         <p className="mt-1 text-sm">You rated this experience {response.rating}/5.</p>
       </div>
-      <GoogleReviewAction pending={props.pending} onSelect={props.onGoogleReview} />
+      <GoogleReviewAction
+        available={props.googleReviewAvailable}
+        pending={props.pending}
+        onSelect={props.onGoogleReview}
+      />
       {response.privateFeedbackEligible && !response.hasPrivateFeedback && (
         <GuestPrivateFeedbackForm
           feedback={props.feedback}
@@ -138,9 +143,21 @@ function RatedResponseView(
 }
 
 function GoogleReviewAction({
+  available,
   pending,
   onSelect,
-}: Readonly<{ pending: boolean; onSelect: () => void }>) {
+}: Readonly<{ available: boolean; pending: boolean; onSelect: () => void }>) {
+  if (!available) {
+    return (
+      <div role="status" className="rounded-lg border p-5 text-center">
+        <h2 className="text-lg font-semibold">Google review link unavailable</h2>
+        <p className="mt-1 text-sm">
+          The Google review link isn’t available right now. Your private rating is saved,
+          and you can continue with the options below.
+        </p>
+      </div>
+    )
+  }
   return (
     <div className="rounded-lg border p-5 text-center">
       <h2 className="text-lg font-semibold">Share your experience on Google</h2>

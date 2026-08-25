@@ -58,6 +58,7 @@ import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
 import type { Queue } from 'bullmq'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 type PortalContextDeps = Readonly<{
   db: Database
@@ -71,6 +72,7 @@ type PortalContextDeps = Readonly<{
   idGen: () => string
   tokenHashSecret: string
   queue: Queue | undefined
+  logger: LoggerPort
   storageConfig: Readonly<{
     accessKey: string
     secretKey: string
@@ -330,6 +332,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         portalRepo,
         getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
         decidePublic: decidePublicExecution,
+        reportGoogleDestinationFailure: (error) =>
+          deps.logger.warn(
+            { err: error },
+            'Portal Google review destination unavailable — serving degraded gateway',
+          ),
         clock: deps.clock,
       })(rawToken)
       return outcome.status === 'found'

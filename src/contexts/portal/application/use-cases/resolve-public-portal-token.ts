@@ -37,6 +37,7 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
   decidePublic: (
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>
+  reportGoogleDestinationFailure?: (error: unknown) => void
   clock: () => Date
 }>
 
@@ -79,20 +80,21 @@ export const resolvePublicPortalToken =
       return { status: 'unavailable' }
     }
 
-    let destination: Awaited<ReturnType<typeof deps.getGoogleReviewDestination>>
+    let destination: Awaited<ReturnType<typeof deps.getGoogleReviewDestination>> = null
     try {
       destination = await deps.getGoogleReviewDestination(
         organizationId(token.organizationId),
         propertyId(token.propertyId),
       )
-    } catch {
-      // A dependency fault must never fall back to user-entered links or expose
-      // a partially loaded gateway. Guests receive the same unavailable posture.
-      return { status: 'unavailable' }
+    } catch (error) {
+      // Keep the private gateway available, but never fall back to a raw Portal
+      // link or leak the last-known/stale Property destination.
+      deps.reportGoogleDestinationFailure?.(error)
     }
-    if (destination?.state !== 'verified' || destination.uri === null) {
-      return { status: 'unavailable' }
-    }
+    const googleReview =
+      destination?.state === 'verified' && destination.uri !== null
+        ? ({ status: 'available', uri: destination.uri } as const)
+        : ({ status: 'unavailable' } as const)
 
     const { privateFeedbackThreshold, ...publicData } = data
     return {
@@ -101,7 +103,7 @@ export const resolvePublicPortalToken =
         ...publicData,
         reviewGateway: {
           privateFeedbackThreshold,
-          googleReviewUri: destination.uri,
+          googleReview,
         },
       },
     }

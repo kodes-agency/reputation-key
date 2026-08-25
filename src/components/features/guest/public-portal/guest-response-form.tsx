@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
 import { GuestResponseFormView } from './guest-response-form-view'
 
 export type GuestResponseAction<TInput, TResult> = (input: {
@@ -25,7 +26,7 @@ type GuestPrivateFeedbackPayload = Readonly<{
 export type GuestResponseFormProps = Readonly<{
   token: string
   csrfNonce: string
-  googleReviewUri: string
+  googleReview: PublicGoogleReviewDestination
   secondaryLinks?: ReactNode
   initialResponse: GuestResponseView | null
   availability?: 'available' | 'loading' | 'permission_denied' | 'error'
@@ -48,7 +49,7 @@ export type GuestResponseFormProps = Readonly<{
 export function GuestResponseForm({
   token,
   csrfNonce,
-  googleReviewUri,
+  googleReview,
   secondaryLinks,
   initialResponse,
   availability = 'available',
@@ -65,6 +66,7 @@ export function GuestResponseForm({
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState('')
   const [honeypot, setHoneypot] = useState('')
+  const googleReviewAvailable = googleReview.status === 'available'
 
   const submitRating = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -123,13 +125,13 @@ export function GuestResponseForm({
   }
 
   const openGoogleReview = async () => {
+    if (!googleReviewAvailable) return
     setPending(true)
     try {
       const result = await selectGoogleReview({ data: { token, csrfNonce } })
       window.location.assign(result.url)
     } catch {
-      // Selection analytics is fail-open: provider navigation remains available.
-      window.location.assign(googleReviewUri)
+      setMessage('The Google review link could not be opened. Please try again.')
     } finally {
       setPending(false)
     }
@@ -151,6 +153,7 @@ export function GuestResponseForm({
     <GuestResponseFormView
       availability={availability}
       response={response}
+      googleReviewAvailable={googleReviewAvailable}
       rating={rating}
       feedback={feedback}
       correcting={correcting}

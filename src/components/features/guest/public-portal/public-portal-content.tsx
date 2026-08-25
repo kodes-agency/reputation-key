@@ -8,6 +8,7 @@ import {
   type PortalCategory,
   type PortalLinkItem,
 } from './portal-secondary-links'
+import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
 
 export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
@@ -26,13 +27,13 @@ export type PublicPortalContentProps = Readonly<{
   links: ReadonlyArray<PortalLinkItem>
   reviewGateway?: Readonly<{
     privateFeedbackThreshold: number
-    googleReviewUri: string
+    googleReview: PublicGoogleReviewDestination
   }>
   selectSecondaryLink?: GuestResponseAction<
     { token: string; csrfNonce: string; linkId: string },
     { url: string }
   >
-  responseForm?: Omit<GuestResponseFormProps, 'token' | 'googleReviewUri'>
+  responseForm?: Omit<GuestResponseFormProps, 'token' | 'googleReview'>
 }>
 
 /** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
@@ -130,7 +131,7 @@ export function PublicPortalContent({
         {publicGatewayReady ? (
           <GuestResponseForm
             token={token}
-            googleReviewUri={reviewGateway.googleReviewUri}
+            googleReview={reviewGateway.googleReview}
             secondaryLinks={secondaryLinks}
             {...responseForm}
           />

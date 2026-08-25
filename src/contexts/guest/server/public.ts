@@ -131,7 +131,8 @@ async function rateLimit(
   portalId: string,
   headers: Headers,
   destinationKey?: string,
-): Promise<void> {
+  failOpenNavigation = false,
+): Promise<boolean> {
   const { rateLimiter } = getContainer()
   const limits =
     action === 'submit'
@@ -171,7 +172,8 @@ async function rateLimit(
       limits.networkPortal,
     )
   }
-  if (result.allowed) return
+  if (result.allowed) return true
+  if (failOpenNavigation) return false
   setResponseHeader(
     'Retry-After',
     String(Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000))),
@@ -359,22 +361,28 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
         if (!response?.rating || response.status === 'deleted') {
           return denyWithoutEnumeration()
         }
-        await rateLimit(
+        const googleReview = bound.portal.reviewGateway.googleReview
+        if (googleReview.status !== 'available') return denyWithoutEnumeration()
+        const qualified = await rateLimit(
           'google',
           bound.session.sessionId,
           bound.scope.portalId,
           bound.headers,
+          undefined,
+          true,
         )
-        await bound.useCases.trackReviewLinkClick({
-          linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
-          destinationKind: 'google_review',
-          sessionId: bound.session.sessionId,
-          sessionExpiresAt: bound.session.expiresAt,
-          organizationId: organizationId(bound.scope.organizationId),
-          portalId: portalId(bound.scope.portalId),
-          propertyId: propertyId(bound.scope.propertyId),
-        })
-        return { url: bound.portal.reviewGateway.googleReviewUri }
+        if (qualified) {
+          await bound.useCases.trackReviewLinkClick({
+            linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
+            destinationKind: 'google_review',
+            sessionId: bound.session.sessionId,
+            sessionExpiresAt: bound.session.expiresAt,
+            organizationId: organizationId(bound.scope.organizationId),
+            portalId: portalId(bound.scope.portalId),
+            propertyId: propertyId(bound.scope.propertyId),
+          })
+        }
+        return { url: googleReview.uri }
       },
       'POST',
       'guest.google_review.select',
@@ -410,17 +418,19 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
         if (!response?.rating || response.status === 'deleted') {
           return denyWithoutEnumeration()
         }
-        await rateLimit(
+        const qualified = await rateLimit(
           'secondary',
           bound.session.sessionId,
           bound.scope.portalId,
           bound.headers,
           data.linkId,
+          true,
         )
         const result = await bound.useCases.resolveLinkAndTrack({
           token: data.token,
           linkId: portalLinkId(data.linkId),
           qualifyObservation: async (scope) =>
+            qualified &&
             scope.organizationId === bound.scope.organizationId &&
             scope.propertyId === bound.scope.propertyId &&
             scope.portalId === bound.scope.portalId

@@ -37,7 +37,10 @@ describe('createPublicPortalLookup', () => {
       links: [],
       reviewGateway: {
         privateFeedbackThreshold: 3,
-        googleReviewUri: 'https://search.google.com/local/writereview?placeid=p1',
+        googleReview: {
+          status: 'available' as const,
+          uri: 'https://search.google.com/local/writereview?placeid=p1',
+        },
       },
       organizationId: 'org-1',
       propertyId: 'property-1',

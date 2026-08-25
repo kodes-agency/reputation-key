@@ -35,6 +35,9 @@ export type PortalContextResult = Readonly<{
 }>
 
 /** Full public portal data returned for guest-facing token lookups. */
+export type PublicGoogleReviewDestination =
+  Readonly<{ status: 'available'; uri: string }> | Readonly<{ status: 'unavailable' }>
+
 export type PublicPortalResult = Readonly<{
   portal: {
     id: string
@@ -57,8 +60,8 @@ export type PublicPortalResult = Readonly<{
   reviewGateway: Readonly<{
     /** Ratings at or below this inclusive threshold may add private feedback. */
     privateFeedbackThreshold: number
-    /** Validated Property-owned destination; never administrator-entered. */
-    googleReviewUri: string
+    /** A stale/unavailable Property URI is never serialized to the guest. */
+    googleReview: PublicGoogleReviewDestination
   }>
   organizationId: string
   propertyId: string

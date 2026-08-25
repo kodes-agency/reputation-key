@@ -33,6 +33,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - Scan source must be one of `qr`, `nfc`, `direct` (`validateSource`).
 - Session cookie (24h `HttpOnly`, `guest_session`) prevents duplicate ratings within the same session.
 - **Anti-discouragement**: after a durable rating, Google is always first and identical for values 1–5. Private feedback is additive, never an alternative, prerequisite, delay, or replacement for Google.
+- If the Property-owned Google destination degrades after publication, the same first post-rating position shows gentle unavailable copy for every rating. Private feedback and secondary links remain usable, and no stale Google URI reaches the browser.
 - The guest-facing response view is a receipt: private feedback text is never returned to the browser after submission.
 - The first action per signed session, Portal, kind, and destination commits a 24-hour dedupe receipt and content-free durable fact atomically. Duplicate/replayed actions emit no second fact; Redis is abuse control, not correctness authority.
 - Guest media is hard-blocked for the first beta cohort and has no public issuance or confirmation entry point. Existing rows remain available only for audit/purge compatibility.

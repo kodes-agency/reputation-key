@@ -42,6 +42,7 @@ Portal page management — creation, configuration, theming, link management, im
 - One portal belongs to at most one portal group (enforced by unique index on `portal_group_members.portalId`).
 - A portal group belongs to exactly one property.
 - A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
+- If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 - Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 - Soft-deleting a portal revokes its active/rotating portal tokens; a deleted portal never has a live token.
 - The eligible creator is the initial Portal Responsible Manager. AccountAdmins are organization-wide eligible; PropertyManagers require both current property access and active participation for that property.

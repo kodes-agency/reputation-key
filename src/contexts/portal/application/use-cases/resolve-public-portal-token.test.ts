@@ -54,6 +54,7 @@ function setup(
     findPortal?: ResolvePublicPortalTokenDeps['portalRepo']['findPublicPortalById']
     getDestination?: ResolvePublicPortalTokenDeps['getGoogleReviewDestination']
     decide?: ResolvePublicPortalTokenDeps['decidePublic']
+    reportDestinationFailure?: ResolvePublicPortalTokenDeps['reportGoogleDestinationFailure']
   } = {},
 ) {
   const digest = vi.fn(
@@ -92,6 +93,7 @@ function setup(
       portalRepo: { findPublicPortalById: findPortal },
       getGoogleReviewDestination: getDestination,
       decidePublic: decide,
+      reportGoogleDestinationFailure: overrides.reportDestinationFailure,
       clock: () => NOW,
     }),
     digest,
@@ -114,7 +116,7 @@ describe('resolvePublicPortalToken', () => {
         links: [],
         reviewGateway: {
           privateFeedbackThreshold: 3,
-          googleReviewUri: GOOGLE_REVIEW_URI,
+          googleReview: { status: 'available', uri: GOOGLE_REVIEW_URI },
         },
         organizationId: 'org-1',
         propertyId: 'property-1',
@@ -165,7 +167,7 @@ describe('resolvePublicPortalToken', () => {
   })
 
   it.each(['awaiting_refresh', 'unavailable'] as const)(
-    'fails closed when the Property destination is %s',
+    'keeps the private gateway available without a stale URI when the Property destination is %s',
     async (state) => {
       const harness = setup({
         getDestination: vi.fn(async () => ({
@@ -177,21 +179,36 @@ describe('resolvePublicPortalToken', () => {
         })),
       })
 
-      await expect(harness.resolve('pt_key_secret')).resolves.toEqual({
-        status: 'unavailable',
+      const outcome = await harness.resolve('pt_key_secret')
+      expect(outcome).toMatchObject({
+        status: 'found',
+        data: {
+          reviewGateway: {
+            privateFeedbackThreshold: 3,
+            googleReview: { status: 'unavailable' },
+          },
+        },
       })
+      expect(JSON.stringify(outcome)).not.toContain(GOOGLE_REVIEW_URI)
     },
   )
 
-  it('fails closed when the Property destination lookup is unavailable', async () => {
+  it('degrades and reports when the Property destination lookup is unavailable', async () => {
+    const reportDestinationFailure = vi.fn()
+    const failure = new Error('database unavailable')
     const harness = setup({
       getDestination: vi.fn(async () => {
-        throw new Error('database unavailable')
+        throw failure
       }),
+      reportDestinationFailure,
     })
 
-    await expect(harness.resolve('pt_key_secret')).resolves.toEqual({
-      status: 'unavailable',
+    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
+      status: 'found',
+      data: {
+        reviewGateway: { googleReview: { status: 'unavailable' } },
+      },
     })
+    expect(reportDestinationFailure).toHaveBeenCalledWith(failure)
   })
 })

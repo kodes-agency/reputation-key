@@ -23,7 +23,7 @@ const links = [
 ]
 const reviewGateway = {
   privateFeedbackThreshold: 3,
-  googleReviewUri: 'https://www.google.com/',
+  googleReview: { status: 'available' as const, uri: 'https://www.google.com/' },
 }
 const submitted: GuestResponseView = {
   id: '00000000-0000-4000-8000-000000000030',
@@ -61,7 +61,7 @@ const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
     privateFeedbackEligible: false,
     textConsent: true,
   }),
-  selectGoogleReview: async () => ({ url: reviewGateway.googleReviewUri }),
+  selectGoogleReview: async () => ({ url: reviewGateway.googleReview.uri }),
   withdrawResponse: async () => ({
     ...submitted,
     status: 'deleted',
@@ -113,6 +113,22 @@ export const GoogleBeforeEligibleFeedback: Story = {
     expect(
       feedback.compareDocumentPosition(links) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  },
+}
+export const DegradedGoogleKeepsGatewayAndSecondaryLinks: Story = {
+  args: {
+    reviewGateway: {
+      privateFeedbackThreshold: 3,
+      googleReview: { status: 'unavailable' },
+    },
+    responseForm: { ...responseForm, initialResponse: submitted },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Google review link unavailable')).toBeVisible()
+    await expect(canvas.getByLabelText('Private feedback')).toBeVisible()
+    await expect(canvas.getByRole('navigation', { name: 'More links' })).toBeVisible()
+    expect(canvas.queryByRole('button', { name: 'Continue to Google' })).toBeNull()
   },
 }
 export const NoSecondaryLinks: Story = { args: { categories: [], links: [] } }

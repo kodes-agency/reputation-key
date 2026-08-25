@@ -207,8 +207,12 @@ describe('guest response server-fn gates', () => {
     expect(ratingGate).toBeGreaterThan(receipt)
     expect(metric).toBeGreaterThan(ratingGate)
     expect(fn).toContain("destinationKind: 'google_review'")
+    expect(fn).toContain('if (qualified)')
+    expect(fn).toContain('true,')
     expect(fn).toContain('sessionExpiresAt: bound.session.expiresAt')
-    expect(fn).toContain('bound.portal.reviewGateway.googleReviewUri')
+    expect(fn).toContain('bound.portal.reviewGateway.googleReview')
+    expect(fn).toContain("googleReview.status !== 'available'")
+    expect(fn).toContain('return { url: googleReview.uri }')
   })
 
   it('records secondary destinations only through a rated explicit mutation', () => {

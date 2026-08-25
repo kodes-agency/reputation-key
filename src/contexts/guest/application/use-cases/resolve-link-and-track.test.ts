@@ -27,7 +27,10 @@ const portal = {
   ],
   reviewGateway: {
     privateFeedbackThreshold: 3,
-    googleReviewUri: 'https://search.google.com/local/writereview?placeid=property-p1',
+    googleReview: {
+      status: 'available',
+      uri: 'https://search.google.com/local/writereview?placeid=property-p1',
+    },
   },
   organizationId: 'org-a',
   propertyId: 'property-p1',

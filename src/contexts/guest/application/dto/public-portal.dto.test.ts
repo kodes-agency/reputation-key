@@ -15,7 +15,10 @@ const portal: PublicPortalData = {
   links: [],
   reviewGateway: {
     privateFeedbackThreshold: 3,
-    googleReviewUri: 'https://search.google.com/local/writereview?placeid=portal-1',
+    googleReview: {
+      status: 'available',
+      uri: 'https://search.google.com/local/writereview?placeid=portal-1',
+    },
   },
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
@@ -34,5 +37,25 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('secret-id')
     expect(projected.portal.id).toBe('portal-1')
     expect(projected.reviewGateway.privateFeedbackThreshold).toBe(3)
+  })
+
+  it('cannot serialize a last-known Google URI in degraded state', () => {
+    const projected = toPublicPortalLoaderData(
+      {
+        ...portal,
+        reviewGateway: {
+          privateFeedbackThreshold: 3,
+          googleReview: { status: 'unavailable' },
+        },
+      },
+      {
+        guestSession: { csrfNonce: crypto.randomUUID() },
+        response: null,
+        responseForm: { availability: 'available' },
+      },
+    )
+
+    expect(projected.reviewGateway.googleReview).toEqual({ status: 'unavailable' })
+    expect(JSON.stringify(projected)).not.toContain('writereview')
   })
 })

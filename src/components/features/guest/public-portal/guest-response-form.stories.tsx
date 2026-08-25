@@ -64,7 +64,7 @@ const actions: Pick<
 const baseArgs: GuestResponseFormProps = {
   token: 'portal-public-token',
   csrfNonce: '00000000-0000-4000-8000-000000000003',
-  googleReviewUri: 'https://www.google.com/',
+  googleReview: { status: 'available', uri: 'https://www.google.com/' },
   initialResponse: null,
   ...actions,
 }
@@ -99,6 +99,18 @@ export const LowRatingGoogleThenPrivateFeedback: Story = {
     expect(
       google.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  },
+}
+export const GoogleUnavailableKeepsPrivateFeedback: Story = {
+  args: {
+    initialResponse: lowRating,
+    googleReview: { status: 'unavailable' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Google review link unavailable')).toBeVisible()
+    await expect(canvas.getByLabelText('Private feedback')).toBeVisible()
+    expect(canvas.queryByRole('button', { name: 'Continue to Google' })).toBeNull()
   },
 }
 export const FeedbackReceipt: Story = {

@@ -1182,6 +1182,7 @@ export function createContainer(options?: {
     idGen: () => crypto.randomUUID(),
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
     queue: infra.jobQueue,
+    logger,
     storage: options?.providers?.storage,
     storageConfig: {
       accessKey: env.AWS_S3_ACCESS_KEY ?? '',
