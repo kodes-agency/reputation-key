@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { getAttentionSignals } from './get-attention-signals'
-import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
+import type { ReviewPeriodStats } from '../ports/review-stats.port'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const ORG = organizationId('org-test')
@@ -18,16 +18,22 @@ const signals: AttentionSignalsPort = {
   }),
 }
 
+function reviewPeriods(
+  current: ReviewPeriodStats,
+  prior: ReviewPeriodStats = { count: 0, avgRating: 0 },
+) {
+  let calls = 0
+  return {
+    getPeriodStats: async () => (calls++ === 0 ? current : prior),
+  }
+}
+
 describe('getAttentionSignals', () => {
   it('does not infer a rating drop when all-time has no comparison period', async () => {
-    const repo = createInMemoryDashboardRepository()
-    repo.kpisOverride = {
-      reviews: { value: 10, priorValue: 12, trend: -17 },
-      avgRating: { value: 4, priorValue: 4.4, trend: -9 },
-      scans: { value: 100, priorValue: 100, trend: 0 },
-      feedback: { value: 20, priorValue: 20, trend: 0 },
-    }
-    const getSignals = getAttentionSignals({ repo, signals, clock: () => NOW })
+    const getSignals = getAttentionSignals({
+      reviewStats: reviewPeriods({ count: 10, avgRating: 4 }),
+      signals,
+    })
 
     const result = await getSignals({
       organizationId: ORG,
@@ -44,13 +50,6 @@ describe('getAttentionSignals', () => {
   })
 
   it('adds the rating-drop signal to the distinct work-anchor union', async () => {
-    const repo = createInMemoryDashboardRepository()
-    repo.kpisOverride = {
-      reviews: { value: 10, priorValue: 12, trend: -17 },
-      avgRating: { value: 4, priorValue: 4.4, trend: -9 },
-      scans: { value: 100, priorValue: 100, trend: 0 },
-      feedback: { value: 20, priorValue: 20, trend: 0 },
-    }
     const overlappingSignals: AttentionSignalsPort = {
       getAttentionCounts: async () => ({
         unanswered: 3,
@@ -61,9 +60,11 @@ describe('getAttentionSignals', () => {
       }),
     }
     const getSignals = getAttentionSignals({
-      repo,
+      reviewStats: reviewPeriods(
+        { count: 10, avgRating: 4 },
+        { count: 12, avgRating: 4.4 },
+      ),
       signals: overlappingSignals,
-      clock: () => NOW,
     })
 
     await expect(
@@ -87,14 +88,13 @@ describe('getAttentionSignals', () => {
   })
 
   it('withholds rating-drop attention below the ten-review comparison floor', async () => {
-    const repo = createInMemoryDashboardRepository()
-    repo.kpisOverride = {
-      reviews: { value: 9, priorValue: 10, trend: -10 },
-      avgRating: { value: 4, priorValue: 4.4, trend: -9 },
-      scans: { value: 100, priorValue: 100, trend: 0 },
-      feedback: { value: 20, priorValue: 20, trend: 0 },
-    }
-    const getSignals = getAttentionSignals({ repo, signals, clock: () => NOW })
+    const getSignals = getAttentionSignals({
+      reviewStats: reviewPeriods(
+        { count: 9, avgRating: 4 },
+        { count: 10, avgRating: 4.4 },
+      ),
+      signals,
+    })
 
     const result = await getSignals({
       organizationId: ORG,

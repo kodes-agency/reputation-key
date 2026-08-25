@@ -20,7 +20,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
+    const getDashboard = getDashboardData({ repo })
 
     const result = await getDashboard({
       organizationId: ORG_A,
@@ -57,7 +57,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
+    const getDashboard = getDashboardData({ repo })
 
     const result = await getDashboard({
       organizationId: ORG_A,
@@ -77,7 +77,7 @@ describe('getDashboardData (use case)', () => {
   it('does not present all-time KPI self-comparisons as real trends', async () => {
     const now = new Date()
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
+    const getDashboard = getDashboardData({ repo })
 
     const result = await getDashboard({
       organizationId: ORG_A,

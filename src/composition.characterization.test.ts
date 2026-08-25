@@ -153,6 +153,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'getPortalGroup',
   'getProperty',
   'getPropertyGooglePerformance',
+  'getPropertyOverview',
   'getPublicPortal',
   'getReply',
   'getStaffDashboardData',

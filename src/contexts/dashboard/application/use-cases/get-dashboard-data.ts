@@ -20,9 +20,8 @@ export type GetDashboardDataInput = Readonly<{
 
 export type GetDashboardDataDeps = Readonly<{
   repo: DashboardRepository
-  clock: () => Date
 }>
-export type GetDashboardData = ReturnType<typeof getDashboardData>
+export type GetDashboardData = (input: GetDashboardDataInput) => Promise<DashboardData>
 
 export const getDashboardData =
   (deps: GetDashboardDataDeps) =>

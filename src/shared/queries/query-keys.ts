@@ -98,8 +98,6 @@ export const dashboardKeys = {
     [...dashboardKeys.all, 'staff', args] as const,
   property: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'property', args] as const,
-  signals: (args: Readonly<Record<string, unknown>>) =>
-    [...dashboardKeys.all, 'signals', args] as const,
   googlePerformance: (
     propertyId: string,
     preset: string,

@@ -30,6 +30,7 @@ export type {
   FleetMetricEvidence,
   FleetTotals,
 } from '../domain/types'
+export type { PropertyOverviewData } from './use-cases/get-property-overview'
 
 // ── Error type re-exports (server functions must import from public-api, not domain/errors) ──
 export type { DashboardErrorCode, DashboardError } from '../domain/errors'

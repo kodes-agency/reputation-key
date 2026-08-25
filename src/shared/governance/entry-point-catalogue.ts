@@ -1171,6 +1171,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'property-access check; reply fields zeroed for Staff' },
     ),
     sf(
+      'getPropertyOverviewFn',
+      `${DASHBOARD}/dashboard.ts`,
+      'dashboard.read',
+      'dashboard.use',
+      'property',
+      {
+        alsoActions: ['dashboard.fleet_read'],
+        notes: 'shared KPI snapshot for Property dashboard and attention',
+      },
+    ),
+    sf(
       'getStaffDashboardDataFn',
       `${DASHBOARD}/staff-dashboard.ts`,
       'dashboard.read',

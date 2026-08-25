@@ -7,6 +7,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 ## Glossary
 
 - **DashboardData** — The full property dashboard response: KPIs, rating distribution, trends, reply performance, engagement funnel, recent reviews.
+- **PropertyOverviewData** — The Property page projection pairing `DashboardData` and attention signals derived from the exact same KPI snapshot.
 - **PortalAnalyticsData** — Portal-scoped analytics: the trusted Property-local period/timezone, portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
 - **KPIValue** — A metric with current value, prior value, and trend percentage. Used for the KPI strip.
 - **PortalRatingKPIValue** — A private-rating average with eligible sample counts, source evidence, and an absolute star comparison. No eligible sample renders as `null`/`—`, never zero stars.
@@ -71,7 +72,7 @@ dashboard/
   domain/              types.ts, errors.ts
   application/
     ports/             dashboard.repository.ts, metric-stats.port.ts, review-stats.port.ts, portal-metrics.port.ts, portal-response-integrity.port.ts, staff-portal-resolver.port.ts, attention-signals.port.ts
-    use-cases/         get-dashboard-data.ts, get-portal-analytics.ts, get-staff-dashboard-data.ts, get-attention-signals.ts, get-fleet-overview.ts
+    use-cases/         get-dashboard-data.ts, get-property-overview.ts, get-portal-analytics.ts, get-staff-dashboard-data.ts, get-attention-signals.ts, get-fleet-overview.ts
     utils.ts           pure data helpers (prior period, trend, rating drop, bounds)
     public-api.ts      re-exports domain types
   infrastructure/
@@ -85,19 +86,20 @@ dashboard/
 
 ## Use cases
 
-| Use case                | Input                                                                       | Output                | Description                                                                                                                                                                                           |
-| ----------------------- | --------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate, propertyTimezone | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set                                                                                                     |
-| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate, propertyTimezone  | `PortalAnalyticsData` | Portal-scoped analytics: trusted period/timezone, KPIs, funnel, private-rating charts, and response-integrity methodology counts. No review/reply data.                                               |
-| `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange, propertyTimezone  | `StaffDashboardData`  | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                      |
-| `getAttentionSignals`   | organizationId, propertyId, slaHours, timeRange, propertyTimezone           | `AttentionSignals`    | Five attention reasons plus the distinct work total for one property.                                                                                                                                 |
-| `getFleetOverview`      | organizationId, properties[], slaHours, timeRange                           | `FleetOverviewData`   | Cross-property aggregation: per-property attention + KPI summary, name-ordered and keyset-paginated, with an org-total strip. Property identities are resolved server-side at the server-fn boundary. |
+| Use case                | Input                                                                       | Output                 | Description                                                                                                                                                                                           |
+| ----------------------- | --------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate, propertyTimezone | `DashboardData`        | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set                                                                                                     |
+| `getPropertyOverview`   | Dashboard input + slaHours                                                  | `PropertyOverviewData` | Runs Dashboard and atomic attention reads concurrently, then derives rating attention from the Dashboard KPI snapshot without a duplicate KPI fan-out.                                                |
+| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate, propertyTimezone  | `PortalAnalyticsData`  | Portal-scoped analytics: trusted period/timezone, KPIs, funnel, private-rating charts, and response-integrity methodology counts. No review/reply data.                                               |
+| `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange, propertyTimezone  | `StaffDashboardData`   | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                      |
+| `getAttentionSignals`   | organizationId, propertyId, slaHours, timeRange, propertyTimezone           | `AttentionSignals`     | Five attention reasons plus the distinct work total for one property.                                                                                                                                 |
+| `getFleetOverview`      | organizationId, properties[], slaHours, timeRange                           | `FleetOverviewData`    | Cross-property aggregation: per-property attention + KPI summary, name-ordered and keyset-paginated, with an org-total strip. Property identities are resolved server-side at the server-fn boundary. |
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalKPIs`, `PortalRatingKPIValue`, `PortalAnalyticsData`, `StaffDashboardData`, `PortalRatingTrendPoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetTotals`
+- Types: `KPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PropertyOverviewData`, `PortalKPIs`, `PortalRatingKPIValue`, `PortalAnalyticsData`, `StaffDashboardData`, `PortalRatingTrendPoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetTotals`
 - Error types: `DashboardErrorCode`, `DashboardError`, `isDashboardError`
 
 ## Server functions
@@ -105,6 +107,7 @@ Exported from `application/public-api.ts`:
 | Function | Method | Permission | Route |
 | -------- | ------------------------- | ---------- | ---------------- | ----------------------------------------------------------------------------------------- |
 | | `getDashboardDataFn` | GET | `dashboard.read` | Property-scoped dashboard data with time range |
+| | `getPropertyOverviewFn` | GET | `dashboard.read` + `dashboard.fleet_read` | Property page Dashboard and attention projection sharing one KPI snapshot |
 | | `getPortalAnalyticsFn` | GET | `dashboard.read` | Portal-scoped analytics data with time range |
 | | `getStaffDashboardDataFn` | GET | `dashboard.read` | Staff dashboard data |
 | | `getAttentionSignalsFn` | GET | `dashboard.read` | Per-property attention-band signal counts |

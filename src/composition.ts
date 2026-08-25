@@ -1699,6 +1699,7 @@ export function createContainer(options?: {
       getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
       getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
       getAttentionSignals: dashboard.publicApi.getAttentionSignals,
+      getPropertyOverview: dashboard.publicApi.getPropertyOverview,
       getFleetOverview: dashboard.publicApi.getFleetOverview,
       ...goal.internal.useCases,
       ...badge.internal.useCases,

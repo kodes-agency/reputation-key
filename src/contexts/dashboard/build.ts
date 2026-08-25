@@ -19,6 +19,8 @@ import { getPortalAnalytics } from './application/use-cases/get-portal-analytics
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import { getAttentionSignals } from './application/use-cases/get-attention-signals'
 import type { GetAttentionSignals } from './application/use-cases/get-attention-signals'
+import { getPropertyOverview } from './application/use-cases/get-property-overview'
+import type { GetPropertyOverview } from './application/use-cases/get-property-overview'
 import { getFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
@@ -45,6 +47,7 @@ export type DashboardContextApi = Readonly<{
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
     getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
     getAttentionSignals: GetAttentionSignals
+    getPropertyOverview: GetPropertyOverview
     getFleetOverview: GetFleetOverview
   }>
   internal: Readonly<{
@@ -54,6 +57,7 @@ export type DashboardContextApi = Readonly<{
       getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
       getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
       getAttentionSignals: GetAttentionSignals
+      getPropertyOverview: GetPropertyOverview
       getFleetOverview: GetFleetOverview
     }>
   }>
@@ -72,10 +76,7 @@ export const buildDashboardContext = (
 
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
 
-  const getDashboard = getDashboardData({
-    repo: dashboardRepo,
-    clock: input.clock,
-  })
+  const getDashboard = getDashboardData({ repo: dashboardRepo })
 
   const getPortal = getPortalAnalytics({
     portalMetrics: input.portalMetrics,
@@ -89,9 +90,13 @@ export const buildDashboardContext = (
   })
 
   const getAttention = getAttentionSignals({
-    repo: dashboardRepo,
     signals: attentionSignals,
-    clock: input.clock,
+    reviewStats: input.reviewServingStats,
+  })
+
+  const getOverview = getPropertyOverview({
+    getDashboardData: getDashboard,
+    attention: attentionSignals,
   })
 
   const getFleet = getFleetOverview({
@@ -111,6 +116,7 @@ export const buildDashboardContext = (
       getPortalAnalytics: getPortal,
       getStaffDashboardData: getStaffDashboard,
       getAttentionSignals: getAttention,
+      getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
     },
     internal: {
@@ -120,6 +126,7 @@ export const buildDashboardContext = (
         getPortalAnalytics: getPortal,
         getStaffDashboardData: getStaffDashboard,
         getAttentionSignals: getAttention,
+        getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
       },
     },
