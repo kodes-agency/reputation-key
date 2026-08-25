@@ -1,8 +1,7 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
-import type { IdentityMembershipPort } from '../ports/identity-membership.port'
+import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type {
   ResponsibilitySelection,
   StaffParticipationRepository,
@@ -11,11 +10,11 @@ import {
   createParticipation,
   type StaffParticipation,
 } from '../../domain/staff-participation'
+import { createStaffParticipant } from '../../domain/staff-participant'
 import { staffError } from '../../domain/errors'
 
 export type StaffParticipationDeps = Readonly<{
   repo: StaffParticipationRepository
-  identityMembership: IdentityMembershipPort
   accessibleProperties: (
     organizationId: OrganizationId,
     userId: UserId,
@@ -43,7 +42,7 @@ async function requirePropertyManage(
 export const createStaffParticipation =
   (deps: StaffParticipationDeps) =>
   async (
-    input: Readonly<{ propertyId: string; userId: string; displayName: string }>,
+    input: Readonly<{ propertyId: string; displayName: string }>,
     ctx: AuthContext,
   ): Promise<StaffParticipation> => {
     await requirePropertyManage(deps, ctx, input.propertyId)
@@ -54,37 +53,31 @@ export const createStaffParticipation =
         'display name must be between 1 and 255 characters',
       )
     }
-    const targetUserId = toUserId(input.userId)
-    if (!(await deps.identityMembership.isMember(ctx.organizationId, targetUserId))) {
-      throw staffError(
-        'user_not_member',
-        'target user is not a member of this organization',
-      )
-    }
-
-    const existing = await deps.repo.findActiveByUser(
-      ctx.organizationId,
-      input.propertyId,
-      input.userId,
-    )
-    if (existing) return existing
-
+    const now = deps.clock()
+    const participant = createStaffParticipant({
+      id: deps.idGen(),
+      organizationId: ctx.organizationId,
+      displayName,
+      createdBy: ctx.userId,
+      now,
+    })
     const participation = createParticipation({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
       propertyId: input.propertyId,
-      userId: input.userId,
+      staffParticipantId: participant.id,
       displayName,
       createdBy: ctx.userId,
-      now: deps.clock(),
+      now,
     })
-    return deps.repo.create(participation)
+    return deps.repo.createParticipantWithParticipation({ participant, participation })
   }
 
 export type StaffResponsibilitySelectionView = Readonly<{
   staffParticipationId: string
   primaryPortalId: string | null
   supportingPortalIds: readonly string[]
+  revision: number
 }>
 
 export const listStaffParticipations =
@@ -138,6 +131,7 @@ export const listStaffParticipations =
           supportingPortalIds: rows
             .filter((row) => row.kind === 'supporting')
             .map((row) => row.portalId),
+          revision: participation.revision,
         } satisfies StaffResponsibilitySelectionView
       }),
     )
@@ -148,7 +142,11 @@ export const listStaffParticipations =
 export const archiveStaffParticipation =
   (deps: StaffParticipationDeps) =>
   async (
-    input: Readonly<{ staffParticipationId: string; reason: string }>,
+    input: Readonly<{
+      staffParticipationId: string
+      reason: string
+      expectedRevision: number
+    }>,
     ctx: AuthContext,
   ): Promise<StaffParticipation> => {
     const participation = await deps.repo.findById(
@@ -169,6 +167,7 @@ export const archiveStaffParticipation =
       participation.id,
       deps.clock(),
       reason,
+      input.expectedRevision,
     )
     if (!archived) {
       throw staffError('participation_not_found', 'staff participation not found')
@@ -183,6 +182,7 @@ export const updatePortalResponsibilities =
       staffParticipationId: string
       primaryPortalId: string | null
       supportingPortalIds: readonly string[]
+      expectedRevision: number
     }>,
     ctx: AuthContext,
   ) => {
@@ -219,5 +219,6 @@ export const updatePortalResponsibilities =
       selections,
       actorId: ctx.userId,
       at: deps.clock(),
+      expectedRevision: input.expectedRevision,
     })
   }

@@ -18,6 +18,7 @@ import {
   pgEnum,
   foreignKey,
   check,
+  integer,
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
@@ -46,6 +47,11 @@ export const membershipRoleEnum = pgEnum('membership_role', ['member', 'lead'])
 export const responsibilityKindEnum = pgEnum('responsibility_kind', [
   'primary',
   'supporting',
+])
+
+export const staffParticipantStatusEnum = pgEnum('staff_participant_status', [
+  'active',
+  'archived',
 ])
 
 // ── Property Access Grants ────────────────────────────────────────
@@ -84,6 +90,73 @@ export const propertyAccessGrants = pgTable(
   }),
 )
 
+// ── Staff Participants + optional login links ────────────────────
+
+export const staffParticipants = pgTable(
+  'staff_participants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    displayName: varchar('display_name', { length: 255 }).notNull(),
+    status: staffParticipantStatusEnum('status').notNull().default('active'),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    archiveReason: text('archive_reason'),
+    revision: integer('revision').notNull().default(1),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => ({
+    tenantKey: uniqueIndex('staff_participants_org_id_key').on(t.organizationId, t.id),
+    orgStatusNameIdx: index('staff_participants_org_status_name_idx').on(
+      t.organizationId,
+      t.status,
+      t.displayName,
+    ),
+    lifecycleCheck: check(
+      'staff_participants_lifecycle_consistent',
+      sql`(${t.status} = 'active' AND ${t.archivedAt} IS NULL AND ${t.archiveReason} IS NULL) OR (${t.status} = 'archived' AND ${t.archivedAt} IS NOT NULL AND ${t.archiveReason} IS NOT NULL)`,
+    ),
+    revisionCheck: check('staff_participants_revision_positive', sql`${t.revision} >= 1`),
+  }),
+)
+
+export const staffUserLinks = pgTable(
+  'staff_user_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    staffParticipantId: uuid('staff_participant_id').notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    endReason: text('end_reason'),
+  },
+  (t) => ({
+    orgParticipantIdx: index('staff_user_links_org_participant_idx').on(
+      t.organizationId,
+      t.staffParticipantId,
+    ),
+    orgUserIdx: index('staff_user_links_org_user_idx').on(t.organizationId, t.userId),
+    uniqueActiveParticipant: uniqueIndex('staff_user_links_unique_active_participant')
+      .on(t.organizationId, t.staffParticipantId)
+      .where(sql`effective_to IS NULL`),
+    uniqueActiveUser: uniqueIndex('staff_user_links_unique_active_user')
+      .on(t.organizationId, t.userId)
+      .where(sql`effective_to IS NULL`),
+    participantTenantFk: foreignKey({
+      name: 'staff_user_links_participant_tenant_fk',
+      columns: [t.organizationId, t.staffParticipantId],
+      foreignColumns: [staffParticipants.organizationId, staffParticipants.id],
+    }).onDelete('restrict'),
+    intervalCheck: check(
+      'staff_user_links_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+  }),
+)
+
 // ── Staff Participations ──────────────────────────────────────────
 
 export const staffParticipations = pgTable(
@@ -94,11 +167,16 @@ export const staffParticipations = pgTable(
     propertyId: uuid('property_id')
       .notNull()
       .references(() => properties.id, { onDelete: 'restrict' }),
-    userId: varchar('user_id', { length: 255 }).notNull(),
+    staffParticipantId: uuid('staff_participant_id'),
+    // Compatibility shadow for the legacy login-bound reader. New beta writes
+    // leave this null and identify the person through staffParticipantId.
+    userId: varchar('user_id', { length: 255 }),
     displayName: varchar('display_name', { length: 255 }).notNull(),
     status: participationStatusEnum('status').notNull().default('active'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     endedAt: timestamp('ended_at', { withTimezone: true }),
+    archiveReason: text('archive_reason'),
+    revision: integer('revision').notNull().default(1),
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
@@ -112,6 +190,9 @@ export const staffParticipations = pgTable(
     uniqueActiveParticipation: uniqueIndex('sp_unique_active')
       .on(t.organizationId, t.propertyId, t.userId)
       .where(sql`status = 'active'`),
+    uniqueActiveParticipant: uniqueIndex('sp_unique_active_participant')
+      .on(t.organizationId, t.propertyId, t.staffParticipantId)
+      .where(sql`status = 'active' AND staff_participant_id IS NOT NULL`),
     tenantKey: uniqueIndex('sp_org_property_id_key').on(
       t.organizationId,
       t.propertyId,
@@ -122,10 +203,20 @@ export const staffParticipations = pgTable(
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
+    participantTenantFk: foreignKey({
+      name: 'sp_participant_tenant_fk',
+      columns: [t.organizationId, t.staffParticipantId],
+      foreignColumns: [staffParticipants.organizationId, staffParticipants.id],
+    }).onDelete('restrict'),
     lifecycleCheck: check(
       'sp_lifecycle_consistent',
       sql`(${t.status} = 'active' AND ${t.endedAt} IS NULL) OR (${t.status} <> 'active' AND ${t.endedAt} IS NOT NULL)`,
     ),
+    archiveReasonCheck: check(
+      'sp_archive_reason_consistent',
+      sql`(${t.status} = 'archived' AND ${t.archiveReason} IS NOT NULL) OR (${t.status} <> 'archived' AND ${t.archiveReason} IS NULL)`,
+    ),
+    revisionCheck: check('sp_revision_positive', sql`${t.revision} >= 1`),
   }),
 )
 

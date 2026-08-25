@@ -66,7 +66,6 @@ describe('staff participation server functions', () => {
     mocks.create.mockResolvedValue(participation)
     const data = {
       propertyId: PROPERTY_ID,
-      userId: 'staff-user-1',
       displayName: 'Front Desk',
     }
 
@@ -106,6 +105,7 @@ describe('staff participation server functions', () => {
             staffParticipationId: PARTICIPATION_ID,
             primaryPortalId: PROPERTY_ID,
             supportingPortalIds: [],
+            expectedRevision: 1,
           },
         }),
       ),

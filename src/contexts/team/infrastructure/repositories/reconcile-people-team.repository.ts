@@ -610,28 +610,40 @@ async function loadCurrentPeopleMappings(
   const [participations, memberships, responsibilities, groupMemberships] =
     await Promise.all([
       db.execute(sql`
-        SELECT sp.organization_id, sp.property_id, sp.user_id
+        SELECT sp.organization_id, sp.property_id, sul.user_id
         FROM staff_participations sp
+        JOIN staff_user_links sul
+          ON sul.organization_id = sp.organization_id
+         AND sul.staff_participant_id = sp.staff_participant_id
+         AND sul.effective_to IS NULL
         WHERE sp.status = 'active'
         ${scopeFilter(scope, 'sp')}
       `),
       db.execute(sql`
-        SELECT tm.organization_id, tm.property_id, sp.user_id, tm.team_id, tm.role
+        SELECT tm.organization_id, tm.property_id, sul.user_id, tm.team_id, tm.role
         FROM team_memberships tm
         JOIN staff_participations sp
           ON sp.organization_id = tm.organization_id
          AND sp.property_id = tm.property_id
          AND sp.id = tm.staff_participation_id
+        JOIN staff_user_links sul
+          ON sul.organization_id = sp.organization_id
+         AND sul.staff_participant_id = sp.staff_participant_id
+         AND sul.effective_to IS NULL
         WHERE tm.effective_to IS NULL AND sp.status = 'active'
         ${scopeFilter(scope, 'tm')}
       `),
       db.execute(sql`
-        SELECT pr.organization_id, pr.property_id, sp.user_id, pr.portal_id, pr.kind
+        SELECT pr.organization_id, pr.property_id, sul.user_id, pr.portal_id, pr.kind
         FROM portal_responsibilities pr
         JOIN staff_participations sp
           ON sp.organization_id = pr.organization_id
          AND sp.property_id = pr.property_id
          AND sp.id = pr.staff_participation_id
+        JOIN staff_user_links sul
+          ON sul.organization_id = sp.organization_id
+         AND sul.staff_participant_id = sp.staff_participant_id
+         AND sul.effective_to IS NULL
         WHERE pr.effective_to IS NULL AND sp.status = 'active'
         ${scopeFilter(scope, 'pr')}
       `),
@@ -952,12 +964,52 @@ export async function applyPeopleReconciliation(
     }
     const participationIds = new Map<string, string>()
     for (const plan of analysis.participations) {
+      await tx.execute(sql`
+        SELECT pg_advisory_xact_lock(
+          hashtext(${`${plan.organizationId}:${plan.userId}`})
+        )
+      `)
+      let participant = await tx.execute(sql`
+        SELECT sp.id
+        FROM staff_participants sp
+        JOIN staff_user_links sul
+          ON sul.organization_id = sp.organization_id
+         AND sul.staff_participant_id = sp.id
+         AND sul.effective_to IS NULL
+        WHERE sp.organization_id = ${plan.organizationId}
+          AND sul.user_id = ${plan.userId}
+          AND sp.status = 'active'
+        LIMIT 1
+      `)
+      let participantId = (participant.rows[0] as { id?: string } | undefined)?.id
+      if (!participantId) {
+        participant = await tx.execute(sql`
+          INSERT INTO staff_participants
+            (organization_id, display_name, status, created_by, created_at, updated_at)
+          VALUES (
+            ${plan.organizationId}, ${plan.displayName}, 'active',
+            ${options.createdBy}, ${plan.effectiveFrom}, ${plan.effectiveFrom}
+          )
+          RETURNING id
+        `)
+        participantId = (participant.rows[0] as { id?: string } | undefined)?.id
+        if (!participantId) continue
+        await tx.execute(sql`
+          INSERT INTO staff_user_links
+            (organization_id, staff_participant_id, user_id, effective_from, created_by)
+          VALUES (
+            ${plan.organizationId}, ${participantId}, ${plan.userId},
+            ${plan.effectiveFrom}, ${options.createdBy}
+          )
+        `)
+      }
       const inserted = await tx.execute(sql`
         INSERT INTO staff_participations
-          (organization_id, property_id, user_id, display_name, status,
+          (organization_id, property_id, staff_participant_id, user_id,
+           display_name, status,
            started_at, created_by, created_at, updated_at)
         VALUES (
-          ${plan.organizationId}, ${plan.propertyId}, ${plan.userId},
+          ${plan.organizationId}, ${plan.propertyId}, ${participantId}, NULL,
           ${plan.displayName}, 'active', ${plan.effectiveFrom},
           ${options.createdBy}, ${plan.effectiveFrom}, ${plan.effectiveFrom}
         )
@@ -969,7 +1021,7 @@ export async function applyPeopleReconciliation(
         SELECT id FROM staff_participations
         WHERE organization_id = ${plan.organizationId}
           AND property_id = ${plan.propertyId}
-          AND user_id = ${plan.userId}
+          AND staff_participant_id = ${participantId}
           AND status = 'active'
         LIMIT 1
       `)

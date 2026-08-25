@@ -9,6 +9,7 @@ const ORG_B = 'org-staff-participation-b'
 const PROPERTY_A = 'db000000-0000-4000-8000-000000000001'
 const PROPERTY_B = 'db000000-0000-4000-8000-000000000002'
 const PARTICIPATION = 'db000000-0000-4000-8000-000000000011'
+const PARTICIPANT = 'db000000-0000-4000-8000-000000000010'
 const PORTAL_A = 'db000000-0000-4000-8000-000000000021'
 const PORTAL_B = 'db000000-0000-4000-8000-000000000022'
 const PORTAL_C = 'db000000-0000-4000-8000-000000000023'
@@ -43,6 +44,14 @@ afterAll(async () => {
     ORG_A,
     ORG_B,
   ])
+  await pool.query('DELETE FROM staff_user_links WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM staff_participants WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
   await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -64,6 +73,14 @@ beforeEach(async () => {
     ORG_A,
     ORG_B,
   ])
+  await pool.query('DELETE FROM staff_user_links WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
+  await pool.query('DELETE FROM staff_participants WHERE organization_id IN ($1, $2)', [
+    ORG_A,
+    ORG_B,
+  ])
   await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -81,32 +98,50 @@ const participation = () => ({
   id: PARTICIPATION,
   organizationId: ORG_A,
   propertyId: PROPERTY_A,
-  userId: 'user-staff-participation',
+  staffParticipantId: PARTICIPANT,
+  linkedUserId: null,
   displayName: 'Alex',
   status: 'active' as const,
   startedAt: START,
   endedAt: null,
+  archiveReason: null,
+  revision: 1,
   createdBy: 'owner',
   updatedAt: START,
 })
 
-describe('staff participation repository', () => {
-  it('creates one active participation idempotently and isolates tenant reads', async () => {
-    const repo = createStaffParticipationRepository(getDb())
-    const first = await repo.create(participation())
-    const duplicate = await repo.create({
-      ...participation(),
-      id: 'db000000-0000-4000-8000-000000000012',
-    })
+const participant = () => ({
+  id: PARTICIPANT,
+  organizationId: ORG_A,
+  displayName: 'Alex',
+  status: 'active' as const,
+  archivedAt: null,
+  archiveReason: null,
+  revision: 1,
+  createdBy: 'owner',
+  createdAt: START,
+  updatedAt: START,
+})
 
-    expect(duplicate.id).toBe(first.id)
+const createFixture = (repo: ReturnType<typeof createStaffParticipationRepository>) =>
+  repo.createParticipantWithParticipation({
+    participant: participant(),
+    participation: participation(),
+  })
+
+describe('staff participation repository', () => {
+  it('creates a participant without a login and isolates tenant reads', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    const first = await createFixture(repo)
+
+    expect(first.linkedUserId).toBeNull()
     await expect(repo.findById(ORG_B, first.id)).resolves.toBeNull()
     await expect(repo.list(ORG_A, { activeOnly: true })).resolves.toHaveLength(1)
   })
 
   it('persists an idempotent responsibility set and rejects a cross-property portal', async () => {
     const repo = createStaffParticipationRepository(getDb())
-    await repo.create(participation())
+    await createFixture(repo)
     const input = {
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
@@ -114,9 +149,13 @@ describe('staff participation repository', () => {
       selections: [{ portalId: PORTAL_A, kind: 'primary' as const }],
       actorId: 'owner',
       at: START,
+      expectedRevision: 1,
     }
     const first = await repo.replaceResponsibilities(input)
-    const repeated = await repo.replaceResponsibilities(input)
+    const repeated = await repo.replaceResponsibilities({
+      ...input,
+      expectedRevision: first.revision,
+    })
 
     expect(repeated).toEqual(first)
     await expect(
@@ -124,24 +163,27 @@ describe('staff participation repository', () => {
         ...input,
         selections: [{ portalId: PORTAL_B, kind: 'primary' }],
         at: CHANGE,
+        expectedRevision: repeated.revision,
       }),
     ).rejects.toMatchObject({ _tag: 'StaffError', code: 'invalid_input' })
     await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual(
-      first,
+      first.responsibilities,
     )
   })
 
   it('preserves unchanged responsibility intervals during a partial edit', async () => {
     const repo = createStaffParticipationRepository(getDb())
-    await repo.create(participation())
-    const [original] = await repo.replaceResponsibilities({
+    await createFixture(repo)
+    const initial = await repo.replaceResponsibilities({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       staffParticipationId: PARTICIPATION,
       selections: [{ portalId: PORTAL_A, kind: 'primary' }],
       actorId: 'owner',
       at: START,
+      expectedRevision: 1,
     })
+    const [original] = initial.responsibilities
 
     const changed = await repo.replaceResponsibilities({
       organizationId: ORG_A,
@@ -153,14 +195,19 @@ describe('staff participation repository', () => {
       ],
       actorId: 'manager',
       at: CHANGE,
+      expectedRevision: initial.revision,
     })
 
-    expect(changed.find((row) => row.portalId === PORTAL_A)).toMatchObject({
+    expect(
+      changed.responsibilities.find((row) => row.portalId === PORTAL_A),
+    ).toMatchObject({
       id: original.id,
       effectiveFrom: START,
       createdBy: 'owner',
     })
-    expect(changed.find((row) => row.portalId === PORTAL_C)).toMatchObject({
+    expect(
+      changed.responsibilities.find((row) => row.portalId === PORTAL_C),
+    ).toMatchObject({
       effectiveFrom: CHANGE,
       createdBy: 'manager',
     })
@@ -176,9 +223,47 @@ describe('staff participation repository', () => {
     expect(unchangedHistory.rows[0].effective_to).toBeNull()
   })
 
+  it('rejects stale responsibility and archive commands without partial changes', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await createFixture(repo)
+    const updated = await repo.replaceResponsibilities({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      staffParticipationId: PARTICIPATION,
+      selections: [{ portalId: PORTAL_A, kind: 'primary' }],
+      actorId: 'owner',
+      at: START,
+      expectedRevision: 1,
+    })
+    expect(updated.revision).toBe(2)
+
+    await expect(
+      repo.replaceResponsibilities({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        staffParticipationId: PARTICIPATION,
+        selections: [{ portalId: PORTAL_C, kind: 'primary' }],
+        actorId: 'manager',
+        at: CHANGE,
+        expectedRevision: 1,
+      }),
+    ).rejects.toMatchObject({ _tag: 'StaffError', code: 'revision_conflict' })
+    await expect(
+      repo.archive(ORG_A, PARTICIPATION, CHANGE, 'left_property', 1),
+    ).rejects.toMatchObject({ _tag: 'StaffError', code: 'revision_conflict' })
+
+    await expect(repo.findById(ORG_A, PARTICIPATION)).resolves.toMatchObject({
+      status: 'active',
+      revision: 2,
+    })
+    await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual([
+      expect.objectContaining({ portalId: PORTAL_A, kind: 'primary' }),
+    ])
+  })
+
   it('archives participation and closes responsibility history transactionally', async () => {
     const repo = createStaffParticipationRepository(getDb())
-    await repo.create(participation())
+    await createFixture(repo)
     await repo.replaceResponsibilities({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
@@ -186,11 +271,17 @@ describe('staff participation repository', () => {
       selections: [{ portalId: PORTAL_A, kind: 'primary' }],
       actorId: 'owner',
       at: START,
+      expectedRevision: 1,
     })
 
-    const archived = await repo.archive(ORG_A, PARTICIPATION, CHANGE, 'left_property')
+    const archived = await repo.archive(ORG_A, PARTICIPATION, CHANGE, 'left_property', 2)
 
-    expect(archived).toMatchObject({ status: 'archived', endedAt: CHANGE })
+    expect(archived).toMatchObject({
+      status: 'archived',
+      endedAt: CHANGE,
+      archiveReason: 'left_property',
+      revision: 3,
+    })
     await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual(
       [],
     )

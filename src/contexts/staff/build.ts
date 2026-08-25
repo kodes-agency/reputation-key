@@ -114,28 +114,24 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
     createStaffParticipation: createStaffParticipation({
       repo: participationRepo,
-      identityMembership: deps.identityMembership,
       accessibleProperties: deps.accessiblePropertyLookup,
       clock: deps.clock,
       idGen,
     }),
     listStaffParticipations: listStaffParticipations({
       repo: participationRepo,
-      identityMembership: deps.identityMembership,
       accessibleProperties: deps.accessiblePropertyLookup,
       clock: deps.clock,
       idGen,
     }),
     archiveStaffParticipation: archiveStaffParticipation({
       repo: participationRepo,
-      identityMembership: deps.identityMembership,
       accessibleProperties: deps.accessiblePropertyLookup,
       clock: deps.clock,
       idGen,
     }),
     updatePortalResponsibilities: updatePortalResponsibilities({
       repo: participationRepo,
-      identityMembership: deps.identityMembership,
       accessibleProperties: deps.accessiblePropertyLookup,
       clock: deps.clock,
       idGen,

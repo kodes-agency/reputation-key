@@ -4,56 +4,29 @@ import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { FieldGroup } from '#/components/ui/field'
-import { MemberSelector } from './member-selector'
-import type {
-  CreateStaffParticipationMutationInput,
-  MemberOption,
-} from '#/components/features/staff/types'
+import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
+import { Input } from '#/components/ui/input'
+import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
 
 const formSchema = z.object({
-  userIds: z.array(z.string()).min(1, 'Select at least one staff member'),
+  displayName: z.string().trim().min(1, 'Enter the staff member’s name').max(255),
 })
 
 type Props = Readonly<{
   propertyId: string
   mutation: Action<{ data: CreateStaffParticipationMutationInput }>
-  members: ReadonlyArray<MemberOption>
-  activeUserIds: ReadonlySet<string>
   onSuccess?: (count: number) => void
 }>
 
-export function StaffParticipationForm({
-  propertyId,
-  mutation,
-  members,
-  activeUserIds,
-  onSuccess,
-}: Props) {
-  const availableMembers = members.filter((member) => !activeUserIds.has(member.userId))
+export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Props) {
   const form = useForm({
-    defaultValues: { userIds: [] as string[] },
+    defaultValues: { displayName: '' },
     validators: { onSubmit: formSchema },
     onSubmit: async ({ value }) => {
-      const results = await Promise.allSettled(
-        value.userIds.map((userId) => {
-          const member = members.find((candidate) => candidate.userId === userId)
-          if (!member) return Promise.reject(new Error('Selected member is unavailable.'))
-          return mutation({
-            data: { propertyId, userId, displayName: member.name },
-          })
-        }),
-      )
-      const succeeded = results.filter((result) => result.status === 'fulfilled').length
-      const failed = results.length - succeeded
-      if (succeeded > 0) {
-        toast.success(
-          failed > 0
-            ? `${succeeded} staff participant${succeeded === 1 ? '' : 's'} added; ${failed} failed`
-            : `${succeeded} staff participant${succeeded === 1 ? '' : 's'} added`,
-        )
-        if (failed === 0) onSuccess?.(succeeded)
-      }
+      await mutation({ data: { propertyId, displayName: value.displayName.trim() } })
+      toast.success('Staff participant added')
+      form.reset()
+      onSuccess?.(1)
     },
   })
 
@@ -68,8 +41,26 @@ export function StaffParticipationForm({
     >
       <FormErrorBanner error={mutation.error} />
       <FieldGroup>
-        <form.Field name="userIds">
-          {(field) => <MemberSelector field={field} available={availableMembers} />}
+        <form.Field name="displayName">
+          {(field) => (
+            <Field data-invalid={!field.state.meta.isValid}>
+              <FieldLabel htmlFor="staff-display-name">Name</FieldLabel>
+              <Input
+                id="staff-display-name"
+                autoComplete="name"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="e.g. Alex Morgan"
+                aria-invalid={!field.state.meta.isValid}
+              />
+              <FieldError
+                errors={
+                  field.state.meta.errors as Array<{ message?: string } | undefined>
+                }
+              />
+            </Field>
+          )}
         </form.Field>
       </FieldGroup>
       <SubmitButton mutation={mutation} form={form}>

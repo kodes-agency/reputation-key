@@ -7,6 +7,7 @@ export type StaffErrorCode =
   | 'participation_archived'
   | 'user_not_member'
   | 'responsibility_conflict'
+  | 'revision_conflict'
   | 'property_not_found'
   | 'team_not_found'
   | 'assignment_not_found'

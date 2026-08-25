@@ -97,6 +97,7 @@ export function StaffParticipationRow({
                         data: {
                           staffParticipationId: participation.id,
                           reason: 'Archived from property People page',
+                          expectedRevision: participation.revision,
                         },
                       })
                     }

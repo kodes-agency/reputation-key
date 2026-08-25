@@ -26,6 +26,7 @@ type Props = Readonly<{
   displayName: string
   currentPrimaryPortalId: string | null
   currentSupportingPortalIds: ReadonlyArray<string>
+  expectedRevision: number
   allPortals: ReadonlyArray<PortalOption>
   updateAction: Action<{ data: UpdatePortalResponsibilitiesMutationInput }>
   open: boolean
@@ -37,6 +38,7 @@ export function PortalResponsibilitiesModal({
   displayName,
   currentPrimaryPortalId,
   currentSupportingPortalIds,
+  expectedRevision,
   allPortals,
   updateAction,
   open,
@@ -72,7 +74,12 @@ export function PortalResponsibilitiesModal({
   const handleSave = async () => {
     if (!primaryPortalId) return
     await updateAction({
-      data: { staffParticipationId, primaryPortalId, supportingPortalIds },
+      data: {
+        staffParticipationId,
+        primaryPortalId,
+        supportingPortalIds,
+        expectedRevision,
+      },
     })
     onOpenChange(false)
   }

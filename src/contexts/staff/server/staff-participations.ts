@@ -11,7 +11,6 @@ import { staffErrorStatus } from './staff-shared'
 
 const createInput = z.object({
   propertyId: z.string().uuid(),
-  userId: z.string().min(1).max(255),
   displayName: z.string().trim().min(1).max(255),
 })
 
@@ -24,12 +23,14 @@ const listInput = z.object({
 const archiveInput = z.object({
   staffParticipationId: z.string().uuid(),
   reason: z.string().trim().min(1).max(500),
+  expectedRevision: z.number().int().positive(),
 })
 
 const responsibilitiesInput = z.object({
   staffParticipationId: z.string().uuid(),
   primaryPortalId: z.string().uuid().nullable(),
   supportingPortalIds: z.array(z.string().uuid()).max(500),
+  expectedRevision: z.number().int().positive(),
 })
 
 function rethrow(error: unknown): never {
@@ -117,9 +118,11 @@ export const updatePortalResponsibilities = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(await headersFromContext())
         await requireExecutionAllowed({ actor: ctx, action: 'staff.manage' })
         try {
-          const responsibilities =
-            await getContainer().useCases.updatePortalResponsibilities(data, ctx)
-          return { responsibilities }
+          const result = await getContainer().useCases.updatePortalResponsibilities(
+            data,
+            ctx,
+          )
+          return result
         } catch (error) {
           rethrow(error)
         }

@@ -13,7 +13,6 @@ import type { PortalOption } from '#/components/features/staff/portal-selector'
 import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
-  MemberOption,
   PortalResponsibilitySelection,
   StaffParticipationView,
   UpdatePortalResponsibilitiesMutationInput,
@@ -75,20 +74,6 @@ export function PeoplePage({
 }: PeoplePageProps) {
   const activeTab = tab ?? 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
-  const memberOptions: MemberOption[] = members.map((member) => ({
-    userId: member.userId,
-    name: member.name,
-    email: member.email,
-  }))
-  const activeUserIds = new Set(
-    participations
-      .filter(
-        (participation) =>
-          participation.status === 'active' && participation.endedAt == null,
-      )
-      .map((participation) => participation.userId),
-  )
-
   return (
     <PageShell>
       <PageHeader
@@ -127,11 +112,9 @@ export function PeoplePage({
             propertyId={propertyId}
             participations={participations}
             responsibilities={responsibilities}
-            memberOptions={memberOptions}
             portalOptions={portals}
             portalsDenied={portalsDenied}
             canManageStaff={canManageStaff}
-            activeUserIds={activeUserIds}
             createMutation={createParticipationMutation}
             archiveMutation={archiveParticipationMutation}
             createOpen={createParticipationOpen}

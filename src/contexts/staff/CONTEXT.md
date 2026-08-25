@@ -60,8 +60,8 @@ of `getAssignedPortals`.
 ## Glossary
 
 - **StaffParticipant** — Manager-maintained person/business profile. The target
-  model permits no login; the current schema is transitional and still requires
-  `userId` until the expansion migration lands.
+  model permits no login. A current `StaffUserLink` may associate a retained
+  login identity without granting application access.
 - **StaffParticipation** — Effective-dated relationship between a Participant and
   a Property. It is operational/attribution state, never an access grant.
 - **PortalResponsibility** — Effective-dated Staff Participation-to-Portal
@@ -74,13 +74,13 @@ of `getAssignedPortals`.
 
 ## Active application surface
 
-| Use case                       | Purpose                                                                                              | Permission                         |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `createStaffParticipation`     | Start active participation at a Property. Transitional input currently selects an Organization user. | `staff.manage` plus Property scope |
-| `listStaffParticipations`      | List participants and current Portal Responsibility selections.                                      | `staff.read` plus Property scope   |
-| `archiveStaffParticipation`    | Archive participation and close its active relationships.                                            | `staff.manage` plus Property scope |
-| `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.                                  | `staff.manage` plus Property scope |
-| `listStaffPortals`             | Resolve a Staff user's published Portals from current PortalResponsibility.                          | `staff.read`                       |
+| Use case                       | Purpose                                                                                   | Permission                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------- |
+| `createStaffParticipation`     | Create a login-independent StaffParticipant and start active participation at a Property. | `staff.manage` plus Property scope |
+| `listStaffParticipations`      | List participants and current Portal Responsibility selections.                           | `staff.read` plus Property scope   |
+| `archiveStaffParticipation`    | Archive participation and close its active relationships.                                 | `staff.manage` plus Property scope |
+| `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.                       | `staff.manage` plus Property scope |
+| `listStaffPortals`             | Resolve a Staff user's published Portals from current PortalResponsibility.               | `staff.read`                       |
 
 The People route uses only these participation/responsibility seams, the Identity
 member directory, and Portal options. It has no Team dependency.
@@ -101,7 +101,7 @@ Schema removal waits for:
 
 ```
 staff/
-  domain/              StaffParticipation, PortalResponsibility, legacy assignment
+  domain/              StaffParticipant, StaffParticipation, PortalResponsibility, legacy assignment
   application/
     ports/             participation repository, responsibility lookup, access ports
     use-cases/         canonical participation/responsibility plus inactive legacy source
@@ -114,11 +114,9 @@ staff/
 
 ## Deferred work
 
-- Expand StaffParticipant so it can exist without `userId`, with an optional future
-  StaffUserLink.
-- Add revision/CAS and conflict UI for concurrent responsibility editing.
-- Persist explicit archive reason on the participation lifecycle.
 - Add PortalResponsibleManager and PropertyResponsibleManager in their owning
   contexts; do not place them in Staff PortalResponsibility.
+- Contract the nullable legacy `staff_participations.user_id` and display-name
+  shadows only after rollback/parity evidence permits it.
 - Cut over remaining internal legacy readers (including any Badge/recognition path)
   and contract inactive source/data only after the quarantine gates pass.

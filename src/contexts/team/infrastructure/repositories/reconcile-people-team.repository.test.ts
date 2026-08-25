@@ -61,6 +61,8 @@ afterAll(async () => {
   ])
   await pool.query('DELETE FROM team_memberships WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM staff_participations WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM staff_user_links WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM staff_assignments WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM teams WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL])
@@ -76,6 +78,8 @@ beforeEach(async () => {
   ])
   await pool.query('DELETE FROM team_memberships WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM staff_participations WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM staff_user_links WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM staff_assignments WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM teams WHERE organization_id = $1', [ORG])
   await pool.query(
@@ -123,8 +127,16 @@ describe('people/team reconciliation', () => {
     })
 
     const rows = await pool.query(
-      `SELECT sp.user_id, sp.display_name, tm.team_id, tm.role
+      `SELECT sp.user_id, sul.user_id AS linked_user_id,
+              participant.display_name, tm.team_id, tm.role
        FROM staff_participations sp
+       JOIN staff_participants participant
+         ON participant.organization_id = sp.organization_id
+        AND participant.id = sp.staff_participant_id
+       JOIN staff_user_links sul
+         ON sul.organization_id = participant.organization_id
+        AND sul.staff_participant_id = participant.id
+        AND sul.effective_to IS NULL
        JOIN team_memberships tm ON tm.staff_participation_id = sp.id
        WHERE sp.organization_id = $1 AND sp.status = 'active'
          AND tm.effective_to IS NULL`,
@@ -132,7 +144,8 @@ describe('people/team reconciliation', () => {
     )
     expect(rows.rows).toEqual([
       {
-        user_id: USER,
+        user_id: null,
+        linked_user_id: USER,
         display_name: 'Reconcile User',
         team_id: TEAM,
         role: 'lead',

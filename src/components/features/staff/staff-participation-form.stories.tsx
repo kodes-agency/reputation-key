@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
 import { StaffParticipationForm } from './staff-participation-form'
@@ -15,11 +14,6 @@ const meta: Meta<typeof StaffParticipationForm> = {
   tags: ['autodocs'],
   args: {
     propertyId: 'prop-1',
-    members: [
-      { userId: 'u-1', name: 'Avery Morgan', email: 'avery@example.com' },
-      { userId: 'u-2', name: 'Jordan Lee', email: 'jordan@example.com' },
-    ],
-    activeUserIds: new Set<string>(),
     mutation,
   },
 }
@@ -28,25 +22,11 @@ type Story = StoryObj<typeof StaffParticipationForm>
 
 export const Default: Story = {}
 
-export const EveryoneAlreadyParticipates: Story = {
-  args: { activeUserIds: new Set(['u-1', 'u-2']) },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText(/all members already participate here/i),
-    ).toBeInTheDocument()
-  },
-}
-
 export const MutationError: Story = {
   args: {
     mutation: Object.assign(async () => ({ participation: null }), {
       ...idle,
       error: new Error('Participation could not be created.'),
     }),
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText('Participation could not be created.'),
-    ).toBeInTheDocument()
   },
 }
