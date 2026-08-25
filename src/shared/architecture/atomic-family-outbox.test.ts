@@ -1,8 +1,9 @@
-// BQC-3.5: every identity/staff/property/integration/metric fact must commit
-// atomically via its context command store. Static-source checks —
-// emitAndRecord is forbidden across ALL FIVE contexts (use cases, build
-// wiring, adapters): state + outbox fact commit in ONE transaction via the
-// context's atomic command store, with the bus emit after commit.
+// BQC-3.5: every active identity/property/integration/metric fact must commit
+// atomically via its context command store. The historical StaffAssignment
+// store keeps the same atomic contract for rollback/reconciliation, but ADR
+// 0052 requires it to remain unwired while Team and StaffAssignment are
+// quarantined. Static-source checks keep emitAndRecord forbidden across all
+// five contexts.
 // Sibling guards: atomic-review-outbox.test.ts (BQC-3.3), atomic-inbox-outbox.test.ts (BQC-3.4).
 
 import { describe, it, expect } from 'vitest'
@@ -18,30 +19,35 @@ const FAMILIES = [
     storeFile: 'src/contexts/identity/infrastructure/identity-command-store.ts',
     storeFactory: 'createAtomicIdentityCommandStore',
     buildFile: 'src/contexts/identity/build.ts',
+    runtimeWired: true,
   },
   {
     context: 'staff',
     storeFile: 'src/contexts/staff/infrastructure/staff-command-store.ts',
     storeFactory: 'createAtomicStaffCommandStore',
     buildFile: 'src/contexts/staff/build.ts',
+    runtimeWired: false,
   },
   {
     context: 'property',
     storeFile: 'src/contexts/property/infrastructure/property-command-store.ts',
     storeFactory: 'createAtomicPropertyCommandStore',
     buildFile: 'src/contexts/property/build.ts',
+    runtimeWired: true,
   },
   {
     context: 'integration',
     storeFile: 'src/contexts/integration/infrastructure/integration-command-store.ts',
     storeFactory: 'createAtomicIntegrationCommandStore',
     buildFile: 'src/contexts/integration/build.ts',
+    runtimeWired: true,
   },
   {
     context: 'metric',
     storeFile: 'src/contexts/metric/infrastructure/metric-command-store.ts',
     storeFactory: 'createAtomicMetricCommandStore',
     buildFile: 'src/contexts/metric/build.ts',
+    runtimeWired: true,
   },
 ] as const
 
@@ -62,10 +68,15 @@ describe('BQC-3.5: atomic family outbox producers', () => {
         ).toEqual([])
       })
 
-      it(`build wires ${family.storeFactory} into the ${family.context} use cases`, () => {
+      it(`${family.runtimeWired ? 'build wires' : 'build quarantines'} ${family.storeFactory}`, () => {
         const src = readFileSync(join(ROOT, family.buildFile), 'utf-8')
-        expect(src).toContain(family.storeFactory)
-        expect(src).toContain('commandStore')
+        if (family.runtimeWired) {
+          expect(src).toContain(family.storeFactory)
+          expect(src).toContain('commandStore')
+        } else {
+          expect(src).not.toContain(family.storeFactory)
+          expect(src).not.toContain('commandStore')
+        }
       })
 
       it(`${family.context} command store commits outbox inside db.transaction`, () => {
