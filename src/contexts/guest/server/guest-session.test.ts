@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { createGuestSessionManager, guestRateLimitKey } from './guest-session'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  checkLayeredGuestRateLimit,
+  createGuestSessionManager,
+  guestRateLimitKey,
+  guestRateLimitKeys,
+} from './guest-session'
 
 const scope = {
   organizationId: 'org-1',
@@ -59,5 +64,35 @@ describe('guestRateLimitKey', () => {
       'response:session-1',
     )
     expect(guestRateLimitKey('response', null, 'ip-hash')).toBe('response:ip:ip-hash')
+  })
+
+  it('always includes a network-and-Portal layer alongside a session layer', () => {
+    expect(guestRateLimitKeys('scan', 'session-1', 'ip-hash', 'portal-1')).toEqual({
+      session: 'scan:session-1',
+      networkPortal: 'scan:network:ip-hash:portal:portal-1',
+    })
+  })
+
+  it('checks both layers and stops immediately when either layer denies', async () => {
+    const allowed = {
+      allowed: true,
+      remaining: 1,
+      resetAt: new Date('2026-08-09T13:00:00Z'),
+    }
+    const denied = { ...allowed, allowed: false, remaining: 0 }
+    const check = vi.fn().mockResolvedValueOnce(allowed).mockResolvedValueOnce(denied)
+
+    await expect(
+      checkLayeredGuestRateLimit({
+        rateLimiter: { check },
+        keys: guestRateLimitKeys('scan', 'session-1', 'ip-hash', 'portal-1'),
+        sessionLimits: { maxRequests: 2, windowSeconds: 3600 },
+        networkPortalLimits: { maxRequests: 10, windowSeconds: 3600 },
+      }),
+    ).resolves.toEqual(denied)
+    expect(check.mock.calls).toEqual([
+      ['scan:session-1', { maxRequests: 2, windowSeconds: 3600 }],
+      ['scan:network:ip-hash:portal:portal-1', { maxRequests: 10, windowSeconds: 3600 }],
+    ])
   })
 })

@@ -19,7 +19,7 @@ import type { GuestErrorCode } from '../domain/errors'
 import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { hashIp } from './hash-ip.server'
-import { guestRateLimitKey } from './guest-session'
+import { checkLayeredGuestRateLimit, guestRateLimitKeys } from './guest-session'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -90,9 +90,12 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         if (!decision.allowed) return { success: false }
 
         const ipHash = hashIp(clientIpFromHeaders(headers))
-        const rateResult = await rateLimiter.check(
-          guestRateLimitKey('scan', session.sessionId, ipHash),
-        )
+        const rateResult = await checkLayeredGuestRateLimit({
+          rateLimiter,
+          keys: guestRateLimitKeys('scan', session.sessionId, ipHash, portal.portal.id),
+          sessionLimits: { maxRequests: 3, windowSeconds: 60 * 60 },
+          networkPortalLimits: { maxRequests: 100, windowSeconds: 60 * 60 },
+        })
         if (!rateResult.allowed) {
           setResponseHeader(
             'Retry-After',
@@ -156,6 +159,8 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
     tracedHandler(
       async ({ data }) => {
         const { useCases } = getContainer()
+        setResponseHeader('Cache-Control', 'private, no-store')
+        setResponseHeader('Vary', 'Cookie')
         try {
           const portal = await useCases.getPublicPortal({ token: data.token })
           const scope = {

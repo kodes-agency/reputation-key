@@ -7,6 +7,11 @@ import {
   SESSION_COOKIE_NAME,
   type GuestSession,
 } from '../domain/guest-session'
+import type {
+  RateLimitCheckOptions,
+  RateLimiter,
+  RateLimitResult,
+} from '#/shared/rate-limit/middleware'
 
 export type GuestSessionScope = Readonly<{
   organizationId: string
@@ -172,4 +177,32 @@ export function guestRateLimitKey(
   ipHash: string,
 ): string {
   return sessionId ? `${kind}:${sessionId}` : `${kind}:ip:${ipHash}`
+}
+
+export function guestRateLimitKeys(
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media',
+  sessionId: string | null,
+  ipHash: string,
+  portalId: string,
+): Readonly<{ session: string; networkPortal: string }> {
+  return {
+    session: guestRateLimitKey(kind, sessionId, ipHash),
+    networkPortal: `${kind}:network:${ipHash}:portal:${portalId}`,
+  }
+}
+
+export async function checkLayeredGuestRateLimit(
+  input: Readonly<{
+    rateLimiter: RateLimiter
+    keys: Readonly<{ session: string; networkPortal: string }>
+    sessionLimits: RateLimitCheckOptions
+    networkPortalLimits: RateLimitCheckOptions
+  }>,
+): Promise<RateLimitResult> {
+  const sessionResult = await input.rateLimiter.check(
+    input.keys.session,
+    input.sessionLimits,
+  )
+  if (!sessionResult.allowed) return sessionResult
+  return input.rateLimiter.check(input.keys.networkPortal, input.networkPortalLimits)
 }
