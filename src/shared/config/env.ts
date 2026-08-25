@@ -275,9 +275,14 @@ const baseEnvSchema = z.object({
     .transform((v) => v?.toLowerCase() === 'true'),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
-  // Number of trusted reverse proxies in front of the app (B0.7).
-  // Used to derive the real client IP from X-Forwarded-For safely.
+  // Deployed request-edge contract. Production defaults to Railway's documented
+  // X-Real-IP edge headers; local/test defaults to trusting no forwarding header.
+  TRUSTED_PROXY_MODE: z
+    .enum(['direct', 'railway-edge', 'xff'])
+    .default(process.env.NODE_ENV === 'production' ? 'railway-edge' : 'direct'),
+  // XFF mode only: number of trusted reverse proxies and maximum accepted chain.
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
+  TRUSTED_PROXY_MAX_HOPS: z.coerce.number().int().min(1).max(32).default(8),
   // BQC-7.6: maximum accepted request body size in bytes (declared
   // content-length), enforced by the request-guard nitro plugin before
   // routing. Default 1 MiB — the largest legitimate payloads (portal image

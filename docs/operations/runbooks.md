@@ -144,14 +144,19 @@ additionally pinned by `src/shared/architecture/security-headers-wiring.test.ts`
 The BQC-7.1 deployment contract (Dockerfile + railway.json + this runbook)
 therefore serves the verified header set on every response.
 
-**Trusted proxy model.** Client IPs are derived from `X-Forwarded-For` by
-trusted position, never the spoofable leftmost hop:
-`TRUSTED_PROXY_COUNT` (default 1 — one edge proxy, the platform load
-balancer) selects the hop at `length − (N+1)`; with 0 the header is not
-trusted at all. All rate-limit/IP call-sites (registration, sign-in, guest
-rating/feedback/scan, the better-auth catch-all) go through
-`clientIpFromHeaders` (`src/shared/security/client-ip.ts`). Set the count to
-the real proxy chain length when the fronting topology changes.
+**Trusted proxy model.** `TRUSTED_PROXY_MODE` pins the deployed edge contract.
+Production defaults to `railway-edge`, which consumes Railway's documented
+`X-Real-IP` only when Railway edge/request markers are also present and ignores
+caller-controlled `X-Forwarded-For`. `direct` trusts no forwarded address.
+`xff` is an explicit non-Railway mode: it validates every hop, rejects empty,
+malformed, overlong, and excessive chains, then selects `length − N` using
+`TRUSTED_PROXY_COUNT`; `TRUSTED_PROXY_MAX_HOPS` defaults to 8. Server functions
+have no socket-peer address, so any contract failure yields `unknown`, never a
+forwarded fallback. All rate-limit/IP call-sites (registration, sign-in, guest
+rating/feedback/scan/click, and the better-auth catch-all) go through
+`clientIpFromHeaders` (`src/shared/security/client-ip.ts`). Keep the Railway
+service reachable only through its public edge when this mode is active. See
+[Railway public-networking specifications](https://docs.railway.com/networking/public-networking/specs-and-limits).
 
 **Body-size limit + request IDs.** The request-guard plugin
 (`server/plugins/request-guard.ts` → `src/shared/security/request-guard.ts`)

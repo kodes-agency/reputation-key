@@ -15,7 +15,7 @@
 //   cached?  TTL-fresh?  versioned?  version match?  → outcome
 //   no       —           —           —                → resolve fresh
 //   yes      no          —           —                → resolve fresh
-//   yes      yes         no          —                → serve
+//   yes      yes         no          —                → resolve fresh
 //   yes      yes         yes         yes              → serve
 //   yes      yes         yes         no / unreadable  → drop entry, resolve fresh
 
@@ -126,7 +126,10 @@ export function decideTenantCacheAction(
   if (!entry || now - entry.ts >= TENANT_CACHE_TTL_MS) {
     return 'resolve-fresh'
   }
-  return entry.version === null ? 'serve' : 'check-version'
+  // Built-in authorization without a permission_version proof is never served
+  // across requests: membership removal and role downgrade must be visible on
+  // the next command, not after the cache TTL.
+  return entry.version === null ? 'resolve-fresh' : 'check-version'
 }
 
 /**
@@ -405,7 +408,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   const ctx = resolved.context
 
   // Stage 4 — cache (only with a valid key, i.e. non-empty cookies) + memo + span.
-  if (key) {
+  if (key && resolved.permissionVersion !== null) {
     evictOldestIfNeeded()
     tenantCache.set(key, { ctx, ts: Date.now(), version: resolved.permissionVersion })
   }

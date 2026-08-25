@@ -53,6 +53,7 @@ describe('Auth configuration', () => {
 
     expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 30)
     expect(auth.options.session?.updateAge).toBe(60 * 60 * 24)
+    expect(auth.options.session?.cookieCache?.enabled).toBe(false)
   })
 
   it('trusts only the configured app origin (BQC-7.6)', async () => {

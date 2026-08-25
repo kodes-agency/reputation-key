@@ -8,7 +8,7 @@
 ## Trust boundaries
 
 1. **Public internet → Reverse proxy** — untrusted traffic; proxy terminates TLS, sets X-Forwarded-For
-2. **Reverse proxy → Application (Nitro)** — trusted proxy count configurable via `TRUSTED_PROXY_COUNT`
+2. **Railway edge → Application (Nitro)** — `TRUSTED_PROXY_MODE=railway-edge` consumes the platform `X-Real-IP` contract; generic XFF is separately opt-in and bounded
 3. **Application → PostgreSQL** — private network; credentials in env only
 4. **Application → Redis (BullMQ + cache)** — private network; separate instances for queue vs cache
 5. **Application → Google APIs** — OAuth tokens encrypted at rest (AES-256-GCM); scopes limited
@@ -33,12 +33,12 @@
 
 ### Spoofing
 
-| Threat                                | Mitigation                                                                           | Status      |
-| ------------------------------------- | ------------------------------------------------------------------------------------ | ----------- |
-| Attacker registers without invitation | `identity.register` capability off by default; route checks `assertGlobalCapability` | ✅ Enforced |
-| Attacker forges session token         | Better Auth session validation; httpOnly + secure cookies; no token in URLs          | ✅ Enforced |
-| Attacker spoofs X-Forwarded-For       | `TRUSTED_PROXY_COUNT` limits trusted hops; client IP derived from correct position   | ✅ Enforced |
-| Google webhook impersonation          | Pub/Sub JWT verification (`pubsub-jwt.verifier.ts`)                                  | ✅ Enforced |
+| Threat                                | Mitigation                                                                                                                                 | Status      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| Attacker registers without invitation | `identity.register` capability off by default; route checks `assertGlobalCapability`                                                       | ✅ Enforced |
+| Attacker forges session token         | Better Auth session validation; httpOnly + secure cookies; no token in URLs                                                                | ✅ Enforced |
+| Attacker spoofs forwarding headers    | Railway mode ignores XFF and requires the documented X-Real-IP + Railway marker contract; generic XFF mode validates/bounds the full chain | ✅ Enforced |
+| Google webhook impersonation          | Pub/Sub JWT verification (`pubsub-jwt.verifier.ts`)                                                                                        | ✅ Enforced |
 
 ### Tampering
 

@@ -74,7 +74,7 @@ afterEach(() => {
 //   cached?  TTL-fresh?  versioned?  → action
 //   no       —           —           → resolve-fresh
 //   yes      no          —           → resolve-fresh
-//   yes      yes         no          → serve
+//   yes      yes         no          → resolve-fresh
 //   yes      yes         yes         → check-version
 
 describe('decideTenantCacheAction', () => {
@@ -89,9 +89,9 @@ describe('decideTenantCacheAction', () => {
     expect(decideTenantCacheAction(entry, now)).toBe('resolve-fresh')
   })
 
-  it('serves a TTL-fresh unversioned entry (Stage 1: built-in roles, no version table)', () => {
+  it('resolves a TTL-fresh unversioned entry so built-in role changes apply immediately', () => {
     const entry = makeEntry({ ts: now - TENANT_CACHE_TTL_MS + 1, version: null })
-    expect(decideTenantCacheAction(entry, now)).toBe('serve')
+    expect(decideTenantCacheAction(entry, now)).toBe('resolve-fresh')
   })
 
   it('checks the permission_version for a TTL-fresh versioned entry (Stage 2 DAC)', () => {
@@ -346,7 +346,7 @@ describe('resolveTenant cache', () => {
     resetEnv()
   })
 
-  it('returns cached result on second call with same cookies', async () => {
+  it('re-resolves an unversioned built-in role on the next request', async () => {
     // Arrange
     const headers = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     mockGetSession.mockResolvedValue({
@@ -361,13 +361,12 @@ describe('resolveTenant cache', () => {
     const headers2 = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     const ctx2 = await resolveTenant(headers2)
 
-    // Assert — both return same result
+    // Assert — the role is re-read; a downgrade/removal cannot live for the TTL.
     expect(ctx1).toEqual(ctx2)
-    // getActiveMember only called once — second call used cache
-    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 
-  it('returns a cached result for the Secure cookie name used in production', async () => {
+  it('re-resolves authority for the Secure cookie name used in production', async () => {
     const headers = makeHeaders({
       cookie: '__Secure-better-auth.session_token=secure-abc123; theme=dark',
     })
@@ -380,7 +379,7 @@ describe('resolveTenant cache', () => {
     await resolveTenant(headers)
     await resolveTenant(headers)
 
-    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 
   it('keys on the Secure cookie when both secure and legacy names are present', async () => {
