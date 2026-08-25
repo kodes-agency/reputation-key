@@ -11,6 +11,9 @@
 export type MetricKey =
   | 'portal.scan'
   | 'portal.rating'
+  | 'portal.qualified_scan'
+  | 'portal.rating_count'
+  | 'portal.rating_average'
   | 'portal.feedback'
   | 'portal.review_link_click'
   | 'property.review'
@@ -27,6 +30,9 @@ export type EntityScope = 'property' | 'portal_group' | 'portal'
 export const METRIC_KEYS: readonly MetricKey[] = [
   'portal.scan',
   'portal.rating',
+  'portal.qualified_scan',
+  'portal.rating_count',
+  'portal.rating_average',
   'portal.feedback',
   'portal.review_link_click',
   'property.review',
@@ -44,24 +50,16 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 
 /**
  * Which metric keys are valid for each entity scope.
- * Goal eligibility is restricted to the three beta-safe first-party Portal
- * workflow metrics. Guest, solicitation, and Google-derived analytics never
- * enter goal selection.
+ * Goal eligibility is restricted to the three governed Guest Gateway numeric
+ * metrics. Private feedback/contact, unqualified solicitation observations,
+ * and Google-derived analytics never enter goal selection.
  */
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
 > = {
-  property: [
-    'portal.content_review.completed',
-    'portal.configuration_completeness',
-    'portal.approved_destination_ratio',
-  ],
-  portal_group: [
-    'portal.content_review.completed',
-    'portal.configuration_completeness',
-    'portal.approved_destination_ratio',
-  ],
-  portal: [],
+  property: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+  portal_group: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+  portal: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
 }
 
 /**
@@ -74,6 +72,9 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
 > = {
   'portal.scan': ['sum', 'count'],
   'portal.rating': ['count', 'max', 'avg'],
+  'portal.qualified_scan': ['sum'],
+  'portal.rating_count': ['sum'],
+  'portal.rating_average': ['avg'],
   'portal.feedback': ['sum', 'count'],
   'portal.review_link_click': ['sum', 'count'],
   'property.review': ['count', 'avg', 'max'],
@@ -88,6 +89,9 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
 export const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction>> = {
   'portal.scan': 'sum',
   'portal.rating': 'avg',
+  'portal.qualified_scan': 'sum',
+  'portal.rating_count': 'sum',
+  'portal.rating_average': 'avg',
   'portal.feedback': 'sum',
   'portal.review_link_click': 'sum',
   'property.review': 'avg',

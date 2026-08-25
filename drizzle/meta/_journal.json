@@ -589,6 +589,13 @@
       "when": 1787634000004,
       "tag": "0083_beta_interactive_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1787634000005,
+      "tag": "0084_governed-guest-goal-metrics",
+      "breakpoints": true
     }
   ]
 }

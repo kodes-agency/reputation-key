@@ -33,6 +33,9 @@ type Icon = ComponentType<{ className?: string }>
 export const METRIC_ICONS: Readonly<Record<MetricKey, Icon>> = {
   'portal.scan': QrCode,
   'portal.rating': Star,
+  'portal.qualified_scan': QrCode,
+  'portal.rating_count': Star,
+  'portal.rating_average': Star,
   'portal.feedback': MessageSquare,
   'portal.review_link_click': MousePointerClick,
   'property.review': Globe,

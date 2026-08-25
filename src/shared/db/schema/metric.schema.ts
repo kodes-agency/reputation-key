@@ -108,7 +108,7 @@ export const metricDefinitionVersions = pgTable(
       t.id,
     ),
     index('metric_definition_versions_effective_idx').on(t.definitionId, t.effectiveFrom),
-    check('metric_definition_versions_sample_check', sql`${t.minimumSample} >= 1`),
+    check('metric_definition_versions_sample_check', sql`${t.minimumSample} >= 0`),
     check('metric_definition_versions_precision_check', sql`${t.precision} >= 0`),
     check(
       'metric_definition_versions_insufficient_check',

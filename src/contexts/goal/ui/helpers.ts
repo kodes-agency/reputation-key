@@ -254,6 +254,24 @@ export const METRIC_META: Readonly<Record<MetricKey, MetricMeta>> = {
     unit: '★',
     isCountMetric: false,
   },
+  'portal.qualified_scan': {
+    label: 'Qualified scans',
+    description: 'Verified QR or NFC arrivals counted once per Portal session',
+    unit: 'scans',
+    isCountMetric: true,
+  },
+  'portal.rating_count': {
+    label: 'Portal rating count',
+    description: 'Eligible private 1–5 star Portal ratings',
+    unit: 'ratings',
+    isCountMetric: true,
+  },
+  'portal.rating_average': {
+    label: 'Portal rating average',
+    description: 'Average of eligible private Portal ratings',
+    unit: '★',
+    isCountMetric: false,
+  },
   'portal.feedback': {
     label: 'Feedback',
     description: 'Private feedback submissions',
@@ -313,6 +331,7 @@ export function goalTypeDescription(type: GoalType): string {
 /** Metrics whose avg/max is a star rating (★), distinct from their count noun. */
 const RATING_METRICS: ReadonlySet<MetricKey> = new Set([
   'portal.rating',
+  'portal.rating_average',
   'property.review',
 ])
 

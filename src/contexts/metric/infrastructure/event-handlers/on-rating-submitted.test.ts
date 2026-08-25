@@ -47,11 +47,11 @@ describe('onRatingSubmitted', () => {
     deps = createFakeDeps()
   })
 
-  it('records a governed portal.rating reading with unresolved portal-group attribution', async () => {
+  it('records analytics, Goal count, and Goal average readings from one rating fact', async () => {
     const handler = onRatingSubmitted(deps)
     await handler(ratingEvent())
 
-    expect(deps.readings).toHaveLength(1)
+    expect(deps.readings).toHaveLength(3)
     expect(deps.readings[0]).toEqual({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
@@ -59,12 +59,25 @@ describe('onRatingSubmitted', () => {
       portalGroupId: null,
       definitionVersionId: '11111111-1111-4111-8111-111111111202',
       sourceEventId: 'test-event-id',
+      supersedesSourceEventId: null,
       sourcePolicy: 'first_party_guest_private',
       scope: 'portal',
       value: 4,
       sampleCount: 1,
       attributionQuality: 'exact',
       occurredAt: FIXED_TIME,
+    })
+    expect(deps.readings[1]).toMatchObject({
+      definitionVersionId: '11111111-1111-4111-8111-111111111302',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 1,
+      sampleCount: 1,
+    })
+    expect(deps.readings[2]).toMatchObject({
+      definitionVersionId: '11111111-1111-4111-8111-111111111303',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 4,
+      sampleCount: 1,
     })
   })
 
@@ -80,8 +93,10 @@ describe('onRatingSubmitted', () => {
     const handler = onRatingSubmitted(groupDeps)
     await handler(ratingEvent())
 
-    expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.portalGroupId).toEqual(groupId)
+    expect(groupDeps.readings).toHaveLength(3)
+    expect(groupDeps.readings.every((reading) => reading.portalGroupId === groupId)).toBe(
+      true,
+    )
     expect(calls).toEqual([
       { orgId: organizationId('org-1'), portalId: portalId('portal-1') },
     ])
@@ -96,8 +111,10 @@ describe('onRatingSubmitted', () => {
     const handler = onRatingSubmitted(groupDeps)
     await handler(ratingEvent())
 
-    expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.portalGroupId).toBeNull()
+    expect(groupDeps.readings).toHaveLength(3)
+    expect(groupDeps.readings.every((reading) => reading.portalGroupId === null)).toBe(
+      true,
+    )
   })
 
   it('does not throw when recordMetric fails', async () => {

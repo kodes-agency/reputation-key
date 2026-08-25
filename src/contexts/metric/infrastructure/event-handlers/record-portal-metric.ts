@@ -27,6 +27,7 @@ export type PortalMetricEvent = Readonly<{
   propertyId: PropertyId
   portalId: PortalId | null
   eventId: string
+  supersedesSourceEventId?: string | null
   occurredAt: Date
 }>
 
@@ -47,8 +48,8 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
   value?: (event: E) => number
 }>
 
-async function recordPortalMetric<E extends PortalMetricEvent>(
-  opts: PortalMetricHandlerOptions<E>,
+async function recordPortalMetrics<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
   deps: RecordPortalMetricDeps,
   event: E,
 ): Promise<void> {
@@ -73,42 +74,51 @@ async function recordPortalMetric<E extends PortalMetricEvent>(
       // A group-enrichment outage must not discard an exact portal reading.
       // The durable consumer still propagates failures from recordMetric.
       getLogger().warn(
-        { err, event: event._tag, metricKey: opts.metricKey },
-        `metric: portal-group lookup failed — recording ${opts.metricKey} with a null group`,
+        { err, event: event._tag, metricKeys: options.map((item) => item.metricKey) },
+        'metric: portal-group lookup failed — recording Portal metrics with a null group',
       )
     }
   }
-  await deps.recordMetric({
-    organizationId: event.organizationId,
-    propertyId: event.propertyId,
-    portalId: event.portalId,
-    portalGroupId,
-    definitionVersionId: opts.definitionVersionId,
-    sourceEventId: event.eventId,
-    sourcePolicy: opts.sourcePolicy,
-    scope: 'portal',
-    value: opts.value ? opts.value(event) : 1,
-    sampleCount: 1,
-    occurredAt: event.occurredAt,
-    attributionQuality,
-  })
+  for (const opts of options) {
+    await deps.recordMetric({
+      organizationId: event.organizationId,
+      propertyId: event.propertyId,
+      portalId: event.portalId,
+      portalGroupId,
+      definitionVersionId: opts.definitionVersionId,
+      sourceEventId: event.eventId,
+      supersedesSourceEventId: event.supersedesSourceEventId ?? null,
+      sourcePolicy: opts.sourcePolicy,
+      scope: 'portal',
+      value: opts.value ? opts.value(event) : 1,
+      sampleCount: 1,
+      occurredAt: event.occurredAt,
+      attributionQuality,
+    })
+  }
 }
 
 export function makeRecordMetricHandler<E extends PortalMetricEvent>(
   opts: PortalMetricHandlerOptions<E>,
 ) {
+  return makeRecordMetricFanoutHandler([opts])
+}
+
+export function makeRecordMetricFanoutHandler<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+) {
   return (deps: RecordPortalMetricDeps) =>
     async (event: E): Promise<void> => {
-      return trace(opts.span, async () => {
+      return trace(options[0]?.span ?? 'metric.event.portalMetricFanout', async () => {
         try {
-          await recordPortalMetric(opts, deps, event)
+          await recordPortalMetrics(options, deps, event)
         } catch (err) {
           getLogger().error(
             {
               err,
               event: event._tag,
             },
-            `metric: failed to record ${opts.metricKey}`,
+            'metric: failed to record Portal metric fanout',
           )
         }
       })
@@ -124,7 +134,15 @@ export function makeRecordMetricHandler<E extends PortalMetricEvent>(
 export function makeDurableRecordMetricHandler<E extends PortalMetricEvent>(
   opts: PortalMetricHandlerOptions<E>,
 ) {
+  return makeDurableRecordMetricFanoutHandler([opts])
+}
+
+export function makeDurableRecordMetricFanoutHandler<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+) {
   return (deps: RecordPortalMetricDeps) =>
     async (event: E): Promise<void> =>
-      trace(`${opts.span}.durable`, () => recordPortalMetric(opts, deps, event))
+      trace(`${options[0]?.span ?? 'metric.event.portalMetricFanout'}.durable`, () =>
+        recordPortalMetrics(options, deps, event),
+      )
 }

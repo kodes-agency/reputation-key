@@ -15,6 +15,9 @@ describe('metric-keys', () => {
       expect(METRIC_KEYS).toEqual([
         'portal.scan',
         'portal.rating',
+        'portal.qualified_scan',
+        'portal.rating_count',
+        'portal.rating_average',
         'portal.feedback',
         'portal.review_link_click',
         'property.review',
@@ -32,30 +35,32 @@ describe('metric-keys', () => {
   })
 
   describe('scope → metric key validation', () => {
-    it('property scope allows only beta-safe first-party workflow metrics', () => {
+    it('property scope allows only the three governed Guest Gateway metrics', () => {
       expect(VALID_SCOPE_METRIC_KEYS.property).toEqual([
-        'portal.content_review.completed',
-        'portal.configuration_completeness',
-        'portal.approved_destination_ratio',
+        'portal.qualified_scan',
+        'portal.rating_count',
+        'portal.rating_average',
       ])
     })
 
-    it('individual portal scope is excluded from beta goals', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual([])
+    it('individual Portal scope supports all three Goal measures', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual([
+        'portal.qualified_scan',
+        'portal.rating_count',
+        'portal.rating_average',
+      ])
     })
 
-    it('portal_group scope allows beta-safe first-party workflow metrics', () => {
+    it('portal_group scope supports all three Goal measures', () => {
       expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
-        'portal.content_review.completed',
-        'portal.configuration_completeness',
-        'portal.approved_destination_ratio',
+        'portal.qualified_scan',
+        'portal.rating_count',
+        'portal.rating_average',
       ])
     })
 
     it('isValidMetricKeyForScope returns true for a governed pair', () => {
-      expect(
-        isValidMetricKeyForScope('property', 'portal.configuration_completeness'),
-      ).toBe(true)
+      expect(isValidMetricKeyForScope('property', 'portal.rating_average')).toBe(true)
     })
 
     it('isValidMetricKeyForScope returns false for invalid pair', () => {
@@ -70,6 +75,12 @@ describe('metric-keys', () => {
 
     it('portal.rating allows COUNT, MAX, AVG', () => {
       expect(VALID_METRIC_AGGREGATIONS['portal.rating']).toEqual(['count', 'max', 'avg'])
+    })
+
+    it('pins each governed Goal metric to one aggregation', () => {
+      expect(VALID_METRIC_AGGREGATIONS['portal.qualified_scan']).toEqual(['sum'])
+      expect(VALID_METRIC_AGGREGATIONS['portal.rating_count']).toEqual(['sum'])
+      expect(VALID_METRIC_AGGREGATIONS['portal.rating_average']).toEqual(['avg'])
     })
 
     it('portal.feedback allows SUM and COUNT', () => {
@@ -105,11 +116,14 @@ describe('metric-keys', () => {
       expect(getDefaultAggregation('portal.scan')).toBe('sum')
       expect(getDefaultAggregation('portal.feedback')).toBe('sum')
       expect(getDefaultAggregation('portal.review_link_click')).toBe('sum')
+      expect(getDefaultAggregation('portal.qualified_scan')).toBe('sum')
+      expect(getDefaultAggregation('portal.rating_count')).toBe('sum')
     })
 
     it('defaults to AVG for rating metrics', () => {
       expect(getDefaultAggregation('portal.rating')).toBe('avg')
       expect(getDefaultAggregation('property.review')).toBe('avg')
+      expect(getDefaultAggregation('portal.rating_average')).toBe('avg')
     })
   })
 })
