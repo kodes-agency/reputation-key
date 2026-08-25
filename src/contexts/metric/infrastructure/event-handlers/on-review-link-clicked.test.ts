@@ -33,6 +33,7 @@ const clickEvent = () => ({
   eventId: 'test-event-id',
   correlationId: null,
   linkId: portalLinkId('link-1'),
+  destinationKind: 'secondary_link' as const,
   organizationId: organizationId('org-1'),
   portalId: portalId('portal-1'),
   propertyId: propertyId('prop-1'),

@@ -137,6 +137,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
         _tag: 'guest.review_link.clicked',
         eventId: 'evt-click',
         linkId: portalLinkId('link-1'),
+        destinationKind: 'secondary_link',
         ...common,
       }),
     ]
@@ -148,9 +149,33 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       'guest.review_link.clicked',
     ])
     expect(rows[1]!.payload).toMatchObject({ ratingId: 'rating-1', value: 3 })
+    expect(rows[3]!.payload).toMatchObject({
+      linkId: 'link-1',
+      destinationKind: 'secondary_link',
+    })
     for (const row of rows) {
       expect(JSON.stringify(row.payload)).not.toMatch(/comment|text|ipHash|sessionId/)
     }
+  })
+
+  it('defaults legacy Guest review-link facts to secondary-link semantics', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const row = toOutboxEvent({
+      _tag: 'guest.review_link.clicked',
+      eventId: 'evt-legacy-click',
+      linkId: portalLinkId('link-1'),
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      occurredAt: NOW,
+      correlationId: null,
+    } as DomainEvent)
+
+    expect(row.payload).toMatchObject({
+      linkId: 'link-1',
+      destinationKind: 'secondary_link',
+    })
   })
 
   it('routes active AI facts through the master allowlist adapter', () => {

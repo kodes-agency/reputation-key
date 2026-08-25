@@ -108,11 +108,13 @@ export const guestResponses = pgTable(
     responseConsent: boolean('response_consent').notNull().default(false),
     textConsent: boolean('text_consent').notNull().default(false),
     mediaConsent: boolean('media_consent').notNull().default(false),
+    privateFeedbackThreshold: integer('private_feedback_threshold'),
     ratingSourceEventId: varchar('rating_source_event_id', { length: 255 }),
     feedbackSourceEventId: varchar('feedback_source_event_id', { length: 255 }),
     correctionCount: integer('correction_count').notNull().default(0),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     correctedAt: timestamp('corrected_at', { withTimezone: true }),
+    feedbackSubmittedAt: timestamp('feedback_submitted_at', { withTimezone: true }),
     moderatedAt: timestamp('moderated_at', { withTimezone: true }),
     retentionDeadline: timestamp('retention_deadline', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
@@ -159,6 +161,10 @@ export const guestResponses = pgTable(
     correctionCheck: check(
       'guest_responses_correction_count_valid',
       sql`${t.correctionCount} >= 0 AND ${t.correctionCount} <= 1`,
+    ),
+    privateFeedbackThresholdCheck: check(
+      'guest_responses_private_feedback_threshold_valid',
+      sql`${t.privateFeedbackThreshold} IS NULL OR ${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
     ),
   }),
 )

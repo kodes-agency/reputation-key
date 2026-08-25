@@ -27,7 +27,7 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-4'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-5'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -104,6 +104,11 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * object, derivative keys cannot alias the source, stale workers fail closed,
  * and the cross-tenant/replay/expiry/oversize adversarial suite passes.
  *
+ * `portal.guest_media` is deliberately blocked for the first beta cohort.
+ * Its historical records and internal lifecycle remain available for audit;
+ * public issuance/confirmation entry points were removed until a separately
+ * approved moderation, abuse, access, consent, and retention gate exists.
+ *
  * Other Portal, guest, and product-email capabilities are non-core
  * controlled-beta features: they remain off by default and require persisted
  * organization/property policy.
@@ -113,6 +118,7 @@ const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'organization.create',
   'team.use',
   'portal.upload',
+  'portal.guest_media',
   'gbp.reply.auto_publish',
   'gbp.ai.cross_property_summary',
   'gbp.review_solicitation_gamification',

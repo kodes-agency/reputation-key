@@ -2,7 +2,10 @@
 // Wires portal repos, storage, and all portal use cases.
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
-import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyGoogleReviewDestinationPublicApi,
+  PropertyPublicApi,
+} from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicApi } from './application/public-api'
@@ -61,7 +64,7 @@ type PortalContextDeps = Readonly<{
   events: EventBus
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
-  propertyApi: PropertyPublicApi
+  propertyApi: PropertyPublicApi & PropertyGoogleReviewDestinationPublicApi
   staffPublicApi: StaffPublicApi
   identityPublicApi: IdentityPublicApi
   baseUrl: string
@@ -145,7 +148,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     updatePortal: updatePortal({
       portalRepo,
-      portalLinkRepo,
+      propertyGoogleReviewDestinationApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       events: deps.events,
       clock: deps.clock,
@@ -325,6 +328,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         tokenCodec: portalTokenCodec,
         portalTokenRepo,
         portalRepo,
+        getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
         decidePublic: decidePublicExecution,
         clock: deps.clock,
       })(rawToken)

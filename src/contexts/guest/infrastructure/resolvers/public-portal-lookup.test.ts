@@ -35,6 +35,10 @@ describe('createPublicPortalLookup', () => {
       },
       categories: [],
       links: [],
+      reviewGateway: {
+        privateFeedbackThreshold: 3,
+        googleReviewUri: 'https://search.google.com/local/writereview?placeid=p1',
+      },
       organizationId: 'org-1',
       propertyId: 'property-1',
     }

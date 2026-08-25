@@ -1,10 +1,12 @@
 import {
   organizationId,
+  propertyId,
   portalId,
   type OrganizationId,
   type PortalId,
 } from '#/shared/domain/ids'
-import type { PublicPortalResult } from '../ports/portal.repository'
+import type { PublicPortalRepositoryResult } from '../ports/portal.repository'
+import type { PublicPortalResult } from '../public-api'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import { isPortalError } from '../../domain/errors'
@@ -29,8 +31,9 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
     findPublicPortalById: (
       organizationId: OrganizationId,
       portalId: PortalId,
-    ) => Promise<PublicPortalResult | null>
+    ) => Promise<PublicPortalRepositoryResult | null>
   }>
+  getGoogleReviewDestination: import('#/contexts/property/application/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
   decidePublic: (
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>
@@ -56,7 +59,7 @@ export const resolvePublicPortalToken =
     })
     if (!decision.allowed) return { status: 'unavailable' }
 
-    let data: PublicPortalResult | null
+    let data: PublicPortalRepositoryResult | null
     try {
       data = await deps.portalRepo.findPublicPortalById(
         organizationId(token.organizationId),
@@ -76,7 +79,32 @@ export const resolvePublicPortalToken =
       return { status: 'unavailable' }
     }
 
-    return { status: 'found', data }
+    let destination: Awaited<ReturnType<typeof deps.getGoogleReviewDestination>>
+    try {
+      destination = await deps.getGoogleReviewDestination(
+        organizationId(token.organizationId),
+        propertyId(token.propertyId),
+      )
+    } catch {
+      // A dependency fault must never fall back to user-entered links or expose
+      // a partially loaded gateway. Guests receive the same unavailable posture.
+      return { status: 'unavailable' }
+    }
+    if (destination?.state !== 'verified' || destination.uri === null) {
+      return { status: 'unavailable' }
+    }
+
+    const { privateFeedbackThreshold, ...publicData } = data
+    return {
+      status: 'found',
+      data: {
+        ...publicData,
+        reviewGateway: {
+          privateFeedbackThreshold,
+          googleReviewUri: destination.uri,
+        },
+      },
+    }
   }
 
 export type ResolvePublicPortalToken = ReturnType<typeof resolvePublicPortalToken>

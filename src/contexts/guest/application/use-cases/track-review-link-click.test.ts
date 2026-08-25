@@ -27,7 +27,37 @@ describe('trackReviewLinkClick', () => {
       propertyId: propertyId('prop-1'),
     })
 
-    expect(events.capturedByTag('guest.review_link.clicked')).toHaveLength(1)
+    expect(events.capturedByTag('guest.review_link.clicked')).toMatchObject([
+      { destinationKind: 'secondary_link' },
+    ])
+  })
+
+  it('preserves Google selections as a distinct durable destination fact', async () => {
+    const events = createCapturingEventBus()
+    const store: GuestObservationStore = {
+      commitScan: async () => 'applied',
+      commitReviewLinkClick: async (fact) => {
+        await events.emit(fact)
+        return 'applied'
+      },
+    }
+    const useCase = trackReviewLinkClick({
+      observationStore: store,
+      clock: () => new Date('2026-05-01T12:00:00Z'),
+      logger: createMockLogger(),
+    })
+
+    await useCase({
+      linkId: portalLinkId('google-review'),
+      destinationKind: 'google_review',
+      organizationId: organizationId('org-1'),
+      portalId: portalId('portal-1'),
+      propertyId: propertyId('prop-1'),
+    })
+
+    expect(events.capturedByTag('guest.review_link.clicked')).toMatchObject([
+      { destinationKind: 'google_review' },
+    ])
   })
 
   it('keeps approved navigation available when observation persistence fails', async () => {

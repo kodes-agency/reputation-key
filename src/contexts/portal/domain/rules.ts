@@ -78,10 +78,12 @@ export const validatePortalTheme = (
   })
 }
 
-// ── Smart routing threshold ────────────────────────────────────────
+// ── Private feedback threshold ─────────────────────────────────────
 
-/** Validate smart routing threshold (1-5). */
-export const validateSmartRoutingThreshold = (n: number): Result<number, PortalError> => {
+/** Validate the inclusive private-feedback threshold (1-5). */
+export const validatePrivateFeedbackThreshold = (
+  n: number,
+): Result<number, PortalError> => {
   if (!Number.isInteger(n) || n < 1 || n > 5) {
     return err(
       portalError('invalid_threshold', 'Threshold must be an integer between 1 and 5'),

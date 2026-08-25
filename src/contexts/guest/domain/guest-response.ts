@@ -5,8 +5,8 @@
 // status, and may make one bounded correction through the same signed
 // session during a short window.
 //
-// Review-link visibility/order/prominence is invariant regardless of
-// the guest's response — enforced by architectural test (anti-gating).
+// After the private rating, Google Review Action visibility/order/prominence is
+// invariant across all five values. Eligible feedback is additive and follows it.
 
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
@@ -24,6 +24,8 @@ export interface GuestResponse {
   readonly responseConsent: boolean
   readonly textConsent: boolean
   readonly mediaConsent: boolean
+  /** Inclusive Portal threshold captured with the initial private rating. */
+  readonly privateFeedbackThreshold: number | null
   /** Durable lineage of the currently effective numeric rating fact. */
   readonly ratingSourceEventId: string | null
   /** Durable lineage of the currently effective private-feedback count fact. */
@@ -33,6 +35,7 @@ export interface GuestResponse {
   readonly correctionCount: 0 | 1
   readonly submittedAt: Date | null
   readonly correctedAt: Date | null
+  readonly feedbackSubmittedAt: Date | null
   readonly moderatedAt: Date | null
   readonly deletedAt: Date | null
   readonly retentionDeadline: Date
@@ -47,6 +50,8 @@ export type ResponseError =
   | { code: 'text_too_long'; length: number; max: number }
   | { code: 'no_content' }
   | { code: 'contact_without_consent' }
+  | { code: 'feedback_not_eligible' }
+  | { code: 'feedback_already_submitted' }
 
 export const MAX_TEXT_LENGTH = 2000
 export const MAX_RATING = 5
@@ -60,6 +65,7 @@ export function createResponse(params: {
   portalId: string
   sessionId: string
   retentionDeadline: Date
+  privateFeedbackThreshold?: number | null
 }): GuestResponse {
   return {
     id: params.id,
@@ -74,6 +80,7 @@ export function createResponse(params: {
     responseConsent: false,
     textConsent: false,
     mediaConsent: false,
+    privateFeedbackThreshold: params.privateFeedbackThreshold ?? null,
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
     contactConsent: false,
@@ -81,10 +88,50 @@ export function createResponse(params: {
     correctionCount: 0,
     submittedAt: null,
     correctedAt: null,
+    feedbackSubmittedAt: null,
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: params.retentionDeadline,
     schemaVersion: 1,
+  }
+}
+
+/**
+ * Add private written feedback after the rating has been durably captured.
+ * This is a separate act from the one permitted rating correction, so it never
+ * changes `correctionCount` or rewrites the numeric rating.
+ */
+export function submitPrivateFeedback(
+  response: GuestResponse,
+  params: Readonly<{ text: string; textConsent: boolean }>,
+  now: Date,
+): GuestResponse | ResponseError {
+  if (response.status === 'deleted') return { code: 'already_deleted' }
+  if (response.status !== 'submitted' && response.status !== 'corrected') {
+    return { code: 'already_submitted' }
+  }
+  if (response.text !== null || response.feedbackSourceEventId !== null) {
+    return { code: 'feedback_already_submitted' }
+  }
+  if (
+    response.rating === null ||
+    response.privateFeedbackThreshold === null ||
+    response.rating > response.privateFeedbackThreshold
+  ) {
+    return { code: 'feedback_not_eligible' }
+  }
+  const text = params.text.trim()
+  if (text.length === 0) return { code: 'no_content' }
+  if (text.length > MAX_TEXT_LENGTH) {
+    return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
+  }
+  if (!params.textConsent) return { code: 'no_content' }
+
+  return {
+    ...response,
+    text,
+    textConsent: true,
+    feedbackSubmittedAt: now,
   }
 }
 
@@ -272,6 +319,7 @@ export function deleteResponse(
     mediaConsent: false,
     contactConsent: false,
     contactDetails: null,
+    feedbackSubmittedAt: response.feedbackSubmittedAt,
     deletedAt: now,
   }
 }

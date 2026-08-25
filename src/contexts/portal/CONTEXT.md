@@ -6,12 +6,12 @@ Portal page management — creation, configuration, theming, link management, im
 
 ## Glossary
 
-- **Portal** — A public-facing page for a property, team, or staff member. Has slug, theme, smart routing settings, hero image.
+- **Portal** — A rating-first public review gateway for a property, team, or staff participant, with an optional secondary link tree.
 - **EntityType** — The kind of entity a portal belongs to: `property`, `team`, or `staff`.
 - **PortalLinkCategory** — Grouping container for links within a portal. Has title and sort key.
 - **PortalLink** — An external link within a portal category. Has label, URL, icon, and sort key.
 - **PortalTheme** — Visual customization: `primaryColor`, optional `backgroundColor`, `textColor`.
-- **Smart Routing** — Layout emphasis strategy for low ratings. Controls feedback form positioning.
+- **Private Feedback Threshold** — Inclusive 1–5 threshold (default 3) captured with a guest rating. Ratings at or below it may add an optional private note after the same Google Review Action shown to every rating.
 - **Portal Group** — A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Metrics are always aggregated from member portals at query time (no pre-computed group metrics).
 - **Ungrouped Portal** — A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.
 - **Portal Creator** — Immutable provenance for who created a portal. Creation does not permanently confer notification responsibility.
@@ -35,13 +35,14 @@ Portal page management — creation, configuration, theming, link management, im
 ## Invariants
 
 - Portal slugs must be unique within a property.
-- Smart routing threshold must be 1–5.
+- Private Feedback Threshold must be an integer 1–5.
 - Portal links belong to a category; categories belong to a portal.
 - Only PM+ roles can create/update/delete portals.
 - Portal group names must be unique within a property.
 - One portal belongs to at most one portal group (enforced by unique index on `portal_group_members.portalId`).
 - A portal group belongs to exactly one property.
-- A portal cannot enter `published` without at least one link — a published portal with no destinations renders as an empty guest page.
+- A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
+- Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 - Soft-deleting a portal revokes its active/rotating portal tokens; a deleted portal never has a live token.
 - The eligible creator is the initial Portal Responsible Manager. AccountAdmins are organization-wide eligible; PropertyManagers require both current property access and active participation for that property.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
@@ -119,7 +120,7 @@ portal/
 ## Use cases
 
 - **`createPortal`** — Create a new portal for a property/entity. Validates property exists via PropertyPublicApi.
-- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, publication state). `heroImageUrl: null` clears the hero image. Rejects a transition into `published` when the portal has no links (`portal_has_no_links`).
+- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, Private Feedback Threshold, publication state). `heroImageUrl: null` clears the hero image. Rejects publication without a verified Property-owned Google review destination.
 - **`getPortal`** — Retrieve a single portal by ID, plus `tokenStatus` (C2): whether a public token still resolves (active, or rotating inside its grace window — same predicate as public token resolution), its version, issue time and grace end. Metadata only: the raw token and its digest are returned by issue/rotate alone.
 - **`listPortals`** — List portals for an org/property with filters.
 - **`softDeletePortal`** — Soft-delete a portal, revoke its portal tokens, emits `portal.deleted` (and `portal.token.revoked` when tokens were live).

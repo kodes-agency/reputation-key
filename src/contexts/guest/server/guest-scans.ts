@@ -191,27 +191,18 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
           // them. Resolved only AFTER the public_read deny above has thrown, so
           // a denied portal and a missing one remain indistinguishable (both
           // 404 with the same body); no new non-enumeration surface.
-          const [responseDecision, mediaDecision] = await Promise.all([
-            decidePublicExecution({
-              action: 'public:portal.read',
-              capability: 'portal.guest_response',
-              ...scope,
-              now,
-            }),
-            decidePublicExecution({
-              action: 'public:portal.read',
-              capability: 'portal.guest_media',
-              ...scope,
-              now,
-            }),
-          ])
+          const responseDecision = await decidePublicExecution({
+            action: 'public:portal.read',
+            capability: 'portal.guest_response',
+            ...scope,
+            now,
+          })
           setResponseHeader('Referrer-Policy', 'no-referrer')
           return toPublicPortalLoaderData(portal, {
             guestSession: { csrfNonce: session.csrfNonce },
             response,
             responseForm: {
               availability: formAvailability(responseDecision),
-              mediaEnabled: mediaDecision.allowed,
             },
           })
         } catch (e) {

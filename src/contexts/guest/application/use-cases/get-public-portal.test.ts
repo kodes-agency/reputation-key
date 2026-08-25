@@ -15,6 +15,10 @@ const fakeData: PublicPortalData = {
   },
   categories: [],
   links: [],
+  reviewGateway: {
+    privateFeedbackThreshold: 3,
+    googleReviewUri: 'https://search.google.com/local/writereview?placeid=p1',
+  },
   organizationId: 'org-1',
   propertyId: 'prop-1',
 }

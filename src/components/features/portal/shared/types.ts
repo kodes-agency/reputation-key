@@ -33,6 +33,7 @@ export type PortalData = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalThemeDraft
+  privateFeedbackThreshold: number
   publicationState: PortalPublicationState
 }>
 
@@ -44,6 +45,7 @@ export type UpdatePortalVariables = {
     description?: string | null
     heroImageUrl?: string | null
     theme?: PortalThemeDraft
+    privateFeedbackThreshold?: number
     publicationState?: PortalPublicationState
   }
 }

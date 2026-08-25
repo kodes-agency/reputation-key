@@ -25,6 +25,7 @@ export type PortalDetailPortal = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalThemeDraft
+  privateFeedbackThreshold: number
   propertyId: string
   organizationId: string
   publicationState: PortalPublicationState

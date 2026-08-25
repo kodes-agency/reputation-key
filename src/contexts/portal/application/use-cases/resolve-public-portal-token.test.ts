@@ -9,6 +9,7 @@ import {
 const NOW = new Date('2026-08-08T12:00:00.000Z')
 const ORG = organizationId('org-1')
 const PORTAL = portalId('portal-1')
+const GOOGLE_REVIEW_URI = 'https://search.google.com/local/writereview?placeid=property-1'
 
 const token: PortalToken = {
   id: 'token-1',
@@ -41,6 +42,7 @@ const publicPortal = {
   },
   categories: [],
   links: [],
+  privateFeedbackThreshold: 3,
   organizationId: 'org-1',
   propertyId: 'property-1',
 } as const
@@ -50,6 +52,7 @@ function setup(
     digest?: ResolvePublicPortalTokenDeps['tokenCodec']['digest']
     findToken?: ResolvePublicPortalTokenDeps['portalTokenRepo']['findResolvableByDigest']
     findPortal?: ResolvePublicPortalTokenDeps['portalRepo']['findPublicPortalById']
+    getDestination?: ResolvePublicPortalTokenDeps['getGoogleReviewDestination']
     decide?: ResolvePublicPortalTokenDeps['decidePublic']
   } = {},
 ) {
@@ -63,6 +66,16 @@ function setup(
   )
   const findToken = vi.fn(overrides.findToken ?? (async () => token))
   const findPortal = vi.fn(overrides.findPortal ?? (async () => publicPortal))
+  const getDestination = vi.fn(
+    overrides.getDestination ??
+      (async () => ({
+        state: 'verified' as const,
+        uri: GOOGLE_REVIEW_URI,
+        retrievedAt: NOW,
+        sourceEpoch: 1,
+        profileVersion: 2,
+      })),
+  )
   const decide = vi.fn(
     overrides.decide ??
       (async () => ({
@@ -77,12 +90,14 @@ function setup(
       tokenCodec: { digest },
       portalTokenRepo: { findResolvableByDigest: findToken },
       portalRepo: { findPublicPortalById: findPortal },
+      getGoogleReviewDestination: getDestination,
       decidePublic: decide,
       clock: () => NOW,
     }),
     digest,
     findToken,
     findPortal,
+    getDestination,
     decide,
   }
 }
@@ -93,7 +108,17 @@ describe('resolvePublicPortalToken', () => {
 
     await expect(resolve('pt_key_secret')).resolves.toEqual({
       status: 'found',
-      data: publicPortal,
+      data: {
+        portal: publicPortal.portal,
+        categories: [],
+        links: [],
+        reviewGateway: {
+          privateFeedbackThreshold: 3,
+          googleReviewUri: GOOGLE_REVIEW_URI,
+        },
+        organizationId: 'org-1',
+        propertyId: 'property-1',
+      },
     })
     expect(findPortal).toHaveBeenCalledWith(ORG, PORTAL)
     expect(decide).toHaveBeenCalledWith({
@@ -135,6 +160,37 @@ describe('resolvePublicPortalToken', () => {
     })
 
     await expect(mismatch.resolve('pt_key_secret')).resolves.toEqual({
+      status: 'unavailable',
+    })
+  })
+
+  it.each(['awaiting_refresh', 'unavailable'] as const)(
+    'fails closed when the Property destination is %s',
+    async (state) => {
+      const harness = setup({
+        getDestination: vi.fn(async () => ({
+          state,
+          uri: state === 'awaiting_refresh' ? GOOGLE_REVIEW_URI : null,
+          retrievedAt: state === 'awaiting_refresh' ? NOW : null,
+          sourceEpoch: state === 'awaiting_refresh' ? 1 : null,
+          profileVersion: state === 'awaiting_refresh' ? 2 : null,
+        })),
+      })
+
+      await expect(harness.resolve('pt_key_secret')).resolves.toEqual({
+        status: 'unavailable',
+      })
+    },
+  )
+
+  it('fails closed when the Property destination lookup is unavailable', async () => {
+    const harness = setup({
+      getDestination: vi.fn(async () => {
+        throw new Error('database unavailable')
+      }),
+    })
+
+    await expect(harness.resolve('pt_key_secret')).resolves.toEqual({
       status: 'unavailable',
     })
   })

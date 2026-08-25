@@ -189,13 +189,19 @@ function harness() {
       return 'applied' as const
     },
     commitCorrected: async (
+      previous: GuestResponse,
       response: GuestResponse,
       facts: Parameters<
         import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitCorrected']
-      >[1],
+      >[2],
     ) => {
       const index = repo.responses.findIndex(
-        (row) => row.id === response.id && row.status === 'submitted',
+        (row) =>
+          row.id === response.id &&
+          row.status === previous.status &&
+          row.correctionCount === previous.correctionCount &&
+          row.ratingSourceEventId === previous.ratingSourceEventId &&
+          row.feedbackSourceEventId === previous.feedbackSourceEventId,
       )
       if (index < 0) return 'conflict' as const
       const ratingFact = facts.find(
@@ -224,6 +230,26 @@ function harness() {
               : response.feedbackSourceEventId,
       }
       for (const fact of facts) await events.emit(fact)
+      return 'applied' as const
+    },
+    commitFeedbackAdded: async (
+      response: GuestResponse,
+      fact: Parameters<
+        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitFeedbackAdded']
+      >[1],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === response.id &&
+          row.text === null &&
+          row.feedbackSourceEventId === null,
+      )
+      if (index < 0) return 'conflict' as const
+      repo.responses[index] = {
+        ...response,
+        feedbackSourceEventId: fact.eventId,
+      }
+      await events.emit(fact)
       return 'applied' as const
     },
     commitWithdrawn: async (
@@ -306,7 +332,8 @@ describe('guest response lifecycle', () => {
       scope,
       '00000000-0000-4000-8000-000000000003',
     )
-    expect(withdrawn).toMatchObject({ status: 'deleted', rating: null, text: null })
+    expect(withdrawn).toMatchObject({ status: 'deleted', rating: null })
+    expect('text' in withdrawn).toBe(false)
   })
 
   it('rejects another tenant without revealing the response', async () => {
@@ -386,11 +413,13 @@ describe('guest response lifecycle', () => {
       '00000000-0000-4000-8000-000000000003',
       {
         rating: 1,
-        text: 'Abusive text',
         responseConsent: true,
-        textConsent: true,
       },
     )
+    await lifecycle.addPrivateFeedback(scope, '00000000-0000-4000-8000-000000000003', {
+      text: 'Abusive text',
+      textConsent: true,
+    })
 
     const moderated = await lifecycle.moderate(scope, submitted.id, 'delete')
 
@@ -457,13 +486,15 @@ describe('guest response lifecycle', () => {
 describe('guest response lifecycle — submitted facts', () => {
   const sessionId = '00000000-0000-4000-8000-000000000003'
 
-  it('emits a rating fact and a feedback fact for a consented rating plus free text', async () => {
+  it('emits rating then feedback facts from the two staged commands', async () => {
     const { lifecycle, events } = harness()
 
     const submitted = await lifecycle.submit(scope, sessionId, {
-      rating: 4,
-      text: 'Great stay, very responsive team.',
+      rating: 2,
       responseConsent: true,
+    })
+    const withFeedback = await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up with the property team.',
       textConsent: true,
     })
 
@@ -473,12 +504,17 @@ describe('guest response lifecycle — submitted facts', () => {
         organizationId: scope.organizationId,
         portalId: scope.portalId,
         propertyId: scope.propertyId,
-        value: 4,
+        value: 2,
       },
     ])
     expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
-      { feedbackId: submitted.id, ratingId: submitted.id },
+      { feedbackId: withFeedback.id, ratingId: submitted.id },
     ])
+    expect(withFeedback).toMatchObject({
+      hasPrivateFeedback: true,
+      privateFeedbackEligible: false,
+    })
+    expect('text' in withFeedback).toBe(false)
   })
 
   it('emits no feedback fact when the guest supplied no free text', async () => {
@@ -490,18 +526,18 @@ describe('guest response lifecycle — submitted facts', () => {
     expect(events.capturedByTag('guest.feedback.submitted')).toHaveLength(0)
   })
 
-  it('emits only a feedback fact when the guest supplied text and no rating', async () => {
+  it('rejects feedback without the required private rating', async () => {
     const { lifecycle, events } = harness()
 
-    await lifecycle.submit(scope, sessionId, {
-      text: 'The lobby coffee is excellent.',
-      textConsent: true,
-    })
+    await expect(
+      lifecycle.submit(scope, sessionId, {
+        text: 'The lobby coffee is excellent.',
+        textConsent: true,
+      }),
+    ).rejects.toMatchObject({ code: 'rating_required' })
 
     expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(0)
-    expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
-      { ratingId: null },
-    ])
+    expect(events.capturedByTag('guest.feedback.submitted')).toHaveLength(0)
   })
 
   it('emits nothing for a repeated submit of the same session', async () => {
@@ -558,8 +594,10 @@ describe('guest response lifecycle — submitted facts', () => {
     const { lifecycle, events } = harness()
     await lifecycle.submit(scope, sessionId, {
       rating: 2,
-      text: 'Please follow up.',
       responseConsent: true,
+    })
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Please follow up.',
       textConsent: true,
     })
     const original = events.capturedByTag('guest.feedback.submitted')[0]!
@@ -569,5 +607,71 @@ describe('guest response lifecycle — submitted facts', () => {
     expect(events.capturedByTag('guest.feedback.retracted')).toMatchObject([
       { feedbackId: original.feedbackId, supersedesSourceEventId: original.eventId },
     ])
+  })
+
+  it('uses the snapshotted inclusive threshold and never returns feedback text', async () => {
+    const eligible = harness()
+    const low = await eligible.lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 3, responseConsent: true },
+      3,
+    )
+    expect(low.privateFeedbackEligible).toBe(true)
+    const receipt = await eligible.lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'A private note for the manager.',
+      textConsent: true,
+    })
+    expect(receipt).toMatchObject({
+      hasPrivateFeedback: true,
+      privateFeedbackEligible: false,
+    })
+    expect('text' in receipt).toBe(false)
+
+    const ineligible = harness()
+    const high = await ineligible.lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 4, responseConsent: true },
+      3,
+    )
+    expect(high.privateFeedbackEligible).toBe(false)
+    await expect(
+      ineligible.lifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'Not eligible',
+        textConsent: true,
+      }),
+    ).rejects.toMatchObject({ code: 'feedback_not_eligible' })
+  })
+
+  it.each([1, 2, 3, 4, 5])(
+    'treats %i as inclusive for its captured threshold',
+    async (threshold) => {
+      const { lifecycle } = harness()
+      const receipt = await lifecycle.submit(
+        scope,
+        sessionId,
+        { rating: threshold, responseConsent: true },
+        threshold,
+      )
+      expect(receipt.privateFeedbackEligible).toBe(true)
+    },
+  )
+
+  it('unlocks feedback after a high-to-low correction without spending another correction', async () => {
+    const { lifecycle, repo } = harness()
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
+    const corrected = await lifecycle.correct(scope, sessionId, { rating: 2 })
+    expect(corrected.privateFeedbackEligible).toBe(true)
+
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Now eligible after correction.',
+      textConsent: true,
+    })
+    expect(repo.responses[0]).toMatchObject({
+      correctionCount: 1,
+      rating: 2,
+      text: 'Now eligible after correction.',
+    })
   })
 })

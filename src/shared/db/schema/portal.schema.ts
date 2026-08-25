@@ -35,6 +35,7 @@ export const portals = pgTable(
     description: varchar('description', { length: 500 }),
     heroImageUrl: varchar('hero_image_url', { length: 500 }),
     theme: jsonb('theme').default({}),
+    privateFeedbackThreshold: integer('private_feedback_threshold').notNull().default(3),
     publicationState: varchar('publication_state', { length: 20 })
       .notNull()
       .default('draft'),
@@ -70,6 +71,10 @@ export const portals = pgTable(
     publicationStateCheck: check(
       'portals_publication_state_valid',
       sql`${t.publicationState} IN ('draft', 'published', 'disabled', 'archived')`,
+    ),
+    privateFeedbackThresholdCheck: check(
+      'portals_private_feedback_threshold_valid',
+      sql`${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
     ),
     responsibleManagerRevisionCheck: check(
       'portals_responsible_manager_revision_positive',

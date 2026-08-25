@@ -30,6 +30,7 @@ import {
   validateLinkLabel,
   validateCategoryTitle,
   validateGroupName,
+  validatePrivateFeedbackThreshold,
 } from './rules'
 
 // ── Portal constructor ─────────────────────────────────────────────
@@ -44,6 +45,7 @@ export type BuildPortalInput = Readonly<{
   providedSlug?: string
   description?: string | null
   theme?: Partial<PortalTheme>
+  privateFeedbackThreshold?: number
   publicationState?: Portal['publicationState']
   createdBy?: UserId | null
   hasInitialResponsibleManager?: boolean
@@ -56,9 +58,18 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
   const desc = validateDescription(input.description ?? null)
   const defaultTheme: PortalTheme = { primaryColor: '#6366F1' }
   const theme = validatePortalTheme(input.theme ?? defaultTheme)
+  const privateFeedbackThreshold = validatePrivateFeedbackThreshold(
+    input.privateFeedbackThreshold ?? 3,
+  )
 
-  return Result.combine([nameResult, slug, desc, theme]).map(
-    ([validName, validSlug, validDesc, validTheme]): Portal => ({
+  return Result.combine([nameResult, slug, desc, theme, privateFeedbackThreshold]).map(
+    ([
+      validName,
+      validSlug,
+      validDesc,
+      validTheme,
+      validPrivateFeedbackThreshold,
+    ]): Portal => ({
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -75,6 +86,7 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       description: validDesc,
       heroImageUrl: null,
       theme: validTheme,
+      privateFeedbackThreshold: validPrivateFeedbackThreshold,
       publicationState: input.publicationState ?? 'draft',
       createdBy: input.createdBy ?? null,
       responsibleManagerRevision: 1,

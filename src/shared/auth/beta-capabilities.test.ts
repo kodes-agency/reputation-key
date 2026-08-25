@@ -126,7 +126,6 @@ describe('BetaCapabilities', () => {
         'portal.guest_response',
         'portal.guest_text',
         'portal.guest_contact',
-        'portal.guest_media',
         'notification.send_email',
       ] as const) {
         expect(
@@ -377,7 +376,7 @@ describe('BetaCapabilities', () => {
     it('keeps promotable jobs registered while scoped execution remains policy-gated', () => {
       expect(isCapabilityJobEnabled('notification.send_email')).toBe(true)
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(true)
+      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(false)
       expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
     })
 

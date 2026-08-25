@@ -153,6 +153,7 @@ export type GuestReviewLinkClicked = Readonly<{
   _tag: 'guest.review_link.clicked'
   eventId: string
   linkId: PortalLinkId
+  destinationKind: 'google_review' | 'secondary_link'
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId

@@ -3,6 +3,7 @@ import {
   type GuestResponse,
   createResponse,
   submitResponse,
+  submitPrivateFeedback,
   correctResponse,
   moderateResponse,
   deleteResponse,
@@ -21,6 +22,7 @@ describe('GuestResponse', () => {
     portalId: 'portal-1',
     sessionId: 'session-1',
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
+    privateFeedbackThreshold: 3,
   }
 
   describe('createResponse', () => {
@@ -29,6 +31,43 @@ describe('GuestResponse', () => {
       expect(r.status).toBe('pending')
       expect(r.rating).toBeNull()
       expect(r.text).toBeNull()
+    })
+  })
+
+  describe('submitPrivateFeedback', () => {
+    it('adds feedback at the inclusive threshold without consuming correction', () => {
+      const response = submitResponse(
+        createResponse(baseParams),
+        { rating: 3 },
+        NOW,
+      ) as GuestResponse
+      const result = submitPrivateFeedback(
+        response,
+        { text: 'Please follow up.', textConsent: true },
+        NOW,
+      )
+
+      expect(result).toMatchObject({
+        text: 'Please follow up.',
+        textConsent: true,
+        feedbackSubmittedAt: NOW,
+        correctionCount: 0,
+      })
+    })
+
+    it('rejects feedback above the captured threshold', () => {
+      const response = submitResponse(
+        createResponse(baseParams),
+        { rating: 4 },
+        NOW,
+      ) as GuestResponse
+      expect(
+        submitPrivateFeedback(
+          response,
+          { text: 'Not eligible.', textConsent: true },
+          NOW,
+        ),
+      ).toEqual({ code: 'feedback_not_eligible' })
     })
   })
 

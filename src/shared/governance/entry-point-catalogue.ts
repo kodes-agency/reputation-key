@@ -74,6 +74,8 @@ export type SystemAction =
   | 'system:guest.click_track'
   | 'public:portal.response.submit'
   | 'public:portal.response.correct'
+  | 'public:portal.response.text.submit'
+  | 'public:portal.google_review.select'
   | 'public:portal.response.withdraw'
   | 'public:portal.media.issue'
   | 'public:portal.media.confirm'
@@ -1791,6 +1793,31 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
+      'submitPrivateFeedbackFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.text.submit',
+      'portal.guest_text',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session; eligibility uses the Portal threshold captured at rating submission',
+      },
+    ),
+    sfPublic(
+      'selectGoogleReviewFn',
+      `${GUEST}/public.ts`,
+      'public:portal.google_review.select',
+      'portal.public_read',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes:
+          'signed rated session; records core selection analytics and returns the Property-owned Google URI',
+      },
+    ),
+    sfPublic(
       'withdrawGuestResponseFn',
       `${GUEST}/public.ts`,
       'public:portal.response.withdraw',
@@ -1799,30 +1826,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         canonicalOnly: true,
         notes: 'terminal anonymization and durable media purge scheduling',
-      },
-    ),
-    sfPublic(
-      'issueGuestMediaFn',
-      `${GUEST}/public.ts`,
-      'public:portal.media.issue',
-      'portal.guest_media',
-      'property',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'single-use scoped object issuance after response/media consent',
-      },
-    ),
-    sfPublic(
-      'confirmGuestMediaFn',
-      `${GUEST}/public.ts`,
-      'public:portal.media.confirm',
-      'portal.guest_media',
-      'property',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'confirms object then conditionally completes a leased media row',
       },
     ),
     sf(

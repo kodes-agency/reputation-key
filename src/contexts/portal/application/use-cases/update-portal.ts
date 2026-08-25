@@ -1,7 +1,6 @@
 // Portal context — update portal use case
 
 import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -14,6 +13,7 @@ import {
   validateSlug,
   validateDescription,
   validatePortalTheme,
+  validatePrivateFeedbackThreshold,
 } from '../../domain/rules'
 import { portalError } from '../../domain/errors'
 import { portalUpdated } from '../../domain/events'
@@ -23,10 +23,11 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 import { transitionPortalPublication } from '../../domain/portal-publication'
+import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
-  portalLinkRepo: PortalLinkRepository
+  propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   staffPublicApi: StaffPublicApi
   events: EventBus
   clock: () => Date
@@ -39,6 +40,7 @@ type PortalPatch = {
   description: string | null
   heroImageUrl: string | null
   theme: PortalTheme
+  privateFeedbackThreshold: number
   publicationState: Portal['publicationState']
 }
 
@@ -51,7 +53,10 @@ function unwrap<T>(r: Result<T, PortalError>): T {
 export function resolvePortalContentFields(
   input: UpdatePortalInput,
   existing: Portal,
-): Pick<PortalPatch, 'name' | 'description' | 'heroImageUrl' | 'theme'> {
+): Pick<
+  PortalPatch,
+  'name' | 'description' | 'heroImageUrl' | 'theme' | 'privateFeedbackThreshold'
+> {
   return {
     name:
       input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
@@ -66,22 +71,27 @@ export function resolvePortalContentFields(
       input.theme !== undefined
         ? unwrap(validatePortalTheme(input.theme))
         : existing.theme,
+    privateFeedbackThreshold:
+      input.privateFeedbackThreshold !== undefined
+        ? unwrap(validatePrivateFeedbackThreshold(input.privateFeedbackThreshold))
+        : existing.privateFeedbackThreshold,
   }
 }
 
-async function assertPortalHasLinks(
+async function assertGoogleReviewDestinationAvailable(
   deps: UpdatePortalDeps,
   orgId: OrganizationId,
   existing: Portal,
 ): Promise<void> {
-  // A portal with no destinations renders as a bare title for guests —
-  // public-portal-content.tsx has nothing to lay out. The publication state
-  // machine cannot see this, so the precondition lives here.
-  const links = await deps.portalLinkRepo.listAllLinks(orgId, existing.id)
-  if (links.length === 0) {
+  const destination =
+    await deps.propertyGoogleReviewDestinationApi.getGoogleReviewDestination(
+      orgId,
+      existing.propertyId,
+    )
+  if (destination?.state !== 'verified' || destination.uri === null) {
     throw portalError(
-      'portal_has_no_links',
-      'add at least one link before publishing this portal',
+      'google_review_destination_unavailable',
+      'connect and refresh this property’s Google review destination before publishing',
     )
   }
 }
@@ -104,7 +114,7 @@ async function resolvePublicationState(
     )
   }
   if (transition === 'published') {
-    await assertPortalHasLinks(deps, orgId, existing)
+    await assertGoogleReviewDestinationAvailable(deps, orgId, existing)
   }
   return transition
 }
@@ -151,6 +161,7 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
     patch.description !== existing.description ||
     patch.heroImageUrl !== existing.heroImageUrl ||
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
+    patch.privateFeedbackThreshold !== existing.privateFeedbackThreshold ||
     patch.publicationState !== existing.publicationState
   )
 }

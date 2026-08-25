@@ -38,6 +38,7 @@ type GuestMetricPayload = Readonly<{
   supersedesSourceEventId?: string
   feedbackId?: string
   linkId?: string
+  destinationKind?: 'google_review' | 'secondary_link'
 }>
 
 function guestMetricDomainEvent(
@@ -133,6 +134,10 @@ function guestMetricDomainEvent(
         ...common,
         _tag: event.eventType,
         linkId: portalLinkId(payload.linkId),
+        destinationKind:
+          payload.destinationKind === 'google_review'
+            ? 'google_review'
+            : 'secondary_link',
       }
     default:
       throw new Error(`unsupported Guest metric event type: ${event.eventType}`)

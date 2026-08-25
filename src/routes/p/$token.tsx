@@ -3,9 +3,9 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { z } from 'zod/v4'
 import {
-  confirmGuestMediaFn,
   correctGuestResponseFn,
-  issueGuestMediaFn,
+  selectGoogleReviewFn,
+  submitPrivateFeedbackFn,
   submitGuestResponseFn,
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
@@ -68,8 +68,8 @@ const publicPortalQuery = (token: string) =>
   })
 
 /**
- * C1: the server resolves the `portal.guest_response` / `portal.guest_media`
- * capability decisions. The form view has no separate 'unavailable' branch — a
+ * C1: the server resolves the `portal.guest_response` capability decision. The
+ * form view has no separate 'unavailable' branch — a
  * tenant-disabled response surface and a transient failure read the same to a
  * guest, so both land on its 'error' copy.
  */
@@ -147,8 +147,8 @@ function PublicPortalView({
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
   const correctResponse = useAction(useServerFn(correctGuestResponseFn))
   const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
-  const issueMedia = useAction(useServerFn(issueGuestMediaFn))
-  const confirmMedia = useAction(useServerFn(confirmGuestMediaFn))
+  const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
+  const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 
@@ -170,16 +170,16 @@ function PublicPortalView({
         portal={data.portal}
         categories={data.categories}
         links={data.links}
+        reviewGateway={data.reviewGateway}
         responseForm={{
           csrfNonce,
           initialResponse: data.response,
           availability: formAvailability[data.responseForm.availability],
-          mediaEnabled: data.responseForm.mediaEnabled,
           submitResponse,
           correctResponse,
+          submitPrivateFeedback,
+          selectGoogleReview,
           withdrawResponse,
-          issueMedia,
-          confirmMedia,
         }}
       />
     </>

@@ -37,6 +37,7 @@ const portal: PortalData = {
   description: 'Main guest-facing portal.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
 }
 

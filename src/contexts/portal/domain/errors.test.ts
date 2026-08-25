@@ -63,7 +63,12 @@ describe('portalError exhaustive codes', () => {
     'portal_already_grouped',
     'portal_not_in_group',
     'portal_inactive',
+    'invalid_publication_transition',
+    'google_review_destination_unavailable',
+    'token_unavailable',
     'upload_failed',
+    'responsible_manager_ineligible',
+    'revision_conflict',
   ]
 
   it('creates error with every code in the union', () => {
@@ -75,6 +80,6 @@ describe('portalError exhaustive codes', () => {
   })
 
   it('covers all codes (fails if a new code is added but not listed here)', () => {
-    expect(codes).toHaveLength(20)
+    expect(codes).toHaveLength(25)
   })
 })

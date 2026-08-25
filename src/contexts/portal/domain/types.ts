@@ -40,6 +40,8 @@ export type Portal = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalTheme
+  /** Inclusive threshold: ratings at or below this value may add private feedback. */
+  privateFeedbackThreshold: number
   publicationState: PortalPublicationState
   readonly createdBy: UserId | null
   readonly responsibleManagerRevision: number

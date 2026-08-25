@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, within } from 'storybook/test'
 import { GuestResponseForm } from './guest-response-form'
 import type { GuestResponseFormProps } from './guest-response-form'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
@@ -7,64 +7,64 @@ import type { GuestResponseView } from '#/contexts/guest/application/use-cases/g
 const submitted: GuestResponseView = {
   id: '00000000-0000-4000-8000-000000000001',
   responseConsent: true,
-  textConsent: true,
+  textConsent: false,
   status: 'submitted',
   rating: 5,
   category: null,
-  text: 'A thoughtful response.',
+  hasPrivateFeedback: false,
+  privateFeedbackEligible: false,
   mediaConsent: false,
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
   deletedAt: null,
 }
-const corrected: GuestResponseView = {
+
+const lowRating: GuestResponseView = {
   ...submitted,
-  status: 'corrected',
-  rating: 4,
-  correctedAt: '2026-08-09T12:20:00.000Z',
-}
-const withdrawn: GuestResponseView = {
-  ...corrected,
-  status: 'deleted',
-  rating: null,
-  text: null,
-  deletedAt: '2026-08-09T12:30:00.000Z',
+  rating: 2,
+  privateFeedbackEligible: true,
 }
 
 const actions: Pick<
   GuestResponseFormProps,
   | 'submitResponse'
   | 'correctResponse'
+  | 'submitPrivateFeedback'
+  | 'selectGoogleReview'
   | 'withdrawResponse'
-  | 'issueMedia'
-  | 'confirmMedia'
 > = {
   submitResponse: async ({ data }) => ({
     ...submitted,
     rating: data.rating,
-    text: data.text,
-    mediaConsent: data.mediaConsent,
+    privateFeedbackEligible: data.rating <= 3,
   }),
   correctResponse: async ({ data }) => ({
-    ...corrected,
+    ...submitted,
+    status: 'corrected',
     rating: data.rating,
-    text: data.text,
-    mediaConsent: data.mediaConsent,
+    privateFeedbackEligible: data.rating <= 3,
+    correctedAt: '2026-08-09T12:15:00.000Z',
   }),
-  withdrawResponse: async () => withdrawn,
-  issueMedia: async ({ data }) => ({
-    mediaId: '00000000-0000-4000-8000-000000000002',
-    objectKey: 'guest/example.webp',
-    uploadUrl: 'https://uploads.invalid/example',
-    contentType: data.contentType,
+  submitPrivateFeedback: async () => ({
+    ...lowRating,
+    hasPrivateFeedback: true,
+    privateFeedbackEligible: false,
+    textConsent: true,
   }),
-  confirmMedia: async ({ data }) => ({ mediaId: data.mediaId, status: 'ready' }),
+  selectGoogleReview: async () => ({ url: 'https://www.google.com/' }),
+  withdrawResponse: async () => ({
+    ...submitted,
+    status: 'deleted',
+    rating: null,
+    deletedAt: '2026-08-09T12:30:00.000Z',
+  }),
 }
 
 const baseArgs: GuestResponseFormProps = {
   token: 'portal-public-token',
   csrfNonce: '00000000-0000-4000-8000-000000000003',
+  googleReviewUri: 'https://www.google.com/',
   initialResponse: null,
   ...actions,
 }
@@ -78,42 +78,37 @@ export default meta
 
 type Story = StoryObj<typeof GuestResponseForm>
 
+export const RatingFirst: Story = {}
 export const Loading: Story = { args: { availability: 'loading' } }
-export const Available: Story = {}
-export const Submitted: Story = { args: { initialResponse: submitted } }
-export const Corrected: Story = { args: { initialResponse: corrected } }
-export const Withdrawn: Story = { args: { initialResponse: withdrawn } }
-export const Error: Story = {
-  args: {
-    availability: 'error',
-    initialMessage: 'Optional feedback could not be loaded.',
-  },
-}
-export const PermissionDenied: Story = {
-  args: { availability: 'permission_denied' },
-}
-export const MediaUnavailable: Story = { args: { mediaEnabled: false } }
-
-// An image the guest's device cannot legally upload is rejected at selection,
-// before any network call — the old post-submit check persisted the response first,
-// which flipped the form into correcting mode and burned the guest's single
-// one-hour correction. The file is an over-limit JPEG rather than a wrong type
-// because `userEvent.upload` honours the input's `accept` filter, so a rejected
-// MIME type never reaches the change handler in the first place.
-export const RejectsOversizeMediaBeforeSubmit: Story = {
-  args: { submitResponse: fn(actions.submitResponse) },
-  play: async ({ args, canvasElement }) => {
+export const HighRatingGoogleNext: Story = {
+  args: { initialResponse: submitted },
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const oversize = new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'holiday.jpg', {
-      type: 'image/jpeg',
-    })
-    await userEvent.upload(canvas.getByLabelText(/choose an optional image/i), oversize)
-
-    await waitFor(() => {
-      expect(
-        canvas.getByText('Choose a JPEG, PNG, or WebP image up to 10 MiB.'),
-      ).toBeInTheDocument()
-    })
-    expect(args.submitResponse).not.toHaveBeenCalled()
+    await expect(canvas.getByRole('button', { name: 'Continue to Google' })).toBeVisible()
+    expect(canvas.queryByLabelText('Private feedback')).toBeNull()
   },
 }
+export const LowRatingGoogleThenPrivateFeedback: Story = {
+  args: { initialResponse: lowRating },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const google = canvas.getByRole('button', { name: 'Continue to Google' })
+    const feedback = canvas.getByLabelText('Private feedback')
+    await expect(google).toBeVisible()
+    await expect(feedback).toBeVisible()
+    expect(
+      google.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  },
+}
+export const FeedbackReceipt: Story = {
+  args: {
+    initialResponse: {
+      ...lowRating,
+      hasPrivateFeedback: true,
+      privateFeedbackEligible: false,
+      textConsent: true,
+    },
+  },
+}
+export const Unavailable: Story = { args: { availability: 'error' } }

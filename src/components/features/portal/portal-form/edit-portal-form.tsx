@@ -23,7 +23,13 @@ import type {
 // uploading persisted through `finalizeUpload` but REMOVING persisted nowhere,
 // because the key was absent from the submit payload of a `.strict()` schema.
 const editFormSchema = updatePortalInputSchema
-  .pick({ name: true, slug: true, description: true, heroImageUrl: true })
+  .pick({
+    name: true,
+    slug: true,
+    description: true,
+    heroImageUrl: true,
+    privateFeedbackThreshold: true,
+  })
   .required()
   .extend({ description: z.string().max(500) })
 
@@ -61,6 +67,7 @@ export function EditPortalForm({
       slug: portal.slug,
       description: portal.description ?? '',
       heroImageUrl: portal.heroImageUrl,
+      privateFeedbackThreshold: portal.privateFeedbackThreshold,
     } satisfies FormValues,
     validators: {
       onSubmit: editFormSchema,
@@ -73,6 +80,7 @@ export function EditPortalForm({
         description: value.description || null,
         heroImageUrl: value.heroImageUrl,
         theme,
+        privateFeedbackThreshold: value.privateFeedbackThreshold,
       }
       await mutation({ data })
     },
@@ -124,6 +132,34 @@ export function EditPortalForm({
       />
 
       <BasicInfoSection form={form} persistedSlug={portal.slug} disabled={isDisabled} />
+
+      <form.Field name="privateFeedbackThreshold">
+        {(field) => (
+          <label
+            className="block space-y-2 text-sm"
+            htmlFor="edit-private-feedback-threshold"
+          >
+            <span className="font-medium">Private feedback threshold</span>
+            <select
+              id="edit-private-feedback-threshold"
+              value={field.state.value}
+              disabled={isDisabled}
+              onChange={(event) => field.handleChange(Number(event.target.value))}
+              className="block w-full rounded-md border bg-background px-3 py-2"
+            >
+              {[1, 2, 3, 4, 5].map((value) => (
+                <option key={value} value={value}>
+                  {value} star{value === 1 ? '' : 's'} or below
+                </option>
+              ))}
+            </select>
+            <span className="block text-muted-foreground">
+              Controls when optional private feedback appears after the private rating. It
+              never changes access to the Google review action.
+            </span>
+          </label>
+        )}
+      </form.Field>
     </form>
   )
 }

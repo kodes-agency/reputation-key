@@ -25,7 +25,11 @@ export type PublicPortalContentProps = Readonly<{
   }
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
-  responseForm?: Omit<GuestResponseFormProps, 'token'>
+  reviewGateway?: Readonly<{
+    privateFeedbackThreshold: number
+    googleReviewUri: string
+  }>
+  responseForm?: Omit<GuestResponseFormProps, 'token' | 'googleReviewUri'>
 }>
 
 // `--portal-primary` is the manager's accent: it is the only colour the settings
@@ -50,6 +54,7 @@ export function PublicPortalContent({
   portal,
   categories,
   links,
+  reviewGateway,
   responseForm,
 }: PublicPortalContentProps) {
   // The stored theme is an open JSON record, so each colour is narrowed rather
@@ -81,6 +86,70 @@ export function PublicPortalContent({
   }
 
   const uncategorizedLinks = links.filter((link) => link.categoryId === null)
+  const secondaryLinks =
+    links.length > 0 ? (
+      <nav aria-label="More links" className="space-y-6">
+        <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
+          More from {portal.organizationName}
+        </h2>
+        {categories.map((category) => {
+          const categoryLinks = links.filter((link) => link.categoryId === category.id)
+          if (categoryLinks.length === 0) return null
+          return (
+            <section key={category.id} className="space-y-2">
+              <h3 className="text-lg font-semibold" style={HEADING_STYLE}>
+                {category.title}
+              </h3>
+              <div className="space-y-2">
+                {categoryLinks.map((link) => (
+                  <a
+                    key={link.id}
+                    href={
+                      token
+                        ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
+                        : link.url
+                    }
+                    rel="noreferrer"
+                    className={DESTINATION_CLASS}
+                    style={DESTINATION_STYLE}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )
+        })}
+        {uncategorizedLinks.length > 0 && (
+          <section className="space-y-2">
+            <h3 className="text-lg font-semibold" style={HEADING_STYLE}>
+              More destinations
+            </h3>
+            <div className="space-y-2">
+              {uncategorizedLinks.map((link) => (
+                <a
+                  key={link.id}
+                  href={
+                    token
+                      ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
+                      : link.url
+                  }
+                  rel="noreferrer"
+                  className={DESTINATION_CLASS}
+                  style={DESTINATION_STYLE}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+      </nav>
+    ) : null
+
+  const isPublicPortal = token !== undefined
+  const publicGatewayReady =
+    isPublicPortal && responseForm !== undefined && reviewGateway !== undefined
 
   return (
     <div
@@ -118,85 +187,30 @@ export function PublicPortalContent({
           </p>
         )}
 
-        {links.length === 0 ? (
-          // A published portal with no destinations used to render a bare title
-          // and nothing else: every category mapped to null and there was no
-          // fallback. The server now refuses to publish an empty portal, so this
-          // covers the residual case — links removed after publication.
-          <div
-            role="status"
-            className="rounded-lg border border-dashed p-6 text-center"
-            style={{ borderColor: 'var(--portal-accent-border)' }}
-          >
-            <p className="font-medium">No review destinations yet</p>
-            <p className="mt-1 text-sm" style={MUTED_STYLE}>
-              {portal.organizationName} has not added anywhere to leave a review on this
-              page yet.
-              {token && responseForm
-                ? ' You can still send your feedback directly below.'
-                : ''}
-            </p>
-          </div>
+        {publicGatewayReady ? (
+          <GuestResponseForm
+            token={token}
+            googleReviewUri={reviewGateway.googleReviewUri}
+            secondaryLinks={secondaryLinks}
+            {...responseForm}
+          />
+        ) : isPublicPortal ? (
+          <section role="status" className="rounded-lg border p-5 text-center">
+            <h2 className="font-semibold">Review gateway temporarily unavailable</h2>
+            <p className="mt-2 text-sm">Please try again in a little while.</p>
+          </section>
         ) : (
-          <nav aria-label="Review destinations" className="space-y-6">
-            {categories.map((category) => {
-              const categoryLinks = links.filter(
-                (link) => link.categoryId === category.id,
-              )
-              if (categoryLinks.length === 0) return null
-              return (
-                <section key={category.id} className="space-y-2">
-                  <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-                    {category.title}
-                  </h2>
-                  <div className="space-y-2">
-                    {categoryLinks.map((link) => (
-                      <a
-                        key={link.id}
-                        href={
-                          token
-                            ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                            : link.url
-                        }
-                        rel="noreferrer"
-                        className={DESTINATION_CLASS}
-                        style={DESTINATION_STYLE}
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
-            {uncategorizedLinks.length > 0 && (
-              <section className="space-y-2">
-                <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-                  More destinations
-                </h2>
-                <div className="space-y-2">
-                  {uncategorizedLinks.map((link) => (
-                    <a
-                      key={link.id}
-                      href={
-                        token
-                          ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                          : link.url
-                      }
-                      rel="noreferrer"
-                      className={DESTINATION_CLASS}
-                      style={DESTINATION_STYLE}
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </section>
-            )}
-          </nav>
+          <>
+            <section className="rounded-lg border p-5 text-center">
+              <h2 className="text-lg font-semibold">How was your experience?</h2>
+              <p className="mt-1 text-sm" style={MUTED_STYLE}>
+                Guests start with a private 1–5 star rating. Google follows after the
+                rating, with private feedback offered when eligible.
+              </p>
+            </section>
+            {secondaryLinks}
+          </>
         )}
-
-        {token && responseForm && <GuestResponseForm token={token} {...responseForm} />}
       </div>
     </div>
   )

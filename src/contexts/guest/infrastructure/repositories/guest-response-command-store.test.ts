@@ -43,6 +43,7 @@ function response(): GuestResponse {
     responseConsent: true,
     textConsent: true,
     mediaConsent: false,
+    privateFeedbackThreshold: 3,
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
     contactConsent: false,
@@ -50,6 +51,7 @@ function response(): GuestResponse {
     correctionCount: 0,
     submittedAt: NOW,
     correctedAt: null,
+    feedbackSubmittedAt: NOW,
     moderatedAt: null,
     deletedAt: null,
     retentionDeadline: new Date('2026-11-23T12:00:00.000Z'),
@@ -187,6 +189,127 @@ describe.sequential('atomic Guest response submission', () => {
     expect(events.capturedEvents).toHaveLength(0)
   })
 
+  it('adds private feedback atomically without consuming the rating correction', async () => {
+    const events = createCapturingEventBus()
+    const store = createAtomicGuestResponseCommandStore(db, events)
+    const [ratingFact] = facts()
+    const ratingOnly: GuestResponse = {
+      ...response(),
+      text: null,
+      textConsent: false,
+      feedbackSourceEventId: null,
+      feedbackSubmittedAt: null,
+    }
+    await store.commitSubmitted(ratingOnly, [ratingFact])
+
+    const feedbackFact = guestFeedbackSubmitted({
+      feedbackId: feedbackId(RESPONSE),
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: NOW,
+    })
+    const withFeedback: GuestResponse = {
+      ...ratingOnly,
+      ratingSourceEventId: ratingFact.eventId,
+      text: 'Please contact the front desk.',
+      textConsent: true,
+      feedbackSubmittedAt: NOW,
+    }
+
+    await expect(store.commitFeedbackAdded(withFeedback, feedbackFact)).resolves.toBe(
+      'applied',
+    )
+    await expect(store.commitFeedbackAdded(withFeedback, feedbackFact)).resolves.toBe(
+      'conflict',
+    )
+
+    const rows = await db.execute(sql`
+      SELECT response_text, feedback_source_event_id, correction_count
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        response_text: 'Please contact the front desk.',
+        feedback_source_event_id: feedbackFact.eventId,
+        correction_count: 0,
+      },
+    ])
+  })
+
+  it('does not let a stale rating correction erase concurrently added feedback', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const [ratingFact] = facts()
+    const ratingOnly: GuestResponse = {
+      ...response(),
+      text: null,
+      textConsent: false,
+      feedbackSourceEventId: null,
+      feedbackSubmittedAt: null,
+    }
+    await store.commitSubmitted(ratingOnly, [ratingFact])
+    const previouslyRead: GuestResponse = {
+      ...ratingOnly,
+      ratingSourceEventId: ratingFact.eventId,
+    }
+
+    const feedbackFact = guestFeedbackSubmitted({
+      feedbackId: feedbackId(RESPONSE),
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: NOW,
+    })
+    await store.commitFeedbackAdded(
+      {
+        ...previouslyRead,
+        text: 'A concurrently committed private note.',
+        textConsent: true,
+        feedbackSubmittedAt: NOW,
+      },
+      feedbackFact,
+    )
+
+    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
+    const correctionFact = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 4,
+      supersedesSourceEventId: ratingFact.eventId,
+      occurredAt: correctedAt,
+    })
+    await expect(
+      store.commitCorrected(
+        previouslyRead,
+        {
+          ...previouslyRead,
+          status: 'corrected',
+          rating: 4,
+          correctionCount: 1,
+          correctedAt,
+        },
+        [correctionFact],
+      ),
+    ).resolves.toBe('conflict')
+
+    const rows = await db.execute(sql`
+      SELECT rating, response_text, correction_count, feedback_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        rating: 2,
+        response_text: 'A concurrently committed private note.',
+        correction_count: 0,
+        feedback_source_event_id: feedbackFact.eventId,
+      },
+    ])
+  })
+
   it('commits the corrected response and superseding rating fact atomically', async () => {
     const events = createCapturingEventBus()
     const store = createAtomicGuestResponseCommandStore(db, events)
@@ -213,7 +336,17 @@ describe.sequential('atomic Guest response submission', () => {
       feedbackSourceEventId: originalFeedback.eventId,
     }
 
-    await expect(store.commitCorrected(corrected, [correction])).resolves.toBe('applied')
+    await expect(
+      store.commitCorrected(
+        {
+          ...response(),
+          ratingSourceEventId: originalRating.eventId,
+          feedbackSourceEventId: originalFeedback.eventId,
+        },
+        corrected,
+        [correction],
+      ),
+    ).resolves.toBe('applied')
     const rows = await db.execute(sql`
       SELECT rating, correction_count, rating_source_event_id,
              feedback_source_event_id
@@ -251,6 +384,11 @@ describe.sequential('atomic Guest response submission', () => {
       occurredAt: correctedAt,
     })
     await store.commitCorrected(
+      {
+        ...response(),
+        ratingSourceEventId: originalRating.eventId,
+        feedbackSourceEventId: originalFeedback.eventId,
+      },
       {
         ...response(),
         status: 'corrected',

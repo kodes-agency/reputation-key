@@ -170,6 +170,7 @@ export function buildTestPortal(
     description: null,
     heroImageUrl: null,
     theme: { primaryColor: '#6366F1' },
+    privateFeedbackThreshold: 3,
     publicationState: 'published',
     createdBy: userId('user-00000000-0000-0000-0000-000000000001'),
     responsibleManagerRevision: 1,

@@ -62,7 +62,7 @@ export function createAtomicGuestResponseCommandStore(
         return outcome
       }),
 
-    commitCorrected: (response, facts) =>
+    commitCorrected: (previous, response, facts) =>
       trace('guest.commandStore.commitCorrected', async () => {
         const sourceLineage = lineage(response, facts)
         const outcome = await db.transaction(async (tx) => {
@@ -89,8 +89,17 @@ export function createAtomicGuestResponseCommandStore(
                 eq(guestResponses.portalId, response.portalId),
                 eq(guestResponses.sessionId, response.sessionId),
                 eq(guestResponses.id, response.id),
-                eq(guestResponses.status, 'submitted'),
-                eq(guestResponses.correctionCount, 0),
+                eq(guestResponses.status, previous.status),
+                eq(guestResponses.correctionCount, previous.correctionCount),
+                previous.ratingSourceEventId
+                  ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
+                  : isNull(guestResponses.ratingSourceEventId),
+                previous.feedbackSourceEventId
+                  ? eq(
+                      guestResponses.feedbackSourceEventId,
+                      previous.feedbackSourceEventId,
+                    )
+                  : isNull(guestResponses.feedbackSourceEventId),
                 isNull(guestResponses.deletedAt),
               ),
             )
@@ -102,6 +111,49 @@ export function createAtomicGuestResponseCommandStore(
         if (outcome === 'applied') {
           for (const fact of facts) await emitAfterCommit(events, fact)
         }
+        return outcome
+      }),
+
+    commitFeedbackAdded: (response, fact) =>
+      trace('guest.commandStore.commitFeedbackAdded', async () => {
+        const outcome = await db.transaction(async (tx) => {
+          const updated = await tx
+            .update(guestResponses)
+            .set({
+              responseText: response.text,
+              textConsent: response.textConsent,
+              feedbackSourceEventId: fact.eventId,
+              feedbackSubmittedAt: response.feedbackSubmittedAt,
+              updatedAt: response.feedbackSubmittedAt ?? new Date(),
+            })
+            .where(
+              and(
+                eq(guestResponses.organizationId, response.organizationId),
+                eq(guestResponses.propertyId, response.propertyId),
+                eq(guestResponses.portalId, response.portalId),
+                eq(guestResponses.sessionId, response.sessionId),
+                eq(guestResponses.id, response.id),
+                eq(guestResponses.status, response.status),
+                eq(guestResponses.rating, response.rating!),
+                eq(
+                  guestResponses.privateFeedbackThreshold,
+                  response.privateFeedbackThreshold!,
+                ),
+                eq(guestResponses.correctionCount, response.correctionCount),
+                response.ratingSourceEventId
+                  ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
+                  : isNull(guestResponses.ratingSourceEventId),
+                isNull(guestResponses.responseText),
+                isNull(guestResponses.feedbackSourceEventId),
+                isNull(guestResponses.deletedAt),
+              ),
+            )
+            .returning({ id: guestResponses.id })
+          if (!updated[0]) return 'conflict' as const
+          await insertOutboxRow(tx, fact)
+          return 'applied' as const
+        })
+        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 

@@ -17,6 +17,7 @@ import {
   createResponse,
   deleteResponse,
   moderateResponse,
+  submitPrivateFeedback,
   submitResponse,
   type GuestResponse,
   type ResponseError,
@@ -56,7 +57,8 @@ export type GuestResponseView = Readonly<{
   textConsent: boolean
   rating: number | null
   category: string | null
-  text: string | null
+  hasPrivateFeedback: boolean
+  privateFeedbackEligible: boolean
   mediaConsent: boolean
   submittedAt: string | null
   correctedAt: string | null
@@ -81,7 +83,15 @@ function toView(response: GuestResponse): GuestResponseView {
     status: response.status,
     rating: response.rating,
     category: response.category,
-    text: response.text,
+    // Receipt-only public projection: feedback content never returns to the
+    // browser or a shared device after submission. It is absent from the type,
+    // rather than represented as a nullable field that a future mapper might fill.
+    hasPrivateFeedback: response.text !== null,
+    privateFeedbackEligible:
+      response.text === null &&
+      response.rating !== null &&
+      response.privateFeedbackThreshold !== null &&
+      response.rating <= response.privateFeedbackThreshold,
     mediaConsent: response.mediaConsent,
     responseConsent: response.responseConsent,
     textConsent: response.textConsent,
@@ -327,9 +337,23 @@ export function guestResponseLifecycle(
       scope: GuestResponseScope,
       sessionId: string,
       input: GuestResponseInput,
+      privateFeedbackThreshold = 3,
     ): Promise<GuestResponseView> => {
       const existing = await deps.repo.findForSession(scope, sessionId)
       if (existing) return toView(existing)
+      if (input.rating === null || input.rating === undefined) {
+        throw new GuestResponseLifecycleError('rating_required')
+      }
+      if (input.text?.trim()) {
+        throw new GuestResponseLifecycleError('feedback_must_follow_rating')
+      }
+      if (
+        !Number.isInteger(privateFeedbackThreshold) ||
+        privateFeedbackThreshold < 1 ||
+        privateFeedbackThreshold > 5
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
       const now = deps.clock()
       const submitted = unwrap(
         submitResponse(
@@ -338,6 +362,7 @@ export function guestResponseLifecycle(
             ...scope,
             sessionId,
             retentionDeadline: new Date(now.getTime() + retentionMs),
+            privateFeedbackThreshold,
           }),
           input,
           now,
@@ -358,6 +383,31 @@ export function guestResponseLifecycle(
       return toView(raced)
     },
 
+    addPrivateFeedback: async (
+      scope: GuestResponseScope,
+      sessionId: string,
+      input: Readonly<{ text: string; textConsent: boolean }>,
+    ): Promise<GuestResponseView> => {
+      const current = await deps.repo.findForSession(scope, sessionId)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      requireKnownFactLineage(current)
+      const feedbackAdded = unwrap(submitPrivateFeedback(current, input, deps.clock()))
+      const fact = guestFeedbackSubmitted({
+        feedbackId: feedbackId(feedbackAdded.id),
+        organizationId: organizationId(feedbackAdded.organizationId),
+        portalId: portalId(feedbackAdded.portalId),
+        propertyId: propertyId(feedbackAdded.propertyId),
+        ratingId: feedbackAdded.rating === null ? null : ratingId(feedbackAdded.id),
+        occurredAt: feedbackAdded.feedbackSubmittedAt ?? deps.clock(),
+      })
+      if (
+        (await deps.commandStore.commitFeedbackAdded(feedbackAdded, fact)) !== 'applied'
+      ) {
+        throw new GuestResponseLifecycleError('feedback_already_submitted')
+      }
+      return toView(feedbackAdded)
+    },
+
     // The response revision and every replacement/retraction fact share one
     // transaction. Metric consumers can therefore append corrections without
     // double-counting or leaving the originally submitted value stale.
@@ -368,12 +418,16 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (input.text !== undefined) {
+        throw new GuestResponseLifecycleError('feedback_must_use_separate_action')
+      }
       requireKnownFactLineage(current)
       const corrected = unwrap(
         correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),
       )
       if (
         (await deps.commandStore.commitCorrected(
+          current,
           corrected,
           correctionFacts(current, corrected),
         )) !== 'applied'

@@ -79,6 +79,7 @@ describe('createPortal', () => {
     expect(portal.slug).toBe('my-portal')
     expect(portal.theme.primaryColor).toBe('#6366F1')
     expect(portal.publicationState).toBe('draft')
+    expect(portal.privateFeedbackThreshold).toBe(3)
     expect(portal.createdBy).toBe(ctx.userId)
     expect(portal.responsibilityNeededSince).toBeNull()
     expect(portalRepo.all()).toHaveLength(1)
@@ -94,6 +95,7 @@ describe('createPortal', () => {
         slug: 'custom-slug',
         propertyId: 'a0000000-0000-0000-0000-000000000001',
         theme: { primaryColor: '#FF5500' },
+        privateFeedbackThreshold: 4,
       },
       ctx,
     )
@@ -101,6 +103,7 @@ describe('createPortal', () => {
     expect(portal.slug).toBe('custom-slug')
     expect(portal.theme.primaryColor).toBe('#FF5500')
     expect(portal.publicationState).toBe('draft')
+    expect(portal.privateFeedbackThreshold).toBe(4)
   })
 
   it('rejects users who cannot create portals', async () => {

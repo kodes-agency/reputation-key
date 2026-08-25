@@ -189,6 +189,7 @@ describe.sequential('atomic Guest observations', () => {
     const store = createAtomicGuestObservationStore(db, events)
     const fact = guestReviewLinkClicked({
       linkId: portalLinkId('52000000-0000-4000-8000-000000000030'),
+      destinationKind: 'secondary_link',
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,

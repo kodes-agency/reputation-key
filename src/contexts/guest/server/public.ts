@@ -28,6 +28,7 @@ import { MAX_TEXT_LENGTH } from '../domain/guest-response'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { guestRateLimitKey } from './guest-session'
 import { hashIp } from './hash-ip.server'
+import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
 const baseMutationSchema = z.object({
@@ -35,31 +36,19 @@ const baseMutationSchema = z.object({
   csrfNonce: z.string().uuid(),
 })
 
-const responseMutationSchema = baseMutationSchema.extend({
-  rating: z.number().int().min(1).max(5).nullable().optional(),
-  category: z.string().uuid().nullable().optional(),
-  text: z.string().max(MAX_TEXT_LENGTH).nullable().optional(),
-  responseConsent: z.boolean().optional(),
-  textConsent: z.boolean().optional(),
-  mediaConsent: z.boolean().optional(),
+const ratingMutationSchema = baseMutationSchema.extend({
+  rating: z.number().int().min(1).max(5),
+  responseConsent: z.literal(true),
   // Bot trap: a real guest never fills this (the form renders it off-screen and
   // aria-hidden), so any value means an automated submit. The rate limiter was
   // the only bot defence on this path.
   honeypot: z.string().max(256).optional(),
 })
 
-const issueMediaSchema = baseMutationSchema.extend({
-  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
-  sizeBytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(10 * 1024 * 1024),
-})
-
-const confirmMediaSchema = baseMutationSchema.extend({
-  mediaId: z.string().uuid(),
-  objectKey: z.string().min(1).max(700),
+const privateFeedbackMutationSchema = baseMutationSchema.extend({
+  text: z.string().trim().min(1).max(MAX_TEXT_LENGTH),
+  textConsent: z.literal(true),
+  honeypot: z.string().max(256).optional(),
 })
 
 const denyWithoutEnumeration = (): never =>
@@ -109,7 +98,7 @@ async function resolveBoundSession(
     now: new Date(),
   })
   if (!decision.allowed) return denyWithoutEnumeration()
-  return { useCases, scope, session, headers: requestHeaders }
+  return { useCases, scope, session, headers: requestHeaders, portal }
 }
 
 function lifecycleFailure(error: unknown): never {
@@ -133,7 +122,7 @@ function lifecycleFailure(error: unknown): never {
 }
 
 async function rateLimit(
-  action: 'submit' | 'correct' | 'media',
+  action: 'submit' | 'correct' | 'feedback' | 'google',
   sessionId: string,
   portalId: string,
   headers: Headers,
@@ -145,16 +134,27 @@ async function rateLimit(
           session: { maxRequests: 2, windowSeconds: 60 * 60 },
           networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
         }
-      : action === 'correct'
+      : action === 'correct' || action === 'feedback'
         ? {
-            session: { maxRequests: 1, windowSeconds: 60 * 60 },
-            networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
-          }
-        : {
+            // The aggregate enforces one successful correction/feedback. A
+            // small attempt budget still permits retry after a transient fault
+            // or compare-and-set race instead of making the UI's retry copy false.
             session: { maxRequests: 3, windowSeconds: 60 * 60 },
-            networkPortal: { maxRequests: 20, windowSeconds: 60 * 60 },
+            networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
           }
-  const keyKind = action === 'media' ? 'media' : 'response'
+        : action === 'google'
+          ? {
+              // One qualified Google action per signed response session. A
+              // repeat is still navigable through the client fail-open path,
+              // but cannot inflate the selection fact.
+              session: { maxRequests: 1, windowSeconds: 24 * 60 * 60 },
+              networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+            }
+          : {
+              session: { maxRequests: 10, windowSeconds: 60 * 60 },
+              networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+            }
+  const keyKind = action === 'google' ? 'click' : 'response'
   const ipHash = hashIp(clientIpFromHeaders(headers))
   let result = await rateLimiter.check(
     `${guestRateLimitKey(keyKind, sessionId, ipHash)}:${action}`,
@@ -205,7 +205,8 @@ function decoyView(
     textConsent: true,
     rating: input.rating ?? null,
     category: null,
-    text: input.text?.trim() || null,
+    hasPrivateFeedback: Boolean(input.text?.trim()),
+    privateFeedbackEligible: false,
     mediaConsent: false,
     submittedAt: now.toISOString(),
     correctedAt: null,
@@ -215,7 +216,7 @@ function decoyView(
 }
 
 export const submitGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(responseMutationSchema)
+  .inputValidator(ratingMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -227,15 +228,6 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
           assertions: assertions(data),
           requiredConsents: ['response'],
         })
-        if (data.text?.trim()) {
-          await resolveBoundSession({
-            ...data,
-            action: 'public:portal.response.text.submit',
-            capability: 'portal.guest_text',
-            assertions: assertions(data),
-            requiredConsents: ['response', 'freeText'],
-          })
-        }
         await rateLimit(
           'submit',
           bound.session.sessionId,
@@ -247,6 +239,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             bound.scope,
             bound.session.sessionId,
             data,
+            bound.portal.reviewGateway.privateFeedbackThreshold,
           )
         } catch (error) {
           return lifecycleFailure(error)
@@ -258,7 +251,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
   )
 
 export const correctGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(responseMutationSchema)
+  .inputValidator(ratingMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -271,15 +264,6 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
           assertions: assertions(data),
           requiredConsents: ['response'],
         })
-        if (data.text?.trim()) {
-          await resolveBoundSession({
-            ...data,
-            action: 'public:portal.response.text.correct',
-            capability: 'portal.guest_text',
-            assertions: assertions(data),
-            requiredConsents: ['response', 'freeText'],
-          })
-        }
         await rateLimit(
           'correct',
           bound.session.sessionId,
@@ -298,6 +282,95 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.response.correct',
+    ),
+  )
+
+export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
+  .inputValidator(privateFeedbackMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        if (data.honeypot) return decoyView({ text: data.text })
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.text.submit',
+          capability: 'portal.guest_text',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: true,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: ['response', 'freeText'],
+        })
+        await rateLimit(
+          'feedback',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.addPrivateFeedback(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.private_feedback.submit',
+    ),
+  )
+
+/**
+ * Qualified Google Review Selection. The response must already contain the
+ * session's durable private rating; observation failure never blocks navigation.
+ */
+export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
+  .inputValidator(baseMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.google_review.select',
+          capability: 'portal.public_read',
+          assertions: {
+            analytics: true,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        await rateLimit(
+          'google',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        await bound.useCases.trackReviewLinkClick({
+          linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
+          destinationKind: 'google_review',
+          organizationId: organizationId(bound.scope.organizationId),
+          portalId: portalId(bound.scope.portalId),
+          propertyId: propertyId(bound.scope.propertyId),
+        })
+        return { url: bound.portal.reviewGateway.googleReviewUri }
+      },
+      'POST',
+      'guest.google_review.select',
     ),
   )
 
@@ -330,78 +403,6 @@ export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.response.withdraw',
-    ),
-  )
-
-export const issueGuestMediaFn = createServerFn({ method: 'POST' })
-  .inputValidator(issueMediaSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.media.issue',
-          capability: 'portal.guest_media',
-          assertions: {
-            analytics: false,
-            response: true,
-            freeText: false,
-            contact: false,
-            media: true,
-          },
-          requiredConsents: ['response', 'media'],
-        })
-        await rateLimit(
-          'media',
-          bound.session.sessionId,
-          bound.scope.portalId,
-          bound.headers,
-        )
-        try {
-          return await bound.useCases.responseLifecycle.issueMedia(
-            bound.scope,
-            bound.session.sessionId,
-            data,
-          )
-        } catch (error) {
-          return lifecycleFailure(error)
-        }
-      },
-      'POST',
-      'guest.media.issue',
-    ),
-  )
-
-export const confirmGuestMediaFn = createServerFn({ method: 'POST' })
-  .inputValidator(confirmMediaSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.media.confirm',
-          capability: 'portal.guest_media',
-          assertions: {
-            analytics: false,
-            response: true,
-            freeText: false,
-            contact: false,
-            media: true,
-          },
-          requiredConsents: ['response', 'media'],
-        })
-        try {
-          return await bound.useCases.responseLifecycle.confirmMedia(
-            bound.scope,
-            bound.session.sessionId,
-            data,
-          )
-        } catch (error) {
-          return lifecycleFailure(error)
-        }
-      },
-      'POST',
-      'guest.media.confirm',
     ),
   )
 

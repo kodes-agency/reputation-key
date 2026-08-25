@@ -62,8 +62,10 @@ describe('GuestReviewLinkClicked event', () => {
     const event = guestReviewLinkClicked({
       ...base,
       linkId: portalLinkId('link-1'),
+      destinationKind: 'google_review',
     })
     expect(event.linkId).toBe('link-1')
+    expect(event.destinationKind).toBe('google_review')
     expect(event.eventId).toBeTruthy()
   })
 })

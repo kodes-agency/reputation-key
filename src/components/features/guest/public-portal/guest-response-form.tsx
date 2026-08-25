@@ -1,153 +1,171 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { GuestResponseFormView } from './guest-response-form-view'
-import {
-  selectGuestMedia,
-  type ConfirmGuestMediaAction,
-  type IssueGuestMediaAction,
-  type SelectedMedia,
-} from './guest-media'
-import {
-  guestDraftBlockReason,
-  guestMediaSelectionMessage,
-  guestResponseDraft,
-  guestResponsePhase,
-  guestWithdrawErrorMessage,
-  guestWithdrawSuccessMessage,
-  type GuestResponseDraft,
-} from './guest-response-labels'
-import {
-  saveGuestResponse,
-  type GuestResponseAction,
-  type GuestResponsePayload,
-} from './guest-response-save'
+
+export type GuestResponseAction<TInput, TResult> = (input: {
+  data: TInput
+}) => Promise<TResult>
+
+type GuestRatingPayload = Readonly<{
+  token: string
+  csrfNonce: string
+  rating: number
+  responseConsent: true
+  honeypot?: string
+}>
+
+type GuestPrivateFeedbackPayload = Readonly<{
+  token: string
+  csrfNonce: string
+  text: string
+  textConsent: true
+  honeypot?: string
+}>
 
 export type GuestResponseFormProps = Readonly<{
   token: string
   csrfNonce: string
+  googleReviewUri: string
+  secondaryLinks?: ReactNode
   initialResponse: GuestResponseView | null
   availability?: 'available' | 'loading' | 'permission_denied' | 'error'
-  mediaEnabled?: boolean
-  initialMessage?: string
-  submitResponse: GuestResponseAction<GuestResponsePayload, GuestResponseView>
-  correctResponse: GuestResponseAction<GuestResponsePayload, GuestResponseView>
+  submitResponse: GuestResponseAction<GuestRatingPayload, GuestResponseView>
+  correctResponse: GuestResponseAction<GuestRatingPayload, GuestResponseView>
+  submitPrivateFeedback: GuestResponseAction<
+    GuestPrivateFeedbackPayload,
+    GuestResponseView
+  >
+  selectGoogleReview: GuestResponseAction<
+    { token: string; csrfNonce: string },
+    { url: string }
+  >
   withdrawResponse: GuestResponseAction<
     { token: string; csrfNonce: string },
     GuestResponseView
   >
-  issueMedia: IssueGuestMediaAction
-  confirmMedia: ConfirmGuestMediaAction
 }>
 
-/**
- * State and effects for the guest response form; every decision it makes lives in
- * `guest-response-labels` (what the guest is told, and whether the draft may go)
- * or `guest-response-save` (the write, and the ordering the image upload needs).
- * What is left here is the ten pieces of state and the three things a guest can
- * do to them, so each handler reads as a straight sequence.
- */
 export function GuestResponseForm({
   token,
   csrfNonce,
+  googleReviewUri,
+  secondaryLinks,
   initialResponse,
   availability = 'available',
-  mediaEnabled = true,
-  initialMessage = '',
   submitResponse,
   correctResponse,
+  submitPrivateFeedback,
+  selectGoogleReview,
   withdrawResponse,
-  issueMedia,
-  confirmMedia,
 }: GuestResponseFormProps) {
   const [response, setResponse] = useState(initialResponse)
-  const [draft, setDraft] = useState(() => guestResponseDraft(initialResponse))
-  const [media, setMedia] = useState<SelectedMedia | null>(null)
+  const [rating, setRating] = useState<number | null>(initialResponse?.rating ?? null)
+  const [feedback, setFeedback] = useState('')
+  const [correcting, setCorrecting] = useState(false)
   const [pending, setPending] = useState(false)
-  const [message, setMessage] = useState(initialMessage)
+  const [message, setMessage] = useState('')
   const [honeypot, setHoneypot] = useState('')
 
-  const { isCorrecting, isTerminal } = guestResponsePhase(response)
-
-  /** Every field edit is one of these, so they cannot drift out of step. */
-  const edit = (change: Partial<GuestResponseDraft>) =>
-    setDraft((current) => ({ ...current, ...change }))
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const submitRating = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (isTerminal) return
-
-    const blocked = guestDraftBlockReason(draft, media !== null)
-    if (blocked !== null) {
-      setMessage(blocked)
+    if (rating === null) {
+      setMessage('Choose a rating from 1 to 5 stars.')
       return
     }
-
     setPending(true)
     setMessage('')
-    setMessage(
-      await saveGuestResponse({
-        draft,
-        media,
-        token,
-        csrfNonce,
-        honeypot,
-        isCorrecting,
-        submitResponse,
-        correctResponse,
-        issueMedia,
-        confirmMedia,
-        onWritten: setResponse,
-      }),
-    )
-    setPending(false)
+    try {
+      const action = correcting ? correctResponse : submitResponse
+      const next = await action({
+        data: {
+          token,
+          csrfNonce,
+          rating,
+          responseConsent: true,
+          honeypot,
+        },
+      })
+      setResponse(next)
+      setCorrecting(false)
+      setMessage(
+        correcting
+          ? 'Your private rating was updated.'
+          : 'Thank you. Your private rating was submitted.',
+      )
+    } catch {
+      setMessage('Your rating could not be saved. Please try again.')
+    } finally {
+      setPending(false)
+    }
   }
 
-  const onWithdraw = async () => {
+  const submitFeedback = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const text = feedback.trim()
+    if (!text) {
+      setMessage('Write your private feedback before sending it.')
+      return
+    }
+    setPending(true)
+    setMessage('')
+    try {
+      const next = await submitPrivateFeedback({
+        data: { token, csrfNonce, text, textConsent: true, honeypot },
+      })
+      setResponse(next)
+      setFeedback('')
+      setMessage('Your private feedback was sent to the property team.')
+    } catch {
+      setMessage('Your private feedback could not be sent. Please try again.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const openGoogleReview = async () => {
+    setPending(true)
+    try {
+      const result = await selectGoogleReview({ data: { token, csrfNonce } })
+      window.location.assign(result.url)
+    } catch {
+      // Selection analytics is fail-open: provider navigation remains available.
+      window.location.assign(googleReviewUri)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const withdraw = async () => {
     setPending(true)
     setMessage('')
     try {
       setResponse(await withdrawResponse({ data: { token, csrfNonce } }))
-      edit({ rating: null, text: '' })
-      setMedia(null)
-      setMessage(guestWithdrawSuccessMessage)
     } catch {
-      setMessage(guestWithdrawErrorMessage)
+      setMessage('Your response could not be withdrawn. Please try again.')
+    } finally {
+      setPending(false)
     }
-    setPending(false)
-  }
-
-  /** Media is checked here, at selection — never after the response is written. See
-   *  `guest-media` for why that ordering mattered. */
-  const onFileChange = (next: File | null) => {
-    const selected = next === null ? null : selectGuestMedia(next)
-    setMedia(selected)
-    setMessage(guestMediaSelectionMessage(next !== null && selected === null, message))
   }
 
   return (
     <GuestResponseFormView
       availability={availability}
-      mediaEnabled={mediaEnabled}
       response={response}
-      rating={draft.rating}
-      text={draft.text}
-      responseConsent={draft.responseConsent}
-      textConsent={draft.textConsent}
-      mediaConsent={draft.mediaConsent}
+      rating={rating}
+      feedback={feedback}
+      correcting={correcting}
       pending={pending}
       message={message}
       honeypot={honeypot}
-      isCorrecting={isCorrecting}
-      isTerminal={isTerminal}
-      onSubmit={onSubmit}
-      onWithdraw={() => void onWithdraw()}
-      onRatingChange={(rating) => edit({ rating })}
-      onTextChange={(text) => edit({ text })}
-      onResponseConsentChange={(responseConsent) => edit({ responseConsent })}
-      onTextConsentChange={(textConsent) => edit({ textConsent })}
-      onMediaConsentChange={(mediaConsent) => edit({ mediaConsent })}
+      secondaryLinks={secondaryLinks}
+      onRatingChange={setRating}
+      onFeedbackChange={setFeedback}
       onHoneypotChange={setHoneypot}
-      onFileChange={onFileChange}
+      onSubmitRating={submitRating}
+      onSubmitFeedback={submitFeedback}
+      onGoogleReview={() => void openGoogleReview()}
+      onStartCorrection={() => setCorrecting(true)}
+      onWithdraw={() => void withdraw()}
     />
   )
 }

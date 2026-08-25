@@ -36,6 +36,7 @@ const portal = {
   description: 'Main guest-facing portal with links and feedback.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1', backgroundColor: '#ffffff', textColor: '#111827' },
+  privateFeedbackThreshold: 3,
   propertyId: 'prop-1',
   organizationId: 'org-1',
   publicationState: 'published' as const,

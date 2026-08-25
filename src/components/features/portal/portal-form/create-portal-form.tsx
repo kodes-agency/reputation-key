@@ -36,7 +36,12 @@ const UNDERIVABLE_SLUG_MESSAGE =
 // submit (the old lookalike regex derived `caf-s-d` for “Café Süd” where the
 // server derived `caf-sd`, and derived nothing at all for “東京”).
 const createFormSchema = createPortalInputSchema
-  .pick({ name: true, description: true, theme: true })
+  .pick({
+    name: true,
+    description: true,
+    theme: true,
+    privateFeedbackThreshold: true,
+  })
   .required()
   .extend({
     slug: z.string(),
@@ -62,6 +67,7 @@ type CreatePortalVariables = {
     description?: string
     propertyId: string
     theme?: PortalThemeDraft
+    privateFeedbackThreshold?: number
   }
 }
 
@@ -90,6 +96,7 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
       slug: '',
       description: '',
       theme: CREATE_PORTAL_DEFAULT_THEME,
+      privateFeedbackThreshold: 3,
     } satisfies FormValues,
     validators: {
       onSubmit: createFormSchema,
@@ -105,6 +112,7 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
         description: value.description || undefined,
         propertyId,
         theme: value.theme,
+        privateFeedbackThreshold: value.privateFeedbackThreshold,
       }
       await mutation({ data })
     },
@@ -186,6 +194,33 @@ export function CreatePortalForm({ propertyId, mutation, onPreviewChange }: Prop
           theme={theme}
           onThemeChange={(next) => form.setFieldValue('theme', next)}
         />
+
+        <form.Field name="privateFeedbackThreshold">
+          {(field) => (
+            <label
+              className="block space-y-2 text-sm"
+              htmlFor="private-feedback-threshold"
+            >
+              <span className="font-medium">Private feedback threshold</span>
+              <select
+                id="private-feedback-threshold"
+                value={field.state.value}
+                onChange={(event) => field.handleChange(Number(event.target.value))}
+                className="block w-full rounded-md border bg-background px-3 py-2"
+              >
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <option key={value} value={value}>
+                    {value} star{value === 1 ? '' : 's'} or below
+                  </option>
+                ))}
+              </select>
+              <span className="block text-muted-foreground">
+                Guests at or below this rating may also send a private note. The Google
+                review option remains available to every rating.
+              </span>
+            </label>
+          )}
+        </form.Field>
 
         <SubmitButton mutation={mutation} form={form}>
           Create Portal

@@ -23,8 +23,14 @@ export type GuestResponseCommandStore = Readonly<{
   ): Promise<'applied' | 'duplicate'>
   /** Compare-and-set the one permitted correction and its replacement facts. */
   commitCorrected(
+    previous: GuestResponse,
     response: GuestResponse,
     facts: ReadonlyArray<GuestMutationFact>,
+  ): Promise<'applied' | 'conflict'>
+  /** Add the one eligible private-feedback fact without consuming rating correction. */
+  commitFeedbackAdded(
+    response: GuestResponse,
+    fact: GuestFeedbackSubmitted,
   ): Promise<'applied' | 'conflict'>
   /** Withdraw content, queue media purge, and retract every effective fact atomically. */
   commitWithdrawn(

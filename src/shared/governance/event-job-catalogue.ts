@@ -1368,7 +1368,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'metric',
       notes:
-        'identifier-only v1 schema; the outbox row is the canonical observation and commits before best-effort bus acceleration',
+        'identifier-only v1 schema with Google-versus-secondary destination kind; legacy missing kinds decode as secondary; the outbox row is canonical and commits before best-effort bus acceleration',
     },
   ),
 ]

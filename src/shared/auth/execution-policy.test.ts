@@ -329,9 +329,9 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     initCapabilityPolicyStore({
       isCapabilityGloballyEnabled: () => false,
       isOrgAllowlisted: (organizationId, capability) =>
-        organizationId === ORG && capability === 'portal.guest_media',
+        organizationId === ORG && capability === 'portal.guest_text',
       isPropertyAllowlisted: (candidatePropertyId, capability) =>
-        candidatePropertyId === PROP && capability === 'portal.guest_media',
+        candidatePropertyId === PROP && capability === 'portal.guest_text',
       isOrgSuspended: () => false,
       isPropertySuspended: () => false,
     })
@@ -339,19 +339,19 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const consentAssertions = {
       analytics: false,
       response: true,
-      freeText: false,
+      freeText: true,
       contact: false,
-      media: true,
+      media: false,
     } as const
     const allowed = await policy.decide(
       request({
         principal: { kind: 'public', id: 'guest-session' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: PROP,
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
+        requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
@@ -360,12 +360,12 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const wrongProperty = await policy.decide(
       request({
         principal: { kind: 'public' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: 'p2',
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
+        requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
@@ -374,13 +374,13 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const declined = await policy.decide(
       request({
         principal: { kind: 'public' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: PROP,
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
-        consentAssertions: { ...consentAssertions, media: false },
+        requiredPublicConsents: ['response', 'freeText'],
+        consentAssertions: { ...consentAssertions, freeText: false },
       }),
     )
     expect(declined.reason).toBe('consent_required')

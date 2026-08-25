@@ -21,6 +21,10 @@ export type PublicPortalData = {
     categoryId: string | null
     sortKey: string
   }>
+  reviewGateway: {
+    privateFeedbackThreshold: number
+    googleReviewUri: string
+  }
   organizationId: string
   propertyId: string
 }
@@ -42,13 +46,12 @@ export type PublicPortalLoaderState = {
   response: GuestResponseView | null
   responseForm: {
     availability: GuestResponseFormAvailability
-    mediaEnabled: boolean
   }
 }
 
 export type PublicPortalLoaderData = Pick<
   PublicPortalData,
-  'portal' | 'categories' | 'links'
+  'portal' | 'categories' | 'links' | 'reviewGateway'
 > &
   PublicPortalLoaderState
 
@@ -61,6 +64,7 @@ export function toPublicPortalLoaderData(
     portal: portal.portal,
     categories: portal.categories,
     links: portal.links,
+    reviewGateway: portal.reviewGateway,
     ...state,
   }
 }

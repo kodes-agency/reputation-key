@@ -16,6 +16,7 @@ export type TrackReviewLinkClickDeps = Readonly<{
 
 export type TrackReviewLinkClickInput = Readonly<{
   linkId: PortalLinkId
+  destinationKind?: 'google_review' | 'secondary_link'
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
@@ -29,6 +30,7 @@ export const trackReviewLinkClick =
       await deps.observationStore.commitReviewLinkClick(
         guestReviewLinkClicked({
           linkId: input.linkId,
+          destinationKind: input.destinationKind ?? 'secondary_link',
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,

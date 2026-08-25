@@ -54,6 +54,12 @@ export type PublicPortalResult = Readonly<{
     categoryId: string | null
     sortKey: string
   }>
+  reviewGateway: Readonly<{
+    /** Ratings at or below this inclusive threshold may add private feedback. */
+    privateFeedbackThreshold: number
+    /** Validated Property-owned destination; never administrator-entered. */
+    googleReviewUri: string
+  }>
   organizationId: string
   propertyId: string
 }>

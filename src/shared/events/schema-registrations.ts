@@ -366,6 +366,12 @@ const guestFeedbackRetractedSchema = z.object({
 
 const guestReviewLinkClickedSchema = z.object({
   linkId: z.string(),
+  // Older click facts predate destination classification and represented
+  // only secondary Portal links. Defaulting preserves their exact meaning.
+  destinationKind: z
+    .enum(['google_review', 'secondary_link'])
+    .optional()
+    .default('secondary_link'),
   organizationId: z.string(),
   propertyId: z.string(),
   portalId: z.string(),

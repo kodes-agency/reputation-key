@@ -45,7 +45,11 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with('portal_inactive', () => 410)
-    .with('invalid_publication_transition', 'portal_has_no_links', () => 409)
+    .with(
+      'invalid_publication_transition',
+      'google_review_destination_unavailable',
+      () => 409,
+    )
     .with(
       'invalid_slug',
       'invalid_name',

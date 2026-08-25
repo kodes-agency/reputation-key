@@ -19,6 +19,7 @@ const sampleRow: PortalRow = {
   description: 'A test portal',
   heroImageUrl: null,
   theme: { primaryColor: '#6366F1' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
   createdBy: 'creator-1',
   responsibleManagerRevision: 1,
@@ -42,6 +43,7 @@ describe('portalFromRow', () => {
     expect(portal.slug).toBe('test-portal')
     expect(portal.entityType).toBe('property')
     expect(portal.publicationState).toBe('published')
+    expect(portal.privateFeedbackThreshold).toBe(3)
   })
 
   it('defaults theme when null', () => {
@@ -66,6 +68,7 @@ describe('portalToRow', () => {
     expect(row.description).toBe(sampleRow.description)
     expect(row.heroImageUrl).toBe(sampleRow.heroImageUrl)
     expect(row.publicationState).toBe(sampleRow.publicationState)
+    expect(row.privateFeedbackThreshold).toBe(sampleRow.privateFeedbackThreshold)
     expect(row.createdAt).toBe(sampleRow.createdAt)
     expect(row.updatedAt).toBe(sampleRow.updatedAt)
     expect(row.deletedAt).toBe(sampleRow.deletedAt)

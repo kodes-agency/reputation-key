@@ -69,6 +69,7 @@ export const createPortal =
       providedSlug: input.slug,
       description: input.description,
       theme: input.theme,
+      privateFeedbackThreshold: input.privateFeedbackThreshold,
       createdBy: ctx.userId,
       hasInitialResponsibleManager: creatorIsEligible,
       now: deps.clock(),

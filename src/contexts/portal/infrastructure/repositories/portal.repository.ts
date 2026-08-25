@@ -14,7 +14,7 @@ import {
 } from '#/shared/db/schema/portal.schema'
 import type {
   PortalRepository,
-  PublicPortalResult,
+  PublicPortalRepositoryResult,
   ResolvePortalContextResult,
 } from '../../application/ports/portal.repository'
 import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
@@ -37,6 +37,7 @@ type SetValues = {
   description?: string | null
   heroImageUrl?: string | null
   theme?: Record<string, unknown>
+  privateFeedbackThreshold?: number
   publicationState?: Portal['publicationState']
   updatedAt?: Date
   deletedAt?: Date | null
@@ -45,7 +46,7 @@ type SetValues = {
 async function loadPublicPortal(
   db: Database,
   portalRow: typeof portals.$inferSelect,
-): Promise<PublicPortalResult | null> {
+): Promise<PublicPortalRepositoryResult | null> {
   const portal = portalFromRow(portalRow)
   if (!isPubliclyAvailable(portal.publicationState)) {
     throw portalError('portal_inactive', 'Portal is unavailable')
@@ -100,6 +101,7 @@ async function loadPublicPortal(
       categoryId: link.categoryId,
       sortKey: link.sortKey,
     })),
+    privateFeedbackThreshold: portal.privateFeedbackThreshold,
     organizationId: org.id,
     propertyId: portalRow.propertyId,
   }
@@ -218,6 +220,8 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
       if (patch.heroImageUrl !== undefined) setValues.heroImageUrl = patch.heroImageUrl
       if (patch.theme !== undefined)
         setValues.theme = patch.theme as Record<string, unknown>
+      if (patch.privateFeedbackThreshold !== undefined)
+        setValues.privateFeedbackThreshold = patch.privateFeedbackThreshold
       if (patch.publicationState !== undefined)
         setValues.publicationState = patch.publicationState
 

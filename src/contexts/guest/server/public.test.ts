@@ -185,6 +185,31 @@ describe('guest response server-fn gates', () => {
     expect(trap).toBeLessThan(fn.indexOf('responseLifecycle.correct'))
   })
 
+  it('keeps private feedback as a separate post-rating command', () => {
+    const ratingSchema = source.slice(
+      source.indexOf('const ratingMutationSchema'),
+      source.indexOf('const privateFeedbackMutationSchema'),
+    )
+    expect(ratingSchema).toContain('rating: z.number().int().min(1).max(5)')
+    expect(ratingSchema).not.toContain('text:')
+
+    const feedback = slice('submitPrivateFeedbackFn')
+    expect(feedback).toContain("capability: 'portal.guest_text'")
+    expect(feedback).toContain('responseLifecycle.addPrivateFeedback')
+  })
+
+  it('reveals the Google action only after this signed session has a rating', () => {
+    const fn = slice('selectGoogleReviewFn')
+    const receipt = fn.indexOf('responseLifecycle.getState')
+    const ratingGate = fn.indexOf('if (!response?.rating')
+    const metric = fn.indexOf('trackReviewLinkClick')
+    expect(receipt).toBeGreaterThan(-1)
+    expect(ratingGate).toBeGreaterThan(receipt)
+    expect(metric).toBeGreaterThan(ratingGate)
+    expect(fn).toContain("destinationKind: 'google_review'")
+    expect(fn).toContain('bound.portal.reviewGateway.googleReviewUri')
+  })
+
   it('gates staff moderation on portal.write, not the guest collection capability', () => {
     const fn = slice('moderateGuestResponseFn')
     expect(fn).toContain("capability: 'portal.write'")
