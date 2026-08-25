@@ -1,6 +1,11 @@
-import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { and, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { guestResponseMedia, guestResponses } from '#/shared/db/schema/guest.schema'
+import {
+  guestResponseMedia,
+  guestResponsePrivateFeedback,
+  guestResponseSessionBindings,
+  guestResponses,
+} from '#/shared/db/schema/guest.schema'
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
 import type {
   GuestMedia,
@@ -33,28 +38,71 @@ function mediaFromRow(row: MediaRow): GuestMedia {
   }
 }
 
-export function createGuestResponseRepository(db: Database): GuestResponseRepository {
+export function createGuestResponseRepository(
+  db: Database,
+  clock: () => Date = () => new Date(),
+): GuestResponseRepository {
   return {
-    findForSession: async (scope, sessionId) => {
-      const [row] = await db
-        .select()
+    findForSession: async (scope, sessionId, asOf) => {
+      const [result] = await db
+        .select({
+          response: guestResponses,
+          binding: guestResponseSessionBindings,
+          feedback: guestResponsePrivateFeedback,
+        })
         .from(guestResponses)
+        .innerJoin(
+          guestResponseSessionBindings,
+          and(
+            eq(guestResponseSessionBindings.responseId, guestResponses.id),
+            eq(
+              guestResponseSessionBindings.organizationId,
+              guestResponses.organizationId,
+            ),
+            eq(guestResponseSessionBindings.sessionId, sessionId),
+            gt(guestResponseSessionBindings.expiresAt, asOf),
+          ),
+        )
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
             eq(guestResponses.propertyId, scope.propertyId),
             eq(guestResponses.portalId, scope.portalId),
-            eq(guestResponses.sessionId, sessionId),
           ),
         )
         .limit(1)
-      return row ? guestResponseFromRow(row) : null
+      return result
+        ? guestResponseFromRow(result.response, result.binding, result.feedback)
+        : null
     },
 
     findById: async (scope, responseId) => {
-      const [row] = await db
-        .select()
+      const asOf = clock()
+      const [result] = await db
+        .select({ response: guestResponses, feedback: guestResponsePrivateFeedback })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
@@ -64,7 +112,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? guestResponseFromRow(row) : null
+      return result ? guestResponseFromRow(result.response, null, result.feedback) : null
     },
 
     // Org-scoped by design (see the port comment): an inbox item knows only its
@@ -73,13 +121,24 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
     findSnippetForOrg: async (organizationId, responseId) => {
       const [row] = await db
         .select({
-          comment: guestResponses.responseText,
+          comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
           status: guestResponses.status,
         })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, organizationId),
@@ -102,13 +161,24 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
       const rows = await db
         .select({
           id: guestResponses.id,
-          comment: guestResponses.responseText,
+          comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
           status: guestResponses.status,
         })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, organizationId),
@@ -124,6 +194,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
     },
 
     findEligibleSnippetIdsForOrg: async (organizationId, filter) => {
+      const asOf = clock()
       const conditions = [
         eq(guestResponses.organizationId, organizationId),
         isNull(guestResponses.deletedAt),
@@ -145,12 +216,23 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         conditions.push(
           eq(guestResponses.textConsent, true),
           sql`${guestResponses.status} <> 'moderated'`,
-          sql`${guestResponses.responseText} ilike ${'%' + escaped + '%'}`,
+          sql`${guestResponsePrivateFeedback.body} ilike ${'%' + escaped + '%'}`,
         )
       }
       const rows = await db
         .select({ id: guestResponses.id })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
         .where(and(...conditions))
       return rows.map((row) => row.id)
     },
@@ -220,8 +302,20 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
 
     findMediaForSession: async (scope, sessionId, mediaId) => {
       const [row] = await db
-        .select()
+        .select({ media: guestResponseMedia })
         .from(guestResponseMedia)
+        .innerJoin(
+          guestResponseSessionBindings,
+          and(
+            eq(guestResponseSessionBindings.responseId, guestResponseMedia.responseId),
+            eq(
+              guestResponseSessionBindings.organizationId,
+              guestResponseMedia.organizationId,
+            ),
+            eq(guestResponseSessionBindings.sessionId, sessionId),
+            gt(guestResponseSessionBindings.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponseMedia.organizationId, scope.organizationId),
@@ -232,7 +326,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? mediaFromRow(row) : null
+      return row ? mediaFromRow(row.media) : null
     },
 
     claimMedia: async (media, lease, now) =>
@@ -243,11 +337,22 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             mediaConsent: guestResponses.mediaConsent,
           })
           .from(guestResponses)
+          .innerJoin(
+            guestResponseSessionBindings,
+            and(
+              eq(guestResponseSessionBindings.responseId, guestResponses.id),
+              eq(
+                guestResponseSessionBindings.organizationId,
+                guestResponses.organizationId,
+              ),
+              eq(guestResponseSessionBindings.sessionId, media.sessionId),
+              gt(guestResponseSessionBindings.expiresAt, now),
+            ),
+          )
           .where(
             and(
               eq(guestResponses.organizationId, media.organizationId),
               eq(guestResponses.id, media.responseId),
-              eq(guestResponses.sessionId, media.sessionId),
             ),
           )
           .for('update')
@@ -288,11 +393,22 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             mediaConsent: guestResponses.mediaConsent,
           })
           .from(guestResponses)
+          .innerJoin(
+            guestResponseSessionBindings,
+            and(
+              eq(guestResponseSessionBindings.responseId, guestResponses.id),
+              eq(
+                guestResponseSessionBindings.organizationId,
+                guestResponses.organizationId,
+              ),
+              eq(guestResponseSessionBindings.sessionId, media.sessionId),
+              gt(guestResponseSessionBindings.expiresAt, now),
+            ),
+          )
           .where(
             and(
               eq(guestResponses.organizationId, media.organizationId),
               eq(guestResponses.id, media.responseId),
-              eq(guestResponses.sessionId, media.sessionId),
             ),
           )
           .for('update')

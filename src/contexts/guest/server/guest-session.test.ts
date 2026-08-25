@@ -57,6 +57,34 @@ describe('signed guest session', () => {
     now = new Date('2026-08-10T12:00:01Z')
     expect(codec.verify(issued.cookies[0].split(';')[0], scope)).toBeNull()
   })
+
+  it('re-signs the same recovery identity only until the domain deadline', () => {
+    let now = new Date('2026-08-09T12:00:00Z')
+    const codec = createGuestSessionManager({
+      secret: '0123456789abcdef0123456789abcdef',
+      secureCookies: true,
+      clock: () => now,
+      randomId: () => crypto.randomUUID(),
+    })
+    const issued = codec.issue(scope)
+    now = new Date('2026-08-09T23:00:00Z')
+    const deadline = new Date('2026-08-10T23:00:00Z')
+    const renewed = codec.renewUntil(issued.session, deadline)
+
+    expect(renewed?.session).toMatchObject({
+      sessionId: issued.session.sessionId,
+      csrfNonce: issued.session.csrfNonce,
+      issuedAt: now,
+      expiresAt: deadline,
+    })
+    expect(codec.verify(renewed!.cookies[0].split(';')[0], scope)?.expiresAt).toEqual(
+      deadline,
+    )
+    expect(
+      codec.renewUntil(issued.session, new Date('2026-08-10T23:00:00.001Z')),
+    ).toBeNull()
+    expect(codec.renewUntil(issued.session, now)).toBeNull()
+  })
 })
 
 describe('guestRateLimitKey', () => {

@@ -60,7 +60,7 @@ export async function handleInboxGuestFeedbackSubmitted(
   // A withdrawal/deletion may win before durable delivery. Do not recreate
   // a projection whose governed live-read source is already unavailable.
   const source = await deps.feedbackLookup.getFeedbackSnippetById(sourceId, orgId)
-  if (!source) {
+  if (!source?.comment) {
     await deps.commandStore.recordReceipt(event.eventId, CONSUMER_NAME, 'obsolete')
     return { status: 'obsolete' }
   }

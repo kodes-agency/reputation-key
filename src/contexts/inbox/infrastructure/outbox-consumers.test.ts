@@ -257,6 +257,35 @@ describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
     ])
   })
 
+  it('does not create work when retention already removed the private text', async () => {
+    const { guestDeps, repo, receipts } = makeDeps({
+      item: null,
+      feedback: { comment: null, ratingValue: 2 },
+    })
+
+    await expect(
+      handleInboxGuestFeedbackSubmitted(
+        guestDeps,
+        makeEvent('guest.feedback.submitted', {
+          feedbackId: 'feedback-1',
+          ratingId: 'rating-1',
+          organizationId: 'org-1',
+          propertyId: 'prop-1',
+          portalId: 'portal-1',
+          occurredAt: NOW.toISOString(),
+        }),
+      ),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(repo.items).toHaveLength(0)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-guest-feedback-submitted',
+        status: 'obsolete',
+      },
+    ])
+  })
+
   it('rejects cross-tenant envelope attribution before reading feedback', async () => {
     const { guestDeps } = makeDeps({ item: null })
     const event = makeEvent('guest.feedback.submitted', {

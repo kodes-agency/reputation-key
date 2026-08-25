@@ -16,6 +16,7 @@ import {
   correctResponse,
   createResponse,
   DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  DEFAULT_RESPONSE_SESSION_WINDOW_MS,
   DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
   moderateResponse,
   submitPrivateFeedback,
@@ -81,7 +82,12 @@ export class GuestResponseLifecycleError extends Error {
 export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
 export const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
 export const RESPONSE_WITHDRAWAL_WINDOW_MS = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS
-const retentionMs = 90 * 24 * 60 * 60 * 1000
+
+function factRetentionDeadline(from: Date): Date {
+  const deadline = new Date(from)
+  deadline.setUTCMonth(deadline.getUTCMonth() + 24)
+  return deadline
+}
 
 function toView(response: GuestResponse, now: Date): GuestResponseView {
   const feedbackWithdrawalDeadline = response.feedbackSubmittedAt
@@ -141,8 +147,9 @@ export function guestResponseLifecycle(
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
-    const response = await deps.repo.findForSession(scope, sessionId)
-    return response ? toView(response, deps.clock()) : null
+    const now = deps.clock()
+    const response = await deps.repo.findForSession(scope, sessionId, now)
+    return response ? toView(response, now) : null
   }
 
   const removeObjects = async (
@@ -360,9 +367,19 @@ export function guestResponseLifecycle(
       sessionId: string,
       input: GuestResponseInput,
       privateFeedbackThreshold = 3,
+      sessionExpiresAt?: Date,
     ): Promise<GuestResponseView> => {
-      const existing = await deps.repo.findForSession(scope, sessionId)
-      if (existing) return toView(existing, deps.clock())
+      const now = deps.clock()
+      const bindingExpiresAt =
+        sessionExpiresAt ?? new Date(now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS)
+      if (
+        bindingExpiresAt.getTime() - now.getTime() !==
+        DEFAULT_RESPONSE_SESSION_WINDOW_MS
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      const existing = await deps.repo.findForSession(scope, sessionId, now)
+      if (existing) return toView(existing, now)
       if (input.rating === null || input.rating === undefined) {
         throw new GuestResponseLifecycleError('rating_required')
       }
@@ -376,14 +393,14 @@ export function guestResponseLifecycle(
       ) {
         throw new GuestResponseLifecycleError('response_unavailable')
       }
-      const now = deps.clock()
       const submitted = unwrap(
         submitResponse(
           createResponse({
             id: deps.idGen(),
             ...scope,
             sessionId,
-            retentionDeadline: new Date(now.getTime() + retentionMs),
+            sessionExpiresAt: bindingExpiresAt,
+            retentionDeadline: factRetentionDeadline(now),
             privateFeedbackThreshold,
           }),
           input,
@@ -400,7 +417,7 @@ export function guestResponseLifecycle(
         // already-counted response, so a refresh or a lost race adds no facts.
         return toView(submitted, deps.clock())
       }
-      const raced = await deps.repo.findForSession(scope, sessionId)
+      const raced = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!raced) throw new GuestResponseLifecycleError('response_unavailable')
       return toView(raced, deps.clock())
     },
@@ -410,31 +427,41 @@ export function guestResponseLifecycle(
       sessionId: string,
       input: Readonly<{ text: string; textConsent: boolean }>,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const now = deps.clock()
+      const current = await deps.repo.findForSession(scope, sessionId, now)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      requireKnownFactLineage(current)
-      const feedbackAdded = unwrap(submitPrivateFeedback(current, input, deps.clock()))
-      const fact = guestFeedbackSubmitted({
-        feedbackId: feedbackId(feedbackAdded.id),
-        organizationId: organizationId(feedbackAdded.organizationId),
-        portalId: portalId(feedbackAdded.portalId),
-        propertyId: propertyId(feedbackAdded.propertyId),
-        ratingId: feedbackAdded.rating === null ? null : ratingId(feedbackAdded.id),
-        occurredAt: feedbackAdded.feedbackSubmittedAt ?? deps.clock(),
-      })
       if (
-        (await deps.commandStore.commitFeedbackAdded(feedbackAdded, fact)) !== 'applied'
+        current.text !== null &&
+        current.feedbackSubmittedAt !== null &&
+        current.feedbackSourceEventId !== null
       ) {
+        return toView(current, now)
+      }
+      requireKnownFactLineage(current)
+      const feedbackAdded = unwrap(submitPrivateFeedback(current, input, now))
+      const renewed = {
+        ...feedbackAdded,
+        sessionExpiresAt: new Date(now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS),
+      }
+      const fact = guestFeedbackSubmitted({
+        feedbackId: feedbackId(renewed.id),
+        organizationId: organizationId(renewed.organizationId),
+        portalId: portalId(renewed.portalId),
+        propertyId: propertyId(renewed.propertyId),
+        ratingId: renewed.rating === null ? null : ratingId(renewed.id),
+        occurredAt: renewed.feedbackSubmittedAt ?? now,
+      })
+      if ((await deps.commandStore.commitFeedbackAdded(renewed, fact)) !== 'applied') {
         throw new GuestResponseLifecycleError('feedback_already_submitted')
       }
-      return toView(feedbackAdded, deps.clock())
+      return toView(renewed, deps.clock())
     },
 
     withdrawPrivateFeedback: async (
       scope: GuestResponseScope,
       sessionId: string,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       if (current.feedbackWithdrawnAt !== null) return toView(current, deps.clock())
       requireKnownFactLineage(current)
@@ -467,7 +494,7 @@ export function guestResponseLifecycle(
       sessionId: string,
       input: GuestResponseInput,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       if (input.text !== undefined) {
         throw new GuestResponseLifecycleError('feedback_must_use_separate_action')
@@ -492,7 +519,7 @@ export function guestResponseLifecycle(
       scope: GuestResponseScope,
       sessionId: string,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       if (current.status === 'deleted') return toView(current, deps.clock())
       requireKnownFactLineage(current)
@@ -533,7 +560,7 @@ export function guestResponseLifecycle(
       sessionId: string,
       input: Readonly<{ contentType: string; sizeBytes: number }>,
     ) => {
-      const response = await deps.repo.findForSession(scope, sessionId)
+      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!response) throw new GuestResponseLifecycleError('response_not_found')
       const media = issueGuestMedia(
         response,
@@ -568,7 +595,7 @@ export function guestResponseLifecycle(
       if (!namesIssuedObject(media, input.objectKey)) {
         throw new GuestResponseLifecycleError('media_not_found')
       }
-      const response = await deps.repo.findForSession(scope, sessionId)
+      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!response) throw new GuestResponseLifecycleError('response_not_found')
 
       const lease = deps.idGen()

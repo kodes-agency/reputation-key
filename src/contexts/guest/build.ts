@@ -34,13 +34,16 @@ type GuestContextDeps = Readonly<{
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestRepo = createGuestInteractionRepository(deps.db)
-  const guestResponseRepo = createGuestResponseRepository(deps.db)
+  const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
     deps.events,
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db, deps.events)
-  const findPortalIdForFeedback = createFeedbackPortalAttributionLookup(deps.db)
+  const findPortalIdForFeedback = createFeedbackPortalAttributionLookup(
+    deps.db,
+    deps.clock,
+  )
   const sessionSecret =
     deps.sessionSecret ??
     (process.env.NODE_ENV === 'production' ? null : 'dev-test-guest-session-secret')

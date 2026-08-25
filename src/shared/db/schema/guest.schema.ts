@@ -100,11 +100,9 @@ export const guestResponses = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
     portalId: uuid('portal_id').notNull(),
-    sessionId: uuid('session_id').notNull(),
     status: varchar('status', { length: 20 }).notNull().default('pending'),
     rating: integer('rating'),
     categoryId: uuid('category_id'),
-    responseText: text('response_text'),
     responseConsent: boolean('response_consent').notNull().default(false),
     textConsent: boolean('text_consent').notNull().default(false),
     mediaConsent: boolean('media_consent').notNull().default(false),
@@ -129,11 +127,6 @@ export const guestResponses = pgTable(
       t.propertyId,
       t.portalId,
       t.id,
-    ),
-    sessionPortalUnique: uniqueIndex('guest_responses_session_portal_unique').on(
-      t.organizationId,
-      t.portalId,
-      t.sessionId,
     ),
     portalStatusIdx: index('guest_responses_portal_status_idx').on(
       t.organizationId,
@@ -169,7 +162,97 @@ export const guestResponses = pgTable(
     ),
     feedbackWithdrawalCheck: check(
       'guest_responses_feedback_withdrawal_valid',
-      sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.responseText} IS NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
+      sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
+    ),
+  }),
+)
+
+/**
+ * Short-lived recovery authority. Keeping the signed-session pseudonym outside
+ * the response fact lets it disappear after 24 hours without deleting the
+ * rating/tombstone needed by managerial analytics and correction lineage.
+ */
+export const guestResponseSessionBindings = pgTable(
+  'guest_response_session_bindings',
+  {
+    responseId: uuid('response_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    sessionPortalUnique: uniqueIndex('guest_response_session_bindings_dedupe').on(
+      t.organizationId,
+      t.portalId,
+      t.sessionId,
+    ),
+    expiryIdx: index('guest_response_session_bindings_expiry_idx').on(t.expiresAt),
+    responseTenantFk: foreignKey({
+      name: 'guest_response_session_bindings_response_tenant_fk',
+      columns: [t.organizationId, t.responseId],
+      foreignColumns: [guestResponses.organizationId, guestResponses.id],
+    }).onDelete('cascade'),
+    responseScopeFk: foreignKey({
+      name: 'guest_response_session_bindings_response_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
+      foreignColumns: [
+        guestResponses.organizationId,
+        guestResponses.propertyId,
+        guestResponses.portalId,
+        guestResponses.id,
+      ],
+    }).onDelete('cascade'),
+    liveWindowCheck: check(
+      'guest_response_session_bindings_live_window',
+      sql`${t.expiresAt} > ${t.createdAt}`,
+    ),
+  }),
+)
+
+/**
+ * Guest-authored private text has its own 90-day lifecycle. The response row
+ * retains only consent/timestamps/lineage, so delayed text deletion can never
+ * prolong the session pseudonym or the other way around.
+ */
+export const guestResponsePrivateFeedback = pgTable(
+  'guest_response_private_feedback',
+  {
+    responseId: uuid('response_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    body: text('body').notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    expiryIdx: index('guest_response_private_feedback_expiry_idx').on(t.expiresAt),
+    responseTenantFk: foreignKey({
+      name: 'guest_response_private_feedback_response_tenant_fk',
+      columns: [t.organizationId, t.responseId],
+      foreignColumns: [guestResponses.organizationId, guestResponses.id],
+    }).onDelete('cascade'),
+    responseScopeFk: foreignKey({
+      name: 'guest_response_private_feedback_response_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
+      foreignColumns: [
+        guestResponses.organizationId,
+        guestResponses.propertyId,
+        guestResponses.portalId,
+        guestResponses.id,
+      ],
+    }).onDelete('cascade'),
+    bodyLengthCheck: check(
+      'guest_response_private_feedback_body_length',
+      sql`char_length(${t.body}) BETWEEN 1 AND 2000`,
+    ),
+    liveWindowCheck: check(
+      'guest_response_private_feedback_live_window',
+      sql`${t.expiresAt} > ${t.submittedAt}`,
     ),
   }),
 )

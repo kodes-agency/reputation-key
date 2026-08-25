@@ -540,32 +540,32 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
 
   // ── guest (dark; user-authored, non-Google) ─────────────────────────
   {
-    relation: 'guest_responses',
+    relation: 'guest_response_private_feedback',
     kind: 'table',
-    field: 'response_text',
+    field: 'body',
     classification: 'local_operational_fact',
     owner: 'guest',
-    purpose: 'Canonical guest-authored private feedback text',
+    purpose: 'Class-separated guest-authored private feedback text',
     creationPath: 'origin/CSRF/signed-session private-feedback mutation',
     readPath: 'tenant-scoped Guest lookup used by authorized Inbox views',
     refreshRule: 'immutable after submission; never returned to the guest browser',
     deletionMechanism:
-      'immediate feedback/response withdrawal or retention-sweep guest_responses.private_text at 90 days',
+      'immediate feedback/response withdrawal or retention-sweep guest_response_private_feedback.expired at 90 days',
     mustEliminate: false,
   },
   {
-    relation: 'guest_responses',
+    relation: 'guest_response_session_bindings',
     kind: 'table',
     field: 'session_id',
     classification: 'local_operational_fact',
     owner: 'guest',
     purpose:
-      'Canonical signed-session pseudonym for response recovery and mutation integrity',
+      'Short-lived signed-session pseudonym for response recovery and mutation integrity',
     creationPath: 'first private rating submission',
     readPath: 'signed-session-bound Guest response mutations only',
-    refreshRule: 'never rotated on the canonical row today',
+    refreshRule: 'immutable binding to one response and Portal',
     deletionMechanism:
-      'whole-response/property lifecycle today; GST-01 must move this binding to independent 24-hour storage',
+      'retention-sweep guest_response_session_bindings.expired at the signed cookie expiry (maximum 24 hours)',
     mustEliminate: false,
   },
   {

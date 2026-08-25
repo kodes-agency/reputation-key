@@ -48,17 +48,27 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {
-    // Canonical private-feedback text has its own row-level deadline. Preserve
-    // the content-free rating/correction facts used by mandatory analytics,
-    // but do not retain guest-authored text past the agreed lifecycle.
-    subject: 'guest_responses.private_text',
+    subject: 'guest_response_private_feedback.expired',
+    table: 'guest_response_private_feedback',
+    keyColumns: ['response_id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    subject: 'guest_response_session_bindings.expired',
+    table: 'guest_response_session_bindings',
+    keyColumns: ['response_id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    // The canonical row is content-free after the class split. Its absolute
+    // deadline is 24 calendar months from initial submission.
+    subject: 'guest_responses.deidentified_fact',
     table: 'guest_responses',
     keyColumns: ['id'],
     tsColumn: 'retention_deadline',
     olderThanMs: 0,
-    extraWhere: 'response_text IS NOT NULL',
-    operation: 'redact',
-    redactColumns: ['response_text'],
   },
   {
     // The content-free destination fact survives, but the signed-session

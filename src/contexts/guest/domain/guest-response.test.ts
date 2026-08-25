@@ -23,6 +23,7 @@ describe('GuestResponse', () => {
     propertyId: 'prop-1',
     portalId: 'portal-1',
     sessionId: 'session-1',
+    sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
     privateFeedbackThreshold: 3,
   }

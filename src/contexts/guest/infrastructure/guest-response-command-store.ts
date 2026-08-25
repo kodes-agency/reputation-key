@@ -1,12 +1,57 @@
 import type { Database } from '#/shared/db'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { guestResponseMedia, guestResponses } from '#/shared/db/schema/guest.schema'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import {
+  guestResponseMedia,
+  guestResponsePrivateFeedback,
+  guestResponseSessionBindings,
+  guestResponses,
+} from '#/shared/db/schema/guest.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from '../application/ports/guest-response-command-store.port'
 import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
 import { guestResponseToInsertRow } from './mappers/guest-response.mapper'
 import { trace } from '#/shared/observability/trace'
+import {
+  DEFAULT_RESPONSE_SESSION_WINDOW_MS,
+  PRIVATE_FEEDBACK_RETENTION_MS,
+} from '../domain/guest-response'
+
+class GuestCommandConflict extends Error {}
+
+function requireSessionBinding(
+  response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
+): Readonly<{ sessionId: string; expiresAt: Date }> | null {
+  return response.sessionId && response.sessionExpiresAt
+    ? { sessionId: response.sessionId, expiresAt: response.sessionExpiresAt }
+    : null
+}
+
+function sessionBindingExists(
+  response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
+  asOf: Date,
+  matchExpiry = true,
+) {
+  const binding = requireSessionBinding(response)
+  if (!binding) return sql`false`
+  const expiryMatch = matchExpiry
+    ? sql`AND ${guestResponseSessionBindings.expiresAt} = ${binding.expiresAt}`
+    : sql``
+  return sql`EXISTS (
+    SELECT 1 FROM ${guestResponseSessionBindings}
+    WHERE ${guestResponseSessionBindings.responseId} = ${response.id}
+      AND ${guestResponseSessionBindings.organizationId} = ${response.organizationId}
+      AND ${guestResponseSessionBindings.propertyId} = ${response.propertyId}
+      AND ${guestResponseSessionBindings.portalId} = ${response.portalId}
+      AND ${guestResponseSessionBindings.sessionId} = ${binding.sessionId}
+      ${expiryMatch}
+      AND ${guestResponseSessionBindings.expiresAt} > ${asOf}
+  )`
+}
+
+function privateFeedbackExpiry(submittedAt: Date): Date {
+  return new Date(submittedAt.getTime() + PRIVATE_FEEDBACK_RETENTION_MS)
+}
 
 /** Atomic canonical response + rating/feedback fact writer. */
 export function createAtomicGuestResponseCommandStore(
@@ -45,17 +90,59 @@ export function createAtomicGuestResponseCommandStore(
   return {
     commitSubmitted: (response, facts) =>
       trace('guest.commandStore.commitSubmitted', async () => {
-        const outcome = await db.transaction(async (tx) => {
-          const sourceLineage = lineage(response, facts)
-          const inserted = await tx
-            .insert(guestResponses)
-            .values({ ...guestResponseToInsertRow(response), ...sourceLineage })
-            .onConflictDoNothing()
-            .returning({ id: guestResponses.id })
-          if (inserted.length === 0) return 'duplicate' as const
-          for (const fact of facts) await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
+        const binding = requireSessionBinding(response)
+        if (!binding || !response.submittedAt) return 'duplicate' as const
+        const submittedAt = response.submittedAt
+        if (
+          binding.expiresAt.getTime() - submittedAt.getTime() !==
+          DEFAULT_RESPONSE_SESSION_WINDOW_MS
+        ) {
+          return 'duplicate' as const
+        }
+        const submittedText = response.text
+        const outcome = await db
+          .transaction(async (tx) => {
+            const sourceLineage = lineage(response, facts)
+            const inserted = await tx
+              .insert(guestResponses)
+              .values({ ...guestResponseToInsertRow(response), ...sourceLineage })
+              .onConflictDoNothing()
+              .returning({ id: guestResponses.id })
+            if (inserted.length === 0) throw new GuestCommandConflict()
+            const bound = await tx
+              .insert(guestResponseSessionBindings)
+              .values({
+                responseId: response.id,
+                organizationId: response.organizationId,
+                propertyId: response.propertyId,
+                portalId: response.portalId,
+                sessionId: binding.sessionId,
+                expiresAt: binding.expiresAt,
+                createdAt: submittedAt,
+              })
+              .onConflictDoNothing()
+              .returning({ responseId: guestResponseSessionBindings.responseId })
+            if (bound.length === 0) throw new GuestCommandConflict()
+            if (submittedText) {
+              const feedbackAt = response.feedbackSubmittedAt ?? submittedAt
+              await tx.insert(guestResponsePrivateFeedback).values({
+                responseId: response.id,
+                organizationId: response.organizationId,
+                propertyId: response.propertyId,
+                portalId: response.portalId,
+                body: submittedText,
+                submittedAt: feedbackAt,
+                expiresAt: privateFeedbackExpiry(feedbackAt),
+                createdAt: feedbackAt,
+              })
+            }
+            for (const fact of facts) await insertOutboxRow(tx, fact)
+            return 'applied' as const
+          })
+          .catch((error: unknown) => {
+            if (error instanceof GuestCommandConflict) return 'duplicate' as const
+            throw error
+          })
         if (outcome === 'applied') {
           for (const fact of facts) await emitAfterCommit(events, fact)
         }
@@ -72,7 +159,6 @@ export function createAtomicGuestResponseCommandStore(
               status: response.status,
               rating: response.rating,
               categoryId: response.category,
-              responseText: response.text,
               responseConsent: response.responseConsent,
               textConsent: response.textConsent,
               mediaConsent: response.mediaConsent,
@@ -87,8 +173,8 @@ export function createAtomicGuestResponseCommandStore(
                 eq(guestResponses.organizationId, response.organizationId),
                 eq(guestResponses.propertyId, response.propertyId),
                 eq(guestResponses.portalId, response.portalId),
-                eq(guestResponses.sessionId, response.sessionId),
                 eq(guestResponses.id, response.id),
+                sessionBindingExists(response, response.correctedAt ?? new Date(0)),
                 eq(guestResponses.status, previous.status),
                 eq(guestResponses.correctionCount, previous.correctionCount),
                 previous.ratingSourceEventId
@@ -116,84 +202,156 @@ export function createAtomicGuestResponseCommandStore(
 
     commitFeedbackAdded: (response, fact) =>
       trace('guest.commandStore.commitFeedbackAdded', async () => {
-        const outcome = await db.transaction(async (tx) => {
-          const updated = await tx
-            .update(guestResponses)
-            .set({
-              responseText: response.text,
-              textConsent: response.textConsent,
-              feedbackSourceEventId: fact.eventId,
-              feedbackSubmittedAt: response.feedbackSubmittedAt,
-              updatedAt: response.feedbackSubmittedAt ?? new Date(),
-            })
-            .where(
-              and(
-                eq(guestResponses.organizationId, response.organizationId),
-                eq(guestResponses.propertyId, response.propertyId),
-                eq(guestResponses.portalId, response.portalId),
-                eq(guestResponses.sessionId, response.sessionId),
-                eq(guestResponses.id, response.id),
-                eq(guestResponses.status, response.status),
-                eq(guestResponses.rating, response.rating!),
-                eq(
-                  guestResponses.privateFeedbackThreshold,
-                  response.privateFeedbackThreshold!,
+        if (!response.text || !response.feedbackSubmittedAt) return 'conflict' as const
+        const binding = requireSessionBinding(response)
+        if (!binding) return 'conflict' as const
+        const feedbackText = response.text
+        const feedbackSubmittedAt = response.feedbackSubmittedAt
+        if (
+          binding.expiresAt.getTime() - feedbackSubmittedAt.getTime() !==
+          DEFAULT_RESPONSE_SESSION_WINDOW_MS
+        ) {
+          return 'conflict' as const
+        }
+        const outcome = await db
+          .transaction(async (tx) => {
+            const content = await tx
+              .insert(guestResponsePrivateFeedback)
+              .values({
+                responseId: response.id,
+                organizationId: response.organizationId,
+                propertyId: response.propertyId,
+                portalId: response.portalId,
+                body: feedbackText,
+                submittedAt: feedbackSubmittedAt,
+                expiresAt: privateFeedbackExpiry(feedbackSubmittedAt),
+                createdAt: feedbackSubmittedAt,
+              })
+              .onConflictDoNothing()
+              .returning({ responseId: guestResponsePrivateFeedback.responseId })
+            if (!content[0]) throw new GuestCommandConflict()
+            const updated = await tx
+              .update(guestResponses)
+              .set({
+                textConsent: response.textConsent,
+                feedbackSourceEventId: fact.eventId,
+                feedbackSubmittedAt,
+                updatedAt: feedbackSubmittedAt,
+              })
+              .where(
+                and(
+                  eq(guestResponses.organizationId, response.organizationId),
+                  eq(guestResponses.propertyId, response.propertyId),
+                  eq(guestResponses.portalId, response.portalId),
+                  eq(guestResponses.id, response.id),
+                  sessionBindingExists(response, feedbackSubmittedAt, false),
+                  eq(guestResponses.status, response.status),
+                  eq(guestResponses.rating, response.rating!),
+                  eq(
+                    guestResponses.privateFeedbackThreshold,
+                    response.privateFeedbackThreshold!,
+                  ),
+                  eq(guestResponses.correctionCount, response.correctionCount),
+                  response.ratingSourceEventId
+                    ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
+                    : isNull(guestResponses.ratingSourceEventId),
+                  isNull(guestResponses.feedbackSubmittedAt),
+                  isNull(guestResponses.feedbackWithdrawnAt),
+                  isNull(guestResponses.feedbackSourceEventId),
+                  eq(guestResponses.textConsent, false),
+                  isNull(guestResponses.deletedAt),
                 ),
-                eq(guestResponses.correctionCount, response.correctionCount),
-                response.ratingSourceEventId
-                  ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
-                  : isNull(guestResponses.ratingSourceEventId),
-                isNull(guestResponses.responseText),
-                isNull(guestResponses.feedbackSourceEventId),
-                isNull(guestResponses.deletedAt),
-              ),
-            )
-            .returning({ id: guestResponses.id })
-          if (!updated[0]) return 'conflict' as const
-          await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
+              )
+              .returning({ id: guestResponses.id })
+            if (!updated[0]) throw new GuestCommandConflict()
+            const rebound = await tx
+              .update(guestResponseSessionBindings)
+              .set({
+                expiresAt: binding.expiresAt,
+                createdAt: feedbackSubmittedAt,
+              })
+              .where(
+                and(
+                  eq(guestResponseSessionBindings.responseId, response.id),
+                  eq(
+                    guestResponseSessionBindings.organizationId,
+                    response.organizationId,
+                  ),
+                  eq(guestResponseSessionBindings.sessionId, binding.sessionId),
+                  sql`${guestResponseSessionBindings.expiresAt} > ${feedbackSubmittedAt}`,
+                ),
+              )
+              .returning({ responseId: guestResponseSessionBindings.responseId })
+            if (!rebound[0]) throw new GuestCommandConflict()
+            await insertOutboxRow(tx, fact)
+            return 'applied' as const
+          })
+          .catch((error: unknown) => {
+            if (error instanceof GuestCommandConflict) return 'conflict' as const
+            throw error
+          })
         if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
     commitFeedbackWithdrawn: (previous, response, fact) =>
       trace('guest.commandStore.commitFeedbackWithdrawn', async () => {
-        const outcome = await db.transaction(async (tx) => {
-          const updated = await tx
-            .update(guestResponses)
-            .set({
-              responseText: null,
-              textConsent: false,
-              feedbackSourceEventId: null,
-              feedbackWithdrawnAt: response.feedbackWithdrawnAt,
-              updatedAt: response.feedbackWithdrawnAt ?? new Date(),
-            })
-            .where(
-              and(
-                eq(guestResponses.organizationId, previous.organizationId),
-                eq(guestResponses.propertyId, previous.propertyId),
-                eq(guestResponses.portalId, previous.portalId),
-                eq(guestResponses.sessionId, previous.sessionId),
-                eq(guestResponses.id, previous.id),
-                eq(guestResponses.status, previous.status),
-                eq(guestResponses.rating, previous.rating!),
-                eq(guestResponses.correctionCount, previous.correctionCount),
-                previous.ratingSourceEventId
-                  ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
-                  : isNull(guestResponses.ratingSourceEventId),
-                eq(guestResponses.feedbackSourceEventId, previous.feedbackSourceEventId!),
-                eq(guestResponses.responseText, previous.text!),
-                eq(guestResponses.textConsent, true),
-                isNull(guestResponses.feedbackWithdrawnAt),
-                isNull(guestResponses.deletedAt),
-              ),
-            )
-            .returning({ id: guestResponses.id })
-          if (!updated[0]) return 'conflict' as const
-          await insertOutboxRow(tx, fact)
-          return 'applied' as const
-        })
+        if (!response.feedbackWithdrawnAt || !previous.text) return 'conflict' as const
+        const outcome = await db
+          .transaction(async (tx) => {
+            const updated = await tx
+              .update(guestResponses)
+              .set({
+                textConsent: false,
+                feedbackSourceEventId: null,
+                feedbackWithdrawnAt: response.feedbackWithdrawnAt,
+                updatedAt: response.feedbackWithdrawnAt ?? new Date(),
+              })
+              .where(
+                and(
+                  eq(guestResponses.organizationId, previous.organizationId),
+                  eq(guestResponses.propertyId, previous.propertyId),
+                  eq(guestResponses.portalId, previous.portalId),
+                  eq(guestResponses.id, previous.id),
+                  sessionBindingExists(previous, response.feedbackWithdrawnAt!),
+                  eq(guestResponses.status, previous.status),
+                  eq(guestResponses.rating, previous.rating!),
+                  eq(guestResponses.correctionCount, previous.correctionCount),
+                  previous.ratingSourceEventId
+                    ? eq(guestResponses.ratingSourceEventId, previous.ratingSourceEventId)
+                    : isNull(guestResponses.ratingSourceEventId),
+                  eq(
+                    guestResponses.feedbackSourceEventId,
+                    previous.feedbackSourceEventId!,
+                  ),
+                  eq(guestResponses.textConsent, true),
+                  isNull(guestResponses.feedbackWithdrawnAt),
+                  isNull(guestResponses.deletedAt),
+                ),
+              )
+              .returning({ id: guestResponses.id })
+            if (!updated[0]) throw new GuestCommandConflict()
+            const purged = await tx
+              .delete(guestResponsePrivateFeedback)
+              .where(
+                and(
+                  eq(guestResponsePrivateFeedback.responseId, previous.id),
+                  eq(
+                    guestResponsePrivateFeedback.organizationId,
+                    previous.organizationId,
+                  ),
+                  eq(guestResponsePrivateFeedback.body, previous.text!),
+                ),
+              )
+              .returning({ responseId: guestResponsePrivateFeedback.responseId })
+            if (!purged[0]) throw new GuestCommandConflict()
+            await insertOutboxRow(tx, fact)
+            return 'applied' as const
+          })
+          .catch((error: unknown) => {
+            if (error instanceof GuestCommandConflict) return 'conflict' as const
+            throw error
+          })
         if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
@@ -207,7 +365,6 @@ export function createAtomicGuestResponseCommandStore(
               status: 'deleted',
               rating: null,
               categoryId: null,
-              responseText: null,
               responseConsent: false,
               textConsent: false,
               mediaConsent: false,
@@ -221,8 +378,8 @@ export function createAtomicGuestResponseCommandStore(
                 eq(guestResponses.organizationId, response.organizationId),
                 eq(guestResponses.propertyId, response.propertyId),
                 eq(guestResponses.portalId, response.portalId),
-                eq(guestResponses.sessionId, response.sessionId),
                 eq(guestResponses.id, response.id),
+                sessionBindingExists(response, response.deletedAt ?? new Date(0)),
                 eq(guestResponses.correctionCount, response.correctionCount),
                 response.ratingSourceEventId
                   ? eq(guestResponses.ratingSourceEventId, response.ratingSourceEventId)
@@ -240,6 +397,14 @@ export function createAtomicGuestResponseCommandStore(
           if (!deleted[0]) {
             return { outcome: 'conflict' as const, objectKeys: [] as const }
           }
+          await tx
+            .delete(guestResponsePrivateFeedback)
+            .where(
+              and(
+                eq(guestResponsePrivateFeedback.responseId, response.id),
+                eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
+              ),
+            )
           const media = await tx
             .update(guestResponseMedia)
             .set({

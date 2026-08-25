@@ -324,6 +324,45 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
 }
 
 describe('guest response lifecycle', () => {
+  it('pins exact session expiry separately from the 24-month fact deadline', async () => {
+    const { lifecycle, repo } = harness()
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionExpiresAt = new Date('2026-08-10T12:00:00.000Z')
+
+    await lifecycle.submit(
+      scope,
+      sessionId,
+      { rating: 5, responseConsent: true },
+      3,
+      sessionExpiresAt,
+    )
+
+    expect(repo.responses[0]).toMatchObject({
+      sessionId,
+      sessionExpiresAt,
+      retentionDeadline: new Date('2028-08-09T12:00:00.000Z'),
+    })
+  })
+
+  it('rejects expired or overlong recovery bindings', async () => {
+    const { lifecycle } = harness()
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    for (const expiresAt of [
+      new Date('2026-08-09T12:00:00.000Z'),
+      new Date('2026-08-10T12:00:00.001Z'),
+    ]) {
+      await expect(
+        lifecycle.submit(
+          scope,
+          sessionId,
+          { rating: 5, responseConsent: true },
+          3,
+          expiresAt,
+        ),
+      ).rejects.toMatchObject({ code: 'response_unavailable' })
+    }
+  })
+
   it('submits, corrects once, and withdraws only for the same session', async () => {
     const { lifecycle } = harness()
     const submitted = await lifecycle.submit(
@@ -543,6 +582,31 @@ describe('guest response lifecycle — submitted facts', () => {
 
     expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(1)
     expect(events.capturedByTag('guest.feedback.submitted')).toHaveLength(0)
+  })
+
+  it('renews recovery for 24 hours from late feedback without duplicating it', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, events, repo } = harness(() => now)
+    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    now = new Date('2026-08-10T11:00:00.000Z')
+
+    await lifecycle.addPrivateFeedback(scope, sessionId, {
+      text: 'Late but still within the original recovery session.',
+      textConsent: true,
+    })
+    expect(repo.responses[0]!.sessionExpiresAt).toEqual(
+      new Date('2026-08-11T11:00:00.000Z'),
+    )
+    await expect(
+      lifecycle.addPrivateFeedback(scope, sessionId, {
+        text: 'A replay must not overwrite the original.',
+        textConsent: true,
+      }),
+    ).resolves.toMatchObject({ hasPrivateFeedback: true })
+    expect(repo.responses[0]!.text).toBe(
+      'Late but still within the original recovery session.',
+    )
+    expect(events.capturedByTag('guest.feedback.submitted')).toHaveLength(1)
   })
 
   it('rejects feedback without the required private rating', async () => {

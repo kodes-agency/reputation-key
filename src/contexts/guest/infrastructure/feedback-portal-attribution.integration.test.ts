@@ -15,7 +15,13 @@ const LEGACY_FEEDBACK = feedbackId('b7200000-0000-4000-8000-000000000031')
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: ['guest_responses', 'feedback', 'portals', 'properties'],
+  tables: [
+    'guest_response_private_feedback',
+    'guest_responses',
+    'feedback',
+    'portals',
+    'properties',
+  ],
 })
 
 async function seedPropertyAndPortal(): Promise<void> {
@@ -40,10 +46,18 @@ describe('Guest feedback Portal attribution', () => {
     await seedPropertyAndPortal()
     await getPool().query(
       `INSERT INTO guest_responses
-         (id, organization_id, property_id, portal_id, session_id, status,
+         (id, organization_id, property_id, portal_id, status,
           response_consent, text_consent, retention_deadline)
-       VALUES ($1, $2, $3, $4, gen_random_uuid(), 'submitted', true, true,
-               NOW() + INTERVAL '30 days')`,
+       VALUES ($1, $2, $3, $4, 'submitted', true, true,
+               NOW() + INTERVAL '24 months')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+    )
+    await getPool().query(
+      `INSERT INTO guest_response_private_feedback
+         (response_id, organization_id, property_id, portal_id, body,
+          submitted_at, expires_at)
+       VALUES ($1, $2, $3, $4, 'content is not returned', NOW(),
+               NOW() + INTERVAL '90 days')`,
       [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
     )
 
@@ -54,14 +68,44 @@ describe('Guest feedback Portal attribution', () => {
     await seedPropertyAndPortal()
     await getPool().query(
       `INSERT INTO guest_responses
-         (id, organization_id, property_id, portal_id, session_id, status,
+         (id, organization_id, property_id, portal_id, status,
           response_consent, text_consent, retention_deadline)
-       VALUES ($1, $2, $3, $4, gen_random_uuid(), 'submitted', true, true,
-               NOW() + INTERVAL '30 days')`,
+       VALUES ($1, $2, $3, $4, 'submitted', true, true,
+               NOW() + INTERVAL '24 months')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+    )
+    await getPool().query(
+      `INSERT INTO guest_response_private_feedback
+         (response_id, organization_id, property_id, portal_id, body,
+          submitted_at, expires_at)
+       VALUES ($1, $2, $3, $4, 'content is not returned', NOW(),
+               NOW() + INTERVAL '90 days')`,
       [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
     )
 
     await expect(lookup()(ORG_B, RESPONSE)).resolves.toBeNull()
+  })
+
+  it('does not route a delayed notification after canonical text expiry', async () => {
+    await seedPropertyAndPortal()
+    await getPool().query(
+      `INSERT INTO guest_responses
+         (id, organization_id, property_id, portal_id, status,
+          response_consent, text_consent, retention_deadline)
+       VALUES ($1, $2, $3, $4, 'submitted', true, true,
+               NOW() + INTERVAL '24 months')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+    )
+    await getPool().query(
+      `INSERT INTO guest_response_private_feedback
+         (response_id, organization_id, property_id, portal_id, body,
+          submitted_at, expires_at, created_at)
+       VALUES ($1, $2, $3, $4, 'expired content', NOW() - INTERVAL '91 days',
+               NOW() - INTERVAL '1 day', NOW() - INTERVAL '91 days')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+    )
+
+    await expect(lookup()(ORG_A, RESPONSE)).resolves.toBeNull()
   })
 
   it('preserves Portal attribution for a reconciled legacy feedback source', async () => {

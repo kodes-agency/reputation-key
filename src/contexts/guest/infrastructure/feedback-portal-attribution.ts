@@ -1,7 +1,8 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   feedback as legacyFeedback,
+  guestResponsePrivateFeedback,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import {
@@ -22,15 +23,24 @@ export type FeedbackPortalAttributionLookup = (
  * Canonical responses win; legacy feedback remains readable during cutover.
  */
 export const createFeedbackPortalAttributionLookup =
-  (db: Database): FeedbackPortalAttributionLookup =>
+  (db: Database, clock: () => Date = () => new Date()): FeedbackPortalAttributionLookup =>
   async (organizationId, sourceId) => {
     const canonical = await db
       .select({ portalId: guestResponses.portalId })
       .from(guestResponses)
+      .innerJoin(
+        guestResponsePrivateFeedback,
+        and(
+          eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+          eq(guestResponsePrivateFeedback.organizationId, guestResponses.organizationId),
+          gt(guestResponsePrivateFeedback.expiresAt, clock()),
+        ),
+      )
       .where(
         and(
           eq(guestResponses.organizationId, unbrand(organizationId)),
           eq(guestResponses.id, unbrand(sourceId)),
+          eq(guestResponses.textConsent, true),
           isNull(guestResponses.deletedAt),
         ),
       )

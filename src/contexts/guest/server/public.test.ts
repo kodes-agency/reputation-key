@@ -198,6 +198,18 @@ describe('guest response server-fn gates', () => {
     expect(feedback).toContain('responseLifecycle.addPrivateFeedback')
   })
 
+  it('renews recovery only to each committed withdrawal deadline', () => {
+    const rating = slice('submitGuestResponseFn')
+    expect(rating).toContain('response.responseWithdrawalDeadline')
+    expect(rating).toContain('guestSessions.renewUntil')
+    expect(rating).toContain("setResponseHeader('Set-Cookie'")
+
+    const feedback = slice('submitPrivateFeedbackFn')
+    expect(feedback).toContain('response.feedbackWithdrawalDeadline')
+    expect(feedback).toContain('guestSessions.renewUntil')
+    expect(feedback).toContain("setResponseHeader('Set-Cookie'")
+  })
+
   it('reveals the Google action only after this signed session has a rating', () => {
     const fn = slice('selectGoogleReviewFn')
     const receipt = fn.indexOf('responseLifecycle.getState')

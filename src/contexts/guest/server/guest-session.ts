@@ -23,6 +23,14 @@ export type GuestSessionManager = Readonly<{
   issue(
     scope: GuestSessionScope,
   ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
+  /** Re-sign the same recovery identity only until an existing domain deadline. */
+  renewUntil(
+    session: GuestSession,
+    expiresAt: Date,
+  ): Readonly<{
+    session: GuestSession
+    cookies: readonly [string, string, string]
+  }> | null
   verify(cookieHeader: string, scope: GuestSessionScope): GuestSession | null
   verifyCsrf(session: GuestSession, presented: string): boolean
 }>
@@ -66,6 +74,37 @@ export function createGuestSessionManager(
   const randomId = input.randomId ?? randomUUID
   const sign = (payload: string) =>
     createHmac('sha256', input.secret).update(payload).digest('base64url')
+  const serialize = (session: GuestSession) => {
+    const payload: SignedSessionPayload = {
+      v: 1,
+      sid: session.sessionId,
+      csrf: session.csrfNonce,
+      org: session.organizationId,
+      property: session.propertyId,
+      portal: session.portalId,
+      issued: session.issuedAt.toISOString(),
+      expires: session.expiresAt.toISOString(),
+    }
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
+    const signedValue = `${encoded}.${sign(encoded)}`
+    return {
+      session,
+      cookies: [
+        buildSetCookieHeader({ ...cookieAttrs, value: signedValue }),
+        buildSetCookieHeader({
+          ...cookieAttrs,
+          value: signedValue,
+          path: '/_serverFn/',
+        }),
+        buildSetCookieHeader({
+          ...cookieAttrs,
+          value: signedValue,
+          path: '/api/public/p/',
+        }),
+      ] as const,
+    }
+  }
 
   return {
     issue: (scope) => {
@@ -78,38 +117,18 @@ export function createGuestSessionManager(
         tokenVersion: 0,
         now: input.clock(),
       })
-      const payload: SignedSessionPayload = {
-        v: 1,
-        sid: session.sessionId,
-        csrf: session.csrfNonce,
-        org: session.organizationId,
-        property: session.propertyId,
-        portal: session.portalId,
-        issued: session.issuedAt.toISOString(),
-        expires: session.expiresAt.toISOString(),
+      return serialize(session)
+    },
+
+    renewUntil: (session, expiresAt) => {
+      const now = input.clock()
+      if (
+        expiresAt.getTime() <= now.getTime() ||
+        expiresAt.getTime() - now.getTime() > 24 * 60 * 60 * 1000
+      ) {
+        return null
       }
-      const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
-      const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
-      const signedValue = `${encoded}.${sign(encoded)}`
-      return {
-        session,
-        cookies: [
-          buildSetCookieHeader({
-            ...cookieAttrs,
-            value: signedValue,
-          }),
-          buildSetCookieHeader({
-            ...cookieAttrs,
-            value: signedValue,
-            path: '/_serverFn/',
-          }),
-          buildSetCookieHeader({
-            ...cookieAttrs,
-            value: signedValue,
-            path: '/api/public/p/',
-          }),
-        ],
-      }
+      return serialize({ ...session, issuedAt: now, expiresAt })
     },
 
     verify: (cookieHeader, scope) => {

@@ -52,43 +52,44 @@
 
 ### 4. User-Authored Content
 
-| Field                   | Table                           | Purpose                    | Retention             | Deletion                                          |
-| ----------------------- | ------------------------------- | -------------------------- | --------------------- | ------------------------------------------------- |
-| Reply text              | `replies.text`                  | Published to Google        | Published or rejected | Property archive/purge                            |
-| Reply rejection reason  | `replies.rejectionReason`       | Audit                      | 90 days               | Hard delete                                       |
-| Inbox note text         | `inbox_notes.text`              | Internal triage notes      | Property lifetime     | Property archive/purge                            |
-| Notification title/body | `notifications.title/body`      | In-app display             | 90 days               | Hard delete                                       |
-| Legacy feedback comment | `feedback.comment`              | Read-only migration source | Property lifetime     | Property archive/purge                            |
-| Private feedback text   | `guest_responses.response_text` | Manager feedback workflow  | 90 days maximum       | Immediate guest withdrawal or retention redaction |
-| Activity description    | `activity_log`                  | Audit trail                | 90 days               | Hard delete                                       |
+| Field                   | Table                                  | Purpose                    | Retention             | Deletion                                         |
+| ----------------------- | -------------------------------------- | -------------------------- | --------------------- | ------------------------------------------------ |
+| Reply text              | `replies.text`                         | Published to Google        | Published or rejected | Property archive/purge                           |
+| Reply rejection reason  | `replies.rejectionReason`              | Audit                      | 90 days               | Hard delete                                      |
+| Inbox note text         | `inbox_notes.text`                     | Internal triage notes      | Property lifetime     | Property archive/purge                           |
+| Notification title/body | `notifications.title/body`             | In-app display             | 90 days               | Hard delete                                      |
+| Legacy feedback comment | `feedback.comment`                     | Read-only migration source | Property lifetime     | Property archive/purge                           |
+| Private feedback text   | `guest_response_private_feedback.body` | Manager feedback workflow  | 90 days maximum       | Immediate guest withdrawal or retention deletion |
+| Activity description    | `activity_log`                         | Audit trail                | 90 days               | Hard delete                                      |
 
 ### 5. Pseudonymous Identifiers
 
-| Field                         | Table                                          | Purpose                     | Hashing                    | Retention                                                                                      |
-| ----------------------------- | ---------------------------------------------- | --------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
-| Guest IP hash                 | `scan_events.ip_hash`                          | Abuse prevention            | Daily rotating keyed hash  | 7 days (then redacted)                                                                         |
-| Guest session ID              | `scan_events.session_id`                       | Visit integrity             | Random UUID                | 24 hours (then redacted)                                                                       |
-| Rating IP hash                | `ratings.ip_hash`                              | Legacy dedup                | Daily rotating keyed hash  | 7 days (then redacted)                                                                         |
-| Rating session ID             | `ratings.session_id`                           | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                       |
-| Feedback IP hash              | `feedback.ip_hash`                             | Legacy abuse prevention     | Daily rotating keyed hash  | 7 days (then redacted)                                                                         |
-| Feedback session ID           | `feedback.session_id`                          | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                       |
-| Destination action session ID | `guest_destination_action_receipts.session_id` | First-action integrity      | Random signed-session UUID | Until signed-session expiry (max 24 hours; row deleted)                                        |
-| Guest Response session ID     | `guest_responses.session_id`                   | Response recovery/integrity | Random signed-session UUID | Currently canonical-row lifecycle; class separation to a 24-hour binding is required by GST-01 |
+| Field                         | Table                                          | Purpose                     | Hashing                    | Retention                                                                                   |
+| ----------------------------- | ---------------------------------------------- | --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
+| Guest IP hash                 | `scan_events.ip_hash`                          | Abuse prevention            | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
+| Guest session ID              | `scan_events.session_id`                       | Visit integrity             | Random UUID                | 24 hours (then redacted)                                                                    |
+| Rating IP hash                | `ratings.ip_hash`                              | Legacy dedup                | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
+| Rating session ID             | `ratings.session_id`                           | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                    |
+| Feedback IP hash              | `feedback.ip_hash`                             | Legacy abuse prevention     | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
+| Feedback session ID           | `feedback.session_id`                          | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                    |
+| Destination action session ID | `guest_destination_action_receipts.session_id` | First-action integrity      | Random signed-session UUID | Until signed-session expiry (max 24 hours; row deleted)                                     |
+| Guest Response session ID     | `guest_response_session_bindings.session_id`   | Response recovery/integrity | Random signed-session UUID | Re-signed only to the committed rating/feedback withdrawal deadline (24 hours; row deleted) |
 
 **Note:** Raw guest IP addresses are never stored. Guest hashing uses the rotating `GUEST_SESSION_SALT` derivation; the resulting abuse pseudonym is scrubbed independently so the managerial visit/rating/feedback fact remains. Audit log IP addresses (`audit_logs.ip_address`) store the derived client IP for security audit — these are operator-accessible only.
 
 ### 6. Operational Metadata (non-PII)
 
-| Field                 | Table                                   | Purpose                                                                                         | Retention                                        |
-| --------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Outbox events         | `outbox_events`                         | Event delivery tracking                                                                         | 30 days (published), 7 days (unpublished errors) |
-| Consumer receipts     | `event_consumer_receipts`               | Idempotency                                                                                     | 30 days                                          |
-| Sync state            | `review_sync_state`                     | Incremental sync cursor                                                                         | Property lifetime                                |
-| Sync run history      | `review_sync_runs`                      | Operational audit                                                                               | 30 days                                          |
-| Webhook receipts      | `inbound_webhook_receipts`              | Dedup                                                                                           | 30 days                                          |
-| Digest batch evidence | `notification_digest_batches` / members | Exact email membership, idempotency and outcome (identifiers/digests only; no rendered content) | 90 days after terminal outcome                   |
-| Rollup watermarks     | `_rollup_watermarks`                    | Incremental refresh                                                                             | Permanent                                        |
-| Capability decisions  | (env vars)                              | Feature gating                                                                                  | Not persisted in DB                              |
+| Field                         | Table                                   | Purpose                                                                                         | Retention                                        |
+| ----------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Outbox events                 | `outbox_events`                         | Event delivery tracking                                                                         | 30 days (published), 7 days (unpublished errors) |
+| Consumer receipts             | `event_consumer_receipts`               | Idempotency                                                                                     | 30 days                                          |
+| Sync state                    | `review_sync_state`                     | Incremental sync cursor                                                                         | Property lifetime                                |
+| Sync run history              | `review_sync_runs`                      | Operational audit                                                                               | 30 days                                          |
+| Webhook receipts              | `inbound_webhook_receipts`              | Dedup                                                                                           | 30 days                                          |
+| Digest batch evidence         | `notification_digest_batches` / members | Exact email membership, idempotency and outcome (identifiers/digests only; no rendered content) | 90 days after terminal outcome                   |
+| Guest Response fact/tombstone | `guest_responses`                       | Rating lineage, correction integrity, managerial analytics                                      | 24 calendar months from initial submission       |
+| Rollup watermarks             | `_rollup_watermarks`                    | Incremental refresh                                                                             | Permanent                                        |
+| Capability decisions          | (env vars)                              | Feature gating                                                                                  | Not persisted in DB                              |
 
 ### 7. Cached Google API Responses
 

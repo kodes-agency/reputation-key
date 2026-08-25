@@ -260,17 +260,39 @@ describe('retention sweep job (BQC-1.6)', () => {
 })
 
 describe('retention rule registry (BQC-3.7)', () => {
-  it('redacts canonical private-feedback text at its row deadline', () => {
+  it('deletes separated private-feedback text at its exact deadline', () => {
     expect(
-      RETENTION_RULES.find((rule) => rule.subject === 'guest_responses.private_text'),
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_response_private_feedback.expired',
+      ),
+    ).toMatchObject({
+      table: 'guest_response_private_feedback',
+      keyColumns: ['response_id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+  })
+
+  it('deletes recovery authority and content-free facts on independent deadlines', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_response_session_bindings.expired',
+      ),
+    ).toMatchObject({
+      table: 'guest_response_session_bindings',
+      keyColumns: ['response_id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_responses.deidentified_fact',
+      ),
     ).toMatchObject({
       table: 'guest_responses',
       keyColumns: ['id'],
       tsColumn: 'retention_deadline',
       olderThanMs: 0,
-      extraWhere: 'response_text IS NOT NULL',
-      operation: 'redact',
-      redactColumns: ['response_text'],
     })
   })
 

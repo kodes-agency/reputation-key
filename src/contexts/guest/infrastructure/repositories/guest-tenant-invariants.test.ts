@@ -45,11 +45,11 @@ describe('guest tenant/property database invariants', () => {
     await expect(
       db.execute(sql`
         INSERT INTO guest_responses (
-          id, organization_id, property_id, portal_id, session_id, status,
+          id, organization_id, property_id, portal_id, status,
           response_consent, retention_deadline
         ) VALUES (
-          ${responseOne}, ${orgId}, ${propertyTwo}, ${portalOne}, ${sessionOne},
-          'submitted', true, now() + interval '90 days'
+          ${responseOne}, ${orgId}, ${propertyTwo}, ${portalOne},
+          'submitted', true, now() + interval '24 months'
         )
       `),
     ).rejects.toSatisfy(
@@ -63,11 +63,11 @@ describe('guest tenant/property database invariants', () => {
   it('rejects media whose property differs from its response and portal', async () => {
     await db.execute(sql`
       INSERT INTO guest_responses (
-        id, organization_id, property_id, portal_id, session_id, status,
+        id, organization_id, property_id, portal_id, status,
         response_consent, media_consent, retention_deadline
       ) VALUES (
-        ${responseOne}, ${orgId}, ${propertyOne}, ${portalOne}, ${sessionOne},
-        'submitted', true, true, now() + interval '90 days'
+        ${responseOne}, ${orgId}, ${propertyOne}, ${portalOne},
+        'submitted', true, true, now() + interval '24 months'
       )
     `)
     await expect(

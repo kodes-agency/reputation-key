@@ -47,16 +47,25 @@ export type GuestMediaError =
   | { code: 'media_not_issued' }
   | { code: 'processing_lease_mismatch' }
 
-const canOwnMedia = (response: GuestResponse) =>
+type SessionBoundResponse = GuestResponse &
+  Readonly<{ sessionId: string; sessionExpiresAt: Date }>
+
+const canOwnMedia = (
+  response: GuestResponse,
+  now: Date,
+): response is SessionBoundResponse =>
   (response.status === 'submitted' || response.status === 'corrected') &&
-  response.mediaConsent
+  response.mediaConsent &&
+  response.sessionId !== null &&
+  response.sessionExpiresAt !== null &&
+  now < response.sessionExpiresAt
 
 export function issueGuestMedia(
   response: GuestResponse,
   input: Readonly<{ id: string; contentType: string; sizeBytes: number }>,
   now: Date,
 ): GuestMedia | GuestMediaError {
-  if (!canOwnMedia(response)) return { code: 'response_not_processable' }
+  if (!canOwnMedia(response, now)) return { code: 'response_not_processable' }
   if (!(input.contentType in GUEST_MEDIA_TYPES)) {
     return { code: 'unsupported_media_type' }
   }
@@ -129,7 +138,7 @@ export function claimMediaForProcessing(
   lease: string,
   now: Date,
 ): GuestMedia | GuestMediaError {
-  if (!canOwnMedia(response) || response.id !== media.responseId) {
+  if (!canOwnMedia(response, now) || response.id !== media.responseId) {
     return { code: 'response_not_processable' }
   }
   if (media.status !== 'issued') return { code: 'media_not_issued' }
@@ -153,7 +162,7 @@ export function completeMediaProcessing(
   if (
     media.status !== 'processing' ||
     media.processingLease !== lease ||
-    !canOwnMedia(response) ||
+    !canOwnMedia(response, now) ||
     response.id !== media.responseId
   ) {
     return { media: markMediaForPurge(media, now), deleteObject: true }

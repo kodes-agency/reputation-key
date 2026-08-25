@@ -12,8 +12,9 @@ import type { Database } from '#/shared/db'
  *      indefinite-by-design (docs/operations/backup-and-lifecycle.md).
  *   3: + separately counted, seven-day guest abuse-pseudonym redaction.
  *   4: + 90-day terminal notification-digest batch evidence.
+ *   5: + class-separated Guest recovery, private-text, and 24-month fact expiry.
  */
-const RETENTION_POLICY_VERSION = 4
+const RETENTION_POLICY_VERSION = 5
 
 export async function openRetentionRun(
   db: Database,

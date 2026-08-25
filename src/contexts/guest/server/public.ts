@@ -251,12 +251,20 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
           bound.headers,
         )
         try {
-          return await bound.useCases.responseLifecycle.submit(
+          const response = await bound.useCases.responseLifecycle.submit(
             bound.scope,
             bound.session.sessionId,
             data,
             bound.portal.reviewGateway.privateFeedbackThreshold,
           )
+          if (response.responseWithdrawalDeadline) {
+            const renewed = bound.useCases.guestSessions.renewUntil(
+              bound.session,
+              new Date(response.responseWithdrawalDeadline),
+            )
+            if (renewed) setResponseHeader('Set-Cookie', [...renewed.cookies])
+          }
+          return response
         } catch (error) {
           return lifecycleFailure(error)
         }
@@ -327,11 +335,19 @@ export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
           bound.headers,
         )
         try {
-          return await bound.useCases.responseLifecycle.addPrivateFeedback(
+          const response = await bound.useCases.responseLifecycle.addPrivateFeedback(
             bound.scope,
             bound.session.sessionId,
             data,
           )
+          if (response.feedbackWithdrawalDeadline) {
+            const renewed = bound.useCases.guestSessions.renewUntil(
+              bound.session,
+              new Date(response.feedbackWithdrawalDeadline),
+            )
+            if (renewed) setResponseHeader('Set-Cookie', [...renewed.cookies])
+          }
+          return response
         } catch (error) {
           return lifecycleFailure(error)
         }

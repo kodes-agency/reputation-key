@@ -1,20 +1,31 @@
-import { guestResponses } from '#/shared/db/schema/guest.schema'
+import {
+  guestResponsePrivateFeedback,
+  guestResponseSessionBindings,
+  guestResponses,
+} from '#/shared/db/schema/guest.schema'
 import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
 
 type ResponseRow = typeof guestResponses.$inferSelect
 type ResponseInsert = typeof guestResponses.$inferInsert
+type SessionBindingRow = typeof guestResponseSessionBindings.$inferSelect
+type PrivateFeedbackRow = typeof guestResponsePrivateFeedback.$inferSelect
 
-export function guestResponseFromRow(row: ResponseRow): GuestResponse {
+export function guestResponseFromRow(
+  row: ResponseRow,
+  binding: SessionBindingRow | null = null,
+  feedback: PrivateFeedbackRow | null = null,
+): GuestResponse {
   return {
     id: row.id,
     organizationId: row.organizationId,
     propertyId: row.propertyId,
     portalId: row.portalId,
-    sessionId: row.sessionId,
+    sessionId: binding?.sessionId ?? null,
+    sessionExpiresAt: binding?.expiresAt ?? null,
     status: row.status as GuestResponseStatus,
     rating: row.rating,
     category: row.categoryId,
-    text: row.responseText,
+    text: feedback?.body ?? null,
     responseConsent: row.responseConsent,
     textConsent: row.textConsent,
     mediaConsent: row.mediaConsent,
@@ -41,11 +52,9 @@ export function guestResponseToInsertRow(response: GuestResponse): ResponseInser
     organizationId: response.organizationId,
     propertyId: response.propertyId,
     portalId: response.portalId,
-    sessionId: response.sessionId,
     status: response.status,
     rating: response.rating,
     categoryId: response.category,
-    responseText: response.text,
     responseConsent: response.responseConsent,
     textConsent: response.textConsent,
     mediaConsent: response.mediaConsent,

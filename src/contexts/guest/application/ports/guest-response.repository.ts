@@ -23,6 +23,7 @@ export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
     sessionId: string,
+    asOf: Date,
   ): Promise<GuestResponse | null>
   findById(scope: GuestResponseScope, responseId: string): Promise<GuestResponse | null>
   /**

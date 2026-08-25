@@ -16,7 +16,9 @@ export interface GuestResponse {
   readonly organizationId: string
   readonly propertyId: string
   readonly portalId: string
-  readonly sessionId: string
+  /** Present only while the independent recovery binding is still retained. */
+  readonly sessionId: string | null
+  readonly sessionExpiresAt: Date | null
   readonly status: GuestResponseStatus
   readonly rating: number | null
   readonly category: string | null
@@ -65,6 +67,8 @@ export const MIN_RATING = 1
 const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 export const DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
 export const DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS = 24 * 60 * 60 * 1000
+export const DEFAULT_RESPONSE_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
+export const PRIVATE_FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
 export function createResponse(params: {
   id: string
@@ -72,6 +76,7 @@ export function createResponse(params: {
   propertyId: string
   portalId: string
   sessionId: string
+  sessionExpiresAt: Date
   retentionDeadline: Date
   privateFeedbackThreshold?: number | null
 }): GuestResponse {
@@ -81,6 +86,7 @@ export function createResponse(params: {
     propertyId: params.propertyId,
     portalId: params.portalId,
     sessionId: params.sessionId,
+    sessionExpiresAt: params.sessionExpiresAt,
     status: 'pending',
     rating: null,
     category: null,
@@ -263,6 +269,7 @@ export function submitResponse(
     contactConsent: params.contactConsent ?? false,
     contactDetails: params.contactDetails ?? null,
     submittedAt: now,
+    feedbackSubmittedAt: text ? now : null,
   }
 }
 

@@ -18,6 +18,7 @@ const response = submitResponse(
     propertyId: '00000000-0000-4000-8000-000000000001',
     portalId: '00000000-0000-4000-8000-000000000002',
     sessionId: '00000000-0000-4000-8000-000000000003',
+    sessionExpiresAt: new Date('2026-08-10T12:00:00Z'),
     retentionDeadline: new Date('2026-11-07T12:00:00Z'),
   }),
   { rating: 5, responseConsent: true, mediaConsent: true },

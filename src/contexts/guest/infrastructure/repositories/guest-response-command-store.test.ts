@@ -20,6 +20,9 @@ import {
 import type { GuestResponse } from '../../domain/guest-response'
 import type { GuestSubmissionFact } from '../../application/ports/guest-response-command-store.port'
 import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
+import { createGuestResponseRepository } from './guest-response.repository'
+import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 
 const db = getDb()
 const ORG = organizationId('org-guest-response-command-store')
@@ -36,6 +39,7 @@ function response(): GuestResponse {
     propertyId: PROPERTY,
     portalId: PORTAL,
     sessionId: SESSION,
+    sessionExpiresAt: new Date('2026-08-26T12:00:00.000Z'),
     status: 'submitted',
     rating: 2,
     category: null,
@@ -55,7 +59,7 @@ function response(): GuestResponse {
     feedbackWithdrawnAt: null,
     moderatedAt: null,
     deletedAt: null,
-    retentionDeadline: new Date('2026-11-23T12:00:00.000Z'),
+    retentionDeadline: new Date('2028-08-25T12:00:00.000Z'),
     schemaVersion: 1,
   }
 }
@@ -146,6 +150,24 @@ describe.sequential('atomic Guest response submission', () => {
       rating_source_event_id: submissionFacts[0].eventId,
       feedback_source_event_id: submissionFacts[1].eventId,
     })
+    const separated = await db.execute(sql`
+      SELECT b.session_id, b.expires_at AS session_expires_at,
+             f.body, f.expires_at AS feedback_expires_at
+      FROM guest_response_session_bindings b
+      JOIN guest_response_private_feedback f ON f.response_id = b.response_id
+      WHERE b.response_id = ${RESPONSE}
+    `)
+    expect(separated.rows).toHaveLength(1)
+    expect(separated.rows[0]).toMatchObject({
+      session_id: SESSION,
+      body: 'Please contact the front desk.',
+    })
+    expect(new Date(String(separated.rows[0]!.session_expires_at))).toEqual(
+      response().sessionExpiresAt,
+    )
+    expect(new Date(String(separated.rows[0]!.feedback_expires_at))).toEqual(
+      new Date('2026-11-23T12:00:00.000Z'),
+    )
     expect(outbox.rows.map((row) => row.event_type)).toEqual([
       'guest.feedback.submitted',
       'guest.rating.submitted',
@@ -190,6 +212,75 @@ describe.sequential('atomic Guest response submission', () => {
     expect(events.capturedEvents).toHaveLength(0)
   })
 
+  it('denies stale reads and expires each storage class independently', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    await store.commitSubmitted(response(), facts())
+    const scope = {
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+    }
+    const sessionExpiry = response().sessionExpiresAt!
+    const feedbackExpiry = new Date('2026-11-23T12:00:00.000Z')
+
+    await expect(
+      createGuestResponseRepository(db).findForSession(
+        scope,
+        SESSION,
+        new Date(sessionExpiry.getTime() - 1),
+      ),
+    ).resolves.toMatchObject({ sessionId: SESSION, text: response().text })
+    await expect(
+      createGuestResponseRepository(db).findForSession(scope, SESSION, sessionExpiry),
+    ).resolves.toBeNull()
+
+    await expect(
+      createGuestResponseRepository(
+        db,
+        () => new Date(feedbackExpiry.getTime() - 1),
+      ).findSnippetForOrg(ORG, RESPONSE),
+    ).resolves.toMatchObject({ comment: response().text, ratingValue: 2 })
+    await expect(
+      createGuestResponseRepository(db, () => feedbackExpiry).findSnippetForOrg(
+        ORG,
+        RESPONSE,
+      ),
+    ).resolves.toMatchObject({ comment: null, ratingValue: 2 })
+
+    const rule = (subject: string) => {
+      const found = RETENTION_RULES.find((candidate) => candidate.subject === subject)
+      if (!found) throw new Error(`Missing retention rule: ${subject}`)
+      return found
+    }
+    await expect(
+      executeRetentionRule(db, rule('guest_response_session_bindings.expired'), {
+        cutoff: sessionExpiry,
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 0 })
+    await expect(
+      executeRetentionRule(db, rule('guest_response_session_bindings.expired'), {
+        cutoff: new Date(sessionExpiry.getTime() + 1),
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 1 })
+    await expect(
+      executeRetentionRule(db, rule('guest_response_private_feedback.expired'), {
+        cutoff: new Date(feedbackExpiry.getTime() + 1),
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 1 })
+    expect(
+      (
+        await db.execute(sql`
+          SELECT count(*)::int AS count FROM guest_responses WHERE id = ${RESPONSE}
+        `)
+      ).rows,
+    ).toEqual([{ count: 1 }])
+    await expect(
+      executeRetentionRule(db, rule('guest_responses.deidentified_fact'), {
+        cutoff: new Date(response().retentionDeadline.getTime() + 1),
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 1 })
+  })
+
   it('adds private feedback atomically without consuming the rating correction', async () => {
     const events = createCapturingEventBus()
     const store = createAtomicGuestResponseCommandStore(db, events)
@@ -229,8 +320,11 @@ describe.sequential('atomic Guest response submission', () => {
     )
 
     const rows = await db.execute(sql`
-      SELECT response_text, feedback_source_event_id, correction_count
-      FROM guest_responses WHERE id = ${RESPONSE}
+      SELECT f.body AS response_text, r.feedback_source_event_id,
+             r.correction_count
+      FROM guest_responses r
+      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
+      WHERE r.id = ${RESPONSE}
     `)
     expect(rows.rows).toEqual([
       {
@@ -239,6 +333,51 @@ describe.sequential('atomic Guest response submission', () => {
         correction_count: 0,
       },
     ])
+  })
+
+  it('renews the separated recovery binding from a late feedback submission', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const [ratingFact] = facts()
+    const ratingOnly: GuestResponse = {
+      ...response(),
+      text: null,
+      textConsent: false,
+      feedbackSourceEventId: null,
+      feedbackSubmittedAt: null,
+    }
+    await store.commitSubmitted(ratingOnly, [ratingFact])
+    const feedbackAt = new Date('2026-08-26T11:00:00.000Z')
+    const renewedUntil = new Date('2026-08-27T11:00:00.000Z')
+    const fact = guestFeedbackSubmitted({
+      feedbackId: feedbackId(RESPONSE),
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      occurredAt: feedbackAt,
+    })
+
+    await expect(
+      store.commitFeedbackAdded(
+        {
+          ...ratingOnly,
+          ratingSourceEventId: ratingFact.eventId,
+          text: 'Late private note.',
+          textConsent: true,
+          feedbackSubmittedAt: feedbackAt,
+          sessionExpiresAt: renewedUntil,
+        },
+        fact,
+      ),
+    ).resolves.toBe('applied')
+
+    const rows = await db.execute(sql`
+      SELECT created_at, expires_at
+      FROM guest_response_session_bindings WHERE response_id = ${RESPONSE}
+    `)
+    expect(rows.rows).toHaveLength(1)
+    expect(new Date(String(rows.rows[0]!.created_at))).toEqual(feedbackAt)
+    expect(new Date(String(rows.rows[0]!.expires_at))).toEqual(renewedUntil)
   })
 
   it('purges private feedback and records its retraction without changing the rating', async () => {
@@ -275,10 +414,12 @@ describe.sequential('atomic Guest response submission', () => {
     ).resolves.toBe('conflict')
 
     const rows = await db.execute(sql`
-      SELECT status, rating, response_text, text_consent,
-             rating_source_event_id, feedback_source_event_id,
-             feedback_submitted_at, feedback_withdrawn_at
-      FROM guest_responses WHERE id = ${RESPONSE}
+      SELECT r.status, r.rating, f.body AS response_text, r.text_consent,
+             r.rating_source_event_id, r.feedback_source_event_id,
+             r.feedback_submitted_at, r.feedback_withdrawn_at
+      FROM guest_responses r
+      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
+      WHERE r.id = ${RESPONSE}
     `)
     expect(rows.rows).toHaveLength(1)
     expect(rows.rows[0]).toMatchObject({
@@ -361,8 +502,11 @@ describe.sequential('atomic Guest response submission', () => {
     ).resolves.toBe('conflict')
 
     const rows = await db.execute(sql`
-      SELECT rating, response_text, correction_count, feedback_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
+      SELECT r.rating, f.body AS response_text, r.correction_count,
+             r.feedback_source_event_id
+      FROM guest_responses r
+      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
+      WHERE r.id = ${RESPONSE}
     `)
     expect(rows.rows).toEqual([
       {
@@ -545,9 +689,11 @@ describe.sequential('atomic Guest response submission', () => {
       store.commitWithdrawn(withdrawn, [ratingRetraction, feedbackRetraction]),
     ).resolves.toEqual({ outcome: 'applied', objectKeys: [] })
     const rows = await db.execute(sql`
-      SELECT status, rating, response_text, rating_source_event_id,
-             feedback_source_event_id
-      FROM guest_responses WHERE id = ${RESPONSE}
+      SELECT r.status, r.rating, f.body AS response_text,
+             r.rating_source_event_id, r.feedback_source_event_id
+      FROM guest_responses r
+      LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
+      WHERE r.id = ${RESPONSE}
     `)
     expect(rows.rows).toEqual([
       {

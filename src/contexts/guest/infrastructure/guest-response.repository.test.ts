@@ -14,6 +14,8 @@ function selectDatabase(rows: readonly unknown[]) {
   const chain: Record<string, unknown> = {}
   let whereCondition: unknown
   chain.from = vi.fn(() => chain)
+  chain.innerJoin = vi.fn(() => chain)
+  chain.leftJoin = vi.fn(() => chain)
   chain.where = vi.fn((condition: unknown) => {
     whereCondition = condition
     return chain
@@ -31,34 +33,43 @@ function selectDatabase(rows: readonly unknown[]) {
 describe('createGuestResponseRepository', () => {
   it('maps a tenant-scoped response without inventing retained contact data', async () => {
     const submittedAt = new Date('2026-08-16T12:00:00.000Z')
+    const sessionExpiresAt = new Date('2026-08-17T12:00:00.000Z')
     const retentionDeadline = new Date('2026-09-15T12:00:00.000Z')
     const { db, chain } = selectDatabase([
       {
-        id: 'response-1',
-        ...scope,
-        sessionId: 'session-1',
-        status: 'corrected',
-        rating: 5,
-        categoryId: 'service',
-        responseText: 'Helpful staff',
-        responseConsent: true,
-        textConsent: true,
-        mediaConsent: false,
-        correctionCount: 9,
-        submittedAt,
-        correctedAt: submittedAt,
-        moderatedAt: null,
-        deletedAt: null,
-        retentionDeadline,
+        response: {
+          id: 'response-1',
+          ...scope,
+          status: 'corrected',
+          rating: 5,
+          categoryId: 'service',
+          responseConsent: true,
+          textConsent: true,
+          mediaConsent: false,
+          privateFeedbackThreshold: 3,
+          ratingSourceEventId: 'rating-event-1',
+          feedbackSourceEventId: 'feedback-event-1',
+          correctionCount: 9,
+          submittedAt,
+          correctedAt: submittedAt,
+          feedbackSubmittedAt: submittedAt,
+          feedbackWithdrawnAt: null,
+          moderatedAt: null,
+          deletedAt: null,
+          retentionDeadline,
+        },
+        binding: { sessionId: 'session-1', expiresAt: sessionExpiresAt },
+        feedback: { body: 'Helpful staff' },
       },
     ])
 
     await expect(
-      createGuestResponseRepository(db).findForSession(scope, 'session-1'),
+      createGuestResponseRepository(db).findForSession(scope, 'session-1', submittedAt),
     ).resolves.toEqual({
       id: 'response-1',
       ...scope,
       sessionId: 'session-1',
+      sessionExpiresAt,
       status: 'corrected',
       rating: 5,
       category: 'service',
@@ -66,11 +77,16 @@ describe('createGuestResponseRepository', () => {
       responseConsent: true,
       textConsent: true,
       mediaConsent: false,
+      privateFeedbackThreshold: 3,
+      ratingSourceEventId: 'rating-event-1',
+      feedbackSourceEventId: 'feedback-event-1',
       contactConsent: false,
       contactDetails: null,
       correctionCount: 0,
       submittedAt,
       correctedAt: submittedAt,
+      feedbackSubmittedAt: submittedAt,
+      feedbackWithdrawnAt: null,
       moderatedAt: null,
       deletedAt: null,
       retentionDeadline,
