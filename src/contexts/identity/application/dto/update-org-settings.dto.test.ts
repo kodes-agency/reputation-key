@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import { updateOrgSettingsSchema } from './update-org-settings.dto'
 
 const identityUpdate = {
@@ -18,6 +19,6 @@ describe('updateOrgSettingsSchema beta contract', () => {
         ...identityUpdate,
         billingCompanyName: 'Meridian Holdings',
       }),
-    ).toThrow()
+    ).toThrow(ZodError)
   })
 })

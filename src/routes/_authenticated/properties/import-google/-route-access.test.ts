@@ -11,6 +11,13 @@ describe('requireGoogleImportRole', () => {
   )
 
   it('redirects Staff before an import detail route can load', () => {
-    expect(() => requireGoogleImportRole('Staff')).toThrow()
+    let thrown: unknown
+    try {
+      requireGoogleImportRole('Staff')
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toMatchObject({ options: { to: '/properties' } })
   })
 })

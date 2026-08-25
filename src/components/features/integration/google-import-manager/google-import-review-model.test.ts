@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import {
   applyBulkTimezone,
@@ -67,7 +68,7 @@ describe('Google import review model', () => {
     const draft = createImportReviewDraft([createCandidate, relinkCandidate], 'UTC')
     draft.items[0] = { ...draft.items[0]!, countryCode: '', name: '' }
 
-    expect(() => buildConfirmedImportItems(draft)).toThrow()
+    expect(() => buildConfirmedImportItems(draft)).toThrow(ZodError)
   })
 
   it('applies a bulk timezone without erasing a later per-row override', () => {
