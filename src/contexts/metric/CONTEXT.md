@@ -8,7 +8,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 - **MetricKey** — Enum of known metric identifiers: `portal.scan`, `portal.rating`, `portal.feedback`, `portal.review_link_click`, `property.review`.
 - **MetricReading** — A single raw metric data point. Has `metricKey`, `value`, `organizationId`, `propertyId`, optional `portalId`, optional `groupId`, `occurredAt`.
-- **MetricPublicApi** — Application-level API for cross-context consumption. Provides `queryAggregate` for aggregated queries (sum, count, max).
+- **MetricPublicApi** — Application-level API for cross-context consumption. Provides the legacy `queryAggregate` and the version-pinned `queryGoalMetric` governed read.
 
 ## Relationships
 
@@ -19,6 +19,10 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 - Only built-in metric keys are accepted. Unknown keys are rejected with `unknown_metric_key` error.
 - Every metric reading emits a `metric.recorded` event.
+- Monthly Goal reads pin one immutable definition-version ID, one tenant-owned Property/Portal Group/Portal subject, and a half-open property-local period. Mutable metric keys never select source rows.
+- A zero count is eligible only after the 24-hour late-arrival window and exact durable proof that every relevant Guest fact has an applied/duplicate `metric.guest-analytics` receipt, the expected projection/correction, no quarantine, and correct event-time attribution. A latest-seen timestamp is not completeness proof.
+- Rating averages are weighted from eligible samples and require ten ratings. Missing or undersampled averages are never converted to zero.
+- `portal.qualified_scan` stays explicitly unavailable until signed Access Artifact provenance has a server-verified producer. The client-provided `qr`/`nfc`/`direct` label is not qualification evidence.
 
 ## Events produced
 

@@ -167,6 +167,9 @@ function createFakeDeps() {
 
   const metricApi: MetricPublicApi = {
     queryAggregate: async () => aggregateResponse,
+    queryGoalMetric: async () => {
+      throw new Error('canonical GoalMetric read is not used by the legacy Goal job')
+    },
   }
 
   const events: EventBus = {

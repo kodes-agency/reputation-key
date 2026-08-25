@@ -3,7 +3,10 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { MetricReadingsQuery } from '../../application/ports/metric.repository'
+import type {
+  GoalMetricAggregateQuery,
+  MetricReadingsQuery,
+} from '../../application/ports/metric.repository'
 import { createMetricRepository } from './metric.repository'
 
 const ORG_ID = organizationId('org-metricrepo-0000-0000-0000-000000000001')
@@ -12,6 +15,8 @@ const NOW = new Date('2026-08-08T12:00:00Z')
 const PROPERTY_REVIEW_VERSION = '11111111-1111-4111-8111-111111111205'
 const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 const CONTENT_REVIEW_VERSION = '11111111-1111-4111-8111-111111111101'
+const RATING_COUNT_VERSION = '11111111-1111-4111-8111-111111111302'
+const RATING_AVERAGE_VERSION = '11111111-1111-4111-8111-111111111303'
 
 let pool: Pool
 let nextReading = 1
@@ -26,6 +31,20 @@ const query = (
   groupId: null,
   metricKey,
   consumer,
+})
+
+const goalQuery = (
+  definitionVersionId: string,
+  expectedMetricKey: GoalMetricAggregateQuery['expectedMetricKey'],
+): GoalMetricAggregateQuery => ({
+  organizationId: ORG_ID,
+  propertyId: PROP_ID,
+  definitionVersionId,
+  expectedMetricKey,
+  allowedSourcePolicies: ['first_party_guest_gateway_metric'],
+  subject: { kind: 'property', propertyId: PROP_ID },
+  periodStart: new Date('2026-08-08T00:00:00.000Z'),
+  periodEnd: new Date('2026-08-09T00:00:00.000Z'),
 })
 
 async function insertReading(
@@ -215,6 +234,94 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
       available: false,
       sampleCount: 0,
       minimumSample: 1,
+    })
+  })
+
+  it('pins Goal reads to one immutable version and a half-open period', async () => {
+    await insertReading({
+      versionId: RATING_COUNT_VERSION,
+      metricKey: 'portal.rating_count',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 1,
+    })
+    await pool.query(
+      `INSERT INTO metric_readings (
+         id, organization_id, property_id, metric_key, value, recorded_at,
+         definition_version_id, source_event_id, source_policy, exact_value,
+         sample_count, attribution_quality, event_at, property_local_date,
+         data_quality, retention_class
+       ) VALUES (
+         '4f000000-0000-4000-8000-000000000301', $1, $2,
+         'portal.rating_count', 1, $3, $4, 'period-end-source',
+         'first_party_guest_gateway_metric', 1, 1, 'exact', $3,
+         '2026-08-09', 'exact', 'guest_gateway_24_month'
+       )`,
+      [ORG_ID, PROP_ID, new Date('2026-08-09T00:00:00.000Z'), RATING_COUNT_VERSION],
+    )
+    const repository = createMetricRepository(getDb(), () => NOW)
+
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_COUNT_VERSION, 'portal.rating_count'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 1,
+      weightedSum: 1,
+      sampleCount: 1,
+      readingCount: 1,
+      invalidDefinitionCount: 0,
+      invalidSourceCount: 0,
+    })
+  })
+
+  it('weights averages by eligible samples and excludes retracted facts', async () => {
+    const first = await insertReading({
+      versionId: RATING_AVERAGE_VERSION,
+      metricKey: 'portal.rating_average',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 5,
+      sampleCount: 2,
+    })
+    await insertReading({
+      versionId: RATING_AVERAGE_VERSION,
+      metricKey: 'portal.rating_average',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 3,
+      sampleCount: 1,
+    })
+    const repository = createMetricRepository(getDb(), () => NOW)
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 8,
+      weightedSum: 13,
+      sampleCount: 3,
+      readingCount: 2,
+    })
+
+    await pool.query(
+      `INSERT INTO metric_corrections (
+         id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         exact_delta, replacement_value, event_at
+       ) VALUES (
+         '4f000000-0000-4000-8000-000000000302', $1,
+         'goal-reader-retraction', 'retract', 'guest_fact_retracted',
+         'system', 'guest.gateway', NULL, NULL, $2
+       )`,
+      [first, NOW],
+    )
+
+    await expect(
+      repository.queryGoalAggregate(
+        goalQuery(RATING_AVERAGE_VERSION, 'portal.rating_average'),
+      ),
+    ).resolves.toMatchObject({
+      sum: 3,
+      weightedSum: 3,
+      sampleCount: 1,
+      readingCount: 1,
     })
   })
 })

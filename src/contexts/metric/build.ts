@@ -13,6 +13,7 @@ import type { MetricPublicApi } from './application/public-api'
 import { createMetricRepository } from './infrastructure/repositories/metric.repository'
 import { createMetricRegistryRepository } from './infrastructure/repositories/metric-registry.repository'
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
+import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal-metric-source-status'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, type RecordMetric } from './application/use-cases/record-metric'
 import { retractMetric } from './application/use-cases/retract-metric'
@@ -22,6 +23,7 @@ import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-c
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
 import { metricReadingId } from '#/shared/domain/ids'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
+import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -48,6 +50,30 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   const registry = createMetricRegistryRepository(input.db)
   // BQC-3.5: every metric state mutation + fact commits atomically here.
   const commandStore = createAtomicMetricCommandStore(input.db, input.events)
+  const readGoalMetric = queryGoalMetric({
+    metrics: metricRepo,
+    registry,
+    sourceStatus: createGoalMetricSourceStatus(input.db, input.portalGroupApi),
+    validateSubject: async (orgId, propertyIdParam, subject) => {
+      switch (subject.kind) {
+        case 'property':
+          return subject.propertyId === propertyIdParam
+        case 'portal_group':
+          return input.portalGroupApi.portalGroupBelongsToProperty(
+            orgId,
+            propertyIdParam,
+            subject.portalGroupId,
+          )
+        case 'portal': {
+          const context = await input.portalApi.resolvePortalContext(subject.portalId)
+          return (
+            context?.organizationId === orgId && context.propertyId === propertyIdParam
+          )
+        }
+      }
+    },
+    clock: input.clock,
+  })
 
   const record = recordMetric({
     commandStore,
@@ -107,6 +133,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
 
   const publicApi: MetricPublicApi = {
     queryAggregate: (query) => metricRepo.queryAggregate(query),
+    queryGoalMetric: readGoalMetric,
     getApprovedGoalVersion: async (definitionVersionId) => {
       const governed = await registry.findVersionById(definitionVersionId)
       if (

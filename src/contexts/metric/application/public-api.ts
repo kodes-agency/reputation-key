@@ -7,8 +7,13 @@ import type {
   MetricReadingsAggregate,
 } from './ports/metric.repository'
 import type { GovernedMetricVersion } from '../domain/metric-registry'
+import type {
+  GovernedGoalMetricQuery,
+  GovernedGoalMetricResult,
+} from './use-cases/query-goal-metric'
 
 export type { MetricReadingsQuery, MetricReadingsAggregate }
+export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
 
 /**
  * Application-level API for the Metric context.
@@ -25,6 +30,8 @@ export type MetricPublicApi = Readonly<{
    * Used by Goal context for progress reconciliation.
    */
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
+  /** Version-pinned, half-open monthly read with durable source completeness. */
+  queryGoalMetric: (query: GovernedGoalMetricQuery) => Promise<GovernedGoalMetricResult>
   /** Resolve one immutable, approved version for a governed Goal definition. */
   getApprovedGoalVersion?: (
     definitionVersionId: string,

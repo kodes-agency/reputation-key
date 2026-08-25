@@ -4,6 +4,7 @@ import type { Goal, GoalProgress } from '../../domain/types'
 import type {
   MetricReadingsQuery,
   MetricReadingsAggregate,
+  MetricPublicApi,
 } from '../../../metric/application/public-api'
 import type { GoalRepository } from '../ports/goal.repository'
 import {
@@ -29,6 +30,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 
 interface FakeMetricRepo {
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
+  queryGoalMetric: MetricPublicApi['queryGoalMetric']
   _setAggregate: (agg: MetricReadingsAggregate) => void
   _getQueries: () => MetricReadingsQuery[]
 }
@@ -149,6 +151,9 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fa
     queryAggregate: async (query: MetricReadingsQuery) => {
       queries.push(query)
       return aggregateResponse
+    },
+    queryGoalMetric: async () => {
+      throw new Error('canonical GoalMetric read is not used by the legacy Goal test')
     },
     _setAggregate: (agg: MetricReadingsAggregate) => {
       aggregateResponse = agg
