@@ -82,12 +82,3 @@ export function priorPeriodDates(
     priorEndDate: new Date(startDate),
   }
 }
-
-/** A rating drop is flagged when avg rating falls ≥ this vs the prior period.
- *  Module-private: the servable contract is isRatingDrop (BQC-5.5). */
-const RATING_DROP_THRESHOLD = 0.3
-
-/** Rating-drop flag. Guards the no-prior-data false positive (priorValue 0). */
-export function isRatingDrop(currentAvg: number, priorAvg: number): boolean {
-  return priorAvg > 0 && priorAvg - currentAvg >= RATING_DROP_THRESHOLD
-}

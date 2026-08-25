@@ -7,7 +7,7 @@ import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { AttentionSignals } from '../../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { isRatingDrop, priorPeriodDates } from '../utils'
+import { priorPeriodDates, ratingComparison } from '../utils'
 
 export type GetAttentionSignalsInput = Readonly<{
   organizationId: OrganizationId
@@ -64,7 +64,13 @@ export const getAttentionSignals =
       }),
     ])
 
-    const ratingDrop = isRatingDrop(kpis.avgRating.value, kpis.avgRating.priorValue)
+    const comparison = ratingComparison(
+      kpis.avgRating.value,
+      kpis.reviews.value,
+      kpis.avgRating.priorValue,
+      kpis.reviews.priorValue,
+    )
+    const ratingDrop = comparison !== null && comparison <= -0.3
 
     return {
       unanswered: counts.unanswered,

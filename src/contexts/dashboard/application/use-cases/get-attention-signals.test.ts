@@ -85,4 +85,27 @@ describe('getAttentionSignals', () => {
       needsAttention: 6,
     })
   })
+
+  it('withholds rating-drop attention below the ten-review comparison floor', async () => {
+    const repo = createInMemoryDashboardRepository()
+    repo.kpisOverride = {
+      reviews: { value: 9, priorValue: 10, trend: -10 },
+      avgRating: { value: 4, priorValue: 4.4, trend: -9 },
+      scans: { value: 100, priorValue: 100, trend: 0 },
+      feedback: { value: 20, priorValue: 20, trend: 0 },
+    }
+    const getSignals = getAttentionSignals({ repo, signals, clock: () => NOW })
+
+    const result = await getSignals({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      slaHours: 48,
+      startDate: new Date('2026-07-26T12:00:00.000Z'),
+      endDate: NOW,
+      timeRange: '30d',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(result).toMatchObject({ ratingDrop: false, needsAttention: 0 })
+  })
 })

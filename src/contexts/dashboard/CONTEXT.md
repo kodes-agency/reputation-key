@@ -40,6 +40,7 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 - Read-only: no mutations, no events produced, no event handlers.
 - Single-Property dated presets are rolling Property-local calendar windows ending at the injected current instant. Their preceding comparison has the same number of Property-local days and ends exactly at the current-period start; DST does not shift the local wall-clock boundary. All Time is unbounded and non-comparative.
 - Fleet derives the same rolling and preceding boundaries independently for every row from that Property's trusted timezone. A Fleet average is weighted by eligible rating count, exposes its total sample, and its per-row comparison is an absolute star delta only when both periods have at least ten eligible ratings.
+- Property attention uses that same absolute-star comparison and requires at least ten eligible Google reviews in both periods before a rating decline can become a reason for attention.
 - Engagement funnel returns `null` when no portal is selected (property dashboard).
 - Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
 - Dashboard never queries other contexts' tables directly — only through facade ports.
