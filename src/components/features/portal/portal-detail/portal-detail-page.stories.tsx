@@ -7,7 +7,10 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
-import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import type {
+  getPortalAnalyticsFn,
+  PortalAnalyticsData,
+} from '#/contexts/dashboard/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
@@ -114,14 +117,43 @@ const finalizeUpload = async (_input: { data: { portalId: string; key: string } 
 
 // Empty analytics payload — exercises the "no data" rendering path of the
 // analytics tab (valid PortalAnalyticsData with zero KPIs / empty arrays).
-const getPortalAnalytics = mockServerFn(async (_input: unknown) => ({
-  kpis: {
-    scans: { value: 0, priorValue: 0, trend: null },
-    avgRating: { value: 0, priorValue: 0, trend: null },
-    feedback: { value: 0, priorValue: 0, trend: null },
-    reviewLinkClicks: { value: 0, priorValue: 0, trend: null },
+const analyticsComputedAt = new Date('2026-08-25T12:00:00.000Z')
+const emptyEvidence = {
+  definitionVersionId: 'portal-analytics-story-v1',
+  state: 'insufficient_data',
+  verifiedThrough: null,
+  latestActivity: null,
+  computedAt: analyticsComputedAt,
+  completeness: 1,
+  availabilityReason: 'no_eligible_sample',
+  correctionHead: null,
+  sampleCount: 0,
+} as const
+const emptyAnalytics: PortalAnalyticsData = {
+  period: {
+    startAt: new Date('2026-07-26T00:00:00.000Z'),
+    endAt: analyticsComputedAt,
+    timezone: 'Europe/Sofia',
   },
-  engagementFunnel: { scans: 0, ratings: 0, reviewLinkClicks: 0 },
+  kpis: {
+    scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    avgRating: {
+      value: null,
+      priorValue: null,
+      comparison: null,
+      sampleCount: 0,
+      priorSampleCount: 0,
+      evidence: emptyEvidence,
+    },
+    feedback: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    reviewLinkClicks: {
+      value: 0,
+      priorValue: null,
+      trend: null,
+      evidence: emptyEvidence,
+    },
+  },
+  engagementFunnel: null,
   ratingDistribution: [
     { stars: 1, count: 0 },
     { stars: 2, count: 0 },
@@ -130,7 +162,16 @@ const getPortalAnalytics = mockServerFn(async (_input: unknown) => ({
     { stars: 5, count: 0 },
   ],
   ratingTrend: [],
-})) as unknown as typeof getPortalAnalyticsFn
+  responseIntegrity: {
+    accepted: 0,
+    filteredAutomatically: 0,
+    underReview: 0,
+    total: 0,
+  },
+}
+const getPortalAnalytics = mockServerFn(
+  async (_input: unknown) => emptyAnalytics,
+) as unknown as typeof getPortalAnalyticsFn
 
 const baseArgs = {
   portal,

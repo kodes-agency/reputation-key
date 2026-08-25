@@ -18,8 +18,9 @@ export const Populated: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
     await userEvent.click(canvas.getByRole('button', { name: /add staff/i }))
+    const dialog = await within(document.body).findByRole('dialog')
     await expect(
-      await within(document.body).findByText(/add organization members/i),
+      within(dialog).getByRole('heading', { name: /add staff participation/i }),
     ).toBeInTheDocument()
   },
 }
