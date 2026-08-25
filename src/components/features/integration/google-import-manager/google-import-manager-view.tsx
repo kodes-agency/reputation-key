@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
 import { GoogleAccountSelector } from '#/components/features/integration/google-account-selector'
 import { ConnectGoogleButton } from '#/components/features/integration/connect-google-button'
@@ -24,7 +25,9 @@ import { discoveryErrorMessage } from './google-import-error-messages'
 import type { GoogleImportGetAuthUrl } from './google-import-manager-contract'
 import { StaleGoogleImportViewError } from './google-import-content-lifecycle'
 import { GoogleImportReviewForm } from './google-import-review-form'
+import type { ImportReviewDraft } from './google-import-review-model'
 import type { GoogleImportDiscoveryController } from './use-google-import-discovery-controller'
+import { useGoogleImportReviewForm } from './use-google-import-review-form'
 
 type Props = Readonly<{
   connections: readonly GoogleConnectionDto[]
@@ -32,7 +35,7 @@ type Props = Readonly<{
   discovery: GoogleImportDiscoveryController
   startPending: boolean
   startError: string | null
-  onSubmit: () => void
+  onSubmit: (draft: ImportReviewDraft) => void | Promise<void>
 }>
 
 function visibleError(error: unknown): string | null {
@@ -48,6 +51,13 @@ export function GoogleImportManagerView({
   startError,
   onSubmit,
 }: Props) {
+  const reviewForm = useGoogleImportReviewForm({
+    initialDraft: discovery.reviewDraft,
+    onSubmit,
+  })
+  useEffect(() => {
+    if (discovery.reviewDraft) reviewForm.reset(discovery.reviewDraft)
+  }, [discovery.reviewDraft, reviewForm])
   const hasActiveConnection = connections.some(
     (connection) => connection.status === 'active',
   )
@@ -147,10 +157,8 @@ export function GoogleImportManagerView({
         </Alert>
       ) : discovery.step === 'review' && discovery.reviewDraft ? (
         <GoogleImportReviewForm
-          draft={discovery.reviewDraft}
-          onChange={discovery.setReviewDraft}
+          form={reviewForm}
           onBack={() => discovery.setStep('discover')}
-          onSubmit={onSubmit}
           isSubmitting={startPending}
           submitError={startError}
         />

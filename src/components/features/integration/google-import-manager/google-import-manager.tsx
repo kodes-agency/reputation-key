@@ -6,6 +6,7 @@ import { GoogleImportProgressView } from './google-import-progress-view'
 import { GoogleImportRecoveryStatus } from './google-import-loading-rows'
 import { startErrorMessage } from './google-import-error-messages'
 import { buildConfirmedImportItems } from './google-import-review-model'
+import type { ImportReviewDraft } from './google-import-review-model'
 import { useGoogleImportDiscoveryController } from './use-google-import-discovery-controller'
 import { useGoogleImportProgressController } from './use-google-import-progress-controller'
 
@@ -134,12 +135,12 @@ export function GoogleImportManager({
       }
     })()
   }, [initialProgress, initialRequestId, openProgress, recoverRequest])
-  const submitImport = async () => {
-    if (!discovery.reviewDraft || startInFlight.current) return
+  const submitImport = async (reviewDraft: ImportReviewDraft) => {
+    if (startInFlight.current) return
     startInFlight.current = true
     const requestId = crypto.randomUUID()
     const submittedEpoch = discovery.lifecycle.epoch()
-    const submittedItems = [...buildConfirmedImportItems(discovery.reviewDraft)]
+    const submittedItems = [...buildConfirmedImportItems(reviewDraft)]
     ownedRequestId.current = requestId
     setStartPending(true)
     setStartError(null)
@@ -203,7 +204,7 @@ export function GoogleImportManager({
       discovery={discovery}
       startPending={startPending}
       startError={startError}
-      onSubmit={() => void submitImport()}
+      onSubmit={submitImport}
     />
   )
 }

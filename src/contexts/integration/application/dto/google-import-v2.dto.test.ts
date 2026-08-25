@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  googleImportReviewDraftSchema,
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
   startPropertyImportInputSchema,
@@ -30,6 +31,61 @@ function createRequest() {
 }
 
 describe('Google import v2 DTOs', () => {
+  it('validates review controls with field-addressable issues', () => {
+    const result = googleImportReviewDraftSchema.safeParse({
+      items: [
+        {
+          candidateId: 'candidate-a',
+          candidateRef: CANDIDATE_A,
+          action: 'create',
+          existingPropertyId: null,
+          name: '   ',
+          address: '',
+          countryCode: 'ZZ',
+          timezone: 'Mars/Olympus',
+          countryConfirmed: false,
+          timezoneConfirmed: false,
+          updateExistingProfile: true,
+        },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        ['items', 0, 'name'],
+        ['items', 0, 'countryCode'],
+        ['items', 0, 'timezone'],
+        ['items', 0, 'countryConfirmed'],
+        ['items', 0, 'timezoneConfirmed'],
+      ]),
+    )
+  })
+
+  it('requires only editable profile fields when reviewing a relink', () => {
+    const base = {
+      candidateId: 'candidate-a',
+      candidateRef: CANDIDATE_A,
+      action: 'relink' as const,
+      existingPropertyId: '00000000-0000-4000-8000-000000000002',
+      name: '',
+      address: '',
+      countryCode: '',
+      timezone: 'Europe/Sofia',
+      countryConfirmed: false,
+      timezoneConfirmed: true,
+      updateExistingProfile: false,
+    }
+
+    expect(googleImportReviewDraftSchema.safeParse({ items: [base] }).success).toBe(true)
+    expect(
+      googleImportReviewDraftSchema.safeParse({
+        items: [{ ...base, updateExistingProfile: true }],
+      }).success,
+    ).toBe(false)
+  })
+
   it('normalizes a confirmed create profile and preserves an explicit null address', () => {
     const result = startPropertyImportInputSchema.parse(createRequest())
 

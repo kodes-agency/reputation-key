@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react'
-import { useForm } from '@tanstack/react-form'
+import { useState } from 'react'
 import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -11,59 +10,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { ImportReviewDraft, ImportReviewItem } from './google-import-review-model'
-import {
-  applyBulkTimezone,
-  validateImportReviewDraft,
-} from './google-import-review-model'
+import { applyBulkTimezone } from './google-import-review-model'
 import { GoogleImportReviewItem } from './google-import-review-item'
 import { IMPORT_TIMEZONE_OPTIONS } from './google-import-review-options'
+import type { GoogleImportReviewFormApi } from './use-google-import-review-form'
 
 type Props = Readonly<{
-  draft: ImportReviewDraft
-  onChange: (draft: ImportReviewDraft) => void
+  form: GoogleImportReviewFormApi
   onBack: () => void
-  onSubmit: () => void
   isSubmitting: boolean
   submitError: string | null
 }>
 
 export function GoogleImportReviewForm({
-  draft,
-  onChange,
+  form,
   onBack,
-  onSubmit,
   isSubmitting,
   submitError,
 }: Props) {
-  const [attempted, setAttempted] = useState(false)
   const [bulkTimezone, setBulkTimezone] = useState('')
-  const validation = useMemo(() => validateImportReviewDraft(draft), [draft])
-  const form = useForm({
-    defaultValues: { draft },
-    onSubmit: ({ value }) => {
-      setAttempted(true)
-      const currentValidation = validateImportReviewDraft(value.draft)
-      if (!currentValidation.valid) {
-        if (currentValidation.firstInvalidControlId) {
-          document.getElementById(currentValidation.firstInvalidControlId)?.focus()
-        }
-        return
-      }
-      onSubmit()
-    },
-  })
-  const updateDraft = (next: ImportReviewDraft) => {
-    form.setFieldValue('draft', next)
-    onChange(next)
-  }
-  const updateItem = (index: number, item: ImportReviewItem) => {
-    updateDraft({
-      items: draft.items.map((current, itemIndex) =>
-        itemIndex === index ? item : current,
-      ),
-    })
-  }
 
   return (
     <form
@@ -99,36 +64,51 @@ export function GoogleImportReviewForm({
           type="button"
           variant="outline"
           disabled={isSubmitting || !bulkTimezone}
-          onClick={() => updateDraft(applyBulkTimezone(draft, bulkTimezone))}
+          onClick={() => {
+            const next = applyBulkTimezone(
+              { items: form.state.values.items },
+              bulkTimezone,
+            )
+            form.setFieldValue('items', next.items)
+          }}
         >
           Apply to all
         </Button>
       </div>
 
-      {attempted && !validation.valid ? (
-        <Alert variant="destructive">
-          <AlertCircle aria-hidden="true" />
-          <AlertTitle>Review required fields</AlertTitle>
-          <AlertDescription>
-            Confirm every suggested country and timezone before starting the import.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      <form.Subscribe
+        selector={(state) =>
+          [state.values.items, state.submissionAttempts, state.isValid] as const
+        }
+      >
+        {([items, submissionAttempts, isValid]) => (
+          <>
+            {submissionAttempts > 0 && !isValid ? (
+              <Alert variant="destructive">
+                <AlertCircle aria-hidden="true" />
+                <AlertTitle>Review required fields</AlertTitle>
+                <AlertDescription>
+                  Confirm every suggested country and timezone before starting the import.
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-      <div className="space-y-4">
-        {draft.items.map((item, index) => (
-          <GoogleImportReviewItem
-            key={item.candidateId}
-            item={item}
-            index={index}
-            total={draft.items.length}
-            attempted={attempted}
-            validation={validation}
-            disabled={isSubmitting}
-            onChange={(next) => updateItem(index, next)}
-          />
-        ))}
-      </div>
+            <div className="space-y-4">
+              {items.map((item, index) => (
+                <GoogleImportReviewItem
+                  key={item.candidateId}
+                  form={form}
+                  item={item}
+                  index={index}
+                  total={items.length}
+                  attempted={submissionAttempts > 0}
+                  disabled={isSubmitting}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </form.Subscribe>
 
       {submitError ? (
         <Alert variant="destructive">

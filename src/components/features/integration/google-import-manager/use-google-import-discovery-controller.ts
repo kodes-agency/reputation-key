@@ -156,7 +156,6 @@ export function useGoogleImportDiscoveryController({
     setSearch,
     visibleCandidates,
     reviewDraft,
-    setReviewDraft,
     reviewCandidates,
     changeConnection,
     resumeDiscovery,
