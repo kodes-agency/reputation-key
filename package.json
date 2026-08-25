@@ -83,6 +83,7 @@
     "beta:create-pre-cutover-dump": "tsx scripts/beta/create-pre-cutover-dump.ts",
     "release:validate-evidence": "tsx scripts/release/validate-bundle.ts",
     "release:promote-local-evidence": "tsx scripts/release/promote-local-evidence.ts",
+    "release:create-promotion-manifest": "tsx scripts/release/create-promotion-manifest.ts",
     "release:beta": "tsx scripts/release/deploy-beta.ts",
     "bqc:run-baseline": "tsx scripts/bqc/run-baseline.ts",
     "review:freeze-baseline": "tsx scripts/review/freeze-baseline.ts",

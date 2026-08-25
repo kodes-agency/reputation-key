@@ -1,5 +1,11 @@
 # Closed-beta release runbook — 2026-08-19
 
+> **Historical release notice:** section 3 records the former
+> `google-closed-beta` working-tree deployment procedure. It is superseded by
+> `immutable-release-promotion.md` and is prohibited for every `cell-*`
+> environment. The Google approval and AI activation incident history remains
+> useful; the `railway up` release commands do not.
+
 Both ceremonies are complete: the Google Content approvals are re-signed and
 installed (section 1), the AI canary passes and all three capability heads are
 restored with the worker's outbox dispatcher enabled (section 2). This document
@@ -182,7 +188,12 @@ revealed that the SDK was masking our own throw) and
 the first violated rule with its JSON path (it printed
 `validate:number_not_integer:$.top_p=0.98`).
 
-## 3. Deploying a release — `pnpm release:beta` (ADR 0051)
+## 3. Historical local-build release procedure — SUPERSEDED
+
+Do not execute this section for a Data Cell. The current command requires a
+signed canonical manifest, signature bundle, manifest SHA-256, and explicit
+cell; see `immutable-release-promotion.md`. The text below is retained only to
+explain the 2026-08-21 incident and the controls that replaced it.
 
 ```bash
 # 0. The audited path needs the operator env + a reachable database (§1 recipe):

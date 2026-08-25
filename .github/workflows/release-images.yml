@@ -1,0 +1,274 @@
+name: Release Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful main CI run id for this exact commit
+        required: true
+        type: string
+      beta_evidence_manifest_sha256:
+        description: Promoted beta evidence manifest sha256
+        required: true
+        type: string
+      provider_approval_evidence_sha256:
+        description: Provider approval evidence sha256
+        required: true
+        type: string
+
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+  id-token: write
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      test_evidence_sha256: ${{ steps.ci-evidence.outputs.sha256 }}
+    steps:
+      - name: Bind successful CI evidence to this source revision
+        id: ci-evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}")
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$EXPECTED_SHA"
+          test "$(jq -r '.conclusion' <<<"$run_json")" = "success"
+          test "$(jq -r '.path' <<<"$run_json")" = ".github/workflows/ci.yml"
+          jobs_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}/jobs?per_page=100")
+          for required_job in check docker secrets storybook storybook-test e2e beta-acceptance; do
+            jq -e --arg name "$required_job" \
+              'any(.jobs[]; .name == $name and .conclusion == "success")' \
+              <<<"$jobs_json" >/dev/null
+          done
+          jq -S -n \
+            --argjson run "$run_json" \
+            --argjson jobs "$jobs_json" \
+            '{version:"repkey-ci-evidence-1",run:{id:($run.id|tostring),attempt:$run.run_attempt,headSha:$run.head_sha,conclusion:$run.conclusion,url:$run.html_url},jobs:[$jobs.jobs[]|{name,conclusion,startedAt:.started_at,completedAt:.completed_at}]}' \
+            > ci-evidence.json
+          sha256=$(sha256sum ci-evidence.json | cut -d' ' -f1)
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bound CI evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-ci-evidence
+          path: ci-evidence.json
+          retention-days: 90
+
+  build:
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: release-signing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - role: web
+            slug: web
+            dockerfile: Dockerfile
+          - role: worker
+            slug: worker
+            dockerfile: Dockerfile.worker
+          - role: googleExecutionAdmission
+            slug: google-execution-admission
+            dockerfile: Dockerfile.google-execution-admission
+          - role: googleEgressGateway
+            slug: google-egress-gateway
+            dockerfile: Dockerfile.google-egress-gateway
+          - role: aiExecutionAdmission
+            slug: ai-execution-admission
+            dockerfile: Dockerfile.ai-execution-admission
+          - role: aiEgressGateway
+            slug: ai-egress-gateway
+            dockerfile: Dockerfile.ai-egress-gateway
+          - role: googleImportCompatibility
+            slug: google-import-compatibility
+            dockerfile: Dockerfile.google-import-compatibility
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # v3.1.3 is the first v3 release patched for GHSA-fx35-mq7g-6g98.
+      - name: Install patched Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+
+      - name: Authenticate to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and publish immutable image once
+        id: image
+        env:
+          ROLE: ${{ matrix.role }}
+          IMAGE_SLUG: ${{ matrix.slug }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          set -euo pipefail
+          owner=$(tr '[:upper:]' '[:lower:]' <<<"$GITHUB_REPOSITORY_OWNER")
+          image="ghcr.io/${owner}/repkey-${IMAGE_SLUG}"
+          docker buildx create --name repkey-release --driver docker-container --use
+          docker buildx build \
+            --file "$DOCKERFILE" \
+            --build-arg "SOURCE_REVISION=$GITHUB_SHA" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --provenance=mode=max \
+            --sbom=true \
+            --tag "${image}:${GITHUB_SHA}" \
+            --push .
+          digest=$(docker buildx imagetools inspect "${image}:${GITHUB_SHA}" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          test "${digest#sha256:}" != "$digest"
+          echo "repository=$image" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "reference=${image}@${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate image SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ steps.image.outputs.reference }}
+          format: spdx-json
+          output-file: image.spdx.json
+
+      - name: Scan immutable image
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ steps.image.outputs.reference }}
+          fail-build: true
+          severity-cutoff: high
+          output-format: sarif
+          output-file: vulnerability.sarif
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Sign image and capture provenance
+        env:
+          ROLE: ${{ matrix.role }}
+          IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "$IMAGE_REFERENCE" \
+            --format '{{ json .Provenance.SLSA }}' \
+            | jq -S . > provenance.json
+          jq -e \
+            '._type == "https://in-toto.io/Statement/v0.1" and (.predicateType | startswith("https://slsa.dev/provenance/"))' \
+            provenance.json >/dev/null
+          jq -S -n \
+            --arg role "$ROLE" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg workflow "$GITHUB_WORKFLOW_REF" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            --arg image "$IMAGE_REFERENCE" \
+            '{version:"repkey-image-provenance-1",role,sourceRevision,workflow,runId,runAttempt:(runAttempt|tonumber),image}' \
+            > release-metadata.json
+          cosign sign --yes --bundle image.sigstore.json "$IMAGE_REFERENCE"
+          cosign verify \
+            --certificate-identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            "$IMAGE_REFERENCE" >/dev/null
+          sbom_sha=$(sha256sum image.spdx.json | cut -d' ' -f1)
+          provenance_sha=$(sha256sum provenance.json | cut -d' ' -f1)
+          signature_sha=$(sha256sum image.sigstore.json | cut -d' ' -f1)
+          vulnerability_sha=$(sha256sum vulnerability.sarif | cut -d' ' -f1)
+          jq -S -n \
+            --arg role "$ROLE" \
+            --arg repository "$IMAGE_REPOSITORY" \
+            --arg digest "$IMAGE_DIGEST" \
+            --arg sourceRevision "$GITHUB_SHA" \
+            --arg sbomSha256 "$sbom_sha" \
+            --arg provenanceSha256 "$provenance_sha" \
+            --arg signatureBundleSha256 "$signature_sha" \
+            --arg vulnerabilityReportSha256 "$vulnerability_sha" \
+            '{role,repository,digest,sourceRevision,sbomSha256,provenanceSha256,signatureBundleSha256,vulnerabilityReportSha256}' \
+            > "${ROLE}.json"
+          mv image.spdx.json "${ROLE}.spdx.json"
+          mv vulnerability.sarif "${ROLE}.vulnerability.sarif"
+          mv provenance.json "${ROLE}.provenance.json"
+          mv release-metadata.json "${ROLE}.release-metadata.json"
+          mv image.sigstore.json "${ROLE}.sigstore.json"
+
+      - name: Upload immutable image evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-image-${{ matrix.role }}
+          path: ${{ matrix.role }}.*
+          retention-days: 90
+
+  manifest:
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Download image evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-image-*
+          path: release-images
+          merge-multiple: true
+
+      - name: Install patched Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+
+      - name: Create and sign canonical promotion manifest
+        env:
+          BETA_EVIDENCE_MANIFEST_SHA256: ${{ inputs.beta_evidence_manifest_sha256 }}
+          TEST_EVIDENCE_SHA256: ${{ needs.preflight.outputs.test_evidence_sha256 }}
+          PROVIDER_APPROVAL_EVIDENCE_SHA256: ${{ inputs.provider_approval_evidence_sha256 }}
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/release/create-promotion-manifest.ts \
+            --images-dir release-images \
+            --output promotion-manifest.json \
+            --beta-evidence-manifest-sha256 "$BETA_EVIDENCE_MANIFEST_SHA256" \
+            --test-evidence-sha256 "$TEST_EVIDENCE_SHA256" \
+            --provider-approval-evidence-sha256 "$PROVIDER_APPROVAL_EVIDENCE_SHA256"
+          cosign sign-blob --yes \
+            --bundle promotion-manifest.sigstore.json \
+            promotion-manifest.json
+          cosign verify-blob \
+            --bundle promotion-manifest.sigstore.json \
+            --certificate-identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            promotion-manifest.json
+
+      - name: Upload signed promotion manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: promotion-manifest-${{ github.sha }}
+          path: |
+            promotion-manifest.json
+            promotion-manifest.json.sha256
+            promotion-manifest.sigstore.json
+          retention-days: 90
+          if-no-files-found: error

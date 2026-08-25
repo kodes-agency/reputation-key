@@ -59,14 +59,14 @@ Never place a secret value in `.railway/railway.ts`. The graph contains only
 resource references, non-secret fixed contract values, and references to
 Railway shared variables.
 
-| Owner              | Variable families                                                                                                   | Rotation/cutover rule                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Railway/Platform   | database, Redis, and bucket outputs                                                                                 | created per environment; immutable bucket region; rotate bucket credentials under a dual-read credential window                                                  |
-| Security           | `BETTER_AUTH_SECRET`, encryption/OAuth/Portal HMACs, Google/AI mTLS material, admission/provenance signing material | versioned keyrings where supported; issue separate web, worker, gateway, and admission leaf certificates; never reuse a private key between processes/cells      |
-| Google integration | OAuth client, Pub/Sub identity/topic, Content runtime bindings/role public keys, admission database URL/CA          | OAuth client may be common, but credentials/bindings are installed per cell; admission DB URL uses the dedicated execute-only role, never the database owner URL |
-| AI integration     | `OPENAI_API_KEY`, key inventory/profile digests, admission/provenance keys                                          | OpenAI key reaches only the AI gateway; admission private key reaches only AI admission; property capabilities remain off until authorization evidence passes    |
-| Operations         | Resend, Sentry, alert webhook, metrics token, operator identities                                                   | named owner; verify sending domain and Germany-hosted Sentry before customer traffic                                                                             |
-| Release controller | `RELEASE_SHA`, `IMAGE_SOURCE_REVISION`                                                                              | must equal the signed manifest source revision; a mixed or stale value blocks readiness/promotion                                                                |
+| Owner              | Variable families                                                                                                   | Rotation/cutover rule                                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Railway/Platform   | database, Redis, and bucket outputs                                                                                 | created per environment; immutable bucket region; rotate bucket credentials under a dual-read credential window                                                      |
+| Security           | `BETTER_AUTH_SECRET`, encryption/OAuth/Portal HMACs, Google/AI mTLS material, admission/provenance signing material | versioned keyrings where supported; issue separate web, worker, gateway, and admission leaf certificates; never reuse a private key between processes/cells          |
+| Google integration | OAuth client, Pub/Sub identity/topic, Content runtime bindings/role public keys, admission database URL/CA          | OAuth client may be common, but credentials/bindings are installed per cell; admission DB URL uses the dedicated execute-only role, never the database owner URL     |
+| AI integration     | `OPENAI_API_KEY`, key inventory/profile digests, admission/provenance keys                                          | OpenAI key reaches only the AI gateway; admission private key reaches only AI admission; property capabilities remain off until authorization evidence passes        |
+| Operations         | Resend, Sentry, alert webhook, metrics token, operator identities                                                   | named owner; verify sending domain and Germany-hosted Sentry before customer traffic                                                                                 |
+| Release controller | `RELEASE_SHA`, `RELEASE_MANIFEST_SHA256`; image-baked `IMAGE_SOURCE_REVISION`                                       | the signed manifest, active image digest, runtime release SHA, and baked source revision are one release fact; service-level source-revision overrides are forbidden |
 
 Process boundaries are executable tests:
 
@@ -163,8 +163,11 @@ A fourth cell is not added by copying an environment in the dashboard:
   and restore-source fences now deny wrong-cell execution. A live cross-cell
   fault drill and cell-local backup/PITR evidence are still required before
   either provisioning cell can accept work.
-- The current release script uploads the working tree with `railway up`.
-  `REG-03` must replace it with digest promotion before production cutover.
+- The signed digest-promotion implementation has landed, but it is not yet live
+  evidence. Configure the protected `release-signing` GitHub environment,
+  confirm Railway can pull the GHCR packages, run the workflow from `main`, and
+  perform a non-production `cell-*` promotion/read-back drill before production
+  cutover. See `immutable-release-promotion.md`.
 - Railway project/environment tokens for PR drift checks are not yet installed.
   CI cannot honestly claim remote drift is green until those scoped secrets
   exist.

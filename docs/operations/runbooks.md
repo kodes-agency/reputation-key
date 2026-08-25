@@ -54,24 +54,28 @@ The commands:
 `pnpm release:beta` is an operator command too — it just does not run through
 the `ops:*` harness until `--apply`:
 
-- `pnpm release:beta` — deploy one revision to every `google-closed-beta`
-  service, then verify it (`scripts/release/deploy-beta.ts`). Dry-run by
-  default; `--verify-only` re-proves a running deployment (expecting
-  `origin/main` unless `--expect <sha|any>`).
-- `pnpm release:beta --apply --operator <id> --reason "<text>"` — the audited
+- `pnpm release:beta --manifest <file> --signature-bundle <file>
+--manifest-sha256 <sha256> --cell <us|europe|global>` — validate one
+  canonical CI promotion manifest and print the exact ordered Data Cell plan.
+  Dry-run invokes no Railway command.
+- Add `--apply --operator <id> --reason "<text>"` for the audited
   path: it runs through the same harness as every `ops:*` mutation, so the
   operator must be in `OPS_OPERATOR_IDENTITIES` and the decision lands in
   `policy_decision_audit`. `--skip-audit` exists for the incident case where
-  the database is unreachable; it prints an UNAUDITED banner.
-- `--apply` refuses a dirty tree AND a HEAD that is not an ancestor of
-  `origin/main` (`railway up` uploads the working tree, so a release can only
-  be merged code; `--force` overrides, loudly).
-- It deploys `web` first (its `preDeployCommand` runs the migrations), then
-  polls every deployment to a terminal state — anything but `SUCCESS` fails the
-  release — and only then asserts one `RELEASE_SHA` across all six services,
-  `/api/health` readiness, and every `ai_execution_control_heads` row
-  `enabled`/`accepting`. Procedure and the two per-service-class variable
-  contracts: `closed-beta-release-runbook-2026-08-19.md` §3. §8
+  the database is unreachable; it prints an UNAUDITED banner but never bypasses
+  signature verification.
+- Promotion never uploads or rebuilds a working tree. It verifies the Sigstore
+  bundle, rejects legacy revision-variable overrides, attaches each exact
+  `repo@sha256:...` image, and deploys `web` first so its IaC-owned migration
+  command settles before the other five services.
+- Add `--verify-only` to read back the manifest digest, source revision, active
+  image digest, health, and AI heads without deploying. A mismatch on any
+  service is blocking.
+
+The authoritative procedure, prerequisites, rollback boundary, and evidence
+contract are in `immutable-release-promotion.md`. The dated
+`closed-beta-release-runbook-2026-08-19.md` records the superseded local-build
+procedure and must not be used for a `cell-*` environment. §8
 
 ### Google import artifact cutover and rollback
 

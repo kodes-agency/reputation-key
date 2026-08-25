@@ -34,6 +34,7 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'RAILWAY_SERVICE_ID',
   'RAILWAY_SERVICE_NAME',
   'RAILWAY_SNAPSHOT_ID',
+  'RELEASE_MANIFEST_SHA256',
 ] as const)
 
 const OWNED_NAMES = Object.freeze([

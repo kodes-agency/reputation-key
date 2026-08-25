@@ -20,7 +20,7 @@ const APPLICATION_SHARED_VARIABLES = [
   'EMAIL_FROM',
   'OPS_METRICS_TOKEN',
   'RELEASE_SHA',
-  'IMAGE_SOURCE_REVISION',
+  'RELEASE_MANIFEST_SHA256',
   'ALERT_WEBHOOK_URL',
   'OPS_OPERATOR_IDENTITIES',
   'LOG_LEVEL',
@@ -84,6 +84,7 @@ const AI_GATEWAY_SHARED_VARIABLES = [
   'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
   'AI_GATEWAY_BUILD_ATTESTATION_DIGEST',
   'RELEASE_SHA',
+  'RELEASE_MANIFEST_SHA256',
 ] as const
 
 const AI_ADMISSION_SHARED_VARIABLES = [
@@ -98,6 +99,7 @@ const AI_ADMISSION_SHARED_VARIABLES = [
   'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
   'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
   'RELEASE_SHA',
+  'RELEASE_MANIFEST_SHA256',
 ] as const
 
 function sharedVariables(
@@ -130,6 +132,12 @@ const servingDeploy = (region: string, drainingSeconds: number) => ({
   region,
 })
 
+// REG-03 deliberately leaves application source/build ownership out of this
+// infrastructure graph. `release:beta` connects a signed registry digest after
+// the graph provisions each empty service and owns its deploy, networking,
+// variables, and resource references. A Dockerfile build here would let a later
+// `config apply` silently replace promoted bytes.
+
 /** Exported for offline topology/allowlist tests; the CLI consumes the default. */
 export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   const cell = resolveCellTopology(ctx.environmentName ?? ctx.environment)
@@ -158,7 +166,6 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   }
 
   const web = service('web', {
-    build: { builder: 'DOCKERFILE', dockerfilePath: 'Dockerfile' },
     deploy: {
       ...servingDeploy(cell.serviceRegion, 30),
       preDeployCommand: ['node dist-worker/migrate-deploy.js'],
@@ -175,7 +182,6 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   })
 
   const worker = service('worker', {
-    build: { builder: 'DOCKERFILE', dockerfilePath: 'Dockerfile.worker' },
     deploy: servingDeploy(cell.serviceRegion, 30),
     env: {
       ...sharedVariables(ctx, APPLICATION_SHARED_VARIABLES),
@@ -187,10 +193,6 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   })
 
   const googleAdmission = service('google-execution-admission', {
-    build: {
-      builder: 'DOCKERFILE',
-      dockerfilePath: 'Dockerfile.google-execution-admission',
-    },
     deploy: servingDeploy(cell.serviceRegion, 30),
     env: {
       HOST: '0.0.0.0',
@@ -204,15 +206,11 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
       GOOGLE_INTERNAL_MTLS_CERT_B64: ctx.shared.GOOGLE_ADMISSION_MTLS_CERT_B64,
       GOOGLE_INTERNAL_MTLS_KEY_B64: ctx.shared.GOOGLE_ADMISSION_MTLS_KEY_B64,
       RELEASE_SHA: ctx.shared.RELEASE_SHA,
-      IMAGE_SOURCE_REVISION: ctx.shared.IMAGE_SOURCE_REVISION,
+      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
     },
   })
 
   const googleGateway = service('google-egress-gateway', {
-    build: {
-      builder: 'DOCKERFILE',
-      dockerfilePath: 'Dockerfile.google-egress-gateway',
-    },
     deploy: {
       ...servingDeploy(cell.serviceRegion, 30),
       startCommand: 'node dist-google-egress-gateway/index.js',
@@ -233,15 +231,11 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
       GOOGLE_INTERNAL_MTLS_CERT_B64: ctx.shared.GOOGLE_GATEWAY_MTLS_CERT_B64,
       GOOGLE_INTERNAL_MTLS_KEY_B64: ctx.shared.GOOGLE_GATEWAY_MTLS_KEY_B64,
       RELEASE_SHA: ctx.shared.RELEASE_SHA,
-      IMAGE_SOURCE_REVISION: ctx.shared.IMAGE_SOURCE_REVISION,
+      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
     },
   })
 
   const aiAdmission = service('ai-execution-admission', {
-    build: {
-      builder: 'DOCKERFILE',
-      dockerfilePath: 'Dockerfile.ai-execution-admission',
-    },
     deploy: servingDeploy(cell.serviceRegion, 130),
     env: {
       ...sharedVariables(ctx, AI_ADMISSION_SHARED_VARIABLES),
@@ -255,10 +249,6 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   })
 
   const aiGateway = service('ai-egress-gateway', {
-    build: {
-      builder: 'DOCKERFILE',
-      dockerfilePath: 'Dockerfile.ai-egress-gateway',
-    },
     deploy: {
       ...servingDeploy(cell.serviceRegion, 130),
       startCommand: 'node dist-ai-egress-gateway/index.js',

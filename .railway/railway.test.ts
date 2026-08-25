@@ -173,26 +173,45 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     ) as ServiceNode
     const aiGateway = resource(definition, 'service', 'ai-egress-gateway') as ServiceNode
     expect(variableNames(googleAdmission)).toEqual(
-      [...GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES].sort(),
+      [
+        ...GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.filter(
+          (name) => name !== 'IMAGE_SOURCE_REVISION',
+        ),
+        'RELEASE_MANIFEST_SHA256',
+      ].sort(),
     )
     expect(variableNames(googleGateway)).toEqual(
-      [...GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES].sort(),
+      [
+        ...GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES.filter(
+          (name) => name !== 'IMAGE_SOURCE_REVISION',
+        ),
+        'RELEASE_MANIFEST_SHA256',
+      ].sort(),
     )
     expect(variableNames(aiAdmission)).toEqual(
-      [...AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES].sort(),
+      [...AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES, 'RELEASE_MANIFEST_SHA256'].sort(),
     )
     expect(variableNames(aiGateway)).toEqual(
-      [...AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES].sort(),
+      [...AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES, 'RELEASE_MANIFEST_SHA256'].sort(),
     )
   })
 
-  it('carries the complete former service config in the single graph', () => {
+  it('owns deploy configuration while signed promotion exclusively owns image source', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode
-    expect(web.build).toMatchObject({
-      builder: 'DOCKERFILE',
-      dockerfilePath: 'Dockerfile',
-    })
+    for (const name of [
+      'web',
+      'worker',
+      'google-execution-admission',
+      'google-egress-gateway',
+      'ai-execution-admission',
+      'ai-egress-gateway',
+    ]) {
+      const node = resource(definition, 'service', name) as ServiceNode
+      expect(node.source).toBeUndefined()
+      expect(node.build).toBeUndefined()
+      expect(node.variables).not.toHaveProperty('IMAGE_SOURCE_REVISION')
+    }
     expect(web.deploy).toMatchObject({
       preDeployCommand: ['node dist-worker/migrate-deploy.js'],
       healthcheckPath: '/api/health/started',
@@ -202,7 +221,6 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       restartPolicyMaxRetries: 10,
       drainingSeconds: 30,
     })
-    expect(worker.build?.dockerfilePath).toBe('Dockerfile.worker')
     expect(worker.deploy).toMatchObject({
       numReplicas: 1,
       restartPolicyType: 'ON_FAILURE',

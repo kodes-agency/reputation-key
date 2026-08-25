@@ -69,6 +69,13 @@ const baseEnvSchema = z.object({
   // RELEASE_SHA wins; Railway injects RAILWAY_GIT_COMMIT_SHA at build time.
   // Both optional — local/dev boots report 'unknown'.
   RELEASE_SHA: z.string().min(1).optional(),
+  // REG-03: digest of the canonical, Sigstore-verified promotion manifest.
+  // Optional during local development and the pre-promotion compatibility
+  // window; every digest-promoted Railway service receives the exact value.
+  RELEASE_MANIFEST_SHA256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
   // Revision baked into Docker images through SOURCE_REVISION. Production
   // startup rejects a concrete RELEASE_SHA that names a different candidate.

@@ -1,41 +1,29 @@
-// release:beta — deploy ONE revision to every google-closed-beta service, wait
-// for every deployment to settle, then prove it (ADR 0051, runbook §3).
+// release:beta — promote ONE signed, digest-pinned CI release manifest into one
+// Railway Data Cell, wait for every deployment to settle, then prove it.
 //
 // Why this exists: the procedure used to be ~16 hand-typed commands across six
 // services with two different variable contracts. Typing `RELEASE_SHA` alone —
 // what the earlier runbook said — produced a FAILED web deploy and a crashed
 // worker on 2026-08-21. The contract is now code.
 //
-// The two service classes are a property of the SERVICES, not of this script:
+// CI bakes IMAGE_SOURCE_REVISION / the OCI source-revision label. Promotion
+// never rebuilds and never writes SOURCE_REVISION: Railway receives the exact
+// registry digest recorded in the manifest plus RELEASE_SHA as runtime truth.
 //
-//   * IDENTITY_SERVICES bake IMAGE_SOURCE_REVISION at build time from the
-//     SOURCE_REVISION build argument, and `assertReleaseIdentity` refuses a
-//     production boot when it differs from the RELEASE_SHA service variable.
-//     Both names carry the same fact, so both must be set.
-//   * AI_SERVICES validate their environment against an EXACT allowlist
-//     (services/ai-egress-gateway/environment.ts,
-//     services/ai-execution-admission/environment.ts) and refuse to start when
-//     an unknown variable is present. Their images bake no
-//     IMAGE_SOURCE_REVISION, so the identity guard cannot fire there and
-//     SOURCE_REVISION MUST NOT be set.
-//
-// Deploy order is load-bearing: `web` runs the migrations in its
-// preDeployCommand (railway.json), so it goes first and alone.
+// Deploy order is load-bearing: `web` runs the migrations in its IaC-owned
+// preDeployCommand, so it goes first and alone.
 //
 // THREE things this script refuses to lie about:
 //
-//   1. Settlement. `railway up --detach` returns before the build exists, and
-//      the service variables are written BEFORE it — so a variable read-back
-//      taken right after the upload is tautological. Every deploy is therefore
-//      tracked by the deployment id parsed out of `railway up`'s build-log URL
-//      and polled to a terminal state; anything but SUCCESS fails the release.
-//   2. Provenance. `railway up` uploads the WORKING TREE, not a CI-built
-//      artifact. --apply refuses a dirty tree AND refuses a HEAD that is not an
-//      ancestor of origin/main, so a release can only ever be reviewed,
-//      CI-exercised, merged code (--force overrides, loudly).
-//   3. Staleness. --verify-only asserts against an EXPECTED sha (origin/main by
-//      default), not merely that the six services agree with each other: a beta
-//      uniformly stuck on an old revision is not a verified beta.
+//   1. Settlement. Source connection returns before a deployment settles.
+//      Every promotion is tracked by deployment id and polled to a terminal
+//      state; anything but SUCCESS fails the release.
+//   2. Provenance. The canonical manifest and Sigstore bundle are verified
+//      against the producing main-branch GitHub Actions identity. Every image
+//      is digest-pinned and names that same merged source revision.
+//   3. Staleness. --verify-only asserts the exact signed manifest SHA, source
+//      revision, and every active Railway image digest. Uniformly old or mixed
+//      services cannot pass.
 //
 // --apply is an audited operator action: it runs through the operator-command
 // harness (scripts/ops/operator-command.ts), so it needs --operator <id> (in
@@ -45,39 +33,43 @@
 // unreachable; it prints an UNAUDITED banner and is documented as such.
 //
 // Usage:
-//   pnpm release:beta                                  # plan only, no railway call
-//   pnpm release:beta --apply --operator <id> --reason "<text>"
-//   pnpm release:beta --verify-only                    # prove against origin/main
-//   pnpm release:beta --verify-only --expect <sha|any>
-//   flags: --app-url <url> --deploy-timeout <seconds> --force --skip-audit
+//   pnpm release:beta --manifest <manifest.json> --signature-bundle <bundle.json>
+//     --manifest-sha256 <digest> --cell <us|europe|global>
+//   add --apply --operator <id> --reason "<text>" to execute
+//   add --verify-only to prove an already-promoted cell
+//   flags: --app-url <url> --deploy-timeout <seconds> --skip-audit
 //
 // Verification, always run after a settled --apply and by --verify-only:
-//   1. RELEASE_SHA read back from all six services (blocking),
-//   2. GET /api/health with every readiness boolean true (blocking when a URL
+//   1. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from all six services (blocking),
+//   2. active Railway image digest from all six services (blocking),
+//   3. GET /api/health with every readiness boolean true (blocking when a URL
 //      is known: --app-url or BETA_APP_URL),
-//   3. every ai_execution_control_heads row enabled/accepting (blocking when
+//   4. every ai_execution_control_heads row enabled/accepting (blocking when
 //      DATABASE_URL is set; skipped, printed, otherwise).
 
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
+import {
+  DATA_CELL_CATALOGUE,
+  DATA_CELL_IDS,
+  type DataCellId,
+} from '../../src/shared/domain/data-cell-catalogue'
+import {
+  RAILWAY_SERVICE_IMAGE_ROLES,
+  parsePromotionManifest,
+  promotedImageReference,
+  sigstoreManifestVerificationArgs,
+  type PromotionManifest,
+  type RailwayApplicationService,
+} from '../../src/shared/release/promotion-manifest'
 
 const COMMAND_NAME = 'release:beta'
-const ENVIRONMENT = 'google-closed-beta'
-
-/** Release identity is DOUBLE-named here: RELEASE_SHA and SOURCE_REVISION. */
-const IDENTITY_SERVICES = [
-  'web',
-  'worker',
-  'google-egress-gateway',
-  'google-execution-admission',
-] as const
-
-/** Exact-allowlist environments: RELEASE_SHA only, or the service refuses boot. */
-const AI_SERVICES = ['ai-egress-gateway', 'ai-execution-admission'] as const
-
-const ALL_SERVICES = [...IDENTITY_SERVICES, ...AI_SERVICES] as const
+const ALL_SERVICES = Object.freeze(
+  Object.keys(RAILWAY_SERVICE_IMAGE_ROLES) as RailwayApplicationService[],
+)
 
 const HEADS_QUERY =
   'select scope_key, execution_state, admission_state from ai_execution_control_heads order by 1'
@@ -89,10 +81,22 @@ const DEFAULT_DEPLOY_TIMEOUT_SECONDS = 900
 const POLL_INTERVAL_MS = 10_000
 
 /** Flags this script owns; stripped before argv reaches the operator harness. */
-const OWN_VALUE_FLAGS = ['--app-url', '--expect', '--deploy-timeout'] as const
-const OWN_BOOLEAN_FLAGS = ['--verify-only', '--force', '--skip-audit'] as const
+const OWN_VALUE_FLAGS = [
+  '--app-url',
+  '--deploy-timeout',
+  '--manifest',
+  '--signature-bundle',
+  '--manifest-sha256',
+  '--cell',
+] as const
+const OWN_BOOLEAN_FLAGS = ['--verify-only', '--skip-audit'] as const
 
-type ServicePlan = { readonly service: string; readonly variables: readonly string[] }
+export type ServicePlan = {
+  readonly service: RailwayApplicationService
+  readonly variables: readonly string[]
+  readonly imageReference: string
+  readonly imageDigest: string
+}
 
 type Deployment = { readonly service: string; readonly deploymentId: string | undefined }
 
@@ -105,24 +109,29 @@ type HeadRow = {
 type Options = {
   readonly apply: boolean
   readonly verifyOnly: boolean
-  readonly force: boolean
   readonly skipAudit: boolean
   readonly appUrl: string | undefined
-  readonly expect: string | undefined
   readonly deployTimeoutMs: number
+  readonly manifestPath: string
+  readonly signatureBundlePath: string
+  readonly manifestSha256: string
+  readonly cell: DataCellId
+  readonly environment: `cell-${DataCellId}`
 }
 
-function deployPlan(sha: string): readonly ServicePlan[] {
-  return [
-    ...IDENTITY_SERVICES.map((service) => ({
-      service,
-      variables: [`RELEASE_SHA=${sha}`, `SOURCE_REVISION=${sha}`],
-    })),
-    ...AI_SERVICES.map((service) => ({
-      service,
-      variables: [`RELEASE_SHA=${sha}`],
-    })),
-  ]
+export function deployPlan(
+  manifest: PromotionManifest,
+  manifestSha256: string,
+): readonly ServicePlan[] {
+  return ALL_SERVICES.map((service) => ({
+    service,
+    variables: [
+      `RELEASE_SHA=${manifest.releaseSha}`,
+      `RELEASE_MANIFEST_SHA256=${manifestSha256}`,
+    ],
+    imageReference: promotedImageReference(manifest, service),
+    imageDigest: manifest.images[RAILWAY_SERVICE_IMAGE_ROLES[service]].digest,
+  }))
 }
 
 function out(line: string): void {
@@ -144,14 +153,34 @@ function parseOptions(args: readonly string[]): Options | string {
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
     return `--deploy-timeout must be a positive number of seconds (got '${String(timeoutRaw)}')`
   }
+  const manifestPath = flagValue(args, '--manifest')
+  const signatureBundlePath = flagValue(args, '--signature-bundle')
+  const manifestSha256 = flagValue(args, '--manifest-sha256')
+  const cell = flagValue(args, '--cell')
+  if (!manifestPath || !signatureBundlePath || !manifestSha256 || !cell) {
+    return '--manifest, --signature-bundle, --manifest-sha256, and --cell are required'
+  }
+  if (!/^[0-9a-f]{64}$/u.test(manifestSha256)) {
+    return '--manifest-sha256 must be a lowercase sha256'
+  }
+  if (!DATA_CELL_IDS.includes(cell as DataCellId)) {
+    return `--cell must be one of: ${DATA_CELL_IDS.join(', ')}`
+  }
+  const dataCell = cell as DataCellId
   const options: Options = {
     apply: args.includes('--apply'),
     verifyOnly: args.includes('--verify-only'),
-    force: args.includes('--force'),
     skipAudit: args.includes('--skip-audit'),
-    appUrl: flagValue(args, '--app-url') ?? process.env.BETA_APP_URL,
-    expect: flagValue(args, '--expect'),
+    appUrl:
+      flagValue(args, '--app-url') ??
+      process.env.BETA_APP_URL ??
+      `https://${DATA_CELL_CATALOGUE[dataCell].domain}`,
     deployTimeoutMs: timeoutSeconds * 1000,
+    manifestPath: resolve(manifestPath),
+    signatureBundlePath: resolve(signatureBundlePath),
+    manifestSha256,
+    cell: dataCell,
+    environment: `cell-${dataCell}`,
   }
   if (options.apply && options.verifyOnly) {
     return '--apply and --verify-only are mutually exclusive'
@@ -177,21 +206,7 @@ function harnessArgv(args: readonly string[]): string[] {
   return kept
 }
 
-function git(args: readonly string[]): string {
-  const result = spawnSync('git', [...args], { encoding: 'utf8' })
-  if (result.status !== 0) {
-    throw new Error(
-      `git ${args.join(' ')} failed: ${(result.stderr || result.stdout || '').trim()}`,
-    )
-  }
-  return result.stdout.trim()
-}
-
-function gitOk(args: readonly string[]): boolean {
-  return spawnSync('git', [...args], { encoding: 'utf8' }).status === 0
-}
-
-/** Run a railway command; throw naming the command and its stderr on failure. */
+/** Run a Railway command; throw naming the command and its stderr on failure. */
 function railway(args: readonly string[]): string {
   const printable = `railway ${args.join(' ')}`
   const result = spawnSync('railway', [...args], { encoding: 'utf8' })
@@ -203,18 +218,28 @@ function railway(args: readonly string[]): string {
   return result.stdout ?? ''
 }
 
+function parseDeploymentId(output: string): string | undefined {
+  try {
+    const value = JSON.parse(output) as unknown
+    if (value && typeof value === 'object') {
+      for (const field of ['deploymentId', 'id'] as const) {
+        const candidate = (value as Record<string, unknown>)[field]
+        if (typeof candidate === 'string' && /^[0-9a-f-]{36}$/iu.test(candidate)) {
+          return candidate
+        }
+      }
+    }
+  } catch {
+    // Some CLI versions write a human build-log URL rather than JSON.
+  }
+  return /[?&]id=([0-9a-f-]{36})/iu.exec(output)?.[1]
+}
+
 /**
- * `railway variable set` (one assignment per call) and `railway variable list`
- * are the non-legacy forms in CLI 5.34; `railway variables --set` is accepted
- * but marked legacy in `--help`. --skip-deploys keeps the variable writes from
- * triggering their own deploys, so `railway up` is the single trigger.
- *
- * Returns the deployment id parsed from `railway up`'s build-log URL. Parsing
- * the id (rather than reading "the latest deployment" afterwards) is what makes
- * settlement polling exact: no assumption about list ordering, and no risk of
- * watching a neighbouring deploy.
+ * Write release identity without triggering intermediate deployments, then
+ * connect the exact registry digest. No local source archive is uploaded.
  */
-function deployService(plan: ServicePlan): Deployment {
+function deployService(plan: ServicePlan, environment: string): Deployment {
   for (const assignment of plan.variables) {
     railway([
       'variable',
@@ -223,38 +248,50 @@ function deployService(plan: ServicePlan): Deployment {
       '--service',
       plan.service,
       '--environment',
-      ENVIRONMENT,
+      environment,
       '--skip-deploys',
     ])
   }
   const stdout = railway([
-    'up',
+    'service',
+    'source',
+    'connect',
+    '--image',
+    plan.imageReference,
     '--service',
     plan.service,
     '--environment',
-    ENVIRONMENT,
-    '--detach',
+    environment,
+    '--json',
   ])
   process.stdout.write(stdout.endsWith('\n') || stdout === '' ? stdout : `${stdout}\n`)
-  const deploymentId = /[?&]id=([0-9a-fA-F-]{36})/.exec(stdout)?.[1]
+  const deploymentId = parseDeploymentId(stdout)
   if (!deploymentId) {
     out(
-      `   WARNING: could not parse a deployment id for ${plan.service}; settlement will be read from its latest deployment`,
+      `   WARNING: could not parse a deployment id for ${plan.service}; settlement will use the first deployment carrying ${plan.imageDigest}`,
     )
   }
   return { service: plan.service, deploymentId }
 }
 
-type DeploymentRow = { readonly id?: string; readonly status?: string }
+type DeploymentRow = {
+  readonly id?: string
+  readonly status?: string
+  readonly meta?: Readonly<{ imageDigest?: string }>
+}
 
-function deploymentStatus(deployment: Deployment): string {
+function deploymentStatus(
+  deployment: Deployment,
+  environment: string,
+  expectedDigest?: string,
+): string {
   const listed = railway([
     'deployment',
     'list',
     '--service',
     deployment.service,
     '--environment',
-    ENVIRONMENT,
+    environment,
     '--json',
   ])
   let rows: readonly DeploymentRow[]
@@ -265,7 +302,7 @@ function deploymentStatus(deployment: Deployment): string {
   }
   const row = deployment.deploymentId
     ? rows.find((entry) => entry.id === deployment.deploymentId)
-    : rows[0]
+    : rows.find((entry) => entry.meta?.imageDigest === expectedDigest)
   return row?.status ?? 'UNKNOWN'
 }
 
@@ -275,6 +312,8 @@ function deploymentStatus(deployment: Deployment): string {
  */
 async function awaitSettlement(
   deployments: readonly Deployment[],
+  plans: readonly ServicePlan[],
+  environment: string,
   timeoutMs: number,
 ): Promise<readonly string[]> {
   const deadline = Date.now() + timeoutMs
@@ -284,7 +323,8 @@ async function awaitSettlement(
   out('waiting for deployments to settle:')
   while (pending.size > 0) {
     for (const [service, deployment] of [...pending]) {
-      const status = deploymentStatus(deployment)
+      const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
+      const status = deploymentStatus(deployment, environment, expectedDigest)
       if (!TERMINAL_STATUSES.has(status)) continue
       pending.delete(service)
       out(`  ${service.padEnd(28)} ${status}`)
@@ -297,8 +337,9 @@ async function awaitSettlement(
     if (pending.size === 0) break
     if (Date.now() > deadline) {
       for (const [service, deployment] of pending) {
+        const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
         failures.push(
-          `${service}: deployment ${deployment.deploymentId ?? '(latest)'} still ${deploymentStatus(deployment)} after ${String(Math.round(timeoutMs / 1000))}s`,
+          `${service}: deployment ${deployment.deploymentId ?? `(digest ${expectedDigest ?? 'unknown'})`} still ${deploymentStatus(deployment, environment, expectedDigest)} after ${String(Math.round(timeoutMs / 1000))}s`,
         )
       }
       break
@@ -308,41 +349,100 @@ async function awaitSettlement(
   return failures
 }
 
-function readReleaseSha(service: string): string {
+type ReleaseVariable =
+  'RELEASE_SHA' | 'RELEASE_MANIFEST_SHA256' | 'SOURCE_REVISION' | 'IMAGE_SOURCE_REVISION'
+
+function readReleaseVariables(
+  service: string,
+  environment: string,
+): Readonly<Record<ReleaseVariable, string>> {
   const listed = railway([
     'variable',
     'list',
     '--service',
     service,
     '--environment',
-    ENVIRONMENT,
+    environment,
     '--kv',
   ])
-  const line = listed.split('\n').find((entry) => entry.startsWith('RELEASE_SHA='))
-  return line ? line.slice('RELEASE_SHA='.length).trim() : ''
+  const values = Object.fromEntries(
+    listed
+      .split('\n')
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const separator = entry.indexOf('=')
+        return separator === -1
+          ? [entry, '']
+          : [entry.slice(0, separator), entry.slice(separator + 1)]
+      }),
+  )
+  return {
+    RELEASE_SHA: values.RELEASE_SHA ?? '',
+    RELEASE_MANIFEST_SHA256: values.RELEASE_MANIFEST_SHA256 ?? '',
+    SOURCE_REVISION: values.SOURCE_REVISION ?? '',
+    IMAGE_SOURCE_REVISION: values.IMAGE_SOURCE_REVISION ?? '',
+  }
+}
+
+/**
+ * Refuse before the first mutation when legacy service variables could mask
+ * the revision baked into a promoted image. IaC and the release controller
+ * deliberately do not own these variables anymore.
+ */
+function legacyIdentityOverrideFailures(environment: string): readonly string[] {
+  const failures: string[] = []
+  for (const service of ALL_SERVICES) {
+    const variables = readReleaseVariables(service, environment)
+    const names = (['SOURCE_REVISION', 'IMAGE_SOURCE_REVISION'] as const).filter(
+      (name) => variables[name] !== '',
+    )
+    if (names.length > 0) {
+      failures.push(
+        `${service}: remove legacy service override${names.length === 1 ? '' : 's'} ${names.join(', ')} before promotion; image source identity must be baked only`,
+      )
+    }
+  }
+  return failures
 }
 
 /** Read-back table. Returns the failures so every service is reported, not the first. */
-function verifyReleaseIdentity(expected: string | undefined): readonly string[] {
-  const observed = ALL_SERVICES.map((service) => ({
-    service,
-    sha: readReleaseSha(service),
-  }))
+function verifyReleaseIdentity(
+  environment: string,
+  expectedSha: string,
+  expectedManifestSha256: string,
+): readonly string[] {
+  const observed = ALL_SERVICES.map((service) => {
+    const variables = readReleaseVariables(service, environment)
+    return {
+      service,
+      sha: variables.RELEASE_SHA,
+      manifestSha256: variables.RELEASE_MANIFEST_SHA256,
+      sourceRevisionOverride: variables.SOURCE_REVISION,
+      imageRevisionOverride: variables.IMAGE_SOURCE_REVISION,
+    }
+  })
   for (const row of observed) {
-    out(`  ${row.service.padEnd(28)} ${row.sha || '(unset)'}`)
+    out(
+      `  ${row.service.padEnd(28)} ${row.sha || '(unset)'} manifest=${row.manifestSha256 || '(unset)'}`,
+    )
   }
   const failures: string[] = []
-  if (expected === undefined) {
-    // --expect any: the services must agree, but no revision is named.
-    const distinct = [...new Set(observed.map((row) => row.sha))]
-    if (distinct.length !== 1 || distinct[0] === '') {
-      failures.push(`services are not on one revision: ${distinct.join(', ')}`)
-    }
-    return failures
-  }
   for (const row of observed) {
-    if (row.sha !== expected) {
-      failures.push(`${row.service}: RELEASE_SHA=${row.sha || '(unset)'} != ${expected}`)
+    if (row.sha !== expectedSha) {
+      failures.push(
+        `${row.service}: RELEASE_SHA=${row.sha || '(unset)'} != ${expectedSha}`,
+      )
+    }
+    if (row.manifestSha256 !== expectedManifestSha256) {
+      failures.push(
+        `${row.service}: RELEASE_MANIFEST_SHA256=${row.manifestSha256 || '(unset)'} != ${expectedManifestSha256}`,
+      )
+    }
+    if (row.sourceRevisionOverride || row.imageRevisionOverride) {
+      failures.push(
+        `${row.service}: legacy SOURCE_REVISION/IMAGE_SOURCE_REVISION service override must be absent; source identity is baked into the promoted image`,
+      )
     }
   }
   return failures
@@ -390,24 +490,79 @@ async function verifyAiHeads(databaseUrl: string): Promise<readonly string[]> {
   }
 }
 
+function activeDeploymentRow(
+  service: RailwayApplicationService,
+  environment: string,
+): DeploymentRow | undefined {
+  const status = JSON.parse(
+    railway([
+      'service',
+      'status',
+      '--service',
+      service,
+      '--environment',
+      environment,
+      '--json',
+    ]),
+  ) as Readonly<{ deploymentId?: string }>
+  if (!status.deploymentId) return undefined
+  const rows = JSON.parse(
+    railway([
+      'deployment',
+      'list',
+      '--service',
+      service,
+      '--environment',
+      environment,
+      '--json',
+    ]),
+  ) as readonly DeploymentRow[]
+  return rows.find((row) => row.id === status.deploymentId)
+}
+
+function verifyImageDigests(
+  plan: readonly ServicePlan[],
+  environment: string,
+): readonly string[] {
+  const failures: string[] = []
+  for (const entry of plan) {
+    const row = activeDeploymentRow(entry.service, environment)
+    const observed = row?.meta?.imageDigest ?? ''
+    out(`  ${entry.service.padEnd(28)} ${observed || '(unavailable)'}`)
+    if (row?.status !== 'SUCCESS') {
+      failures.push(`${entry.service}: active deployment is not SUCCESS`)
+    }
+    if (observed !== entry.imageDigest) {
+      failures.push(
+        `${entry.service}: active image digest ${observed || '(unavailable)'} != ${entry.imageDigest}`,
+      )
+    }
+  }
+  return failures
+}
+
 async function verify(
-  expected: string | undefined,
-  appUrl: string | undefined,
+  manifest: PromotionManifest,
+  manifestSha256: string,
+  options: Options,
 ): Promise<readonly string[]> {
   const failures: string[] = []
+  const plan = deployPlan(manifest, manifestSha256)
 
   out('')
-  out(
-    expected === undefined
-      ? 'release identity (RELEASE_SHA read back from Railway; --expect any: agreement only):'
-      : `release identity (RELEASE_SHA read back from Railway; expecting ${expected}):`,
+  out(`release identity (${options.environment}; expecting ${manifest.releaseSha}):`)
+  failures.push(
+    ...verifyReleaseIdentity(options.environment, manifest.releaseSha, manifestSha256),
   )
-  failures.push(...verifyReleaseIdentity(expected))
 
   out('')
-  if (appUrl) {
+  out('active Railway image digests:')
+  failures.push(...verifyImageDigests(plan, options.environment))
+
+  out('')
+  if (options.appUrl) {
     out('health:')
-    failures.push(...(await verifyHealth(appUrl)))
+    failures.push(...(await verifyHealth(options.appUrl)))
   } else {
     out('skipped: health check (no --app-url and BETA_APP_URL unset)')
   }
@@ -443,55 +598,74 @@ function report(failures: readonly string[], settled: boolean): number {
   return 1
 }
 
-/**
- * What --verify-only must prove. Default: origin/main — the beta is supposed to
- * run merged code, so "the six agree with each other" is not enough. `--expect
- * any` opts down to agreement; `--expect <sha>` names a revision.
- */
-function resolveExpectation(expect: string | undefined): string | undefined {
-  if (expect === 'any') return undefined
-  if (expect) {
-    return gitOk(['rev-parse', '--verify', `${expect}^{commit}`])
-      ? git(['rev-parse', `${expect}^{commit}`])
-      : expect
+function loadManifest(options: Options): PromotionManifest | string {
+  let content: string
+  try {
+    content = readFileSync(options.manifestPath, 'utf8')
+  } catch (error) {
+    return `could not read promotion manifest: ${error instanceof Error ? error.message : String(error)}`
   }
-  if (gitOk(['rev-parse', '--verify', 'origin/main'])) {
-    return git(['rev-parse', 'origin/main'])
+  const parsed = parsePromotionManifest(content)
+  if (!parsed.ok) return parsed.errors.join('\n')
+  if (parsed.digest !== options.manifestSha256) {
+    return `promotion manifest digest ${parsed.digest} does not match --manifest-sha256`
   }
-  out('note: origin/main does not resolve here — falling back to agreement only')
-  return undefined
+  return parsed.manifest
 }
 
-/** --apply provenance: HEAD must be clean AND already merged into origin/main. */
-function provenanceFailures(force: boolean): readonly string[] {
-  const failures: string[] = []
-  const dirty = git(['status', '--porcelain'])
-  if (dirty) {
-    failures.push('the working tree is dirty, so HEAD does not describe what would ship:')
-    for (const line of dirty.split('\n')) failures.push(`  ${line}`)
+function assertSafeCosignVersion(): void {
+  const result = spawnSync('cosign', ['version'], { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    throw new Error('cosign 3.1.3 or newer is required to verify the release manifest')
   }
-  // `railway up` uploads this directory. Refuse anything that is not merged:
-  // a green verification on unreviewed code is the failure mode being closed.
-  spawnSync('git', ['fetch', '--quiet', 'origin', 'main'], { encoding: 'utf8' })
-  if (!gitOk(['rev-parse', '--verify', 'origin/main'])) {
-    failures.push('origin/main does not resolve — cannot prove HEAD is merged code')
-  } else if (!gitOk(['merge-base', '--is-ancestor', 'HEAD', 'origin/main'])) {
-    failures.push(
-      `HEAD (${git(['rev-parse', '--short', 'HEAD'])}) is not an ancestor of origin/main — merge it first, or pass --force to ship unreviewed code`,
+  const version = /(?:GitVersion:\s*|cosign version\s+v?)(\d+)\.(\d+)\.(\d+)/iu.exec(
+    `${result.stdout ?? ''}\n${result.stderr ?? ''}`,
+  )
+  if (!version) throw new Error('could not determine cosign version')
+  const [major, minor, patch] = version.slice(1).map(Number)
+  if (
+    major === undefined ||
+    minor === undefined ||
+    patch === undefined ||
+    major < 3 ||
+    (major === 3 && (minor < 1 || (minor === 1 && patch < 3)))
+  ) {
+    throw new Error('cosign 3.1.3 or newer is required to verify the release manifest')
+  }
+}
+
+function verifyManifestSignature(manifest: PromotionManifest, options: Options): void {
+  assertSafeCosignVersion()
+  const args = sigstoreManifestVerificationArgs({
+    manifestPath: options.manifestPath,
+    bundlePath: options.signatureBundlePath,
+    workflowIdentity: manifest.ci.workflowIdentity,
+  })
+  const result = spawnSync('cosign', [...args], { encoding: 'utf8' })
+  if (result.error || result.status !== 0) {
+    const detail = (result.stderr || result.stdout || '').trim()
+    throw new Error(
+      `release manifest signature verification failed${detail ? `: ${detail}` : ''}`,
     )
   }
-  if (force && failures.length > 0) {
-    out('')
-    out('WARNING: --force overriding provenance refusals:')
-    for (const failure of failures) out(`  ${failure}`)
-    return []
-  }
-  return failures
 }
 
-async function deployAndVerify(sha: string, options: Options): Promise<number> {
-  const plan = deployPlan(sha)
-  out(`APPLY — environment ${ENVIRONMENT}, revision ${sha}`)
+async function deployAndVerify(
+  manifest: PromotionManifest,
+  options: Options,
+): Promise<number> {
+  const plan = deployPlan(manifest, options.manifestSha256)
+  out(
+    `APPLY — environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
+  )
+
+  out('')
+  out('preflight: legacy image-identity overrides')
+  const legacyOverrideFailures = legacyIdentityOverrideFailures(options.environment)
+  if (legacyOverrideFailures.length > 0) {
+    return report(legacyOverrideFailures, false)
+  }
+  out('  clear — promoted image metadata is the sole source identity')
 
   // Web owns the pre-deploy database migration. Let Railway finish that
   // deployment (including its /api/health/started activation check) before a
@@ -502,60 +676,54 @@ async function deployAndVerify(sha: string, options: Options): Promise<number> {
   }
 
   out('')
-  out(`1/${String(plan.length)} ${web.service}: ${web.variables.join(' ')}`)
+  out(
+    `1/${String(plan.length)} ${web.service}: ${web.imageReference} ${web.variables.join(' ')}`,
+  )
   const webSettlement = await awaitSettlement(
-    [deployService(web)],
+    [deployService(web, options.environment)],
+    [web],
+    options.environment,
     options.deployTimeoutMs,
   )
   if (webSettlement.length > 0) {
     return report(webSettlement, false)
   }
 
-  const deployments: Deployment[] = []
   for (const [index, entry] of remaining.entries()) {
     out('')
     out(
-      `${String(index + 2)}/${String(plan.length)} ${entry.service}: ${entry.variables.join(' ')}`,
+      `${String(index + 2)}/${String(plan.length)} ${entry.service}: ${entry.imageReference} ${entry.variables.join(' ')}`,
     )
-    deployments.push(deployService(entry))
+    const settlement = await awaitSettlement(
+      [deployService(entry, options.environment)],
+      [entry],
+      options.environment,
+      options.deployTimeoutMs,
+    )
+    if (settlement.length > 0) return report(settlement, false)
   }
 
-  const settlement = await awaitSettlement(deployments, options.deployTimeoutMs)
-  if (settlement.length > 0) {
-    // No point asserting health against a rollout that did not happen.
-    return report(settlement, false)
-  }
-
-  return report(await verify(sha, options.appUrl), true)
+  return report(await verify(manifest, options.manifestSha256, options), true)
 }
 
-function printPlan(sha: string): number {
-  const plan = deployPlan(sha)
-  out(`DRY RUN — environment ${ENVIRONMENT}, revision ${sha}`)
+function printPlan(manifest: PromotionManifest, options: Options): number {
+  const plan = deployPlan(manifest, options.manifestSha256)
+  out(
+    `DRY RUN — environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
+  )
   out('Re-run with --apply --operator <id> --reason "<text>" to execute.')
-  out('No railway command has been invoked.')
-  const dirty = git(['status', '--porcelain'])
-  if (dirty) {
-    out('')
-    out('WARNING: the tree is dirty; --apply will refuse. Uncommitted paths:')
-    for (const line of dirty.split('\n')) out(`  ${line}`)
-  }
-  if (
-    gitOk(['rev-parse', '--verify', 'origin/main']) &&
-    !gitOk(['merge-base', '--is-ancestor', 'HEAD', 'origin/main'])
-  ) {
-    out('')
-    out('WARNING: HEAD is not an ancestor of origin/main; --apply will refuse.')
-  }
+  out('No Railway command has been invoked. Apply will verify the Sigstore bundle.')
   for (const [index, entry] of plan.entries()) {
     out('')
     out(`${String(index + 1)}. ${entry.service}`)
     for (const assignment of entry.variables) {
       out(
-        `   railway variable set ${assignment} --service ${entry.service} --environment ${ENVIRONMENT} --skip-deploys`,
+        `   railway variable set ${assignment} --service ${entry.service} --environment ${options.environment} --skip-deploys`,
       )
     }
-    out(`   railway up --service ${entry.service} --environment ${ENVIRONMENT} --detach`)
+    out(
+      `   railway service source connect --image ${entry.imageReference} --service ${entry.service} --environment ${options.environment} --json`,
+    )
     out(`   railway deployment list --service ${entry.service} --json  → poll to SUCCESS`)
   }
   return 0
@@ -568,17 +736,22 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
     return 2
   }
   const options = parsed
+  const loaded = loadManifest(options)
+  if (typeof loaded === 'string') {
+    process.stderr.write(`invalid release manifest:\n${loaded}\n`)
+    return 1
+  }
+  const manifest = loaded
 
   if (options.verifyOnly) {
-    out(`verify-only — environment ${ENVIRONMENT}`)
-    return report(await verify(resolveExpectation(options.expect), options.appUrl), false)
+    verifyManifestSignature(manifest, options)
+    out(`verify-only — environment ${options.environment}`)
+    return report(await verify(manifest, options.manifestSha256, options), false)
   }
 
-  const sha = git(['rev-parse', 'HEAD'])
+  if (!options.apply) return printPlan(manifest, options)
 
-  if (!options.apply) return printPlan(sha)
-
-  // Cheapest refusals first: argv, then the git facts, then the network.
+  // Cheapest refusals first: argv and manifest, then signature, then network.
   //
   // The operator requirements are validated HERE rather than by the harness
   // because the harness boots the policy runtime (full env schema +
@@ -597,12 +770,9 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
     return 2
   }
 
-  const provenance = provenanceFailures(options.force)
-  if (provenance.length > 0) {
-    process.stderr.write('refusing to deploy:\n')
-    for (const failure of provenance) process.stderr.write(`  ${failure}\n`)
-    return 1
-  }
+  // Signature verification is never bypassable, including emergency
+  // --skip-audit. It is the authority for source and image provenance.
+  verifyManifestSignature(manifest, options)
 
   if (options.skipAudit) {
     out('')
@@ -610,7 +780,7 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
     out('No named operator, no policy_decision_audit row. Incident use only —')
     out('record the deploy in the incident log by hand.')
     out('')
-    return deployAndVerify(sha, options)
+    return deployAndVerify(manifest, options)
   }
 
   // Audited path: same contract as every ops:* mutation — named operator from
@@ -623,9 +793,9 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
       name: COMMAND_NAME,
       scope: 'global',
       mutation: true,
-      usage: `pnpm ${COMMAND_NAME} --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>] [--force] [--skip-audit]`,
+      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>] [--skip-audit]`,
     },
-    async () => deployAndVerify(sha, options),
+    async () => deployAndVerify(manifest, options),
     harnessArgv(args),
   )
   return result.exitCode
