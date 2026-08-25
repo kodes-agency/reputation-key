@@ -5,7 +5,7 @@
 // tablesFilter whitelist — the barrel itself is the boundary). The 8
 // session, account, verification, organization, member, invitation,
 // organizationRole) live in ./auth.ts, are managed by `pnpm auth:migrate`
-// (Better Auth CLI), and are deliberately NOT exported here.
+// (the Better Auth schema API), and are deliberately NOT exported here.
 //
 // Keep this barrel in lockstep with ./index.ts minus ./auth.ts — the semantic
 // drift test (../migration-verification.test.ts) fails if a migration-owned

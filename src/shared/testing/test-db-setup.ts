@@ -5,7 +5,7 @@
 //
 // Apply sequence mirrors the ci.yml "Run migrations" trio (deploy order, see
 // src/shared/db/CONTEXT.md):
-//   1. pnpm auth:migrate  — Better Auth tables (the CLI prompts; fed "y")
+//   1. pnpm auth:migrate  — Better Auth tables via the pinned runtime
 //   2. pnpm db:migrate    — compatibility preflight + Drizzle journal track
 //   3. Google Property binding concurrent-index sidecar
 //   4. registered SQL sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
@@ -197,12 +197,12 @@ async function applyMigrations(url: string): Promise<void> {
     ...testEnvironment(), // hermetic floor (BETTER_AUTH_SECRET, ...)
     ...process.env, // explicit shell/CI values win
     NODE_ENV: 'test',
-    // Pin BOTH connection vars to the leased target — auth-cli prefers
+    // Pin BOTH connection vars to the leased target — the schema config prefers
     // DATABASE_URL_POOLER and a developer .env must never redirect it.
     DATABASE_URL: url,
     DATABASE_URL_POOLER: url,
   } as NodeJS.ProcessEnv
-  await run('pnpm', ['auth:migrate'], env, 'y\n')
+  await run('pnpm', ['auth:migrate'], env)
   await run('pnpm', ['db:migrate'], env)
   await run('pnpm', ['db:google-property-binding-index'], env)
   await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))

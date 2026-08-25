@@ -56,7 +56,7 @@ const GATES: ReadonlyArray<Gate> = [
   { id: 'lint', command: 'pnpm lint:ci' },
   {
     id: 'migrations',
-    command: 'echo "y" | pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema',
+    command: 'pnpm auth:migrate && pnpm db:migrate && pnpm audit:auth-schema',
     requiresEnv: 'DATABASE_URL',
   },
   { id: 'unit', command: 'pnpm test:unit' },

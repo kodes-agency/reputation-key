@@ -3,15 +3,23 @@
 **Status:** Accepted
 **Scope:** Auth tables managed by better-auth
 
-Auth tables and their custom columns are managed by the **better-auth CLI**, never by hand-written SQL. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is a **STRICT NO** — it desyncs better-auth's migration journal and silently drifts the live DB. (This exact drift once left `invitation.propertyIds` and 7 `organization` billing/SLA columns missing → every invite 500'd.)
+Auth tables and their custom columns are managed by the **schema API in the exact
+repository-pinned `better-auth` runtime**, never by hand-written SQL. The
+`scripts/better-auth-schema.ts` runner exposes this as `pnpm auth:generate` and
+`pnpm auth:migrate`. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is
+a **STRICT NO** — it silently drifts the live DB. (This exact drift once left
+`invitation.propertyIds` and 7 `organization` billing/SLA columns missing → every
+invite 500'd.)
 
-**Auth-managed tables (better-auth CLI):** `user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`, and ALL `additionalFields` on them.
+**Auth-managed tables (Better Auth schema API):** `user`, `session`, `account`,
+`verification`, `organization`, `member`, `invitation`, and ALL
+`additionalFields` on them.
 
 **Business tables (Drizzle):** all 139 app-owned tables — `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` (no `tablesFilter` whitelist since BQC-5.4). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
 
 ## Fresh-DB provisioning (the one manual-SQL exception)
 
-> **2026-07-28 (BQC-5.4): largely superseded.** The current better-auth CLI
+> **2026-07-28 (BQC-5.4): largely superseded.** Better Auth's schema API
 > creates the 8 baseline tables on an empty database (verified — CI relies on
 > it), so step 1 is no longer required; the `mv_*` materialized views in step
 > 4 were folded into migration 0004 and dropped by migration 0008, so
@@ -45,4 +53,8 @@ The bootstrap SQL is the **only** hand-written SQL for auth tables, and only bec
 - Re-declare `additionalFields` inline in `auth.ts` or `auth-cli.ts` — use `org-schema.ts`.
 - Hand-patch an auth column with raw SQL when the tooling "didn't add it."
 
-If `auth:generate` reports "schema already up to date" but you expect a missing column, the CLI config (`auth-cli.ts`) has drifted from `auth.ts` — fix the shared `org-schema.ts`, then re-generate. Never bypass with manual SQL.
+If `auth:generate` reports "schema is up to date" but you expect a missing
+column, the schema config (`auth-cli.ts`) has drifted from `auth.ts` — fix the
+shared `org-schema.ts`, then re-generate. Never bypass with manual SQL. The
+standalone `@better-auth/cli` is deliberately not installed or fetched: its
+release line may lag the runtime and therefore describe a different schema.

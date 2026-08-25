@@ -11,11 +11,12 @@ up the deployed schema:
    `0082_user_organization_binding.sql` with
    `drizzle/meta/_journal.json` (84 entries). Creates all 139 app-owned
    tables. Managed by `pnpm db:generate` / `pnpm db:migrate`.
-2. **Better Auth CLI track** — `pnpm auth:migrate`
-   (`src/shared/auth/auth-cli.ts`). Owns the 8 auth tables (`user`, `session`,
-   `account`, `verification`, `organization`, `member`, `invitation`,
-   `organizationRole`). Drizzle never manages these; `schema/auth.ts` is a
-   read-only query mirror of them.
+2. **Better Auth schema track** — `pnpm auth:migrate`
+   (`scripts/better-auth-schema.ts` using the exact pinned `better-auth`
+   runtime and `src/shared/auth/auth-cli.ts` config). Owns the 8 auth tables
+   (`user`, `session`, `account`, `verification`, `organization`, `member`,
+   `invitation`, `organizationRole`). Drizzle never manages these;
+   `schema/auth.ts` is a read-only query mirror of them.
 3. **Registered deploy sidecars** — constructs Drizzle cannot safely own:
    `scripts/google-property-binding-index.ts` owns the duplicate-audited,
    advisory-locked `CREATE UNIQUE INDEX CONCURRENTLY` lifecycle for

@@ -3,9 +3,9 @@
  *
  * Imported by BOTH:
  *   - auth.ts      (runtime config)
- *   - auth-cli.ts  (the @better-auth/cli migration-tool config)
+ *   - auth-cli.ts  (the repository-pinned schema-management config)
  *
- * The CLI MUST see the same `additionalFields` as the runtime. Previously
+ * Schema management MUST see the same `additionalFields` as the runtime. Previously
  * auth-cli.ts omitted them, so `pnpm auth:generate` / `auth:migrate` could not
  * manage these columns and they silently drifted from the live database — the
  * root cause of the `propertyIds` and org billing-column migration gaps.

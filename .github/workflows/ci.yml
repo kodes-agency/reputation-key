@@ -102,7 +102,7 @@ jobs:
         # autocommit concurrent-index gate, then the registered SQL sidecar —
         # so the tested DB matches deploy state (see src/shared/db/CONTEXT.md).
         run: |
-          echo "y" | pnpm auth:migrate
+          pnpm auth:migrate
           pnpm db:migrate
           pnpm db:google-property-binding-index
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql

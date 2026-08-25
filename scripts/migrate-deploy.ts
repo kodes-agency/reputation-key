@@ -5,7 +5,7 @@
 // Apply order (the documented deploy order — src/shared/db/CONTEXT.md,
 // drizzle.config.ts, mirrored by the ci.yml "Run migrations" step):
 //   1. Better Auth track — getMigrations() from better-auth (the same code
-//      `pnpm auth:migrate` wraps; the CLI only adds an interactive prompt).
+//      `pnpm auth:migrate` wraps through the repository-pinned schema runner).
 //      Idempotent: creates only missing tables/columns.
 //   2. Staged Drizzle journal track — apply through immutable migration 0033,
 //      commit, autocommit cleanup_required, then apply 0034 onward. PostgreSQL
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required')
 
-  // Deferred until after the guard: auth-cli.ts throws without
+  // Deferred until after the guard: the schema config throws without
   // BETTER_AUTH_SECRET and builds the full auth instance at import time.
   const { auth } = await import('../src/shared/auth/auth-cli')
   const { getMigrations } = await import('better-auth/db/migration')

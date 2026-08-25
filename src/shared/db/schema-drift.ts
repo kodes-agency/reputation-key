@@ -134,7 +134,7 @@ type Catalog = Readonly<{
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-/** better-auth CLI track — model mirror is compared columns-only. */
+/** Better Auth schema track — model mirror is compared columns-only. */
 const AUTH_TABLES = new Set([
   'user',
   'session',
@@ -994,7 +994,7 @@ function compareTable(model: ModelTable, catalog: Catalog): Drift[] {
   const dbColumns = catalog.columns.get(model.name) ?? []
   const constraints = catalog.constraints.filter((c) => c.table === model.name)
   const drifts = compareColumns(model, dbColumns)
-  // The better-auth CLI track owns constraints/indexes on auth tables; the
+  // The Better Auth schema track owns constraints/indexes on auth tables; the
   // mirror (schema/auth.ts) is verified columns-only.
   if (model.isAuth) return drifts
   drifts.push(

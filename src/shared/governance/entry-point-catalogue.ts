@@ -3596,6 +3596,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
   }),
+  ops('scripts/better-auth-schema.ts', 'scripts/better-auth-schema.ts', 'tenant_cross', {
+    notes:
+      'auth:generate/auth:migrate — compiles or applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
+  }),
   ops(
     'scripts/google-import-final-schema-probe.ts',
     'scripts/google-import-final-schema-probe.ts',
@@ -3954,12 +3958,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('db:studio', 'package.json', 'tenant_cross', {
     notes: 'drizzle-kit studio — browser DB inspector',
-  }),
-  ops('auth:generate', 'package.json', 'none', {
-    notes: 'better-auth CLI generate — writes auth schema output',
-  }),
-  ops('auth:migrate', 'package.json', 'tenant_cross', {
-    notes: 'better-auth CLI migrate — applies better-auth migrations',
   }),
 ]
 

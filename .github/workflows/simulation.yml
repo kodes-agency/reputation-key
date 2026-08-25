@@ -67,7 +67,7 @@ jobs:
         # (index-then-FK ordering) — then the concurrent-index and registered
         # SQL sidecars. Identical sequence to ci.yml and deploy (BQC-5.4).
         run: |
-          echo "y" | pnpm auth:migrate
+          pnpm auth:migrate
           pnpm db:migrate
           pnpm db:google-property-binding-index
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql

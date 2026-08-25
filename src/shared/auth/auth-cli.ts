@@ -1,8 +1,8 @@
 /**
- * Better Auth CLI configuration.
+ * Better Auth schema-management configuration.
  *
- * Used exclusively by `@better-auth/cli` (generate, migrate).
- * Reuses the same options as auth.ts but avoids Vite path aliases.
+ * Used exclusively by the repository-pinned schema runner (generate,
+ * migrate). Reuses the same options as auth.ts but avoids Vite path aliases.
  */
 import { betterAuth } from 'better-auth'
 import { organization } from 'better-auth/plugins'
@@ -21,8 +21,9 @@ const pool = new Pool({
 })
 
 if (!process.env.BETTER_AUTH_SECRET) {
-  // Startup-time assertion for the CLI config (not domain/application logic).
-  // Plain Error is acceptable here — the auth CLI runs before any context is initialized.
+  // Startup-time assertion for the schema config (not domain/application
+  // logic). Plain Error is acceptable here — schema management runs before
+  // any context is initialized.
   throw new Error('BETTER_AUTH_SECRET environment variable is required')
 }
 
@@ -46,7 +47,7 @@ const auth = betterAuth({
       dynamicAccessControl: { enabled: true },
       invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
       async sendInvitationEmail() {
-        // CLI config doesn't send real emails
+        // Schema-management config doesn't send real emails.
       },
     }),
   ],
