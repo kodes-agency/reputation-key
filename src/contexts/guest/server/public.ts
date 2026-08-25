@@ -270,7 +270,15 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             bound.scope,
             bound.session.sessionId,
             data,
-            bound.portal.reviewGateway.privateFeedbackThreshold,
+            {
+              portalPublicationState: bound.portal.responseConfiguration.publicationState,
+              portalConfigurationDigest:
+                bound.portal.responseConfiguration.configurationDigest,
+              guestLocale: bound.portal.responseConfiguration.guestLocale,
+              languagePackVersion: bound.portal.responseConfiguration.languagePackVersion,
+              privateFeedbackThreshold:
+                bound.portal.responseConfiguration.privateFeedbackThreshold,
+            },
           )
           if (response.responseWithdrawalDeadline) {
             const renewed = bound.useCases.guestSessions.renewUntil(

@@ -67,7 +67,7 @@ async function loadPublicPortal(
           eq(portalLinkCategories.portalId, portalRow.id),
         ),
       )
-      .orderBy(portalLinkCategories.sortKey),
+      .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id),
     db
       .select()
       .from(portalLinks)
@@ -77,7 +77,7 @@ async function loadPublicPortal(
           eq(portalLinks.portalId, portalRow.id),
         ),
       )
-      .orderBy(portalLinks.sortKey),
+      .orderBy(portalLinks.sortKey, portalLinks.id),
   ])
   return {
     portal: {

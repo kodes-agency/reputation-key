@@ -1,6 +1,7 @@
 import type { Database } from '#/shared/db'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import {
+  guestResponseExperienceSnapshots,
   guestResponseMedia,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
@@ -91,8 +92,11 @@ export function createAtomicGuestResponseCommandStore(
     commitSubmitted: (response, facts) =>
       trace('guest.commandStore.commitSubmitted', async () => {
         const binding = requireSessionBinding(response)
-        if (!binding || !response.submittedAt) return 'duplicate' as const
+        if (!binding || !response.submittedAt || !response.experienceSnapshot) {
+          throw new Error('Guest response submission snapshot is required')
+        }
         const submittedAt = response.submittedAt
+        const experienceSnapshot = response.experienceSnapshot
         if (
           binding.expiresAt.getTime() - submittedAt.getTime() !==
           DEFAULT_RESPONSE_SESSION_WINDOW_MS
@@ -109,6 +113,18 @@ export function createAtomicGuestResponseCommandStore(
               .onConflictDoNothing()
               .returning({ id: guestResponses.id })
             if (inserted.length === 0) throw new GuestCommandConflict()
+            await tx.insert(guestResponseExperienceSnapshots).values({
+              responseId: response.id,
+              organizationId: response.organizationId,
+              propertyId: response.propertyId,
+              portalId: response.portalId,
+              publicationState: experienceSnapshot.portalPublicationState,
+              configurationDigest: experienceSnapshot.portalConfigurationDigest,
+              guestLocale: experienceSnapshot.guestLocale,
+              languagePackVersion: experienceSnapshot.languagePackVersion,
+              privateFeedbackThreshold: experienceSnapshot.privateFeedbackThreshold,
+              capturedAt: experienceSnapshot.capturedAt,
+            })
             const bound = await tx
               .insert(guestResponseSessionBindings)
               .values({

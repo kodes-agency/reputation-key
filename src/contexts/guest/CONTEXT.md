@@ -30,6 +30,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 
 - Rating must be an integer 1–5 (`validateRating`). Non-integer or out-of-range values are rejected.
 - The initial response command requires a private rating and cannot carry text. Eligible private feedback is a separate atomic command, max 2,000 characters and non-empty after trim.
+- Every new rating atomically stores a separate experience snapshot: the published-state marker, SHA-256 content version of the exact server-resolved Portal configuration, actual guest locale, Guest UI language-pack version, inclusive feedback threshold, and capture time. Later Portal edits and rating corrections never rewrite it. Historical responses without reliable evidence remain explicitly unsnapshotted rather than inheriting current Portal state.
 - Scan source must be one of `qr`, `nfc`, `direct` (`validateSource`).
 - Session cookie (maximum 24h, `HttpOnly`, `rk_guest_session`) prevents duplicate ratings within the same session.
 - **Anti-discouragement**: after a durable rating, Google is always first and identical for values 1–5. Private feedback is additive, never an alternative, prerequisite, delay, or replacement for Google.

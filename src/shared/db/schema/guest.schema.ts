@@ -168,6 +168,59 @@ export const guestResponses = pgTable(
 )
 
 /**
+ * Immutable-by-contract submission context for a canonical Guest Response.
+ * Historical rows intentionally have no backfilled record: current Portal
+ * state must never be presented as evidence of an earlier guest experience.
+ */
+export const guestResponseExperienceSnapshots = pgTable(
+  'guest_response_experience_snapshots',
+  {
+    responseId: uuid('response_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    publicationState: varchar('publication_state', { length: 20 }).notNull(),
+    configurationDigest: varchar('configuration_digest', { length: 64 }).notNull(),
+    guestLocale: varchar('guest_locale', { length: 35 }).notNull(),
+    languagePackVersion: varchar('language_pack_version', { length: 100 }).notNull(),
+    privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
+    capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    orgResponseKey: uniqueIndex('guest_response_experience_snapshots_org_key').on(
+      t.organizationId,
+      t.responseId,
+    ),
+    responseScopeFk: foreignKey({
+      name: 'guest_response_experience_snapshots_response_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
+      foreignColumns: [
+        guestResponses.organizationId,
+        guestResponses.propertyId,
+        guestResponses.portalId,
+        guestResponses.id,
+      ],
+    }).onDelete('cascade'),
+    publicationStateCheck: check(
+      'guest_response_experience_snapshots_publication_state_valid',
+      sql`${t.publicationState} = 'published'`,
+    ),
+    configurationDigestCheck: check(
+      'guest_response_experience_snapshots_configuration_digest_valid',
+      sql`${t.configurationDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    guestLocaleCheck: check(
+      'guest_response_experience_snapshots_guest_locale_valid',
+      sql`${t.guestLocale} ~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'`,
+    ),
+    thresholdCheck: check(
+      'guest_response_experience_snapshots_threshold_valid',
+      sql`${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
+    ),
+  }),
+)
+
+/**
  * Short-lived recovery authority. Keeping the signed-session pseudonym outside
  * the response fact lets it disappear after 24 hours without deleting the
  * rating/tombstone needed by managerial analytics and correction lineage.

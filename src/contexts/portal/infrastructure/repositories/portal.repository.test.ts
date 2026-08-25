@@ -254,4 +254,45 @@ describe('portalRepository (integration)', () => {
       expect(found!.slug).toBe('original')
     })
   })
+
+  describe('public configuration', () => {
+    it('uses an ID tie-breaker so equal sort keys have a stable digest order', async () => {
+      const db = getDb()
+      const repo = createPortalRepository(db)
+      const portal = buildTestPortal({
+        id: 'ad000000-0000-4000-8000-000000000001',
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        slug: 'stable-public-order',
+      })
+      await repo.insert(ORG_A, portal)
+      const pool = getPool()
+      const categoryA = 'ad000000-0000-4000-8000-000000000010'
+      const categoryB = 'ad000000-0000-4000-8000-000000000020'
+      const linkA = 'ad000000-0000-4000-8000-000000000030'
+      const linkB = 'ad000000-0000-4000-8000-000000000040'
+      await pool.query(
+        `INSERT INTO portal_link_categories
+           (id, portal_id, organization_id, title, sort_key)
+         VALUES ($1, $3, $4, 'A', 'same'), ($2, $3, $4, 'B', 'same')`,
+        [categoryA, categoryB, portal.id, ORG_A],
+      )
+      await pool.query(
+        `INSERT INTO portal_links
+           (id, category_id, portal_id, organization_id, label, url, sort_key)
+         VALUES
+           ($1, $5, $3, $4, 'A', 'https://example.com/a', 'same'),
+           ($2, $6, $3, $4, 'B', 'https://example.com/b', 'same')`,
+        [linkA, linkB, portal.id, ORG_A, categoryA, categoryB],
+      )
+
+      const publicPortal = await repo.findPublicPortalById(ORG_A, portal.id)
+
+      expect(publicPortal?.categories.map((category) => category.id)).toEqual([
+        categoryA,
+        categoryB,
+      ])
+      expect(publicPortal?.links.map((link) => link.id)).toEqual([linkA, linkB])
+    })
+  })
 })

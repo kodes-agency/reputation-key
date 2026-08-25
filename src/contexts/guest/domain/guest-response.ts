@@ -11,6 +11,20 @@
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
 
+/**
+ * Server-resolved experience that was actually in force for the initial rating.
+ * It is persisted in a separate immutable-by-contract record so later Portal
+ * edits are prospective and legacy rows can remain honestly unknown.
+ */
+export type GuestResponseExperienceSnapshot = Readonly<{
+  portalPublicationState: 'published'
+  portalConfigurationDigest: string
+  guestLocale: string
+  languagePackVersion: string
+  privateFeedbackThreshold: number
+  capturedAt: Date
+}>
+
 export interface GuestResponse {
   readonly id: string
   readonly organizationId: string
@@ -28,6 +42,8 @@ export interface GuestResponse {
   readonly mediaConsent: boolean
   /** Inclusive Portal threshold captured with the initial private rating. */
   readonly privateFeedbackThreshold: number | null
+  /** Null only for pre-snapshot historical responses. New submissions require it. */
+  readonly experienceSnapshot: GuestResponseExperienceSnapshot | null
   /** Durable lineage of the currently effective numeric rating fact. */
   readonly ratingSourceEventId: string | null
   /** Durable lineage of the currently effective private-feedback count fact. */
@@ -78,7 +94,7 @@ export function createResponse(params: {
   sessionId: string
   sessionExpiresAt: Date
   retentionDeadline: Date
-  privateFeedbackThreshold?: number | null
+  experienceSnapshot: GuestResponseExperienceSnapshot
 }): GuestResponse {
   return {
     id: params.id,
@@ -94,7 +110,8 @@ export function createResponse(params: {
     responseConsent: false,
     textConsent: false,
     mediaConsent: false,
-    privateFeedbackThreshold: params.privateFeedbackThreshold ?? null,
+    privateFeedbackThreshold: params.experienceSnapshot.privateFeedbackThreshold,
+    experienceSnapshot: params.experienceSnapshot,
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
     contactConsent: false,

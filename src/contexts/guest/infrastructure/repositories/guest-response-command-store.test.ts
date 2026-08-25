@@ -48,6 +48,14 @@ function response(): GuestResponse {
     textConsent: true,
     mediaConsent: false,
     privateFeedbackThreshold: 3,
+    experienceSnapshot: {
+      portalPublicationState: 'published',
+      portalConfigurationDigest: 'a'.repeat(64),
+      guestLocale: 'en',
+      languagePackVersion: 'guest-ui-en-v1',
+      privateFeedbackThreshold: 3,
+      capturedAt: NOW,
+    },
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
     contactConsent: false,
@@ -168,6 +176,21 @@ describe.sequential('atomic Guest response submission', () => {
     expect(new Date(String(separated.rows[0]!.feedback_expires_at))).toEqual(
       new Date('2026-11-23T12:00:00.000Z'),
     )
+    const snapshots = await db.execute(sql`
+      SELECT publication_state, configuration_digest, guest_locale,
+             language_pack_version, private_feedback_threshold, captured_at
+      FROM guest_response_experience_snapshots
+      WHERE response_id = ${RESPONSE}
+    `)
+    expect(snapshots.rows).toHaveLength(1)
+    expect(snapshots.rows[0]).toMatchObject({
+      publication_state: 'published',
+      configuration_digest: 'a'.repeat(64),
+      guest_locale: 'en',
+      language_pack_version: 'guest-ui-en-v1',
+      private_feedback_threshold: 3,
+    })
+    expect(new Date(String(snapshots.rows[0]!.captured_at))).toEqual(NOW)
     expect(outbox.rows.map((row) => row.event_type)).toEqual([
       'guest.feedback.submitted',
       'guest.rating.submitted',
@@ -195,6 +218,19 @@ describe.sequential('atomic Guest response submission', () => {
     `)
     expect(rows.rows).toHaveLength(0)
     expect(outbox.rows).toHaveLength(0)
+  })
+
+  it('fails closed when a new submission has no experience snapshot', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+
+    await expect(
+      store.commitSubmitted({ ...response(), experienceSnapshot: null }, facts()),
+    ).rejects.toThrow('Guest response submission snapshot is required')
+
+    const rows = await db.execute(sql`
+      SELECT id FROM guest_responses WHERE organization_id = ${ORG}
+    `)
+    expect(rows.rows).toHaveLength(0)
   })
 
   it('returns duplicate without emitting new facts for the session anchor', async () => {
@@ -568,6 +604,17 @@ describe.sequential('atomic Guest response submission', () => {
         feedback_source_event_id: originalFeedback.eventId,
       },
     ])
+    const snapshot = await db.execute(sql`
+      SELECT configuration_digest, private_feedback_threshold, captured_at
+      FROM guest_response_experience_snapshots
+      WHERE response_id = ${RESPONSE}
+    `)
+    expect(snapshot.rows).toHaveLength(1)
+    expect(snapshot.rows[0]).toMatchObject({
+      configuration_digest: 'a'.repeat(64),
+      private_feedback_threshold: 3,
+    })
+    expect(new Date(String(snapshot.rows[0]!.captured_at))).toEqual(NOW)
     const outbox = await db.execute(sql`
       SELECT id FROM outbox_events
       WHERE organization_id = ${ORG} AND event_type = 'guest.rating.submitted'

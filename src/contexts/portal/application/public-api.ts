@@ -38,6 +38,19 @@ export type PortalContextResult = Readonly<{
 export type PublicGoogleReviewDestination =
   Readonly<{ status: 'available'; uri: string }> | Readonly<{ status: 'unavailable' }>
 
+/**
+ * Internal submission evidence. Guest's browser projection deliberately omits
+ * this object; the Guest context persists it with the private rating.
+ */
+export type PublicPortalResponseConfiguration = Readonly<{
+  publicationState: 'published'
+  /** SHA-256 of the exact resolved public configuration rendered by this load. */
+  configurationDigest: string
+  guestLocale: string
+  languagePackVersion: string
+  privateFeedbackThreshold: number
+}>
+
 export type PublicPortalResult = Readonly<{
   portal: {
     id: string
@@ -63,6 +76,7 @@ export type PublicPortalResult = Readonly<{
     /** A stale/unavailable Property URI is never serialized to the guest. */
     googleReview: PublicGoogleReviewDestination
   }>
+  responseConfiguration: PublicPortalResponseConfiguration
   organizationId: string
   propertyId: string
 }>

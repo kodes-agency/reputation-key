@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
-  canonicalizeRfc8785,
   parseMerchantAiNoticeCatalogueEntry,
 } from './merchant-ai-notice-contract'
+import { canonicalizeRfc8785 } from './canonical-json'
 
 describe('Merchant AI notice contract', () => {
   it('canonicalizes the RFC 8785 primitive serialization vector', () => {

@@ -20,6 +20,13 @@ const portal: PublicPortalData = {
       uri: 'https://search.google.com/local/writereview?placeid=portal-1',
     },
   },
+  responseConfiguration: {
+    publicationState: 'published',
+    configurationDigest: 'a'.repeat(64),
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold: 3,
+  },
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
 }
@@ -34,6 +41,7 @@ describe('public Portal loader projection', () => {
 
     expect(projected).not.toHaveProperty('organizationId')
     expect(projected).not.toHaveProperty('propertyId')
+    expect(projected).not.toHaveProperty('responseConfiguration')
     expect(JSON.stringify(projected)).not.toContain('secret-id')
     expect(projected.portal.id).toBe('portal-1')
     expect(projected.reviewGateway.privateFeedbackThreshold).toBe(3)

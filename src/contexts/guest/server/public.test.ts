@@ -198,6 +198,15 @@ describe('guest response server-fn gates', () => {
     expect(feedback).toContain('responseLifecycle.addPrivateFeedback')
   })
 
+  it('binds rating submission to the server-resolved Portal experience', () => {
+    const fn = slice('submitGuestResponseFn')
+    expect(fn).toContain('bound.portal.responseConfiguration.publicationState')
+    expect(fn).toContain('bound.portal.responseConfiguration.configurationDigest')
+    expect(fn).toContain('bound.portal.responseConfiguration.guestLocale')
+    expect(fn).toContain('bound.portal.responseConfiguration.languagePackVersion')
+    expect(fn).toContain('bound.portal.responseConfiguration.privateFeedbackThreshold')
+  })
+
   it('renews recovery only to each committed withdrawal deadline', () => {
     const rating = slice('submitGuestResponseFn')
     expect(rating).toContain('response.responseWithdrawalDeadline')

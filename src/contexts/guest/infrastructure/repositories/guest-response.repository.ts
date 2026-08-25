@@ -1,6 +1,7 @@
 import { and, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
+  guestResponseExperienceSnapshots,
   guestResponseMedia,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
@@ -49,6 +50,7 @@ export function createGuestResponseRepository(
           response: guestResponses,
           binding: guestResponseSessionBindings,
           feedback: guestResponsePrivateFeedback,
+          experience: guestResponseExperienceSnapshots,
         })
         .from(guestResponses)
         .innerJoin(
@@ -74,6 +76,16 @@ export function createGuestResponseRepository(
             gt(guestResponsePrivateFeedback.expiresAt, asOf),
           ),
         )
+        .leftJoin(
+          guestResponseExperienceSnapshots,
+          and(
+            eq(guestResponseExperienceSnapshots.responseId, guestResponses.id),
+            eq(
+              guestResponseExperienceSnapshots.organizationId,
+              guestResponses.organizationId,
+            ),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
@@ -83,14 +95,23 @@ export function createGuestResponseRepository(
         )
         .limit(1)
       return result
-        ? guestResponseFromRow(result.response, result.binding, result.feedback)
+        ? guestResponseFromRow(
+            result.response,
+            result.binding,
+            result.feedback,
+            result.experience,
+          )
         : null
     },
 
     findById: async (scope, responseId) => {
       const asOf = clock()
       const [result] = await db
-        .select({ response: guestResponses, feedback: guestResponsePrivateFeedback })
+        .select({
+          response: guestResponses,
+          feedback: guestResponsePrivateFeedback,
+          experience: guestResponseExperienceSnapshots,
+        })
         .from(guestResponses)
         .leftJoin(
           guestResponsePrivateFeedback,
@@ -103,6 +124,16 @@ export function createGuestResponseRepository(
             gt(guestResponsePrivateFeedback.expiresAt, asOf),
           ),
         )
+        .leftJoin(
+          guestResponseExperienceSnapshots,
+          and(
+            eq(guestResponseExperienceSnapshots.responseId, guestResponses.id),
+            eq(
+              guestResponseExperienceSnapshots.organizationId,
+              guestResponses.organizationId,
+            ),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
@@ -112,7 +143,9 @@ export function createGuestResponseRepository(
           ),
         )
         .limit(1)
-      return result ? guestResponseFromRow(result.response, null, result.feedback) : null
+      return result
+        ? guestResponseFromRow(result.response, null, result.feedback, result.experience)
+        : null
     },
 
     // Org-scoped by design (see the port comment): an inbox item knows only its

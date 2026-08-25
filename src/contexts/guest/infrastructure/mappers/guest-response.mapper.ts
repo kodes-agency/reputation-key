@@ -1,4 +1,5 @@
 import {
+  guestResponseExperienceSnapshots,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
   guestResponses,
@@ -7,6 +8,7 @@ import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-resp
 
 type ResponseRow = typeof guestResponses.$inferSelect
 type ResponseInsert = typeof guestResponses.$inferInsert
+type ExperienceSnapshotRow = typeof guestResponseExperienceSnapshots.$inferSelect
 type SessionBindingRow = typeof guestResponseSessionBindings.$inferSelect
 type PrivateFeedbackRow = typeof guestResponsePrivateFeedback.$inferSelect
 
@@ -14,6 +16,7 @@ export function guestResponseFromRow(
   row: ResponseRow,
   binding: SessionBindingRow | null = null,
   feedback: PrivateFeedbackRow | null = null,
+  experience: ExperienceSnapshotRow | null = null,
 ): GuestResponse {
   return {
     id: row.id,
@@ -30,6 +33,16 @@ export function guestResponseFromRow(
     textConsent: row.textConsent,
     mediaConsent: row.mediaConsent,
     privateFeedbackThreshold: row.privateFeedbackThreshold,
+    experienceSnapshot: experience
+      ? {
+          portalPublicationState: 'published',
+          portalConfigurationDigest: experience.configurationDigest,
+          guestLocale: experience.guestLocale,
+          languagePackVersion: experience.languagePackVersion,
+          privateFeedbackThreshold: experience.privateFeedbackThreshold,
+          capturedAt: experience.capturedAt,
+        }
+      : null,
     ratingSourceEventId: row.ratingSourceEventId,
     feedbackSourceEventId: row.feedbackSourceEventId,
     contactConsent: false,

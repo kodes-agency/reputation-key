@@ -24,6 +24,7 @@ import {
   withdrawPrivateFeedback,
   withdrawResponse,
   type GuestResponse,
+  type GuestResponseExperienceSnapshot,
   type ResponseError,
 } from '../../domain/guest-response'
 import {
@@ -52,6 +53,14 @@ export type GuestResponseInput = Readonly<{
   responseConsent?: boolean
   textConsent?: boolean
   mediaConsent?: boolean
+}>
+
+export type GuestResponseExperienceInput = Readonly<{
+  portalPublicationState: 'published'
+  portalConfigurationDigest: string
+  guestLocale: string
+  languagePackVersion: string
+  privateFeedbackThreshold: number
 }>
 
 export type GuestResponseView = Readonly<{
@@ -88,6 +97,41 @@ function factRetentionDeadline(from: Date): Date {
   const deadline = new Date(from)
   deadline.setUTCMonth(deadline.getUTCMonth() + 24)
   return deadline
+}
+
+const CONFIGURATION_DIGEST_PATTERN = /^[0-9a-f]{64}$/
+const GUEST_LOCALE_LANGUAGE_PATTERN = /^[A-Za-z]{2,3}$/
+const GUEST_LOCALE_SUBTAG_PATTERN = /^[A-Za-z0-9]{2,8}$/
+const LANGUAGE_PACK_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
+
+function isGuestLocale(value: string): boolean {
+  if (value.length > 35) return false
+  const [language, ...subtags] = value.split('-')
+  return (
+    GUEST_LOCALE_LANGUAGE_PATTERN.test(language ?? '') &&
+    subtags.every((subtag) => GUEST_LOCALE_SUBTAG_PATTERN.test(subtag))
+  )
+}
+
+function captureExperience(
+  input: GuestResponseExperienceInput,
+  capturedAt: Date,
+): GuestResponseExperienceSnapshot {
+  if (
+    input.portalPublicationState !== 'published' ||
+    !CONFIGURATION_DIGEST_PATTERN.test(input.portalConfigurationDigest) ||
+    !isGuestLocale(input.guestLocale) ||
+    !LANGUAGE_PACK_VERSION_PATTERN.test(input.languagePackVersion) ||
+    !Number.isInteger(input.privateFeedbackThreshold) ||
+    input.privateFeedbackThreshold < 1 ||
+    input.privateFeedbackThreshold > 5
+  ) {
+    throw new GuestResponseLifecycleError('response_unavailable')
+  }
+  return {
+    ...input,
+    capturedAt,
+  }
 }
 
 function toView(response: GuestResponse, now: Date): GuestResponseView {
@@ -373,7 +417,7 @@ export function guestResponseLifecycle(
       scope: GuestResponseScope,
       sessionId: string,
       input: GuestResponseInput,
-      privateFeedbackThreshold = 3,
+      experience: GuestResponseExperienceInput,
       sessionExpiresAt?: Date,
     ): Promise<GuestResponseView> => {
       const now = deps.clock()
@@ -393,13 +437,7 @@ export function guestResponseLifecycle(
       if (input.text?.trim()) {
         throw new GuestResponseLifecycleError('feedback_must_follow_rating')
       }
-      if (
-        !Number.isInteger(privateFeedbackThreshold) ||
-        privateFeedbackThreshold < 1 ||
-        privateFeedbackThreshold > 5
-      ) {
-        throw new GuestResponseLifecycleError('response_unavailable')
-      }
+      const experienceSnapshot = captureExperience(experience, now)
       const submitted = unwrap(
         submitResponse(
           createResponse({
@@ -408,7 +446,7 @@ export function guestResponseLifecycle(
             sessionId,
             sessionExpiresAt: bindingExpiresAt,
             retentionDeadline: factRetentionDeadline(now),
-            privateFeedbackThreshold,
+            experienceSnapshot,
           }),
           input,
           now,

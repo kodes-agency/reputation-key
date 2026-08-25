@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   organizationId,
   propertyId,
@@ -10,6 +11,14 @@ import type { PublicPortalResult } from '../public-api'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import { isPortalError } from '../../domain/errors'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+
+const GUEST_LOCALE = 'en'
+const GUEST_LANGUAGE_PACK_VERSION = 'guest-ui-en-v1'
+
+function configurationDigest(value: unknown): string {
+  return createHash('sha256').update(canonicalizeRfc8785(value), 'utf8').digest('hex')
+}
 
 export type ResolvePublicPortalTokenOutcome =
   | Readonly<{ status: 'found'; data: PublicPortalResult }>
@@ -97,14 +106,31 @@ export const resolvePublicPortalToken =
         : ({ status: 'unavailable' } as const)
 
     const { privateFeedbackThreshold, ...publicData } = data
+    const reviewGateway = {
+      privateFeedbackThreshold,
+      googleReview,
+    }
+    const responseConfiguration = {
+      publicationState: 'published' as const,
+      configurationDigest: configurationDigest({
+        schemaVersion: 1,
+        guestLocale: GUEST_LOCALE,
+        languagePackVersion: GUEST_LANGUAGE_PACK_VERSION,
+        portal: publicData.portal,
+        categories: publicData.categories,
+        links: publicData.links,
+        reviewGateway,
+      }),
+      guestLocale: GUEST_LOCALE,
+      languagePackVersion: GUEST_LANGUAGE_PACK_VERSION,
+      privateFeedbackThreshold,
+    }
     return {
       status: 'found',
       data: {
         ...publicData,
-        reviewGateway: {
-          privateFeedbackThreshold,
-          googleReview,
-        },
+        reviewGateway,
+        responseConfiguration,
       },
     }
   }

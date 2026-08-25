@@ -42,6 +42,13 @@ describe('createPublicPortalLookup', () => {
           uri: 'https://search.google.com/local/writereview?placeid=p1',
         },
       },
+      responseConfiguration: {
+        publicationState: 'published' as const,
+        configurationDigest: 'a'.repeat(64),
+        guestLocale: 'en',
+        languagePackVersion: 'guest-ui-en-v1',
+        privateFeedbackThreshold: 3,
+      },
       organizationId: 'org-1',
       propertyId: 'property-1',
     }

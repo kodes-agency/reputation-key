@@ -60,6 +60,14 @@ describe('createGuestResponseRepository', () => {
         },
         binding: { sessionId: 'session-1', expiresAt: sessionExpiresAt },
         feedback: { body: 'Helpful staff' },
+        experience: {
+          publicationState: 'published',
+          configurationDigest: 'a'.repeat(64),
+          guestLocale: 'en',
+          languagePackVersion: 'guest-ui-en-v1',
+          privateFeedbackThreshold: 3,
+          capturedAt: submittedAt,
+        },
       },
     ])
 
@@ -78,6 +86,14 @@ describe('createGuestResponseRepository', () => {
       textConsent: true,
       mediaConsent: false,
       privateFeedbackThreshold: 3,
+      experienceSnapshot: {
+        portalPublicationState: 'published',
+        portalConfigurationDigest: 'a'.repeat(64),
+        guestLocale: 'en',
+        languagePackVersion: 'guest-ui-en-v1',
+        privateFeedbackThreshold: 3,
+        capturedAt: submittedAt,
+      },
       ratingSourceEventId: 'rating-event-1',
       feedbackSourceEventId: 'feedback-event-1',
       contactConsent: false,

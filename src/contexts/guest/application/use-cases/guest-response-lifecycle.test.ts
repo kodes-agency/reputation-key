@@ -18,6 +18,14 @@ const scope: GuestResponseScope = {
   portalId: '00000000-0000-4000-8000-000000000002',
 }
 
+const experience = (privateFeedbackThreshold = 3) => ({
+  portalPublicationState: 'published' as const,
+  portalConfigurationDigest: 'a'.repeat(64),
+  guestLocale: 'en',
+  languagePackVersion: 'guest-ui-en-v1',
+  privateFeedbackThreshold,
+})
+
 function memoryRepo(): GuestResponseRepository & {
   responses: GuestResponse[]
   media: GuestMedia[]
@@ -305,17 +313,38 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
       return { outcome: 'applied' as const, objectKeys }
     },
   }
-  const lifecycle = guestResponseLifecycle({
+  const rawLifecycle = guestResponseLifecycle({
     repo,
     storage,
     clock,
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
     commandStore,
   })
+  // Most lifecycle tests focus on behavior after submission. This adapter keeps
+  // their threshold-oriented call shape compact while production callers must
+  // provide the complete server-resolved experience contract.
+  const lifecycle = {
+    ...rawLifecycle,
+    submit: (
+      candidateScope: GuestResponseScope,
+      sessionId: string,
+      input: Parameters<typeof rawLifecycle.submit>[2],
+      privateFeedbackThreshold = 3,
+      sessionExpiresAt?: Date,
+    ) =>
+      rawLifecycle.submit(
+        candidateScope,
+        sessionId,
+        input,
+        experience(privateFeedbackThreshold),
+        sessionExpiresAt,
+      ),
+  }
   return {
     repo,
     events,
     lifecycle,
+    rawLifecycle,
     setConfirm: (value: () => Promise<string>) => (confirm = value),
     setInspect: (
       value: () => Promise<{ contentType: string | null; sizeBytes: number | null }>,
@@ -341,6 +370,14 @@ describe('guest response lifecycle', () => {
       sessionId,
       sessionExpiresAt,
       retentionDeadline: new Date('2028-08-09T12:00:00.000Z'),
+      experienceSnapshot: {
+        portalPublicationState: 'published',
+        portalConfigurationDigest: 'a'.repeat(64),
+        guestLocale: 'en',
+        languagePackVersion: 'guest-ui-en-v1',
+        privateFeedbackThreshold: 3,
+        capturedAt: new Date('2026-08-09T12:00:00.000Z'),
+      },
     })
   })
 
@@ -361,6 +398,26 @@ describe('guest response lifecycle', () => {
         ),
       ).rejects.toMatchObject({ code: 'response_unavailable' })
     }
+  })
+
+  it.each([
+    { portalPublicationState: 'disabled' },
+    { portalConfigurationDigest: 'not-a-digest' },
+    { guestLocale: 'en--US' },
+    { languagePackVersion: 'Guest UI V1' },
+    { privateFeedbackThreshold: 0 },
+    { privateFeedbackThreshold: 6 },
+  ])('rejects an invalid server-resolved experience: %o', async (override) => {
+    const { rawLifecycle, repo } = harness()
+    await expect(
+      rawLifecycle.submit(
+        scope,
+        '00000000-0000-4000-8000-000000000003',
+        { rating: 5, responseConsent: true },
+        { ...experience(), ...override } as Parameters<typeof rawLifecycle.submit>[3],
+      ),
+    ).rejects.toMatchObject({ code: 'response_unavailable' })
+    expect(repo.responses).toHaveLength(0)
   })
 
   it('submits, corrects once, and withdraws only for the same session', async () => {

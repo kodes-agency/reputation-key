@@ -25,7 +25,14 @@ describe('GuestResponse', () => {
     sessionId: 'session-1',
     sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
-    privateFeedbackThreshold: 3,
+    experienceSnapshot: {
+      portalPublicationState: 'published' as const,
+      portalConfigurationDigest: 'a'.repeat(64),
+      guestLocale: 'en',
+      languagePackVersion: 'guest-ui-en-v1',
+      privateFeedbackThreshold: 3,
+      capturedAt: NOW,
+    },
   }
 
   describe('createResponse', () => {

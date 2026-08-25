@@ -118,6 +118,13 @@ describe('resolvePublicPortalToken', () => {
           privateFeedbackThreshold: 3,
           googleReview: { status: 'available', uri: GOOGLE_REVIEW_URI },
         },
+        responseConfiguration: {
+          publicationState: 'published',
+          configurationDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+          guestLocale: 'en',
+          languagePackVersion: 'guest-ui-en-v1',
+          privateFeedbackThreshold: 3,
+        },
         organizationId: 'org-1',
         propertyId: 'property-1',
       },
@@ -210,5 +217,25 @@ describe('resolvePublicPortalToken', () => {
       },
     })
     expect(reportDestinationFailure).toHaveBeenCalledWith(failure)
+  })
+
+  it('content-addresses the exact rendered configuration', async () => {
+    const available = await setup().resolve('pt_key_secret')
+    const unavailable = await setup({
+      getDestination: vi.fn(async () => ({
+        state: 'unavailable' as const,
+        uri: null,
+        retrievedAt: null,
+        sourceEpoch: null,
+        profileVersion: null,
+      })),
+    }).resolve('pt_key_secret')
+
+    expect(available.status).toBe('found')
+    expect(unavailable.status).toBe('found')
+    if (available.status !== 'found' || unavailable.status !== 'found') return
+    expect(available.data.responseConfiguration.configurationDigest).not.toBe(
+      unavailable.data.responseConfiguration.configurationDigest,
+    )
   })
 })

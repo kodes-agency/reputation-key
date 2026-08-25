@@ -32,6 +32,13 @@ const portal = {
       uri: 'https://search.google.com/local/writereview?placeid=property-p1',
     },
   },
+  responseConfiguration: {
+    publicationState: 'published',
+    configurationDigest: 'a'.repeat(64),
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold: 3,
+  },
   organizationId: 'org-a',
   propertyId: 'property-p1',
 } as const
