@@ -17,7 +17,7 @@
 //
 // Idempotency, in the order the fences apply:
 //   1. The dispatcher pre-checks `hasReceipt(eventId, consumerName)` and skips
-//      a consumer that already ran (src/shared/outbox/dispatcher.ts:132).
+//      a consumer that already ran.
 //   2. Each enqueue carries the deterministic job id `<eventId>-<userId>`, so
 //      an ambiguous relay redelivery between the enqueue and the receipt write
 //      converges on the same BullMQ job instead of queueing a second one
@@ -33,7 +33,7 @@
 //
 // Content-free: identifiers, an enum and counts only (ADR 0030 / BQC-7.3).
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'

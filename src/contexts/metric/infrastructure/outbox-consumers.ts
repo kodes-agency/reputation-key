@@ -5,7 +5,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import {
   onApprovedDestinationRatioRecorded,
   onConfigurationCompletenessRecorded,

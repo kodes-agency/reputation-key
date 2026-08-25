@@ -12,6 +12,13 @@
 // directly to construct adapters and start runtime loops.
 
 export { emitAndRecord } from './emit-and-record'
+export { registerConsumer, listRegisteredConsumers } from './consumer-registry'
+export type {
+  ConsumerEvent,
+  ConsumerHandler,
+  ConsumerRegistration,
+  ConsumerResult,
+} from './consumer-registry'
 export type {
   OutboxRepository,
   UnpublishedEvent,

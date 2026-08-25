@@ -1,15 +1,13 @@
 import { createHash } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   portalLinkCategories,
   portalLinks,
   portals,
 } from '#/shared/db/schema/portal.schema'
 import type { EventBus } from '#/shared/events/event-bus'
-import { toOutboxEvent } from '#/shared/outbox/event-adapter'
-import { emitAfterCommit, type Tx } from '#/shared/outbox/commit'
+import { emitAfterCommit, insertOutboxRowIfNew, type Tx } from '#/shared/outbox/commit'
 import {
   portalApprovedDestinationRatioRecorded,
   portalConfigurationCompletenessRecorded,
@@ -246,12 +244,7 @@ async function insertFacts(
 ): Promise<number> {
   let inserted = 0
   for (const event of events) {
-    const rows = await tx
-      .insert(outboxEvents)
-      .values({ ...toOutboxEvent(event), id: event.eventId })
-      .onConflictDoNothing()
-      .returning({ id: outboxEvents.id })
-    inserted += rows.length
+    if (await insertOutboxRowIfNew(tx, event)) inserted += 1
   }
   return inserted
 }

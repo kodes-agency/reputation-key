@@ -563,12 +563,9 @@ describe('BQC-2.1 entry-point catalogue', () => {
       ).toEqual([...d.tags].sort())
     }
 
-    // Durable registration may only happen in discovered consumer modules
-    // (plus the dispatcher definition itself).
-    const allowed = new Set([
-      'src/shared/outbox/dispatcher.ts',
-      ...discovered.filter((d) => d.durable).map((d) => d.file),
-    ])
+    // Durable registration calls may only happen in discovered consumer modules.
+    // The registry defines the function but does not register handlers itself.
+    const allowed = new Set(discovered.filter((d) => d.durable).map((d) => d.file))
     const offenders = durableRegistrationFiles().filter((f) => !allowed.has(f))
     expect(
       offenders,

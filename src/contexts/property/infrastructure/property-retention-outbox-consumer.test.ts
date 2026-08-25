@@ -5,7 +5,7 @@ import {
   clearConsumers,
   listRegisteredConsumers,
   type ConsumerEvent,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox/consumer-registry'
 import type { PropertyGoogleBindingStore } from '../application/ports/property-google-binding.port'
 import {
   handlePropertyRetentionReleased,

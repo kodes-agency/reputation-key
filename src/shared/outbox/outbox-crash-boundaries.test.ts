@@ -19,7 +19,7 @@ import {
   clearEventSchemas,
   validateEventPayload,
 } from '#/shared/events/schema-registry'
-import { registerConsumer, clearConsumers, type ConsumerEvent } from './dispatcher'
+import { registerConsumer, clearConsumers, type ConsumerEvent } from './consumer-registry'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
 import { z, ZodError } from 'zod'
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'

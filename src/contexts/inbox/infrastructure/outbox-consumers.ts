@@ -19,7 +19,7 @@ import {
   registerConsumer,
   type ConsumerEvent,
   type ConsumerResult,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox'
 import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '../application/ports/review-source-lookup.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'

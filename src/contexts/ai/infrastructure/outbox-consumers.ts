@@ -3,7 +3,7 @@ import {
   registerConsumer,
   type ConsumerEvent,
   type ConsumerResult,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'

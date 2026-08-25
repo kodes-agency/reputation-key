@@ -15,7 +15,7 @@ import {
   handleInboxGuestFeedbackRetracted,
   handleInboxGuestFeedbackSubmitted,
 } from './guest-feedback-outbox-consumers'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'

@@ -59,7 +59,8 @@ import {
   type InboxItemId,
 } from '#/shared/domain/ids'
 import { createOutboxRelay, type OutboxRelay } from '#/shared/outbox/relay'
-import { createDispatcherHandler, clearConsumers } from '#/shared/outbox/dispatcher'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { clearConsumers } from '#/shared/outbox/consumer-registry'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {

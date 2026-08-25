@@ -1219,6 +1219,7 @@ export function createContainer(options?: {
 
   const integration = buildIntegrationContext({
     db,
+    outboxRepo,
     events: eventBus,
     clock,
     jobQueue: infra.jobQueue,
@@ -1292,6 +1293,7 @@ export function createContainer(options?: {
   })
   const ai = buildAiContext({
     db,
+    outboxRepo,
     redis,
     reviewSources: review.internal.aiReviewSource,
     propertyReplyLanguages: {

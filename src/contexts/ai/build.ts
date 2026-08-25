@@ -34,7 +34,7 @@ import { createPropertyProcessingProfileAdapter } from './infrastructure/adapter
 import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/ai-review-analysis-backfill.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import type { OutboxRepository } from '#/shared/outbox'
 import {
   registerAiConsumers,
   type RegisterAiConsumersInput,
@@ -77,6 +77,7 @@ const unavailableSubjectHmac: AiSubjectHmacPort = Object.freeze({
 
 export type AiContextBuildInput = Readonly<{
   db: Database
+  outboxRepo: OutboxRepository
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
   propertyReplyLanguages: PropertyReplyLanguagePort
@@ -204,7 +205,7 @@ export function buildAiContext(input: AiContextBuildInput) {
           enqueuePropertyTrend: input.enqueuePropertyTrend,
           analyzeReviewEvent,
           advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,
-          receipts: createOutboxRepository(input.db),
+          receipts: input.outboxRepo,
         })
       },
       generatePropertyTrend: createGeneratePropertyTrend({

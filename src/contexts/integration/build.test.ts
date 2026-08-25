@@ -31,6 +31,7 @@ import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { initExecutionPolicy, resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { RequiredPolicyRefreshResult } from '#/shared/auth/persisted-policy-store'
+import type { OutboxRepository } from '#/shared/outbox'
 
 /** Query-free guard: any DB access during construction throws. */
 const dbStub = new Proxy(
@@ -71,6 +72,7 @@ function buildDeps(overrides: {
 }) {
   return {
     db: dbStub,
+    outboxRepo: {} as unknown as OutboxRepository,
     events: silentEvents,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     jobQueue: createInMemoryQueue(),

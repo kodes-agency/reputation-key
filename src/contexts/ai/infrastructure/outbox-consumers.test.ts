@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import type { OutboxRepository } from '#/shared/outbox'
 import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/relay'
 import {

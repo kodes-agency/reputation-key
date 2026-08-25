@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox/dispatcher', () => ({
+vi.mock('#/shared/outbox', () => ({
   registerConsumer: mocks.registerConsumer,
 }))
 vi.mock('#/shared/events/schema-registry', () => ({

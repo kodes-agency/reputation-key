@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
-import { clearConsumers, listRegisteredConsumers } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
+import {
+  clearConsumers,
+  listRegisteredConsumers,
+} from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createEventHandlerDeps, NOTIF_TEST_IDS } from './event-handlers/test-fixtures'

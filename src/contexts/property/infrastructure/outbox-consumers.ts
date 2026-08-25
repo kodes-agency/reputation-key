@@ -1,6 +1,6 @@
 import { organizationId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import type { PropertyGoogleBindingStore } from '../application/ports/property-google-binding.port'
 
 const EVENT_TYPE = 'integration.property_import.retention_released'

@@ -4,7 +4,7 @@ import {
   registerConsumer,
   type ConsumerEvent,
   type ConsumerResult,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox'
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'

@@ -22,7 +22,7 @@ import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
-import { listRegisteredConsumers } from '#/shared/outbox/dispatcher'
+import { listRegisteredConsumers } from '#/shared/outbox'
 import {
   listActiveCutoverFamilies,
   type ActiveCutoverFamily,

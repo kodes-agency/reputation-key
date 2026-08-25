@@ -2,7 +2,7 @@ import type { Database } from '#/shared/db'
 import { lte } from 'drizzle-orm'
 import { metricSourceWatermarks } from '#/shared/db/schema/metric.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer } from '#/shared/outbox/dispatcher'
+import { registerConsumer } from '#/shared/outbox'
 
 type MetricCorrectedPayload = Readonly<{
   correctionId: string

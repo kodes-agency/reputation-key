@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   createGoogleImportDispatchHandler,

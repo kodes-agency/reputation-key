@@ -47,7 +47,7 @@ import { createGoogleImportV2Store } from './infrastructure/google-import-v2-sto
 import { createImportItemRoutingLoader } from './infrastructure/import-item-routing.adapter'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
 import { registerGoogleImportDispatchConsumer } from './infrastructure/outbox-consumers'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import type { OutboxRepository } from '#/shared/outbox'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from './application/google-import-v2-contract'
 import { createCredentialLifecycleRepository } from './infrastructure/repositories/credential-lifecycle.repository'
 import { createGoogleOAuthAdapter } from './infrastructure/adapters/google-oauth.adapter'
@@ -163,6 +163,7 @@ function sameAuthorizationVectorExceptCredentialGeneration(
 
 type IntegrationContextDeps = Readonly<{
   db: Database
+  outboxRepo: OutboxRepository
   events: EventBus
   clock: () => Date
   jobQueue: Queue | undefined
@@ -381,7 +382,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     registerGoogleImportDispatchConsumer({
       store: googleImportV2Store,
       queue: googleImportV2Queue,
-      receipts: createOutboxRepository(deps.db),
+      receipts: deps.outboxRepo,
     })
 
   // ── Use Cases ────────────────────────────────────────────────────

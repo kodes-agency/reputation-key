@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearConsumers, listRegisteredConsumers } from '#/shared/outbox/dispatcher'
+import {
+  clearConsumers,
+  listRegisteredConsumers,
+} from '#/shared/outbox/consumer-registry'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { registerPortalWorkflowMetricConsumers } from '../outbox-consumers'
 

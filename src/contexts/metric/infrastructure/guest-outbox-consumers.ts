@@ -16,7 +16,7 @@ import {
   scanEventId,
 } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import { onFeedbackSubmittedDurably } from './event-handlers/on-feedback-submitted'
 import { onRatingSubmittedDurably } from './event-handlers/on-rating-submitted'
 import { onReviewLinkClickedDurably } from './event-handlers/on-review-link-clicked'

@@ -1,4 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'

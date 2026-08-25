@@ -9,7 +9,7 @@ import {
   clearConsumers,
   listRegisteredConsumers,
   registerConsumer,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox/consumer-registry'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { walk } from '#/shared/testing/source-tree'
 

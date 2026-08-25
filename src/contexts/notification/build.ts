@@ -32,7 +32,7 @@ import {
   DEFAULT_RECONCILE_LOOKBACK_MS,
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
-import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import type { OutboxRepository } from '#/shared/outbox'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
@@ -59,7 +59,7 @@ import type { NotificationListFilter } from './application/notification-list-fil
 type BuildInput = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
+  outboxRepo: OutboxRepository
   queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort
@@ -345,22 +345,21 @@ export const buildNotificationContext = (input: BuildInput) => {
        */
       registerOutboxConsumers: () => {
         if (!fanoutDeps) return
-        const receipts = createOutboxRepository(input.db)
         registerNotificationConsumers({
           ...fanoutDeps,
-          receipts,
+          receipts: input.outboxRepo,
         })
         registerPortalNotificationConsumers({
           queue: fanoutDeps.queue,
           userLookup,
           logger: input.logger,
-          receipts,
+          receipts: input.outboxRepo,
         })
         registerPropertyNotificationConsumers({
           queue: fanoutDeps.queue,
           userLookup,
           logger: input.logger,
-          receipts,
+          receipts: input.outboxRepo,
         })
       },
       /**

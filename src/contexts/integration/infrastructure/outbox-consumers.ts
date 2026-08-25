@@ -1,7 +1,7 @@
 import { createGoogleImportDispatchHandler } from '../application/google-import-dispatch'
 import type { GoogleImportV2QueuePort } from '../application/ports/gbp-queue.port'
 import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
-import { registerConsumer } from '#/shared/outbox/dispatcher'
+import { registerConsumer } from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 
 export function registerGoogleImportDispatchConsumer(

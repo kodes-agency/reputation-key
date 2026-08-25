@@ -20,12 +20,8 @@ import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import { z } from 'zod'
 import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
-import {
-  registerConsumer,
-  clearConsumers,
-  createDispatcherHandler,
-  type ConsumerEvent,
-} from './dispatcher'
+import { createDispatcherHandler } from './dispatcher'
+import { registerConsumer, clearConsumers, type ConsumerEvent } from './consumer-registry'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import {
   initDelayedExecutionPolicy,

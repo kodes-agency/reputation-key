@@ -63,7 +63,7 @@ import {
 } from '#/contexts/review/application/ai-review-source'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
 import type { AiInferencePort } from '../../application/ports/ai-inference.port'
 import type { AiQuotaPort } from '../../application/ports/ai-quota.port'
