@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouter } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
   ImportProgressDto,
@@ -11,6 +11,11 @@ import type {
   GoogleImportManagerProps,
   GoogleImportStep,
 } from './google-import-manager-contract'
+import {
+  googleImportProgressPollInterval,
+  googleImportStatusQuery,
+} from './google-import-progress-query'
+import { isImportParentTerminal } from './google-import-progress-model'
 
 type RetryRequest = Readonly<{
   retryRevision: number
@@ -57,22 +62,23 @@ export function useGoogleImportProgressController({
   const navigate = useNavigate()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const mounted = useRef(true)
   const retryRequests = useRef(new Map<string, RetryRequest>())
-  const refreshInFlight = useRef<Promise<ImportProgressDto | null> | null>(null)
-  const [progress, setProgress] = useState<ImportProgressDto | null>(
-    initialProgress ?? null,
-  )
-  const [pollingError, setPollingError] = useState(false)
-  const [retryingItemId, setRetryingItemId] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const invalidatedTerminalRevision = useRef<string | null>(null)
+  const [loadedImportId, setLoadedImportId] = useState<string | null>(null)
+  const initialImportId = initialProgress?.importJobId ?? null
+  const activeImportId = initialImportId ?? loadedImportId
+  const progressQuery = useQuery({
+    ...googleImportStatusQuery(
+      activeImportId ?? 'inactive-google-import',
+      getImportStatus,
+    ),
+    enabled: activeImportId !== null && step === 'progress',
+    initialData:
+      initialProgress?.importJobId === activeImportId ? initialProgress : undefined,
+    refetchInterval: (query) =>
+      googleImportProgressPollInterval(query.state.data, step === 'progress'),
+    refetchIntervalInBackground: false,
+  })
 
   const invalidateCompletedImport = useCallback(async () => {
     await Promise.all([
@@ -83,50 +89,32 @@ export function useGoogleImportProgressController({
 
   const loadProgress = useCallback(
     async (importJobId: string) => {
-      const next = await getImportStatus({ data: { importJobId } })
-      setProgress(next)
+      await queryClient.fetchQuery(googleImportStatusQuery(importJobId, getImportStatus))
+      setLoadedImportId(importJobId)
       setStep('progress')
       await navigate({
         to: '/properties/import-google/$importId',
         params: { importId: importJobId },
       })
     },
-    [getImportStatus, navigate, setStep],
+    [getImportStatus, navigate, queryClient, setStep],
   )
 
   const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
-    if (!progress) return null
-    if (refreshInFlight.current) return refreshInFlight.current
-    if (mounted.current) setIsRefreshing(true)
-    const operation = (async () => {
-      try {
-        const next = await getImportStatus({
-          data: { importJobId: progress.importJobId },
-        })
-        if (!mounted.current) return next
-        setProgress(next)
-        setPollingError(false)
-        if (next.status !== 'queued' && next.status !== 'processing') {
-          await invalidateCompletedImport()
-        }
-        return next
-      } catch {
-        if (mounted.current) setPollingError(true)
-        return null
-      }
-    })()
-    refreshInFlight.current = operation
+    if (!activeImportId) return null
     try {
-      return await operation
-    } finally {
-      refreshInFlight.current = null
-      if (mounted.current) setIsRefreshing(false)
+      return await queryClient.fetchQuery(
+        googleImportStatusQuery(activeImportId, getImportStatus),
+      )
+    } catch {
+      return null
     }
-  }, [getImportStatus, invalidateCompletedImport, progress])
+  }, [activeImportId, getImportStatus, queryClient])
 
-  const retry = useCallback(
-    async (item: ImportProgressItemDto) => {
-      if (!progress || retryingItemId !== null) return
+  const retryMutation = useMutation({
+    mutationFn: async (item: ImportProgressItemDto) => {
+      const progress = progressQuery.data
+      if (!progress) return
       const request = getRetryRequest(
         retryRequests.current,
         item.itemId,
@@ -141,7 +129,6 @@ export function useGoogleImportProgressController({
             expectedRetryRevision: request.retryRevision,
           },
         })
-      setRetryingItemId(item.itemId)
       try {
         await sendRetryWithOneReplay(send)
         retryRequests.current.delete(item.itemId)
@@ -156,40 +143,34 @@ export function useGoogleImportProgressController({
         } else {
           toast.error('This item could not be retried. Refresh its status and try again.')
         }
-      } finally {
-        if (mounted.current) setRetryingItemId(null)
       }
     },
-    [progress, refresh, retryImportItem, retryingItemId],
-  )
+  })
 
   useEffect(() => {
-    if (!progress || step !== 'progress') return
-    if (progress.status !== 'queued' && progress.status !== 'processing') return
-    if (progress.pollAfterMs === null) return
-    const timeout = window.setTimeout(async () => {
-      try {
-        const next = await getImportStatus({
-          data: { importJobId: progress.importJobId },
-        })
-        if (!mounted.current) return
-        setProgress(next)
-        setPollingError(false)
-        if (next.status !== 'queued' && next.status !== 'processing') {
-          await invalidateCompletedImport()
-        }
-      } catch {
-        if (mounted.current) setPollingError(true)
-      }
-    }, progress.pollAfterMs)
-    return () => window.clearTimeout(timeout)
-  }, [getImportStatus, invalidateCompletedImport, progress, step])
+    const progress = progressQuery.data
+    if (!progress || !isImportParentTerminal(progress.status)) return
+    const revision = `${progress.importJobId}:${progress.updatedAt}`
+    if (invalidatedTerminalRevision.current === revision) return
+    invalidatedTerminalRevision.current = revision
+    void invalidateCompletedImport()
+  }, [invalidateCompletedImport, progressQuery.data])
+
+  const retry = useCallback(
+    (item: ImportProgressItemDto) => {
+      if (retryMutation.isPending) return
+      retryMutation.mutate(item)
+    },
+    [retryMutation],
+  )
 
   return {
-    progress,
-    pollingError,
-    isRefreshing,
-    retryingItemId,
+    progress: progressQuery.data ?? null,
+    pollingError: progressQuery.isError,
+    isRefreshing: progressQuery.isFetching,
+    retryingItemId: retryMutation.isPending
+      ? (retryMutation.variables?.itemId ?? null)
+      : null,
     loadProgress,
     refresh,
     retry,

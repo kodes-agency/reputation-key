@@ -14,7 +14,10 @@ import {
   getGoogleAuthUrl,
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
-import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
+import {
+  GoogleImportManager,
+  googleImportStatusQuery,
+} from '#/components/features/integration/google-import-manager'
 import { useAction } from '#/components/hooks/use-action'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
@@ -22,14 +25,6 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { requireGoogleImportRole } from './-route-access'
-
-const importStatusQuery = (importId: string) =>
-  queryOptions({
-    queryKey: integrationKeys.import(importId),
-    queryFn: () => getPropertyImportV2Status({ data: { importJobId: importId } }),
-    staleTime: 0,
-    retry: false,
-  })
 
 const connectionsQuery = queryOptions({
   queryKey: integrationKeys.connections(),
@@ -53,7 +48,9 @@ export const Route = createFileRoute(
   staleTime: 0,
   loader: async ({ context, params: { importId } }) => {
     const [progress, connections] = await Promise.all([
-      context.queryClient.ensureQueryData(importStatusQuery(importId)),
+      context.queryClient.ensureQueryData(
+        googleImportStatusQuery(importId, getPropertyImportV2Status),
+      ),
       context.queryClient.ensureQueryData(connectionsQuery),
     ])
     return { progress, connections: connections.connections }
@@ -64,7 +61,9 @@ export const Route = createFileRoute(
 function ImportProgressPage() {
   const { importId } = Route.useParams()
   const { activeOrganization } = Route.useRouteContext()
-  const { data: progress } = useSuspenseQuery(importStatusQuery(importId))
+  const { data: progress } = useSuspenseQuery(
+    googleImportStatusQuery(importId, getPropertyImportV2Status),
+  )
   const { data: connectionData } = useSuspenseQuery(connectionsQuery)
   const getAuthUrl = useAction(useServerFn(getGoogleAuthUrl))
 
