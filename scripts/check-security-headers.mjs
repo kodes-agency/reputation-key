@@ -92,7 +92,10 @@ function serverEnv(port) {
       process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/test',
     REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
     BETTER_AUTH_SECRET: hex(32),
-    BETTER_AUTH_URL: `http://127.0.0.1:${port}`,
+    // The server still binds to HOST/PORT above. BETTER_AUTH_URL is the
+    // externally visible canonical origin, which is required to be HTTPS in
+    // production and need not resolve for these liveness/header probes.
+    BETTER_AUTH_URL: 'https://security-probe.repkey.invalid',
     RESEND_API_KEY: `re_probe_${hex(16)}`,
     GOOGLE_CLIENT_ID: `probe-${hex(8)}.apps.googleusercontent.com`,
     GOOGLE_CLIENT_SECRET: `GOCSPX-${hex(16)}`,
