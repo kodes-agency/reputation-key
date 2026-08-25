@@ -31,13 +31,15 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - Rating must be an integer 1–5 (`validateRating`). Non-integer or out-of-range values are rejected.
 - The initial response command requires a private rating and cannot carry text. Eligible private feedback is a separate atomic command, max 2,000 characters and non-empty after trim.
 - Scan source must be one of `qr`, `nfc`, `direct` (`validateSource`).
-- Session cookie (24h `HttpOnly`, `guest_session`) prevents duplicate ratings within the same session.
+- Session cookie (maximum 24h, `HttpOnly`, `rk_guest_session`) prevents duplicate ratings within the same session.
 - **Anti-discouragement**: after a durable rating, Google is always first and identical for values 1–5. Private feedback is additive, never an alternative, prerequisite, delay, or replacement for Google.
 - If the Property-owned Google destination degrades after publication, the same first post-rating position shows gentle unavailable copy for every rating. Private feedback and secondary links remain usable, and no stale Google URI reaches the browser.
 - The guest-facing response view is a receipt: private feedback text, canonical response/session IDs, tenant/provider IDs, category IDs, and internal consent fields are never returned to the browser after submission.
 - For 24 hours after private-feedback submission, the same signed session may withdraw only that feedback. The command purges text/contact, emits `guest.feedback.retracted`, and leaves the private rating and its lineage intact. A content-free withdrawal tombstone prevents resubmission.
 - For 24 hours after the initial rating, the same signed session may instead withdraw the entire response. That terminal command retracts rating and any still-effective feedback, purges content, and schedules media deletion.
 - Retention classes are physically separate: the response recovery binding is re-signed to the committed rating/feedback withdrawal deadline (exactly 24 hours from that action, never a rolling retry extension), private-feedback body lasts at most 90 days, and the content-free response fact/tombstone lasts 24 calendar months. Repository reads deny expired binding/text even before the bounded evidence-producing sweep deletes it.
+- “Start a new response” is available only after this signed session has a durable rating. It rotates the cookie/CSRF recovery identity and cached receipt without correcting, withdrawing, or deleting the earlier response; both session and rotating-network/Portal rate limits bound shared-device abuse.
+- The receipt advertises rating correction only through the exact one-hour domain deadline. The server remains authoritative and permits at most one correction.
 - The first action per signed session, Portal, kind, and destination commits a 24-hour dedupe receipt and content-free durable fact atomically. Duplicate/replayed actions emit no second fact; Redis is abuse control, not correctness authority.
 - Guest media is hard-blocked for the first beta cohort and has no public issuance or confirmation entry point. Existing rows remain available only for audit/purge compatibility.
 - IP hash (SHA-256 with daily-rotating salt) is used for abuse detection only — not for identity.
@@ -100,7 +102,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`public.ts`** — Guest-facing origin/CSRF/signed-session mutations for rating, feedback submission/withdrawal, Google selection, secondary-link selection, rating correction, and whole-response withdrawal.
+- **`public.ts`** — Guest-facing origin/CSRF/signed-session mutations for rating, feedback submission/withdrawal, Google selection, secondary-link selection, rating correction, shared-device recovery rotation, and whole-response withdrawal.
 - **`guest-scans.ts`** — Visit recording, public Portal read, and the navigation-only secondary-link resolver.
 
 ## Permissions

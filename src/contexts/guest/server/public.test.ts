@@ -259,10 +259,31 @@ describe('guest response server-fn gates', () => {
     for (const fnName of [
       'submitGuestResponseFn',
       'correctGuestResponseFn',
+      'startNewGuestResponseFn',
       'withdrawGuestResponseFn',
     ]) {
       expect(slice(fnName)).toContain("capability: 'portal.guest_response'")
     }
+  })
+
+  it('rotates shared-device recovery only after a durable rating', () => {
+    const fn = slice('startNewGuestResponseFn')
+    const current = fn.indexOf('responseLifecycle.getState')
+    const ratingGate = fn.indexOf('if (!response?.rating')
+    const issue = fn.indexOf('guestSessions.issue')
+    const cookie = fn.indexOf("setResponseHeader('Set-Cookie'")
+
+    expect(current).toBeGreaterThan(-1)
+    expect(ratingGate).toBeGreaterThan(current)
+    expect(issue).toBeGreaterThan(ratingGate)
+    expect(cookie).toBeGreaterThan(issue)
+    expect(fn).toContain("'new_response'")
+    expect(fn).not.toContain('responseLifecycle.withdraw')
+    expect(fn).not.toContain('responseLifecycle.correct')
+  })
+
+  it('keeps action-specific network limits on distinct Redis keys', () => {
+    expect(source).toContain('portal:${portalId}:${action}`')
   })
 
   it('keeps portal.guest_text on private-feedback submit and withdrawal', () => {

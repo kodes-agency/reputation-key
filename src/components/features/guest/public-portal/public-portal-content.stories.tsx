@@ -33,6 +33,7 @@ const submitted: GuestResponseView = {
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
+  correctionAvailable: true,
   responseWithdrawalDeadline: '2026-08-10T12:00:00.000Z',
   responseWithdrawalAvailable: true,
   feedbackSubmittedAt: null,
@@ -55,6 +56,10 @@ const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
     status: 'corrected',
     rating: data.rating,
     correctedAt: '2026-08-09T12:15:00.000Z',
+    correctionAvailable: false,
+  }),
+  startNewResponse: async () => ({
+    csrfNonce: '00000000-0000-4000-8000-000000000099',
   }),
   submitPrivateFeedback: async () => ({
     ...submitted,

@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { z } from 'zod/v4'
 import {
   correctGuestResponseFn,
   selectSecondaryLinkFn,
   selectGoogleReviewFn,
+  startNewGuestResponseFn,
   submitPrivateFeedbackFn,
   submitGuestResponseFn,
   withdrawPrivateFeedbackFn,
@@ -146,8 +147,10 @@ function PublicPortalView({
   data,
 }: Readonly<{ token: string; data: PublicPortalLoaderData }>) {
   const { source } = Route.useSearch()
+  const queryClient = useQueryClient()
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
   const correctResponse = useAction(useServerFn(correctGuestResponseFn))
+  const startNewResponseAction = useAction(useServerFn(startNewGuestResponseFn))
   const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
   const withdrawPrivateFeedback = useAction(useServerFn(withdrawPrivateFeedbackFn))
   const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
@@ -155,6 +158,25 @@ function PublicPortalView({
   const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
+
+  const startNewResponse = useCallback(
+    async (input: Parameters<typeof startNewResponseAction>[0]) => {
+      const nextSession = await startNewResponseAction(input)
+      queryClient.setQueryData<PublicPortalLoaderData | null>(
+        guestKeys.publicPortal({ token }),
+        (cached) =>
+          cached
+            ? {
+                ...cached,
+                guestSession: { csrfNonce: nextSession.csrfNonce },
+                response: null,
+              }
+            : cached,
+      )
+      return nextSession
+    },
+    [queryClient, startNewResponseAction, token],
+  )
 
   // Visit analytics is a core portal function. The disclosure invokes this once
   // per portal/browser session; the server owns authoritative session dedupe and
@@ -182,6 +204,7 @@ function PublicPortalView({
           availability: formAvailability[data.responseForm.availability],
           submitResponse,
           correctResponse,
+          startNewResponse,
           submitPrivateFeedback,
           selectGoogleReview,
           withdrawResponse,

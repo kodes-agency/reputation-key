@@ -1,54 +1,10 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
+import { useState, type FormEvent } from 'react'
 import { GuestResponseFormView } from './guest-response-form-view'
-
-export type GuestResponseAction<TInput, TResult> = (input: {
-  data: TInput
-}) => Promise<TResult>
-
-type GuestRatingPayload = Readonly<{
-  token: string
-  csrfNonce: string
-  rating: number
-  responseConsent: true
-  honeypot?: string
-}>
-
-type GuestPrivateFeedbackPayload = Readonly<{
-  token: string
-  csrfNonce: string
-  text: string
-  textConsent: true
-  honeypot?: string
-}>
-
-export type GuestResponseFormProps = Readonly<{
-  token: string
-  csrfNonce: string
-  googleReview: PublicGoogleReviewDestination
-  secondaryLinks?: ReactNode
-  initialResponse: GuestResponseView | null
-  availability?: 'available' | 'loading' | 'permission_denied' | 'error'
-  submitResponse: GuestResponseAction<GuestRatingPayload, GuestResponseView>
-  correctResponse: GuestResponseAction<GuestRatingPayload, GuestResponseView>
-  submitPrivateFeedback: GuestResponseAction<
-    GuestPrivateFeedbackPayload,
-    GuestResponseView
-  >
-  selectGoogleReview: GuestResponseAction<
-    { token: string; csrfNonce: string },
-    { url: string }
-  >
-  withdrawResponse: GuestResponseAction<
-    { token: string; csrfNonce: string },
-    GuestResponseView
-  >
-  withdrawPrivateFeedback: GuestResponseAction<
-    { token: string; csrfNonce: string },
-    GuestResponseView
-  >
-}>
+import type { GuestResponseFormProps } from './guest-response-form-types'
+export type {
+  GuestResponseAction,
+  GuestResponseFormProps,
+} from './guest-response-form-types'
 
 export function GuestResponseForm({
   token,
@@ -59,12 +15,14 @@ export function GuestResponseForm({
   availability = 'available',
   submitResponse,
   correctResponse,
+  startNewResponse,
   submitPrivateFeedback,
   selectGoogleReview,
   withdrawResponse,
   withdrawPrivateFeedback,
 }: GuestResponseFormProps) {
   const [response, setResponse] = useState(initialResponse)
+  const [activeCsrfNonce, setActiveCsrfNonce] = useState(csrfNonce)
   const [rating, setRating] = useState<number | null>(initialResponse?.rating ?? null)
   const [feedback, setFeedback] = useState('')
   const [correcting, setCorrecting] = useState(false)
@@ -86,7 +44,7 @@ export function GuestResponseForm({
       const next = await action({
         data: {
           token,
-          csrfNonce,
+          csrfNonce: activeCsrfNonce,
           rating,
           responseConsent: true,
           honeypot,
@@ -117,7 +75,13 @@ export function GuestResponseForm({
     setMessage('')
     try {
       const next = await submitPrivateFeedback({
-        data: { token, csrfNonce, text, textConsent: true, honeypot },
+        data: {
+          token,
+          csrfNonce: activeCsrfNonce,
+          text,
+          textConsent: true,
+          honeypot,
+        },
       })
       setResponse(next)
       setFeedback('')
@@ -133,7 +97,9 @@ export function GuestResponseForm({
     if (!googleReviewAvailable) return
     setPending(true)
     try {
-      const result = await selectGoogleReview({ data: { token, csrfNonce } })
+      const result = await selectGoogleReview({
+        data: { token, csrfNonce: activeCsrfNonce },
+      })
       window.location.assign(result.url)
     } catch {
       setMessage('The Google review link could not be opened. Please try again.')
@@ -146,7 +112,7 @@ export function GuestResponseForm({
     setPending(true)
     setMessage('')
     try {
-      setResponse(await withdrawResponse({ data: { token, csrfNonce } }))
+      setResponse(await withdrawResponse({ data: { token, csrfNonce: activeCsrfNonce } }))
     } catch {
       setMessage('Your response could not be withdrawn. Please try again.')
     } finally {
@@ -158,12 +124,37 @@ export function GuestResponseForm({
     setPending(true)
     setMessage('')
     try {
-      setResponse(await withdrawPrivateFeedback({ data: { token, csrfNonce } }))
+      setResponse(
+        await withdrawPrivateFeedback({
+          data: { token, csrfNonce: activeCsrfNonce },
+        }),
+      )
       setMessage(
         'Your private feedback was withdrawn. Your private rating remains saved.',
       )
     } catch {
       setMessage('Your private feedback could not be withdrawn. Please try again.')
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const startAnotherResponse = async () => {
+    setPending(true)
+    setMessage('')
+    try {
+      const nextSession = await startNewResponse({
+        data: { token, csrfNonce: activeCsrfNonce },
+      })
+      setActiveCsrfNonce(nextSession.csrfNonce)
+      setResponse(null)
+      setRating(null)
+      setFeedback('')
+      setCorrecting(false)
+      setHoneypot('')
+      setMessage('Ready for another response. The earlier response remains saved.')
+    } catch {
+      setMessage('A new response could not be started. Please try again.')
     } finally {
       setPending(false)
     }
@@ -180,7 +171,7 @@ export function GuestResponseForm({
       pending={pending}
       message={message}
       honeypot={honeypot}
-      secondaryLinks={secondaryLinks}
+      secondaryLinks={secondaryLinks?.(activeCsrfNonce)}
       onRatingChange={setRating}
       onFeedbackChange={setFeedback}
       onHoneypotChange={setHoneypot}
@@ -188,6 +179,7 @@ export function GuestResponseForm({
       onSubmitFeedback={submitFeedback}
       onGoogleReview={() => void openGoogleReview()}
       onStartCorrection={() => setCorrecting(true)}
+      onStartNewResponse={() => void startAnotherResponse()}
       onWithdrawFeedback={() => void withdrawFeedback()}
       onWithdraw={() => void withdraw()}
     />

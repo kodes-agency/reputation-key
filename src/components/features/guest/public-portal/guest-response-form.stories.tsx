@@ -12,6 +12,7 @@ const submitted: GuestResponseView = {
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
+  correctionAvailable: true,
   responseWithdrawalDeadline: '2026-08-10T12:00:00.000Z',
   responseWithdrawalAvailable: true,
   feedbackSubmittedAt: null,
@@ -31,6 +32,7 @@ const actions: Pick<
   GuestResponseFormProps,
   | 'submitResponse'
   | 'correctResponse'
+  | 'startNewResponse'
   | 'submitPrivateFeedback'
   | 'selectGoogleReview'
   | 'withdrawResponse'
@@ -47,6 +49,10 @@ const actions: Pick<
     rating: data.rating,
     privateFeedbackEligible: data.rating <= 3,
     correctedAt: '2026-08-09T12:15:00.000Z',
+    correctionAvailable: false,
+  }),
+  startNewResponse: async () => ({
+    csrfNonce: '00000000-0000-4000-8000-000000000099',
   }),
   submitPrivateFeedback: async () => ({
     ...lowRating,
@@ -149,6 +155,20 @@ export const FeedbackReceipt: Story = {
       )[0],
     ).toBeVisible()
     await expect(canvas.getByText('You rated this experience 2/5.')).toBeVisible()
+  },
+}
+export const SharedDeviceStartsFresh: Story = {
+  args: { initialResponse: submitted },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Start a new response' }))
+    await expect(
+      canvas.getByRole('button', { name: 'Submit private rating' }),
+    ).toBeVisible()
+    await expect(
+      canvas.getByText('Ready for another response. The earlier response remains saved.'),
+    ).toBeVisible()
+    expect(canvas.queryByText('You rated this experience 5/5.')).toBeNull()
   },
 }
 export const Unavailable: Story = { args: { availability: 'error' } }

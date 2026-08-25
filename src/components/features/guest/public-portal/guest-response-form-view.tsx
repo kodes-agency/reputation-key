@@ -4,6 +4,8 @@ import { Honeypot, RatingChoices } from './guest-response-fields'
 import { GuestPrivateFeedbackForm } from './guest-private-feedback-form'
 import { GuestPrivateFeedbackReceipt } from './guest-private-feedback-receipt'
 import { GuestResponseWithdrawal } from './guest-response-withdrawal'
+import { GuestResponseSessionReset } from './guest-response-session-reset'
+import { GuestRatingCorrection } from './guest-rating-correction'
 
 type FormHandler = (event: FormEvent<HTMLFormElement>) => void
 
@@ -25,6 +27,7 @@ type GuestResponseFormViewProps = Readonly<{
   onSubmitFeedback: FormHandler
   onGoogleReview: () => void
   onStartCorrection: () => void
+  onStartNewResponse: () => void
   onWithdrawFeedback: () => void
   onWithdraw: () => void
 }>
@@ -127,11 +130,25 @@ function RatedResponseView(
         pending={props.pending}
         onWithdraw={props.onWithdrawFeedback}
       />
-      {response.status === 'submitted' && <RatingCorrection {...props} />}
+      {response.correctionAvailable && (
+        <GuestRatingCorrection
+          rating={props.rating}
+          correcting={props.correcting}
+          pending={props.pending}
+          correctionDeadline={response.correctionDeadline}
+          onRatingChange={props.onRatingChange}
+          onSubmit={props.onSubmitRating}
+          onStart={props.onStartCorrection}
+        />
+      )}
       <GuestResponseWithdrawal
         response={response}
         pending={props.pending}
         onWithdraw={props.onWithdraw}
+      />
+      <GuestResponseSessionReset
+        pending={props.pending}
+        onStart={props.onStartNewResponse}
       />
       <p className="text-sm" aria-live="polite">
         {props.message}
@@ -171,37 +188,6 @@ function GoogleReviewAction({
       >
         Continue to Google
       </button>
-    </div>
-  )
-}
-
-function RatingCorrection(props: GuestResponseFormViewProps) {
-  return (
-    <div className="rounded-lg border p-4">
-      {props.correcting ? (
-        <form className="space-y-4" onSubmit={props.onSubmitRating}>
-          <RatingChoices
-            value={props.rating}
-            disabled={props.pending}
-            onChange={props.onRatingChange}
-          />
-          <button
-            type="submit"
-            disabled={props.pending}
-            className="rounded-lg border border-current px-4 py-2 font-medium disabled:opacity-50"
-          >
-            Save rating correction
-          </button>
-        </form>
-      ) : (
-        <button
-          type="button"
-          onClick={props.onStartCorrection}
-          className="text-sm underline"
-        >
-          Change your private rating
-        </button>
-      )}
     </div>
   )
 }

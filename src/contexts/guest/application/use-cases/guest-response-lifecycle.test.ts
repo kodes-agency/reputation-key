@@ -374,12 +374,14 @@ describe('guest response lifecycle', () => {
       },
     )
     expect(submitted.status).toBe('submitted')
+    expect(submitted.correctionAvailable).toBe(true)
     const corrected = await lifecycle.correct(
       scope,
       '00000000-0000-4000-8000-000000000003',
       { rating: 4 },
     )
     expect(corrected.status).toBe('corrected')
+    expect(corrected.correctionAvailable).toBe(false)
     await expect(
       lifecycle.correct(scope, '00000000-0000-4000-8000-000000000003', {
         rating: 3,
@@ -394,6 +396,23 @@ describe('guest response lifecycle', () => {
     )
     expect(withdrawn).toMatchObject({ status: 'deleted', rating: null })
     expect('text' in withdrawn).toBe(false)
+  })
+
+  it('stops advertising correction at the exact one-hour boundary plus one millisecond', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle } = harness(() => now)
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
+
+    now = new Date('2026-08-09T13:00:00.000Z')
+    await expect(lifecycle.getState(scope, sessionId)).resolves.toMatchObject({
+      correctionAvailable: true,
+    })
+
+    now = new Date('2026-08-09T13:00:00.001Z')
+    await expect(lifecycle.getState(scope, sessionId)).resolves.toMatchObject({
+      correctionAvailable: false,
+    })
   })
 
   it('rejects another tenant without revealing the response', async () => {

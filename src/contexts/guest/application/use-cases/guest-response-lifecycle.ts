@@ -62,6 +62,7 @@ export type GuestResponseView = Readonly<{
   submittedAt: string | null
   correctedAt: string | null
   correctionDeadline: string | null
+  correctionAvailable: boolean
   responseWithdrawalDeadline: string | null
   responseWithdrawalAvailable: boolean
   feedbackSubmittedAt: string | null
@@ -90,6 +91,9 @@ function factRetentionDeadline(from: Date): Date {
 }
 
 function toView(response: GuestResponse, now: Date): GuestResponseView {
+  const correctionDeadline = response.submittedAt
+    ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS)
+    : null
   const feedbackWithdrawalDeadline = response.feedbackSubmittedAt
     ? new Date(response.feedbackSubmittedAt.getTime() + FEEDBACK_WITHDRAWAL_WINDOW_MS)
     : null
@@ -112,9 +116,12 @@ function toView(response: GuestResponse, now: Date): GuestResponseView {
       response.rating <= response.privateFeedbackThreshold,
     submittedAt: response.submittedAt?.toISOString() ?? null,
     correctedAt: response.correctedAt?.toISOString() ?? null,
-    correctionDeadline: response.submittedAt
-      ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS).toISOString()
-      : null,
+    correctionDeadline: correctionDeadline?.toISOString() ?? null,
+    correctionAvailable:
+      response.status === 'submitted' &&
+      response.correctionCount === 0 &&
+      correctionDeadline !== null &&
+      now.getTime() <= correctionDeadline.getTime(),
     responseWithdrawalDeadline: responseWithdrawalDeadline?.toISOString() ?? null,
     responseWithdrawalAvailable:
       response.status !== 'deleted' &&

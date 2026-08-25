@@ -77,16 +77,18 @@ export function PublicPortalContent({
   }
 
   const secondaryLinks =
-    links.length > 0 ? (
-      <PortalSecondaryLinks
-        token={token}
-        csrfNonce={responseForm?.csrfNonce}
-        organizationName={portal.organizationName}
-        categories={categories}
-        links={links}
-        selectSecondaryLink={selectSecondaryLink}
-      />
-    ) : null
+    links.length > 0
+      ? (activeCsrfNonce: string) => (
+          <PortalSecondaryLinks
+            token={token}
+            csrfNonce={activeCsrfNonce}
+            organizationName={portal.organizationName}
+            categories={categories}
+            links={links}
+            selectSecondaryLink={selectSecondaryLink}
+          />
+        )
+      : undefined
 
   const isPublicPortal = token !== undefined
   const publicGatewayReady =
@@ -149,7 +151,7 @@ export function PublicPortalContent({
                 rating, with private feedback offered when eligible.
               </p>
             </section>
-            {secondaryLinks}
+            {secondaryLinks?.(responseForm?.csrfNonce ?? '')}
           </>
         )}
       </div>

@@ -74,6 +74,7 @@ export type SystemAction =
   | 'system:guest.click_track'
   | 'public:portal.response.submit'
   | 'public:portal.response.correct'
+  | 'public:portal.response.start_new'
   | 'public:portal.response.text.submit'
   | 'public:portal.response.text.withdraw'
   | 'public:portal.google_review.select'
@@ -1792,6 +1793,18 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         canonicalOnly: true,
         notes: 'same signed session; exactly one correction inside one hour',
+      },
+    ),
+    sfPublic(
+      'startNewGuestResponseFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.start_new',
+      'portal.guest_response',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session only; rotates shared-device recovery identity without mutating the earlier response',
       },
     ),
     sfPublic(

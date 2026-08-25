@@ -132,7 +132,13 @@ function lifecycleFailure(error: unknown): never {
 
 async function rateLimit(
   action:
-    'submit' | 'correct' | 'feedback' | 'feedback_withdraw' | 'google' | 'secondary',
+    | 'submit'
+    | 'correct'
+    | 'feedback'
+    | 'feedback_withdraw'
+    | 'new_response'
+    | 'google'
+    | 'secondary',
   sessionId: string,
   portalId: string,
   headers: Headers,
@@ -146,26 +152,34 @@ async function rateLimit(
           session: { maxRequests: 2, windowSeconds: 60 * 60 },
           networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
         }
-      : action === 'correct' || action === 'feedback' || action === 'feedback_withdraw'
+      : action === 'new_response'
         ? {
-            // The aggregate enforces one successful correction/feedback. A
-            // small attempt budget still permits retry after a transient fault
-            // or compare-and-set race instead of making the UI's retry copy false.
-            session: { maxRequests: 3, windowSeconds: 60 * 60 },
-            networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
+            // A shared device may legitimately serve another visitor, but
+            // rotation must not become an unbounded response-farming primitive.
+            // The network+Portal layer survives the new session identity.
+            session: { maxRequests: 2, windowSeconds: 24 * 60 * 60 },
+            networkPortal: { maxRequests: 5, windowSeconds: 24 * 60 * 60 },
           }
-        : action === 'google' || action === 'secondary'
+        : action === 'correct' || action === 'feedback' || action === 'feedback_withdraw'
           ? {
-              // PostgreSQL owns exact once-per-session/destination semantics.
-              // This small abuse budget allows a retry after transient
-              // observation loss while the navigation itself remains fail-open.
-              session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
-              networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+              // The aggregate enforces one successful correction/feedback. A
+              // small attempt budget still permits retry after a transient fault
+              // or compare-and-set race instead of making the UI's retry copy false.
+              session: { maxRequests: 3, windowSeconds: 60 * 60 },
+              networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
             }
-          : {
-              session: { maxRequests: 10, windowSeconds: 60 * 60 },
-              networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
-            }
+          : action === 'google' || action === 'secondary'
+            ? {
+                // PostgreSQL owns exact once-per-session/destination semantics.
+                // This small abuse budget allows a retry after transient
+                // observation loss while the navigation itself remains fail-open.
+                session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
+                networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+              }
+            : {
+                session: { maxRequests: 10, windowSeconds: 60 * 60 },
+                networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+              }
   const keyKind = action === 'google' || action === 'secondary' ? 'click' : 'response'
   const ipHash = hashIp(clientIpFromHeaders(headers))
   let result = await rateLimiter.check(
@@ -174,7 +188,7 @@ async function rateLimit(
   )
   if (result.allowed) {
     result = await rateLimiter.check(
-      `${keyKind}:network:${ipHash}:portal:${portalId}`,
+      `${keyKind}:network:${ipHash}:portal:${portalId}:${action}`,
       limits.networkPortal,
     )
   }
@@ -219,6 +233,7 @@ function decoyView(
     submittedAt: now.toISOString(),
     correctedAt: null,
     correctionDeadline: new Date(now.getTime() + CORRECTION_WINDOW_MS).toISOString(),
+    correctionAvailable: true,
     responseWithdrawalDeadline: new Date(
       now.getTime() + RESPONSE_WITHDRAWAL_WINDOW_MS,
     ).toISOString(),
@@ -306,6 +321,51 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'guest.response.correct',
+    ),
+  )
+
+/**
+ * End recovery on this shared browser and issue a fresh response identity.
+ * The earlier response is deliberately untouched: this is neither withdrawal
+ * nor correction, and its independent binding simply expires on schedule.
+ */
+export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
+  .inputValidator(baseMutationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.start_new',
+          capability: 'portal.guest_response',
+          assertions: {
+            analytics: false,
+            response: false,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        await rateLimit(
+          'new_response',
+          bound.session.sessionId,
+          bound.scope.portalId,
+          bound.headers,
+        )
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        const issued = bound.useCases.guestSessions.issue(bound.scope)
+        setResponseHeader('Set-Cookie', [...issued.cookies])
+        return { csrfNonce: issued.session.csrfNonce }
+      },
+      'POST',
+      'guest.response.start_new',
     ),
   )
 
