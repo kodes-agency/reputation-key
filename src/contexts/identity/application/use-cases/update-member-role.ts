@@ -24,6 +24,11 @@ export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -91,6 +96,11 @@ export const updateMemberRole =
         occurredAt: deps.clock(),
       }),
     })
+    await deps.reconcileResponsibleManagerEligibility?.(
+      ctx.organizationId,
+      targetMember.userId,
+      ctx.userId,
+    )
 
     return { success: true }
   }

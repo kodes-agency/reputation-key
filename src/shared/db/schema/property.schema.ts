@@ -16,6 +16,7 @@ import {
   index,
   uniqueIndex,
   check,
+  foreignKey,
 } from 'drizzle-orm/pg-core'
 
 export const properties = pgTable(
@@ -74,6 +75,12 @@ export const properties = pgTable(
       withTimezone: true,
     }),
     sourceEpoch: integer('source_epoch').notNull().default(0),
+    responsibleManagerRevision: integer('responsible_manager_revision')
+      .notNull()
+      .default(1),
+    responsibilityNeededSince: timestamp('responsibility_needed_since', {
+      withTimezone: true,
+    }),
   },
   (t) => ({
     orgIdKey: uniqueIndex('properties_org_id_key').on(t.organizationId, t.id),
@@ -139,6 +146,45 @@ export const properties = pgTable(
     dataCellIdCheck: check(
       'properties_data_cell_id_valid',
       sql`${t.dataCellId} IS NULL OR ${t.dataCellId} IN ('us', 'europe', 'global')`,
+    ),
+    responsibleManagerRevisionCheck: check(
+      'properties_responsible_manager_revision_positive',
+      sql`${t.responsibleManagerRevision} >= 1`,
+    ),
+  }),
+)
+
+// Explicit workflow/notification responsibility. This is intentionally
+// independent from Property access grants and Staff attribution.
+export const propertyResponsibleManagers = pgTable(
+  'property_responsible_managers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    endReason: varchar('end_reason', { length: 500 }),
+  },
+  (t) => ({
+    orgPropertyIdx: index('property_rm_org_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+    ),
+    orgUserIdx: index('property_rm_org_user_idx').on(t.organizationId, t.userId),
+    uniqueActiveManager: uniqueIndex('property_rm_unique_active_manager')
+      .on(t.organizationId, t.propertyId, t.userId)
+      .where(sql`effective_to IS NULL`),
+    propertyTenantFk: foreignKey({
+      name: 'property_rm_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    intervalCheck: check(
+      'property_rm_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
   }),
 )

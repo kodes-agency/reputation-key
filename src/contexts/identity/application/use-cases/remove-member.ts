@@ -26,6 +26,12 @@ export type RemoveMemberDeps = Readonly<{
     organizationId: OrganizationId,
     userId: string,
   ) => Promise<void>
+  /** Release Inbox/manager/access authorities without requiring replacements. */
+  releaseMemberAuthorities?: (
+    organizationId: OrganizationId,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
 }>
 export type RemoveMember = ReturnType<typeof removeMember>
 
@@ -67,6 +73,11 @@ export const removeMember =
     }
 
     await deps.cancelGoogleImportsForUser?.(ctx.organizationId, targetMember.userId)
+    await deps.releaseMemberAuthorities?.(
+      ctx.organizationId,
+      targetMember.userId,
+      ctx.userId,
+    )
 
     // 3. Persist + fact — atomic via the command store
     await deps.commandStore.removeMember({

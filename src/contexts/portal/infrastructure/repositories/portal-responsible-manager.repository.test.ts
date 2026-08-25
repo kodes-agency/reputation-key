@@ -79,6 +79,66 @@ const portal = () =>
   })
 
 describe('portal responsible manager repository', () => {
+  it('offboarding preserves other managers and raises recovery only for the last one', async () => {
+    const db = getDb()
+    await createPortalRepository(db).insert(
+      organizationId(ORG),
+      portal(),
+      userId('admin-1'),
+    )
+    const repo = createPortalResponsibleManagerRepository(db)
+    await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      managerUserIds: ['admin-1', 'manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+
+    expect(await repo.listActiveForUser(ORG, 'manager-1')).toHaveLength(1)
+    expect(
+      await repo.releaseForUser({
+        organizationId: ORG,
+        userId: 'manager-1',
+        portalIds: [],
+        at: UNASSIGNED,
+        endReason: 'manager_became_ineligible',
+      }),
+    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+
+    const first = await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'manager-1',
+      at: UNASSIGNED,
+      endReason: 'manager_offboarded',
+    })
+    expect(first).toEqual({ released: 1, responsibilityNeededEvents: [] })
+    expect((await repo.listActive(ORG, PORTAL)).map((row) => row.userId)).toEqual([
+      'admin-1',
+    ])
+
+    const last = await repo.releaseForUser({
+      organizationId: ORG,
+      userId: 'admin-1',
+      at: new Date(UNASSIGNED.getTime() + 1_000),
+      endReason: 'manager_offboarded',
+    })
+    expect(last.released).toBe(1)
+    expect(last.responsibilityNeededEvents).toHaveLength(1)
+    expect(await repo.listActive(ORG, PORTAL)).toEqual([])
+    expect(
+      await repo.releaseForUser({
+        organizationId: ORG,
+        userId: 'admin-1',
+        at: new Date(UNASSIGNED.getTime() + 2_000),
+        endReason: 'manager_offboarded',
+      }),
+    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+  })
+
   it('persists the eligible creator default atomically with the portal', async () => {
     const db = getDb()
     await createPortalRepository(db).insert(

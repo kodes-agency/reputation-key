@@ -40,7 +40,7 @@ async function authorizePortal(
 }
 
 export const listPortalResponsibleManagers = createServerFn({ method: 'GET' })
-  .inputValidator(listInput)
+  .validator(listInput)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -58,7 +58,7 @@ export const listPortalResponsibleManagers = createServerFn({ method: 'GET' })
   )
 
 export const updatePortalResponsibleManagers = createServerFn({ method: 'POST' })
-  .inputValidator(updateInput)
+  .validator(updateInput)
   .handler(
     tracedHandler(
       async ({ data }) => {

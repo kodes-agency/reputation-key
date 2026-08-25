@@ -232,6 +232,12 @@ const propertyDeletedSchema = z.object({
   organizationId: z.string(),
 })
 
+const propertyResponsibilityNeededSchema = z.object({
+  propertyId: z.string(),
+  organizationId: z.string(),
+  occurredAt: z.string().datetime(),
+})
+
 const propertyGoogleBindingChangedSchema = z
   .object({
     _tag: z.literal('property.google_binding.changed').optional(),
@@ -722,6 +728,11 @@ export function registerAllEventSchemas(): void {
     type: 'property.google_binding.changed',
     version: EVENT_VERSION,
     schema: propertyGoogleBindingChangedSchema,
+  })
+  registerEventSchema({
+    type: 'property.responsibility_became_needed',
+    version: EVENT_VERSION,
+    schema: propertyResponsibilityNeededSchema,
   })
   registerEventSchema({
     type: 'integration.property_import.requested',

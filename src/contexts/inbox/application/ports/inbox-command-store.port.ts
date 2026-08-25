@@ -6,7 +6,7 @@
 // then emits on the in-process bus after commit (expand-phase dual path
 // until the durable switch).
 
-import type { UserId } from '#/shared/domain/ids'
+import type { OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxItem, InboxNote, InboxStatus } from '../../domain/types'
 import type {
   InboxItemAssigned,
@@ -89,6 +89,20 @@ export type ApplyReplyPublishedCommand = Readonly<{
 }>
 
 export type InboxCommandStore = Readonly<{
+  /**
+   * Offboarding release: clear every assignment owned by one departing user
+   * and record one unassigned fact per item in the same transaction.
+   */
+  releaseAssignmentsForUser(
+    input: Readonly<{
+      organizationId: OrganizationId
+      userId: UserId
+      /** Null for provider lifecycle hooks that do not expose the initiating actor. */
+      actorId: UserId | null
+      at: Date
+    }>,
+  ): Promise<Readonly<{ released: number }>>
+
   /**
    * Insert the item + inbox.inbox_item.created fact in one transaction.
    * Idempotent on the (sourceType, sourceId, organizationId) unique anchor:

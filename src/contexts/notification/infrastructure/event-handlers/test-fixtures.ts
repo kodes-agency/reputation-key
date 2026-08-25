@@ -7,7 +7,7 @@ import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
-import type { NotificationType } from '../../domain/types'
+import type { NotificationResourceType, NotificationType } from '../../domain/types'
 import type { NotificationPayload } from '../../domain/notification-payload'
 import {
   organizationId,
@@ -297,7 +297,7 @@ export const buildReplyRejectedEvent = (
 type ExpectedNotificationJobData = {
   userId: UserId
   type: NotificationType
-  resourceType: 'inbox_item' | 'reply' | 'goal' | 'badge' | 'portal'
+  resourceType: NotificationResourceType
   resourceId: string
   payload: NotificationPayload
 }

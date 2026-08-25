@@ -80,7 +80,13 @@ const seedMemberBoth = (
   })
 }
 
-const setup = () => {
+const setup = (
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>,
+) => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
   const commandStore = createSequentialIdentityCommandStore({ events })
@@ -88,11 +94,26 @@ const setup = () => {
     identity,
     commandStore,
     clock: () => FIXED_TIME,
+    reconcileResponsibleManagerEligibility,
   })
   return { useCase, identity, events, commandStore }
 }
 
 describe('updateMemberRole', () => {
+  it('reconciles manager responsibilities after a role change', async () => {
+    const calls: string[][] = []
+    const { useCase, identity, commandStore } = setup(async (...input) => {
+      calls.push(input)
+    })
+    seedMemberBoth(identity, commandStore, PM_MEMBER)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: PM_MEMBER.id, role: 'AccountAdmin' }, ctx)
+
+    expect(calls).toEqual([[ctx.organizationId, PM_MEMBER.userId, ctx.userId]])
+    expect(commandStore.memberById(PM_MEMBER.id)?.role).toBe('owner')
+  })
+
   it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
     const { useCase, identity, events, commandStore } = setup()
     seedMemberBoth(identity, commandStore, STAFF_MEMBER)

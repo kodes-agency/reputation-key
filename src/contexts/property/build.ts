@@ -9,9 +9,11 @@ import type {
   PropertyFactsPublicApi,
   PropertyProcessingScopePublicApi,
   PropertyPublicApi,
+  PropertyResponsibleManagerPublicApi,
   PropertyReplyLanguagePublicApi,
 } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -31,6 +33,12 @@ import { createPropertyGoogleBindingStore } from './infrastructure/property-goog
 import type { PropertyGoogleBindingPublicApi } from './application/public-api'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
+import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
+import {
+  listPropertyResponsibleManagers,
+  updatePropertyResponsibleManagers,
+} from './application/use-cases/property-responsible-managers'
+import { isEligiblePropertyManager } from './application/property-manager-eligibility'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 import {
@@ -58,6 +66,7 @@ type PropertyContextDeps = Readonly<{
   /** REG-01: process-local repository/command-store cell fence. */
   localCell: DataCellId
   staffPublicApi: StaffPublicApi
+  identityPublicApi: IdentityPublicApi
   regionMove: RegionMoveContextDeps
   /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete.
    * Constructed once by the composition root (the only layer that may
@@ -105,6 +114,11 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     deps.events,
     deps.localCell,
   )
+  const responsibleManagerRepo = createPropertyResponsibleManagerRepository(deps.db)
+  const managerEligibility = {
+    identityPublicApi: deps.identityPublicApi,
+    staffPublicApi: deps.staffPublicApi,
+  }
 
   const useCases = {
     createProperty: createProperty({
@@ -152,12 +166,26 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       prepareGoogleImportDeletion: deps.googleImportLifecycle?.prepareDeletion,
       finalizeGoogleImportDeletion: deps.googleImportLifecycle?.finalizeDeletion,
     }),
+    listPropertyResponsibleManagers: listPropertyResponsibleManagers({
+      propertyRepo: deps.repo,
+      managerRepo: responsibleManagerRepo,
+      ...managerEligibility,
+      clock: deps.clock,
+    }),
+    updatePropertyResponsibleManagers: updatePropertyResponsibleManagers({
+      propertyRepo: deps.repo,
+      managerRepo: responsibleManagerRepo,
+      ...managerEligibility,
+      events: deps.events,
+      clock: deps.clock,
+    }),
   } as const
 
   const publicApi: PropertyPublicApi &
     PropertyFactsPublicApi &
     PropertyProcessingScopePublicApi &
-    PropertyReplyLanguagePublicApi = {
+    PropertyReplyLanguagePublicApi &
+    PropertyResponsibleManagerPublicApi = {
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -223,13 +251,31 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         await deps.repo.clearGoogleConnectionRef(orgId, propertyIds)
       }
     },
+    getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PropertyId) => {
+      const assignments = await responsibleManagerRepo.listActive(orgId, pid)
+      const eligible = await Promise.all(
+        assignments.map(async (assignment) =>
+          (await isEligiblePropertyManager(
+            managerEligibility,
+            orgId,
+            pid,
+            assignment.userId,
+          ))
+            ? assignment.userId
+            : null,
+        ),
+      )
+      return eligible.filter(
+        (userId): userId is import('#/shared/domain/ids').UserId => userId !== null,
+      )
+    },
   }
 
   return {
     publicApi,
     bindingApi,
     internal: {
-      repos: {} as const,
+      repos: { responsibleManagerRepo } as const,
       useCases,
       registerOutboxConsumers: () => registerPropertyRetentionConsumer(bindingApi),
     },

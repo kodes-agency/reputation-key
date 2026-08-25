@@ -75,6 +75,7 @@ import {
 import {
   grantPropertyAccess,
   revokePropertyAccess,
+  revokeAllPropertyAccessForUser,
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
@@ -151,6 +152,16 @@ type IdentityContextDeps = Readonly<{
     providerRef: string | null
   }>
   cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
+  releaseMemberAuthorities?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
   verifyMerchantAiStepUp?: (input: {
     headers: Headers
     password: string
@@ -273,6 +284,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
     grantPropertyAccess: (input) => grantPropertyAccess(deps.db, input),
     revokePropertyAccess: (input) => revokePropertyAccess(deps.db, input),
+    reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
     writePolicyDecision: (entry) => writePolicyDecision(deps.db, entry),
   })
@@ -351,12 +363,14 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
+      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
     removeMember: removeMember({
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
       cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
+      releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
     resendInvitation: resendInvitation({
@@ -435,6 +449,12 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.
       propertyAccessHolders: createPropertyGrantHolderLookup(deps.db),
+      revokeAllPropertyAccessForUser: (organizationId: string, userId: string) =>
+        revokeAllPropertyAccessForUser(deps.db, {
+          organizationId,
+          userId,
+          reason: 'member_offboarded',
+        }),
     },
   } as const
 }

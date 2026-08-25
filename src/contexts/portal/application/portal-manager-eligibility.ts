@@ -4,7 +4,10 @@ import type {
 } from '#/contexts/identity/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { propertyId as toPropertyId, userId as toUserId } from '#/shared/domain/ids'
+import {
+  isEligibleResponsibleManager,
+  listEligibleResponsibleManagers,
+} from '#/shared/responsible-manager-eligibility'
 
 export type PortalManagerEligibilityDeps = Readonly<{
   identityPublicApi: IdentityPublicApi
@@ -16,26 +19,16 @@ export async function listEligiblePortalManagers(
   organizationId: OrganizationId,
   propertyId: PropertyId,
 ): Promise<readonly ManagerMembership[]> {
-  const memberships = await deps.identityPublicApi.listActiveManagers(organizationId)
-  const eligible = await Promise.all(
-    memberships.map(async (membership) => {
-      if (membership.role === 'AccountAdmin') return membership
-      const managerId = toUserId(membership.userId)
-      const accessible = await deps.staffPublicApi.getAccessiblePropertyIds(
-        organizationId,
-        managerId,
-        false,
-      )
-      if (!accessible?.includes(toPropertyId(propertyId))) return null
-      const participation = await deps.staffPublicApi.findActiveParticipation?.(
-        organizationId,
-        propertyId,
-        managerId,
-      )
-      return participation ? membership : null
-    }),
+  return listEligibleResponsibleManagers(
+    {
+      listActiveManagers: deps.identityPublicApi.listActiveManagers,
+      getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
+      findActiveParticipation: async (orgId, pid, managerId) =>
+        deps.staffPublicApi.findActiveParticipation?.(orgId, pid, managerId) ?? null,
+    },
+    organizationId,
+    propertyId,
   )
-  return eligible.filter((membership): membership is ManagerMembership => !!membership)
 }
 
 export async function isEligiblePortalManager(
@@ -44,6 +37,15 @@ export async function isEligiblePortalManager(
   propertyId: PropertyId,
   userId: string,
 ): Promise<boolean> {
-  const eligible = await listEligiblePortalManagers(deps, organizationId, propertyId)
-  return eligible.some((membership) => membership.userId === userId)
+  return isEligibleResponsibleManager(
+    {
+      listActiveManagers: deps.identityPublicApi.listActiveManagers,
+      getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
+      findActiveParticipation: async (orgId, pid, managerId) =>
+        deps.staffPublicApi.findActiveParticipation?.(orgId, pid, managerId) ?? null,
+    },
+    organizationId,
+    propertyId,
+    userId,
+  )
 }

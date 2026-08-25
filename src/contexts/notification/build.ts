@@ -23,6 +23,8 @@ import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { registerNotificationConsumers } from './infrastructure/outbox-consumers'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPortalNotificationHandlers } from './infrastructure/event-handlers/portal-event-handlers'
+import { registerPropertyNotificationHandlers } from './infrastructure/event-handlers/property-event-handlers'
+import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import {
   createReconcileMissingNotificationsHandler,
@@ -119,6 +121,12 @@ export const buildNotificationContext = (input: BuildInput) => {
       logger: input.logger,
     })
     registerPortalNotificationHandlers({
+      events: input.events,
+      queue: policyQueue,
+      userLookup,
+      logger: input.logger,
+    })
+    registerPropertyNotificationHandlers({
       events: input.events,
       queue: policyQueue,
       userLookup,
@@ -307,6 +315,12 @@ export const buildNotificationContext = (input: BuildInput) => {
           receipts,
         })
         registerPortalNotificationConsumers({
+          queue: fanoutDeps.queue,
+          userLookup,
+          logger: input.logger,
+          receipts,
+        })
+        registerPropertyNotificationConsumers({
           queue: fanoutDeps.queue,
           userLookup,
           logger: input.logger,

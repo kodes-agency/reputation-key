@@ -104,7 +104,7 @@ import {
 import type { Queue } from 'bullmq'
 import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
-import { feedbackId, organizationId, propertyId } from '#/shared/domain/ids'
+import { feedbackId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
@@ -175,6 +175,7 @@ import {
 import { AI_INTERNAL_RESPONSE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
 import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
 import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
+import { isEligibleResponsibleManager } from '#/shared/responsible-manager-eligibility'
 
 // ── Infrastructure ─────────────────────────────────────────────────
 
@@ -647,6 +648,22 @@ export function createContainer(options?: {
 
   // Identity port (adapter)
   const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
+  // Late-bound because Identity is upstream of Portal/Property/Inbox. Requests
+  // cannot reach the callback until the container has finished composing.
+  let releaseMemberAuthorities = async (
+    _organizationId: string,
+    _userId: string,
+    _actorId: string | null,
+  ): Promise<void> => {
+    throw new Error('Member authority lifecycle unavailable')
+  }
+  let reconcileResponsibleManagerEligibility = async (
+    _organizationId: string,
+    _userId: string,
+    _actorId: string,
+  ): Promise<void> => {
+    throw new Error('Responsible manager eligibility lifecycle unavailable')
+  }
 
   // BQC-4.2: the ONE routing decision model — shared by the review context
   // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
@@ -687,6 +704,8 @@ export function createContainer(options?: {
         portal.publicApi.portal.getPortalInfo(orgId, portalId),
     },
     clock,
+    reconcileResponsibleManagerEligibility: (orgId, userIdValue, actorId) =>
+      reconcileResponsibleManagerEligibility(orgId, userIdValue, actorId),
   })
 
   const identity = buildIdentityContext({
@@ -732,6 +751,10 @@ export function createContainer(options?: {
       if (!cancel) throw new Error('Google import lifecycle unavailable')
       return cancel(orgId, userIdValue).then(() => undefined)
     },
+    releaseMemberAuthorities: (orgId, userIdValue, actorId) =>
+      releaseMemberAuthorities(orgId, userIdValue, actorId),
+    reconcileResponsibleManagerEligibility: (orgId, userIdValue, actorId) =>
+      reconcileResponsibleManagerEligibility(orgId, userIdValue, actorId),
     verifyMerchantAiStepUp: async ({ headers, password }) => {
       try {
         const result = await getAuth().api.verifyPassword({
@@ -1104,6 +1127,7 @@ export function createContainer(options?: {
     clock,
     localCell: env.PROCESSING_CELL,
     staffPublicApi: staff.publicApi,
+    identityPublicApi: identity.publicApi,
     sourceContentPurge,
     provisionPropertyCapabilities:
       propertyCapabilityProvisioning.provisionCreatedProperty,
@@ -1234,6 +1258,7 @@ export function createContainer(options?: {
       const cancel = integration.internal.useCases.cancelGoogleImportV2ForUser
       if (!cancel) throw new Error('Google import lifecycle unavailable')
       await cancel(orgId, userIdValue)
+      await releaseMemberAuthorities(orgId, userIdValue, null)
     },
     beforeDeleteOrganization: async (orgId) => {
       const cancel = integration.internal.useCases.cancelGoogleImportV2ForOrganization
@@ -1348,6 +1373,110 @@ export function createContainer(options?: {
     },
     logger: getLogger(),
   })
+
+  releaseMemberAuthorities = async (orgId, userIdValue, actorId) => {
+    const at = clock()
+    const [propertyRelease, portalRelease] = await Promise.all([
+      property.internal.repos.responsibleManagerRepo.releaseForUser({
+        organizationId: orgId,
+        userId: userIdValue,
+        at,
+        endReason: 'manager_offboarded',
+      }),
+      portal.internal.repos.portalResponsibleManagerRepo.releaseForUser({
+        organizationId: orgId,
+        userId: userIdValue,
+        at,
+        endReason: 'manager_offboarded',
+      }),
+      inbox.internal.commandStore.releaseAssignmentsForUser({
+        organizationId: organizationId(orgId),
+        userId: userId(userIdValue),
+        actorId: actorId ? userId(actorId) : null,
+        at,
+      }),
+    ])
+    await identity.internal.revokeAllPropertyAccessForUser(orgId, userIdValue)
+    for (const event of [
+      ...propertyRelease.responsibilityNeededEvents,
+      ...portalRelease.responsibilityNeededEvents,
+    ]) {
+      await eventBus.emit(event)
+    }
+  }
+
+  reconcileResponsibleManagerEligibility = async (orgId, userIdValue, _actorId) => {
+    const [propertyAssignments, portalAssignments] = await Promise.all([
+      property.internal.repos.responsibleManagerRepo.listActiveForUser(
+        orgId,
+        userIdValue,
+      ),
+      portal.internal.repos.portalResponsibleManagerRepo.listActiveForUser(
+        orgId,
+        userIdValue,
+      ),
+    ])
+    const assignedPropertyIds = [
+      ...new Set([
+        ...propertyAssignments.map((assignment) => assignment.propertyId),
+        ...portalAssignments.map((assignment) => assignment.propertyId),
+      ]),
+    ]
+    const eligibility = new Map(
+      await Promise.all(
+        assignedPropertyIds.map(
+          async (assignedPropertyId) =>
+            [
+              assignedPropertyId,
+              await isEligibleResponsibleManager(
+                {
+                  listActiveManagers: identity.publicApi.listActiveManagers,
+                  getAccessiblePropertyIds: staff.publicApi.getAccessiblePropertyIds,
+                  findActiveParticipation: async (organizationIdValue, pid, managerId) =>
+                    staff.publicApi.findActiveParticipation?.(
+                      organizationIdValue,
+                      pid,
+                      managerId,
+                    ) ?? null,
+                },
+                organizationId(orgId),
+                propertyId(assignedPropertyId),
+                userIdValue,
+              ),
+            ] as const,
+        ),
+      ),
+    )
+    const propertyIdsToRelease = propertyAssignments
+      .filter((assignment) => eligibility.get(assignment.propertyId) === false)
+      .map((assignment) => assignment.propertyId)
+    const portalIdsToRelease = portalAssignments
+      .filter((assignment) => eligibility.get(assignment.propertyId) === false)
+      .map((assignment) => assignment.portalId)
+    const at = clock()
+    const [propertyRelease, portalRelease] = await Promise.all([
+      property.internal.repos.responsibleManagerRepo.releaseForUser({
+        organizationId: orgId,
+        userId: userIdValue,
+        propertyIds: propertyIdsToRelease,
+        at,
+        endReason: 'manager_became_ineligible',
+      }),
+      portal.internal.repos.portalResponsibleManagerRepo.releaseForUser({
+        organizationId: orgId,
+        userId: userIdValue,
+        portalIds: portalIdsToRelease,
+        at,
+        endReason: 'manager_became_ineligible',
+      }),
+    ])
+    for (const event of [
+      ...propertyRelease.responsibilityNeededEvents,
+      ...portalRelease.responsibilityNeededEvents,
+    ]) {
+      await eventBus.emit(event)
+    }
+  }
 
   const metricApi = buildMetricContext({
     db,

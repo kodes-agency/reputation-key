@@ -47,6 +47,10 @@ export type Property = Readonly<{
   routingPolicyVersion: number
   processingRegionResolvedAt: Date | null
   sourceEpoch: number
+  /** CAS token for explicit workflow-notification responsibility edits. */
+  responsibleManagerRevision: number
+  /** Visible recovery state; null while one or more active assignments exist. */
+  responsibilityNeededSince: Date | null
 }>
 
 /** Default processing-profile fields for new properties (migration 0006). */

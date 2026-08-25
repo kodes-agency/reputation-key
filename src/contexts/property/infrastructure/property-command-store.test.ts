@@ -71,6 +71,8 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     routingPolicyVersion: 1,
     processingRegionResolvedAt: null,
     sourceEpoch: 0,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
     ...overrides,
   }
 }

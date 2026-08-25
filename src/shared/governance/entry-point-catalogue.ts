@@ -115,6 +115,7 @@ export type SystemAction =
   | 'system:leaderboard.refresh'
   | 'system:activity.record'
   | 'system:notification.insert'
+  | 'system:notification.insert_property_responsibility'
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
@@ -811,6 +812,25 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.create',
       'property',
       { notes: 'policy-wired in BQC-2.4 with target propertyId' },
+    ),
+    sf(
+      'listPropertyResponsibleManagers',
+      `${PROPERTY}/property-responsible-managers.ts`,
+      'property.read',
+      'property.create',
+      'property',
+      { notes: 'scoped via authoritative propertyId' },
+    ),
+    sf(
+      'updatePropertyResponsibleManagers',
+      `${PROPERTY}/property-responsible-managers.ts`,
+      'property.update',
+      'property.create',
+      'property',
+      {
+        notes:
+          'role/access/participation eligibility and CAS revalidated in the use case',
+      },
     ),
     sf(
       'deleteProperty',
@@ -2134,6 +2154,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'staff/teams/portal assignments' },
     ),
     ui(
+      '/properties/$propertyId/settings',
+      `${AUTHED}/properties/$propertyId/settings.tsx`,
+      'property.read',
+      'property.create',
+      'property',
+      { notes: 'responsible-manager settings; mutation requires property.update' },
+    ),
+    ui(
       '/properties/$propertyId/reviews',
       `${AUTHED}/properties/$propertyId/reviews.tsx`,
       'inbox.read',
@@ -2667,6 +2695,18 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'notification.property-outbox-consumers',
+    'src/contexts/notification/infrastructure/property-outbox-consumers.ts',
+    'system:notification.insert_property_responsibility',
+    'property.create',
+    'property',
+    ['property.responsibility_became_needed'],
+    {
+      notes:
+        'durable AccountAdmin recovery fan-out; identifier-only payload, receipt fencing, deterministic per-recipient job ids',
+    },
+  ),
+  consumer(
     'integration.property-import-dispatch',
     'src/contexts/integration/infrastructure/outbox-consumers.ts',
     'system:property.import_v2',
@@ -2858,6 +2898,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     ['portal.responsibility_became_needed'],
     { notes: 'portal-gated fast path for the content-free recovery alert' },
+  ),
+  consumer(
+    'notification.property-event-handlers',
+    'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts',
+    'system:notification.insert_property_responsibility',
+    'property.create',
+    'property',
+    ['property.responsibility_became_needed'],
+    { notes: 'fast path for the content-free Property recovery alert' },
   ),
   consumer(
     'review.event-handlers',

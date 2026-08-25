@@ -106,5 +106,30 @@ export const propertyGoogleBindingChanged = (
   }
 }
 
+export type PropertyResponsibilityNeeded = Readonly<{
+  _tag: 'property.responsibility_became_needed'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const propertyResponsibilityNeeded = (
+  args: Omit<PropertyResponsibilityNeeded, '_tag' | 'eventId' | 'correlationId'>,
+): PropertyResponsibilityNeeded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'property.responsibility_became_needed',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
 export type PropertyEvent =
-  PropertyCreated | PropertyUpdated | PropertyDeleted | PropertyGoogleBindingChanged
+  | PropertyCreated
+  | PropertyUpdated
+  | PropertyDeleted
+  | PropertyGoogleBindingChanged
+  | PropertyResponsibilityNeeded

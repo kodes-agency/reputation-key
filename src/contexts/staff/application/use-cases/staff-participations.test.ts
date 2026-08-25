@@ -129,6 +129,43 @@ function deps(repo: StaffParticipationRepository) {
 }
 
 describe('StaffParticipation lifecycle', () => {
+  it('reconciles manager responsibility when a linked participation is archived', async () => {
+    const repo = fakeRepository()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    repo.participations.push({
+      id: PARTICIPATION_ID,
+      organizationId: ctx.organizationId,
+      propertyId: PROPERTY_ID,
+      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
+      linkedUserId: 'linked-manager',
+      displayName: 'Linked manager',
+      status: 'active',
+      startedAt: NOW,
+      endedAt: null,
+      archiveReason: null,
+      revision: 1,
+      createdBy: ctx.userId,
+      updatedAt: NOW,
+    })
+    const calls: string[][] = []
+
+    await archiveStaffParticipation({
+      ...deps(repo),
+      reconcileResponsibleManagerEligibility: async (...input) => {
+        calls.push(input)
+      },
+    })(
+      {
+        staffParticipationId: PARTICIPATION_ID,
+        reason: 'left property',
+        expectedRevision: 1,
+      },
+      ctx,
+    )
+
+    expect(calls).toEqual([[ctx.organizationId, 'linked-manager', ctx.userId]])
+  })
+
   it('creates a participant without requiring a login identity', async () => {
     const repo = fakeRepository()
     const create = createStaffParticipation(deps(repo))

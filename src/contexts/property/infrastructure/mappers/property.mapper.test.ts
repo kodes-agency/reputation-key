@@ -47,6 +47,8 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   routingPolicyVersion: 1,
   processingRegionResolvedAt: null,
   sourceEpoch: 0,
+  responsibleManagerRevision: 1,
+  responsibilityNeededSince: FIXED_TIME,
   ...overrides,
 })
 
@@ -69,6 +71,8 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   lifecycleInitiatedBy: null,
   ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
   ...DEFAULT_PROPERTY_ROUTING,
+  responsibleManagerRevision: 1,
+  responsibilityNeededSince: FIXED_TIME,
   ...overrides,
 })
 

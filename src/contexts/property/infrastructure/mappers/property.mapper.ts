@@ -10,12 +10,18 @@ import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
 type PropertyRow = Omit<
   typeof properties.$inferSelect,
-  'defaultReplyLanguage' | 'dataCellId'
+  | 'defaultReplyLanguage'
+  | 'dataCellId'
+  | 'responsibleManagerRevision'
+  | 'responsibilityNeededSince'
 > &
   Readonly<{
     defaultReplyLanguage?: string | null
     /** Optional only for tests and expand-phase row fixtures. */
     dataCellId?: string | null
+    /** Optional only for pre-expand fixtures. */
+    responsibleManagerRevision?: number
+    responsibilityNeededSince?: Date | null
   }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
@@ -55,6 +61,8 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   routingPolicyVersion: row.routingPolicyVersion ?? 1,
   processingRegionResolvedAt: row.processingRegionResolvedAt ?? null,
   sourceEpoch: row.sourceEpoch ?? 0,
+  responsibleManagerRevision: row.responsibleManagerRevision ?? 1,
+  responsibilityNeededSince: row.responsibilityNeededSince ?? null,
 })
 
 export const propertyToRow = (property: Property): PropertyInsertRow => ({
@@ -92,4 +100,6 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   routingPolicyVersion: property.routingPolicyVersion,
   processingRegionResolvedAt: property.processingRegionResolvedAt,
   sourceEpoch: property.sourceEpoch,
+  responsibleManagerRevision: property.responsibleManagerRevision,
+  responsibilityNeededSince: property.responsibilityNeededSince,
 })

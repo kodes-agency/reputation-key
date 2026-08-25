@@ -121,6 +121,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'inbox.assigned': UserPlus,
   'inbox_note.added': FileEdit,
   'portal.responsibility_needed': UserPlus,
+  'property.responsibility_needed': UserPlus,
   'goal.completed': Target,
   'badge.awarded': Award,
 }

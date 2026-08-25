@@ -30,6 +30,11 @@ const setup = () => {
   ]
   const managerRepo: PortalResponsibleManagerRepository = {
     listActive: async () => active,
+    listActiveForUser: async () => active,
+    releaseForUser: async () => ({
+      released: 0,
+      responsibilityNeededEvents: [],
+    }),
     replace: async (input) => {
       const hadManagers = active.length > 0
       active = input.managerUserIds.map((userId, index) => ({

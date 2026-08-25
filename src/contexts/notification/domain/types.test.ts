@@ -21,6 +21,10 @@ describe('isUrgent', () => {
     expect(isUrgent('portal.responsibility_needed')).toBe(true)
   })
 
+  it('returns true for Property responsibility recovery', () => {
+    expect(isUrgent('property.responsibility_needed')).toBe(true)
+  })
+
   it('returns false for review.created', () => {
     expect(isUrgent('review.created')).toBe(false)
   })
@@ -53,8 +57,8 @@ describe('isUrgent', () => {
     expect(isUrgent('goal.completed')).toBe(false)
   })
 
-  it('exactly 4 types are urgent', () => {
-    expect(URGENT_TYPES.size).toBe(4)
+  it('exactly 5 types are urgent', () => {
+    expect(URGENT_TYPES.size).toBe(5)
   })
 
   it('every urgent type returns true from isUrgent', () => {
@@ -76,6 +80,7 @@ describe('isUrgent', () => {
       'inbox.assigned',
       'inbox_note.added',
       'portal.responsibility_needed',
+      'property.responsibility_needed',
       'goal.completed',
     ]
     const nonUrgent = allTypes.filter((t) => !URGENT_TYPES.has(t))

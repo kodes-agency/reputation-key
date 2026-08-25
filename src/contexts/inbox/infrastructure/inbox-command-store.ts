@@ -28,6 +28,7 @@ import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { InboxItem } from '../domain/types'
 import { inboxError } from '../domain/errors'
+import { inboxItemUnassigned } from '../domain/events'
 import { timestampFieldsForStatus } from '../domain/rules'
 import { inboxItemFromRow, inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
@@ -176,6 +177,38 @@ export function createAtomicInboxCommandStore(
   }
 
   return {
+    releaseAssignmentsForUser: async (input) => {
+      return trace('inbox.commandStore.releaseAssignmentsForUser', async () => {
+        const facts = await db.transaction(async (tx) => {
+          const released = await tx
+            .update(inboxItems)
+            .set({ assignedTo: null, updatedAt: input.at })
+            .where(
+              and(
+                eq(inboxItems.organizationId, input.organizationId),
+                eq(inboxItems.assignedTo, input.userId),
+              ),
+            )
+            .returning()
+          const events = released.map((row) =>
+            inboxItemUnassigned({
+              inboxItemId: row.id as import('#/shared/domain/ids').InboxItemId,
+              organizationId: input.organizationId,
+              propertyId: row.propertyId as import('#/shared/domain/ids').PropertyId,
+              userId: input.actorId ?? undefined,
+              previousAssignee: input.userId,
+              source: 'web',
+              occurredAt: input.at,
+            }),
+          )
+          for (const event of events) await insertOutboxRow(tx, event)
+          return events
+        })
+        for (const event of facts) await emitAfterCommit(events, event)
+        return { released: facts.length }
+      })
+    },
+
     createItem: async (item, event) => {
       return trace('inbox.commandStore.createItem', async () => {
         const result = await db.transaction(async (tx) => {

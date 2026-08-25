@@ -5,6 +5,7 @@ import {
   Globe,
   Target,
   Trophy,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { SidebarMenu, SidebarMenuBadge } from '#/components/ui/sidebar'
 import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
@@ -74,6 +75,12 @@ const navItems: ReadonlyArray<ManagerNavItem> = [
     icon: Target,
     to: '/properties/$propertyId/goals',
     capability: 'goal.use',
+  },
+  {
+    key: 'property-settings',
+    label: 'Property settings',
+    icon: SlidersHorizontal,
+    to: '/properties/$propertyId/settings',
   },
   {
     key: 'leaderboard',

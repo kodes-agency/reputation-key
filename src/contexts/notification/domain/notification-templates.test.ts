@@ -66,7 +66,10 @@ describe('renderNotification — invariants across every type', () => {
     // Recovery alerts are deliberately content-free: even if an unexpected
     // producer supplies render metadata, this template must ignore it. Other
     // types use the property name to sharpen their operational context.
-    if (type === 'portal.responsibility_needed') {
+    if (
+      type === 'portal.responsibility_needed' ||
+      type === 'property.responsibility_needed'
+    ) {
       expect(visibleCopy).not.toContain('Riverside Hotel')
     } else {
       expect(visibleCopy).toContain('Riverside Hotel')
@@ -244,6 +247,19 @@ describe('notificationLink', () => {
     })
   })
 
+  it('renders a gentle Property responsibility recovery prompt without content', () => {
+    expect(renderNotification('property.responsibility_needed', {})).toEqual({
+      title: 'Property needs a responsible manager',
+      body: 'Choose an eligible manager so property-wide updates reach the right people.',
+      actionLabel: 'Choose manager',
+      summary: 'Property responsible manager needed',
+    })
+    expect(notificationLink('property', 'prop-1', 'prop-1')).toEqual({
+      path: '/properties/prop-1/settings',
+      search: {},
+    })
+  })
+
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
       'inbox_item',
@@ -251,6 +267,7 @@ describe('notificationLink', () => {
       'goal',
       'badge',
       'portal',
+      'property',
     ]
     for (const t of types) {
       expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)

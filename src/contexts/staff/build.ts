@@ -46,6 +46,11 @@ type StaffContextDeps = Readonly<{
    * root to the grant-backed identity adapter.
    */
   accessiblePropertyLookup: AccessiblePropertyLookupPort
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
 }>
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
@@ -129,6 +134,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       accessibleProperties: deps.accessiblePropertyLookup,
       clock: deps.clock,
       idGen,
+      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
     updatePortalResponsibilities: updatePortalResponsibilities({
       repo: participationRepo,

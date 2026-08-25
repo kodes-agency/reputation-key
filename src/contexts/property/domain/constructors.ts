@@ -114,6 +114,10 @@ export const buildProperty = (
         purgeScheduledFor: null,
         lifecycleInitiatedBy: null,
         ...routing,
+        responsibleManagerRevision: 1,
+        // Property responsibility is explicit. Creation/access provenance is
+        // not silently converted into a workflow-notification assignment.
+        responsibilityNeededSince: input.now,
       }
     },
   )

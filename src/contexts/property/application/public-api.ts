@@ -6,7 +6,12 @@ import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/do
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
-export type { PropertyCreated, PropertyDeleted, PropertyUpdated } from '../domain/events'
+export type {
+  PropertyCreated,
+  PropertyDeleted,
+  PropertyUpdated,
+  PropertyResponsibilityNeeded,
+} from '../domain/events'
 
 /** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
 export type PropertySlugLookupResult = Readonly<{
@@ -110,6 +115,15 @@ export type PropertyPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
+}>
+
+/** Kept separate so ordinary Property readers do not acquire notification policy. */
+export type PropertyResponsibleManagerPublicApi = Readonly<{
+  /** Current explicit managers, revalidated against role/access/participation. */
+  getResponsibleManagerUserIds: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
 }>
 
 /** Optional product preference kept separate from the widely mocked core API. */

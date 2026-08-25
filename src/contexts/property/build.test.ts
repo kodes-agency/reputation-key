@@ -34,6 +34,8 @@ const createStubStaffApi = (): StaffPublicApi => ({
   countAssignmentsByTeam: async () => 0,
 })
 
+const identityPublicApi = { listActiveManagers: async () => [] }
+
 // Minimal SourceContentPurge stub — the purge port is a required build dep
 // (BQC-1.7); these tests never exercise the purge path.
 const createStubSourceContentPurge = () => ({
@@ -68,6 +70,7 @@ describe('PropertyPublicApi', () => {
       clock,
       localCell: 'us',
       staffPublicApi,
+      identityPublicApi,
       sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
@@ -89,6 +92,7 @@ describe('PropertyPublicApi', () => {
       clock,
       localCell: 'us',
       staffPublicApi,
+      identityPublicApi,
       sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })

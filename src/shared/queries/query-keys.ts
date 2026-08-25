@@ -83,6 +83,8 @@ export const propertyKeys = {
   all: ['properties'] as const,
   list: () => [...propertyKeys.all, 'list'] as const,
   detail: (propertyId: string) => [...propertyKeys.all, 'detail', propertyId] as const,
+  responsibleManagers: (propertyId: string) =>
+    [...propertyKeys.detail(propertyId), 'responsible-managers'] as const,
 }
 
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────

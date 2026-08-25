@@ -268,6 +268,8 @@ const NOTIFICATION_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/index.ts'
 const NOTIFICATION_PORTAL_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts'
+const NOTIFICATION_PROPERTY_HANDLERS =
+  'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts'
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
 const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
@@ -290,6 +292,8 @@ const INTEGRATION_IMPORT_OUTBOX =
 const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_PORTAL_OUTBOX =
   'src/contexts/notification/infrastructure/portal-outbox-consumers.ts'
+const NOTIFICATION_PROPERTY_OUTBOX =
+  'src/contexts/notification/infrastructure/property-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -909,6 +913,29 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       ownerSlice: 'F7',
       notes:
         'identifier-only Property binding lifecycle fact; authorization consumers are added before protected import dispatch is enabled',
+    },
+  ),
+  ev(
+    'property.responsibility_became_needed',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.create',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('notification.property-event-handlers', NOTIFICATION_PROPERTY_HANDLERS),
+        durable(
+          'notification.on-property-responsibility-needed',
+          NOTIFICATION_PROPERTY_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only transition fact; one content-free recovery alert per current AccountAdmin, with deterministic queue deduplication',
     },
   ),
 ]

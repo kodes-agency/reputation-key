@@ -99,6 +99,30 @@ export async function revokePropertyAccess(
   return rows.rows.length > 0
 }
 
+/** Offboarding fence: revoke every active grant for one Organization member. */
+export async function revokeAllPropertyAccessForUser(
+  db: Database,
+  input: Readonly<{
+    organizationId: string
+    userId: string
+    reason: string
+  }>,
+): Promise<number> {
+  const rows = await db.execute(sql`
+    WITH ${BUMP_POLICY_VERSION_SQL},
+    upd AS (
+      UPDATE property_access_grant
+      SET revoked_at = now(), revoke_reason = ${input.reason}
+      WHERE organization_id = ${input.organizationId}
+        AND user_id = ${input.userId}
+        AND revoked_at IS NULL
+      RETURNING id
+    )
+    SELECT id FROM upd
+  `)
+  return rows.rows.length
+}
+
 export async function listActiveGrantsForUser(
   db: Database,
   organizationId: string,

@@ -16,6 +16,8 @@ export type PropertyErrorCode =
   | 'property_not_active'
   | 'region_move_conflict'
   | 'stale_property'
+  | 'responsible_manager_ineligible'
+  | 'revision_conflict'
 
 export type PropertyError = Readonly<{
   _tag: 'PropertyError'

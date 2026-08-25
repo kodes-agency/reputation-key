@@ -58,6 +58,8 @@ function makeProperty(idSuffix: string, overrides: Partial<Property> = {}): Prop
     lifecycleStateChangedAt: NOW,
     purgeScheduledFor: null,
     lifecycleInitiatedBy: null,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
     ...DEFAULT_PROPERTY_ROUTING,
     ...overrides,
   }

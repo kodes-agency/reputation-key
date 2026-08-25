@@ -176,6 +176,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'listPortalResponsibleManagers',
   'listPortals',
   'listProperties',
+  'listPropertyResponsibleManagers',
   'listRecognitionScopes',
   'listStaffGoals',
   'listStaffParticipations',
@@ -247,6 +248,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'updatePortalResponsibilities',
   'updatePortalResponsibleManagers',
   'updateProperty',
+  'updatePropertyResponsibleManagers',
   'updateTeam',
 ]
 

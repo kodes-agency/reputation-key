@@ -61,6 +61,8 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     routingPolicyVersion: 1,
     processingRegionResolvedAt: null,
     sourceEpoch: 0,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
     ...overrides,
   }
 }
@@ -228,6 +230,12 @@ describe.sequential('propertyCommandStore (integration)', () => {
         occurredAt: NOW,
       }),
     })
+    await pool.query(
+      `INSERT INTO property_responsible_managers
+         (organization_id, property_id, user_id, effective_from, created_by)
+       VALUES ($1, $2, $3, $4, $3)`,
+      [ORG_ID, PROP_ID, 'property-delete-manager', NOW],
+    )
 
     const event = propertyDeleted({
       propertyId: PROP_ID,
@@ -244,6 +252,11 @@ describe.sequential('propertyCommandStore (integration)', () => {
 
     const rows = await pool.query('SELECT id FROM properties WHERE id = $1', [PROP_ID])
     expect(rows.rows).toHaveLength(0)
+    const assignments = await pool.query(
+      'SELECT id FROM property_responsible_managers WHERE property_id = $1',
+      [PROP_ID],
+    )
+    expect(assignments.rows).toHaveLength(0)
     const facts = await pool.query(
       `SELECT id FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'property.deleted' AND id = $2`,

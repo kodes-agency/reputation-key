@@ -21,6 +21,11 @@ export type StaffParticipationDeps = Readonly<{
   ) => Promise<readonly PropertyId[]>
   clock: () => Date
   idGen: () => string
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
 }>
 
 async function requirePropertyManage(
@@ -171,6 +176,13 @@ export const archiveStaffParticipation =
     )
     if (!archived) {
       throw staffError('participation_not_found', 'staff participation not found')
+    }
+    if (archived.linkedUserId) {
+      await deps.reconcileResponsibleManagerEligibility?.(
+        ctx.organizationId,
+        archived.linkedUserId,
+        ctx.userId,
+      )
     }
     return archived
   }

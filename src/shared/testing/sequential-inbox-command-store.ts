@@ -56,6 +56,7 @@ export function createSequentialInboxCommandStore(deps: {
   }
 
   return {
+    releaseAssignmentsForUser: async () => ({ released: 0 }),
     createItem: async (item, event) => {
       const existing = await deps.repo.findBySource(
         item.sourceType,

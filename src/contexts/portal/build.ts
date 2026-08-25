@@ -373,6 +373,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         portalLinkRepo,
         portalGroupRepo,
         portalTokenRepo,
+        portalResponsibleManagerRepo,
         linkResolver,
       },
       useCases,

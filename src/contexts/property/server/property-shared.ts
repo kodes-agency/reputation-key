@@ -18,7 +18,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
-    .with('slug_taken', 'region_locked', () => HTTP_STATUS.CONFLICT)
+    .with('slug_taken', 'region_locked', 'revision_conflict', () => HTTP_STATUS.CONFLICT)
     .with('property_not_active', 'invalid_transition', () => HTTP_STATUS.CONFLICT)
     .with(
       'region_unresolved',
@@ -31,6 +31,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
       'invalid_name',
       'invalid_timezone',
       'invalid_country',
+      'responsible_manager_ineligible',
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .exhaustive()

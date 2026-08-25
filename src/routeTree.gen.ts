@@ -47,6 +47,7 @@ import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './ro
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
 import { Route as AuthenticatedPropertiesPropertyIdReviewsRouteImport } from './routes/_authenticated/properties/$propertyId/reviews'
+import { Route as AuthenticatedPropertiesPropertyIdSettingsRouteImport } from './routes/_authenticated/properties/$propertyId/settings'
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
@@ -266,6 +267,12 @@ const AuthenticatedPropertiesPropertyIdReviewsRoute =
     path: '/reviews',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdSettingsRoute =
+  AuthenticatedPropertiesPropertyIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesImportGoogleIndexRoute =
   AuthenticatedPropertiesImportGoogleIndexRouteImport.update({
     id: '/properties/import-google/',
@@ -374,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -422,6 +430,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthIndexRoute
   '/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -475,6 +484,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   '/_authenticated/properties/$propertyId/people': typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   '/_authenticated/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
+    | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
@@ -576,6 +587,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/properties/$propertyId/people'
     | '/properties/$propertyId/reviews'
+    | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
@@ -628,6 +640,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/goals'
     | '/_authenticated/properties/$propertyId/people'
     | '/_authenticated/properties/$propertyId/reviews'
+    | '/_authenticated/properties/$propertyId/settings'
     | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
     | '/api/webhooks/gbp/notifications'
@@ -933,6 +946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/_authenticated/properties/$propertyId/settings': {
+      id: '/_authenticated/properties/$propertyId/settings'
+      path: '/settings'
+      fullPath: '/properties/$propertyId/settings'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
     '/_authenticated/properties/import-google/': {
       id: '/_authenticated/properties/import-google/'
       path: '/properties/import-google'
@@ -1079,6 +1099,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
+  AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
@@ -1093,6 +1114,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdPeopleRoute,
     AuthenticatedPropertiesPropertyIdReviewsRoute:
       AuthenticatedPropertiesPropertyIdReviewsRoute,
+    AuthenticatedPropertiesPropertyIdSettingsRoute:
+      AuthenticatedPropertiesPropertyIdSettingsRoute,
     AuthenticatedPropertiesPropertyIdIndexRoute:
       AuthenticatedPropertiesPropertyIdIndexRoute,
     AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute:

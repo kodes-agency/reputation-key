@@ -99,6 +99,11 @@ export type PolicyAdminDeps = Readonly<{
     userId: string
     reason?: string
   }) => Promise<boolean>
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
   listActiveGrantsForOrg: (
     organizationId: string,
     at: Date,
@@ -376,6 +381,11 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       reason: input.reason,
       actorUserId: input.actorUserId,
     })
+    await deps.reconcileResponsibleManagerEligibility?.(
+      input.organizationId,
+      input.userId,
+      input.actorUserId,
+    )
   }
 
   // BQC-4.4: read-only region diagnostic. Every read writes an operator

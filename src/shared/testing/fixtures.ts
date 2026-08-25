@@ -96,6 +96,8 @@ export function buildTestProperty(
     lifecycleStateChangedAt: new Date('2026-04-10T12:00:00Z'),
     purgeScheduledFor: null,
     lifecycleInitiatedBy: null,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: new Date('2026-04-10T12:00:00Z'),
     ...DEFAULT_PROPERTY_ROUTING,
     ...rest,
     dataCellId: inferredDataCellId,

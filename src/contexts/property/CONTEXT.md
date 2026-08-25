@@ -8,6 +8,7 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 
 - **Property** — The organizational unit everything else lives under. Belongs to an organization. Has name, slug, timezone, optional GBP place ID and Google connection reference.
 - **PropertyPublicApi** — Application-level API for cross-context consumption. Provides slug lookups, GBP place ID lookups, import, and connection cleanup.
+- **Responsible Manager** — An explicitly selected AccountAdmin or eligible PropertyManager who receives property-wide workflow notifications. This is notification-routing responsibility, not authorization or participation.
 
 ## Relationships
 
@@ -15,7 +16,8 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 - Property ← Portal, Team, StaffAssignment, Goal, Review (all reference `propertyId`).
 - Property ← Integration context (via `PropertyGoogleBindingPublicApi` for canonical binding lifecycle).
 - Property ← Guest context (via slug lookup for public portal resolution).
-- Property context **depends on** `StaffPublicApi` for accessible property filtering.
+- Property context **depends on** `StaffPublicApi` for accessible property filtering and linked participation eligibility.
+- Property context **depends on** `IdentityPublicApi` for membership, role, and Property access eligibility.
 
 ## Invariants
 
@@ -24,12 +26,17 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 - Canonical GBP location suffixes must be unique within an organization.
 - `dataCellId` is assigned from the signed Data Cell catalogue and cannot be
   cleared or changed outside the audited operator move workflow.
+- Responsible Managers are explicit and may be multiple. Property creation never infers one from the creator.
+- AccountAdmins are eligible organization-wide. A PropertyManager needs active membership, an active PropertyAccessGrant, and an active linked StaffParticipation for the Property.
+- Losing membership, access, or participation ends only the affected manager's active interval. If none remain, the Property records `responsibilityNeededSince`; no replacement is guessed and offboarding is not blocked.
+- Responsible Manager history is owned by the Property aggregate and is removed when the Property is hard-deleted.
 
 ## Events produced
 
 - **`property.created`** — propertyId, organizationId, name, slug, dataCellId (when resolved), legacy processingRegion, occurredAt.
 - **`property.updated`** — propertyId, organizationId, name, slug, occurredAt.
 - **`property.deleted`** — propertyId, organizationId, occurredAt.
+- **`property.responsibility_became_needed`** — propertyId, organizationId, occurredAt. Identifier-only and atomically recorded with the transition to no active responsible manager; Notification alerts current AccountAdmins with content-free copy.
 
 ## Events consumed
 
@@ -41,11 +48,12 @@ None. Property context does not subscribe to events from other contexts.
 property/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
-    ports/             property.repository.ts
+    ports/             property.repository.ts, property-responsible-manager.repository.ts
     dto/               create-property.dto.ts, update-property.dto.ts
     public-api.ts      exports read-only property queries and binding lifecycle contracts
     use-cases/         create-property.ts, update-property.ts, soft-delete-property.ts,
-                       get-property.ts, list-properties.ts
+                       get-property.ts, list-properties.ts,
+                       property-responsible-managers.ts
   infrastructure/
     repositories/      property.repository.ts (Drizzle)
     mappers/           property.mapper.ts
@@ -70,7 +78,8 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`properties.ts`** — CRUD server functions for properties (create, update, list, get, delete).
+- **`properties.ts` / `property-read.ts`** — CRUD server functions for properties (create, update, list, get, delete).
+- **`property-responsible-managers.ts`** — list eligible/assigned managers and replace the explicit selection with revision-based compare-and-swap.
 
 ## Permissions
 

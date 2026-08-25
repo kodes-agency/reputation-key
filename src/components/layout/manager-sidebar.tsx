@@ -42,6 +42,7 @@ function useActiveSection(): string {
       if (m[1] === 'reviews') return 'reviews'
       if (m[1] === 'people') return 'people'
       if (m[1] === 'goals') return 'goals'
+      if (m[1] === 'settings') return 'property-settings'
       return 'dashboard'
     },
   })

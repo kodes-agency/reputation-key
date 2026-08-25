@@ -52,6 +52,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 const ORG_A = organizationId('org-inbox-cmd-aaaa-1111111111111111')
 const PROP_A = propertyId('4d000000-0000-0000-0000-000000000001')
 const USER_A = userId('user-inbox-cmd-aaaa-1111111111')
+const USER_B = userId('user-inbox-cmd-bbbb-2222222222')
 const REVIEW_A = reviewId('4d000000-0000-0000-0000-000000000010')
 const ITEM_A = inboxItemId('4d000000-0000-0000-0000-000000000020')
 const NOW = new Date('2026-06-01T12:00:00.000Z')
@@ -249,6 +250,44 @@ beforeEach(async () => {
 })
 
 describe.sequential('inboxCommandStore applyOnce (integration)', () => {
+  it('offboarding releases only the departing user assignments with durable facts', async () => {
+    const repo = createInboxRepository(db, stubPorts)
+    const first = makeItem({ assignedTo: USER_A })
+    const second = makeItem({
+      id: inboxItemId('4d000000-0000-0000-0000-000000000025'),
+      sourceId: reviewId('4d000000-0000-0000-0000-000000000015'),
+      assignedTo: USER_B,
+    })
+    await repo.create(first, ORG_A)
+    await repo.create(second, ORG_A)
+
+    const result = await createAtomicInboxCommandStore(
+      db,
+      silentEvents,
+    ).releaseAssignmentsForUser({
+      organizationId: ORG_A,
+      userId: USER_A,
+      actorId: USER_B,
+      at: NOW,
+    })
+
+    expect(result).toEqual({ released: 1 })
+    expect((await repo.findById(first.id, ORG_A))?.assignedTo).toBeNull()
+    expect((await repo.findById(second.id, ORG_A))?.assignedTo).toBe(USER_B)
+    const facts = await pool.query(
+      `SELECT event_type, payload FROM outbox_events
+       WHERE organization_id = $1 ORDER BY created_at`,
+      [ORG_A],
+    )
+    expect(facts.rows).toEqual([
+      expect.objectContaining({ event_type: 'inbox.inbox_item.unassigned' }),
+    ])
+    expect(facts.rows[0].payload).toMatchObject({
+      previousAssignee: USER_A,
+      userId: USER_B,
+    })
+  })
+
   it('applySourceCreatedOnce commits item + fact + receipt in one transaction', async () => {
     const store = createAtomicInboxCommandStore(db, silentEvents)
     const source = reviewCreated({

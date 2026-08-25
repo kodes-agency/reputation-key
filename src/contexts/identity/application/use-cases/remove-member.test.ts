@@ -138,6 +138,32 @@ describe('removeMember', () => {
     expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
   })
 
+  it('releases the target member authorities before deleting membership', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const releaseMemberAuthorities = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      releaseMemberAuthorities,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: STAFF_MEMBER.id }, ctx)
+
+    expect(releaseMemberAuthorities).toHaveBeenCalledWith(
+      ctx.organizationId,
+      STAFF_MEMBER.userId,
+      ctx.userId,
+    )
+    expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+  })
+
   it('preserves membership when import fencing fails', async () => {
     const identity = createInMemoryIdentityPort()
     const events = createCapturingEventBus()
