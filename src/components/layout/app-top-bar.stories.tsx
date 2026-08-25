@@ -16,9 +16,8 @@ import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
 // an empty array so the panel (mounted on open) renders its empty state
-// gracefully; the mutation fns are inert. Preferences/user-settings are only
-// pulled on demand (mute, timestamp formatting), so they return the shapes
-// those paths expect rather than throwing.
+// gracefully; the mutation fns are inert. User settings are pulled only when
+// the panel opens so timestamps can use the persisted locale and timezone.
 function makeNotificationFns(count: number): NotificationServerFns {
   const inert = <K extends keyof NotificationServerFns>(
     result: unknown,
@@ -33,8 +32,7 @@ function makeNotificationFns(count: number): NotificationServerFns {
     markAllRead: inert<'markAllRead'>(undefined),
     dismiss: inert<'dismiss'>(undefined),
     dismissAll: inert<'dismissAll'>(undefined),
-    getPreferences: inert<'getPreferences'>([]),
-    updatePreference: inert<'updatePreference'>(undefined),
+    muteCategory: inert<'muteCategory'>(undefined),
     getUserSettings: inert<'getUserSettings'>(null),
   }
 }

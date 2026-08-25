@@ -19,7 +19,7 @@ export type {
   NotificationUserSettings,
 } from '../domain/types'
 
-export { getDefaultEnabled } from '../domain/notification-policy'
+export { getDefaultCadence, getDefaultEnabled } from '../domain/notification-policy'
 export { isUrgent, URGENT_TYPES } from '../domain/types'
 
 // ── Render layer (ADR 0046 r.8) ───────────────────────────────────────

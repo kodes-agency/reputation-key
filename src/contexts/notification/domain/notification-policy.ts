@@ -16,7 +16,12 @@
 // never-wired model of the same rules. They are gone; this file now holds only
 // what the write path actually calls.
 
-import type { NotificationCategory, NotificationChannel, Notification } from './types'
+import type {
+  Notification,
+  NotificationCadence,
+  NotificationCategory,
+  NotificationChannel,
+} from './types'
 import type { NotificationPayload } from './notification-payload'
 import { renderNotification } from './notification-templates'
 
@@ -45,6 +50,10 @@ export function getDefaultEnabled(
   channel: NotificationChannel,
 ): boolean {
   return DEFAULT_POLICY[category]?.[channel] ?? false
+}
+
+export function getDefaultCadence(category: NotificationCategory): NotificationCadence {
+  return category === 'urgent_operational' ? 'immediate' : 'daily'
 }
 
 /**

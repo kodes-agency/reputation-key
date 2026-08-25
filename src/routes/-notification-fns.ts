@@ -9,8 +9,7 @@ import {
   markAllNotificationsReadFn,
   dismissNotificationFn,
   dismissAllNotificationsFn,
-  getNotificationPreferencesFn,
-  updateNotificationPreferenceFn,
+  muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
 import type { NotificationServerFns } from '#/components/features/notification/types'
@@ -23,7 +22,6 @@ export const notificationFns: NotificationServerFns = {
   markAllRead: markAllNotificationsReadFn,
   dismiss: dismissNotificationFn,
   dismissAll: dismissAllNotificationsFn,
-  getPreferences: getNotificationPreferencesFn,
-  updatePreference: updateNotificationPreferenceFn,
+  muteCategory: muteNotificationCategoryFn,
   getUserSettings: getNotificationUserSettingsFn,
 }

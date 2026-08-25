@@ -164,19 +164,18 @@ export const Empty: Story = {
   },
 }
 
-/** Muting reads preferences lazily and writes the in-app channel off. */
+/** Muting sends only the semantic command; server policy preserves other fields. */
 export const MuteCategory: Story = {
   args: {
     notificationFns: (() => {
-      const updatePreference = fn(async () => undefined)
+      const muteCategory = fn(async () => undefined)
       return makeNotificationFns({
         getUnreadCount: (async () => ({
           count: unreadCount,
         })) as unknown as NotificationServerFns['getUnreadCount'],
         getList: (async () =>
           notificationFixtures) as unknown as NotificationServerFns['getList'],
-        updatePreference:
-          updatePreference as unknown as NotificationServerFns['updatePreference'],
+        muteCategory: muteCategory as unknown as NotificationServerFns['muteCategory'],
       })
     })(),
   },
@@ -189,8 +188,11 @@ export const MuteCategory: Story = {
     )
     await userEvent.click(await portal.findByRole('menuitem', { name: /^Mute/ }))
     await waitFor(() => {
-      expect(args.notificationFns.updatePreference).toHaveBeenCalledWith({
-        data: expect.objectContaining({ channel: 'in_app', enabled: false }),
+      expect(args.notificationFns.muteCategory).toHaveBeenCalledWith({
+        data: {
+          propertyId: notificationFixtures[0]!.propertyId,
+          category: notificationFixtures[0]!.category,
+        },
       })
     })
   },

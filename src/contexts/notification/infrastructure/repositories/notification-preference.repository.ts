@@ -105,6 +105,51 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
     return preferenceFromRow(rows[0])
   },
 
+  /**
+   * Semantic category mute: insert governed defaults when no row exists, but
+   * on conflict change only the enabled flag. Existing cadence, urgent bypass,
+   * and quiet hours must survive a mute action from the notification feed.
+   */
+  upsertEnabled: async (
+    preference: NotificationPreference,
+  ): Promise<NotificationPreference> => {
+    const rows = await db
+      .insert(notificationPreferences)
+      .values({
+        id: preference.id as string,
+        userId: preference.userId as string,
+        organizationId: preference.organizationId as string,
+        propertyId: preference.propertyId as string,
+        category: preference.category,
+        channel: preference.channel,
+        enabled: preference.enabled,
+        cadence: preference.cadence,
+        urgentBypassEnabled: preference.urgentBypassEnabled,
+        quietHoursStart: preference.quietHoursStart,
+        quietHoursEnd: preference.quietHoursEnd,
+        createdAt: preference.createdAt,
+        updatedAt: preference.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: [
+          notificationPreferences.userId,
+          notificationPreferences.organizationId,
+          notificationPreferences.propertyId,
+          notificationPreferences.category,
+          notificationPreferences.channel,
+        ],
+        set: {
+          enabled: preference.enabled,
+          updatedAt: preference.updatedAt,
+        },
+      })
+      .returning()
+    if (!rows[0]) {
+      throw notificationError('insert_failed', 'Preference mute UPSERT returned no row')
+    }
+    return preferenceFromRow(rows[0])
+  },
+
   findByUser: async (
     userId: string,
     orgId: string,

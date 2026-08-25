@@ -195,3 +195,45 @@ export const SeedsFormattingFromTheServer: Story = {
     expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
   },
 }
+
+export const QuietHoursCanBeCleared: Story = {
+  args: {
+    preferences: [
+      ...preferences.filter(
+        (item) =>
+          !(item.category === 'workflow_collaboration' && item.channel === 'email'),
+      ),
+      preference({
+        category: 'workflow_collaboration',
+        channel: 'email',
+        enabled: true,
+        quietHoursStart: '09:00',
+        quietHoursEnd: '17:00',
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    const heading = canvas.getByRole('heading', {
+      name: 'Workflow and collaboration',
+    })
+    const fieldset = heading.closest('fieldset')
+    if (!fieldset) throw new Error('workflow notification fieldset is missing')
+    const row = within(fieldset)
+    await userEvent.clear(row.getByLabelText(/quiet from/i))
+    await userEvent.clear(row.getByLabelText(/^until/i))
+    await userEvent.click(row.getByRole('button', { name: /save quiet hours/i }))
+
+    await waitFor(() =>
+      expect(updatePreferenceMock).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          category: 'workflow_collaboration',
+          channel: 'email',
+          quietHoursStart: null,
+          quietHoursEnd: null,
+        }),
+      }),
+    )
+  },
+}

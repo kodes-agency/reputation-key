@@ -262,15 +262,17 @@ const quietTime = z
   .string()
   .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   .nullable()
+const notificationCategory = z.enum([
+  'mandatory',
+  'urgent_operational',
+  'workflow_collaboration',
+  'recognition',
+])
+const notificationChannel = z.enum(['in_app', 'email'])
 const updateNotificationPreferenceDto = z.object({
   propertyId: z.string().uuid(),
-  category: z.enum([
-    'mandatory',
-    'urgent_operational',
-    'workflow_collaboration',
-    'recognition',
-  ]),
-  channel: z.enum(['in_app', 'email']),
+  category: notificationCategory,
+  channel: notificationChannel,
   enabled: z.boolean(),
   cadence: z.enum(['immediate', 'daily']),
   urgentBypassEnabled: z.boolean(),
@@ -313,6 +315,45 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'notification.updatePreference',
+    ),
+  )
+
+const muteNotificationCategoryDto = z.object({
+  propertyId: z.string().uuid(),
+  category: notificationCategory,
+})
+
+/** @public Used by notification rows to disable only their in-app category. */
+export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
+  .inputValidator(muteNotificationCategoryDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          propertyId: data.propertyId,
+        })
+        try {
+          const { notificationPublicApi } = getContainer()
+          return notificationPublicApi.mutePreferenceCategory(
+            ctx.userId,
+            ctx.organizationId,
+            data.propertyId,
+            data.category,
+            'in_app',
+          )
+        } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.muteCategory',
     ),
   )
 

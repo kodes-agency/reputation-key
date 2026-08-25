@@ -34,6 +34,7 @@ import {
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { insertNotification } from './application/use-cases/insert-notification'
+import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
 import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
@@ -290,6 +291,27 @@ export const buildNotificationContext = (input: BuildInput) => {
       if (result.isErr()) throw result.error
       return prefRepo.upsert(result.value)
     },
+    mutePreferenceCategory: (
+      userId: string,
+      orgId: string,
+      propertyId: string,
+      category: NotificationCategory,
+      channel: NotificationChannel,
+    ) =>
+      muteNotificationCategory(
+        {
+          userId: userId as UserId,
+          organizationId: orgId as OrganizationId,
+          propertyId: propertyId as PropertyId,
+          category,
+          channel,
+        },
+        {
+          newId: () => notificationPreferenceId(crypto.randomUUID()),
+          clock: input.clock,
+          upsertEnabled: prefRepo.upsertEnabled,
+        },
+      ),
     updateUserSettings: (
       userId: string,
       orgId: string,

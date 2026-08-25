@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import {
   getDefaultEnabled,
+  getDefaultCadence,
   type NotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
@@ -108,14 +109,17 @@ function NotificationFormattingBoundary({
       category,
       channel,
       enabled: patch.enabled ?? current?.enabled ?? getDefaultEnabled(category, channel),
-      cadence:
-        patch.cadence ??
-        current?.cadence ??
-        (category === 'urgent_operational' ? 'immediate' : 'daily'),
+      cadence: patch.cadence ?? current?.cadence ?? getDefaultCadence(category),
       urgentBypassEnabled:
         patch.urgentBypassEnabled ?? current?.urgentBypassEnabled ?? false,
-      quietHoursStart: patch.quietHoursStart ?? current?.quietHoursStart ?? null,
-      quietHoursEnd: patch.quietHoursEnd ?? current?.quietHoursEnd ?? null,
+      quietHoursStart:
+        patch.quietHoursStart !== undefined
+          ? patch.quietHoursStart
+          : (current?.quietHoursStart ?? null),
+      quietHoursEnd:
+        patch.quietHoursEnd !== undefined
+          ? patch.quietHoursEnd
+          : (current?.quietHoursEnd ?? null),
     } as const
     try {
       await updatePreference({ data: input })

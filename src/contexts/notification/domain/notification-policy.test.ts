@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { applyCoalescence, getDefaultEnabled, isDisableable } from './notification-policy'
+import {
+  applyCoalescence,
+  getDefaultCadence,
+  getDefaultEnabled,
+  isDisableable,
+} from './notification-policy'
 import { createNotification } from './constructors'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification } from './types'
@@ -37,6 +42,11 @@ describe('notification policy', () => {
     expect(getDefaultEnabled('mandatory', 'email')).toBe(true)
     expect(isDisableable('mandatory')).toBe(false)
     expect(isDisableable('recognition')).toBe(true)
+  })
+
+  it('keeps cadence defaults in domain policy', () => {
+    expect(getDefaultCadence('urgent_operational')).toBe('immediate')
+    expect(getDefaultCadence('workflow_collaboration')).toBe('daily')
   })
 
   it('bumps the count and stamps the latest arrival', () => {

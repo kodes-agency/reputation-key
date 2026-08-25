@@ -10,6 +10,7 @@ import {
 } from '#/components/ui/select'
 import { Switch } from '#/components/ui/switch'
 import {
+  getDefaultCadence,
   getDefaultEnabled,
   type NotificationCadence,
   type NotificationCategory,
@@ -86,10 +87,7 @@ export function NotificationsCategoryRow({
         <Field className="w-auto">
           <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
           <Select
-            value={
-              email?.cadence ??
-              (category === 'urgent_operational' ? 'immediate' : 'daily')
-            }
+            value={email?.cadence ?? getDefaultCadence(category)}
             disabled={emailDisabled}
             onValueChange={(value) =>
               void savePreference(category, 'email', {

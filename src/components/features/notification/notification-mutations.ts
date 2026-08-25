@@ -141,7 +141,7 @@ export function useNotificationMutations(
     invalidateKeys,
     optimistic: () => patchFeed(qc, listKey, countKey, () => null),
   })
-  const mutePreference = useActionMutation(fns.updatePreference, {
+  const muteCategory = useActionMutation(fns.muteCategory, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
 
@@ -153,35 +153,6 @@ export function useNotificationMutations(
     } catch {
       announce('That action could not be completed. Please try again.')
     }
-  }
-
-  const muteCategory = async (notification: Notification) => {
-    // Preferences are fetched only now, so the bell costs no extra request.
-    const preferences = await qc.ensureQueryData({
-      queryKey: notificationKeys.preferences(organizationId),
-      queryFn: () => fns.getPreferences(),
-      staleTime: 60_000,
-    })
-    const current = preferences.find(
-      (preference) =>
-        preference.propertyId === notification.propertyId &&
-        preference.category === notification.category &&
-        preference.channel === 'in_app',
-    )
-    // The update DTO is a full replace, so absent fields fall back to the
-    // shipped defaults rather than being silently blanked.
-    await mutePreference({
-      data: {
-        propertyId: notification.propertyId,
-        category: notification.category,
-        channel: 'in_app',
-        enabled: false,
-        cadence: current?.cadence ?? 'immediate',
-        urgentBypassEnabled: current?.urgentBypassEnabled ?? false,
-        quietHoursStart: current?.quietHoursStart ?? null,
-        quietHoursEnd: current?.quietHoursEnd ?? null,
-      },
-    })
   }
 
   return {
@@ -196,7 +167,12 @@ export function useNotificationMutations(
     },
     onMuteCategory: (notification) => {
       void run(
-        muteCategory(notification),
+        muteCategory({
+          data: {
+            propertyId: notification.propertyId,
+            category: notification.category,
+          },
+        }),
         'Muted. You can turn it back on in notification settings.',
       )
     },

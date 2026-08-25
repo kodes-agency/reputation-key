@@ -18,10 +18,7 @@ import {
   type NotificationType,
 } from '#/contexts/notification/application/public-api'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type {
-  NotificationPreference,
-  NotificationUserSettings,
-} from '#/contexts/notification/application/public-api'
+import type { NotificationUserSettings } from '#/contexts/notification/application/public-api'
 import type { NotificationServerFns } from './types'
 
 export type NotificationFixtureOverrides = Readonly<{
@@ -195,10 +192,7 @@ export function makeNotificationFns(
     markAllRead: stub(undefined) as NotificationServerFns['markAllRead'],
     dismiss: stub(undefined) as NotificationServerFns['dismiss'],
     dismissAll: stub(undefined) as NotificationServerFns['dismissAll'],
-    getPreferences: stub(
-      [] as ReadonlyArray<NotificationPreference>,
-    ) as NotificationServerFns['getPreferences'],
-    updatePreference: stub(undefined) as NotificationServerFns['updatePreference'],
+    muteCategory: stub(undefined) as NotificationServerFns['muteCategory'],
     getUserSettings: stub(
       notificationUserSettingsFixture,
     ) as NotificationServerFns['getUserSettings'],
