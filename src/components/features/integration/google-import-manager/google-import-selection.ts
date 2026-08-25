@@ -1,6 +1,5 @@
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
-
-export const GOOGLE_IMPORT_SELECTION_LIMIT = 100
+import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 
 type SelectionResult = Readonly<{
   selectedIds: readonly string[]
@@ -28,7 +27,7 @@ export function toggleSelectedCandidate(
   if (!isSelectableImportCandidate(candidate) || next.has(candidate.candidateId)) {
     return { selectedIds: [...next], changed: false, limitReached: false }
   }
-  if (next.size >= GOOGLE_IMPORT_SELECTION_LIMIT) {
+  if (next.size >= MAX_GOOGLE_IMPORT_ITEMS) {
     return { selectedIds: [...next], changed: false, limitReached: true }
   }
   next.add(candidate.candidateId)
@@ -54,7 +53,7 @@ export function toggleLoadedCandidates(
 
   for (const id of selectableIds) {
     if (next.has(id)) continue
-    if (next.size >= GOOGLE_IMPORT_SELECTION_LIMIT) {
+    if (next.size >= MAX_GOOGLE_IMPORT_ITEMS) {
       limitReached = true
       break
     }

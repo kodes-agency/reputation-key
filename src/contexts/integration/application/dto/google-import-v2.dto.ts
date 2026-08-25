@@ -7,6 +7,7 @@ const ISO_COUNTRY_CODES = new Set(
   ),
 )
 export const GOOGLE_IMPORT_COUNTRY_CODES = Object.freeze([...ISO_COUNTRY_CODES].sort())
+export const MAX_GOOGLE_IMPORT_ITEMS = 100
 
 const OPAQUE_REFERENCE = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/
 const whitespace = /\s+/gu
@@ -176,13 +177,15 @@ const googleImportReviewItemSchema = z
  * to associate submit-time errors with the corresponding row control.
  */
 export const googleImportReviewDraftSchema = z
-  .object({ items: z.array(googleImportReviewItemSchema).min(1).max(100) })
+  .object({
+    items: z.array(googleImportReviewItemSchema).min(1).max(MAX_GOOGLE_IMPORT_ITEMS),
+  })
   .strict()
 
 export const startPropertyImportInputSchema = z
   .object({
     requestId: z.uuid(),
-    items: z.array(startItemSchema).min(1).max(100),
+    items: z.array(startItemSchema).min(1).max(MAX_GOOGLE_IMPORT_ITEMS),
     confirmation: z.literal('apply'),
   })
   .strict()

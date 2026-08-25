@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import {
-  GOOGLE_IMPORT_SELECTION_LIMIT,
   filterLoadedCandidates,
   selectionCheckState,
   toggleLoadedCandidates,
@@ -31,7 +31,7 @@ describe('Google import loaded-row selection', () => {
     const loaded = Array.from({ length: 130 }, (_, index) => candidate(String(index)))
     const result = toggleLoadedCandidates(new Set(), loaded, true)
 
-    expect(result.selectedIds).toHaveLength(GOOGLE_IMPORT_SELECTION_LIMIT)
+    expect(result.selectedIds).toHaveLength(MAX_GOOGLE_IMPORT_ITEMS)
     expect(result.selectedIds[0]).toBe('0')
     expect(result.selectedIds.at(-1)).toBe('99')
     expect(result.limitReached).toBe(true)
@@ -62,7 +62,7 @@ describe('Google import loaded-row selection', () => {
 
   it('rejects a row toggle at the cap without dropping prior selection', () => {
     const selected = new Set(
-      Array.from({ length: GOOGLE_IMPORT_SELECTION_LIMIT }, (_, index) => String(index)),
+      Array.from({ length: MAX_GOOGLE_IMPORT_ITEMS }, (_, index) => String(index)),
     )
     const result = toggleSelectedCandidate(selected, candidate('overflow'), true)
 

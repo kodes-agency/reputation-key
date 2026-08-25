@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'
 import { createImportReviewDraft } from './google-import-review-model'
@@ -125,12 +126,16 @@ export function useGoogleImportDiscoveryController({
   }
   const toggleCandidate = (candidate: ImportCandidateDto, checked: boolean) => {
     const result = toggleSelectedCandidate(selectedIds, candidate, checked)
-    if (result.limitReached) toast.error('You can import up to 100 properties at once.')
+    if (result.limitReached) {
+      toast.error(`You can import up to ${MAX_GOOGLE_IMPORT_ITEMS} properties at once.`)
+    }
     if (result.changed) setSelectedIds(new Set(result.selectedIds))
   }
   const toggleLoaded = (checked: boolean) => {
     const result = toggleLoadedCandidates(selectedIds, visibleCandidates, checked)
-    if (result.limitReached) toast.error('Selection stopped at the 100-property limit.')
+    if (result.limitReached) {
+      toast.error(`Selection stopped at the ${MAX_GOOGLE_IMPORT_ITEMS}-property limit.`)
+    }
     if (result.changed) setSelectedIds(new Set(result.selectedIds))
   }
   const review = () => {

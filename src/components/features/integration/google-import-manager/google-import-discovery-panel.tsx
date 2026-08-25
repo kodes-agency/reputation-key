@@ -3,6 +3,7 @@ import type {
   ImportAccountDto,
   ImportCandidateDto,
 } from '#/contexts/integration/application/public-api'
+import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import {
@@ -13,7 +14,6 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { GOOGLE_IMPORT_SELECTION_LIMIT } from './google-import-selection'
 import { GoogleImportAccountList } from './google-import-account-list'
 import { GoogleImportCandidateList } from './google-import-candidate-list'
 import { GoogleImportLoadingRows } from './google-import-loading-rows'
@@ -65,7 +65,7 @@ export function GoogleImportDiscoveryPanel(props: Props) {
             {selectedAccount ? selectedAccount.displayName : 'Locations'}
           </CardTitle>
           <CardDescription>
-            Search and select from loaded locations. Up to {GOOGLE_IMPORT_SELECTION_LIMIT}{' '}
+            Search and select from loaded locations. Up to {MAX_GOOGLE_IMPORT_ITEMS}{' '}
             properties can be imported at once.
           </CardDescription>
         </CardHeader>

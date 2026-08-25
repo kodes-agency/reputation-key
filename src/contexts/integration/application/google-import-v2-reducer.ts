@@ -6,6 +6,7 @@ import {
   type ImportParentStatus,
   type ImportReducerClass,
 } from './google-import-v2-contract'
+import { MAX_GOOGLE_IMPORT_ITEMS } from './dto/google-import-v2.dto'
 
 export const GOOGLE_IMPORT_PARENT_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000
 
@@ -72,7 +73,7 @@ export function reduceGoogleImportParent(
     now: Date
   }>,
 ): GoogleImportParentReduction {
-  if (input.items.length < 1 || input.items.length > 100) {
+  if (input.items.length < 1 || input.items.length > MAX_GOOGLE_IMPORT_ITEMS) {
     throw new Error('invalid import item count')
   }
 
