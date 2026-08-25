@@ -102,8 +102,9 @@ async function countWhere(
   propertyIds: ReadonlyArray<PropertyId> | undefined,
   ...conditions: SQL[]
 ): Promise<number> {
+  if (propertyIds?.length === 0) return 0
   const all: SQL[] = [eq(inboxItems.organizationId, orgId), ...conditions]
-  if (propertyIds && propertyIds.length > 0) {
+  if (propertyIds) {
     all.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
   }
   const result = await db

@@ -958,6 +958,24 @@ describe('inbox repository — tenant isolation', () => {
     expect(count).toBe(0)
   })
 
+  it('treats an explicit empty property scope as no visible rows', async () => {
+    const item = makeInboxItem({
+      sourceId: reviewId(crypto.randomUUID()),
+      status: 'open',
+      isEscalated: true,
+      escalatedAt: new Date(),
+    })
+    await repo.create(item, ORG_A)
+
+    await expect(
+      Promise.all([
+        repo.countByStatus(ORG_A, 'open', []),
+        repo.countEscalatedActive(ORG_A, []),
+        repo.countOpenSince(ORG_A, null, []),
+      ]),
+    ).resolves.toEqual([0, 0, 0])
+  })
+
   it('create rejects tenant mismatch', async () => {
     const item = makeInboxItem({ organizationId: ORG_A })
     await expect(repo.create(item, ORG_B)).rejects.toMatchObject({
