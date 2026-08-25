@@ -36,19 +36,20 @@ const permitRow = {
   property_id: null,
   connection_id: '8e000000-0000-4000-8000-000000000001',
   initiator_user_id: 'user-1',
+  authority_revision: 'c'.repeat(64),
 } as const
 
 function authorityWith(startOutcome: 'started' | 'changed' | 'expired') {
   const query = vi.fn(async (text: string) => {
-    if (text.includes('WITH candidate AS MATERIALIZED')) {
+    if (text.includes('start_google_execution_permit_v1')) {
       return { rows: [{ outcome: startOutcome }], rowCount: 1 }
     }
     return { rows: [permitRow], rowCount: 1 }
   })
   const authority = createPostgresGoogleAdmissionPermitAuthority({
     pool: { query } as unknown as Pool,
-    now: () => NOW,
     gatewayIdentity: 'spiffe://repkey.internal/google-egress-gateway',
+    releaseSha: 'a'.repeat(40),
   })
   return { authority, query }
 }
@@ -62,18 +63,12 @@ describe('Postgres Google admission start boundary', () => {
     await expect(authority.start(snapshot)).resolves.toBe('started')
 
     const startCall = query.mock.calls.find(([text]) =>
-      text.includes('WITH candidate AS MATERIALIZED'),
+      text.includes('start_google_execution_permit_v1'),
     )
     expect(startCall).toBeDefined()
     const sql = startCall?.[0] ?? ''
-    expect(sql).toContain('FOR UPDATE OF permit')
-    expect(sql).toContain('policy_version AS policy')
-    expect(sql).toContain('capability_execution_control AS control')
-    expect(sql).toContain('capability_compliance_approvals AS approval')
-    expect(sql).toContain("approval.status = 'approved'")
-    expect(sql).toContain('approval.expires_at > $2')
-    expect(sql).toContain('newer.binding_version > approval.binding_version')
-    expect(sql).toContain("SET state = CASE WHEN candidate.outcome = 'started'")
+    expect(sql).toContain('SELECT outcome FROM start_google_execution_permit_v1')
+    expect(sql).not.toContain('authorization_execution_permits')
   })
 
   it.each(['changed', 'expired'] as const)(

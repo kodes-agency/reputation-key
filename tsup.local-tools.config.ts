@@ -6,6 +6,7 @@ export default defineConfig({
   entry: {
     'seed-e2e-user': 'scripts/seed-e2e-user.ts',
     'provision-ai-admission-role': 'scripts/local-stack/provision-ai-admission-role.ts',
+    'provision-google-admission-role': 'scripts/ops/provision-google-admission-role.ts',
   },
   outDir: 'dist-local-tools',
   format: ['esm'],

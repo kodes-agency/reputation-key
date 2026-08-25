@@ -3483,6 +3483,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/provision-google-admission-role.ts',
+    'scripts/ops/provision-google-admission-role.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
+    },
+  ),
+  ops(
     'scripts/ops/google-import-lifecycle.ts',
     'scripts/ops/google-import-lifecycle.ts',
     'tenant_cross',

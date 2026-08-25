@@ -9,11 +9,14 @@ function source(path: string): string {
 describe('Google admission database transport architecture', () => {
   it('uses an explicit CA, a verified TLS pool, and live pg_stat_ssl readiness evidence', () => {
     const index = source('services/google-execution-admission/index.ts')
+    const authority = source(
+      'services/google-execution-admission/postgres-permit-authority.ts',
+    )
     const tls = source('services/postgres-database-tls.ts')
 
     expect(index).toContain('GOOGLE_ADMISSION_DATABASE_CA_B64')
     expect(index).toContain('ssl: databaseTls.ssl')
-    expect(index).toContain('pg_catalog.pg_stat_ssl')
+    expect(authority).toContain('pg_catalog.pg_stat_ssl')
     expect(tls).toContain('rejectUnauthorized: true')
   })
 

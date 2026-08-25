@@ -107,6 +107,10 @@ describe('Google execution-admission startup isolation', () => {
     expect(index).toMatch(/consumeGoogleAdmissionRuntimeSecrets\(\s*process\.env/u)
     expect(index).not.toContain("requiredEnv('DATABASE_URL')")
     expect(index).toContain('grantKeyring.dispose()')
+    expect(index.indexOf('authority.readiness()')).toBeGreaterThan(0)
+    expect(index.indexOf('authority.readiness()')).toBeLessThan(
+      index.indexOf('server.listen('),
+    )
     expect(dockerfile).toContain(
       'FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS runtime',
     )

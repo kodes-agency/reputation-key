@@ -57,8 +57,9 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
           connectionString: databaseTls.connectionString,
           ssl: databaseTls.ssl,
           max: 5,
-          connectionTimeoutMillis: 10_000,
-          idleTimeoutMillis: 30_000,
+          connectionTimeoutMillis: 1_000,
+          idleTimeoutMillis: 5_000,
+          application_name: 'repkey-google-execution-admission',
         }),
         redis: new Redis(secrets.REDIS_URL, {
           lazyConnect: true,
@@ -110,16 +111,31 @@ for (const [policyId, policy] of Object.entries(GOOGLE_QUOTA_POLICIES)) {
   )
 }
 
+const authority = createPostgresGoogleAdmissionPermitAuthority({
+  pool,
+  gatewayIdentity,
+  releaseSha: requiredEnv('RELEASE_SHA'),
+})
+try {
+  const [redisReply, databaseReady] = await Promise.all([
+    redis.ping(),
+    authority.readiness(),
+  ])
+  if (redisReply !== 'PONG' || !databaseReady) {
+    throw new Error('Google execution-admission dependencies are not ready')
+  }
+} catch (error) {
+  await Promise.allSettled([redis.quit(), pool.end()])
+  databaseTls.dispose()
+  grantKeyring.dispose()
+  throw error
+}
 const service = createGoogleExecutionAdmissionService({
   nowMs: Date.now,
   admissionId: () => randomBytes(24).toString('base64url'),
   grantKeyring,
   grantStore: createRedisGoogleAdmissionGrantStore(redis, Date.now),
-  authority: createPostgresGoogleAdmissionPermitAuthority({
-    pool,
-    now: () => new Date(),
-    gatewayIdentity,
-  }),
+  authority,
   quotaForPolicy: (policyId) => quotaCoordinators.get(policyId) ?? null,
   inFlightForPolicy: (policyId) => inFlightCoordinators.get(policyId) ?? null,
 })
@@ -142,17 +158,11 @@ const server = createInternalMtlsWebServer({
       service,
       readiness: async () => {
         try {
-          const [redisReply, databaseReply] = await Promise.all([
+          const [redisReply, databaseReady] = await Promise.all([
             redis.ping(),
-            pool.query<{ ssl: boolean }>(`
-              SELECT COALESCE((
-                SELECT connection.ssl
-                FROM pg_catalog.pg_stat_ssl AS connection
-                WHERE connection.pid = pg_catalog.pg_backend_pid()
-              ), false) AS ssl
-            `),
+            authority.readiness(),
           ])
-          return redisReply === 'PONG' && databaseReply.rows[0]?.ssl === true
+          return redisReply === 'PONG' && databaseReady
         } catch {
           return false
         }

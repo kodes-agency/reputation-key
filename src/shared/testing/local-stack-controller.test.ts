@@ -69,6 +69,7 @@ describe('local stack controller', () => {
     expect(env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.GOOGLE_SESSION_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.GOOGLE_ADMISSION_GRANT_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_ADMISSION_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.AI_CONTROL_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.AI_SUBJECT_HMAC_KEYS).toMatch(/^subject-v1:[a-f0-9]{64}$/)

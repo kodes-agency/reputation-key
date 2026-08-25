@@ -118,6 +118,7 @@
     "ops:restore-verify": "tsx scripts/ops/restore-verify.ts",
     "ops:google-content-approval": "tsx scripts/ops/google-content-approval.ts",
     "ops:google-content-approval-sign": "tsx scripts/ops/google-content-approval-sign.ts",
+    "ops:google-admission-role": "tsx scripts/ops/provision-google-admission-role.ts",
     "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts",
     "release:google-import-drill": "tsx scripts/local-stack/google-import-release-drill.ts",
     "ops:ai-canary": "tsx scripts/ops/ai-canary-authorization.ts",

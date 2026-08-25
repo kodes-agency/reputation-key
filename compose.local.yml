@@ -281,7 +281,7 @@ services:
       RELEASE_SHA: ${SOURCE_REVISION}
       HOST: 0.0.0.0
       PORT: '8443'
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql://repkey_google_admission_local:${GOOGLE_ADMISSION_DATABASE_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GOOGLE_ADMISSION_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
       REDIS_URL: redis://redis:6379
       GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
@@ -316,8 +316,8 @@ services:
       - ALL
     restart: 'no'
     depends_on:
-      postgres:
-        condition: service_healthy
+      google-admission-role:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:
@@ -520,6 +520,30 @@ services:
       LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AI_CONTROL_DATABASE_PASSWORD: ${AI_CONTROL_DATABASE_PASSWORD}
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - admission-data
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+
+  google-admission-role:
+    profiles: [backend]
+    <<: *local-tools-image
+    command: [node, dist-local-tools/provision-google-admission-role.js, --apply]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      GOOGLE_ADMISSION_DATABASE_ROLE: repkey_google_admission_local
+      GOOGLE_ADMISSION_DATABASE_PASSWORD: ${GOOGLE_ADMISSION_DATABASE_PASSWORD}
     init: true
     read_only: true
     tmpfs:

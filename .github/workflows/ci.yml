@@ -361,9 +361,9 @@ jobs:
             docker run --rm --entrypoint test "$img" ! -e /app/dist-local-tools
           done
           docker run --rm --entrypoint sh repkey-web:ci -c \
-            "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
+            "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
           docker run --rm --entrypoint sh repkey-worker:ci -c \
-            "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
+            "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'

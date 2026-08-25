@@ -170,6 +170,10 @@ export function buildLocalStackEnv(
     GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS: `local:${secret(input.revision, 'google-oauth-state-handle')}`,
     GOOGLE_SESSION_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'google-session-binding')}`,
     GOOGLE_ADMISSION_GRANT_HMAC_KEYS: `local:${secret(input.revision, 'google-admission-grant')}`,
+    GOOGLE_ADMISSION_DATABASE_PASSWORD: secret(
+      input.revision,
+      'google-admission-database',
+    ),
     GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'google-credential-binding')}`,
     AI_CONTROL_DATABASE_PASSWORD: secret(input.revision, 'ai-control-database'),
     AI_SUBJECT_HMAC_KEYS: `subject-v1:${secret(input.revision, 'ai-subject')}`,

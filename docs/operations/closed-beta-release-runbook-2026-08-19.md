@@ -96,6 +96,56 @@ capability_compliance_approvals order by created_at desc limit 2;` shows
 `2026-08-16` / `approved`, then load a property Dashboard — the Performance card
 renders instead of "temporarily unavailable".
 
+### 1A. Provision the Google admission database role
+
+Releases containing migration `0079_google-admission-database-authority` require
+`google-execution-admission` to use a dedicated PostgreSQL login. The runtime
+login has `CONNECT`/schema `USAGE`, no table or sequence privileges, and
+`EXECUTE` on exactly four security-definer permit operations. Startup readiness
+rejects the database owner, a non-TLS connection, missing role timeouts, table
+access, or any extra executable function.
+
+Railway PostgreSQL supports creating a second login with the template's owner
+credential. This follows Railway's documented overlap model for
+[zero-downtime credential rotation](https://docs.railway.com/guides/rotate-credentials-zero-downtime).
+Run this after migrations and before deploying the admission sidecar in every
+Data Cell:
+
+```bash
+# Tunnel to the cell-local PostgreSQL service. DATABASE_URL here is temporary
+# operator authority; never copy it into google-execution-admission.
+railway connect Postgres16 --environment google-closed-beta --tunnel-only --port 55500
+export DATABASE_URL="<Railway database-owner URL rewritten to 127.0.0.1:55500>"
+export GOOGLE_ADMISSION_DATABASE_ROLE=repkey_google_admission
+export GOOGLE_ADMISSION_DATABASE_PASSWORD="$(openssl rand -hex 32)"
+
+pnpm ops:google-admission-role --apply
+```
+
+Store `GOOGLE_ADMISSION_DATABASE_PASSWORD` once as a sealed variable on the
+admission service. Construct its runtime `DATABASE_URL` from references rather
+than copying Railway connection details:
+
+```dotenv
+GOOGLE_ADMISSION_DATABASE_PASSWORD=<the same 64-hex secret; seal this variable>
+DATABASE_URL=postgresql://repkey_google_admission:${{ GOOGLE_ADMISSION_DATABASE_PASSWORD }}@${{Postgres16.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres16.PGDATABASE}}
+```
+
+Railway supports both cross-service and same-service substitutions in reference
+variables; see [Using Variables](https://docs.railway.com/variables). Do not add
+`GOOGLE_ADMISSION_DATABASE_ROLE` or `GOOGLE_ADMISSION_DATABASE_PASSWORD` to the
+running sidecar's environment: its exact environment allowlist intentionally
+rejects provisioning authority.
+
+Verify the sidecar's private `/ready` endpoint through the gateway/deployment
+health check before enabling Google work. A false response means the role is
+too broad or incompletely configured; do not replace it with the owner URL.
+
+For rotation, provision `repkey_google_admission_v2` with a new 64-hex password,
+stage the role/password/URL change, redeploy, and wait for readiness before
+revoking the old role. Keep both roles valid during that overlap. Remove the old
+role only after every old admission replica and database session has drained.
+
 ## 2. AI release gate — canary passed
 
 The AI plane is deployed, its catalogue is re-pinned,
