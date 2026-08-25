@@ -5,7 +5,6 @@ import { describe, it, expect } from 'vitest'
 import { buildStaffContext } from './build'
 import type { Database } from '#/shared/db'
 import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   organizationId,
   propertyId,
@@ -44,14 +43,12 @@ const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignme
 describe('StaffPublicApi', () => {
   it('returns null for AccountAdmin (all properties accessible)', async () => {
     const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
       identityMembership: mockIdentityMembership,
       accessiblePropertyLookup: async () => [],
@@ -77,14 +74,12 @@ describe('StaffPublicApi', () => {
         propertyId: propertyId('prop-staff-only'),
       }),
     ])
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
       identityMembership: mockIdentityMembership,
       accessiblePropertyLookup: async () => [propertyId('prop-1'), propertyId('prop-2')],
@@ -102,14 +97,12 @@ describe('StaffPublicApi', () => {
 
   it('missing grants return an empty set — never null (deny downstream)', async () => {
     const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
       identityMembership: mockIdentityMembership,
       accessiblePropertyLookup: async () => [],
@@ -126,14 +119,12 @@ describe('StaffPublicApi', () => {
 
   it('lookup failure propagates — fail closed, never silent allow', async () => {
     const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
       repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
       identityMembership: mockIdentityMembership,
       accessiblePropertyLookup: async () => {

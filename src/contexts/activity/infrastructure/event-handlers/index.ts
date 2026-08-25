@@ -19,8 +19,6 @@ import { onReplyUpdated } from './on-reply-updated'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReplyApproved } from './on-reply-approved'
 import { onReplyRejected } from './on-reply-rejected'
-import { onStaffAssigned } from './on-staff-assigned'
-import { onStaffUnassigned } from './on-staff-unassigned'
 import { onMemberInvited } from './on-member-invited'
 import { onInvitationAccepted } from './on-invitation-accepted'
 import { onInvitationCanceled } from './on-invitation-canceled'
@@ -103,14 +101,6 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     consumer: 'activity.event-handlers',
   })
   deps.events.on('review.reply.rejected', onReplyRejected(deps), {
-    consumer: 'activity.event-handlers',
-  })
-
-  // ── Staff events (user-management audit) ──
-  deps.events.on('staff.assigned', onStaffAssigned({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('staff.unassigned', onStaffUnassigned({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })
 

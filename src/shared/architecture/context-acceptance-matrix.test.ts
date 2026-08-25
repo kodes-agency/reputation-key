@@ -332,6 +332,33 @@ describe('row 10 — Staff (enabled/limited): participation interface carries no
     expect(domain).toContain('StaffParticipation')
     expect(domain).toContain('archive')
   })
+
+  it('exposes only participation/responsibility endpoints while retaining legacy data', () => {
+    const removedLegacyEndpoints = [
+      'src/contexts/staff/server/staff-assignments.ts',
+      'src/contexts/staff/server/staff-portals-update.ts',
+    ].filter((path) => existsSync(join(ROOT, path)))
+    expect(
+      removedLegacyEndpoints,
+      `reachable legacy Staff endpoints:\n${removedLegacyEndpoints.join('\n')}`,
+    ).toEqual([])
+
+    expect(
+      existsSync(join(ROOT, 'src/contexts/staff/server/staff-participations.ts')),
+    ).toBe(true)
+    expect(existsSync(join(ROOT, 'src/contexts/staff/server/staff-portals.ts'))).toBe(
+      true,
+    )
+    expect(strippedSource('src/shared/db/schema/staff-assignment.schema.ts')).toContain(
+      'staffAssignments',
+    )
+
+    const activityHandlers = strippedSource(
+      'src/contexts/activity/infrastructure/event-handlers/index.ts',
+    )
+    expect(activityHandlers).not.toMatch(/staff\.(?:assigned|unassigned)/)
+    expect(activityHandlers).not.toMatch(/onStaff(?:Assigned|Unassigned)/)
+  })
 })
 
 describe('row 11 — Team (quarantined): no executable beta product surface', () => {

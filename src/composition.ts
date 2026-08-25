@@ -686,7 +686,6 @@ export function createContainer(options?: {
       getPortalInfo: (orgId, portalId) =>
         portal.publicApi.portal.getPortalInfo(orgId, portalId),
     },
-    events: eventBus,
     clock,
   })
 

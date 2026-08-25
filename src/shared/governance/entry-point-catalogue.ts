@@ -1486,36 +1486,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── staff ─────────────────────────────────────────────────────────
   ...[
     sf(
-      'createStaffAssignment',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-    ),
-    sf(
-      'removeStaffAssignment',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-      { notes: 'scoped via assignmentId' },
-    ),
-    sf(
-      'listStaffAssignments',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.read',
-      'staff.use',
-      'property',
-    ),
-    sf(
-      'updateStaffPortals',
-      `${STAFF}/staff-portals-update.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-      { notes: 'defense-in-depth; use case also enforces' },
-    ),
-    sf(
       'listStaffPortals',
       `${STAFF}/staff-portals.ts`,
       'staff.read',
@@ -2728,8 +2698,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.rejected',
       'review.reply.publication_cancelled',
       'review.reply.updated',
-      'staff.assigned',
-      'staff.unassigned',
       'identity.organization.created',
       'identity.member.invited',
       'identity.invitation.accepted',

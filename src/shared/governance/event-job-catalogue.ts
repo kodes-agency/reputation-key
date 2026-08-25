@@ -108,7 +108,7 @@ export type EventFamilyRow = Readonly<{
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
   /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PR3'
+  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PPL-01' | 'PR3'
   notes?: string
 }>
 
@@ -956,12 +956,13 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-      disposition: 'enabled',
+      consumers: [],
+      disposition: 'orphan',
     },
     {
+      ownerSlice: 'PPL-01',
       notes:
-        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (assignmentId/userId/propertyId shape — never recorded, zero historical rows)',
+        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
     },
   ),
   ev(
@@ -973,12 +974,13 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-      disposition: 'enabled',
+      consumers: [],
+      disposition: 'orphan',
     },
     {
+      ownerSlice: 'PPL-01',
       notes:
-        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (never recorded, zero historical rows)',
+        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
     },
   ),
 ]

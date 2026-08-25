@@ -72,9 +72,10 @@ of `getAssignedPortals`.
 
 ## Legacy quarantine
 
-Legacy assignment use cases, repositories, events, and server functions remain in
-the package because the migration has not reached contraction. They must not gain a
-new beta consumer. Schema removal waits for:
+Legacy assignment repositories, inactive use-case/source files, events, and data
+remain because the migration has not reached contraction. Their network endpoints
+and activity consumers have been removed; they must not gain a new beta consumer.
+Schema removal waits for:
 
 1. an exact/mappable/conflict/orphan/unsafe reconciliation report with zero
    unexplained rows;
@@ -88,11 +89,11 @@ staff/
   domain/              StaffParticipation, PortalResponsibility, legacy assignment
   application/
     ports/             participation repository, responsibility lookup, access ports
-    use-cases/         canonical participation/responsibility plus quarantined legacy paths
+    use-cases/         canonical participation/responsibility plus inactive legacy source
     public-api.ts      cross-context Staff read surface
   infrastructure/
     repositories/      effective-dated participation/responsibility and legacy assignment
-  server/              manager participation endpoints plus retained legacy endpoints
+  server/              manager participation/responsibility endpoints only
   build.ts             constructs canonical and quarantine seams
 ```
 
@@ -111,5 +112,5 @@ projection/consumer; do not relabel legacy events.
 - Persist explicit archive reason on the participation lifecycle.
 - Add PortalResponsibleManager and PropertyResponsibleManager in their owning
   contexts; do not place them in Staff PortalResponsibility.
-- Cut over remaining legacy readers (including any Badge/recognition path), then
-  deny legacy mutations and contract only after the quarantine gates pass.
+- Cut over remaining internal legacy readers (including any Badge/recognition path)
+  and contract inactive source/data only after the quarantine gates pass.
