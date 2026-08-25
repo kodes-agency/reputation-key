@@ -7,17 +7,27 @@ import {
   notificationPropertyFixtures,
 } from './notification-fixtures'
 import { NotificationPage } from './notification-page'
+import {
+  matchesNotificationFilter,
+  parseNotificationFilter,
+} from './notification-filters'
 import type { NotificationServerFns } from './types'
 
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
 
+const getFilteredNotifications = async (input: unknown) => {
+  const filter = (input as Readonly<{ data: Readonly<{ filter: string }> }>).data.filter
+  return notificationFixtures.filter((notification) =>
+    matchesNotificationFilter(notification, parseNotificationFilter(filter)),
+  )
+}
+
 const loadedFns = makeNotificationFns({
   getUnreadCount: (async () => ({
     count: unreadCount,
   })) as unknown as NotificationServerFns['getUnreadCount'],
-  getList: (async () =>
-    notificationFixtures) as unknown as NotificationServerFns['getList'],
+  getList: getFilteredNotifications as unknown as NotificationServerFns['getList'],
 })
 
 const onFilterChange = fn()
@@ -72,6 +82,33 @@ export const UrgentFilter: Story = {
     await waitFor(async () => {
       expect(await canvas.findAllByRole('listitem')).toHaveLength(2)
     })
+  },
+}
+
+export const FilterIsAppliedBeforePagination: Story = {
+  args: {
+    filter: 'urgent',
+    notificationFns: makeNotificationFns({
+      getUnreadCount: (async () => ({
+        count: unreadCount,
+      })) as unknown as NotificationServerFns['getUnreadCount'],
+      getList: (async (input: unknown) => {
+        const requestedFilter = (
+          input as Readonly<{ data: Readonly<{ filter?: string }> }>
+        ).data.filter
+        return requestedFilter === 'urgent'
+          ? notificationFixtures.filter(
+              (notification) => notification.priority === 'urgent',
+            )
+          : notificationFixtures.filter(
+              (notification) => notification.priority !== 'urgent',
+            )
+      }) as unknown as NotificationServerFns['getList'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const rows = await within(canvasElement).findAllByRole('listitem')
+    expect(rows).toHaveLength(2)
   },
 }
 

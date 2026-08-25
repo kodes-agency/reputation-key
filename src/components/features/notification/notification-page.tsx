@@ -24,11 +24,7 @@ import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
 import { NotificationListBody } from './notification-list-body'
-import {
-  groupByProperty,
-  matchesNotificationFilter,
-  type NotificationFilter,
-} from './notification-filters'
+import { groupByProperty, type NotificationFilter } from './notification-filters'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 
 const PAGE_SIZE = 50
@@ -54,13 +50,20 @@ export function NotificationPage({
     notificationFns.getUnreadCount,
     organizationId,
   )
-  const list = useNotifications(notificationFns.getList, organizationId, PAGE_SIZE, true)
+  const list = useNotifications(
+    notificationFns.getList,
+    organizationId,
+    PAGE_SIZE,
+    filter,
+    true,
+  )
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,
     organizationId,
     announce,
     PAGE_SIZE,
+    filter,
   )
 
   const propertyNames = useMemo(
@@ -68,12 +71,8 @@ export function NotificationPage({
     [properties],
   )
   const groups = useMemo(
-    () =>
-      groupByProperty(
-        list.notifications.filter((n) => matchesNotificationFilter(n, filter)),
-        propertyNames,
-      ),
-    [list.notifications, filter, propertyNames],
+    () => groupByProperty(list.notifications, propertyNames),
+    [list.notifications, propertyNames],
   )
 
   // Following a row's CTA marks it read, exactly as it does in the popover —

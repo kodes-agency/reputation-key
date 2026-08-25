@@ -16,11 +16,7 @@ import {
 } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
-import {
-  groupByReadState,
-  matchesNotificationFilter,
-  type NotificationFilter,
-} from './notification-filters'
+import { groupByReadState, type NotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { Notification } from '#/contexts/notification/application/public-api'
@@ -53,22 +49,23 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     organizationId,
   )
   // Polls only while open: the list used to go stale beside a live badge.
-  const list = useNotifications(notificationFns.getList, organizationId, PAGE_SIZE, open)
+  const list = useNotifications(
+    notificationFns.getList,
+    organizationId,
+    PAGE_SIZE,
+    filter,
+    open,
+  )
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,
     organizationId,
     announce,
     PAGE_SIZE,
+    filter,
   )
 
-  const groups = useMemo(
-    () =>
-      groupByReadState(
-        list.notifications.filter((n) => matchesNotificationFilter(n, filter)),
-      ),
-    [list.notifications, filter],
-  )
+  const groups = useMemo(() => groupByReadState(list.notifications), [list.notifications])
 
   const actions: NotificationRowActions = {
     ...mutations,

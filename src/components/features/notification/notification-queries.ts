@@ -34,6 +34,7 @@ import type {
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
+import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
 
 export const NOTIFICATION_POLL_INTERVAL = 30_000
 
@@ -67,11 +68,12 @@ export function useNotifications(
   getList: typeof getNotificationsFn,
   organizationId: string,
   limit = 20,
+  filter: NotificationListFilter = 'all',
   poll = false,
 ) {
   const query = useInfiniteQuery({
-    queryKey: notificationKeys.list(organizationId, limit),
-    queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam } }),
+    queryKey: notificationKeys.list(organizationId, limit, filter),
+    queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam, filter } }),
     initialPageParam: 0,
     // If a full page came back, another page may exist → advance the offset.
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>

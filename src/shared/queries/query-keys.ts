@@ -43,8 +43,8 @@ export const notificationKeys = {
     [...notificationKeys.feed(organizationId), 'count'] as const,
   lists: (organizationId: string) =>
     [...notificationKeys.feed(organizationId), 'list'] as const,
-  list: (organizationId: string, limit: number) =>
-    [...notificationKeys.lists(organizationId), { limit }] as const,
+  list: (organizationId: string, limit: number, filter = 'all') =>
+    [...notificationKeys.lists(organizationId), { limit, filter }] as const,
 
   // ── Settings (/settings/notifications) ──────────────────────────────
   settings: (organizationId: string) =>

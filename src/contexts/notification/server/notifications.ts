@@ -10,7 +10,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod'
-import { isNotificationError } from '../application/public-api'
+import { isNotificationError, NOTIFICATION_LIST_FILTERS } from '../application/public-api'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -59,6 +59,7 @@ export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).ha
 const getNotificationsDto = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(20),
   offset: z.coerce.number().min(0).optional().default(0),
+  filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
 })
 
 export const getNotificationsFn = createServerFn({ method: 'GET' })
@@ -76,6 +77,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
             ctx.organizationId,
             data.limit,
             data.offset,
+            data.filter,
           )
         } catch (e) {
           throw catchUntagged(e)

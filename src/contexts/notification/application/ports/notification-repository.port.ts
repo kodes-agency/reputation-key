@@ -15,6 +15,7 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
+import type { NotificationListFilter } from '../notification-list-filter'
 
 export type NotificationRepositoryPort = Readonly<{
   /**
@@ -56,6 +57,7 @@ export type NotificationRepositoryPort = Readonly<{
     orgId: OrganizationId,
     limit: number,
     offset: number,
+    filter: NotificationListFilter,
   ): Promise<readonly Notification[]>
 
   markRead(

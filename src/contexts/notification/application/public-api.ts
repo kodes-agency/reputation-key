@@ -87,3 +87,7 @@ export type {
 
 // ── Use-case input re-exports ─────────────────────────────────────────
 export type { InsertNotificationInput } from './use-cases/insert-notification'
+export {
+  NOTIFICATION_LIST_FILTERS,
+  type NotificationListFilter,
+} from './notification-list-filter'

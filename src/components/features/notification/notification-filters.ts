@@ -9,7 +9,7 @@
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
   type Notification,
-  type NotificationCategory,
+  type NotificationListFilter,
 } from '#/contexts/notification/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 
@@ -17,7 +17,7 @@ import { CATEGORY_COPY } from '#/components/features/settings/notifications-type
  * `'urgent'` is the PRIORITY flag (any category); `'urgent_operational'` is the
  * category. They are different questions, hence different tabs.
  */
-export type NotificationFilter = 'all' | 'unread' | 'urgent' | NotificationCategory
+export type NotificationFilter = NotificationListFilter
 
 export type NotificationFilterOption = Readonly<{
   value: NotificationFilter

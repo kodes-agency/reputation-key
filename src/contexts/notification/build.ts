@@ -53,6 +53,7 @@ import type {
 import type { NotificationError } from './domain/errors'
 import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { NotificationListFilter } from './application/notification-list-filter'
 
 type BuildInput = Readonly<{
   db: Database
@@ -216,8 +217,13 @@ export const buildNotificationContext = (input: BuildInput) => {
     findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
     getUnreadCount: (userId: string, orgId: string) =>
       notificationRepo.countUnreadByUser(userId, orgId),
-    getNotifications: (userId: string, orgId: string, limit: number, offset: number) =>
-      notificationRepo.findByUser(userId, orgId, limit, offset),
+    getNotifications: (
+      userId: string,
+      orgId: string,
+      limit: number,
+      offset: number,
+      filter: NotificationListFilter,
+    ) => notificationRepo.findByUser(userId, orgId, limit, offset, filter),
     markRead: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, markNotificationRead)
       if (now === null) return // invalid transition, skip

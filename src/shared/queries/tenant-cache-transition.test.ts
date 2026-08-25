@@ -25,4 +25,10 @@ describe('tenant cache transition', () => {
       notificationKeys.list('org-2', 20),
     )
   })
+
+  it('partitions notification list pages by server-side filter', () => {
+    expect(notificationKeys.list('org-1', 20, 'all')).not.toEqual(
+      notificationKeys.list('org-1', 20, 'urgent'),
+    )
+  })
 })

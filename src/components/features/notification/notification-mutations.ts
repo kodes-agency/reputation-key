@@ -15,6 +15,7 @@ import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import type { Notification } from '#/contexts/notification/application/public-api'
+import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
 import type { NotificationServerFns } from './types'
 
 /** Shape `useInfiniteQuery` stores under `notificationKeys.list(...)`. */
@@ -99,9 +100,10 @@ export function useNotificationMutations(
   organizationId: string,
   announce: (text: string) => void,
   limit = 20,
+  filter: NotificationListFilter = 'all',
 ): NotificationFeedMutations {
   const qc = useQueryClient()
-  const listKey = notificationKeys.list(organizationId, limit)
+  const listKey = notificationKeys.list(organizationId, limit, filter)
   const countKey = notificationKeys.count(organizationId)
   const invalidateKeys = [notificationKeys.feed(organizationId)]
 

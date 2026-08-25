@@ -8,6 +8,7 @@ import { unbrand } from '#/shared/domain/ids'
 import type { Notification, NotificationStatus } from '../../domain/types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/errors'
+import type { NotificationListFilter } from '../../application/notification-list-filter'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -24,23 +25,25 @@ const notOptedOutInApp = sql`NOT EXISTS (
 )`
 
 // Paginated, newest-first read of a user's visible notifications.
-// `status` narrows to a single state (e.g. 'unread'); null = the visible list,
-// which excludes 'dismissed' (dismissed rows are hidden, not deleted).
+// The filter is applied BEFORE limit/offset so every returned page belongs to
+// the requested feed. Dismissed rows are always hidden, not deleted.
 const selectUserNotifications = (
   db: Database,
   userId: string,
   orgId: string,
   limit: number,
   offset: number,
-  status: NotificationStatus | null,
+  filter: NotificationListFilter,
 ): Promise<Notification[]> => {
   const conditions = [
     eq(notifications.userId, userId),
     eq(notifications.organizationId, orgId),
     notOptedOutInApp,
   ]
-  if (status) conditions.push(eq(notifications.status, status))
-  else conditions.push(ne(notifications.status, 'dismissed'))
+  conditions.push(ne(notifications.status, 'dismissed'))
+  if (filter === 'unread') conditions.push(eq(notifications.status, 'unread'))
+  else if (filter === 'urgent') conditions.push(eq(notifications.priority, 'urgent'))
+  else if (filter !== 'all') conditions.push(eq(notifications.category, filter))
   return db
     .select()
     .from(notifications)
@@ -354,6 +357,7 @@ export const createNotificationRepository = (db: Database) => ({
     orgId: string,
     limit: number,
     offset: number,
+    filter: NotificationListFilter,
   ): Promise<Notification[]> =>
-    selectUserNotifications(db, userId, orgId, limit, offset, null),
+    selectUserNotifications(db, userId, orgId, limit, offset, filter),
 })
