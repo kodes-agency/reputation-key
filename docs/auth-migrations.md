@@ -7,7 +7,7 @@ Auth tables and their custom columns are managed by the **better-auth CLI**, nev
 
 **Auth-managed tables (better-auth CLI):** `user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`, and ALL `additionalFields` on them.
 
-**Business tables (Drizzle):** all 138 app-owned tables — `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` (no `tablesFilter` whitelist since BQC-5.4). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
+**Business tables (Drizzle):** all 139 app-owned tables — `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` (no `tablesFilter` whitelist since BQC-5.4). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
 
 ## Fresh-DB provisioning (the one manual-SQL exception)
 

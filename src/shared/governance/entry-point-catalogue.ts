@@ -3174,6 +3174,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',
   }),
+  ops(
+    'scripts/audit-user-organization-bindings.ts',
+    'scripts/audit-user-organization-bindings.ts',
+    'tenant_cross',
+    {
+      notes:
+        'audit:user-organization-bindings — read-only SAFE-02 reconciliation report; classifies exact/mappable/conflict/orphan without guessing or mutation',
+    },
+  ),
   ops('scripts/check-db.ts', 'scripts/check-db.ts', 'tenant_cross', {
     notes: 'read-only diagnostics; identifiers + clocks only (BQC-1.6)',
   }),

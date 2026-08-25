@@ -115,10 +115,12 @@ function createMockDb(opts: {
     select: vi.fn(() => {
       order.push('tx.read')
       const rows = opts.selectQueue?.shift() ?? []
-      const whereResult = Object.assign(Promise.resolve(rows), {
-        for: vi.fn(async () => rows),
-        limit: vi.fn(async () => rows),
-      })
+      const whereResult = Promise.resolve(rows) as Promise<unknown[]> & {
+        for: ReturnType<typeof vi.fn>
+        limit: ReturnType<typeof vi.fn>
+      }
+      whereResult.for = vi.fn(() => whereResult)
+      whereResult.limit = vi.fn(() => whereResult)
       return {
         from: vi.fn(() => ({
           where: vi.fn(() => whereResult),
@@ -355,8 +357,15 @@ describe('createAtomicIdentityCommandStore', () => {
         organizationId: ORG_ID,
         propertyIds: ['prop-a', 'prop-b'],
       })
-      expect(insertedRows).toHaveLength(1)
+      expect(insertedRows).toHaveLength(2)
       expect(insertedRows[0]).toMatchObject({
+        userId: 'user-acceptor-00000000000001',
+        organizationId: ORG_ID as string,
+        state: 'active',
+        source: 'invitation',
+        invitationId: INV_ID as string,
+      })
+      expect(insertedRows[1]).toMatchObject({
         organizationId: ORG_ID as string,
         userId: 'user-acceptor-00000000000001',
         role: 'member',
@@ -367,6 +376,9 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(order).toEqual([
         'tx.start',
         'tx.read',
+        'tx.lock',
+        'tx.read',
+        'tx.state',
         'tx.state',
         'tx.state',
         'tx.outbox',
@@ -392,6 +404,41 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
+    })
+
+    it('rejects an invitation into a second Organization before membership or consumption', async () => {
+      const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
+      const insertedRows: Array<Record<string, unknown>> = []
+      const updateSets: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({
+        order,
+        selectQueue: [
+          [pendingInvitationRow()],
+          [
+            {
+              userId: 'user-acceptor-00000000000001',
+              organizationId: 'org-other',
+              state: 'active',
+              version: 1,
+            },
+          ],
+        ],
+        outboxRows,
+        insertedRows,
+        updateSets,
+      })
+      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+
+      await expect(store.acceptInvitation(command())).rejects.toSatisfy(
+        (error: unknown) =>
+          isIdentityError(error) && error.code === 'organization_conflict',
+      )
+
+      expect(insertedRows).toEqual([])
+      expect(updateSets).toEqual([])
+      expect(outboxRows).toEqual([])
+      expect(order).toEqual(['tx.start', 'tx.read', 'tx.lock', 'tx.read', 'tx.rollback'])
     })
 
     it('rejects an expired invitation — no fact', async () => {
@@ -667,7 +714,7 @@ describe('createAtomicIdentityCommandStore', () => {
 
       await store.registerOrganization(command())
 
-      expect(insertedRows).toHaveLength(2)
+      expect(insertedRows).toHaveLength(3)
       expect(insertedRows[0]).toMatchObject({
         id: 'org-new-00000000-0000-0000-000000000001',
         name: 'Test Org',
@@ -678,12 +725,21 @@ describe('createAtomicIdentityCommandStore', () => {
         userId: 'user-owner-000000000000000001',
         role: 'owner',
       })
+      expect(insertedRows[2]).toMatchObject({
+        userId: 'user-owner-000000000000000001',
+        organizationId: 'org-new-00000000-0000-0000-000000000001',
+        state: 'active',
+        source: 'operator',
+      })
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('identity.organization.created')
       expect(order).toEqual([
         'tx.start',
         'tx.read',
         'tx.state',
+        'tx.state',
+        'tx.lock',
+        'tx.read',
         'tx.state',
         'tx.outbox',
         'tx.commit',

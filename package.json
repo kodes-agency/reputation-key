@@ -63,6 +63,7 @@
     "db:bootstrap-auth": "npx -y dotenv-cli -- bash -c 'psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/migrations/0000-auth-tables-bootstrap.sql'",
     "db:matviews": "npx -y dotenv-cli -- bash -c 'psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/migrations/add-materialized-views-and-gbp-index.sql'",
     "audit:member-roles": "tsx scripts/audit-member-roles.ts",
+    "audit:user-organization-bindings": "tsx scripts/audit-user-organization-bindings.ts",
     "audit:auth-schema": "npx -y dotenv-cli -- node scripts/verify-auth-schema.mjs",
     "start": "node .output/server/index.mjs",
     "start:worker": "node dist-worker/index.js",

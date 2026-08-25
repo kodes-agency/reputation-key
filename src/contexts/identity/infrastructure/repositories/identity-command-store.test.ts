@@ -70,6 +70,12 @@ async function truncateAll(p: Pool) {
   // Triggers disabled: guard_last_owner (deployed last-owner backstop) blocks
   // deleting an org's final owner row, including fixture teardown.
   await withLastOwnerGuardDisabled(p, async (client) => {
+    await client.query(
+      `DELETE FROM user_organization_bindings
+        WHERE user_id IN ($1, $2)
+           OR organization_id LIKE 'org-idcmd-%'`,
+      [INVITER_ID, ACCEPTOR_ID],
+    )
     await client.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
     await client.query('DELETE FROM invitation WHERE "organizationId" = $1', [ORG_ID])
     await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG_ID])
@@ -260,6 +266,85 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
+    const bindings = await pool.query(
+      `SELECT organization_id, state, source, invitation_id, version
+         FROM user_organization_bindings
+        WHERE user_id = $1`,
+      [ACCEPTOR_ID],
+    )
+    expect(bindings.rows).toEqual([
+      {
+        organization_id: ORG_ID,
+        state: 'active',
+        source: 'invitation',
+        invitation_id: 'inv-idcmd-accept',
+        version: 1,
+      },
+    ])
+  })
+
+  it('serializes competing invitations and permits only one Organization binding', async () => {
+    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000002')
+    await pool.query(
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ($1, 'Other Identity Org', 'idcmd-other-org', NOW())`,
+      [otherOrg],
+    )
+    await pool.query(
+      `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
+       VALUES ('inv-idcmd-race-a', $1, 'idcmd-acceptor@test.com', 'admin', 'pending', $3, $2, NOW()),
+              ('inv-idcmd-race-b', $4, 'idcmd-acceptor@test.com', 'admin', 'pending', $3, $2, NOW())`,
+      [ORG_ID, INVITER_ID, new Date('2027-01-01T00:00:00.000Z'), otherOrg],
+    )
+    const accept = (id: string) =>
+      store.acceptInvitation({
+        invitationId: invitationId(id),
+        acceptorEmail: 'idcmd-acceptor@test.com',
+        acceptorUserId: ACCEPTOR_ID,
+        now: NOW,
+        buildEvent: (accepted) =>
+          identityInvitationAccepted({
+            organizationId: accepted.organizationId,
+            userId: ACCEPTOR_ID,
+            invitationId: invitationId(id),
+            propertyIds: accepted.propertyIds,
+            occurredAt: NOW,
+          }),
+      })
+
+    const outcomes = await Promise.allSettled([
+      accept('inv-idcmd-race-a'),
+      accept('inv-idcmd-race-b'),
+    ])
+
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+    const rejected = outcomes.find((outcome) => outcome.status === 'rejected')
+    expect(rejected).toSatisfy(
+      (outcome: PromiseSettledResult<unknown> | undefined) =>
+        outcome?.status === 'rejected' &&
+        isIdentityError(outcome.reason) &&
+        outcome.reason.code === 'organization_conflict',
+    )
+    const binding = await pool.query(
+      `SELECT organization_id, state FROM user_organization_bindings WHERE user_id = $1`,
+      [ACCEPTOR_ID],
+    )
+    expect(binding.rows).toHaveLength(1)
+    expect(binding.rows[0].state).toBe('active')
+    const members = await pool.query(
+      `SELECT "organizationId" FROM member WHERE "userId" = $1`,
+      [ACCEPTOR_ID],
+    )
+    expect(members.rows).toHaveLength(1)
+    expect(members.rows[0].organizationId).toBe(binding.rows[0].organization_id)
+    const invitations = await pool.query(
+      `SELECT status FROM invitation WHERE id IN ('inv-idcmd-race-a', 'inv-idcmd-race-b') ORDER BY id`,
+    )
+    expect(invitations.rows.map((row) => row.status).sort()).toEqual([
+      'accepted',
+      'pending',
+    ])
   })
 
   it('cancelInvitation commits the status update + fact; missing invitation records nothing', async () => {
@@ -428,6 +513,15 @@ describe.sequential('identityCommandStore (integration)', () => {
       [event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
+    const binding = await pool.query(
+      `SELECT organization_id, state, source
+         FROM user_organization_bindings
+        WHERE user_id = $1`,
+      [INVITER_ID],
+    )
+    expect(binding.rows).toEqual([
+      { organization_id: newOrgId, state: 'active', source: 'operator' },
+    ])
 
     // Forced outbox failure: neither the org nor the member row survives.
     const ghostOrgId = organizationId('org-idcmd-ghost-00000000000001')
@@ -436,7 +530,7 @@ describe.sequential('identityCommandStore (integration)', () => {
         organizationId: ghostOrgId,
         organizationName: 'Ghost Org',
         slug: 'idcmd-ghost',
-        ownerId: INVITER_ID,
+        ownerId: ACCEPTOR_ID,
         occurredAt: NOW,
       }),
       _tag: 'identity.organization.ghost',
@@ -447,7 +541,7 @@ describe.sequential('identityCommandStore (integration)', () => {
         organizationId: ghostOrgId,
         organizationName: 'Ghost Org',
         slug: 'idcmd-ghost',
-        ownerId: INVITER_ID,
+        ownerId: ACCEPTOR_ID,
         now: NOW,
         event: ghost,
       }),
@@ -464,5 +558,10 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ghostOrgId],
     )
     expect(ghostMembers.rows).toHaveLength(0)
+    const ghostBindings = await pool.query(
+      `SELECT user_id FROM user_organization_bindings WHERE user_id = $1`,
+      [ACCEPTOR_ID],
+    )
+    expect(ghostBindings.rows).toHaveLength(0)
   })
 })

@@ -30,6 +30,7 @@ import {
   user as userTable,
 } from '#/shared/db/schema/auth'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
+import { userOrganizationBindings } from '#/shared/db/schema/identity-governance.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -85,6 +86,50 @@ function hashStringToInteger(str: string): number {
 
 async function lockOrg(tx: Tx, orgId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
+}
+
+async function claimUserOrganizationBinding(
+  tx: Tx,
+  input: Readonly<{
+    userId: string
+    organizationId: string
+    source: 'invitation' | 'operator'
+    invitationId: string | null
+    now: Date
+  }>,
+): Promise<void> {
+  // A row cannot be locked before it exists, so the user-scoped advisory lock
+  // serializes the absent-row race as well as changes to an existing binding.
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-binding:${input.userId}`}, 0))`,
+  )
+  const rows = await tx
+    .select()
+    .from(userOrganizationBindings)
+    .where(eq(userOrganizationBindings.userId, input.userId))
+    .limit(1)
+    .for('update')
+  const binding = rows[0]
+  if (!binding) {
+    await tx.insert(userOrganizationBindings).values({
+      userId: input.userId,
+      organizationId: input.organizationId,
+      state: 'active',
+      source: input.source,
+      invitationId: input.invitationId,
+      version: 1,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })
+    return
+  }
+  if (binding.state === 'active' && binding.organizationId === input.organizationId) {
+    return
+  }
+  throw identityError(
+    'organization_conflict',
+    'This account already has an Organization binding that requires support review',
+  )
 }
 
 /** Count owner-token members of the org. Caller holds the advisory lock. */
@@ -279,7 +324,18 @@ export function createAtomicIdentityCommandStore(
               throw identityError('forbidden', 'Invitation role is no longer available')
             }
           }
-          // 5. Create the membership + mark accepted.
+          // 5. Claim the beta Organization binding while the invitation is
+          //    still locked. An incompatible binding aborts membership,
+          //    invitation consumption, and the fact together.
+          await claimUserOrganizationBinding(tx, {
+            userId: command.acceptorUserId as string,
+            organizationId: inv.organizationId,
+            source: 'invitation',
+            invitationId: inv.id,
+            now: command.now,
+          })
+
+          // 6. Create the membership + mark accepted.
           await tx.insert(member).values({
             id: randomUUID(),
             organizationId: inv.organizationId,
@@ -291,7 +347,7 @@ export function createAtomicIdentityCommandStore(
             .update(invitation)
             .set({ status: 'accepted' })
             .where(eq(invitation.id, inv.id))
-          // 6. The fact carries invitation-row data read under the lock.
+          // 7. The fact carries invitation-row data read under the lock.
           const accepted = {
             organizationId: toOrganizationId(inv.organizationId),
             propertyIds: parsePropertyIds(inv.propertyIds),
@@ -402,6 +458,13 @@ export function createAtomicIdentityCommandStore(
             userId: command.ownerId as string,
             role: 'owner',
             createdAt: command.now,
+          })
+          await claimUserOrganizationBinding(tx, {
+            userId: command.ownerId as string,
+            organizationId: command.organizationId as string,
+            source: 'operator',
+            invitationId: null,
+            now: command.now,
           })
           await insertOutboxRow(tx, command.event)
         })

@@ -10,6 +10,7 @@ export type AuthErrorCode =
   | 'session_expired'
   | 'forbidden'
   | 'no_active_org'
+  | 'organization_binding_conflict'
   | 'authorization_unavailable'
 
 export type AuthError = Readonly<{
@@ -23,6 +24,7 @@ const authErrorStatus = (code: AuthErrorCode): number =>
     .with('unauthorized', 'session_expired', () => 401)
     .with('forbidden', () => 403)
     .with('no_active_org', () => 400)
+    .with('organization_binding_conflict', () => 409)
     .with('authorization_unavailable', () => 503)
     .exhaustive()
 

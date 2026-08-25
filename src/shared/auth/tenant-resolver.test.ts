@@ -10,6 +10,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockGetSession = vi.fn()
 const mockGetActiveMember = vi.fn()
 const mockDbSelect = vi.fn()
+const { mockAuthorizeBinding } = vi.hoisted(() => ({
+  mockAuthorizeBinding: vi.fn(),
+}))
 
 vi.mock('./auth', () => ({
   getAuth: () => ({
@@ -22,6 +25,10 @@ vi.mock('./auth', () => ({
 
 vi.mock('#/shared/db', () => ({
   getDb: () => ({ select: mockDbSelect }),
+}))
+
+vi.mock('./user-organization-binding-authority', () => ({
+  checkUserOrganizationBinding: mockAuthorizeBinding,
 }))
 
 import {
@@ -61,6 +68,13 @@ beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
   mockDbSelect.mockReset()
+  mockAuthorizeBinding.mockReset()
+  mockAuthorizeBinding.mockImplementation(
+    async (_db: unknown, _userId: string, _activeOrganizationId: string) => ({
+      kind: 'allow' as const,
+      version: 1,
+    }),
+  )
   resetTenantResolutionCache()
 })
 
@@ -225,6 +239,27 @@ describe('resolveTenant', () => {
         (e as unknown as Record<string, unknown>).code === 'forbidden' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
+  })
+
+  it('rejects a session whose active Organization differs from its beta binding', async () => {
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-2' },
+      user: { id: 'u1' },
+    })
+    mockAuthorizeBinding.mockResolvedValue({
+      kind: 'deny',
+      reason: 'organization_binding_mismatch',
+    })
+
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code ===
+          'organization_binding_conflict' &&
+        (e as unknown as Record<string, unknown>).status === 409,
+    )
+    expect(mockGetActiveMember).not.toHaveBeenCalled()
   })
 
   it('throws AuthError forbidden when member has a custom (non-built-in) role', async () => {

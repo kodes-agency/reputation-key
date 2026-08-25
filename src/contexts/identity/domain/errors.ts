@@ -13,6 +13,7 @@ export type IdentityErrorCode =
   | 'invitation_not_found'
   | 'registration_failed'
   | 'already_exists'
+  | 'organization_conflict'
   | 'last_owner'
   | 'org_setup_failed'
 

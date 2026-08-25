@@ -575,6 +575,13 @@
       "when": 1787634000002,
       "tag": "0081_immutable_notification_digest_batches",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1787634000003,
+      "tag": "0082_user_organization_binding",
+      "breakpoints": true
     }
   ]
 }

@@ -68,6 +68,14 @@ export const acceptInvitation =
         }),
     })
 
+    // The binding is now durable and the membership exists. Align this
+    // session to that exact Organization; login recovery repeats the same
+    // binding-derived operation if the response is interrupted here.
+    await deps.identity.setActiveOrganization(
+      input.headers,
+      result.organizationId as string,
+    )
+
     // Post-commit side effect — auto-create staff assignments for the invited
     // properties (the BA afterAcceptInvitation hook replacement).
     await deps.identity.runOnAcceptInvitation({

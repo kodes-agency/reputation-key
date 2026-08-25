@@ -8,6 +8,8 @@ import { requireAuth } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { getAuth } from '#/shared/auth/auth'
+import { checkUserOrganizationBinding } from '#/shared/auth/user-organization-binding-authority'
+import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import {
@@ -200,7 +202,14 @@ export const setActiveOrganization = createServerFn({ method: 'POST' })
       async ({ data }) => {
         try {
           const headers = await headersFromContext()
-          await requireAuth(headers)
+          const user = await requireAuth(headers)
+          const binding = await checkUserOrganizationBinding(user.id, data.organizationId)
+          if (binding.kind === 'deny') {
+            throwAuthError(
+              'organization_binding_conflict',
+              'This account is bound to a different Organization',
+            )
+          }
           const auth = getAuth()
 
           await auth.api.setActiveOrganization({

@@ -10,6 +10,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockGetSession = vi.fn()
 const mockGetActiveMember = vi.fn()
 const mockDbSelect = vi.fn()
+const { mockCheckOrganizationBinding } = vi.hoisted(() => ({
+  mockCheckOrganizationBinding: vi.fn(),
+}))
 
 vi.mock('./auth', () => ({
   getAuth: () => ({
@@ -22,6 +25,10 @@ vi.mock('./auth', () => ({
 
 vi.mock('#/shared/db', () => ({
   getDb: () => ({ select: mockDbSelect }),
+}))
+
+vi.mock('./user-organization-binding-authority', () => ({
+  checkUserOrganizationBinding: mockCheckOrganizationBinding,
 }))
 
 import {
@@ -45,6 +52,8 @@ beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
   mockDbSelect.mockReset()
+  mockCheckOrganizationBinding.mockReset()
+  mockCheckOrganizationBinding.mockResolvedValue({ kind: 'allow', version: 1 })
   resetTenantCache()
 })
 

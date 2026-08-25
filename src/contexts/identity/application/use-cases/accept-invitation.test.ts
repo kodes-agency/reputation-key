@@ -51,6 +51,7 @@ describe('acceptInvitation', () => {
 
     // Returns the joined org id
     expect(result.organizationId).toBe(orgId)
+    expect(identity.activeOrganizationCalls).toEqual([orgId as string])
 
     // State: the invitation is accepted and the membership exists
     expect(commandStore.invitationById(invId as string)?.status).toBe('accepted')

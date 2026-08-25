@@ -38,6 +38,7 @@ import {
   fetchPermissionVersion,
 } from '#/shared/db/role-definitions'
 import { getDb, type Database } from '#/shared/db'
+import { checkUserOrganizationBinding } from './user-organization-binding-authority'
 
 import {
   recordTenantCacheEviction,
@@ -71,7 +72,11 @@ const tenantCache = new Map<string, TenantCacheEntry>()
 // it never imports this module (the auth stack stays out of health).
 registerTenantCacheSizeReader(() => tenantCache.size)
 
-function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
+function tenantCacheKey(
+  headers: Headers,
+  activeOrgId: string,
+  bindingVersion: number,
+): string | null {
   const cookie = headers.get('cookie')
   if (!cookie || cookie.trim() === '') {
     return null // Skip cache for empty cookies — prevents collision
@@ -91,7 +96,9 @@ function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
     .map((prefix) => cookiePairs.find((pair) => pair.startsWith(prefix)))
     .find((pair) => pair !== undefined && pair.slice(pair.indexOf('=') + 1) !== '')
   // Combine with the active org so an org switch resolves under a fresh key.
-  return sessionCookie ? `${sessionCookie}|${activeOrgId}` : null
+  return sessionCookie
+    ? `${sessionCookie}|${activeOrgId}|binding:${bindingVersion}`
+    : null
 }
 
 function evictOldestIfNeeded(): void {
@@ -385,9 +392,29 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
     throwAuthError('no_active_org', 'No active organization selected')
   }
 
+  let bindingDecision
+  try {
+    bindingDecision = await checkUserOrganizationBinding(session.user.id, activeOrgId)
+  } catch {
+    throwAuthError(
+      'authorization_unavailable',
+      'Organization binding could not be verified',
+    )
+  }
+  if (bindingDecision.kind === 'deny') {
+    getLogger().warn(
+      { reason: bindingDecision.reason },
+      'auth.organization_binding_denied: session Organization is not the beta binding',
+    )
+    throwAuthError(
+      'organization_binding_conflict',
+      'This account needs Organization access assistance',
+    )
+  }
+
   // Stage 2 — tenant-cache freshness decision table. Keyed per (session, org) so
   // an org switch A→B resolves fresh instead of serving org A's context.
-  const key = tenantCacheKey(headers, activeOrgId)
+  const key = tenantCacheKey(headers, activeOrgId, bindingDecision.version)
   if (key) {
     const cached = await tryServeFromCache(key)
     if (cached) {
