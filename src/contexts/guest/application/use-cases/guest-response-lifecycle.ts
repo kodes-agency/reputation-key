@@ -21,9 +21,15 @@ import {
   type GuestResponse,
   type ResponseError,
 } from '../../domain/guest-response'
-import { guestFeedbackSubmitted, guestRatingSubmitted } from '../../domain/events'
+import {
+  guestFeedbackRetracted,
+  guestFeedbackSubmitted,
+  guestRatingRetracted,
+  guestRatingSubmitted,
+} from '../../domain/events'
 import type {
   GuestResponseCommandStore,
+  GuestMutationFact,
   GuestSubmissionFact,
 } from '../ports/guest-response-command-store.port'
 import {
@@ -211,6 +217,109 @@ export function guestResponseLifecycle(
     return facts
   }
 
+  const correctionFacts = (
+    previous: GuestResponse,
+    corrected: GuestResponse,
+  ): GuestMutationFact[] => {
+    const facts: GuestMutationFact[] = []
+    const scopeIds = {
+      organizationId: organizationId(corrected.organizationId),
+      portalId: portalId(corrected.portalId),
+      propertyId: propertyId(corrected.propertyId),
+    }
+    const occurredAt = corrected.correctedAt ?? deps.clock()
+    const nextRatingShared = corrected.rating !== null && corrected.responseConsent
+    if (
+      nextRatingShared &&
+      (previous.rating !== corrected.rating || !previous.ratingSourceEventId)
+    ) {
+      facts.push(
+        guestRatingSubmitted({
+          ratingId: ratingId(corrected.id),
+          ...scopeIds,
+          value: corrected.rating!,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt,
+        }),
+      )
+    } else if (!nextRatingShared && previous.ratingSourceEventId) {
+      facts.push(
+        guestRatingRetracted({
+          ratingId: ratingId(corrected.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt,
+        }),
+      )
+    }
+
+    const nextFeedbackShared = corrected.text !== null && corrected.textConsent
+    if (nextFeedbackShared && !previous.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackSubmitted({
+          feedbackId: feedbackId(corrected.id),
+          ...scopeIds,
+          ratingId: corrected.rating !== null ? ratingId(corrected.id) : null,
+          occurredAt,
+        }),
+      )
+    } else if (!nextFeedbackShared && previous.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackRetracted({
+          feedbackId: feedbackId(corrected.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.feedbackSourceEventId,
+          occurredAt,
+        }),
+      )
+    }
+    return facts
+  }
+
+  const withdrawalFacts = (response: GuestResponse): GuestMutationFact[] => {
+    const scopeIds = {
+      organizationId: organizationId(response.organizationId),
+      portalId: portalId(response.portalId),
+      propertyId: propertyId(response.propertyId),
+    }
+    const occurredAt = deps.clock()
+    const facts: GuestMutationFact[] = []
+    if (response.ratingSourceEventId) {
+      facts.push(
+        guestRatingRetracted({
+          ratingId: ratingId(response.id),
+          ...scopeIds,
+          supersedesSourceEventId: response.ratingSourceEventId,
+          occurredAt,
+        }),
+      )
+    }
+    if (response.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackRetracted({
+          feedbackId: feedbackId(response.id),
+          ...scopeIds,
+          supersedesSourceEventId: response.feedbackSourceEventId,
+          occurredAt,
+        }),
+      )
+    }
+    return facts
+  }
+
+  const requireKnownFactLineage = (response: GuestResponse): void => {
+    if (
+      (response.rating !== null &&
+        response.responseConsent &&
+        !response.ratingSourceEventId) ||
+      (response.text !== null && response.textConsent && !response.feedbackSourceEventId)
+    ) {
+      // Never turn an unresolved historical fact into an additive correction or
+      // erase its source row while leaving a stale managerial projection.
+      throw new GuestResponseLifecycleError('response_unavailable')
+    }
+  }
+
   return {
     getState,
 
@@ -249,16 +358,9 @@ export function guestResponseLifecycle(
       return toView(raced)
     },
 
-    // PB2.4: a correction deliberately emits NO fact, so one guest never yields
-    // two readings. Superseding (rather than adding) needs the whole chain
-    // metric-command-store.ts already implements for portal workflow facts:
-    // (1) a `rating_source_event_id` / `feedback_source_event_id` column on
-    // guest_responses, written in the same statement as the submit, so the
-    // correction knows which fact it replaces; (2) a `supersedesSourceEventId`
-    // member on GuestRatingSubmitted / GuestFeedbackSubmitted; and (3) that
-    // field forwarded by makeRecordMetricHandler (metric context) into
-    // RecordMetricInput. Until all three exist the reading keeps the submitted
-    // value — stale, but never double-counted.
+    // The response revision and every replacement/retraction fact share one
+    // transaction. Metric consumers can therefore append corrections without
+    // double-counting or leaving the originally submitted value stale.
     correct: async (
       scope: GuestResponseScope,
       sessionId: string,
@@ -266,10 +368,16 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      requireKnownFactLineage(current)
       const corrected = unwrap(
         correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),
       )
-      if (!(await deps.repo.saveCorrection(corrected))) {
+      if (
+        (await deps.commandStore.commitCorrected(
+          corrected,
+          correctionFacts(current, corrected),
+        )) !== 'applied'
+      ) {
         throw new GuestResponseLifecycleError('already_submitted')
       }
       return toView(corrected)
@@ -282,9 +390,16 @@ export function guestResponseLifecycle(
       const current = await deps.repo.findForSession(scope, sessionId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
       if (current.status === 'deleted') return toView(current)
+      requireKnownFactLineage(current)
       const deleted = unwrap(deleteResponse(current, deps.clock()))
-      const objectKeys = await deps.repo.deleteAndQueueMediaPurge(deleted)
-      await removeObjects(scope, objectKeys)
+      const committed = await deps.commandStore.commitWithdrawn(
+        deleted,
+        withdrawalFacts(current),
+      )
+      if (committed.outcome !== 'applied') {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      await removeObjects(scope, committed.objectKeys)
       return toView(deleted)
     },
 
@@ -295,13 +410,10 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findById(scope, responseId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      if (action === 'delete') {
-        if (current.status === 'deleted') return toView(current)
-        const deleted = unwrap(deleteResponse(current, deps.clock()))
-        const objectKeys = await deps.repo.deleteAndQueueMediaPurge(deleted)
-        await removeObjects(scope, objectKeys)
-        return toView(deleted)
-      }
+      // Both legacy moderation actions now mean manager-side quarantine/hide.
+      // A manager may hide abusive text/media but can never retract or erase the
+      // guest's numeric rating; only signed guest withdrawal owns that fact.
+      void action
       const moderated = unwrap(moderateResponse(current, deps.clock()))
       if (!(await deps.repo.saveModeration(moderated))) {
         throw new GuestResponseLifecycleError('response_not_found')

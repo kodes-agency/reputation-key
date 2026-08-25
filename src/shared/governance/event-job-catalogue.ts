@@ -1226,6 +1226,27 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
+    'guest.rating.retracted',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.rating',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'identifier-only retraction committed atomically with correction/withdrawal; Metric appends correction facts and never converts retraction to zero',
+    },
+  ),
+  ev(
     'guest.feedback.submitted',
     GUEST_EVENTS,
     {
@@ -1246,6 +1267,27 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       notes:
         'content-free v1 payload committed atomically with the canonical Guest response; durable Inbox and metric projections recover independently',
+    },
+  ),
+  ev(
+    'guest.feedback.retracted',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.feedback',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'identifier-only private-feedback count retraction; text/contact never enter the payload or Metric context',
     },
   ),
   ev(

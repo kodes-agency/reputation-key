@@ -196,7 +196,7 @@ const metricRecordedSchema = z.object({
 const metricCorrectedSchema = z.object({
   correctionId: z.string(),
   correctedReadingId: z.string(),
-  replacementReadingId: z.string(),
+  replacementReadingId: z.string().nullable(),
   organizationId: z.string(),
   propertyId: z.string(),
   definitionVersionId: z.string(),
@@ -326,6 +326,16 @@ const guestRatingSchema = z.object({
   propertyId: z.string(),
   portalId: z.string(),
   value: z.number().int().min(1).max(5),
+  supersedesSourceEventId: z.string().min(1).nullable().optional(),
+  occurredAt: z.string(),
+})
+
+const guestRatingRetractedSchema = z.object({
+  ratingId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  portalId: z.string(),
+  supersedesSourceEventId: z.string().min(1),
   occurredAt: z.string(),
 })
 
@@ -335,6 +345,15 @@ const guestFeedbackSchema = z.object({
   propertyId: z.string(),
   portalId: z.string(),
   ratingId: z.string().nullable(),
+  occurredAt: z.string(),
+})
+
+const guestFeedbackRetractedSchema = z.object({
+  feedbackId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  portalId: z.string(),
+  supersedesSourceEventId: z.string().min(1),
   occurredAt: z.string(),
 })
 
@@ -732,9 +751,19 @@ export function registerAllEventSchemas(): void {
     schema: guestRatingSchema,
   })
   registerEventSchema({
+    type: 'guest.rating.retracted',
+    version: EVENT_VERSION,
+    schema: guestRatingRetractedSchema,
+  })
+  registerEventSchema({
     type: 'guest.feedback.submitted',
     version: EVENT_VERSION,
     schema: guestFeedbackSchema,
+  })
+  registerEventSchema({
+    type: 'guest.feedback.retracted',
+    version: EVENT_VERSION,
+    schema: guestFeedbackRetractedSchema,
   })
   registerEventSchema({
     type: 'guest.review_link.clicked',

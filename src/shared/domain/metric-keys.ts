@@ -49,16 +49,39 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 ] as const
 
 /**
- * Which metric keys are valid for each entity scope.
- * Goal eligibility is restricted to the three governed Guest Gateway numeric
- * metrics. Private feedback/contact, unqualified solicitation observations,
- * and Google-derived analytics never enter goal selection.
+ * Metrics exposed by the beta GoalProgram creation experience. Private
+ * feedback/contact, unqualified solicitation observations, Google-derived
+ * analytics, and the superseded workflow-health goals never enter the beta
+ * selector.
  */
-export const VALID_SCOPE_METRIC_KEYS: Readonly<
+export const BETA_GOAL_METRIC_KEYS_BY_SCOPE: Readonly<
   Record<EntityScope, readonly MetricKey[]>
 > = {
   property: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
   portal_group: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+  portal: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+}
+
+/**
+ * Domain compatibility matrix for the legacy Goal aggregate. The legacy
+ * workflow-health measures remain valid while existing records and jobs are
+ * drained; new beta creation uses BETA_GOAL_METRIC_KEYS_BY_SCOPE instead.
+ */
+export const VALID_SCOPE_METRIC_KEYS: Readonly<
+  Record<EntityScope, readonly MetricKey[]>
+> = {
+  property: [
+    'portal.content_review.completed',
+    'portal.configuration_completeness',
+    'portal.approved_destination_ratio',
+    ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.property,
+  ],
+  portal_group: [
+    'portal.content_review.completed',
+    'portal.configuration_completeness',
+    'portal.approved_destination_ratio',
+    ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal_group,
+  ],
   portal: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
 }
 

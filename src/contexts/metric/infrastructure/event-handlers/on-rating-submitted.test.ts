@@ -59,7 +59,6 @@ describe('onRatingSubmitted', () => {
       portalGroupId: null,
       definitionVersionId: '11111111-1111-4111-8111-111111111202',
       sourceEventId: 'test-event-id',
-      supersedesSourceEventId: null,
       sourcePolicy: 'first_party_guest_private',
       scope: 'portal',
       value: 4,

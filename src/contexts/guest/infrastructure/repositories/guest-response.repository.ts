@@ -77,6 +77,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ratingValue: guestResponses.rating,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
+          status: guestResponses.status,
         })
         .from(guestResponses)
         .where(
@@ -91,7 +92,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
       // Consent governs what staff may read, exactly as it governs what the
       // metric handlers record: an unconsented field is withheld, not shown.
       return {
-        comment: row.textConsent ? row.comment : null,
+        comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
       }
     },
@@ -105,6 +106,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ratingValue: guestResponses.rating,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
+          status: guestResponses.status,
         })
         .from(guestResponses)
         .where(
@@ -116,7 +118,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         )
       return rows.map((row) => ({
         id: row.id,
-        comment: row.textConsent ? row.comment : null,
+        comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
       }))
     },
@@ -142,6 +144,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
         conditions.push(
           eq(guestResponses.textConsent, true),
+          sql`${guestResponses.status} <> 'moderated'`,
           sql`${guestResponses.responseText} ilike ${'%' + escaped + '%'}`,
         )
       }
@@ -150,37 +153,6 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         .from(guestResponses)
         .where(and(...conditions))
       return rows.map((row) => row.id)
-    },
-
-    saveCorrection: async (response) => {
-      const updated = await db
-        .update(guestResponses)
-        .set({
-          status: response.status,
-          rating: response.rating,
-          categoryId: response.category,
-          responseText: response.text,
-          responseConsent: response.responseConsent,
-          textConsent: response.textConsent,
-          mediaConsent: response.mediaConsent,
-          correctionCount: response.correctionCount,
-          correctedAt: response.correctedAt,
-          updatedAt: response.correctedAt ?? new Date(),
-        })
-        .where(
-          and(
-            eq(guestResponses.organizationId, response.organizationId),
-            eq(guestResponses.propertyId, response.propertyId),
-            eq(guestResponses.portalId, response.portalId),
-            eq(guestResponses.sessionId, response.sessionId),
-            eq(guestResponses.id, response.id),
-            eq(guestResponses.status, 'submitted'),
-            eq(guestResponses.correctionCount, 0),
-            isNull(guestResponses.deletedAt),
-          ),
-        )
-        .returning({ id: guestResponses.id })
-      return updated.length === 1
     },
 
     saveModeration: async (response) =>
@@ -223,53 +195,6 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             ),
           )
         return true
-      }),
-
-    deleteAndQueueMediaPurge: async (response) =>
-      db.transaction(async (tx) => {
-        const deleted = await tx
-          .update(guestResponses)
-          .set({
-            status: 'deleted',
-            rating: null,
-            categoryId: null,
-            responseText: null,
-            responseConsent: false,
-            textConsent: false,
-            mediaConsent: false,
-            deletedAt: response.deletedAt,
-            updatedAt: response.deletedAt ?? new Date(),
-          })
-          .where(
-            and(
-              eq(guestResponses.organizationId, response.organizationId),
-              eq(guestResponses.propertyId, response.propertyId),
-              eq(guestResponses.portalId, response.portalId),
-              eq(guestResponses.sessionId, response.sessionId),
-              eq(guestResponses.id, response.id),
-            ),
-          )
-          .returning({ id: guestResponses.id })
-        if (deleted.length === 0) return []
-        const media = await tx
-          .update(guestResponseMedia)
-          .set({
-            status: 'purge_pending',
-            processingLease: null,
-            publicUrl: null,
-            readyAt: null,
-            deletedAt: response.deletedAt,
-            updatedAt: response.deletedAt ?? new Date(),
-          })
-          .where(
-            and(
-              eq(guestResponseMedia.organizationId, response.organizationId),
-              eq(guestResponseMedia.responseId, response.id),
-              inArray(guestResponseMedia.status, ['issued', 'processing', 'ready']),
-            ),
-          )
-          .returning({ objectKey: guestResponseMedia.objectKey })
-        return media.map((item) => item.objectKey)
       }),
 
     insertMedia: async (media) => {

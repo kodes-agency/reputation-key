@@ -47,6 +47,8 @@ export type GuestRatingSubmitted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   value: number
+  /** Present on the single bounded correction; Metric replaces this source fact. */
+  supersedesSourceEventId?: string | null
   occurredAt: Date
   correlationId: string | null
 }>
@@ -56,8 +58,40 @@ export const guestRatingSubmitted = (
 ): GuestRatingSubmitted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.ratingId !== '', 'ratingId required')
+  assert(
+    args.supersedesSourceEventId === undefined ||
+      args.supersedesSourceEventId === null ||
+      args.supersedesSourceEventId.trim().length > 0,
+    'supersedesSourceEventId must not be empty',
+  )
   return {
     _tag: 'guest.rating.submitted',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export type GuestRatingRetracted = Readonly<{
+  _tag: 'guest.rating.retracted'
+  eventId: string
+  ratingId: RatingId
+  organizationId: OrganizationId
+  portalId: PortalId
+  propertyId: PropertyId
+  supersedesSourceEventId: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const guestRatingRetracted = (
+  args: Omit<GuestRatingRetracted, '_tag' | 'eventId' | 'correlationId'>,
+): GuestRatingRetracted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.ratingId !== '', 'ratingId required')
+  assert(args.supersedesSourceEventId.trim().length > 0, 'source event id required')
+  return {
+    _tag: 'guest.rating.retracted',
     eventId: newEventId(),
     correlationId: null,
     ...args,
@@ -75,6 +109,32 @@ export type GuestFeedbackSubmitted = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
+
+export type GuestFeedbackRetracted = Readonly<{
+  _tag: 'guest.feedback.retracted'
+  eventId: string
+  feedbackId: FeedbackId
+  organizationId: OrganizationId
+  portalId: PortalId
+  propertyId: PropertyId
+  supersedesSourceEventId: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const guestFeedbackRetracted = (
+  args: Omit<GuestFeedbackRetracted, '_tag' | 'eventId' | 'correlationId'>,
+): GuestFeedbackRetracted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.feedbackId !== '', 'feedbackId required')
+  assert(args.supersedesSourceEventId.trim().length > 0, 'source event id required')
+  return {
+    _tag: 'guest.feedback.retracted',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
 
 export const guestFeedbackSubmitted = (
   args: Omit<GuestFeedbackSubmitted, '_tag' | 'eventId' | 'correlationId'>,
@@ -116,5 +176,7 @@ export const guestReviewLinkClicked = (
 export type GuestEvent =
   | GuestScanRecorded
   | GuestRatingSubmitted
+  | GuestRatingRetracted
   | GuestFeedbackSubmitted
+  | GuestFeedbackRetracted
   | GuestReviewLinkClicked

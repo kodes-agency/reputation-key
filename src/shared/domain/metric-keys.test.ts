@@ -3,6 +3,7 @@ import {
   METRIC_KEYS,
   AGGREGATION_FUNCTIONS,
   VALID_SCOPE_METRIC_KEYS,
+  BETA_GOAL_METRIC_KEYS_BY_SCOPE,
   VALID_METRIC_AGGREGATIONS,
   isValidMetricKeyForScope,
   isValidAggregationForMetric,
@@ -35,28 +36,39 @@ describe('metric-keys', () => {
   })
 
   describe('scope → metric key validation', () => {
-    it('property scope allows only the three governed Guest Gateway metrics', () => {
+    it('exposes only the three governed Guest Gateway metrics for beta creation', () => {
+      expect(BETA_GOAL_METRIC_KEYS_BY_SCOPE.property).toEqual([
+        'portal.qualified_scan',
+        'portal.rating_count',
+        'portal.rating_average',
+      ])
+      expect(BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal_group).toEqual(
+        BETA_GOAL_METRIC_KEYS_BY_SCOPE.property,
+      )
+      expect(BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal).toEqual(
+        BETA_GOAL_METRIC_KEYS_BY_SCOPE.property,
+      )
+    })
+
+    it('keeps legacy property and group measures valid during cutover', () => {
       expect(VALID_SCOPE_METRIC_KEYS.property).toEqual([
-        'portal.qualified_scan',
-        'portal.rating_count',
-        'portal.rating_average',
+        'portal.content_review.completed',
+        'portal.configuration_completeness',
+        'portal.approved_destination_ratio',
+        ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.property,
       ])
-    })
-
-    it('individual Portal scope supports all three Goal measures', () => {
-      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual([
-        'portal.qualified_scan',
-        'portal.rating_count',
-        'portal.rating_average',
-      ])
-    })
-
-    it('portal_group scope supports all three Goal measures', () => {
       expect(VALID_SCOPE_METRIC_KEYS.portal_group).toEqual([
-        'portal.qualified_scan',
-        'portal.rating_count',
-        'portal.rating_average',
+        'portal.content_review.completed',
+        'portal.configuration_completeness',
+        'portal.approved_destination_ratio',
+        ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal_group,
       ])
+    })
+
+    it('individual Portal scope supports all three beta Goal measures', () => {
+      expect(VALID_SCOPE_METRIC_KEYS.portal).toEqual(
+        BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal,
+      )
     })
 
     it('isValidMetricKeyForScope returns true for a governed pair', () => {

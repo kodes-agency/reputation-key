@@ -2810,7 +2810,9 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     [
       'guest.scan.recorded',
       'guest.rating.submitted',
+      'guest.rating.retracted',
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'guest.review_link.clicked',
       'review.created',
       'portal.content_review.completed',
@@ -2841,7 +2843,9 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     [
       'guest.scan.recorded',
       'guest.rating.submitted',
+      'guest.rating.retracted',
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'guest.review_link.clicked',
     ],
     { notes: 'durable, content-free Guest analytics ingestion' },

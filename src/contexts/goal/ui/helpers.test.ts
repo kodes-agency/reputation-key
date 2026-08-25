@@ -274,22 +274,26 @@ describe('filterGoalsForPortalGroupView', () => {
 describe('getMetricKeysForScope', () => {
   it('returns beta-safe keys for property scope', () => {
     expect(getMetricKeysForScope('property')).toEqual([
-      'portal.content_review.completed',
-      'portal.configuration_completeness',
-      'portal.approved_destination_ratio',
+      'portal.qualified_scan',
+      'portal.rating_count',
+      'portal.rating_average',
     ])
   })
 
   it('returns the same beta-safe keys for portal_group scope', () => {
     expect(getMetricKeysForScope('portal_group')).toEqual([
-      'portal.content_review.completed',
-      'portal.configuration_completeness',
-      'portal.approved_destination_ratio',
+      'portal.qualified_scan',
+      'portal.rating_count',
+      'portal.rating_average',
     ])
   })
 
-  it('excludes individual portal goals', () => {
-    expect(getMetricKeysForScope('portal')).toEqual([])
+  it('includes individual Portal goals', () => {
+    expect(getMetricKeysForScope('portal')).toEqual([
+      'portal.qualified_scan',
+      'portal.rating_count',
+      'portal.rating_average',
+    ])
   })
 })
 

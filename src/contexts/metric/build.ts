@@ -15,6 +15,7 @@ import { createMetricRegistryRepository } from './infrastructure/repositories/me
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, type RecordMetric } from './application/use-cases/record-metric'
+import { retractMetric } from './application/use-cases/retract-metric'
 import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
@@ -84,6 +85,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   registerMetricHandlers({
     events: input.events,
     recordMetric: record,
+    retractMetric: retractMetric(commandStore),
     findGroupForPortal,
     reviewRatingLookup: input.reviewRatingLookup,
     resolvePortalWorkflowAttribution,
@@ -95,7 +97,11 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
       resolveAttribution: resolvePortalWorkflowAttribution,
     }
     registerPortalWorkflowMetricConsumers(portalWorkflowDeps)
-    registerGuestMetricConsumers({ recordMetric: record, findGroupForPortal })
+    registerGuestMetricConsumers({
+      recordMetric: record,
+      retractMetric: retractMetric(commandStore),
+      findGroupForPortal,
+    })
     registerMetricCorrectionConsumer(input.db)
   }
 

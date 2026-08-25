@@ -87,7 +87,9 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
       portalGroupId,
       definitionVersionId: opts.definitionVersionId,
       sourceEventId: event.eventId,
-      supersedesSourceEventId: event.supersedesSourceEventId ?? null,
+      ...(event.supersedesSourceEventId
+        ? { supersedesSourceEventId: event.supersedesSourceEventId }
+        : {}),
       sourcePolicy: opts.sourcePolicy,
       scope: 'portal',
       value: opts.value ? opts.value(event) : 1,

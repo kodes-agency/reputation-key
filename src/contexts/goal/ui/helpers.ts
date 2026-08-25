@@ -15,7 +15,7 @@ import type {
   EntityScope,
 } from '#/shared/domain/metric-keys'
 import {
-  VALID_SCOPE_METRIC_KEYS,
+  BETA_GOAL_METRIC_KEYS_BY_SCOPE,
   VALID_METRIC_AGGREGATIONS,
   DEFAULT_AGGREGATION,
 } from '#/shared/domain/metric-keys'
@@ -105,7 +105,7 @@ export function filterGoalsForPortalGroupView(
 // ── 6. getMetricKeysForScope ───────────────────────────────────────────
 
 export function getMetricKeysForScope(scope: EntityScope): MetricKey[] {
-  return [...VALID_SCOPE_METRIC_KEYS[scope]]
+  return [...BETA_GOAL_METRIC_KEYS_BY_SCOPE[scope]]
 }
 
 // ── 7. getDefaultAggregationForKey ─────────────────────────────────────

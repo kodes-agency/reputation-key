@@ -14,7 +14,12 @@ import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
-import { organizationId, propertyId, metricReadingId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  metricReadingId,
+} from '#/shared/domain/ids'
 import { createReading, type MetricReading } from '../../domain/metric-reading'
 import { metricRecorded, type MetricRecorded } from '../../domain/events'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
@@ -22,6 +27,7 @@ import { createAtomicMetricCommandStore } from '../metric-command-store'
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4d000000-0000-0000-0000-000000000001')
 const READING_ID = metricReadingId('4e000000-0000-0000-0000-000000000001')
+const PORTAL_ID = portalId('4f000000-0000-4000-8000-000000000001')
 const NOW = new Date('2026-06-01T12:00:00.000Z')
 
 let pool: Pool
@@ -76,6 +82,13 @@ const recordedEvent = (reading: MetricReading = makeReading()) =>
   })
 
 async function truncateAll(p: Pool) {
+  await p.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (
+       SELECT id FROM metric_readings WHERE organization_id = $1
+     )`,
+    [ORG_ID],
+  )
   await p.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
 }
@@ -99,11 +112,27 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [PROP_ID, ORG_ID, 'Metric Cmd Property', 'metriccmd-prop', 'UTC'],
   )
+  await pool.query(
+    `INSERT INTO portals (
+       id, organization_id, property_id, entity_type, entity_id, name, slug,
+       publication_state, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'property', $4, $5, $6, 'published', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      PORTAL_ID,
+      ORG_ID,
+      PROP_ID,
+      String(PROP_ID),
+      'Metric Cmd Portal',
+      'metriccmd-portal',
+    ],
+  )
 })
 
 afterAll(async () => {
   clearEventSchemas()
   await truncateAll(pool)
+  await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL_ID])
   await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
   await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
   await pool.end()
@@ -156,5 +185,57 @@ describe.sequential('metricCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(rows.rows).toHaveLength(0)
+  })
+
+  it('retracts a specific Guest source fact without replacing it with zero', async () => {
+    const store = createAtomicMetricCommandStore(db, silentEvents)
+    const reading = makeReading({
+      definitionVersionId: '11111111-1111-4111-8111-111111111303',
+      metricKey: 'portal.rating_average',
+      portalId: PORTAL_ID,
+      value: 4,
+      sourceEventId: 'guest-rating-source-1',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      retentionClass: 'guest_gateway_24_month',
+    })
+    await store.recordMetric({ reading, event: recordedEvent(reading) })
+
+    const command = {
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      portalId: PORTAL_ID,
+      definitionVersionId: reading.definitionVersionId,
+      sourceEventId: 'guest-rating-retracted-1',
+      supersedesSourceEventId: reading.sourceEventId,
+      occurredAt: new Date('2026-06-01T12:30:00.000Z'),
+    }
+    await expect(store.retractMetric(command)).resolves.toEqual({
+      status: 'retracted',
+      correctedReadingId: READING_ID,
+    })
+    await expect(store.retractMetric(command)).resolves.toEqual({
+      status: 'duplicate',
+      correctedReadingId: READING_ID,
+    })
+
+    const corrections = await pool.query(
+      `SELECT kind, replacement_value
+       FROM metric_corrections WHERE reading_id = $1`,
+      [READING_ID],
+    )
+    expect(corrections.rows).toEqual([{ kind: 'retract', replacement_value: null }])
+    const replacementRows = await pool.query(
+      `SELECT id FROM metric_readings
+       WHERE organization_id = $1 AND source_event_id = $2`,
+      [ORG_ID, 'guest-rating-retracted-1'],
+    )
+    expect(replacementRows.rows).toHaveLength(0)
+    const facts = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'metric.corrected'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toHaveLength(1)
+    expect(facts.rows[0].payload).toMatchObject({ replacementReadingId: null })
   })
 })

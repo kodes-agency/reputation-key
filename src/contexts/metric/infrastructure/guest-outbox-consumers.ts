@@ -1,6 +1,8 @@
 import type {
   GuestFeedbackSubmitted,
+  GuestFeedbackRetracted,
   GuestRatingSubmitted,
+  GuestRatingRetracted,
   GuestReviewLinkClicked,
   GuestScanRecorded,
 } from '#/contexts/guest/application/public-api'
@@ -20,6 +22,9 @@ import { onRatingSubmittedDurably } from './event-handlers/on-rating-submitted'
 import { onReviewLinkClickedDurably } from './event-handlers/on-review-link-clicked'
 import { onScanRecordedDurably } from './event-handlers/on-scan-recorded'
 import type { RecordPortalMetricDeps } from './event-handlers/record-portal-metric'
+import { onRatingRetractedDurably } from './event-handlers/on-rating-retracted'
+import { onFeedbackRetractedDurably } from './event-handlers/on-feedback-retracted'
+import type { RetractPortalMetricDeps } from './event-handlers/retract-portal-metric'
 
 type GuestMetricPayload = Readonly<{
   organizationId: string
@@ -30,6 +35,7 @@ type GuestMetricPayload = Readonly<{
   source?: 'qr' | 'nfc' | 'direct'
   ratingId?: string | null
   value?: number
+  supersedesSourceEventId?: string
   feedbackId?: string
   linkId?: string
 }>
@@ -39,7 +45,9 @@ function guestMetricDomainEvent(
 ):
   | GuestScanRecorded
   | GuestRatingSubmitted
+  | GuestRatingRetracted
   | GuestFeedbackSubmitted
+  | GuestFeedbackRetracted
   | GuestReviewLinkClicked {
   const payload = validateEventPayload(
     event.eventType,
@@ -85,6 +93,17 @@ function guestMetricDomainEvent(
         _tag: event.eventType,
         ratingId: ratingId(payload.ratingId),
         value: payload.value,
+        supersedesSourceEventId: payload.supersedesSourceEventId ?? null,
+      }
+    case 'guest.rating.retracted':
+      if (!payload.ratingId || !payload.supersedesSourceEventId) {
+        throw new Error('Guest rating retraction payload is invalid')
+      }
+      return {
+        ...common,
+        _tag: event.eventType,
+        ratingId: ratingId(payload.ratingId),
+        supersedesSourceEventId: payload.supersedesSourceEventId,
       }
     case 'guest.feedback.submitted':
       if (!payload.feedbackId) {
@@ -95,6 +114,16 @@ function guestMetricDomainEvent(
         _tag: event.eventType,
         feedbackId: feedbackId(payload.feedbackId),
         ratingId: payload.ratingId ? ratingId(payload.ratingId) : null,
+      }
+    case 'guest.feedback.retracted':
+      if (!payload.feedbackId || !payload.supersedesSourceEventId) {
+        throw new Error('Guest feedback retraction payload is invalid')
+      }
+      return {
+        ...common,
+        _tag: event.eventType,
+        feedbackId: feedbackId(payload.feedbackId),
+        supersedesSourceEventId: payload.supersedesSourceEventId,
       }
     case 'guest.review_link.clicked':
       if (!payload.linkId) {
@@ -110,10 +139,14 @@ function guestMetricDomainEvent(
   }
 }
 
-export function registerGuestMetricConsumers(deps: RecordPortalMetricDeps): void {
+export function registerGuestMetricConsumers(
+  deps: RecordPortalMetricDeps & RetractPortalMetricDeps,
+): void {
   const scanHandler = onScanRecordedDurably(deps)
   const ratingHandler = onRatingSubmittedDurably(deps)
   const feedbackHandler = onFeedbackSubmittedDurably(deps)
+  const ratingRetractionHandler = onRatingRetractedDurably(deps)
+  const feedbackRetractionHandler = onFeedbackRetractedDurably(deps)
   const clickHandler = onReviewLinkClickedDurably(deps)
 
   registerConsumer({
@@ -143,6 +176,19 @@ export function registerGuestMetricConsumers(deps: RecordPortalMetricDeps): void
     },
   })
   registerConsumer({
+    eventType: 'guest.rating.retracted',
+    consumerName: 'metric.guest-analytics',
+    module: 'metric.guest-analytics',
+    handler: async (event) => {
+      const domainEvent = guestMetricDomainEvent(event)
+      if (domainEvent._tag !== 'guest.rating.retracted') {
+        throw new Error('unexpected Guest metric event')
+      }
+      await ratingRetractionHandler(domainEvent)
+      return { status: 'applied' }
+    },
+  })
+  registerConsumer({
     eventType: 'guest.feedback.submitted',
     consumerName: 'metric.guest-analytics',
     module: 'metric.guest-analytics',
@@ -152,6 +198,19 @@ export function registerGuestMetricConsumers(deps: RecordPortalMetricDeps): void
         throw new Error('unexpected Guest metric event')
       }
       await feedbackHandler(domainEvent)
+      return { status: 'applied' }
+    },
+  })
+  registerConsumer({
+    eventType: 'guest.feedback.retracted',
+    consumerName: 'metric.guest-analytics',
+    module: 'metric.guest-analytics',
+    handler: async (event) => {
+      const domainEvent = guestMetricDomainEvent(event)
+      if (domainEvent._tag !== 'guest.feedback.retracted') {
+        throw new Error('unexpected Guest metric event')
+      }
+      await feedbackRetractionHandler(domainEvent)
       return { status: 'applied' }
     },
   })

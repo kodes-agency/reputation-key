@@ -10,6 +10,7 @@
 import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { MetricRecorded } from '../../domain/events'
 import type { SourcePolicyClass } from '../../domain/metric-registry'
+import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
 /**
  * Reading insert + metric.recorded fact in one transaction. The reading id
@@ -33,7 +34,25 @@ export type QuarantineMetricCommand = Readonly<{
   eventAt: Date
 }>
 
+export type RetractMetricCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  definitionVersionId: string
+  /** Stable Guest retraction fact id. */
+  sourceEventId: string
+  /** The currently effective Guest fact whose reading must be retracted. */
+  supersedesSourceEventId: string
+  occurredAt: Date
+}>
+
+export type RetractMetricResult =
+  | Readonly<{ status: 'retracted'; correctedReadingId: string }>
+  | Readonly<{ status: 'duplicate'; correctedReadingId: string }>
+  | Readonly<{ status: 'source_reading_not_found' }>
+
 export type MetricCommandStore = Readonly<{
   recordMetric(command: RecordMetricCommand): Promise<ReadingResult>
+  retractMetric(command: RetractMetricCommand): Promise<RetractMetricResult>
   quarantine(command: QuarantineMetricCommand): Promise<void>
 }>

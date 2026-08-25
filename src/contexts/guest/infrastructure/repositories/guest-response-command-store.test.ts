@@ -11,7 +11,12 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
-import { guestFeedbackSubmitted, guestRatingSubmitted } from '../../domain/events'
+import {
+  guestFeedbackRetracted,
+  guestFeedbackSubmitted,
+  guestRatingRetracted,
+  guestRatingSubmitted,
+} from '../../domain/events'
 import type { GuestResponse } from '../../domain/guest-response'
 import type { GuestSubmissionFact } from '../../application/ports/guest-response-command-store.port'
 import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
@@ -38,6 +43,8 @@ function response(): GuestResponse {
     responseConsent: true,
     textConsent: true,
     mediaConsent: false,
+    ratingSourceEventId: null,
+    feedbackSourceEventId: null,
     contactConsent: false,
     contactDetails: null,
     correctionCount: 0,
@@ -123,7 +130,8 @@ describe.sequential('atomic Guest response submission', () => {
     )
 
     const rows = await db.execute(sql`
-      SELECT id FROM guest_responses WHERE organization_id = ${ORG}
+      SELECT id, rating_source_event_id, feedback_source_event_id
+      FROM guest_responses WHERE organization_id = ${ORG}
     `)
     const outbox = await db.execute(sql`
       SELECT event_type FROM outbox_events
@@ -131,6 +139,10 @@ describe.sequential('atomic Guest response submission', () => {
       ORDER BY event_type
     `)
     expect(rows.rows).toHaveLength(1)
+    expect(rows.rows[0]).toMatchObject({
+      rating_source_event_id: submissionFacts[0].eventId,
+      feedback_source_event_id: submissionFacts[1].eventId,
+    })
     expect(outbox.rows.map((row) => row.event_type)).toEqual([
       'guest.feedback.submitted',
       'guest.rating.submitted',
@@ -173,5 +185,186 @@ describe.sequential('atomic Guest response submission', () => {
     `)
     expect(outbox.rows).toHaveLength(2)
     expect(events.capturedEvents).toHaveLength(0)
+  })
+
+  it('commits the corrected response and superseding rating fact atomically', async () => {
+    const events = createCapturingEventBus()
+    const store = createAtomicGuestResponseCommandStore(db, events)
+    const [originalRating, originalFeedback] = facts()
+    await store.commitSubmitted(response(), [originalRating, originalFeedback])
+
+    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
+    const correction = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 4,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: correctedAt,
+    })
+    const corrected: GuestResponse = {
+      ...response(),
+      status: 'corrected',
+      rating: 4,
+      correctionCount: 1,
+      correctedAt,
+      ratingSourceEventId: originalRating.eventId,
+      feedbackSourceEventId: originalFeedback.eventId,
+    }
+
+    await expect(store.commitCorrected(corrected, [correction])).resolves.toBe('applied')
+    const rows = await db.execute(sql`
+      SELECT rating, correction_count, rating_source_event_id,
+             feedback_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        rating: 4,
+        correction_count: 1,
+        rating_source_event_id: correction.eventId,
+        feedback_source_event_id: originalFeedback.eventId,
+      },
+    ])
+    const outbox = await db.execute(sql`
+      SELECT id FROM outbox_events
+      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.submitted'
+      ORDER BY created_at
+    `)
+    expect(outbox.rows).toHaveLength(2)
+  })
+
+  it('rejects a stale withdrawal that raced a committed correction', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const [originalRating, originalFeedback] = facts()
+    await store.commitSubmitted(response(), [originalRating, originalFeedback])
+
+    const correctedAt = new Date('2026-08-25T12:30:00.000Z')
+    const correction = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 4,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: correctedAt,
+    })
+    await store.commitCorrected(
+      {
+        ...response(),
+        status: 'corrected',
+        rating: 4,
+        correctionCount: 1,
+        correctedAt,
+        ratingSourceEventId: originalRating.eventId,
+        feedbackSourceEventId: originalFeedback.eventId,
+      },
+      [correction],
+    )
+
+    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
+    const staleWithdrawal: GuestResponse = {
+      ...response(),
+      status: 'deleted',
+      rating: null,
+      text: null,
+      responseConsent: false,
+      textConsent: false,
+      deletedAt,
+      ratingSourceEventId: originalRating.eventId,
+      feedbackSourceEventId: originalFeedback.eventId,
+    }
+    const staleRetraction = guestRatingRetracted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: deletedAt,
+    })
+
+    await expect(
+      store.commitWithdrawn(staleWithdrawal, [staleRetraction]),
+    ).resolves.toEqual({ outcome: 'conflict', objectKeys: [] })
+    const rows = await db.execute(sql`
+      SELECT status, rating, correction_count, rating_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        status: 'corrected',
+        rating: 4,
+        correction_count: 1,
+        rating_source_event_id: correction.eventId,
+      },
+    ])
+    const retractions = await db.execute(sql`
+      SELECT id FROM outbox_events
+      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.retracted'
+    `)
+    expect(retractions.rows).toHaveLength(0)
+  })
+
+  it('withdraws content and records rating/feedback retractions atomically', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const [originalRating, originalFeedback] = facts()
+    await store.commitSubmitted(response(), [originalRating, originalFeedback])
+    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
+    const ratingRetraction = guestRatingRetracted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: deletedAt,
+    })
+    const feedbackRetraction = guestFeedbackRetracted({
+      feedbackId: feedbackId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      supersedesSourceEventId: originalFeedback.eventId,
+      occurredAt: deletedAt,
+    })
+    const withdrawn: GuestResponse = {
+      ...response(),
+      status: 'deleted',
+      rating: null,
+      text: null,
+      responseConsent: false,
+      textConsent: false,
+      deletedAt,
+      ratingSourceEventId: originalRating.eventId,
+      feedbackSourceEventId: originalFeedback.eventId,
+    }
+
+    await expect(
+      store.commitWithdrawn(withdrawn, [ratingRetraction, feedbackRetraction]),
+    ).resolves.toEqual({ outcome: 'applied', objectKeys: [] })
+    const rows = await db.execute(sql`
+      SELECT status, rating, response_text, rating_source_event_id,
+             feedback_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(rows.rows).toEqual([
+      {
+        status: 'deleted',
+        rating: null,
+        response_text: null,
+        rating_source_event_id: null,
+        feedback_source_event_id: null,
+      },
+    ])
+    const outbox = await db.execute(sql`
+      SELECT event_type FROM outbox_events
+      WHERE organization_id = ${ORG}
+        AND event_type IN ('guest.rating.retracted', 'guest.feedback.retracted')
+      ORDER BY event_type
+    `)
+    expect(outbox.rows.map((row) => row.event_type)).toEqual([
+      'guest.feedback.retracted',
+      'guest.rating.retracted',
+    ])
   })
 })

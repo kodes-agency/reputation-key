@@ -26,10 +26,12 @@ const common = {
 describe('Guest metric durable consumers', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('registers and applies all four Guest analytics facts', async () => {
+  it('registers all Guest metric facts and applies a rating fanout', async () => {
     const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
+    const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
     registerGuestMetricConsumers({
       recordMetric,
+      retractMetric,
       findGroupForPortal: vi.fn().mockResolvedValue(null),
     })
 
@@ -49,7 +51,15 @@ describe('Guest metric durable consumers', () => {
         consumerName: 'metric.guest-analytics',
       },
       {
+        eventType: 'guest.rating.retracted',
+        consumerName: 'metric.guest-analytics',
+      },
+      {
         eventType: 'guest.feedback.submitted',
+        consumerName: 'metric.guest-analytics',
+      },
+      {
+        eventType: 'guest.feedback.retracted',
         consumerName: 'metric.guest-analytics',
       },
       {
@@ -78,12 +88,35 @@ describe('Guest metric durable consumers', () => {
         portalId: common.portalId,
       }),
     )
+
+    await registrations[2].handler({
+      eventId: 'evt-rating-retracted',
+      eventType: 'guest.rating.retracted',
+      eventVersion: 1,
+      payload: {
+        ...common,
+        ratingId: 'rating-1',
+        supersedesSourceEventId: 'evt-rating',
+      },
+      organizationId: common.organizationId,
+      propertyId: common.propertyId,
+      sourceContext: 'guest',
+      sourceAggregateId: 'rating-1',
+    })
+    expect(retractMetric).toHaveBeenCalledTimes(3)
+    expect(retractMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceEventId: 'evt-rating-retracted',
+        supersedesSourceEventId: 'evt-rating',
+      }),
+    )
   })
 
   it('propagates metric persistence failures so the dispatcher can retry', async () => {
     const recordMetric = vi.fn().mockRejectedValue(new Error('database unavailable'))
     registerGuestMetricConsumers({
       recordMetric,
+      retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
       findGroupForPortal: vi.fn().mockResolvedValue(null),
     })
     const registration = mocks.registerConsumer.mock.calls[0]![0]

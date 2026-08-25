@@ -37,7 +37,12 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 
 - **`guest.scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
 - **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share a rating.
-- **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share free text. Corrections and withdrawals produce nothing: superseding a prior metric reading needs a persisted source-event id (see the comment on `responseLifecycle.correct`), so emitting again would double-count.
+- **`guest.rating.retracted`** — ratingId, scope identifiers, superseded source-event id, and occurredAt. Produced atomically when a correction removes consent/value or the guest withdraws the response.
+- **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt. Produced when consented free text first becomes effective, including through the one bounded correction.
+- **`guest.feedback.retracted`** — feedbackId, scope identifiers, superseded source-event id, and occurredAt. It corrects the feedback-count projection without carrying text.
+
+The canonical response stores the currently effective rating/feedback source-event ids. Corrections and withdrawals commit their state transition and every replacement/retraction fact in one transaction. Missing historical lineage fails closed rather than adding a second reading or leaving a stale one.
+
 - **`guest.review_link.clicked`** — linkId, organizationId, portalId, propertyId, occurredAt.
 
 ## Events consumed
@@ -79,8 +84,8 @@ guest/
 Exported from `application/public-api.ts`:
 
 - Types: `ScanEvent`, `Rating`, `Feedback`, `ScanSource`
-- Event types: `GuestScanRecorded`, `GuestRatingSubmitted`, `GuestFeedbackSubmitted`, `GuestReviewLinkClicked`, `GuestEvent`
-- Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestFeedbackSubmitted`, `guestReviewLinkClicked`
+- Event types: `GuestScanRecorded`, `GuestRatingSubmitted`, `GuestRatingRetracted`, `GuestFeedbackSubmitted`, `GuestFeedbackRetracted`, `GuestReviewLinkClicked`, `GuestEvent`
+- Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestRatingRetracted`, `guestFeedbackSubmitted`, `guestFeedbackRetracted`, `guestReviewLinkClicked`
 
 ## Server functions
 

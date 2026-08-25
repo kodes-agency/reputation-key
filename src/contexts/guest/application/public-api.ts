@@ -7,13 +7,17 @@ export type { ScanEvent, Rating, Feedback, ScanSource } from '../domain/types'
 export {
   guestScanRecorded,
   guestRatingSubmitted,
+  guestRatingRetracted,
   guestFeedbackSubmitted,
+  guestFeedbackRetracted,
   guestReviewLinkClicked,
 } from '../domain/events'
 export type {
   GuestScanRecorded,
   GuestRatingSubmitted,
+  GuestRatingRetracted,
   GuestFeedbackSubmitted,
+  GuestFeedbackRetracted,
   GuestReviewLinkClicked,
   GuestEvent,
 } from '../domain/events'

@@ -1,8 +1,15 @@
-import type { GuestFeedbackSubmitted, GuestRatingSubmitted } from '../../domain/events'
+import type {
+  GuestFeedbackRetracted,
+  GuestFeedbackSubmitted,
+  GuestRatingRetracted,
+  GuestRatingSubmitted,
+} from '../../domain/events'
 import type { GuestResponse } from '../../domain/guest-response'
 
 /** Content-minimal facts committed with a submitted Guest Response. */
 export type GuestSubmissionFact = GuestRatingSubmitted | GuestFeedbackSubmitted
+export type GuestMutationFact =
+  GuestSubmissionFact | GuestRatingRetracted | GuestFeedbackRetracted
 
 export type GuestResponseCommandStore = Readonly<{
   /**
@@ -14,4 +21,17 @@ export type GuestResponseCommandStore = Readonly<{
     response: GuestResponse,
     facts: ReadonlyArray<GuestSubmissionFact>,
   ): Promise<'applied' | 'duplicate'>
+  /** Compare-and-set the one permitted correction and its replacement facts. */
+  commitCorrected(
+    response: GuestResponse,
+    facts: ReadonlyArray<GuestMutationFact>,
+  ): Promise<'applied' | 'conflict'>
+  /** Withdraw content, queue media purge, and retract every effective fact atomically. */
+  commitWithdrawn(
+    response: GuestResponse,
+    facts: ReadonlyArray<GuestMutationFact>,
+  ): Promise<
+    | Readonly<{ outcome: 'applied'; objectKeys: readonly string[] }>
+    | Readonly<{ outcome: 'conflict'; objectKeys: readonly [] }>
+  >
 }>

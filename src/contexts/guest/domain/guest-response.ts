@@ -24,6 +24,10 @@ export interface GuestResponse {
   readonly responseConsent: boolean
   readonly textConsent: boolean
   readonly mediaConsent: boolean
+  /** Durable lineage of the currently effective numeric rating fact. */
+  readonly ratingSourceEventId: string | null
+  /** Durable lineage of the currently effective private-feedback count fact. */
+  readonly feedbackSourceEventId: string | null
   readonly contactConsent: boolean
   readonly contactDetails: string | null
   readonly correctionCount: 0 | 1
@@ -70,6 +74,8 @@ export function createResponse(params: {
     responseConsent: false,
     textConsent: false,
     mediaConsent: false,
+    ratingSourceEventId: null,
+    feedbackSourceEventId: null,
     contactConsent: false,
     contactDetails: null,
     correctionCount: 0,

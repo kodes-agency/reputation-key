@@ -194,6 +194,92 @@ export function createAtomicMetricCommandStore(
         return committed.result
       }),
 
+    retractMetric: async (command) =>
+      trace('metric.commandStore.retractMetric', async () => {
+        const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
+        const committed = await db.transaction(async (tx) => {
+          const duplicate = await tx
+            .select({ readingId: metricCorrections.readingId })
+            .from(metricCorrections)
+            .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
+            .limit(1)
+          if (duplicate[0]) {
+            return {
+              result: {
+                status: 'duplicate' as const,
+                correctedReadingId: duplicate[0].readingId,
+              },
+              event: null,
+            }
+          }
+
+          const target = await tx
+            .select({ id: metricReadings.id })
+            .from(metricReadings)
+            .where(
+              and(
+                eq(metricReadings.organizationId, unbrand(command.organizationId)),
+                eq(metricReadings.propertyId, unbrand(command.propertyId)),
+                eq(metricReadings.portalId, unbrand(command.portalId)),
+                eq(metricReadings.definitionVersionId, command.definitionVersionId),
+                eq(metricReadings.sourceEventId, command.supersedesSourceEventId),
+              ),
+            )
+            .limit(1)
+          if (!target[0]) {
+            return {
+              result: { status: 'source_reading_not_found' as const },
+              event: null,
+            }
+          }
+
+          const correctionId = crypto.randomUUID()
+          const inserted = await tx
+            .insert(metricCorrections)
+            .values({
+              id: correctionId,
+              readingId: target[0].id,
+              sourceEventId: correctionSourceEventId,
+              kind: 'retract',
+              reason: 'guest_fact_retracted',
+              actorType: 'system',
+              actorId: 'guest.gateway',
+              exactDelta: null,
+              replacementValue: null,
+              eventAt: command.occurredAt,
+              supersedesCorrectionId: null,
+              recordedAt: command.occurredAt,
+            })
+            .onConflictDoNothing()
+            .returning({ id: metricCorrections.id })
+          if (!inserted[0]) {
+            throw new Error('metric retraction lost a conflicting correction race')
+          }
+
+          const event = metricCorrected({
+            correctionId,
+            correctedReadingId: metricReadingId(target[0].id),
+            replacementReadingId: null,
+            organizationId: command.organizationId,
+            propertyId: command.propertyId,
+            definitionVersionId: command.definitionVersionId,
+            sourceEventId: command.sourceEventId,
+            supersededSourceEventId: command.supersedesSourceEventId,
+            occurredAt: command.occurredAt,
+          })
+          await insertOutboxRow(tx, event)
+          return {
+            result: {
+              status: 'retracted' as const,
+              correctedReadingId: target[0].id,
+            },
+            event,
+          }
+        })
+        if (committed.event) await emitAfterCommit(events, committed.event)
+        return committed.result
+      }),
+
     quarantine: async (command: QuarantineMetricCommand): Promise<void> =>
       trace('metric.commandStore.quarantine', async () => {
         await db

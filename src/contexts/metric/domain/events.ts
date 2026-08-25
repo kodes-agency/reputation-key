@@ -52,7 +52,8 @@ export type MetricCorrected = Readonly<{
   eventId: string
   correctionId: string
   correctedReadingId: MetricReadingId
-  replacementReadingId: MetricReadingId
+  /** Null for a retraction; a correction with a replacement keeps its new id. */
+  replacementReadingId: MetricReadingId | null
   organizationId: OrganizationId
   propertyId: PropertyId
   definitionVersionId: string

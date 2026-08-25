@@ -96,7 +96,7 @@ SELECT
   '["dashboard","goal","notification","export","portal_analytics"]'::jsonb,
   false,
   'append_delta',
-  'approved_for_managerial_context_not_automated_employment_action'
+  'approved_manager_context'
 FROM seeds
 JOIN metric_definitions definitions ON definitions.metric_key = seeds.metric_key
 ON CONFLICT (id) DO NOTHING;

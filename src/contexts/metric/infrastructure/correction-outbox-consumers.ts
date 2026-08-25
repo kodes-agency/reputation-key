@@ -7,7 +7,7 @@ import { registerConsumer } from '#/shared/outbox/dispatcher'
 type MetricCorrectedPayload = Readonly<{
   correctionId: string
   correctedReadingId: string
-  replacementReadingId: string
+  replacementReadingId: string | null
   organizationId: string
   propertyId: string
   definitionVersionId: string

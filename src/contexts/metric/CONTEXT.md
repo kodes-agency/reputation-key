@@ -12,7 +12,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 ## Relationships
 
-- Metric context **subscribes to** `review.created`, `guest.scan.recorded`, `guest.rating.submitted`, `guest.feedback.submitted`, `guest.review_link.clicked` events from other contexts.
+- Metric context **subscribes to** `review.created`, Guest scan/rating/feedback submission and retraction facts, and `guest.review_link.clicked` events from other contexts.
 - Goal context **depends on** `MetricPublicApi` for querying metric aggregates to reconcile goal progress.
 
 ## Invariants
@@ -28,8 +28,10 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 - **`review.created`** — Records a `property.review` metric (value = event.rating, the star rating value).
 - **`guest.scan.recorded`** — Records a `portal.scan` metric (value = 1).
-- **`guest.rating.submitted`** — Records a `portal.rating` metric (value = rating value).
+- **`guest.rating.submitted`** — Records legacy `portal.rating` analytics plus independent governed `portal.rating_count` and `portal.rating_average` readings. A correction supersedes all three by source-event identity.
+- **`guest.rating.retracted`** — Appends a retraction correction to all three rating readings; it never inserts a synthetic zero.
 - **`guest.feedback.submitted`** — Records a `portal.feedback` metric (value = 1).
+- **`guest.feedback.retracted`** — Retracts the feedback-count reading without exposing private text.
 - **`guest.review_link.clicked`** — Records a `portal.review_link_click` metric (value = 1).
 
 ## Architecture layers

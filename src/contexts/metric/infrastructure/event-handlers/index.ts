@@ -5,6 +5,9 @@ import type { ReviewRatingLookupPort } from '../../application/ports/review-rati
 import { onScanRecorded } from './on-scan-recorded'
 import { onRatingSubmitted } from './on-rating-submitted'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
+import { onRatingRetracted } from './on-rating-retracted'
+import { onFeedbackRetracted } from './on-feedback-retracted'
+import type { RetractMetric } from '../../application/use-cases/retract-metric'
 import { onReviewLinkClicked } from './on-review-link-clicked'
 import { onReviewCreated } from './on-review-created'
 import {
@@ -23,6 +26,7 @@ export type FindGroupForPortal = (
 export type RegisterMetricHandlersDeps = Readonly<{
   events: EventBus
   recordMetric: RecordMetric
+  retractMetric: RetractMetric
   findGroupForPortal: FindGroupForPortal
   resolvePortalWorkflowAttribution: PortalWorkflowMetricDeps['resolveAttribution']
   reviewRatingLookup: ReviewRatingLookupPort
@@ -66,11 +70,21 @@ export const registerMetricHandlers = (deps: RegisterMetricHandlersDeps): void =
     { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
+    'guest.rating.retracted',
+    onRatingRetracted({ retractMetric: deps.retractMetric }),
+    { consumer: 'metric.event-handlers' },
+  )
+  deps.events.on(
     'guest.feedback.submitted',
     onFeedbackSubmitted({
       recordMetric: deps.recordMetric,
       findGroupForPortal: deps.findGroupForPortal,
     }),
+    { consumer: 'metric.event-handlers' },
+  )
+  deps.events.on(
+    'guest.feedback.retracted',
+    onFeedbackRetracted({ retractMetric: deps.retractMetric }),
     { consumer: 'metric.event-handlers' },
   )
   deps.events.on(
