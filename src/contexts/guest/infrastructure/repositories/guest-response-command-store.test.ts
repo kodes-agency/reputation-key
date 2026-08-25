@@ -459,6 +459,58 @@ describe.sequential('atomic Guest response submission', () => {
     expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(1)
   })
 
+  it('summarizes current outcomes by corrected rating time with half-open bounds', async () => {
+    const startAt = new Date('2026-08-25T00:00:00.000Z')
+    const endAt = new Date('2026-08-26T00:00:00.000Z')
+    const retention = new Date('2028-08-25T00:00:00.000Z')
+    await db.execute(sql`
+      INSERT INTO guest_responses (
+        id, organization_id, property_id, portal_id, status,
+        integrity_outcome, integrity_reason_code, integrity_revision,
+        integrity_assessed_at, rating, response_consent, submitted_at,
+        corrected_at, retention_deadline, deleted_at
+      ) VALUES
+        (
+          '51000000-0000-4000-8000-000000000011', ${ORG}, ${PROPERTY}, ${PORTAL},
+          'submitted', 'accepted', 'initial_submission', 1, ${NOW}, 5, true,
+          ${NOW}, NULL, ${retention}, NULL
+        ),
+        (
+          '51000000-0000-4000-8000-000000000012', ${ORG}, ${PROPERTY}, ${PORTAL},
+          'corrected', 'filtered_automatically', 'honeypot_signal', 2, ${NOW},
+          4, true, '2026-08-24T23:00:00.000Z', '2026-08-25T13:00:00.000Z',
+          ${retention}, NULL
+        ),
+        (
+          '51000000-0000-4000-8000-000000000013', ${ORG}, ${PROPERTY}, ${PORTAL},
+          'submitted', 'under_review', 'traffic_velocity_anomaly', 2, ${NOW},
+          3, true, ${endAt}, NULL, ${retention}, NULL
+        ),
+        (
+          '51000000-0000-4000-8000-000000000014', ${ORG}, ${PROPERTY}, ${PORTAL},
+          'deleted', 'accepted', 'initial_submission', 1, ${NOW}, 2, true,
+          ${NOW}, NULL, ${retention}, ${NOW}
+        )
+    `)
+
+    await expect(
+      createGuestResponseRepository(db).summarizePortalIntegrity(
+        {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+        },
+        startAt,
+        endAt,
+      ),
+    ).resolves.toEqual({
+      accepted: 1,
+      filteredAutomatically: 1,
+      underReview: 0,
+      total: 2,
+    })
+  })
+
   it('denies stale reads and expires each storage class independently', async () => {
     const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
     await store.commitSubmitted(response(), facts())

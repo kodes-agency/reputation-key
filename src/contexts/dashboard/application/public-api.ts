@@ -11,6 +11,7 @@ export type {
   DashboardData,
   PortalKPIs,
   PortalAnalyticsData,
+  PortalResponseIntegritySummary,
   StaffDashboardData,
   PortalRatingTrendPoint,
   // The two series `DashboardData` already carries. Absent from this list until

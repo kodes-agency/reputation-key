@@ -16,6 +16,7 @@ function selectDatabase(rows: readonly unknown[]) {
   chain.from = vi.fn(() => chain)
   chain.innerJoin = vi.fn(() => chain)
   chain.leftJoin = vi.fn(() => chain)
+  chain.groupBy = vi.fn(async () => rows)
   chain.where = vi.fn((condition: unknown) => {
     whereCondition = condition
     return chain
@@ -41,6 +42,10 @@ describe('createGuestResponseRepository', () => {
           id: 'response-1',
           ...scope,
           status: 'corrected',
+          integrityOutcome: 'accepted',
+          integrityReasonCode: 'initial_submission',
+          integrityRevision: 1,
+          integrityAssessedAt: submittedAt,
           rating: 5,
           categoryId: 'service',
           responseConsent: true,
@@ -79,6 +84,10 @@ describe('createGuestResponseRepository', () => {
       sessionId: 'session-1',
       sessionExpiresAt,
       status: 'corrected',
+      integrityOutcome: 'accepted',
+      integrityReasonCode: 'initial_submission',
+      integrityRevision: 1,
+      integrityAssessedAt: submittedAt,
       rating: 5,
       category: 'service',
       text: 'Helpful staff',
@@ -171,5 +180,41 @@ describe('createGuestResponseRepository', () => {
     expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
     expect(compiled.sql).toContain('"guest_responses"."response_consent" =')
     expect(compiled.sql).toContain('"guest_responses"."text_consent" =')
+  })
+
+  it('summarizes current outcomes by rating business time and exact scope', async () => {
+    const { db, chain, getWhereCondition } = selectDatabase([
+      { outcome: 'accepted', count: 7 },
+      { outcome: 'filtered_automatically', count: 1 },
+      { outcome: 'under_review', count: 2 },
+    ])
+    const startAt = new Date('2026-08-01T00:00:00.000Z')
+    const endAt = new Date('2026-09-01T00:00:00.000Z')
+
+    await expect(
+      createGuestResponseRepository(db).summarizePortalIntegrity(scope, startAt, endAt),
+    ).resolves.toEqual({
+      accepted: 7,
+      filteredAutomatically: 1,
+      underReview: 2,
+      total: 10,
+    })
+    expect(chain.groupBy).toHaveBeenCalledOnce()
+    const compiled = new PgDialect().sqlToQuery(getWhereCondition() as SQL)
+    expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."property_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."portal_id" =')
+    expect(compiled.sql).toContain('COALESCE')
+    expect(compiled.sql).toContain('>=')
+    expect(compiled.sql).toContain('<')
+    expect(compiled.params).toEqual(
+      expect.arrayContaining([
+        scope.organizationId,
+        scope.propertyId,
+        scope.portalId,
+        startAt,
+        endAt,
+      ]),
+    )
   })
 })

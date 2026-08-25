@@ -12,6 +12,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Feedback** — Optional free-text note (max 2,000 characters) submitted only after an eligible private rating. It is private and routed to the managers responsible for the Portal.
 - **Google Review Selection** — The post-rating choice to open the Property-owned Google review destination. It is offered with identical order and prominence for all five ratings and is recorded as core analytics.
 - **Qualified Link Action** — An explicit post-render, origin/CSRF/session-bound mutation for a destination classified as `google_review` or `secondary_link`. A redirect GET is navigation only and never increments it.
+- **Response Integrity Outcome** — The current, content-free classification of a retained rating response: `Accepted`, `Filtered automatically`, or `Under review`. It governs headline metric eligibility independently of feedback moderation.
 - **Source** — How the guest arrived at the portal: `qr` (QR code scan), `nfc` (NFC tap), or `direct` (typed URL).
 
 ## Relationships
@@ -25,6 +26,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Anti-discouragement** compliance ensures the Google Review Action has identical copy, order, timing, and prominence for every rating.
 - Guest context **depends on** `PortalPublicApi` for portal resolution and public portal data.
 - Notification consumes Guest's content-free `findPortalIdForFeedback` public API; Guest retains ownership of canonical and legacy response attribution.
+- Dashboard consumes Guest's content-free `getPortalResponseIntegritySummary` public API for manager methodology. It never reads Guest tables directly and receives counts only.
 
 ## Invariants
 
@@ -40,6 +42,9 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - For 24 hours after the initial rating, the same signed session may instead withdraw the entire response. That terminal command retracts rating and any still-effective feedback, purges content, and schedules media deletion.
 - Retention classes are physically separate: the response recovery binding is re-signed to the committed rating/feedback withdrawal deadline (exactly 24 hours from that action, never a rolling retry extension), private-feedback body lasts at most 90 days, and the content-free response fact/tombstone lasts 24 calendar months. Repository reads deny expired binding/text even before the bounded evidence-producing sweep deletes it.
 - “Start a new response” is available only after this signed session has a durable rating. It rotates the cookie/CSRF recovery identity and cached receipt without correcting, withdrawing, or deleting the earlier response; both session and rotating-network/Portal rate limits bound shared-device abuse.
+- Every new rating has an append-only initial integrity decision. A valid, rate-limited honeypot submission is retained as `Filtered automatically` and emits no rating metric; invalid traffic still receives the indistinguishable decoy. No rating value, feedback text, or guest identity participates in that decision.
+- Integrity decisions use reasoned compare-and-set revisions. Exclusion atomically retracts the currently effective rating fact; restoration emits the current corrected value at its original/corrected business time, so review timing cannot shift a monthly metric period.
+- Manager moderation may hide abusive text/media but never changes the integrity outcome, retracts the rating fact, or deletes the numeric star value. Integrity review remains an internal control with no manager exclusion endpoint.
 - The receipt advertises rating correction only through the exact one-hour domain deadline. The server remains authoritative and permits at most one correction.
 - The first action per signed session, Portal, kind, and destination commits a 24-hour dedupe receipt and content-free durable fact atomically. Duplicate/replayed actions emit no second fact; Redis is abuse control, not correctness authority.
 - Guest media is hard-blocked for the first beta cohort and has no public issuance or confirmation entry point. Existing rows remain available only for audit/purge compatibility.
@@ -48,12 +53,14 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 ## Events produced
 
 - **`guest.scan.recorded`** — scanId, organizationId, portalId, propertyId, source, occurredAt.
-- **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt. Produced by `responseLifecycle.submit` when the guest consented to share a rating.
+- **`guest.rating.submitted`** — ratingId, organizationId, portalId, propertyId, value, occurredAt. Produced when a consented rating is `Accepted`, including restoration with the current corrected value at rating business time.
 - **`guest.rating.retracted`** — ratingId, scope identifiers, superseded source-event id, and occurredAt. Produced atomically when a correction removes consent/value or the guest withdraws the response.
 - **`guest.feedback.submitted`** — feedbackId, organizationId, portalId, propertyId, ratingId, occurredAt. Produced by the separate eligible private-feedback command without consuming the one rating correction.
 - **`guest.feedback.retracted`** — feedbackId, scope identifiers, superseded source-event id, and occurredAt. It corrects the feedback-count projection and closes related Inbox work without carrying text/contact.
 
 The canonical response stores the currently effective rating/feedback source-event ids. Corrections and withdrawals commit their state transition and every replacement/retraction fact in one transaction. Missing historical lineage fails closed rather than adding a second reading or leaving a stale one.
+
+Integrity decisions themselves are append-only rows in `guest_response_integrity_decisions`. They intentionally contain scope, revision, outcomes, reason/source/actor, and time—but no rating, text, session, or network pseudonym.
 
 - **`guest.review_link.clicked`** — linkId, destinationKind, organizationId, portalId, propertyId, occurredAt. Legacy facts without a kind decode as `secondary_link`; new Google selections are explicit.
 
@@ -71,6 +78,7 @@ guest/
                        public-portal-lookup.port.ts
     dto/               public-portal.dto.ts
     use-cases/         record-scan.ts, guest-response-lifecycle.ts,
+                       get-portal-response-integrity-summary.ts,
                        track-review-link-click.ts, resolve-link-and-track.ts,
                        resolve-portal-context.ts, get-public-portal.ts
     public-api.ts      re-exports domain types, event types/constructors
@@ -91,6 +99,7 @@ guest/
 - **`resolveLinkAndTrack`** — Resolve a token-owned Portal link. It tracks only when the explicit POST edge supplies a qualified signed session; calls from the redirect GET resolve without analytics.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.
 - **`getPublicPortal`** — Fetch full public portal data for guest-facing rendering.
+- **`getPortalResponseIntegritySummary`** — Return content-free current outcome counts for rating responses in one tenant/Property/Portal and half-open business period.
 
 ## Public API
 
@@ -98,6 +107,7 @@ Exported from `application/public-api.ts`:
 
 - Types: `ScanEvent`, `Rating`, `Feedback`, `ScanSource`
 - Cross-context API: `findPortalIdForFeedback(organizationId, feedbackId)` returns only the source `PortalId` (or null), with canonical-response precedence and legacy-read compatibility.
+- Cross-context API: `getPortalResponseIntegritySummary(...)` returns only `Accepted`, `Filtered automatically`, `Under review`, and total counts for an exact scope/period.
 - Event types: `GuestScanRecorded`, `GuestRatingSubmitted`, `GuestRatingRetracted`, `GuestFeedbackSubmitted`, `GuestFeedbackRetracted`, `GuestReviewLinkClicked`, `GuestEvent`
 - Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestRatingRetracted`, `guestFeedbackSubmitted`, `guestFeedbackRetracted`, `guestReviewLinkClicked`
 

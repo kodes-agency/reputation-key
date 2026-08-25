@@ -1,6 +1,6 @@
 // Portal analytics tab — KPI cards + charts for portal-scoped metrics
 
-import { useState, useEffect } from 'react'
+import { useId, useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import {
@@ -17,6 +17,10 @@ import {
   RatingTrendChart,
 } from './portal-analytics-charts'
 import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
+import {
+  portalResponseIntegrityCopy,
+  type PortalResponseIntegritySummaryView,
+} from './portal-response-integrity-copy'
 
 type Props = Readonly<{
   portalId: string
@@ -40,6 +44,48 @@ function readStoredTimeRange(): TimeRangePreset {
   } catch {
     return 'all'
   }
+}
+
+function ResponseIntegritySummary({
+  summary,
+}: {
+  summary: PortalResponseIntegritySummaryView
+}) {
+  const headingId = useId()
+  return (
+    <section className="rounded-lg border bg-muted/30 p-4" aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-sm font-semibold tracking-tight">
+        Response quality checks
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Private rating figures use accepted Portal responses, not unique guests. Hiding
+        written feedback does not remove its star rating.
+      </p>
+      <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-muted-foreground">Accepted</dt>
+          <dd className="font-medium tabular-nums">
+            {summary.accepted.toLocaleString()}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Filtered automatically</dt>
+          <dd className="font-medium tabular-nums">
+            {summary.filteredAutomatically.toLocaleString()}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Under review</dt>
+          <dd className="font-medium tabular-nums">
+            {summary.underReview.toLocaleString()}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-xs text-muted-foreground">
+        {portalResponseIntegrityCopy(summary)}
+      </p>
+    </section>
+  )
 }
 
 export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
@@ -105,7 +151,8 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     data.kpis.scans.value > 0 ||
     data.kpis.feedback.value > 0 ||
     data.kpis.reviewLinkClicks.value > 0 ||
-    data.kpis.avgRating.value > 0
+    data.kpis.avgRating.value > 0 ||
+    data.responseIntegrity.total > 0
 
   if (!hasData) {
     return (
@@ -137,7 +184,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Scans" kpi={data.kpis.scans} icon={ScanLine} />
         <KPICard
-          label="Avg Rating"
+          label="Private rating avg"
           kpi={data.kpis.avgRating}
           icon={Star}
           // The scale belongs on the number: "4.3" alone asks the reader to
@@ -151,6 +198,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           icon={MousePointerClick}
         />
       </div>
+      <ResponseIntegritySummary summary={data.responseIntegrity} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <ChartCard title="Engagement Funnel" className="md:col-span-2">
           {(headingId) => (
@@ -160,7 +208,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
             />
           )}
         </ChartCard>
-        <ChartCard title="Rating Distribution">
+        <ChartCard title="Private rating distribution">
           {(headingId) => (
             <PortalRatingDistributionChart
               distribution={data.ratingDistribution}
@@ -169,7 +217,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           )}
         </ChartCard>
         {data.ratingTrend.length > 0 && (
-          <ChartCard title="Rating Trend">
+          <ChartCard title="Private rating trend">
             {(headingId) => (
               <RatingTrendChart trend={data.ratingTrend} labelledBy={headingId} />
             )}

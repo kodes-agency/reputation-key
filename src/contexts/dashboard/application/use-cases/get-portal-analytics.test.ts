@@ -64,6 +64,17 @@ function createFakePortalMetrics(overrides?: {
   }
 }
 
+function createFakeResponseIntegrity() {
+  return {
+    getPortalResponseIntegritySummary: vi.fn(async () => ({
+      accepted: 8,
+      filteredAutomatically: 1,
+      underReview: 1,
+      total: 10,
+    })),
+  }
+}
+
 describe('getPortalAnalytics (use case)', () => {
   it('composes portal KPI sums into PortalAnalyticsData', async () => {
     const repo = createInMemoryDashboardRepository()
@@ -71,6 +82,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       repo,
       portalMetrics: metrics,
+      responseIntegrity: createFakeResponseIntegrity(),
       clock: () => new Date(),
     })
     const now = new Date()
@@ -99,6 +111,12 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.ratingDistribution).toHaveLength(2)
     expect(result.ratingTrend).toHaveLength(2)
     expect(metrics.calls).toContain('getPortalKpiSums')
+    expect(result.responseIntegrity).toEqual({
+      accepted: 8,
+      filteredAutomatically: 1,
+      underReview: 1,
+      total: 10,
+    })
   })
 
   it('handles zero metric values gracefully', async () => {
@@ -114,6 +132,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       repo,
       portalMetrics: metrics,
+      responseIntegrity: createFakeResponseIntegrity(),
       clock: () => new Date(),
     })
     const now = new Date()
@@ -162,6 +181,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       repo,
       portalMetrics: dynamicMetrics,
+      responseIntegrity: createFakeResponseIntegrity(),
       clock: () => new Date(),
     })
     const now = new Date()
@@ -193,6 +213,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       repo,
       portalMetrics: metrics,
+      responseIntegrity: createFakeResponseIntegrity(),
       clock: () => new Date(),
     })
 
@@ -226,6 +247,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       repo,
       portalMetrics: metrics,
+      responseIntegrity: createFakeResponseIntegrity(),
       clock: () => new Date(),
     })
     const now = new Date()

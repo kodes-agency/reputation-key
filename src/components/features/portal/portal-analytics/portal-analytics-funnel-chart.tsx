@@ -14,7 +14,7 @@ import { ChartContainer, type ChartConfig } from '#/components/ui/chart'
 
 const funnelConfig = {
   scans: { label: 'Scans', color: 'var(--chart-1)' },
-  ratings: { label: 'Ratings', color: 'var(--chart-2)' },
+  ratings: { label: 'Private ratings', color: 'var(--chart-2)' },
   reviewLinkClicks: { label: 'Review Clicks', color: 'var(--chart-3)' },
 } satisfies ChartConfig
 
@@ -45,7 +45,7 @@ export function EngagementFunnelChart({
     },
     {
       key: 'ratings',
-      name: 'Ratings',
+      name: 'Private ratings',
       actual: funnel.ratings,
       singular: 'rating',
       plural: 'ratings',

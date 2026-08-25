@@ -19,6 +19,13 @@ export type GuestResponseContentFilter = Readonly<{
   textQuery?: string
 }>
 
+export type PortalResponseIntegritySummary = Readonly<{
+  accepted: number
+  filteredAutomatically: number
+  underReview: number
+  total: number
+}>
+
 export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
@@ -54,6 +61,12 @@ export type GuestResponseRepository = Readonly<{
     organizationId: string,
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<string>>
+  /** Current integrity outcomes for rating responses in a half-open business period. */
+  summarizePortalIntegrity(
+    scope: GuestResponseScope,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<PortalResponseIntegritySummary>
   saveModeration(response: GuestResponse): Promise<boolean>
   insertMedia(media: GuestMedia): Promise<boolean>
   findMediaForSession(

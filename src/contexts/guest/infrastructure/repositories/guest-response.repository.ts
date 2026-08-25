@@ -1,4 +1,16 @@
-import { and, eq, gt, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  sql,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   guestResponseExperienceSnapshots,
@@ -268,6 +280,55 @@ export function createGuestResponseRepository(
         )
         .where(and(...conditions))
       return rows.map((row) => row.id)
+    },
+
+    summarizePortalIntegrity: async (scope, startAt, endAt) => {
+      const ratingBusinessAt = sql<Date>`COALESCE(
+        ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
+      )`
+      const rows = await db
+        .select({
+          outcome: guestResponses.integrityOutcome,
+          count: count(),
+        })
+        .from(guestResponses)
+        .where(
+          and(
+            eq(guestResponses.organizationId, scope.organizationId),
+            eq(guestResponses.propertyId, scope.propertyId),
+            eq(guestResponses.portalId, scope.portalId),
+            eq(guestResponses.responseConsent, true),
+            isNotNull(guestResponses.rating),
+            isNotNull(guestResponses.submittedAt),
+            isNull(guestResponses.deletedAt),
+            gte(ratingBusinessAt, startAt),
+            lt(ratingBusinessAt, endAt),
+          ),
+        )
+        .groupBy(guestResponses.integrityOutcome)
+      const summary = {
+        accepted: 0,
+        filteredAutomatically: 0,
+        underReview: 0,
+        total: 0,
+      }
+      for (const row of rows) {
+        switch (row.outcome) {
+          case 'accepted':
+            summary.accepted = row.count
+            break
+          case 'filtered_automatically':
+            summary.filteredAutomatically = row.count
+            break
+          case 'under_review':
+            summary.underReview = row.count
+            break
+          default:
+            throw new Error('Guest response integrity outcome is invalid')
+        }
+        summary.total += row.count
+      }
+      return summary
     },
 
     saveModeration: async (response) =>

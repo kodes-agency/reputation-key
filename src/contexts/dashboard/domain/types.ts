@@ -118,11 +118,19 @@ export type PortalKPIs = Readonly<{
   reviewLinkClicks: KPIValue
 }>
 
+export type PortalResponseIntegritySummary = Readonly<{
+  accepted: number
+  filteredAutomatically: number
+  underReview: number
+  total: number
+}>
+
 export type PortalAnalyticsData = Readonly<{
   kpis: PortalKPIs
   engagementFunnel: EngagementFunnel
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
+  responseIntegrity: PortalResponseIntegritySummary
 }>
 
 // ─── Staff Dashboard ───

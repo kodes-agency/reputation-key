@@ -5,6 +5,8 @@
 export type { ScanEvent, Rating, Feedback, ScanSource } from '../domain/types'
 
 import type { FeedbackId, OrganizationId, PortalId } from '#/shared/domain/ids'
+import type { GetPortalResponseIntegritySummary } from './use-cases/get-portal-response-integrity-summary'
+export type { PortalResponseIntegritySummary } from './ports/guest-response.repository'
 
 /** Content-free source attribution for cross-context workflow routing. */
 export type GuestFeedbackAttributionPublicApi = Readonly<{
@@ -12,6 +14,10 @@ export type GuestFeedbackAttributionPublicApi = Readonly<{
     organizationId: OrganizationId,
     feedbackId: FeedbackId,
   ) => Promise<PortalId | null>
+}>
+
+export type GuestResponseIntegrityPublicApi = Readonly<{
+  getPortalResponseIntegritySummary: GetPortalResponseIntegritySummary
 }>
 
 export {

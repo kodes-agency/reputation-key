@@ -22,6 +22,7 @@ import { getAttentionSignals } from './application/use-cases/get-attention-signa
 import type { GetAttentionSignals } from './application/use-cases/get-attention-signals'
 import { getFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
+import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
 
 export type DashboardContextBuildInput = Readonly<{
   db: Database
@@ -33,6 +34,7 @@ export type DashboardContextBuildInput = Readonly<{
    * here; structurally satisfies ReviewStatsPort.
    */
   reviewServingStats: ReviewServingStats
+  guestResponseIntegrity: PortalResponseIntegrityPort
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -77,6 +79,7 @@ export const buildDashboardContext = (
   const getPortal = getPortalAnalytics({
     repo: dashboardRepo,
     portalMetrics,
+    responseIntegrity: input.guestResponseIntegrity,
     clock: input.clock,
   })
 

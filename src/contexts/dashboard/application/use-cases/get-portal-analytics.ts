@@ -8,6 +8,7 @@ import type { PortalAnalyticsData, PortalKPIs } from '../../domain/types'
 import type { PortalMetricsPort, PortalMetricSumRow } from '../ports/portal-metrics.port'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates } from '../utils'
+import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
 
 export type GetPortalAnalyticsInput = Readonly<{
   organizationId: OrganizationId
@@ -21,6 +22,7 @@ export type GetPortalAnalyticsInput = Readonly<{
 export type GetPortalAnalyticsDeps = Readonly<{
   repo: DashboardRepository
   portalMetrics: PortalMetricsPort
+  responseIntegrity: PortalResponseIntegrityPort
   clock: () => Date
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
@@ -41,46 +43,59 @@ export const getPortalAnalytics =
     const priorPeriod = priorPeriodDates(timeRange, startDate, endDate)
 
     // Fetch current and prior KPI sums, rating distribution, rating trend, and engagement funnel in parallel
-    const [currentSums, priorSums, ratingDistribution, ratingTrend, engagementFunnel] =
-      await Promise.all([
-        deps.portalMetrics.getPortalKpiSums(
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        ),
-        priorPeriod
-          ? deps.portalMetrics.getPortalKpiSums(
-              organizationId,
-              propertyId,
-              portalId,
-              priorPeriod.priorStartDate,
-              priorPeriod.priorEndDate,
-            )
-          : Promise.resolve<readonly PortalMetricSumRow[]>([]),
-        deps.portalMetrics.getPortalRatingDistribution(
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        ),
-        deps.portalMetrics.getPortalRatingTrend(
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        ),
-        deps.repo.getEngagementFunnel({
-          organizationId,
-          propertyId,
-          portalId,
-          startDate,
-          endDate,
-        }),
-      ])
+    const [
+      currentSums,
+      priorSums,
+      ratingDistribution,
+      ratingTrend,
+      engagementFunnel,
+      responseIntegrity,
+    ] = await Promise.all([
+      deps.portalMetrics.getPortalKpiSums(
+        organizationId,
+        propertyId,
+        portalId,
+        startDate,
+        endDate,
+      ),
+      priorPeriod
+        ? deps.portalMetrics.getPortalKpiSums(
+            organizationId,
+            propertyId,
+            portalId,
+            priorPeriod.priorStartDate,
+            priorPeriod.priorEndDate,
+          )
+        : Promise.resolve<readonly PortalMetricSumRow[]>([]),
+      deps.portalMetrics.getPortalRatingDistribution(
+        organizationId,
+        propertyId,
+        portalId,
+        startDate,
+        endDate,
+      ),
+      deps.portalMetrics.getPortalRatingTrend(
+        organizationId,
+        propertyId,
+        portalId,
+        startDate,
+        endDate,
+      ),
+      deps.repo.getEngagementFunnel({
+        organizationId,
+        propertyId,
+        portalId,
+        startDate,
+        endDate,
+      }),
+      deps.responseIntegrity.getPortalResponseIntegritySummary({
+        organizationId,
+        propertyId,
+        portalId,
+        startAt: startDate,
+        endAt: endDate,
+      }),
+    ])
 
     const toMap = (
       rows: readonly { metricKey: string; total: number; count: number }[],
@@ -130,5 +145,11 @@ export const getPortalAnalytics =
       },
     }
 
-    return { kpis, engagementFunnel, ratingDistribution, ratingTrend: [...ratingTrend] }
+    return {
+      kpis,
+      engagementFunnel,
+      ratingDistribution,
+      ratingTrend: [...ratingTrend],
+      responseIntegrity,
+    }
   }

@@ -7,7 +7,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 ## Glossary
 
 - **DashboardData** — The full property dashboard response: KPIs, rating distribution, trends, reply performance, engagement funnel, recent reviews.
-- **PortalAnalyticsData** — Portal-scoped analytics: portal KPIs, engagement funnel, rating distribution, rating trend. No review/reply data.
+- **PortalAnalyticsData** — Portal-scoped analytics: portal KPIs, engagement funnel, private-rating distribution/trend, and content-free response-integrity counts. No review/reply data.
 - **KPIValue** — A metric with current value, prior value, and trend percentage. Used for the KPI strip.
 - **PortalKPIs** — Portal-scoped KPIs: scans, avg rating, feedback, review link clicks.
 - **DashboardReplyStatus** — Simplified reply status for the dashboard: `'none'`, `'draft'`, `'published'`.
@@ -15,6 +15,7 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 - **MetricStatsPort** — Facade port for querying metric_readings data (sums by period/portal).
 - **ReviewStatsPort** — Facade port for querying review/reply aggregate data (counts, ratings, reply performance, recent reviews).
 - **PortalMetricsPort** — Facade port for portal-scoped metric queries (KPI sums, rating distribution, rating trends).
+- **PortalResponseIntegrityPort** — Guest-owned facade for current `Accepted`, `Filtered automatically`, and `Under review` response counts in the selected period.
 - **StaffPortalResolverPort** — Facade port for resolving which portals a staff user has access to. Used to scope staff dashboard queries.
 - **AttentionSignalsPort** — Facade port for the property attention-band counts (unanswered reviews past SLA, new feedback, escalated inbox items, goals behind pace).
 - **AttentionSignals** — The five compact signal counts shown in a property's attention band.
@@ -24,11 +25,12 @@ Read-only aggregation surface for property-level and portal-level analytics. No 
 
 ## Relationships
 
-Dashboard is a read-only aggregation context with no domain entities. It queries three upstream contexts via facade ports:
+Dashboard is a read-only aggregation context with no domain entities. It queries upstream contexts via facade ports:
 
 - **Review context** via `ReviewStatsPort` — Aggregate review counts, ratings, reply performance, recent reviews.
 - **Metric context** via `MetricStatsPort` — Summed metric readings by time period and portal.
-- **Portal context** via `PortalMetricsPort` — Portal-scoped KPI sums, rating distributions, rating trends.
+- **Portal-scoped metric read model** via `PortalMetricsPort` — KPI sums, rating distributions, and rating trends.
+- **Guest context** via `PortalResponseIntegrityPort` — Content-free response-quality classification counts and no response content/session data.
 
 ## Invariants
 
@@ -37,6 +39,7 @@ Dashboard is a read-only aggregation context with no domain entities. It queries
 - Engagement funnel returns `null` when no portal is selected (property dashboard).
 - Engagement funnel uses `portal.rating` for the ratings step (NOT `portal.feedback`).
 - Dashboard never queries other contexts' tables directly — only through facade ports.
+- Portal analytics says **Portal responses**, not unique guests. Accepted responses feed private-rating figures; filtered/under-review counts remain visible as gentle methodology, and the UI exposes no rating-exclusion action.
 - When `portalId` is provided to `getKPIs`, metric queries (scans, feedback) are portal-scoped. Review KPIs (reviews, avgRating) remain property-scoped.
 
 ## Events produced
@@ -53,7 +56,7 @@ None. Dashboard does not subscribe to events from other contexts. All data is fe
 dashboard/
   domain/              types.ts, errors.ts
   application/
-    ports/             dashboard.repository.ts, metric-stats.port.ts, review-stats.port.ts, portal-metrics.port.ts, staff-portal-resolver.port.ts, attention-signals.port.ts
+    ports/             dashboard.repository.ts, metric-stats.port.ts, review-stats.port.ts, portal-metrics.port.ts, portal-response-integrity.port.ts, staff-portal-resolver.port.ts, attention-signals.port.ts
     use-cases/         get-dashboard-data.ts, get-portal-analytics.ts, get-staff-dashboard-data.ts, get-attention-signals.ts, get-fleet-overview.ts
     utils.ts           pure data helpers (prior period, trend, rating drop, bounds)
     public-api.ts      re-exports domain types
@@ -71,7 +74,7 @@ dashboard/
 | Use case                | Input                                                     | Output                | Description                                                                                                                                                                                       |
 | ----------------------- | --------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `getDashboardData`      | organizationId, propertyId, portalId?, startDate, endDate | `DashboardData`       | Orchestrates all repo queries in parallel; engagement funnel + portal-scoped KPIs when portal set                                                                                                 |
-| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, rating distribution, rating trend. No review/reply data.                                                                                                   |
+| `getPortalAnalytics`    | organizationId, propertyId, portalId, startDate, endDate  | `PortalAnalyticsData` | Portal-scoped analytics: KPIs, funnel, private-rating charts, and response-integrity methodology counts. No review/reply data.                                                                    |
 | `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange  | `StaffDashboardData`  | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                  |
 | `getAttentionSignals`   | organizationId, propertyId, slaHours, timeRange           | `AttentionSignals`    | The five attention-band signal counts for a property (unanswered, new feedback, goals behind pace, rating drop, escalated).                                                                       |
 | `getFleetOverview`      | organizationId, properties[], slaHours, timeRange         | `FleetOverviewData`   | Cross-property aggregation: per-property attention + KPI summary, attention-sorted, with an org-total strip. Property identities are resolved server-side (role-aware) at the server-fn boundary. |
@@ -106,6 +109,7 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 - **MetricStatsPort** — sums of metric readings by period/portal, implemented by metric-stats.adapter.ts.
 - **ReviewStatsPort** — review counts, rating distribution, reply performance, recent reviews. BQC-5.5: supplied by the REVIEW context's governed `ReviewServingStats` (composition wires `review.internal.servingStats`) — ADR 0031 source eligibility is enforced at the owner on every review-content read, aggregates included. The dashboard-owned SQL adapter is deleted.
 - **PortalMetricsPort** — portal-scoped metric sums, rating distribution, and rating trend. Implemented by portal-metrics.adapter.ts.
+- **PortalResponseIntegrityPort** — current content-free Guest response-integrity counts. Implemented by the Guest context public API wired at composition.
 - **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
 - **AttentionSignalsPort** — unanswered-review (past SLA), new/escalated inbox-item, and goals-behind-pace counts per property. Implemented by attention-signals.adapter.ts (its review count applies the same ADR 0031 eligibility predicate — dashboard-side copy pinned equivalent to the review rule by an integration test).
 

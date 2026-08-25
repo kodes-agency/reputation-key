@@ -1513,6 +1513,7 @@ export function createContainer(options?: {
     staffPublicApi: staff.publicApi,
     clock,
     reviewServingStats: review.internal.servingStats,
+    guestResponseIntegrity: guest.publicApi,
   })
 
   // ── Activity context ────────────────────────────────────────────

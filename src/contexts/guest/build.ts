@@ -20,6 +20,8 @@ import { scanEventId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import type { GuestFeedbackAttributionPublicApi } from './application/public-api'
+import type { GuestResponseIntegrityPublicApi } from './application/public-api'
+import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
 
 type GuestContextDeps = Readonly<{
   db: Database
@@ -100,10 +102,15 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   const attributionPublicApi: GuestFeedbackAttributionPublicApi = {
     findPortalIdForFeedback,
   }
+  const integrityPublicApi: GuestResponseIntegrityPublicApi = {
+    getPortalResponseIntegritySummary:
+      getPortalResponseIntegritySummary(guestResponseRepo),
+  }
   const publicApi = {
     getPublicPortal: useCases.getPublicPortal,
     resolvePortalContext: useCases.resolvePortalContext,
     ...attributionPublicApi,
+    ...integrityPublicApi,
   }
 
   return {

@@ -57,6 +57,12 @@ function memoryRepo(): GuestResponseRepository & {
     },
     findSnippetsForOrg: async () => [],
     findEligibleSnippetIdsForOrg: async () => [],
+    summarizePortalIntegrity: async () => ({
+      accepted: 0,
+      filteredAutomatically: 0,
+      underReview: 0,
+      total: 0,
+    }),
     saveModeration: async (response) => {
       const index = responses.findIndex((row) => row.id === response.id)
       if (index < 0) return false
