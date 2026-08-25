@@ -33,6 +33,32 @@ function fakeDb(rowCounts: number[], fallbackRowCount = 0) {
 }
 
 describe('retention executor per-run cap (BQC-3.7)', () => {
+  it('redacts protected columns without deleting the retained business row', async () => {
+    const { db, execute } = fakeDb([2, 1, 0])
+    const result = await executeRetentionRule(
+      db,
+      {
+        subject: 'scan_events.abuse_pseudonym',
+        table: 'scan_events',
+        keyColumns: ['id'],
+        tsColumn: 'created_at',
+        olderThanMs: 7 * 24 * 60 * 60 * 1000,
+        operation: 'redact',
+        redactColumns: ['ip_hash'],
+        extraWhere: 'ip_hash IS NOT NULL',
+      },
+      { cutoff: CUTOFF, batchSize: 2 },
+    )
+
+    expect(result).toEqual({
+      batches: 2,
+      rowsDeleted: 0,
+      rowsRedacted: 3,
+      capped: false,
+    })
+    expect(execute).toHaveBeenCalledTimes(3)
+  })
+
   it('stops at maxBatches with rows remaining and reports capped', async () => {
     const { db, execute } = fakeDb([2, 2, 2])
 
@@ -43,7 +69,12 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     })
 
     expect(execute).toHaveBeenCalledTimes(3)
-    expect(result).toEqual({ batches: 3, rowsDeleted: 6, capped: true })
+    expect(result).toEqual({
+      batches: 3,
+      rowsDeleted: 6,
+      rowsRedacted: 0,
+      capped: true,
+    })
   })
 
   it('reports capped=false when the drain completes within the cap', async () => {
@@ -58,7 +89,12 @@ describe('retention executor per-run cap (BQC-3.7)', () => {
     })
 
     expect(execute).toHaveBeenCalledTimes(3)
-    expect(result).toEqual({ batches: 2, rowsDeleted: 3, capped: false })
+    expect(result).toEqual({
+      batches: 2,
+      rowsDeleted: 3,
+      rowsRedacted: 0,
+      capped: false,
+    })
   })
 
   it('a full final batch below the cap still probes once more (drain-complete proof)', async () => {

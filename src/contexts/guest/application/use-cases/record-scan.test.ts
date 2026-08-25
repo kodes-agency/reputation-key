@@ -40,14 +40,16 @@ describe('recordScan', () => {
       logger: createMockLogger(),
     })
 
-    await useCase({
-      organizationId: organizationId('org-1'),
-      portalId: portalId('portal-1'),
-      propertyId: propertyId('prop-1'),
-      source: 'qr',
-      sessionId: 'session-abc',
-      ipHash: 'hash123',
-    })
+    await expect(
+      useCase({
+        organizationId: organizationId('org-1'),
+        portalId: portalId('portal-1'),
+        propertyId: propertyId('prop-1'),
+        source: 'qr',
+        sessionId: 'session-abc',
+        ipHash: 'hash123',
+      }),
+    ).resolves.toBe('applied')
 
     expect(harness.scans).toHaveLength(1)
     expect(harness.scans[0]!.source).toBe('qr')
@@ -71,8 +73,8 @@ describe('recordScan', () => {
       ipHash: 'hash123',
     }
 
-    await useCase(input)
-    await useCase(input)
+    await expect(useCase(input)).resolves.toBe('applied')
+    await expect(useCase(input)).resolves.toBe('duplicate')
 
     expect(harness.scans).toHaveLength(1)
     expect(harness.events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
@@ -96,7 +98,7 @@ describe('recordScan', () => {
         sessionId: 'session-abc',
         ipHash: 'hash123',
       }),
-    ).resolves.toBeUndefined()
+    ).resolves.toBe('failed')
 
     expect(harness.scans).toHaveLength(0)
     expect(harness.events.capturedEvents).toHaveLength(0)

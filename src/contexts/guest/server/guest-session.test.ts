@@ -25,13 +25,14 @@ function manager(now = new Date('2026-08-09T12:00:00Z')) {
 describe('signed guest session', () => {
   it('issues a signed HttpOnly cookie and returns only the CSRF nonce to UI', () => {
     const issued = manager().issue(scope)
-    expect(issued.cookies).toHaveLength(2)
+    expect(issued.cookies).toHaveLength(3)
     expect(issued.cookies[0]).toContain('rk_guest_session=')
     expect(issued.cookies[0]).toContain('HttpOnly')
     expect(issued.cookies[0]).toContain('Secure')
     expect(issued.cookies[0]).toContain('SameSite=lax')
     expect(issued.cookies[0]).toContain('Path=/p/')
     expect(issued.cookies[1]).toContain('Path=/_serverFn/')
+    expect(issued.cookies[2]).toContain('Path=/api/public/p/')
     expect(issued.session.csrfNonce).not.toBe(issued.session.sessionId)
   })
 
@@ -70,6 +71,15 @@ describe('guestRateLimitKey', () => {
     expect(guestRateLimitKeys('scan', 'session-1', 'ip-hash', 'portal-1')).toEqual({
       session: 'scan:session-1',
       networkPortal: 'scan:network:ip-hash:portal:portal-1',
+    })
+  })
+
+  it('supports a per-link session anchor without weakening the network layer', () => {
+    expect(
+      guestRateLimitKeys('click', 'session-1:link-1', 'ip-hash', 'portal-1'),
+    ).toEqual({
+      session: 'click:session-1:link-1',
+      networkPortal: 'click:network:ip-hash:portal:portal-1',
     })
   })
 

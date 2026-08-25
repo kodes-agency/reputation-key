@@ -15,8 +15,8 @@ export type ScanEvent = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   source: ScanSource
-  sessionId: string
-  ipHash: string
+  sessionId: string | null
+  ipHash: string | null
   createdAt: Date
 }>
 
@@ -25,10 +25,10 @@ export type Rating = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
-  sessionId: string
+  sessionId: string | null
   value: number
   source: ScanSource
-  ipHash: string
+  ipHash: string | null
   createdAt: Date
 }>
 
@@ -37,10 +37,10 @@ export type Feedback = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
-  sessionId: string
+  sessionId: string | null
   ratingId: RatingId | null
   comment: string
   source: ScanSource
-  ipHash: string
+  ipHash: string | null
   createdAt: Date
 }>

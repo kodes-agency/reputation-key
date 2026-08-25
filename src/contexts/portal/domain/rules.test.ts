@@ -346,6 +346,19 @@ describe('isValidExternalUrl', () => {
     expect(isValidExternalUrl('https://example.com/path?q=1#hash')).toBe(true)
   })
 
+  it('rejects credentials and private or local destinations', () => {
+    for (const url of [
+      'https://user:pass@example.com/path',
+      'https://127.0.0.1/admin',
+      'https://0x7f000001/admin',
+      'https://[::1]/admin',
+      'https://service.internal/admin',
+      'https://portal.localhost/admin',
+    ]) {
+      expect(isValidExternalUrl(url), url).toBe(false)
+    }
+  })
+
   it('rejects http URLs', () => {
     expect(isValidExternalUrl('http://example.com')).toBe(false)
   })

@@ -14,11 +14,15 @@ export function createAtomicGuestObservationStore(
   return {
     commitScan: (scan, fact) =>
       trace('guest.observationStore.commitScan', async () => {
+        if (scan.sessionId === null || scan.ipHash === null) {
+          throw new Error('new guest observations require live pseudonyms')
+        }
+        const sessionId = scan.sessionId
         const outcome = await db.transaction(async (tx) => {
           // The legacy table has no session uniqueness constraint. Serialize
           // this logical anchor without deleting/guessing historical duplicate
           // rows; a later audited migration can add the physical constraint.
-          const anchor = `${scan.organizationId}:${scan.portalId}:${scan.sessionId}`
+          const anchor = `${scan.organizationId}:${scan.portalId}:${sessionId}`
           await tx.execute(
             sql`SELECT pg_advisory_xact_lock(hashtextextended(${anchor}, 0))`,
           )
@@ -29,7 +33,7 @@ export function createAtomicGuestObservationStore(
               and(
                 eq(scanEvents.organizationId, scan.organizationId),
                 eq(scanEvents.portalId, scan.portalId),
-                eq(scanEvents.sessionId, scan.sessionId),
+                eq(scanEvents.sessionId, sessionId),
               ),
             )
             .limit(1)

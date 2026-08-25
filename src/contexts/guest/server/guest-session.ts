@@ -22,7 +22,7 @@ export type GuestSessionScope = Readonly<{
 export type GuestSessionManager = Readonly<{
   issue(
     scope: GuestSessionScope,
-  ): Readonly<{ session: GuestSession; cookies: readonly [string, string] }>
+  ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
   verify(cookieHeader: string, scope: GuestSessionScope): GuestSession | null
   verifyCsrf(session: GuestSession, presented: string): boolean
 }>
@@ -103,6 +103,11 @@ export function createGuestSessionManager(
             value: signedValue,
             path: '/_serverFn/',
           }),
+          buildSetCookieHeader({
+            ...cookieAttrs,
+            value: signedValue,
+            path: '/api/public/p/',
+          }),
         ],
       }
     },
@@ -172,7 +177,7 @@ export function createGuestSessionManager(
   }
 }
 export function guestRateLimitKey(
-  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media',
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
   sessionId: string | null,
   ipHash: string,
 ): string {
@@ -180,7 +185,7 @@ export function guestRateLimitKey(
 }
 
 export function guestRateLimitKeys(
-  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media',
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
   sessionId: string | null,
   ipHash: string,
   portalId: string,

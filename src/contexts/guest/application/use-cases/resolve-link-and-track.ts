@@ -10,11 +10,21 @@ import type { PublicPortalLookup } from '../ports/public-portal-lookup.port'
 export type ResolveLinkAndTrackInput = Readonly<{
   token: string
   linkId: PortalLinkId
+  /** Request-edge qualifier; a denial suppresses analytics, never navigation. */
+  qualifyObservation?: (scope: ResolvedLinkObservationScope) => Promise<boolean>
+}>
+
+export type ResolvedLinkObservationScope = Readonly<{
+  linkId: PortalLinkId
+  organizationId: string
+  portalId: string
+  propertyId: string
 }>
 
 export type ResolveLinkAndTrackDeps = Readonly<{
   publicPortalLookup: PublicPortalLookup
   trackClick: TrackReviewLinkClick
+  reportObservationFailure?: (error: unknown) => void
 }>
 
 export type ResolveLinkAndTrackResult = Readonly<{
@@ -33,12 +43,24 @@ export const resolveLinkAndTrack =
     const link = portal.links.find((candidate) => candidate.id === input.linkId)
     if (!link) return null
 
-    await deps.trackClick({
+    const observation = {
       linkId: input.linkId,
       organizationId: organizationId(portal.organizationId),
       portalId: portalId(portal.portal.id),
       propertyId: propertyId(portal.propertyId),
-    })
+    }
+    let qualified: boolean
+    try {
+      qualified = input.qualifyObservation
+        ? await input.qualifyObservation(observation)
+        : true
+    } catch (error) {
+      qualified = false
+      deps.reportObservationFailure?.(error)
+    }
+    if (qualified) {
+      await deps.trackClick(observation)
+    }
 
     return { url: link.url }
   }

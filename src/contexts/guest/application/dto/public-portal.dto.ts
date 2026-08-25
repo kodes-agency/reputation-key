@@ -37,11 +37,30 @@ export type PublicPortalData = {
 export type GuestResponseFormAvailability =
   'available' | 'permission_denied' | 'unavailable'
 
-export type PublicPortalLoaderData = PublicPortalData & {
+export type PublicPortalLoaderState = {
   guestSession: { csrfNonce: string }
   response: GuestResponseView | null
   responseForm: {
     availability: GuestResponseFormAvailability
     mediaEnabled: boolean
+  }
+}
+
+export type PublicPortalLoaderData = Pick<
+  PublicPortalData,
+  'portal' | 'categories' | 'links'
+> &
+  PublicPortalLoaderState
+
+/** Explicit public allowlist: internal Organization/Property IDs stay server-side. */
+export function toPublicPortalLoaderData(
+  portal: PublicPortalData,
+  state: PublicPortalLoaderState,
+): PublicPortalLoaderData {
+  return {
+    portal: portal.portal,
+    categories: portal.categories,
+    links: portal.links,
+    ...state,
   }
 }

@@ -26,9 +26,11 @@ export type RecordScanInput = Readonly<{
   ipHash: string
 }>
 
+export type RecordScanOutcome = 'applied' | 'duplicate' | 'failed'
+
 export const recordScan =
   (deps: RecordScanDeps) =>
-  async (input: RecordScanInput): Promise<void> => {
+  async (input: RecordScanInput): Promise<RecordScanOutcome> => {
     try {
       const scanId = deps.idGen()
       // Validate via domain constructor
@@ -42,10 +44,10 @@ export const recordScan =
           { err: scanResult.error },
           'Scan event construction failed — suppressed per I10',
         )
-        return
+        return 'failed'
       }
       const scan = scanResult.value
-      await deps.observationStore.commitScan(
+      return await deps.observationStore.commitScan(
         scan,
         guestScanRecorded({
           scanId,
@@ -59,6 +61,7 @@ export const recordScan =
     } catch (e) {
       // Silent failure per I10 — scan is analytics, not critical path
       deps.logger.warn({ err: e }, 'Scan recording failed — suppressed per I10')
+      return 'failed'
     }
   }
 

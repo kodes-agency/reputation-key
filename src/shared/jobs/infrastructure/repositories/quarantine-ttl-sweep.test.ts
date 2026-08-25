@@ -106,7 +106,7 @@ describe('quarantine TTL sweep (BQC-7.8, integration)', () => {
     expect(evidence.rows).toHaveLength(1)
     expect(evidence.rows[0]).toMatchObject({ outcome: 'completed' })
     expect(Number(evidence.rows[0].rows_deleted)).toBe(1)
-    // RETENTION_POLICY_VERSION 2 (BQC-7.8 registry + this sweep).
-    expect(Number(evidence.rows[0].policy_version)).toBe(2)
+    // RETENTION_POLICY_VERSION 3 (+ independently counted pseudonym redaction).
+    expect(Number(evidence.rows[0].policy_version)).toBe(3)
   })
 })

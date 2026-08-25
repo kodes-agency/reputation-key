@@ -77,6 +77,31 @@ describe('SafeLink', () => {
       const invalid = validateExternalLink('https://example.com/unsafe/page', allowlist)
       expect(invalid.valid).toBe(false)
     })
+
+    it('requires a path-segment boundary for allowlisted prefixes', () => {
+      const allowlist = [{ host: 'example.com', pathPrefix: '/safe' }]
+      expect(validateExternalLink('https://example.com/safe', allowlist).valid).toBe(true)
+      expect(
+        validateExternalLink('https://example.com/safe-child', allowlist).valid,
+      ).toBe(false)
+    })
+
+    it('rejects IPv6 loopback and private-name destinations', () => {
+      for (const url of [
+        'https://[::1]/maps',
+        'https://[ff02::1]/maps',
+        'https://service.internal/maps',
+        'https://portal.localhost/maps',
+        'https://router.home.arpa/maps',
+        'https://printer/maps',
+      ]) {
+        const result = validateExternalLink(url, [
+          { host: new URL(url).hostname, pathPrefix: '/maps' },
+        ])
+        expect(result.valid, url).toBe(false)
+        if (!result.valid) expect(result.error.code).toBe('is_private_ip')
+      }
+    })
   })
 
   describe('getDefaultAllowlist', () => {

@@ -7,6 +7,7 @@ import type { Result } from '#/shared/domain'
 import type { PortalError } from './errors'
 import { portalError } from './errors'
 import type { PortalTheme } from './types'
+import { isPublicHttpsDestination } from './safe-link'
 
 // ── Slug validation ────────────────────────────────────────────────
 
@@ -93,12 +94,7 @@ export const validateSmartRoutingThreshold = (n: number): Result<number, PortalE
 
 /** Check whether a URL is a valid external HTTPS URL. */
 export const isValidExternalUrl = (url: string): boolean => {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'https:'
-  } catch {
-    return false
-  }
+  return isPublicHttpsDestination(url)
 }
 
 /**

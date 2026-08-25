@@ -78,6 +78,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
         clock: deps.clock,
         logger: deps.logger,
       }),
+      reportObservationFailure: (error) =>
+        deps.logger.warn(
+          { err: error },
+          'Review link click qualification failed — analytics suppressed',
+        ),
     }),
     resolvePortalContext: resolvePortalContext({
       portalContextResolver,

@@ -80,6 +80,55 @@ describe('retention executor (BQC-1.6)', () => {
     expect((remaining.rows[0] as { c: number }).c).toBe(2)
   })
 
+  it('redacts an eligible column while preserving the row', async () => {
+    const inserted = await db.execute(sql`
+      INSERT INTO review_sync_runs (id, property_id, source, mode, started_at, result)
+      VALUES (
+        gen_random_uuid(), 'prop-ret-redaction-test', 'google', 'incremental',
+        ${new Date(NOW - 40 * DAY)}, 'protected-marker'
+      )
+      RETURNING id
+    `)
+    const id = (inserted.rows[0] as { id: string }).id
+
+    const result = await executeRetentionRule(
+      db,
+      {
+        subject: 'test.review_sync_runs.result',
+        table: 'review_sync_runs',
+        keyColumns: ['id'],
+        tsColumn: 'started_at',
+        olderThanMs: 30 * DAY,
+        operation: 'redact',
+        redactColumns: ['result'],
+        extraWhere: "property_id = 'prop-ret-redaction-test' AND result IS NOT NULL",
+      },
+      { cutoff: new Date(NOW - 30 * DAY), batchSize: 1 },
+    )
+
+    expect(result).toMatchObject({ rowsDeleted: 0, rowsRedacted: 1 })
+    const retained = await db.execute(
+      sql`SELECT result FROM review_sync_runs WHERE id = ${id}`,
+    )
+    expect(retained.rows).toEqual([{ result: null }])
+
+    const rerun = await executeRetentionRule(
+      db,
+      {
+        subject: 'test.review_sync_runs.result',
+        table: 'review_sync_runs',
+        keyColumns: ['id'],
+        tsColumn: 'started_at',
+        olderThanMs: 30 * DAY,
+        operation: 'redact',
+        redactColumns: ['result'],
+        extraWhere: "property_id = 'prop-ret-redaction-test' AND result IS NOT NULL",
+      },
+      { cutoff: new Date(NOW - 30 * DAY), batchSize: 1 },
+    )
+    expect(rerun.rowsRedacted).toBe(0)
+  })
+
   it('handles composite keys (receipts) and is safe to re-run', async () => {
     const result = await executeRetentionRule(
       db,

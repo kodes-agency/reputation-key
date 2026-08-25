@@ -1823,7 +1823,8 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        notes: 'public signed-session write; analytics consent and rate limit required',
+        notes:
+          'core portal visit analytics; signed-session dedupe and layered rate limits required',
       },
     ),
     sfPublic(
@@ -1845,7 +1846,8 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        notes: 'opaque token resolves through Portal public policy before click tracking',
+        notes:
+          'opaque token resolves through Portal public policy; signed-session/link dedupe and network/Portal limiting qualify analytics without blocking navigation',
       },
     ),
   ],
@@ -2530,7 +2532,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure',
+        '17 static rules plus Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure',
     },
   ),
   job(

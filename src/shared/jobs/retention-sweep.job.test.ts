@@ -88,6 +88,39 @@ describe('retention sweep job (BQC-1.6)', () => {
     )
   })
 
+  it('records pseudonym redactions separately from deletions', async () => {
+    const redactRule: RetentionRule = {
+      subject: 'scan_events.abuse_pseudonym',
+      table: 'scan_events',
+      keyColumns: ['id'],
+      tsColumn: 'created_at',
+      olderThanMs: 7 * 24 * 60 * 60 * 1000,
+      operation: 'redact',
+      redactColumns: ['ip_hash'],
+      extraWhere: 'ip_hash IS NOT NULL',
+    }
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 2,
+      rowsDeleted: 0,
+      rowsRedacted: 7,
+      capped: false,
+    })
+
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [redactRule],
+      batchSize: 100,
+    })
+    await handler({} as never)
+
+    expect(closeRetentionRun).toHaveBeenCalledWith(
+      expect.anything(),
+      'run-scan_events.abuse_pseudonym',
+      expect.objectContaining({ rowsDeleted: 0, rowsRedacted: 7 }),
+    )
+  })
+
   it('a failing rule records failed outcome, does not block others, and the job throws after the sweep', async () => {
     ;(executeRetentionRule as ReturnType<typeof vi.fn>)
       .mockRejectedValueOnce(new Error('relation a_table does not exist'))
@@ -227,6 +260,38 @@ describe('retention sweep job (BQC-1.6)', () => {
 })
 
 describe('retention rule registry (BQC-3.7)', () => {
+  it('redacts every legacy guest abuse pseudonym after seven days', () => {
+    for (const table of ['scan_events', 'ratings', 'feedback']) {
+      expect(
+        RETENTION_RULES.find((rule) => rule.subject === `${table}.abuse_pseudonym`),
+      ).toMatchObject({
+        table,
+        tsColumn: 'created_at',
+        olderThanMs: 7 * 24 * 60 * 60 * 1000,
+        operation: 'redact',
+        redactColumns: ['ip_hash'],
+        extraWhere: 'ip_hash IS NOT NULL',
+      })
+    }
+  })
+
+  it('redacts every legacy guest session pseudonym after 24 hours', () => {
+    for (const table of ['scan_events', 'ratings', 'feedback']) {
+      expect(
+        RETENTION_RULES.find(
+          (rule) => rule.subject === `${table}.guest_session_pseudonym`,
+        ),
+      ).toMatchObject({
+        table,
+        tsColumn: 'created_at',
+        olderThanMs: 24 * 60 * 60 * 1000,
+        operation: 'redact',
+        redactColumns: ['session_id'],
+        extraWhere: 'session_id IS NOT NULL',
+      })
+    }
+  })
+
   it('keys outbox retention on published_at, not created_at', () => {
     const outboxRule = RETENTION_RULES.find(
       (r) => r.subject === 'outbox_events.published',
@@ -239,6 +304,17 @@ describe('retention rule registry (BQC-3.7)', () => {
     // BQC-1.6's deliberate 30d value (the migration-file comment drift —
     // 7d/90d — is documented at the rule; applied migrations are immutable).
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
+  })
+
+  it('removes expired legacy GBP cache rows at their per-entry deadline', () => {
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'gbp_cache.expired'),
+    ).toMatchObject({
+      table: 'gbp_cache',
+      keyColumns: ['id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
   })
 
   it('covers the audit-evidence tables at the 365d beta audit horizon (BQC-7.8)', () => {

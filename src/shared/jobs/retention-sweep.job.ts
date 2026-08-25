@@ -47,6 +47,26 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  * instead. Documented in docs/operations/backup-and-lifecycle.md.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
+  ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
+    subject: `${table}.abuse_pseudonym`,
+    table,
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMs: 7 * DAY_MS,
+    extraWhere: 'ip_hash IS NOT NULL',
+    operation: 'redact',
+    redactColumns: ['ip_hash'],
+  })),
+  ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
+    subject: `${table}.guest_session_pseudonym`,
+    table,
+    keyColumns: ['id'],
+    tsColumn: 'created_at',
+    olderThanMs: DAY_MS,
+    extraWhere: 'session_id IS NOT NULL',
+    operation: 'redact',
+    redactColumns: ['session_id'],
+  })),
   {
     subject: 'outbox_events.published',
     table: 'outbox_events',
@@ -87,6 +107,13 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['provider', 'topic', 'message_id'],
     tsColumn: 'received_at',
     olderThanMs: 30 * DAY_MS,
+  },
+  {
+    subject: 'gbp_cache.expired',
+    table: 'gbp_cache',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
   },
   {
     subject: 'notifications',
@@ -198,6 +225,7 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
             finishedAt: deps.clock(),
             batches: result.batches,
             rowsDeleted: result.rowsDeleted,
+            rowsRedacted: result.rowsRedacted ?? 0,
             outcome: 'completed',
           })
           if (result.capped) {

@@ -11,7 +11,7 @@ import {
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
 import {
-  CookieConsentBanner,
+  GuestAnalyticsNotice,
   PortalUnavailable,
   PublicPortalContent,
 } from '#/components/features/guest'
@@ -152,19 +152,19 @@ function PublicPortalView({
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 
-  // C6: `portal.scan` requires `analyticsConsent: z.literal(true)`, so the scan is
-  // recorded from the consent banner's grant path — never on bare mount — and the
-  // banner holds it to once per browser session so refreshes and prefetches do not
-  // inflate the metric.
-  const recordConsentedScan = useCallback(() => {
-    void recordScan({
-      data: { token, csrfNonce, source, analyticsConsent: true },
-    }).catch(() => undefined)
+  // Visit analytics is a core portal function. The disclosure invokes this once
+  // per portal/browser session; the server owns authoritative session dedupe and
+  // layered abuse controls.
+  const recordPortalVisit = useCallback(async () => {
+    const result = await recordScan({
+      data: { token, csrfNonce, source },
+    })
+    if (!result.success) throw new Error('Portal visit was not recorded')
   }, [recordScan, token, csrfNonce, source])
 
   return (
     <>
-      <CookieConsentBanner scopeKey={token} onAnalyticsConsent={recordConsentedScan} />
+      <GuestAnalyticsNotice scopeKey={data.portal.id} onPortalVisit={recordPortalVisit} />
       <PublicPortalContent
         token={token}
         portal={data.portal}

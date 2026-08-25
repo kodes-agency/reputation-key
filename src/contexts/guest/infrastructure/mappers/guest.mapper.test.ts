@@ -124,6 +124,21 @@ describe('scanEventFromRow', () => {
       createdAt: new Date('2026-05-01T12:00:00Z'),
     })
   })
+
+  it('preserves scrubbed session and abuse pseudonyms as null', () => {
+    const row = {
+      id: 'scan-001',
+      organizationId: 'org-001',
+      portalId: '20000000-0000-0000-0000-000000000001',
+      propertyId: '30000000-0000-0000-0000-000000000001',
+      source: 'qr',
+      sessionId: null,
+      ipHash: null,
+      createdAt: new Date('2026-05-01T12:00:00Z'),
+    }
+
+    expect(scanEventFromRow(row)).toMatchObject({ sessionId: null, ipHash: null })
+  })
 })
 
 // ── scanEvent round-trip ─────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resolveLinkAndTrack } from './resolve-link-and-track'
 import { portalLinkId } from '#/shared/domain/ids'
 
@@ -82,6 +82,51 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
     })
 
     await expect(useCase({ token: 'p2-token', linkId: LINK_ID })).resolves.toBeNull()
+    expect(effects).toBe(0)
+  })
+
+  it('returns the stored destination but suppresses an unqualified metric', async () => {
+    let effects = 0
+    const qualifyObservation = vi.fn(async () => false)
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async () => {
+        effects += 1
+      },
+    })
+
+    await expect(
+      useCase({ token: TOKEN, linkId: LINK_ID, qualifyObservation }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+    expect(qualifyObservation).toHaveBeenCalledWith({
+      linkId: LINK_ID,
+      organizationId: 'org-a',
+      propertyId: 'property-p1',
+      portalId: 'portal-p1',
+    })
+    expect(effects).toBe(0)
+  })
+
+  it('keeps navigation available when the metric qualifier is unavailable', async () => {
+    let effects = 0
+    const reportObservationFailure = vi.fn()
+    const failure = new Error('rate limit store unavailable')
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async () => {
+        effects += 1
+      },
+      reportObservationFailure,
+    })
+
+    await expect(
+      useCase({
+        token: TOKEN,
+        linkId: LINK_ID,
+        qualifyObservation: async () => Promise.reject(failure),
+      }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+    expect(reportObservationFailure).toHaveBeenCalledWith(failure)
     expect(effects).toBe(0)
   })
 })

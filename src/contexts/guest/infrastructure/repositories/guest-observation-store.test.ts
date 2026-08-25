@@ -15,6 +15,8 @@ import { guestReviewLinkClicked, guestScanRecorded } from '../../domain/events'
 import type { ScanEvent } from '../../domain/types'
 import type { GuestScanRecorded } from '../../domain/events'
 import { createAtomicGuestObservationStore } from '../guest-observation-store'
+import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 
 const db = getDb()
 const ORG = organizationId('org-guest-observation-store')
@@ -86,6 +88,15 @@ afterAll(async () => {
 })
 
 describe.sequential('atomic Guest observations', () => {
+  it('refuses to insert an observation whose short-lived pseudonyms were scrubbed', async () => {
+    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const candidate = { ...scan(99), sessionId: null, ipHash: null }
+
+    await expect(store.commitScan(candidate, scanFact(candidate))).rejects.toThrow(
+      'new guest observations require live pseudonyms',
+    )
+  })
+
   it('serializes concurrent scans to one source row and one fact', async () => {
     const events = createCapturingEventBus()
     const store = createAtomicGuestObservationStore(db, events)
@@ -107,6 +118,52 @@ describe.sequential('atomic Guest observations', () => {
     expect(scans.rows).toHaveLength(1)
     expect(outbox.rows).toHaveLength(1)
     expect(events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
+  })
+
+  it('independently scrubs session and network pseudonyms without deleting the visit fact', async () => {
+    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const candidate = scan(10)
+    await expect(store.commitScan(candidate, scanFact(candidate))).resolves.toBe(
+      'applied',
+    )
+
+    const sessionRule = RETENTION_RULES.find(
+      (rule) => rule.subject === 'scan_events.guest_session_pseudonym',
+    )!
+    const abuseRule = RETENTION_RULES.find(
+      (rule) => rule.subject === 'scan_events.abuse_pseudonym',
+    )!
+    const eligibleCutoff = new Date(NOW.getTime() + 1)
+
+    await expect(
+      executeRetentionRule(db, sessionRule, {
+        cutoff: eligibleCutoff,
+        batchSize: 10,
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 0, rowsRedacted: 1 })
+    let retained = await db.execute(sql`
+      SELECT session_id, ip_hash FROM scan_events WHERE organization_id = ${ORG}
+    `)
+    expect(retained.rows).toEqual([
+      { session_id: null, ip_hash: 'rotating-abuse-pseudonym' },
+    ])
+
+    await expect(
+      executeRetentionRule(db, abuseRule, {
+        cutoff: eligibleCutoff,
+        batchSize: 10,
+      }),
+    ).resolves.toMatchObject({ rowsDeleted: 0, rowsRedacted: 1 })
+    retained = await db.execute(sql`
+      SELECT session_id, ip_hash FROM scan_events WHERE organization_id = ${ORG}
+    `)
+    expect(retained.rows).toEqual([{ session_id: null, ip_hash: null }])
+
+    const facts = await db.execute(sql`
+      SELECT id FROM outbox_events
+      WHERE organization_id = ${ORG} AND event_type = 'guest.scan.recorded'
+    `)
+    expect(facts.rows).toHaveLength(1)
   })
 
   it('rolls back the scan row when its fact is invalid', async () => {

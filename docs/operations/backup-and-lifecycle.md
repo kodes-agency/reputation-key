@@ -126,10 +126,10 @@ to be applied at enablement.
   (no protected content in logs/metrics/evidence); alert dispatch is an
   error-level schema-conformant log line + optional `ALERT_WEBHOOK_URL` POST.
 
-## 5. Data-retention registry (RETENTION_POLICY_VERSION 2)
+## 5. Data-retention registry (RETENTION_POLICY_VERSION 3)
 
-Evidence for every deletion lands in `retention_runs` (content-free:
-subject, counts, outcome, policy version). Scheduled sweeps run on the
+Evidence for every deletion or redaction lands in `retention_runs` (content-free:
+subject, separate deletion/redaction counts, outcome, policy version). Scheduled sweeps run on the
 background queue (purge daily offset 2h, retention-sweep offset 3h,
 quarantine-ttl-sweep offset 4h).
 
@@ -141,6 +141,12 @@ quarantine-ttl-sweep offset 4h).
 | `reviews.purge.organization`             | `reviews` by org                                   | on approved org purge                                                                                                                                                               | source-content purge                                                                      |
 | `inbox_items.purge.property`             | `inbox_items` by property                          | companion of property purge                                                                                                                                                         | source-content purge                                                                      |
 | `integration.google_import_v2.lifecycle` | import parents/items + Property operation receipts | item `effect_deadline_at`; parent fixed `purge_at` at first terminal + 30d; Property receipt fixed 32d and retention release                                                        | receipt-first terminalization, bounded parent purge/release event, released receipt sweep |
+| `scan_events.guest_session_pseudonym`    | `scan_events.session_id`                           | 24h                                                                                                                                                                                 | bounded redaction; visit fact remains                                                     |
+| `ratings.guest_session_pseudonym`        | `ratings.session_id`                               | 24h                                                                                                                                                                                 | bounded redaction; legacy rating remains                                                  |
+| `feedback.guest_session_pseudonym`       | `feedback.session_id`                              | 24h                                                                                                                                                                                 | bounded redaction; legacy feedback remains                                                |
+| `scan_events.abuse_pseudonym`            | `scan_events.ip_hash`                              | 7d                                                                                                                                                                                  | bounded redaction; visit fact remains                                                     |
+| `ratings.abuse_pseudonym`                | `ratings.ip_hash`                                  | 7d                                                                                                                                                                                  | bounded redaction; legacy rating remains                                                  |
+| `feedback.abuse_pseudonym`               | `feedback.ip_hash`                                 | 7d                                                                                                                                                                                  | bounded redaction; legacy feedback remains                                                |
 | `outbox_events.published`                | `outbox_events`                                    | 30d from `published_at`                                                                                                                                                             | retention-sweep                                                                           |
 | `event_consumer_receipts`                | `event_consumer_receipts`                          | 30d                                                                                                                                                                                 | retention-sweep                                                                           |
 | `review_sync_runs`                       | `review_sync_runs`                                 | 30d                                                                                                                                                                                 | retention-sweep                                                                           |
@@ -149,7 +155,7 @@ quarantine-ttl-sweep offset 4h).
 | `notifications`                          | `notifications`                                    | 90d                                                                                                                                                                                 | retention-sweep                                                                           |
 | `notification_email_queue`               | `notification_email_queue`                         | 90d, terminal states only                                                                                                                                                           | retention-sweep                                                                           |
 | `activity_log`                           | `activity_log`                                     | 90d                                                                                                                                                                                 | retention-sweep                                                                           |
-| `gbp_cache`                              | `gbp_cache`                                        | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                           |
+| `gbp_cache.expired`                      | `gbp_cache`                                        | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                           |
 | `policy_decision_audit`                  | `policy_decision_audit`                            | **365d** (beta audit-trail horizon, BQC-7.8)                                                                                                                                        | retention-sweep                                                                           |
 | `audit_logs`                             | `audit_logs`                                       | **365d** (same horizon, BQC-7.8)                                                                                                                                                    | retention-sweep                                                                           |
 | `quarantine.ttl`                         | `quarantine` BullMQ queue                          | `QUARANTINE_TTL_DAYS` (default 30d)                                                                                                                                                 | quarantine-ttl-sweep                                                                      |
@@ -158,7 +164,9 @@ quarantine-ttl-sweep offset 4h).
 Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 (BQC-7.8) + `policy_decision_audit` / `audit_logs` at 365d, +
 `quarantine.ttl`, Google import lifecycle evidence, and `retention_runs`
-documented indefinite-by-design.
+documented indefinite-by-design; v3 adds independently counted 24-hour Guest
+session-pseudonym and 7-day network-abuse-pseudonym redaction while preserving
+the de-identified managerial facts.
 
 ## 6. Evidence retention
 

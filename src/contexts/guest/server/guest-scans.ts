@@ -20,6 +20,7 @@ import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/dom
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { hashIp } from './hash-ip.server'
 import { checkLayeredGuestRateLimit, guestRateLimitKeys } from './guest-session'
+import { toPublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -49,7 +50,6 @@ const recordScanSchema = z.object({
   token: z.string().min(1).max(256),
   csrfNonce: z.string().uuid(),
   source: z.enum(['qr', 'nfc', 'direct']),
-  analyticsConsent: z.literal(true),
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
@@ -77,14 +77,6 @@ export const recordScanFn = createServerFn({ method: 'POST' })
           action: 'public:portal.analytics.record',
           capability: 'portal.public_read',
           ...scope,
-          consentAssertions: {
-            analytics: true,
-            response: false,
-            freeText: false,
-            contact: false,
-            media: false,
-          },
-          requiredPublicConsents: ['analytics'],
           now: new Date(),
         })
         if (!decision.allowed) return { success: false }
@@ -111,7 +103,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         }
 
         try {
-          await useCases.recordScan({
+          const outcome = await useCases.recordScan({
             organizationId: organizationId(portal.organizationId),
             portalId: portalId(portal.portal.id),
             propertyId: propertyId(portal.propertyId),
@@ -119,7 +111,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
             sessionId: session.sessionId,
             ipHash,
           })
-          return { success: true }
+          return { success: outcome !== 'failed' }
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
@@ -214,15 +206,14 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             }),
           ])
           setResponseHeader('Referrer-Policy', 'no-referrer')
-          return {
-            ...portal,
+          return toPublicPortalLoaderData(portal, {
             guestSession: { csrfNonce: session.csrfNonce },
             response,
             responseForm: {
               availability: formAvailability(responseDecision),
               mediaEnabled: mediaDecision.allowed,
             },
-          }
+          })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
@@ -248,11 +239,31 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases } = getContainer()
+        const { useCases, rateLimiter } = getContainer()
+        const headers = (await headersFromContext()) ?? new Headers()
         try {
           return await useCases.resolveLinkAndTrack({
             token: data.token,
             linkId: portalLinkId(data.linkId),
+            qualifyObservation: async (scope) => {
+              const session = useCases.guestSessions.verify(
+                headers.get('cookie') ?? '',
+                scope,
+              )
+              if (!session) return false
+              const result = await checkLayeredGuestRateLimit({
+                rateLimiter,
+                keys: guestRateLimitKeys(
+                  'click',
+                  `${session.sessionId}:${data.linkId}`,
+                  hashIp(clientIpFromHeaders(headers)),
+                  scope.portalId,
+                ),
+                sessionLimits: { maxRequests: 1, windowSeconds: 24 * 60 * 60 },
+                networkPortalLimits: { maxRequests: 20, windowSeconds: 60 * 60 },
+              })
+              return result.allowed
+            },
           })
         } catch (e) {
           if (isGuestError(e))

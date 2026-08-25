@@ -131,7 +131,7 @@ export type JobFamilyRow = Readonly<{
   /**
    * BQC-3.6: per-job execution timeout (BullMQ JobsOptions.timeout). Honest
    * values from the workload: quick heartbeats 30s, GBP sync/sweeps/rollups
-   * 300s, bulk import 600s, the 9-rule retention sweep 900s, everything else
+   * 300s, bulk import 600s, the bounded retention sweep 900s, everything else
    * the 120s default. jobEnqueueOptions (shared/jobs/job-policy.ts) derives
    * the BullMQ opts from these fields.
    */
@@ -1776,7 +1776,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       timeoutMs: 900_000,
       notes:
-        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure; 15m bounds the full daily sweep',
+        '17 static rules plus Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure; 15m bounds the full daily sweep',
     },
   ),
   job(

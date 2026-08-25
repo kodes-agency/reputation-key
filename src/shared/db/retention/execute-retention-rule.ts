@@ -22,7 +22,7 @@ import type { Database } from '#/shared/db'
 /** BQC-3.7: per-run drain bound (100 batches × 500 rows = 50k rows max). */
 export const DEFAULT_MAX_BATCHES_PER_RUN = 100
 
-export type RetentionRule = Readonly<{
+type RetentionRuleBase = Readonly<{
   /** Evidence subject, e.g. 'outbox_events.published'. */
   subject: string
   /** Table name (static registry only). */
@@ -39,9 +39,23 @@ export type RetentionRule = Readonly<{
   equalsWhere?: Readonly<{ column: string; value: string }>
 }>
 
+export type RetentionRule = RetentionRuleBase &
+  (
+    | Readonly<{
+        operation?: 'delete'
+        redactColumns?: never
+      }>
+    | Readonly<{
+        operation: 'redact'
+        /** Static registry columns set to NULL while retaining the business row. */
+        redactColumns: ReadonlyArray<string>
+      }>
+  )
+
 export type RetentionExecution = Readonly<{
   batches: number
   rowsDeleted: number
+  rowsRedacted: number
   /** True when the run stopped at the batch cap with rows (likely) remaining. */
   capped: boolean
 }>
@@ -69,22 +83,28 @@ export async function executeRetentionRule(
   const orderColumn = rule.equalsWhere ? rule.keyColumns[0] : rule.tsColumn
   let batches = 0
   let rowsDeleted = 0
+  let rowsRedacted = 0
   let capped = false
 
   for (;;) {
-    const result = await db.execute(
-      sql.raw(
-        `DELETE FROM "${rule.table}" WHERE (${keys}) IN (` +
-          `SELECT ${keys} FROM "${rule.table}" ` +
-          `WHERE ${predicate} ` +
-          `ORDER BY "${orderColumn}" ASC LIMIT ${batchSize}` +
-          `) RETURNING ${keys}`,
-      ),
-    )
+    const candidates =
+      `SELECT ${keys} FROM "${rule.table}" ` +
+      `WHERE ${predicate} ` +
+      `ORDER BY "${orderColumn}" ASC LIMIT ${batchSize}`
+    const statement =
+      rule.operation === 'redact'
+        ? `UPDATE "${rule.table}" SET ${rule.redactColumns
+            .map((column) => `"${column}" = NULL`)
+            .join(
+              ', ',
+            )} WHERE (${keys}) IN (${candidates}) AND ${predicate} RETURNING ${keys}`
+        : `DELETE FROM "${rule.table}" WHERE (${keys}) IN (${candidates}) RETURNING ${keys}`
+    const result = await db.execute(sql.raw(statement))
     const count = result.rowCount ?? 0
     if (count === 0) break
     batches += 1
-    rowsDeleted += count
+    if (rule.operation === 'redact') rowsRedacted += count
+    else rowsDeleted += count
     options.onBatch?.(batches, count)
     if (batches >= maxBatches) {
       // A full final batch implies more rows remain; a partial one means the
@@ -94,5 +114,5 @@ export async function executeRetentionRule(
     }
   }
 
-  return { batches, rowsDeleted, capped }
+  return { batches, rowsDeleted, rowsRedacted, capped }
 }
