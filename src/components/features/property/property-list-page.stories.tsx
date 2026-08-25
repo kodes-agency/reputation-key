@@ -71,6 +71,11 @@ export const Default: Story = {
     for (const p of properties) {
       expect(canvas.getByText(p.name)).toBeVisible()
       expect(canvas.getByText(p.slug)).toBeVisible()
+      expect(
+        canvas.getByRole('link', {
+          name: (accessibleName) => accessibleName.includes(p.name),
+        }),
+      ).toHaveAttribute('href', `/properties/${p.id}`)
     }
   },
 }
