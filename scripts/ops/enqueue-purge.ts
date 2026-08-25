@@ -14,13 +14,20 @@
 //   reviews    — purge-expired-reviews (daily; atomic delete + evidence per review)
 //   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
-// Requires REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
-// (decision row) and re-authorized by the BQC-3 dispatch gate at execution.
+// Report mode requires DATABASE_URL only. Apply also requires REDIS_URL. Every
+// invocation is audited by the harness; an enqueued apply is re-authorized by
+// the BQC-3 dispatch gate at execution.
 // Runbook §10: purge requires operator confirmation + evidence report.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
+import { getDb } from '../../src/shared/db'
+import {
+  GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+  RETENTION_RULES,
+} from '../../src/shared/jobs/retention-sweep.job'
+import { buildRetentionRuleReport } from '../../src/shared/db/retention/report-retention-rules'
 import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
@@ -54,18 +61,45 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
+      if (ctx.dryRun) {
+        if (target === 'retention') {
+          const report = await buildRetentionRuleReport({
+            db: getDb(),
+            rules: RETENTION_RULES,
+            generatedAt: new Date(),
+          })
+          io.out(
+            JSON.stringify(
+              {
+                target,
+                coverage: 'static_rule_registry',
+                separatelyInspectedSubjects: [GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT],
+                ...report,
+              },
+              null,
+              2,
+            ),
+          )
+          io.out(
+            'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply',
+          )
+          io.out(
+            'Google import lifecycle backlog is reported separately by ops:google-import-lifecycle inspect',
+          )
+          return
+        }
+        io.out(
+          `would enqueue '${jobName}' on 'background' (catalogue retry policy) — re-run with --apply --yes ops:purge`,
+        )
+        return
+      }
+
       const queue = createJobQueue('background')
       if (!queue) {
         io.err('REDIS_URL is not configured — cannot reach the background queue.')
         return 1
       }
       try {
-        if (ctx.dryRun) {
-          io.out(
-            `would enqueue '${jobName}' on 'background' (catalogue retry policy) — re-run with --apply --yes ops:purge`,
-          )
-          return
-        }
         const job = await queue.add(jobName, {}, jobEnqueueOptions(jobName))
         io.out(
           JSON.stringify(

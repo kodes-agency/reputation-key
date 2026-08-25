@@ -170,7 +170,7 @@ to be applied at enablement.
   (no protected content in logs/metrics/evidence); alert dispatch is an
   error-level schema-conformant log line + optional `ALERT_WEBHOOK_URL` POST.
 
-## 5. Data-retention registry (RETENTION_POLICY_VERSION 4)
+## 5. Data-retention registry (RETENTION_POLICY_VERSION 5)
 
 Evidence for every deletion or redaction lands in `retention_runs` (content-free:
 subject, separate deletion/redaction counts, outcome, policy version). Scheduled sweeps run on the
@@ -185,6 +185,9 @@ quarantine-ttl-sweep offset 4h).
 | `reviews.purge.organization`                | `reviews` by org                                   | on approved org purge                                                                                                                                                               | source-content purge                                                                      |
 | `inbox_items.purge.property`                | `inbox_items` by property                          | companion of property purge                                                                                                                                                         | source-content purge                                                                      |
 | `integration.google_import_v2.lifecycle`    | import parents/items + Property operation receipts | item `effect_deadline_at`; parent fixed `purge_at` at first terminal + 30d; Property receipt fixed 32d and retention release                                                        | receipt-first terminalization, bounded parent purge/release event, released receipt sweep |
+| `guest_response_session_bindings.expired`   | `guest_response_session_bindings`                  | exact signed-session expiry, maximum 24h                                                                                                                                            | bounded deletion; stale reads deny independently of sweep timing                          |
+| `guest_response_private_feedback.expired`   | `guest_response_private_feedback`                  | 90d from private-feedback submission                                                                                                                                                | bounded deletion; stale reads deny independently of sweep timing                          |
+| `guest_responses.deidentified_fact`         | content-free `guest_responses` fact/tombstone      | 24 calendar months from initial rating                                                                                                                                              | bounded deletion                                                                          |
 | `scan_events.guest_session_pseudonym`       | `scan_events.session_id`                           | 24h                                                                                                                                                                                 | bounded redaction; visit fact remains                                                     |
 | `ratings.guest_session_pseudonym`           | `ratings.session_id`                               | 24h                                                                                                                                                                                 | bounded redaction; legacy rating remains                                                  |
 | `feedback.guest_session_pseudonym`          | `feedback.session_id`                              | 24h                                                                                                                                                                                 | bounded redaction; legacy feedback remains                                                |
@@ -213,7 +216,15 @@ Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 documented indefinite-by-design; v3 adds independently counted 24-hour Guest
 session-pseudonym and 7-day network-abuse-pseudonym redaction while preserving
 the de-identified managerial facts; v4 adds 90-day terminal notification-digest
-batch evidence while retaining open retry batches.
+batch evidence while retaining open retry batches; v5 splits signed recovery
+authority, private-feedback text, and de-identified
+Guest Response facts into independently expiring stores. `pnpm ops:purge
+retention --operator <id>` reports content-free per-rule counts and exact
+cutoffs without requiring Redis or changing business rows; `--apply` remains a
+separately confirmed bounded enqueue. The report identifies Google import
+lifecycle as separately inspected; use `ops:google-import-lifecycle inspect`
+for that receipt/parent lifecycle rather than treating the static-rule total as
+the whole sweep.
 
 ## 6. Evidence retention
 

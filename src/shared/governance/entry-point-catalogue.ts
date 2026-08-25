@@ -3203,7 +3203,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   ops('scripts/ops/enqueue-purge.ts', 'scripts/ops/enqueue-purge.ts', 'tenant_cross', {
     notes:
-      'ops:purge — bounded re-run of purge-expired-reviews / retention-sweep via the BQC-3 producer contract; destructive: typed --yes confirmation (BQC-7.5)',
+      'ops:purge — content-free static retention-rule report by default; bounded re-run of purge-expired-reviews / retention-sweep via the BQC-3 producer contract on apply; destructive: typed --yes confirmation (BQC-7.5/GST-01)',
   }),
   ops(
     'scripts/ops/property-suspension.ts',
