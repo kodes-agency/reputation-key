@@ -300,6 +300,47 @@ describe.sequential('atomic Guest response submission', () => {
     `)
     expect(outbox.rows).toHaveLength(0)
     expect(events.capturedEvents).toHaveLength(0)
+
+    const reviewedAt = new Date('2026-08-27T09:00:00.000Z')
+    const restored = changeGuestResponseIntegrity(
+      filtered,
+      {
+        outcome: 'accepted',
+        reasonCode: 'reviewer_restored',
+        source: 'reviewer',
+        actorId: 'reviewer-1',
+      },
+      reviewedAt,
+    )
+    if ('code' in restored) throw new Error(restored.code)
+    const restoredRating = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 2,
+      occurredAt: NOW,
+    })
+    await expect(
+      store.commitIntegrityChanged(filtered, restored.response, restored.decision, [
+        restoredRating,
+      ]),
+    ).resolves.toBe('applied')
+
+    const restoredRow = await db.execute(sql`
+      SELECT rating, integrity_outcome, integrity_assessed_at,
+             rating_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(restoredRow.rows[0]).toMatchObject({
+      rating: 2,
+      integrity_outcome: 'accepted',
+      rating_source_event_id: restoredRating.eventId,
+    })
+    expect(new Date(String(restoredRow.rows[0]!.integrity_assessed_at))).toEqual(
+      reviewedAt,
+    )
+    expect(restoredRating.occurredAt).toEqual(NOW)
   })
 
   it('fails closed when a new submission has no experience snapshot', async () => {

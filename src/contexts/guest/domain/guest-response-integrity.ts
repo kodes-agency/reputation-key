@@ -117,6 +117,15 @@ export function isRatingMetricEligible(response: GuestResponse): boolean {
   )
 }
 
+/**
+ * Business time for an eligible rating. An integrity review can happen days
+ * later, but restoration must repair the period in which the guest submitted
+ * (or made the one permitted correction), not create activity on review day.
+ */
+export function ratingMetricOccurredAt(response: GuestResponse): Date {
+  return response.correctedAt ?? response.submittedAt ?? response.integrityAssessedAt
+}
+
 export function changeGuestResponseIntegrity(
   response: GuestResponse,
   input: Readonly<{

@@ -680,6 +680,7 @@ describe('guest response lifecycle', () => {
     expect(events.capturedByTag('guest.rating.submitted')[1]).toMatchObject({
       value: 4,
       supersedesSourceEventId: null,
+      occurredAt: new Date('2026-08-09T12:20:00.000Z'),
     })
   })
 

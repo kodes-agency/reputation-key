@@ -21,6 +21,7 @@ import {
 import {
   initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
+  ratingMetricOccurredAt,
 } from '../domain/guest-response-integrity'
 
 class GuestCommandConflict extends Error {}
@@ -84,20 +85,21 @@ function integrityFactsMatch(
     fact.ratingId === response.id &&
     fact.organizationId === response.organizationId &&
     fact.propertyId === response.propertyId &&
-    fact.portalId === response.portalId &&
-    fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
+    fact.portalId === response.portalId
   if (!commonMatches) return false
   if (wasEligible) {
     return (
       fact._tag === 'guest.rating.retracted' &&
       previous.ratingSourceEventId !== null &&
-      fact.supersedesSourceEventId === previous.ratingSourceEventId
+      fact.supersedesSourceEventId === previous.ratingSourceEventId &&
+      fact.occurredAt.getTime() === response.integrityAssessedAt.getTime()
     )
   }
   return (
     fact._tag === 'guest.rating.submitted' &&
     fact.value === response.rating &&
-    (fact.supersedesSourceEventId ?? null) === previous.ratingSourceEventId
+    (fact.supersedesSourceEventId ?? null) === previous.ratingSourceEventId &&
+    fact.occurredAt.getTime() === ratingMetricOccurredAt(response).getTime()
   )
 }
 

@@ -32,6 +32,7 @@ import {
   DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
   initialGuestResponseIntegrityDecision,
   isRatingMetricEligible,
+  ratingMetricOccurredAt,
   type GuestResponseInitialIntegrityAssessment,
   type GuestResponseIntegrityOutcome,
 } from '../../domain/guest-response-integrity'
@@ -436,7 +437,7 @@ export function guestResponseLifecycle(
         ...scopeIds,
         value: changed.rating!,
         supersedesSourceEventId: previous.ratingSourceEventId,
-        occurredAt: changed.integrityAssessedAt,
+        occurredAt: ratingMetricOccurredAt(changed),
       }),
     ]
   }
