@@ -328,6 +328,19 @@ const baseEnvSchema = z.object({
   // Required in restore-isolated mode and must equal PROCESSING_CELL; a backup
   // from another cell may only be inspected in a separately declared target.
   RESTORE_SOURCE_CELL: z.enum(DATA_CELL_IDS).optional(),
+  // REG-04: exact provider restore point bound into the durable recovery
+  // generation. Optional at normal boot; ops:restore-verify requires it.
+  RESTORE_POINT_AT: z.iso.datetime({ offset: true }).optional(),
+  // REG-04: exact Railway PITR sibling selected by the operator. Railway
+  // creates `<source>-restored-YYYYMMDD-HHMM`; restore commands bind this
+  // name to DATABASE_URL's private Railway hostname and refuse public/source
+  // targets. Not needed for loopback drills.
+  RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
+  // Railway-provided deployment identity. Optional for local/dev; the restore
+  // target guard requires all three for a non-loopback PITR verifier.
+  RAILWAY_PROJECT_ID: z.string().min(1).optional(),
+  RAILWAY_ENVIRONMENT_ID: z.string().min(1).optional(),
+  RAILWAY_ENVIRONMENT_NAME: z.string().min(1).optional(),
   // BQC-7.8: dead-letter quarantine entry TTL (days). The quarantine queue
   // has no consumer by design — without a TTL, redacted envelopes accumulate
   // forever. The quarantine-ttl-sweep job (daily) removes entries older than

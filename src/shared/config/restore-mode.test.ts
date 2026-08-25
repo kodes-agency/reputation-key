@@ -42,6 +42,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
       assertRestoreModeCompatible(
         {
           RESTORE_MODE: 'isolated',
+          DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
         },
@@ -55,6 +56,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
       assertRestoreModeCompatible(
         {
           RESTORE_MODE: 'isolated',
+          DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
         },
@@ -65,6 +67,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
       assertRestoreModeCompatible(
         {
           RESTORE_MODE: 'isolated',
+          DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
         },
@@ -78,6 +81,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
       assertRestoreModeCompatible(
         {
           RESTORE_MODE: 'isolated',
+          DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
         },
@@ -85,6 +89,20 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
       ),
     ).not.toThrow()
     expect(RESTORE_ISOLATED_LOG_LINE).toContain('RESTORE MODE ISOLATED')
+  })
+
+  it('refuses web boot against an unattested database target', () => {
+    expect(() =>
+      assertRestoreModeCompatible(
+        {
+          RESTORE_MODE: 'isolated',
+          DATABASE_URL: 'postgresql://u:p@postgres.railway.internal:5432/railway',
+          PROCESSING_CELL: 'us',
+          RESTORE_SOURCE_CELL: 'us',
+        },
+        'web',
+      ),
+    ).toThrow(/not an attested/)
   })
 })
 
@@ -104,10 +122,84 @@ describe('restore Data Cell binding (REG-01)', () => {
 })
 
 describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
-  it('accepts loopback targets only', () => {
+  it('accepts exact loopback targets for local drills', () => {
     expect(isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db')).toBe(true)
     expect(isIsolatedRestoreTarget('postgresql://u:p@127.0.0.1:5432/db')).toBe(true)
     expect(isIsolatedRestoreTarget('postgresql://u:p@[::1]:5432/db')).toBe(true)
+    expect(
+      isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
+        RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+      }),
+    ).toBe(true)
+    expect(
+      isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
+        RESTORE_DATABASE_SERVICE_NAME: 'Postgres',
+      }),
+    ).toBe(false)
+  })
+
+  it('accepts the exact private hostname of an attested Railway PITR sibling', () => {
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-20260825-1015.railway.internal:5432/railway',
+        {
+          PROCESSING_CELL: 'us',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+          RAILWAY_PROJECT_ID: 'project-id',
+          RAILWAY_ENVIRONMENT_ID: 'environment-id',
+          RAILWAY_ENVIRONMENT_NAME: 'cell-us',
+        },
+      ),
+    ).toBe(true)
+  })
+
+  it('refuses source, public, wrong-cell, and partially attested Railway targets', () => {
+    const railway = {
+      PROCESSING_CELL: 'us',
+      RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+      RAILWAY_PROJECT_ID: 'project-id',
+      RAILWAY_ENVIRONMENT_ID: 'environment-id',
+      RAILWAY_ENVIRONMENT_NAME: 'cell-us',
+    }
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres.railway.internal:5432/railway',
+        railway,
+      ),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@roundhouse.proxy.rlwy.net:12345/railway',
+        railway,
+      ),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-20260825-1016.railway.internal:5432/railway',
+        railway,
+      ),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-20260825-1015.railway.internal:5432/railway',
+        { ...railway, RAILWAY_ENVIRONMENT_NAME: 'cell-europe' },
+      ),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-20260825-1015.railway.internal:5432/railway',
+        { ...railway, RAILWAY_PROJECT_ID: undefined },
+      ),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-copy.railway.internal:5432/railway',
+        {
+          ...railway,
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-copy',
+        },
+      ),
+    ).toBe(false)
   })
 
   it('refuses remote/shared targets and localhost look-alikes', () => {
@@ -123,5 +215,6 @@ describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
   it('refuses malformed URLs (fail closed)', () => {
     expect(isIsolatedRestoreTarget('not-a-url')).toBe(false)
     expect(isIsolatedRestoreTarget('')).toBe(false)
+    expect(isIsolatedRestoreTarget('https://localhost/db')).toBe(false)
   })
 })

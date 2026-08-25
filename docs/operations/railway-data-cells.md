@@ -174,7 +174,12 @@ A fourth cell is not added by copying an environment in the dashboard:
 - Sidecars expose protected mTLS readiness only. A normal platform-health port
   that does not weaken the protected listener remains required before a clean
   Railway cell can prove ongoing readiness.
-- Backup/PITR/restore evidence and the recovery fence are `REG-04` blockers.
+- The `REG-04` recovery fence has landed: restore target admission, durable
+  per-cell recovery generations, overdue-retention reconciliation, restored
+  session/invitation/provider/AI/job authority invalidation, and unpublished
+  outbox fencing are integration-proven. Live per-cell PITR, signed-image read
+  verification, fresh-Redis cutover/rollback, and timed RPO/RTO evidence remain
+  blockers before a provisioning cell can accept work.
 
 These blockers are fail-closed rollout gates, not reasons to collapse cells or
 silently route Europe/Global through US.

@@ -60,6 +60,35 @@ export type RetentionExecution = Readonly<{
   capped: boolean
 }>
 
+function retentionPredicate(rule: RetentionRule, cutoff: Date): string {
+  const extra = rule.extraWhere ? `AND ${rule.extraWhere}` : ''
+  return rule.equalsWhere
+    ? `"${rule.equalsWhere.column}" = '${rule.equalsWhere.value}' ${extra}`
+    : `"${rule.tsColumn}" < '${cutoff.toISOString()}' ${extra}`
+}
+
+/**
+ * Content-free eligibility count used by isolated restore verification. The
+ * caller must pass a rule from the static retention registry; identifiers and
+ * predicates are deliberately not a public/user-input query surface.
+ */
+// Runtime consumer is the catalogued TypeScript operator entry point
+// scripts/ops/restore-verify.ts; fallow's source graph does not follow that
+// script-to-src edge when checking changed exports.
+// fallow-ignore-next-line unused-export
+export async function countRetentionRuleCandidates(
+  db: Database,
+  rule: RetentionRule,
+  cutoff: Date,
+): Promise<number> {
+  const result = await db.execute(
+    sql.raw(
+      `SELECT count(*)::int AS count FROM "${rule.table}" WHERE ${retentionPredicate(rule, cutoff)}`,
+    ),
+  )
+  return Number((result.rows[0] as { count?: number | string } | undefined)?.count ?? 0)
+}
+
 export async function executeRetentionRule(
   db: Database,
   rule: RetentionRule,
@@ -74,12 +103,9 @@ export async function executeRetentionRule(
   const batchSize = options.batchSize ?? 500
   const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES_PER_RUN
   const keys = rule.keyColumns.map((k) => `"${k}"`).join(', ')
-  const extra = rule.extraWhere ? `AND ${rule.extraWhere}` : ''
   // Lifecycle purge by equality (e.g. disconnect/property/org purge) or
   // age-based retention by timestamp — both from the static registry.
-  const predicate = rule.equalsWhere
-    ? `"${rule.equalsWhere.column}" = '${rule.equalsWhere.value}' ${extra}`
-    : `"${rule.tsColumn}" < '${options.cutoff.toISOString()}' ${extra}`
+  const predicate = retentionPredicate(rule, options.cutoff)
   const orderColumn = rule.equalsWhere ? rule.keyColumns[0] : rule.tsColumn
   let batches = 0
   let rowsDeleted = 0

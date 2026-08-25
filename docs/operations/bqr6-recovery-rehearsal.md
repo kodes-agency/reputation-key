@@ -17,7 +17,7 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 - [x] Redis is disposable or restore policy documented (queues rebuild from outbox — backup-and-lifecycle.md §2, BQC-7.8)
 - [x] Documented restore contact / provider console access (platform owner: Bozhidar Denev — backup-and-lifecycle.md §7, BQC-7.8)
 - [ ] Release candidate SHA known
-- [x] Isolated restore boot + purge-before-serving verification surface (`RESTORE_MODE=isolated`, `ops:restore-preflight`, `ops:restore-verify` — BQC-7.8; locally drilled)
+- [x] Isolated restore boot + retention/recovery-fence verification surface (`RESTORE_MODE=isolated`, target attestation, `ops:restore-preflight`, `ops:restore-verify`; real-PostgreSQL integration drilled)
 
 ## Rehearsal steps
 
@@ -35,11 +35,12 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 
 ### 3. Restore
 
-1. Restore DB per provider docs (Railway PITR to an ISOLATED project — platform owner; `ops:restore-preflight` first).
-2. Migration parity, then boot ISOLATED at the same SHA with `RESTORE_MODE=isolated` (worker refuses to boot by design; web capabilities deny fail-closed).
-3. Run `ops:restore-verify --apply` (source-policy purge in-process; zero expired-content proof; `retention_runs` evidence).
-4. Cut over (UNSET `RESTORE_MODE`, redeploy web + worker) and verify `/api/health/ready` → 200.
-5. Allow outbox relay (if enabled under ticketed window) or document that dispatcher remains off and backlog is observed only.
+1. Contain the cell, then restore by Railway PITR to the generated sibling Postgres service; the source remains live but must receive no recovering-cell effects. Record the exact service name and restore point.
+2. Tunnel to that sibling, run target preflight, apply migration parity, and run `ops:restore-verify` dry-run.
+3. Run `ops:restore-verify --apply`; require a cell recovery generation, zero overdue retention/import backlog, zero restored authority, and proof that recovery-fenced outbox rows cannot publish.
+4. Boot a no-domain signed-image web verifier in isolated mode. The worker refuses to boot; target admission and capabilities fail closed. Verify tenant isolation and critical reads.
+5. Switch all cell consumers to the sibling plus fresh Redis while routing/effects remain stopped. UNSET `RESTORE_MODE`, redeploy web + worker, and verify `/api/health/ready` → 200 before resuming traffic.
+6. Reauthorize providers and reconcile/rebuild as new work; never redrive recovery-fenced outbox rows or restore BullMQ state.
 
 ### 4. Measure
 

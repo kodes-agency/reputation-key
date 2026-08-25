@@ -148,6 +148,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
           WITH claimed AS (
             SELECT id FROM ${outboxEvents}
             WHERE ${outboxEvents.publishedAt} IS NULL
+              AND ${outboxEvents.recoveryFencedAt} IS NULL
               AND (${outboxEvents.leaseExpiresAt} IS NULL OR ${outboxEvents.leaseExpiresAt} < NOW())
             ORDER BY ${outboxEvents.createdAt}, ${outboxEvents.id}
             LIMIT ${limit}
@@ -200,6 +201,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
               inArray(outboxEvents.id, [...eventIds]),
               eq(outboxEvents.leaseOwner, leaseOwner),
               isNull(outboxEvents.publishedAt),
+              isNull(outboxEvents.recoveryFencedAt),
             ),
           )
         return result.rowCount ?? 0
@@ -211,7 +213,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
         await db
           .update(outboxEvents)
           .set({ publishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null })
-          .where(eq(outboxEvents.id, eventId))
+          .where(and(eq(outboxEvents.id, eventId), isNull(outboxEvents.recoveryFencedAt)))
       })
     },
 
@@ -258,6 +260,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
           .where(
             and(
               isNull(outboxEvents.publishedAt),
+              isNull(outboxEvents.recoveryFencedAt),
               lt(outboxEvents.leaseExpiresAt, new Date()),
             ),
           )

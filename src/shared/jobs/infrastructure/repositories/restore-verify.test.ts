@@ -72,6 +72,28 @@ const db = getDb()
 const NOW = Date.now()
 const DAY = 24 * 60 * 60 * 1000
 
+const ZERO_RECOVERY = {
+  sessionsInvalidated: 0,
+  verificationTokensInvalidated: 0,
+  invitationsCanceled: 0,
+  outboxEventsFenced: 0,
+  emailsCanceled: 0,
+  digestBatchesTerminated: 0,
+  repliesCanceled: 0,
+  repliesMadeAmbiguous: 0,
+  googleConnectionsFenced: 0,
+  googleExecutionPermitsFenced: 0,
+  googleSourceOperationsFenced: 0,
+  googleRevokePermitsFenced: 0,
+  legacyImportJobsCanceled: 0,
+  legacyImportEffectLeasesReleased: 0,
+  aiIssuedPermitsReleased: 0,
+  aiConsumedPermitsMadeAmbiguous: 0,
+  aiOperationsFenced: 0,
+  aiBackfillRunsStalled: 0,
+  regionMovesBlocking: 0,
+} as const
+
 let stopPolicyPolling: (() => void) | undefined
 let runtime: OperatorRuntime
 
@@ -147,6 +169,19 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
       unreleasedExpiredReceipts: 0,
     }),
     sweepGoogleImportLifecycle: async () => {},
+    inspectRetentionBacklog: async () => ({}),
+    sweepRetentionBacklog: async () => {},
+    // The recovery fence is proved independently because it deliberately
+    // mutates cell-global authority; this shared-database test remains scoped
+    // to the review purge/operator-command integration seam.
+    inspectRecoveryFence: async () => ZERO_RECOVERY,
+    applyRecoveryFence: async () => ({
+      id: '10000000-0000-4000-8000-000000000078',
+      generation: 1,
+      replayed: false,
+      counts: ZERO_RECOVERY,
+      completedAt: new Date(),
+    }),
     purgeEvidence: async () => {
       const rows = await db.execute(sql`
         SELECT subject, rows_deleted, outcome, started_at
@@ -181,6 +216,9 @@ const ISOLATED_ENV = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/restored',
   PROCESSING_CELL: 'us',
   RESTORE_SOURCE_CELL: 'us',
+  RESTORE_POINT_AT: new Date(NOW - 1_000).toISOString(),
+  RELEASE_SHA: 'a'.repeat(40),
+  RELEASE_MANIFEST_SHA256: 'b'.repeat(64),
 } as const
 
 describe('ops:restore-verify (BQC-7.8, integration)', () => {

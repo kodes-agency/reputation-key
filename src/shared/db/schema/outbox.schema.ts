@@ -11,6 +11,7 @@ import {
   check,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import { recoveryRuns } from './recovery.schema'
 
 // ── outbox_events ───────────────────────────────────────────────────
 
@@ -30,17 +31,32 @@ export const outboxEvents = pgTable(
     leaseOwner: text('lease_owner'),
     leasedAt: timestamp('leased_at', { withTimezone: true }),
     leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
+    recoveryFenceRunId: uuid('recovery_fence_run_id').references(() => recoveryRuns.id, {
+      onDelete: 'restrict',
+    }),
+    recoveryFencedAt: timestamp('recovery_fenced_at', { withTimezone: true }),
   },
   (table) => [
     index('outbox_events_unpublished_idx')
       .on(table.createdAt)
-      .where(sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NULL`),
+      .where(
+        sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NULL AND ${table.recoveryFencedAt} IS NULL`,
+      ),
     index('outbox_events_lease_expires_idx')
       .on(table.leaseExpiresAt)
-      .where(sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NOT NULL`),
+      .where(
+        sql`${table.publishedAt} IS NULL AND ${table.leaseExpiresAt} IS NOT NULL AND ${table.recoveryFencedAt} IS NULL`,
+      ),
     index('outbox_events_org_created_idx').on(
       table.organizationId,
       table.createdAt.desc(),
+    ),
+    index('outbox_events_recovery_fence_idx')
+      .on(table.recoveryFenceRunId, table.createdAt)
+      .where(sql`${table.recoveryFencedAt} IS NOT NULL`),
+    check(
+      'outbox_events_recovery_fence_pair_check',
+      sql`(${table.recoveryFenceRunId} IS NULL) = (${table.recoveryFencedAt} IS NULL)`,
     ),
   ],
 )

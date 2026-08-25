@@ -1,6 +1,6 @@
-# BQC-7.8 — Backup, Restore, and Lifecycle Configuration
+# Backup, recovery fencing, and lifecycle configuration
 
-**Date:** 2026-07-31
+**Date:** 2026-08-25
 **Owner:** Bozhidar Denev
 **Scope:** PostgreSQL PITR/backups, Redis durability, object lifecycle, log/trace
 retention, data-retention registry, quarantine TTL, evidence retention, region/
@@ -41,41 +41,79 @@ NOT in app code or railway.json (which deliberately carries no backup knobs):
 "Registered gaps"): no app/ops command performs a point-in-time restore.
 `ops:restore-preflight` is a guided checklist only; it is NOT an executor.
 
-**Restore procedure (the only rollback path, reserved for data loss):**
+Railway PITR does **not** create a separate project. It creates a new sibling
+Postgres service named `<source>-restored-YYYYMMDD-HHMM` in the source
+environment while the source continues serving. Volume-backup restore is an
+in-place service/volume operation and is therefore not the drill or recovery
+cutover mechanism. This procedure uses the PITR sibling described by
+[Railway's backup/restore guide](https://docs.railway.com/guides/postgres-backups-restores).
 
-1. `pnpm ops:restore-preflight --operator <id>` against the intended target —
-   refuses anything but an isolated (loopback) target, verifies the migration
-   journal is readable, prints the backup-window reminder.
-2. PITR to an **isolated** Railway project/instance (platform console —
-   platform owner). Never restore into a live or shared database.
-3. Migration parity: run the deploy migration trio
-   (`node dist-worker/migrate-deploy.js`, advisory-locked, idempotent) so the
-   restored instance's schema matches the release SHA.
-4. Boot **isolated**: set `RESTORE_MODE=isolated` on the restored
-   environment. The worker REFUSES to boot in this mode (no schedules, no
-   BullMQ consumers, no outbox relay, no external effects — by construction);
-   the web process boots with every capability evaluation denying fail-closed
-   (the beta-capabilities seam) so reads stay available for verification.
-   Both processes log the loud line `RESTORE MODE ISOLATED — external effects
-disabled`.
-5. `pnpm ops:restore-verify --operator <id> --reason <text> --apply --yes
-ops:restore-verify` — hard-requires `RESTORE_MODE=isolated` + an isolated
-   target, runs both the source-policy purge and the receipt-first Google
-   import lifecycle reconciliation IN-PROCESS (not BullMQ), writes normal
-   `retention_runs` evidence (`reviews.purge` and
-   `integration.google_import_v2.lifecycle`), asserts ZERO expired content,
-   expired import items, purge-ready parents, and unreleased expired Property
-   receipts remain, then prints the evidence + cutover checklist. A restored
-   environment must never serve expired source content or resume orphaned
-   import authority.
-6. Cutover: verify reads, then **UNSET `RESTORE_MODE`** and redeploy web +
-   worker; confirm the worker boots and schedules resume (runbooks §8).
+**Restore procedure (the only database rollback path, reserved for data loss):**
 
-**Local drill proof (this slice).** The isolated-boot + purge-verify half is
-proven locally: worker boot refusal with the loud line, capability fail-closed
-at the seam (unit suite), and `ops:restore-verify` green against a local
-restored-shape database. The timed platform PITR execution is BQC-8's
-rehearsal (bqr6-recovery-rehearsal.md).
+1. Contain the affected Data Cell: stop public routing, set
+   `BETA_CAPABILITIES_OFF=all`, and scale the cell worker to zero. Record the
+   incident/change reference, source cell, exact restore timestamp, active
+   40-character release SHA, signed release-manifest SHA-256, source Postgres
+   service, and named operator. Do not alter another cell.
+2. In the source Postgres service's Railway **Backups** tab, select the exact
+   PITR timestamp. Railway creates the sibling; record its generated service
+   name as `RESTORE_DATABASE_SERVICE_NAME`. Do not use volume restore and do
+   not rename the source or sibling.
+3. Connect only to that exact sibling. The supported current command path is a
+   reviewed checkout through `railway connect
+"$RESTORE_DATABASE_SERVICE_NAME" --tunnel-only`; use the loopback URL it
+   prints as `DATABASE_URL`. An in-platform invocation is accepted only when
+   the URL is the exact `<service>.railway.internal` hostname and Railway's
+   injected project/environment identity names the authoritative `cell-*`
+   environment. Public TCP proxies and the live `Postgres.railway.internal`
+   service fail closed.
+4. Export `RESTORE_MODE=isolated`, `RESTORE_SOURCE_CELL`,
+   `PROCESSING_CELL`, `RESTORE_POINT_AT`, `RESTORE_DATABASE_SERVICE_NAME`,
+   `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256` in the verifier process only.
+   Never make restore variables shared cell variables. Run
+   `pnpm ops:restore-preflight --operator <id>`; it proves target admission and
+   migration-journal readability before any mutation.
+5. Apply the current release's deploy migration trio to the sibling
+   (`pnpm db:migrate-deploy`, advisory-locked and idempotent). Re-run preflight
+   and schema parity. If the migration is not forward-safe, stop; do not repair
+   the production source or reverse DDL from this workflow.
+6. Run `pnpm ops:restore-verify --operator <id>` first as a dry run. Review the
+   content-free retention, Google-import, external-effect-authority, and active
+   Data Cell move inventory. Any unresolved move blocks recovery.
+7. Run `pnpm ops:restore-verify --operator <id> --reason <change-ref> --apply
+--yes ops:restore-verify`. The command, in process and without BullMQ:
+   applies all overdue retention rules; reconciles Google import retention;
+   invalidates restored sessions and verification tokens; cancels pending
+   invitations, email/digest work, legacy imports, and unpublished reply
+   authority; expires/releases/fences AI and Google permits and operations;
+   moves Google connections to reauthorization-required; stalls active AI
+   backfills; and recovery-fences every unpublished outbox row. It then writes
+   one durable, cell-scoped `recovery_runs` generation and proves zero
+   remaining unfenced authority. Exact retries replay the same generation.
+8. Re-run the dry run and require all counts to remain zero. Boot a temporary,
+   no-public-domain web verifier from the exact signed web image with
+   `RESTORE_MODE=isolated` and a service-scoped private sibling URL. Boot
+   refuses any source/public/wrong-cell target; capabilities deny every effect.
+   Verify migration head, tenant isolation/counts, critical reads, and the
+   recovery evidence. Never boot a worker in restore mode.
+9. Provision fresh empty queue/provider Redis services; restored queues are
+   never reused. Stage the sibling/fresh-Redis references for every Data Cell
+   consumer while traffic and effects remain stopped. Do not redrive
+   recovery-fenced outbox rows. Deploy web, verify reads, deploy worker, then
+   **UNSET `RESTORE_MODE`** and remove the global capability stop only after
+   all consumers report the same release/config/database generation.
+10. Reauthorize fenced Google connections, rebuild projections, and reconcile
+    current external provider state as new work. Confirm sessions require
+    reauthentication, queues contain no restored jobs, source Postgres remains
+    untouched, readiness is 200, and no duplicate effect was emitted. Retain
+    the old source and PITR sibling under the incident evidence/erasure policy;
+    do not delete either during the recovery window.
+
+**Implemented proof.** Unit and real-PostgreSQL integration tests prove target
+admission, wrong-cell refusal, worker refusal, idempotent recovery generation,
+retention reconciliation, restored-authority fencing, and that fenced outbox
+rows cannot be claimed or published. A timed live Railway PITR and cutover is
+still required independently for every Data Cell before it becomes accepting.
 
 ## 2. Redis durability
 
@@ -126,7 +164,7 @@ to be applied at enablement.
   (no protected content in logs/metrics/evidence); alert dispatch is an
   error-level schema-conformant log line + optional `ALERT_WEBHOOK_URL` POST.
 
-## 5. Data-retention registry (RETENTION_POLICY_VERSION 3)
+## 5. Data-retention registry (RETENTION_POLICY_VERSION 4)
 
 Evidence for every deletion or redaction lands in `retention_runs` (content-free:
 subject, separate deletion/redaction counts, outcome, policy version). Scheduled sweeps run on the
@@ -185,11 +223,10 @@ batch evidence while retaining open retry batches.
 
 ## 7. Region placement, encryption, access
 
-- **Region:** single-cell **US** beta posture — `PROCESSING_CELL=us` is the
-  only approved cell (ADR 0048); a worker declaring another cell quarantines
-  routed jobs (fail closed). The deployment region is the Railway project
-  region (platform console setting — web/worker/Postgres/Redis services in
-  one project; no cross-region failover by policy, runbooks §12).
+- **Region:** the signed Data Cell catalogue is authoritative. `us` is the only
+  currently accepting cell; `europe` and `global` remain provisioning until
+  their independent Railway topology, wrong-cell, provider, and recovery
+  evidence passes. No cell fails over to another by policy (runbooks §12).
 - **Encryption at rest:** platform-managed — Railway Postgres storage and
   service volumes are encrypted by the platform; OAuth tokens are
   additionally AES-256-GCM encrypted at the application layer

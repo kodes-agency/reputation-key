@@ -19,7 +19,8 @@
 //     by construction.
 //   - Ops commands: ops:restore-preflight / ops:restore-verify run the
 //     source-policy purge against the restored data and only ever touch an
-//     ISOLATED target (isIsolatedRestoreTarget).
+//     attested local target or the exact private hostname of a Railway PITR
+//     sibling (isIsolatedRestoreTarget).
 //
 // Cutover back to serving = UNSET RESTORE_MODE (and redeploy); the web
 // process then evaluates capabilities from the normal policy stores again.
@@ -27,11 +28,18 @@
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
+import { dataCellById } from '#/shared/domain/data-cell-catalogue'
+
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
   RESTORE_MODE?: string
+  DATABASE_URL?: string
   PROCESSING_CELL?: string
   RESTORE_SOURCE_CELL?: string
+  RESTORE_DATABASE_SERVICE_NAME?: string
+  RAILWAY_PROJECT_ID?: string
+  RAILWAY_ENVIRONMENT_ID?: string
+  RAILWAY_ENVIRONMENT_NAME?: string
 }>
 
 /**
@@ -73,6 +81,14 @@ export function assertRestoreModeCompatible(
       '[RESTORE MODE] backup Data Cell does not match PROCESSING_CELL — restore refused',
     )
   }
+  if (
+    typeof env.DATABASE_URL !== 'string' ||
+    !isIsolatedRestoreTarget(env.DATABASE_URL, env)
+  ) {
+    throw new Error(
+      '[RESTORE MODE] DATABASE_URL is not an attested local or Railway PITR sibling target — restore refused',
+    )
+  }
   if (processKind === 'worker') {
     throw new Error(
       `[RESTORE MODE] ${RESTORE_ISOLATED_LOG_LINE} — worker refuses to boot: ` +
@@ -83,17 +99,61 @@ export function assertRestoreModeCompatible(
   }
 }
 
+const RAILWAY_PITR_SERVICE_NAME = /^[a-z0-9][a-z0-9-]*-restored-[0-9]{8}-[0-9]{4}$/iu
+
+function nonEmpty(value: string | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 /**
- * True when a DATABASE_URL points at an isolated/local restore target
- * (loopback only). The restore drill never runs against a live or shared
- * database; the ops restore commands refuse anything else (fail closed on
- * malformed URLs and localhost look-alikes — exact hostname match).
+ * True when DATABASE_URL identifies an isolated restore target.
+ *
+ * Local drills are restricted to exact loopback hostnames. Railway PITR is
+ * different: the platform creates a new `<source>-restored-YYYYMMDD-HHMM`
+ * sibling in the source environment. A Railway target is accepted only when
+ * all platform identity variables exist, the environment is the authoritative
+ * `cell-<PROCESSING_CELL>` environment, the operator names a PITR-shaped
+ * service, and DATABASE_URL uses that exact service's private Railway DNS.
+ * Public proxies, the source database, malformed URLs, and partial attestations
+ * all fail closed.
  */
-export function isIsolatedRestoreTarget(databaseUrl: string): boolean {
+export function isIsolatedRestoreTarget(
+  databaseUrl: string,
+  env: RestoreModeEnv = {},
+): boolean {
   try {
     // WHATWG URL keeps the IPv6 brackets ('[::1]') — normalize them away.
-    const host = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, '')
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+    const parsed = new URL(databaseUrl)
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      return false
+    }
+    const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return (
+        env.RESTORE_DATABASE_SERVICE_NAME === undefined ||
+        RAILWAY_PITR_SERVICE_NAME.test(env.RESTORE_DATABASE_SERVICE_NAME)
+      )
+    }
+
+    if (
+      !nonEmpty(env.RAILWAY_PROJECT_ID) ||
+      !nonEmpty(env.RAILWAY_ENVIRONMENT_ID) ||
+      !nonEmpty(env.RAILWAY_ENVIRONMENT_NAME) ||
+      !nonEmpty(env.PROCESSING_CELL) ||
+      !nonEmpty(env.RESTORE_DATABASE_SERVICE_NAME)
+    ) {
+      return false
+    }
+    const cell = dataCellById(env.PROCESSING_CELL)
+    if (!cell || env.RAILWAY_ENVIRONMENT_NAME !== cell.railway.environment) {
+      return false
+    }
+    if (!RAILWAY_PITR_SERVICE_NAME.test(env.RESTORE_DATABASE_SERVICE_NAME)) {
+      return false
+    }
+
+    const expectedPrivateHost = `${env.RESTORE_DATABASE_SERVICE_NAME.toLowerCase()}.railway.internal`
+    return host === expectedPrivateHost
   } catch {
     return false
   }

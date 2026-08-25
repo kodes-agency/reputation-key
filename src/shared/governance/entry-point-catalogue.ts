@@ -3200,11 +3200,11 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
     notes:
-      'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',
+      'ops:restore-preflight — guided runbook §8 target preflight (exact loopback or attested Railway PITR sibling, Data Cell binding, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (REG-04)',
   }),
   ops('scripts/ops/restore-verify.ts', 'scripts/ops/restore-verify.ts', 'tenant_cross', {
     notes:
-      'ops:restore-verify — restore-drill purge-before-serving proof (BQC-7.8): hard-requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process (job core, not BullMQ), asserts zero expired rows, prints retention_runs evidence; destructive: typed --yes',
+      'ops:restore-verify — isolated restore retention/recovery proof (REG-04): hard-requires RESTORE_MODE=isolated + exact loopback or attested Railway PITR sibling; runs all retention/Google-import reconciliation in-process, invalidates restored auth/provider/AI/job authority, fences unpublished outbox facts, and records a replayable cell recovery generation; destructive: typed --yes',
   }),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {

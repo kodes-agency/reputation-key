@@ -11,8 +11,9 @@ import type { Database } from '#/shared/db'
  *      horizon; + quarantine.ttl sweep subject; retention_runs documented
  *      indefinite-by-design (docs/operations/backup-and-lifecycle.md).
  *   3: + separately counted, seven-day guest abuse-pseudonym redaction.
+ *   4: + 90-day terminal notification-digest batch evidence.
  */
-const RETENTION_POLICY_VERSION = 3
+const RETENTION_POLICY_VERSION = 4
 
 export async function openRetentionRun(
   db: Database,

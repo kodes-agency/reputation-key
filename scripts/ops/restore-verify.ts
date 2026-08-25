@@ -3,15 +3,13 @@
 // (runbook §8, docs/operations/backup-and-lifecycle.md). This is the step
 // after ops:restore-preflight: the environment booted in isolated mode
 // (RESTORE_MODE=isolated; worker down; web capabilities deny fail-closed)
-// now runs the source-policy purge and proves zero expired-content rows
-// remain eligible.
+// now runs every current retention lifecycle, invalidates restored authority,
+// fences unpublished effects, and records a durable cell recovery generation.
 //
-//   - Hard gates: RESTORE_MODE=isolated in this env AND an isolated
-//     (loopback) DATABASE_URL — the command refuses otherwise, before work.
-//   - The purge runs IN-PROCESS through the same execution path the
-//     purge-expired-reviews job uses (handler core over the real repos —
-//     never a BullMQ enqueue; the drill has no worker), writing the normal
-//     retention_runs evidence (subject 'reviews.purge').
+//   - Hard gates: RESTORE_MODE=isolated in this env AND an attested loopback
+//     or exact Railway PITR sibling DATABASE_URL — refusal happens before work.
+//   - All work runs IN-PROCESS through the production repository/handler
+//     paths — never a BullMQ enqueue; the drill has no worker.
 //
 // DESTRUCTIVE: deletes expired source content (bounded, evidence-writing).
 // --apply requires --reason + the typed confirmation --yes ops:restore-verify.
@@ -35,6 +33,15 @@ import {
   runRestoreVerifyAction,
   type RestoreVerifyEvidenceRow,
 } from '../../src/shared/ops/restore-verify'
+import {
+  applyRecoveryFence,
+  inspectRecoveryFence,
+} from '../../src/shared/db/recovery/postgres-recovery-fence'
+import {
+  createRetentionSweepHandler,
+  RETENTION_RULES,
+} from '../../src/shared/jobs/retention-sweep.job'
+import { countRetentionRuleCandidates } from '../../src/shared/db/retention/execute-retention-rule'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
@@ -51,6 +58,11 @@ async function main(): Promise<void> {
       commandStore,
       clock: container.clock,
       db: container.db,
+    })
+    const retentionHandler = createRetentionSweepHandler({
+      db: container.db,
+      clock: container.clock,
+      rules: RETENTION_RULES,
     })
 
     return runRestoreVerifyAction(
@@ -72,6 +84,29 @@ async function main(): Promise<void> {
           if (!sweep) throw new Error('Google import lifecycle unavailable')
           await sweep()
         },
+        inspectRetentionBacklog: async () => {
+          const now = container.clock()
+          return Object.fromEntries(
+            await Promise.all(
+              RETENTION_RULES.map(
+                async (rule) =>
+                  [
+                    rule.subject,
+                    await countRetentionRuleCandidates(
+                      container.db,
+                      rule,
+                      new Date(now.getTime() - rule.olderThanMs),
+                    ),
+                  ] as const,
+              ),
+            ),
+          )
+        },
+        sweepRetentionBacklog: async () => {
+          await retentionHandler({} as never)
+        },
+        inspectRecoveryFence: () => inspectRecoveryFence(container.db),
+        applyRecoveryFence: (input) => applyRecoveryFence(container.db, input),
         purgeEvidence: async (): Promise<ReadonlyArray<RestoreVerifyEvidenceRow>> => {
           const rows = await container.db.execute(sql`
             SELECT subject, rows_deleted, outcome, started_at

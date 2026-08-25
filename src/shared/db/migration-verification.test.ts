@@ -20,6 +20,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { collectSchemaDrift, formatDrifts } from './schema-drift'
 
 const EXPECTED_TABLES = [
+  'recovery_runs',
   // Auth tables (created by auth:migrate)
   'user',
   'session',
