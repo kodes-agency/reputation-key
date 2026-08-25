@@ -7,10 +7,9 @@ import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
-import {
-  createFleetOverviewProjectionAdapter,
-  FLEET_OVERVIEW_STATEMENT_BOUND,
-} from './fleet-overview-projection.adapter'
+import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
+
+const FLEET_TRANSACTION_STATEMENT_BOUND = 4
 
 const NOW = new Date('2026-08-09T12:00:00.000Z')
 const ORG = organizationId('org-fleet-projection-integration')
@@ -296,13 +295,11 @@ describe('fleet overview projection integration', () => {
     ).toBe(false)
     expect(fleetStatements).toBe(statementCount)
     expect(fleetStatements).toBe(4)
-    expect(fleetStatements).toBeLessThanOrEqual(FLEET_OVERVIEW_STATEMENT_BOUND)
+    expect(fleetStatements).toBeLessThanOrEqual(FLEET_TRANSACTION_STATEMENT_BOUND)
     expect(observed).toContainEqual({
       propertyCount: PROPERTY_COUNT,
       returnedRows: 50,
-      statementCount: 4,
-      statementBound: FLEET_OVERVIEW_STATEMENT_BOUND,
-      withinBound: true,
+      durationMs: expect.any(Number),
     })
 
     expect(firstPage.entries[0]).toMatchObject({

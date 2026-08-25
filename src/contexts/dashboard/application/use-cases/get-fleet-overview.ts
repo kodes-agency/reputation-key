@@ -7,7 +7,12 @@ import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../doma
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { ratingComparison, slaCutoff, timeRangeDays } from '../utils'
+import {
+  ratingComparison,
+  RATING_DROP_THRESHOLD,
+  slaCutoff,
+  timeRangeDays,
+} from '../utils'
 import { dashboardError } from '../../domain/errors'
 
 export type GetFleetOverviewInput = Readonly<{
@@ -101,7 +106,8 @@ export const getFleetOverview =
               row.priorAvgRating,
               row.priorReviewCount,
             )
-      const ratingDrop = avgRatingComparison !== null && avgRatingComparison <= -0.3
+      const ratingDrop =
+        avgRatingComparison !== null && avgRatingComparison <= -RATING_DROP_THRESHOLD
       const attentionSignals: AttentionSignals = {
         unanswered: row.unanswered,
         itemsToTriage: row.itemsToTriage,

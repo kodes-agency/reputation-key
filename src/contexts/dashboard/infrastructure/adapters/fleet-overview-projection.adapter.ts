@@ -8,9 +8,9 @@ import type {
   FleetOverviewProjectionRow,
 } from '../../application/ports/fleet-overview-projection.port'
 import { FLEET_PAGE_SIZE } from '../../application/ports/fleet-overview-projection.port'
+import { RATING_DROP_THRESHOLD } from '../../application/utils'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
 
-export const FLEET_OVERVIEW_STATEMENT_BOUND = 4
 const FRESHNESS_WINDOW_MS = 48 * 60 * 60 * 1_000
 
 export type FleetOverviewProjectionInstrumentation = Readonly<{
@@ -18,9 +18,8 @@ export type FleetOverviewProjectionInstrumentation = Readonly<{
     value: Readonly<{
       propertyCount: number
       returnedRows: number
-      statementCount: number
-      statementBound: number
-      withinBound: boolean
+      /** Actual wall-clock duration of the bounded projection read. */
+      durationMs: number
     }>,
   ): void
 }>
@@ -125,6 +124,7 @@ export const createFleetOverviewProjectionAdapter = (
   instrumentation?: FleetOverviewProjectionInstrumentation,
 ): FleetOverviewProjectionPort => ({
   async read(input) {
+    const readStartedAt = performance.now()
     const cursorName = input.cursor?.lowerName ?? null
     const cursorId = input.cursor?.propertyId ?? null
     const comparisonAvailable = input.periodDays !== null
@@ -413,7 +413,7 @@ export const createFleetOverviewProjectionAdapter = (
               count(*) FILTER (
                 WHERE review_count >= 10
                   AND prior_review_count >= 10
-                  AND prior_avg_rating - avg_rating >= 0.3
+                  AND prior_avg_rating - avg_rating >= ${RATING_DROP_THRESHOLD}
               ) AS rating_drop_total
             FROM enriched
           ), page_scope AS MATERIALIZED (
@@ -702,14 +702,10 @@ export const createFleetOverviewProjectionAdapter = (
             propertyId: propertyId(last.property_id),
           }
         : null
-    const statementCount = 4
-
     instrumentation?.onRead({
       propertyCount,
       returnedRows: rows.length,
-      statementCount,
-      statementBound: FLEET_OVERVIEW_STATEMENT_BOUND,
-      withinBound: statementCount <= FLEET_OVERVIEW_STATEMENT_BOUND,
+      durationMs: Math.max(0, performance.now() - readStartedAt),
     })
 
     return {

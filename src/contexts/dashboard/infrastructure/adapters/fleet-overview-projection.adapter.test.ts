@@ -3,10 +3,7 @@ import type { Database } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { FleetOverviewProjectionRow } from '../../application/ports/fleet-overview-projection.port'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
-import {
-  createFleetOverviewProjectionAdapter,
-  FLEET_OVERVIEW_STATEMENT_BOUND,
-} from './fleet-overview-projection.adapter'
+import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
 
 const NOW = new Date('2026-08-09T12:00:00.000Z')
 const ORG = organizationId('org-fleet-bounded')
@@ -141,21 +138,17 @@ describe('fleet overview bulk projection', () => {
     expect(fleet.nextCursor).not.toBeNull()
     expect(tenCalls).toBe(2)
     expect(fleetCalls).toBe(tenCalls)
-    expect(fleetCalls).toBeLessThanOrEqual(FLEET_OVERVIEW_STATEMENT_BOUND)
+    expect(fleetCalls).toBeLessThanOrEqual(2)
     expect(observed).toEqual([
       {
         propertyCount: 10,
         returnedRows: 10,
-        statementCount: 4,
-        statementBound: 4,
-        withinBound: true,
+        durationMs: expect.any(Number),
       },
       {
         propertyCount: 5_000,
         returnedRows: 50,
-        statementCount: 4,
-        statementBound: 4,
-        withinBound: true,
+        durationMs: expect.any(Number),
       },
     ])
   })
