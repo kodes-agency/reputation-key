@@ -73,54 +73,58 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
               <TableCell>
                 <Badge variant="outline">{inv.status}</Badge>
               </TableCell>
-              {canManage && inv.status === 'pending' && (
+              {canManage ? (
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={resendAction.isPending}
-                      onClick={() => resendAction({ data: { invitationId: inv.id } })}
-                    >
-                      Resend
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Cancel
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Cancel invitation to {inv.email}?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            The invitation link will no longer work. You can always send a
-                            new invitation later.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Keep invitation</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() =>
-                              cancelAction({ data: { invitationId: inv.id } })
-                            }
-                            disabled={cancelAction.isPending}
-                            className="bg-destructive text-white hover:bg-destructive/90"
+                  {inv.status === 'pending' ? (
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={resendAction.isPending}
+                        onClick={() => resendAction({ data: { invitationId: inv.id } })}
+                      >
+                        Resend
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
                           >
-                            {cancelAction.isPending ? 'Cancelling…' : 'Cancel invitation'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                            Cancel
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Cancel invitation to {inv.email}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              The invitation link will no longer work. You can always send
+                              a new invitation later.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep invitation</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                cancelAction({ data: { invitationId: inv.id } })
+                              }
+                              disabled={cancelAction.isPending}
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                            >
+                              {cancelAction.isPending
+                                ? 'Cancelling…'
+                                : 'Cancel invitation'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ) : null}
                 </TableCell>
-              )}
+              ) : null}
             </TableRow>
           ))}
         </TableBody>

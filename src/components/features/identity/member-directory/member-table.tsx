@@ -96,16 +96,18 @@ export function MemberTable({
                 <RoleBadge role={member.role} rawRole={member.rawRole} />
               )}
             </TableCell>
-            <TableCell className="text-right">
-              {canRemove && member.userId !== currentUserId && (
-                <RemoveMemberDialog
-                  memberName={member.name}
-                  memberEmail={member.email}
-                  onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
-                  isPending={removeMemberAction.isPending}
-                />
-              )}
-            </TableCell>
+            {canManageMembers ? (
+              <TableCell className="text-right">
+                {canRemove && member.userId !== currentUserId ? (
+                  <RemoveMemberDialog
+                    memberName={member.name}
+                    memberEmail={member.email}
+                    onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
+                    isPending={removeMemberAction.isPending}
+                  />
+                ) : null}
+              </TableCell>
+            ) : null}
           </TableRow>
         ))}
       </TableBody>
