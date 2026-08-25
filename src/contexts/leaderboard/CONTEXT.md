@@ -1,5 +1,11 @@
 # Leaderboard Context
 
+> **Initial beta status:** post-core and not user-reachable. The legacy
+> `/leaderboard` address redirects to the mild Achievement Board unavailable
+> state without loading this model. Any future activation must implement the
+> approved non-competitive Manager Achievement Board contract; the ranking
+> vocabulary below describes retained legacy code, not an active product promise.
+
 ## Bounded context
 
 Read-only ranking of portals and portal groups within a selected property using per-metric scores and a comparison matrix. Internal portal-performance view — external Google reviews are property-scoped and cannot differentiate portals.
@@ -79,7 +85,7 @@ Exported from `application/public-api.ts`:
 
 | Function         | Method | Permission         | Route          |
 | ---------------- | ------ | ------------------ | -------------- |
-| `getLeaderboard` | GET    | `leaderboard.read` | `/leaderboard` |
+| `getLeaderboard` | GET    | `leaderboard.read` | Post-core server API; beta route fenced |
 
 ## Permissions
 

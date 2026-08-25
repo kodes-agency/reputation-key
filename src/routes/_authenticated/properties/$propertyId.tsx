@@ -18,7 +18,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context, params }) => {
     const { role } = context as AuthRouteContext
     // Property admin shell is a manager surface (property.admin).
-    // Staff are scoped to /home, /progress, /leaderboard.
+    // Staff User login is inactive in beta; this remains a manager-only shell.
     if (!can(role, 'property.admin')) throw redirect({ to: '/home' })
     // Reject non-UUID segments (e.g. stale /properties/import bookmarks) with
     // a clean 404 instead of letting an invalid-uuid query 500.

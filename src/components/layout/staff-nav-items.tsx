@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Trophy } from 'lucide-react'
+import { Home, TrendingUp } from 'lucide-react'
 import { SidebarMenu } from '#/components/ui/sidebar'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
@@ -31,13 +31,6 @@ const staffNavItems: ReadonlyArray<StaffNavItem> = [
     icon: TrendingUp,
     href: '/progress',
     capability: 'goal.use',
-  },
-  {
-    key: 'leaderboard',
-    label: 'Leaderboard',
-    icon: Trophy,
-    href: '/leaderboard',
-    capability: 'leaderboard.use',
   },
 ]
 

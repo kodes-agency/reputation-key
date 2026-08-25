@@ -32,10 +32,16 @@ function HomePage() {
           ['Review Management', 'Monitor and respond to reviews across platforms.'],
           [
             'Smart Feedback',
-            'Collect private feedback and route happy guests to public reviews.',
+            'Collect private ratings and feedback while keeping the verified Google review action available.',
           ],
-          ['Team Dashboards', 'Track performance with goals, badges, and leaderboards.'],
-          ['AI-Powered', 'Sentiment analysis, reply drafting, and trend detection.'],
+          [
+            'Property Insights',
+            'Track property and portal performance with governed metrics and goals.',
+          ],
+          [
+            'Authorized AI',
+            'Enable review analysis, reply drafting, and property trends separately.',
+          ],
         ].map(([title, desc]) => (
           <Card key={title}>
             <CardHeader>

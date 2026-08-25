@@ -12,8 +12,8 @@ Portal page management — creation, configuration, theming, link management, im
 - **PortalLink** — An external link within a portal category. Has label, URL, icon, and sort key.
 - **PortalTheme** — Visual customization: `primaryColor`, optional `backgroundColor`, `textColor`.
 - **Private Feedback Threshold** — Inclusive 1–5 threshold (default 3) captured with a guest rating. Ratings at or below it may add an optional private note after the same Google Review Action shown to every rating.
-- **Portal Group** — A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Metrics are always aggregated from member portals at query time (no pre-computed group metrics).
-- **Ungrouped Portal** — A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.
+- **Portal Group** — A named collection of portals within a property. Used for shared goal scoping. One portal belongs to at most one group. Metrics are always aggregated from member portals at query time (no pre-computed group metrics).
+- **Ungrouped Portal** — A portal not assigned to any portal group. It remains individually targetable by goals.
 - **Portal Creator** — Immutable provenance for who created a portal. Creation does not permanently confer notification responsibility.
 - **Portal Responsible Manager** — An effective-dated AccountAdmin or eligible PropertyManager assigned to receive and manage that portal's workflow notifications. Multiple managers are supported; assignment does not grant access or staff-performance attribution.
 - **Responsibility Needed** — Visible recovery state when a non-archived portal has no assigned responsible manager. It is not an implicit AccountAdmin assignment.

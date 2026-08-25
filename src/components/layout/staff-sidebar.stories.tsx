@@ -46,7 +46,7 @@ export const AsStaff: Story = {
     expect(canvas.queryByText(/acme group/i)).toBeNull()
     // Beta Staff navigation renders without deferred product surfaces.
     expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^leaderboard$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
     expect(canvas.queryByText(/^team$/i)).toBeNull()
   },
 }
