@@ -91,6 +91,31 @@ describe('activity event handlers', () => {
     })
   })
 
+  describe('onInboxItemEscalationResolved', () => {
+    it('maps to deescalated/inbox_item', async () => {
+      const { onInboxItemEscalationResolved } =
+        await import('./on-inbox-item-escalation-resolved')
+      const { queue, calls } = createMockDeps()
+      const handler = onInboxItemEscalationResolved({ queue })
+
+      await handler({
+        _tag: 'inbox.inbox_item.escalation_resolved',
+        eventId: 'evt-2-resolved',
+        inboxItemId: INBOX_ITEM,
+        organizationId: ORG,
+        propertyId: PROP,
+        userId: USER,
+        source: 'web',
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      const data = calls[0]!.data as { action: string; resourceType: string }
+      expect(data.action).toBe('deescalated')
+      expect(data.resourceType).toBe('inbox_item')
+    })
+  })
+
   describe('onInboxItemAssigned', () => {
     it('maps to assigned/inbox_item with assignee in payload', async () => {
       const { onInboxItemAssigned } = await import('./on-inbox-item-assigned')

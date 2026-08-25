@@ -2,7 +2,13 @@
 // Per architecture: "Domain Returns Result<T, DomainError>. Never throws."
 
 import { ok, err, type Result } from '#/shared/domain'
-import type { ActivityLog, ActivityAction } from './types'
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_RESOURCE_TYPES,
+  ACTIVITY_SOURCES,
+  type ActivityLog,
+  type ActivityAction,
+} from './types'
 import type {
   ActivityLogId,
   UserId,
@@ -31,40 +37,11 @@ export type CreateActivityLogInput = Readonly<{
   eventId: string
 }>
 
-// Validators sync with the ActivityAction/ResourceType/source type unions —
-// if you add to a type, add to the corresponding set.
-// There's a test enforcing the action invariant.
-const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
-  'created',
-  'changed',
-  'deleted',
-  'assigned',
-  'unassigned',
-  'published',
-  'rejected',
-  'approved',
-  'submitted',
-  'added',
-  'escalated',
-  'invited',
-  'connected',
-  'disconnected',
-])
-
-const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set([
-  'inbox_item',
-  'review',
-  'reply',
-  'note',
-  'property',
-  'member',
-  'team',
-  'staff_assignment',
-  'integration',
-  'organization',
-])
-
-const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(['web', 'import'])
+const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set(ACTIVITY_ACTIONS)
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set(
+  ACTIVITY_RESOURCE_TYPES,
+)
+const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(ACTIVITY_SOURCES)
 
 export const createActivityLog = (
   input: CreateActivityLogInput,

@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { createActivityLog } from './constructors'
-import type { ActivityAction, ResourceType } from './types'
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_RESOURCE_TYPES,
+  type ActivityAction,
+  type ResourceType,
+} from './types'
 import { userId, propertyId, organizationId, activityLogId } from '#/shared/domain/ids'
 
 const clock = () => new Date('2026-06-02T12:00:00Z')
@@ -56,24 +61,15 @@ describe('createActivityLog', () => {
   })
 
   it('accepts all valid actions', () => {
-    const actions: ActivityAction[] = [
-      'created',
-      'changed',
-      'deleted',
-      'assigned',
-      'unassigned',
-      'published',
-      'rejected',
-      'approved',
-      'submitted',
-      'added',
-      'escalated',
-      'invited',
-      'connected',
-      'disconnected',
-    ]
-    for (const action of actions) {
+    for (const action of ACTIVITY_ACTIONS) {
       const result = createActivityLog({ ...validInput, action }, clock)
+      expect(result.isOk()).toBe(true)
+    }
+  })
+
+  it('accepts every resource type in the domain vocabulary', () => {
+    for (const resourceType of ACTIVITY_RESOURCE_TYPES) {
+      const result = createActivityLog({ ...validInput, resourceType }, clock)
       expect(result.isOk()).toBe(true)
     }
   })

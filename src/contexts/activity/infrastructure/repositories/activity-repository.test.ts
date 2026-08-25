@@ -18,6 +18,7 @@ const db = getDb()
 const repo = createActivityRepository(db)
 const ORG_A = organizationId('org-activity-iso-a')
 const ORG_B = organizationId('org-activity-iso-b')
+const ORG_C = organizationId('org-activity-valid-vocabulary')
 const SHARED_RESOURCE_ID = 'shared-resource-id'
 const OTHER_ORG_MARKER = 'OTHER-ORG-TENANT-FREE-TEXT-MARKER'
 
@@ -42,18 +43,26 @@ function entry(id: string, orgId: typeof ORG_A, detail: string | null): Activity
 
 const ROW_A = entry('d4000000-0000-4000-8000-0000000000c1', ORG_A, 'own-org reason')
 const ROW_B = entry('d4000000-0000-4000-8000-0000000000c2', ORG_B, OTHER_ORG_MARKER)
+const ROW_C: ActivityLog = {
+  ...entry('d4000000-0000-4000-8000-0000000000c3', ORG_C, 'escalation resolved'),
+  action: 'deescalated',
+  resourceType: 'organization',
+  resourceId: ORG_C,
+  propertyId: null,
+}
 
 beforeAll(async () => {
   await db.execute(
-    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B})`,
+    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
   )
   await repo.insert(ROW_A)
   await repo.insert(ROW_B)
+  await repo.insert(ROW_C)
 })
 
 afterAll(async () => {
   await db.execute(
-    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B})`,
+    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
   )
 })
 
@@ -76,5 +85,11 @@ describe('activity repository org isolation (BQC-4.4, real PostgreSQL)', () => {
     const rows = await repo.findByOrganization(ORG_B, {}, { limit: 50, offset: 0 })
 
     expect(rows.map((r) => r.id)).toEqual([ROW_B.id])
+  })
+
+  it('decodes every valid lifecycle vocabulary value without breaking paging', async () => {
+    const rows = await repo.findByOrganization(ORG_C, {}, { limit: 50, offset: 0 })
+
+    expect(rows).toEqual([ROW_C])
   })
 })

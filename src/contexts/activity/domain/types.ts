@@ -9,34 +9,45 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 
-export type ActivityAction =
-  | 'created'
-  | 'changed'
-  | 'deleted'
-  | 'assigned'
-  | 'unassigned'
-  | 'published'
-  | 'rejected'
-  | 'approved'
-  | 'submitted'
-  | 'added'
-  | 'escalated'
-  | 'deescalated'
-  | 'invited'
-  | 'connected'
-  | 'disconnected'
+/** Runtime authorities also used to derive the domain unions. */
+export const ACTIVITY_ACTIONS = [
+  'created',
+  'changed',
+  'deleted',
+  'assigned',
+  'unassigned',
+  'published',
+  'rejected',
+  'approved',
+  'submitted',
+  'added',
+  'escalated',
+  'deescalated',
+  'invited',
+  'connected',
+  'disconnected',
+] as const
 
-export type ResourceType =
-  | 'inbox_item'
-  | 'review'
-  | 'reply'
-  | 'note'
-  | 'property'
-  | 'member'
-  | 'team'
-  | 'staff_assignment'
-  | 'integration'
-  | 'organization'
+export type ActivityAction = (typeof ACTIVITY_ACTIONS)[number]
+
+export const ACTIVITY_RESOURCE_TYPES = [
+  'inbox_item',
+  'review',
+  'reply',
+  'note',
+  'property',
+  'member',
+  'team',
+  'staff_assignment',
+  'integration',
+  'organization',
+] as const
+
+export type ResourceType = (typeof ACTIVITY_RESOURCE_TYPES)[number]
+
+export const ACTIVITY_SOURCES = ['web', 'import'] as const
+
+export type ActivitySource = (typeof ACTIVITY_SOURCES)[number]
 
 export type ActivityPayload = Readonly<{
   subject: string
@@ -58,7 +69,7 @@ export type ActivityLog = Readonly<{
   propertyId: PropertyId | null
   organizationId: OrganizationId
   payload: ActivityPayload
-  source: 'web' | 'import'
+  source: ActivitySource
   eventId: string | null
   createdAt: Date
 }>

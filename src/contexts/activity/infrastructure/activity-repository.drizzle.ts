@@ -14,41 +14,17 @@ import type {
   ActivityRepository,
   FindDuplicateInput,
 } from '../ports/activity-repository.port'
-import type { ActivityLog } from '../domain/types'
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_RESOURCE_TYPES,
+  ACTIVITY_SOURCES,
+  type ActivityLog,
+} from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 
 const log = getLogger().child({ component: 'activity-repo' })
 
 const VALID_ROLES = new Set<string>(['Staff', 'PropertyManager', 'AccountAdmin'])
-
-const VALID_ACTIONS: readonly ActivityLog['action'][] = [
-  'created',
-  'changed',
-  'deleted',
-  'assigned',
-  'unassigned',
-  'published',
-  'rejected',
-  'approved',
-  'submitted',
-  'added',
-  'escalated',
-  'invited',
-  'connected',
-  'disconnected',
-]
-const VALID_RESOURCE_TYPES: readonly ActivityLog['resourceType'][] = [
-  'inbox_item',
-  'review',
-  'reply',
-  'note',
-  'property',
-  'member',
-  'team',
-  'staff_assignment',
-  'integration',
-]
-const VALID_SOURCES: readonly string[] = ['web', 'import']
 
 const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => ({
   id: activityLogId(row.id),
@@ -58,12 +34,12 @@ const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => (
   actorRole: (VALID_ROLES.has(row.actorRole) ? row.actorRole : 'Staff') as Role,
   action: assertLiteral(
     row.action,
-    VALID_ACTIONS,
+    ACTIVITY_ACTIONS,
     'activity.action',
   ) as ActivityLog['action'],
   resourceType: assertLiteral(
     row.resourceType,
-    VALID_RESOURCE_TYPES,
+    ACTIVITY_RESOURCE_TYPES,
     'activity.resourceType',
   ) as ActivityLog['resourceType'],
   resourceId: row.resourceId,
@@ -73,7 +49,7 @@ const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => (
   payload: row.payload as ActivityLog['payload'],
   source: assertLiteral(
     row.source,
-    VALID_SOURCES,
+    ACTIVITY_SOURCES,
     'activity.source',
   ) as ActivityLog['source'],
   eventId: row.eventId ?? null,
