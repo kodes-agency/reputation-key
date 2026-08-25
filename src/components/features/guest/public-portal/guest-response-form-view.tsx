@@ -43,8 +43,8 @@ export function GuestResponseFormView(props: GuestResponseFormViewProps) {
 function GatewayLoading() {
   return (
     <section aria-busy="true" className="rounded-lg border p-5">
-      <div className="h-5 w-48 animate-pulse rounded bg-gray-200" />
-      <div className="mt-4 h-20 animate-pulse rounded bg-gray-100" />
+      <div className="h-5 w-48 animate-pulse rounded bg-muted" />
+      <div className="mt-4 h-20 animate-pulse rounded bg-muted/60" />
     </section>
   )
 }

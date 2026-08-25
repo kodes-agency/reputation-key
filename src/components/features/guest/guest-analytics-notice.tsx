@@ -79,10 +79,10 @@ export function GuestAnalyticsNotice({
     <div
       role="region"
       aria-label="Portal analytics information"
-      className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-200 shadow-lg"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background p-4"
     >
-      <div className="max-w-lg mx-auto flex flex-col gap-3 sm:flex-row sm:items-center">
-        <p className="text-sm text-gray-600">
+      <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row sm:items-center">
+        <p className="text-sm text-muted-foreground">
           An essential session cookie protects your response. Separately, we count this
           visit using a short-lived, privacy-protected network marker. This helps the
           property understand how its review portal is performing and prevents duplicate

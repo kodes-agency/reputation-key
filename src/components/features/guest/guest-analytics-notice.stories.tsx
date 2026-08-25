@@ -51,6 +51,9 @@ export const FirstVisit: Story = {
     ).toBeInTheDocument()
     expect(canvas.getByRole('button', { name: 'Got it' })).toBeInTheDocument()
     expect(canvas.queryByRole('button', { name: /reject|decline/i })).toBeNull()
+    expect(
+      canvas.getByRole('region', { name: 'Portal analytics information' }),
+    ).toHaveClass('border-border', 'bg-background')
     await waitFor(() => expect(args.onPortalVisit).toHaveBeenCalledTimes(1))
   },
 }
