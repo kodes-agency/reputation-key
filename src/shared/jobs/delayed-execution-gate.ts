@@ -535,9 +535,9 @@ async function enforceJobRouting(
 }
 
 /**
- * BullMQ repeatable jobs carry repeatJobKey; our schedules additionally use
- * stable '<name>-recurring' jobIds. Both mark a schedule firing rather than
- * an ad-hoc enqueue (verified against node_modules/bullmq Job fields).
+ * BullMQ Job Scheduler firings carry the stable scheduler ID in repeatJobKey.
+ * The jobId fallback keeps already-enqueued legacy repeat firings classified
+ * correctly during the one-time reconciliation cutover.
  */
 function isScheduleFiring(job: Job): boolean {
   if (job.repeatJobKey) return true

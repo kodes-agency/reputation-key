@@ -29,6 +29,10 @@ import {
 } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import {
+  reconcileJobSchedulers,
+  type JobSchedulerRegistration,
+} from '#/shared/jobs/job-schedulers'
 import { drainWorkerResources, namedCloseable } from './drain'
 import {
   QUARANTINE_QUEUE_NAME,
@@ -205,44 +209,35 @@ async function main() {
       )
     }
 
+    type PlannedSchedule = Omit<JobSchedulerRegistration, 'schedulerId' | 'jobOptions'> &
+      Readonly<{ label: string; capability?: string }>
+    const desiredSchedules: Array<JobSchedulerRegistration & { label: string }> = []
+    const managedScheduleJobNames: string[] = []
+    const planSchedule = (schedule: PlannedSchedule, enabled = true): void => {
+      managedScheduleJobNames.push(schedule.jobName)
+      if (!enabled) return
+      desiredSchedules.push({
+        ...schedule,
+        schedulerId: `${schedule.jobName}-recurring`,
+        jobOptions: jobEnqueueOptions(schedule.jobName),
+      })
+    }
+
     // Schedule health-check job every 5 minutes
-    container.backgroundQueue
-      .add(
-        HEALTH_CHECK_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'health-check-recurring',
-          ...jobEnqueueOptions(HEALTH_CHECK_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Health-check job scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule health-check job (may already exist)')
-      })
+    planSchedule({
+      jobName: HEALTH_CHECK_JOB_NAME,
+      repeat: { every: 5 * 60 * 1000 },
+      label: 'every 5 minutes',
+    })
 
     // Schedule review retention jobs
-    container.backgroundQueue
-      .add(
-        REFRESH_EXPIRING_JOB_NAME,
-        {},
-        {
-          // BQC-1.5: hourly bounded sweep with cursor resume — keeps pace
-          // with the refresh-due window at target scale (500-row batches,
-          // budget 10/run, resumes when budget is exhausted or a run fails).
-          repeat: { every: 60 * 60 * 1000 },
-          jobId: 'refresh-expiring-reviews-recurring',
-          ...jobEnqueueOptions(REFRESH_EXPIRING_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Refresh expiring reviews job scheduled (hourly, BQC-1.5)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
-      })
+    // BQC-1.5: hourly bounded sweep with cursor resume — keeps pace with the
+    // refresh-due window at target scale (500-row batches, budget 10/run).
+    planSchedule({
+      jobName: REFRESH_EXPIRING_JOB_NAME,
+      repeat: { every: 60 * 60 * 1000 },
+      label: 'hourly, BQC-1.5',
+    })
 
     // New-review discovery sweep. The refresh sweep above only revisits
     // reviews ALREADY stored and only inside their 5-day pre-expiry window,
@@ -251,22 +246,11 @@ async function main() {
     // property's own poll interval (REVIEW_DISCOVERY_INTERVAL_MINUTES,
     // default 15) can come due. Bounded at 200 properties × 10 batches per
     // firing, so the cadence never becomes the scaling limit.
-    container.backgroundQueue
-      .add(
-        DISCOVER_NEW_REVIEWS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 15 * 60 * 1000 },
-          jobId: 'discover-new-reviews-recurring',
-          ...jobEnqueueOptions(DISCOVER_NEW_REVIEWS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Discover new reviews job scheduled (every 15 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule discover-new-reviews job')
-      })
+    planSchedule({
+      jobName: DISCOVER_NEW_REVIEWS_JOB_NAME,
+      repeat: { every: 15 * 60 * 1000 },
+      label: 'every 15 minutes',
+    })
 
     // Notification-gap healing sweep. `emitAfterCommit` is best-effort, so a
     // throw in the inbox or notification handler leaves a committed review
@@ -274,99 +258,44 @@ async function main() {
     // minutes is the fixed firing cadence — comfortably wider than the job's
     // 5-minute grace edge, so a firing never races the happy path it is
     // checking up on. Bounded at 100 items x 5 batches per firing.
-    container.backgroundQueue
-      .add(
-        RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 10 * 60 * 1000 },
-          jobId: 'reconcile-missing-notifications-recurring',
-          ...jobEnqueueOptions(RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Reconcile missing notifications job scheduled (every 10 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule reconcile-missing-notifications job')
-      })
+    planSchedule({
+      jobName: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
+      repeat: { every: 10 * 60 * 1000 },
+      label: 'every 10 minutes',
+    })
 
-    container.backgroundQueue
-      .add(
-        PURGE_EXPIRED_JOB_NAME,
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
-          jobId: 'purge-expired-reviews-recurring',
-          ...jobEnqueueOptions(PURGE_EXPIRED_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Purge expired reviews job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
-      })
+    planSchedule({
+      jobName: PURGE_EXPIRED_JOB_NAME,
+      repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
+      label: 'daily',
+    })
 
     // BQC-3.8: reconcile ambiguous reply publications every 30 minutes. A row
     // becomes due 15 minutes after the final ambiguous send attempt
     // (reconcile_due_at); the sweep heals provider-confirmed rows to
     // published and leaves the rest for operator retry.
-    container.backgroundQueue
-      .add(
-        RECONCILE_AMBIGUOUS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 30 * 60 * 1000 },
-          jobId: 'reconcile-ambiguous-publications-recurring',
-          ...jobEnqueueOptions(RECONCILE_AMBIGUOUS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Reconcile ambiguous publications job scheduled (every 30 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule reconcile-ambiguous-publications job')
-      })
+    planSchedule({
+      jobName: RECONCILE_AMBIGUOUS_JOB_NAME,
+      repeat: { every: 30 * 60 * 1000 },
+      label: 'every 30 minutes',
+    })
 
     // BQC-1.6: bounded retention with content-free evidence, daily (offset
     // from purge so deletion evidence lands after canonical purges).
-    container.backgroundQueue
-      .add(
-        'retention-sweep',
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 3 * 60 * 60 * 1000 },
-          jobId: 'retention-sweep-recurring',
-          ...jobEnqueueOptions('retention-sweep'),
-        },
-      )
-      .then(() => {
-        logger.info('Retention sweep job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule retention-sweep job')
-      })
+    planSchedule({
+      jobName: 'retention-sweep',
+      repeat: { every: 24 * 60 * 60 * 1000, offset: 3 * 60 * 60 * 1000 },
+      label: 'daily',
+    })
 
     // BQC-7.8: dead-letter quarantine TTL bound, daily (offset after the
     // retention sweep). Removes quarantined entries older than
     // QUARANTINE_TTL_DAYS via job.remove() — never obliterate/clean.
-    container.backgroundQueue
-      .add(
-        QUARANTINE_TTL_SWEEP_JOB_NAME,
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 4 * 60 * 60 * 1000 },
-          jobId: 'quarantine-ttl-sweep-recurring',
-          ...jobEnqueueOptions(QUARANTINE_TTL_SWEEP_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Quarantine TTL sweep job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule quarantine-ttl-sweep job')
-      })
+    planSchedule({
+      jobName: QUARANTINE_TTL_SWEEP_JOB_NAME,
+      repeat: { every: 24 * 60 * 60 * 1000, offset: 4 * 60 * 60 * 1000 },
+      label: 'daily',
+    })
 
     // Execution-permit start-deadline fence, every 5 minutes. `admitted` has
     // exactly two other exits — a caller actually starting the permit (which
@@ -375,22 +304,11 @@ async function main() {
     // ON DELETE RESTRICT approval binding and inflating the active-permit index.
     // Cadence is well under the approval-rotation window and each run is
     // batch-bounded, so a backlog drains across runs.
-    container.backgroundQueue
-      .add(
-        PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'permit-start-deadline-sweep-recurring',
-          ...jobEnqueueOptions(PERMIT_START_DEADLINE_SWEEP_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Permit start-deadline sweep job scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule permit-start-deadline-sweep job')
-      })
+    planSchedule({
+      jobName: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+      repeat: { every: 5 * 60 * 1000 },
+      label: 'every 5 minutes',
+    })
 
     // Google-import claim-lease reaper, every 60 seconds — one claim-lease
     // width (GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS). A worker killed mid-effect
@@ -400,22 +318,11 @@ async function main() {
     // hours later. This bounds recovery at roughly two lease widths. The run
     // is a bounded 100-row scan that routes every row through the store's CAS
     // helpers, so it is a no-op when no claim is stale.
-    container.backgroundQueue
-      .add(
-        GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME,
-        {},
-        {
-          repeat: { every: 60 * 1000 },
-          jobId: 'google-import-claim-reaper-recurring',
-          ...jobEnqueueOptions(GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Google import claim-lease reaper scheduled (every 60 seconds)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule google-import-claim-reaper job')
-      })
+    planSchedule({
+      jobName: GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME,
+      repeat: { every: 60 * 1000 },
+      label: 'every 60 seconds',
+    })
 
     // ── AI operation abandoned-execution reaper ────────────────────────
     // An operation whose owner died between `claimExecution` and its terminal
@@ -427,22 +334,11 @@ async function main() {
     // already-dead row keeps claiming to be live. Bounded 100-row scan routed
     // through the store's `recordFailure` CAS; a no-op when nothing is
     // abandoned.
-    container.backgroundQueue
-      .add(
-        AI_EXECUTION_REAPER_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'ai-operation-execution-reaper-recurring',
-          ...jobEnqueueOptions(AI_EXECUTION_REAPER_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('AI operation abandoned-execution reaper scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule ai-operation-execution-reaper job')
-      })
+    planSchedule({
+      jobName: AI_EXECUTION_REAPER_JOB_NAME,
+      repeat: { every: 5 * 60 * 1000 },
+      label: 'every 5 minutes',
+    })
 
     // ── AI review-analysis backfill advance sweep ──────────────────────
     // A backfill run emits ONE review at a time — `storeAnalysis` refuses
@@ -450,22 +346,11 @@ async function main() {
     // the outbox consumer hands the run its next item as each one settles. This
     // sweep only covers a hand-off that was lost, so the cadence bounds how long
     // a BROKEN chain sits idle, not how fast a healthy run goes.
-    container.backgroundQueue
-      .add(
-        AI_BACKFILL_ADVANCE_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'ai-review-analysis-backfill-advance-recurring',
-          ...jobEnqueueOptions(AI_BACKFILL_ADVANCE_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('AI review-analysis backfill advance scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule ai-review-analysis-backfill-advance job')
-      })
+    planSchedule({
+      jobName: AI_BACKFILL_ADVANCE_JOB_NAME,
+      repeat: { every: 5 * 60 * 1000 },
+      label: 'every 5 minutes',
+    })
 
     // ── Metric materialized view refresh jobs ──────────────────────────
     type MetricSchedule = Readonly<{
@@ -488,15 +373,11 @@ async function main() {
       },
     ]
     for (const { jobName, every, pattern, label } of metricSchedules) {
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(
-          jobName,
-          {},
-          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
-        )
-        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
+      planSchedule({
+        jobName,
+        repeat: pattern ? { pattern } : { every: every! },
+        label,
+      })
     }
 
     // ── Controlled-beta + outbound-email jobs ──────────────────────
@@ -543,23 +424,40 @@ async function main() {
       },
     ]
     for (const { jobName, every, pattern, label, capability } of capabilitySchedules) {
-      if (!isCapabilityJobEnabled(capability)) {
+      const enabled = isCapabilityJobEnabled(capability)
+      if (!enabled) {
         logger.info(
           { jobName, capability },
           'BQR-0: dark/blocked capability job NOT scheduled',
         )
-        continue
       }
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(
+      planSchedule(
+        {
           jobName,
-          {},
-          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
-        )
-        .then(() => logger.info({ jobName, label, capability }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
+          repeat: pattern ? { pattern } : { every: every! },
+          label,
+          capability,
+        },
+        enabled,
+      )
     }
+
+    const scheduleReconciliation = await reconcileJobSchedulers({
+      queue: container.backgroundQueue,
+      managedJobNames: managedScheduleJobNames,
+      desired: desiredSchedules,
+    })
+    for (const { schedulerId, jobName, label } of desiredSchedules) {
+      logger.info({ schedulerId, jobName, label }, 'Job scheduler reconciled')
+    }
+    logger.info(
+      {
+        managed: managedScheduleJobNames.length,
+        enabled: desiredSchedules.length,
+        removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
+      },
+      'Background job scheduler set reconciled',
+    )
   } else {
     logger.warn('No background queue available — cron jobs not scheduled')
   }

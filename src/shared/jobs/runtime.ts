@@ -15,6 +15,7 @@ import { createJobWorker } from './worker'
 import { getPolicyJobOptions } from './policies'
 import type { JobHandler } from './registry'
 import type { JobDefinition, QueueClass, ScheduleDefinition } from './contracts'
+import { reconcileJobSchedulers, type JobSchedulerRegistration } from './job-schedulers'
 
 // ── Queue class configuration ───────────────────────────────────────
 
@@ -103,12 +104,8 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
 
   // Build handler lookup
   const handlers = new Map<string, JobHandler>()
-  const schedulerIds = new Set<string>()
   for (const def of definitions) {
     handlers.set(def.name, def.handler)
-    if (def.schedule) {
-      schedulerIds.add(def.schedule.schedulerId)
-    }
   }
 
   // Group definitions by queue class
@@ -153,12 +150,21 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
           'Worker started for queue class',
         )
 
-        // Register schedulers for repeatable jobs
-        for (const def of queueDefs) {
-          if (!def.schedule || !queue) continue
-          await registerScheduler(queue, def.name, def.schedule, def.retry)
+        // Reconcile schedulers as one owned set. Stable IDs update cadence in
+        // place and stale legacy keys are removed before upsert.
+        const schedules = queueDefs.flatMap((def) =>
+          def.schedule ? [schedulerRegistration(def.name, def.schedule, def.retry)] : [],
+        )
+        if (queue && schedules.length > 0) {
+          await reconcileJobSchedulers({
+            queue,
+            managedJobNames: schedules.map((schedule) => schedule.jobName),
+            desired: schedules,
+          })
+        }
+        for (const schedule of schedules) {
           logger.info(
-            { job: def.name, schedulerId: def.schedule.schedulerId },
+            { job: schedule.jobName, schedulerId: schedule.schedulerId },
             'Scheduler registered',
           )
         }
@@ -225,12 +231,11 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
 
 // ── Scheduler registration ──────────────────────────────────────────
 
-async function registerScheduler(
-  queue: Queue,
+function schedulerRegistration(
   jobName: string,
   schedule: ScheduleDefinition,
   retry: import('./contracts').RetryPolicyName,
-): Promise<void> {
+): JobSchedulerRegistration {
   const repeat = schedule.pattern
     ? { pattern: schedule.pattern }
     : { every: schedule.every! }
@@ -243,13 +248,10 @@ async function registerScheduler(
     Object.assign(repeat, { offset: jitter })
   }
 
-  await queue.add(
+  return {
+    schedulerId: schedule.schedulerId,
     jobName,
-    {},
-    {
-      repeat,
-      jobId: schedule.schedulerId,
-      ...jobOptions,
-    },
-  )
+    repeat,
+    jobOptions,
+  }
 }
