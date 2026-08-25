@@ -153,6 +153,59 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     }
   })
 
+  it('routes active AI facts through the master allowlist adapter', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+
+    const trend = toOutboxEvent({
+      _tag: 'ai.property_trend.generation_requested',
+      eventId: '71000000-0000-4000-8000-000000000201',
+      scheduleId: '71000000-0000-4000-8000-000000000202',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('71000000-0000-4000-8000-000000000203'),
+      occurredAt: NOW,
+      correlationId: 'corr-ai-trend',
+    })
+    const backfill = toOutboxEvent({
+      _tag: 'ai.review_analysis.backfill_requested',
+      eventId: '71000000-0000-4000-8000-000000000204',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('71000000-0000-4000-8000-000000000203'),
+      reviewId: reviewId('71000000-0000-4000-8000-000000000205'),
+      sourceEpoch: 2,
+      sourceRevision: 3,
+      analysisSequence: 4,
+      occurredAt: NOW,
+      correlationId: 'corr-ai-backfill',
+    })
+
+    expect(trend).toMatchObject({
+      eventType: 'ai.property_trend.generation_requested',
+      sourceContext: 'ai',
+      sourceAggregateId: '71000000-0000-4000-8000-000000000202',
+      payload: {
+        scheduleId: '71000000-0000-4000-8000-000000000202',
+        organizationId: 'org-1',
+        propertyId: '71000000-0000-4000-8000-000000000203',
+        occurredAt: NOW.toISOString(),
+        correlationId: 'corr-ai-trend',
+      },
+    })
+    expect(backfill).toMatchObject({
+      eventType: 'ai.review_analysis.backfill_requested',
+      sourceContext: 'ai',
+      sourceAggregateId: '71000000-0000-4000-8000-000000000205',
+      payload: {
+        reviewId: '71000000-0000-4000-8000-000000000205',
+        sourceEpoch: 2,
+        sourceRevision: 3,
+        analysisSequence: 4,
+        occurredAt: NOW.toISOString(),
+        correlationId: 'corr-ai-backfill',
+      },
+    })
+  })
+
   it('throws unregistered for unknown event types', () => {
     const event = {
       ...makeReviewCreated(),

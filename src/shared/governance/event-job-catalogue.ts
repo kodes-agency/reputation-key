@@ -300,6 +300,7 @@ const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
 const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
 const GOAL_EVENTS = 'src/contexts/goal/domain/events.ts'
 const BADGE_EVENTS = 'src/contexts/badge/domain/events.ts'
+const AI_EVENTS = 'src/contexts/ai/domain/events.ts'
 
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev(
@@ -367,7 +368,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ),
   ev(
     'ai.property_trend.generation_requested',
-    'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
+    AI_EVENTS,
     {
       stateOwner: 'ai',
       capability: 'ai.detect_trends',
@@ -385,7 +386,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ),
   ev(
     'ai.review_analysis.backfill_requested',
-    'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts',
+    AI_EVENTS,
     {
       stateOwner: 'ai',
       capability: 'ai.analyze',

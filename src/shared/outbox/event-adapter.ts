@@ -181,6 +181,7 @@ function extractAggregateId(event: DomainEvent): string {
     'replyId',
     'inboxItemId',
     'noteId',
+    'scheduleId',
     'propertyId',
     'portalId',
     'portalGroupId',

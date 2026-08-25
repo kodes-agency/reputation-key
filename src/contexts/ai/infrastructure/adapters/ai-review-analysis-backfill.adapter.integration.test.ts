@@ -20,6 +20,7 @@ import {
   aiReviewAnalysisBackfillRuns,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -42,6 +43,8 @@ const ACTOR_USER_ID = 'ai-reanalyze-test-actor'
 const SOURCE_EPOCH = 3
 const HEAD_SEQUENCE = 256
 const DIGEST = 'a'.repeat(64)
+
+registerAllEventSchemas()
 
 const RUNTIME_PROFILES = {
   review_analysis: 'review-analysis-runtime-v1',

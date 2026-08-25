@@ -32,6 +32,7 @@ import {
   replies,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { properties } from '#/shared/db/schema/property.schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
@@ -66,6 +67,8 @@ const REVIEW_ID = '71000000-0000-4000-8000-000000000002'
 const ORIGIN_EVENT_ID = '71000000-0000-4000-8000-000000000003'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000004'
 const DIGEST = 'a'.repeat(64)
+
+registerAllEventSchemas()
 const SOURCE_PROVENANCE = Object.freeze({ digest: DIGEST, byteCount: 17 })
 const REVIEW_OPERATION_PROFILE = AI_OPERATION_PROFILES.find(
   (profile) => profile.profileVersion === 'review-analysis-v1',
@@ -1831,6 +1834,8 @@ describe('AI operation store (real PostgreSQL)', () => {
           scheduleId: scheduled!.scheduleId,
           organizationId: ORGANIZATION_ID,
           propertyId: PROPERTY_ID,
+          occurredAt: expect.any(String),
+          correlationId: null,
         },
         organizationId: ORGANIZATION_ID,
         propertyId: PROPERTY_ID,

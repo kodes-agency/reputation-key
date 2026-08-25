@@ -266,13 +266,14 @@ const integrationPropertyImportRetentionReleasedSchema = z
     organizationId,
     idempotencyKeys,
   }))
-const aiPropertyTrendGenerationRequestedSchema = z
-  .object({
-    scheduleId: z.uuid(),
-    organizationId: z.string().min(1),
-    propertyId: z.uuid(),
-  })
-  .strict()
+const aiPropertyTrendGenerationRequestedSchema = z.object({
+  scheduleId: z.uuid(),
+  organizationId: z.string().min(1),
+  propertyId: z.uuid(),
+  occurredAt: z.string(),
+})
+// Envelope metadata is reattached after producer-side allowlist validation
+// and stripped again during consumer-side validation.
 // Operator review-analysis backfill (ops:ai-reanalyze). Identifier-only, and
 // the same field set the AI review consumer already validates — `analysisSequence`
 // is the FRESH sequence allocated for the replay, not the review's stored one.
@@ -286,7 +287,7 @@ const aiReviewAnalysisBackfillRequestedSchema = z.object({
   sourceEpoch: z.number().int().nonnegative(),
   sourceRevision: z.number().int().positive(),
   analysisSequence: z.number().int().positive(),
-  occurredAt: z.string().optional(),
+  occurredAt: z.string(),
 })
 const integrationPropertyImportRequestedSchema = z
   .object({

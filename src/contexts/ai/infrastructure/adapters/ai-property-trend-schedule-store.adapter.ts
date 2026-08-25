@@ -5,14 +5,14 @@ import {
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedulerHeads,
   aiPropertyTrendSchedules,
-  outboxEvents,
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import type {
   AiPropertyTrendSchedule,
   AiPropertyTrendScheduleStorePort,
 } from '../../application/ports/ai-property-trend-schedule-store.port'
-import type { AiPropertyTrendGenerationRequested } from '../../domain/events'
+import { aiPropertyTrendGenerationRequested } from '../../domain/events'
 
 const SCHEDULER_KEY = 'property-trend-v1'
 const BATCH_SIZE = 100
@@ -170,18 +170,17 @@ export function createAiPropertyTrendScheduleStore(
         let scheduledCount = 0
         for (const candidate of candidates.rows) {
           const scheduleId = randomUUID()
-          const eventId = randomUUID()
-          const event: AiPropertyTrendGenerationRequested = {
-            _tag: 'ai.property_trend.generation_requested',
+          const event = aiPropertyTrendGenerationRequested({
             scheduleId,
             organizationId: organizationId(candidate.organizationId),
             propertyId: propertyId(candidate.propertyId),
-          }
+            occurredAt: now,
+          })
           const inserted = await tx
             .insert(aiPropertyTrendSchedules)
             .values({
               id: scheduleId,
-              outboxEventId: eventId,
+              outboxEventId: event.eventId,
               organizationId: candidate.organizationId,
               propertyId: candidate.propertyId,
               dueLocalDate: candidate.dueLocalDate,
@@ -203,21 +202,7 @@ export function createAiPropertyTrendScheduleStore(
             .returning({ id: aiPropertyTrendSchedules.id })
           if (inserted.length === 0) continue
 
-          await tx.insert(outboxEvents).values({
-            id: eventId,
-            eventType: event._tag,
-            eventVersion: 1,
-            payload: {
-              scheduleId: event.scheduleId,
-              organizationId: event.organizationId,
-              propertyId: event.propertyId,
-            },
-            organizationId: event.organizationId,
-            propertyId: event.propertyId,
-            sourceContext: 'ai',
-            sourceAggregateId: scheduleId,
-            createdAt: now,
-          })
+          await insertOutboxRow(tx, event, { recordedAt: now })
           scheduledCount += 1
         }
 

@@ -103,6 +103,13 @@ export type {
 // Badge context events
 export type { BadgeEvent, BadgeAwarded } from '#/contexts/badge/domain/events'
 
+// AI context events
+export type {
+  AiEvent,
+  AiPropertyTrendGenerationRequested,
+  AiReviewAnalysisBackfillRequested,
+} from '#/contexts/ai/domain/events'
+
 // Master union — adding a new context's events requires extending this.
 import type { BadgeEvent } from '#/contexts/badge/domain/events'
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
@@ -116,6 +123,7 @@ import type { ReviewEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
 import type { GoalEvent } from '#/contexts/goal/domain/events'
 import type { MetricEvent } from '#/contexts/metric/domain/events'
+import type { AiEvent } from '#/contexts/ai/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -130,3 +138,4 @@ export type DomainEvent =
   | GoalEvent
   | MetricEvent
   | BadgeEvent
+  | AiEvent

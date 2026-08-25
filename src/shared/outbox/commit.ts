@@ -37,6 +37,14 @@ export async function emitAfterCommit(
 }
 
 /** Insert the durable outbox row for a domain event inside the command transaction. */
-export async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
+export async function insertOutboxRow(
+  tx: Tx,
+  event: DomainEvent,
+  options: Readonly<{ recordedAt?: Date }> = {},
+): Promise<void> {
+  await tx.insert(outboxEvents).values({
+    ...toOutboxEvent(event),
+    id: event.eventId,
+    ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
+  })
 }

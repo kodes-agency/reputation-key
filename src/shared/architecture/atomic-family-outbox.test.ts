@@ -97,4 +97,24 @@ describe('BQC-3.5: atomic family outbox producers', () => {
     expect(src).toContain('events.emit')
     expect(src).toContain('durable row retained')
   })
+
+  it('active AI producers use the master fact union and validated commit helper', () => {
+    const aiProducers = [
+      'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
+      'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts',
+    ]
+    for (const file of aiProducers) {
+      const src = readFileSync(join(ROOT, file), 'utf-8')
+      expect(src, `${file} must use the shared validated outbox commit`).toContain(
+        'insertOutboxRow',
+      )
+      expect(src, `${file} must not handcraft an outbox row`).not.toContain(
+        'insert(outboxEvents)',
+      )
+    }
+
+    const masterUnion = readFileSync(join(ROOT, 'src/shared/events/events.ts'), 'utf-8')
+    expect(masterUnion).toContain("from '#/contexts/ai/domain/events'")
+    expect(masterUnion).toContain('| AiEvent')
+  })
 })

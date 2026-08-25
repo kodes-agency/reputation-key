@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { outboxEvents } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   organizationId as toOrganizationId,
@@ -12,13 +11,14 @@ import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
   MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
 } from '#/shared/ai-review-source-contract'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import type {
   ReviewAnalysisBackfillCandidate,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillSession,
   ReviewAnalysisBackfillStorePort,
 } from '../../application/ports/ai-review-analysis-backfill.port'
-import type { AiReviewAnalysisBackfillRequested } from '../../domain/events'
+import { aiReviewAnalysisBackfillRequested } from '../../domain/events'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -322,35 +322,17 @@ function createSession(
         )
       }
 
-      const event: AiReviewAnalysisBackfillRequested = {
-        _tag: 'ai.review_analysis.backfill_requested',
+      const event = aiReviewAnalysisBackfillRequested({
         organizationId,
         propertyId,
         reviewId: input.reviewId,
         sourceEpoch: input.sourceEpoch,
         sourceRevision: input.sourceRevision,
         analysisSequence: input.analysisSequence,
-      }
-      await tx.insert(outboxEvents).values({
-        id: randomUUID(),
-        eventType: event._tag,
-        eventVersion: 1,
-        payload: {
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          reviewId: event.reviewId,
-          sourceEpoch: event.sourceEpoch,
-          sourceRevision: event.sourceRevision,
-          analysisSequence: event.analysisSequence,
-          occurredAt: input.occurredAt.toISOString(),
-          correlationId: input.correlationId,
-        },
-        organizationId: event.organizationId,
-        propertyId: event.propertyId,
-        sourceContext: 'ai',
-        sourceAggregateId: event.reviewId,
-        createdAt: input.occurredAt,
+        occurredAt: input.occurredAt,
+        correlationId: input.correlationId,
       })
+      await insertOutboxRow(tx, event, { recordedAt: input.occurredAt })
     },
 
     async readActiveRun() {
