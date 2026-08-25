@@ -69,6 +69,10 @@ export type AuthRouteContext = Readonly<{
   } | null
 }>
 
+type CapabilityResolution =
+  | Readonly<{ ok: true; capabilities: CapabilitySet }>
+  | Readonly<{ ok: false; error: unknown }>
+
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
     const session = await getSession()
@@ -100,12 +104,12 @@ export const Route = createFileRoute('/_authenticated')({
     // posture rather than an error — this set is a navigation affordance, and
     // the route gates remain the boundary.
     const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
-    const capabilitiesPromise = getCapabilitySet({
+    const capabilitiesPromise: Promise<CapabilityResolution> = getCapabilitySet({
       data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
-    }).catch((e: unknown) => {
-      if (isRedirect(e)) throw e
-      return EMPTY_CAPABILITY_SET
-    })
+    }).then(
+      (capabilities) => ({ ok: true, capabilities }),
+      (error: unknown) => ({ ok: false, error }),
+    )
 
     // Error handling strategy for getActiveOrganization:
     //  1. isRedirect — always forward (e.g., auth middleware redirects).
@@ -153,6 +157,11 @@ export const Route = createFileRoute('/_authenticated')({
       }
     }
 
+    const capabilityResolution = await capabilitiesPromise
+    if (!capabilityResolution.ok && isRedirect(capabilityResolution.error)) {
+      throw capabilityResolution.error
+    }
+
     return {
       user: {
         id: session.user.id,
@@ -162,7 +171,9 @@ export const Route = createFileRoute('/_authenticated')({
       },
       role,
       authz,
-      capabilities: await capabilitiesPromise,
+      capabilities: capabilityResolution.ok
+        ? capabilityResolution.capabilities
+        : EMPTY_CAPABILITY_SET,
       activeOrganization,
     } satisfies AuthRouteContext
   },
